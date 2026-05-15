@@ -835,7 +835,7 @@ async function analyzeLogo() {
   const b64 = logoB64.split(',')[1];
   const mt = logoB64.split(';')[0].split(':')[1] || 'image/png';
   try {
-    const res = await fetch('https://hub-jany-api.konverze-bi.workers.dev',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mt,data:b64}},{type:'text',text:`Analiza este logotipo. Responde SOLO JSON sin backticks:\n{"descripcion":"1 oración","estilo":"minimalista/bold/elegante/etc","colores":[{"hex":"#XXX","nombre":"nombre","uso":"uso"}],"tipografia":"tipo si aplica","personalidad":"3 adjetivos","sugerencia_paleta":"Neon Dark|Ocean|Fire|Rose|Earth|Royal|Mint|Gold|Mono|Pastel"}`}]}]})});
+    const res = await fetch('https://hub-jany-api.konverze-bi.workers.dev',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-3-5-sonnet-20241022',max_tokens:800,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mt,data:b64}},{type:'text',text:`Analiza este logotipo. Responde SOLO JSON sin backticks:\n{"descripcion":"1 oración","estilo":"minimalista/bold/elegante/etc","colores":[{"hex":"#XXX","nombre":"nombre","uso":"uso"}],"tipografia":"tipo si aplica","personalidad":"3 adjetivos","sugerencia_paleta":"Neon Dark|Ocean|Fire|Rose|Earth|Royal|Mint|Gold|Mono|Pastel"}`}]}]})});
     const d = await res.json();
     logoAnalysis = JSON.parse(d.content.map(b=>b.text||'').join('').replace(/```json|```/g,'').trim());
     const dots = logoAnalysis.colores.map(c=>`<div class="color-dot"><div class="dot" style="background:${c.hex}"></div><span>${c.nombre} — ${c.uso}</span></div>`).join('');
@@ -933,7 +933,7 @@ async function generateIdeas() {
   const ctx = brandCtx();
   const prompt = `Eres un experto en marketing digital y contenido para redes sociales.\n${ctx?'CONTEXTO DE MARCA:\n'+ctx+'\n':''}\n${meta?`El objetivo específico es: "${meta}"`:'Analiza tendencias actuales y recomienda ideas de contenido para un negocio en crecimiento.'}\nGenera exactamente 10 ideas de contenido frescas. Cada idea:\n- topic: título de 5-8 palabras que conecta con la marca\n- hook: gancho de 10-20 palabras que empieza EXACTAMENTE como empezaría el video/post\nResponde SOLO con JSON sin backticks: {"ideas":[{"topic":"...","hook":"..."}]}`;
   try {
-    const r = await fetch('https://hub-jany-api.konverze-bi.workers.dev',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
+    const r = await fetch('https://hub-jany-api.konverze-bi.workers.dev',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-3-5-sonnet-20241022',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
     const d = await r.json();
     cIdeas = JSON.parse(d.content.map(i=>i.text||'').join('').replace(/```json|```/g,'').trim()).ideas||[];
     cIdeas.forEach((idea,i)=>{
@@ -959,7 +959,7 @@ async function generateMasterpiece() {
   const ctx=brandCtx();
   const prompt=`Eres un experto en marketing digital.\n${ctx?'MARCA:\n'+ctx+'\n':''}\nIdea: "${cSelIdea.topic}" — Gancho: "${cSelIdea.hook}"\nFormato: ${cSelFormat}\nObjetivo: ${meta||'Crecer en redes y generar ventas'}\n\nGenera el contenido completo. SOLO JSON sin backticks:\n{\n"guion":"Escena a escena qué se ve y qué se dice. Empieza con el gancho. Máx 180 palabras.",\n"prompt":"Prompt completo en inglés para IA generativa. Composición, iluminación, colores, mood, estilo. Mín 80 palabras.",\n"tool":"Higgsfield AI o Canva según formato ${cSelFormat}",\n"arte_desc":"Descripción visual en español: qué se ve, paleta, composición, mood. 2-3 frases.",\n"caption":"Caption completo en español. Gancho + mensaje + CTA + link ${waLink}. Emojis estratégicos. Máx 150 palabras.",\n"hashtags":["#hashtag1","#hashtag2","#${(brand.nombre||'marca').replace(/\s+/g,'')}","#hashtag4","#hashtag5"]\n}`;
   try {
-    const r=await fetch('https://hub-jany-api.konverze-bi.workers.dev',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
+    const r=await fetch('https://hub-jany-api.konverze-bi.workers.dev',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-3-5-sonnet-20241022',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
     const d=await r.json();
     const mp=JSON.parse(d.content.map(i=>i.text||'').join('').replace(/```json|```/g,'').trim());
     document.getElementById('mp-guion').textContent=mp.guion||'';
@@ -1000,10 +1000,10 @@ function handleCSV(file) {
   Papa.parse(file,{header:true,skipEmptyLines:true,dynamicTyping:true,complete:r=>{if(!r.data||!r.data.length){showAdsError('CSV vacío.');return;}adsParsed=r.data;document.getElementById('btn-analyze').disabled=false;},error:()=>showAdsError('Error al leer el CSV.')});
 }
 function showAdsError(msg){const el=document.getElementById('ads-error');el.textContent='⚠ '+msg;el.style.display='block';}
-function nRow(row){const n={};for(const[k,v]of Object.entries(row)){n[k.trim().toLowerCase().replace(/\s+/g,'_').replace(/[áàä]/g,'a').replace(/[éèë]/g,'e').replace(/[íìï]/g,'i').replace(/[óòö]/g,'o').replace(/[úùü]/g,'u').replace(/[^a-z0-9_]/g,'')]=v;}return n;}
+function nRow(row){const n={};for(const[k,v]of Object.entries(row)){n[k.trim().toLowerCase().replace(/\s+/g,'_').replace(/[áàä]/g,'a').replace(/[éèë]/g,'e').replace(/[íìï]/g,'i').replace(/[óòö]/g,'o').replace(/[úùü]/g,'u').replace(/[()\[\]%,\.]/g,'').replace(/[^a-z0-9_]/g,'').replace(/_+/g,'_').replace(/^_|_$/g,'')]=v;}return n;}
 function findC(row,cands){for(const c of cands){if(row[c]!==undefined&&row[c]!==null&&row[c]!=='')return row[c];}return null;}
 function pNum(v){if(v===null||v===undefined||v==='')return 0;if(typeof v==='number')return v;return parseFloat(String(v).replace(/[^0-9.\-]/g,''))||0;}
-function processCSV(raw){return raw.map(r=>{const n=nRow(r);return{nombre:String(findC(n,['nombre_del_anuncio','ad_name','anuncio','nombre','name','ad'])||'Sin nombre'),gasto:pNum(findC(n,['importe_gastado_mxn','importe_gastado','amount_spent','gasto','spent','costo','cost'])),impresiones:pNum(findC(n,['impresiones','impressions','impr'])),clics:pNum(findC(n,['clics_en_el_enlace','clics','clicks','link_clicks'])),ctr:pNum(findC(n,['ctr_porcentaje_de_clics_en_el_enlace','ctr_del_enlace','ctr','click_through_rate'])),cpm:pNum(findC(n,['cpm_coste_por_1000_impresiones','cpm','cost_per_1000_impressions'])),resultados:pNum(findC(n,['resultados','results','mensajes','messages','conversiones','conversions'])),};}).filter(r=>r.gasto>0||r.impresiones>0);}
+function processCSV(raw){return raw.map(r=>{const n=nRow(r);return{nombre:String(findC(n,['ad_name','nombre_del_anuncio','anuncio','nombre','name','ad'])||'Sin nombre'),gasto:pNum(findC(n,['amount_spent_mxn','amount_spent_usd','amount_spent','importe_gastado_mxn','importe_gastado','gasto','spent','costo','cost'])),impresiones:pNum(findC(n,['impressions','impresiones','impr'])),clics:pNum(findC(n,['link_clicks','clicks_on_link','clics_en_el_enlace','clics','clicks'])),ctr:pNum(findC(n,['ctr_link_click_through_rate','ctr','click_through_rate','ctr_porcentaje_de_clics_en_el_enlace','ctr_del_enlace'])),cpm:pNum(findC(n,['cpm_cost_per_1_000_impressions_reached','cpm','cost_per_1000_impressions','cpm_coste_por_1000_impresiones'])),resultados:pNum(findC(n,['results','resultados','messages','mensajes','conversions','conversiones','total_messaging_contacts'])),};}).filter(r=>r.gasto>0||r.impresiones>0||r.resultados>0);}
 function calcM(ads){const tG=ads.reduce((s,a)=>s+a.gasto,0),tI=ads.reduce((s,a)=>s+a.impresiones,0),tC=ads.reduce((s,a)=>s+a.clics,0),tR=ads.reduce((s,a)=>s+a.resultados,0);return{tG,tI,tC,tR,ctr:tI>0?tC/tI*100:0,cpm:tI>0?tG/tI*1000:0,cpr:tR>0?tG/tR:0};}
 
 async function startAnalysis() {
@@ -1029,7 +1029,7 @@ async function callAI(ads,m,proj) {
   const top10=[...ads].sort((a,b)=>b.gasto-a.gasto).slice(0,10);
   const ctx=brandCtx();
   const prompt=`Eres un experto en Meta Ads.\n${ctx?'MARCA:\n'+ctx+'\n':''}\nCAMPAÑA: "${proj}"\n\nMÉTRICAS GLOBALES:\n- Gasto: $${m.tG.toFixed(2)} | Impresiones: ${m.tI.toLocaleString()} | Clics: ${m.tC.toLocaleString()} | CTR: ${m.ctr.toFixed(2)}% | CPM: $${m.cpm.toFixed(2)} | Resultados: ${m.tR} | CPR: $${m.cpr.toFixed(2)}\n\nTOP ANUNCIOS:\n${top10.map(a=>`- "${a.nombre}": $${a.gasto.toFixed(2)} | CTR ${a.ctr.toFixed(2)}% | ${a.resultados} resultados`).join('\n')}\n\nResponde SOLO JSON sin markdown:\n{"insights":[{"tipo":"good|bad|warn","tag":"ETIQUETA CORTA","titulo":"TÍTULO IMPACTANTE","cuerpo":"análisis con datos específicos"}],"acciones":[{"urgencia":"urgent|warn|normal","titulo":"ACCIÓN CONCRETA","descripcion":"qué hacer y por qué con datos"}]}`;
-  const r=await fetch('https://hub-jany-api.konverze-bi.workers.dev',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
+  const r=await fetch('https://hub-jany-api.konverze-bi.workers.dev',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-3-5-sonnet-20241022',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
   const d=await r.json();
   return JSON.parse(d.content?.find(b=>b.type==='text')?.text.replace(/```json|```/g,'').trim());
 }
