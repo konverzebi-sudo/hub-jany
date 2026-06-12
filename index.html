@@ -1476,17 +1476,29 @@ async function startAnalysis() {
   setStep(2,'done');setStep(3,'active');
   let ai;try{ai=await callAI(ads,m,proj);}catch(e){ai={insights:fbInsights(ads,m),acciones:fbAcciones(ads,m)};}
   setStep(3,'done');setStep(4,'active');await delay(400);
-  renderAdsDash(ads,m,ai,proj,filasParaGraficas);
+  try {
+    renderAdsDash(ads,m,ai,proj,filasParaGraficas);
+  } catch(err) {
+    console.error('Error en renderAdsDash:', err);
+    // Mostrar error visible al usuario
+    document.getElementById('ads-loading').style.display='none';
+    const errBox = document.getElementById('ads-error');
+    if(errBox){ errBox.textContent = '⚠ Error al construir el dashboard: ' + err.message; errBox.style.display='block'; }
+    const up = document.getElementById('ads-upload'); if(up) up.style.display='flex';
+    return;
+  }
   setStep(4,'done');await delay(300);
   document.getElementById('ads-loading').style.display='none';
   document.getElementById('ads-dash').style.display='block';
 }
 
 async function callAI(ads,m,proj) {
+  const safeDiv2=(a,b)=>b>0?a/b:0;
+  const segFB = parseInt(document.getElementById('seg-fb')?.value||0)||0;
+  const segIG = parseInt(document.getElementById('seg-ig')?.value||0)||0;
   const top10=[...ads].sort((a,b)=>b.gasto-a.gasto).slice(0,10);
   const sinResultados=ads.filter(a=>a.resultados===0&&a.gasto>200);
-  const conResultados=ads.filter(a=>a.resultados>0).sort((a,b)=>safeDiv(a.gasto,a.resultados)-safeDiv(b.gasto,b.resultados));
-  const safeDiv2=(a,b)=>b>0?a/b:0;
+  const conResultados=ads.filter(a=>a.resultados>0).sort((a,b)=>safeDiv2(a.gasto,a.resultados)-safeDiv2(b.gasto,b.resultados));
   const bestAd=conResultados[0];
   const worstAd=sinResultados.sort((a,b)=>b.gasto-a.gasto)[0];
   const cpp=safeDiv2(m.tG,m.tR);
