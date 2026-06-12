@@ -1456,17 +1456,21 @@ async function startAnalysis() {
   const ads=processCSV(adsParsed);
   if(!ads.length){showAdsError('No se pudieron leer datos válidos.');resetAds();return;}
   // Guardar filas RAW para gráficas de ubicación/día (sin agrupar)
+  // Detectar cuál CSV es el de desglose (tiene columna Ubicación con valores)
   const rawFilas = adsParsed.map(r=>{
     const n=nRow(r);
     return {
       nombre: String(r['Nombre del anuncio']??r['Ad name']??findC(n,['nombre_del_anuncio','ad_name','nombre','name','ad'])?? ''),
       gasto: pNum(r['Importe gastado (MXN)']??r['Importe gastado (USD)']??r['Amount spent (MXN)']??r['Amount spent (USD)']??findC(n,['importe_gastado_mxn','amount_spent_mxn','amount_spent','gasto','spent','cost'])),
-      resultados: pNum(r['Contactos de mensajes totales']??r['Conversaciones con mensajes iniciadas']??r['Nuevos contactos de mensajes']??r['Messaging conversations started']??r['Total messaging contacts']??r['New messaging contacts']??r['Results']??r['Resultados']??findC(n,['contactos_de_mensajes_totales','conversaciones_con_mensajes_iniciadas','messaging_conversations_started','total_messaging_contacts','new_messaging_contacts','results','resultados'])),
+      resultados: pNum(r['Contactos de mensajes']??r['Contactos de mensajes totales']??r['Conversaciones con mensajes iniciadas']??r['Nuevos contactos de mensajes']??r['Messaging conversations started']??r['Total messaging contacts']??r['New messaging contacts']??r['Results']??r['Resultados']??findC(n,['contactos_de_mensajes','contactos_de_mensajes_totales','conversaciones_con_mensajes_iniciadas','messaging_conversations_started','results','resultados'])),
       plataforma: String(r['Plataforma']??r['Platform']??''),
       ubicacion: String(r['Ubicación']??r['Placement']??findC(n,['ubicacion','placement','ubicación'])?? ''),
-      fechaInicio: String(r['Día']??r['Day']??r['Inicio del informe']??r['Reporting starts']??r['Start date']??''),
+      fechaInicio: String(r['Inicio del informe']??r['Día']??r['Day']??r['Reporting starts']??r['Start date']??''),
     };
-  }).filter(f=>f.gasto>0||f.resultados>0);
+  }).filter(f=>f.gasto>0);
+  // Usar solo filas con Ubicación real para las gráficas de desglose
+  const rawConUbic = rawFilas.filter(f=>f.ubicacion&&f.ubicacion.trim()&&f.ubicacion!=='Sin categoría'&&f.ubicacion!=='undefined');
+  const filasParaGraficas = rawConUbic.length > 0 ? rawConUbic : rawFilas;
   setStep(1,'done');setStep(2,'active');await delay(400);
   const m=calcM(ads);
   setStep(2,'done');setStep(3,'active');
@@ -1642,8 +1646,8 @@ function renderAdsDash(ads, m, ai, proj, rawFilas) {
 
   // ── GRÁFICA 1: Gasto por ubicación (filas RAW) ──
   const ubicMapR = {};
-  rawFilas.forEach(f => {
-    const key = (f.ubicacion && f.ubicacion.trim() && f.ubicacion !== 'undefined' && f.ubicacion !== 'null') ? f.ubicacion.trim() : null;
+  filasParaGraficas.forEach(f => {
+    const key = (f.ubicacion && f.ubicacion.trim() && f.ubicacion !== 'undefined' && f.ubicacion !== 'null' && f.ubicacion !== 'Sin categoría') ? f.ubicacion.trim() : null;
     if (!key) return;
     if (!ubicMapR[key]) ubicMapR[key] = 0;
     ubicMapR[key] += f.gasto || 0;
@@ -1668,10 +1672,14 @@ function renderAdsDash(ads, m, ai, proj, rawFilas) {
   // ── GRÁFICA 2: Gasto por día de semana (filas RAW) ──
   const diasNombres = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
   const diasGasto = [0,0,0,0,0,0,0];
-  rawFilas.forEach(f => {
-    if (f.fechaInicio && f.fechaInicio !== 'undefined' && f.fechaInicio !== 'null') {
-      const d = new Date(f.fechaInicio);
-      if (!isNaN(d.getTime())) diasGasto[d.getDay()] += f.gasto || 0;
+  filasParaGraficas.forEach(f => {
+    if (f.fechaInicio && f.fechaInicio !== 'undefined' && f.fechaInicio !== 'null' && f.fechaInicio.length >= 8) {
+      // Parsear fecha ISO evitando offset de timezone
+      const parts = f.fechaInicio.split('-');
+      if (parts.length === 3) {
+        const d = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]));
+        if (!isNaN(d.getTime())) diasGasto[d.getDay()] += f.gasto || 0;
+      }
     }
   });
   const hasDias = diasGasto.some(v=>v>0);
@@ -1693,12 +1701,13 @@ function renderAdsDash(ads, m, ai, proj, rawFilas) {
 
   // ── GRÁFICA 3: Facebook vs Instagram (filas RAW por plataforma/ubicación) ──
   let gastoFB=0,gastoIG2=0;
-  rawFilas.forEach(f=>{
+  filasParaGraficas.forEach(f=>{
     const plat=(f.plataforma||'').toLowerCase();
     const ubic=(f.ubicacion||'').toLowerCase();
     const nom=(f.nombre||'').toLowerCase();
-    const esIG=plat.includes('instagram')||ubic.includes('instagram')||nom.includes('_ig')||nom.includes('ig_')||nom.includes('postig');
-    if(esIG) gastoIG2+=f.gasto||0; else gastoFB+=f.gasto||0;
+    const esIG=plat==='instagram'||ubic.toLowerCase().includes('instagram')||nom.includes('_ig')||nom.includes('ig_')||nom.includes('postig');
+    const esFB=plat==='facebook'||plat==='whatsapp'||plat==='audience network'||plat==='messenger'||(!esIG&&plat!=='');
+    if(esIG) gastoIG2+=f.gasto||0; else if(esFB||!esIG) gastoFB+=f.gasto||0;
   });
   if(gastoFB===0&&gastoIG2===0){ads.forEach(a=>{const plat=(a.plataforma||'').toLowerCase(),n=(a.nombre||'').toLowerCase();if(plat.includes('instagram')||n.includes('_ig')||n.includes('ig_'))gastoIG2+=a.gasto;else gastoFB+=a.gasto;});}
   if(chartFBIG) chartFBIG.destroy();
