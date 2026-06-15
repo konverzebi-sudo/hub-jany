@@ -710,7 +710,26 @@ td.red{color:var(--red)}
         <div class="mp-grid">
           <div class="mp-card"><div class="mp-card-head"><span class="mp-card-title">🎬 Guión</span><button class="copy-btn" onclick="copyEl('mp-guion',this)">⧉</button></div><div class="mp-card-body"><div class="mp-content" id="mp-guion"></div></div></div>
           <div class="mp-card"><div class="mp-card-head"><span class="mp-card-title">🤖 Prompt IA</span><button class="copy-btn" onclick="copyEl('mp-prompt',this)">⧉</button></div><div class="mp-card-body"><div class="mp-content" id="mp-prompt"></div><div style="margin-top:10px;display:flex;align-items:center;gap:8px"><span id="mp-tool-badge" class="badge-lime"></span><span style="font-size:10px;color:var(--muted)">Herramienta recomendada</span></div></div></div>
-          <div class="mp-card"><div class="mp-card-head"><span class="mp-card-title">🎨 Arte</span><button class="copy-btn" onclick="copyEl('mp-arte-txt',this)">⧉</button></div><div class="mp-card-body"><div class="arte-box"><div style="font-size:28px">🖼️</div><div class="arte-desc-txt" id="mp-arte-desc"></div><div class="arte-tool-txt" id="mp-arte-tool"></div></div><div id="mp-arte-txt" style="font-size:11px;color:var(--muted2);line-height:1.5;margin-top:10px;display:none"></div></div></div>
+          <div class="mp-card"><div class="mp-card-head"><span class="mp-card-title">🎨 Arte</span></div><div class="mp-card-body">
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted2);margin-bottom:8px">Copia el Prompt IA y pégalo en la herramienta:</div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <button onclick="arteOpen('chatgpt')" style="width:100%;padding:10px 14px;background:var(--dark3);border:1px solid var(--border2);color:#ddd;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;border-radius:4px;display:flex;align-items:center;gap:10px;transition:all .2s" onmouseover="this.style.borderColor='var(--lime)';this.style.color='var(--lime)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='#ddd'">
+                <span style="font-size:16px">🤖</span>
+                <div style="text-align:left"><div>ChatGPT — Imágenes</div><div style="font-size:9px;color:var(--muted);font-weight:400;letter-spacing:.04em;text-transform:none">Usa DALL-E para fotos, posts y arte estático</div></div>
+                <span style="margin-left:auto;font-size:11px;opacity:.5">↗</span>
+              </button>
+              <button onclick="arteOpen('gemini')" style="width:100%;padding:10px 14px;background:var(--dark3);border:1px solid var(--border2);color:#ddd;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;border-radius:4px;display:flex;align-items:center;gap:10px;transition:all .2s" onmouseover="this.style.borderColor='var(--lime)';this.style.color='var(--lime)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='#ddd'">
+                <span style="font-size:16px">✨</span>
+                <div style="text-align:left"><div>Gemini — Videos</div><div style="font-size:9px;color:var(--muted);font-weight:400;letter-spacing:.04em;text-transform:none">Ideal para videos cortos y animaciones</div></div>
+                <span style="margin-left:auto;font-size:11px;opacity:.5">↗</span>
+              </button>
+              <button onclick="arteOpen('higgsfield')" style="width:100%;padding:10px 14px;background:var(--dark3);border:1px solid var(--border2);color:#ddd;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;border-radius:4px;display:flex;align-items:center;gap:10px;transition:all .2s" onmouseover="this.style.borderColor='var(--lime)';this.style.color='var(--lime)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='#ddd'">
+                <span style="font-size:16px">🎬</span>
+                <div style="text-align:left"><div>Higgsfield — Videos IA</div><div style="font-size:9px;color:var(--muted);font-weight:400;letter-spacing:.04em;text-transform:none">Videos cinemáticos con IA avanzada</div></div>
+                <span style="margin-left:auto;font-size:11px;opacity:.5">↗</span>
+              </button>
+            </div>
+          </div></div>
           <div class="mp-card"><div class="mp-card-head"><span class="mp-card-title">✍️ Caption</span><button class="copy-btn" onclick="copyEl('mp-caption',this)">⧉</button></div><div class="mp-card-body"><div class="mp-content" id="mp-caption"></div></div></div>
         </div>
         <div style="margin-top:10px;background:var(--dark3);border:1px solid var(--border);padding:14px 16px;border-radius:4px"><div class="badge-lime" style="margin-bottom:8px">Hashtags recomendados</div><div class="tag-row" id="mp-hashtags"></div></div>
@@ -1311,33 +1330,46 @@ async function generateMasterpiece() {
   const meta=document.getElementById('meta-input').value.trim();
   const waLink=brand.redes?.whatsapp?`wa.me/${brand.redes.whatsapp.replace(/\D/g,'')}`:'[tu-whatsapp]';
   const ctx=brandCtx();
-  const prompt=`Eres un experto en marketing digital.\n${ctx?'MARCA:\n'+ctx+'\n':''}\nIdea: "${cSelIdea.topic}" — Gancho: "${cSelIdea.hook}"\nFormato: ${cSelFormat}\nObjetivo: ${meta||'Crecer en redes y generar ventas'}\n\nGenera el contenido completo. SOLO JSON sin backticks:\n{\n"guion":"Escena a escena qué se ve y qué se dice. Empieza con el gancho. Máx 180 palabras.",\n"prompt":"Prompt completo en inglés para IA generativa. Composición, iluminación, colores, mood, estilo. Mín 80 palabras.",\n"tool":"Higgsfield AI o Canva según formato ${cSelFormat}",\n"arte_desc":"Descripción visual en español: qué se ve, paleta, composición, mood. 2-3 frases.",\n"caption":"Caption completo en español. Gancho + mensaje + CTA + link ${waLink}. Emojis estratégicos. Máx 150 palabras.",\n"hashtags":["#hashtag1","#hashtag2","#${(brand.nombre||'marca').replace(/\s+/g,'')}","#hashtag4","#hashtag5"]\n}`;
+  const prompt=`Eres un experto en marketing digital.\n${ctx?'MARCA:\n'+ctx+'\n':''}\nIdea: "${cSelIdea.topic}" — Gancho: "${cSelIdea.hook}"\nFormato: ${cSelFormat}\nObjetivo: ${meta||'Crecer en redes y generar ventas'}\n\nGenera el contenido completo. SOLO JSON sin backticks:\n{\n"segmentos":[\n  {"tiempo":"0 a 3 segundos","visual":"qué se ve exactamente en pantalla","voz":"qué se dice o texto en pantalla"},\n  {"tiempo":"3 a 8 segundos","visual":"qué se ve exactamente en pantalla","voz":"qué se dice o texto en pantalla"},\n  {"tiempo":"8 a 15 segundos","visual":"qué se ve exactamente en pantalla","voz":"qué se dice o texto en pantalla"},\n  {"tiempo":"15 a 25 segundos","visual":"qué se ve exactamente en pantalla","voz":"qué se dice o texto en pantalla"},\n  {"tiempo":"25 a 30 segundos","visual":"qué se ve exactamente en pantalla","voz":"qué se dice o texto en pantalla"}\n],\n"prompt":"Prompt completo en inglés para IA generativa. Composición, iluminación, colores, mood, estilo. Mín 80 palabras.",\n"tool":"Higgsfield AI o Canva según formato ${cSelFormat}",\n"caption":"Caption completo en español. Gancho + mensaje + CTA + link ${waLink}. Emojis estratégicos. Máx 150 palabras.",\n"hashtags":["#hashtag1","#hashtag2","#${(brand.nombre||'marca').replace(/\s+/g,'')}","#hashtag4","#hashtag5"]\n}`;
   try {
-    const r=await fetch('https://hub-jany-api.konverze-bi.workers.dev',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
+    const r=await fetch('https://hub-jany-api.konverze-bi.workers.dev',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:1500,messages:[{role:'user',content:prompt}]})});
     const d=await r.json();
     const mp=JSON.parse(d.content.map(i=>i.text||'').join('').replace(/```json|```/g,'').trim());
-    document.getElementById('mp-guion').textContent=mp.guion||'';
+    const guionEl = document.getElementById('mp-guion');
+    if (mp.segmentos && Array.isArray(mp.segmentos)) {
+      guionEl.innerHTML = mp.segmentos.map(s => `
+        <div style="margin-bottom:8px;padding:8px 10px;background:var(--dark3);border-left:2px solid var(--lime);border-radius:0 4px 4px 0">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:var(--lime);margin-bottom:4px">⏱ ${s.tiempo||''}</div>
+          <div style="margin-bottom:3px;display:grid;grid-template-columns:70px 1fr;gap:4px;align-items:baseline">
+            <span style="font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2)">Visual</span>
+            <span style="font-size:11px;color:#ddd;line-height:1.4">${s.visual||''}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:70px 1fr;gap:4px;align-items:baseline">
+            <span style="font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2)">Voz</span>
+            <span style="font-size:11px;color:#ddd;line-height:1.4">${s.voz||''}</span>
+          </div>
+        </div>`).join('');
+    } else { guionEl.textContent = mp.guion || ''; }
     document.getElementById('mp-prompt').textContent=mp.prompt||'';
     document.getElementById('mp-tool-badge').textContent=mp.tool||'Higgsfield AI';
     document.getElementById('mp-caption').textContent=mp.caption||'';
-    document.getElementById('mp-arte-desc').textContent=mp.arte_desc||'';
-    document.getElementById('mp-arte-tool').textContent='→ Herramienta recomendada: '+(mp.tool||'Higgsfield AI');
-    const at=document.getElementById('mp-arte-txt');at.textContent=mp.prompt||'';at.style.display='block';
-    // Save prompt and show generation buttons
-    _currentPrompt = mp.prompt || '';
-    const arteActions = document.getElementById('arte-actions');
-    if (arteActions) arteActions.style.display = 'flex';
-    // Set Higgsfield link
-    const higgsfieldBtn = document.getElementById('btn-higgsfield');
-    if (higgsfieldBtn) higgsfieldBtn.href = 'https://app.higgsfield.ai';
-    // Update credits UI
-    updateCreditsUI();
     const hh=document.getElementById('mp-hashtags');hh.innerHTML='';
     (mp.hashtags||[]).forEach(h=>{const t=document.createElement('span');t.className='tag';t.textContent=h;hh.appendChild(t);});
     mpC.style.display='block';showToast('Masterpiece generado ✓');
   } catch(e) { document.getElementById('mp-guion').textContent='Error al generar. Intenta de nuevo.'; mpC.style.display='block'; }
   mpL.style.display='none';btn.disabled=false;
 }
+
+function arteOpen(tool) {
+  const prompt = document.getElementById('mp-prompt')?.textContent || '';
+  if (prompt) navigator.clipboard.writeText(prompt).then(() => showToast('✓ Prompt copiado — pégalo en ' + tool)).catch(()=>{});
+  const urls = { chatgpt:'https://chatgpt.com/?model=gpt-4o', gemini:'https://gemini.google.com/', higgsfield:'https://app.higgsfield.ai' };
+  window.open(urls[tool], '_blank');
+}
+function generateArteCanva() { arteOpen('canva'); }
+function generateArteHiggsfield() { arteOpen('higgsfield'); }
+async function generateDalle() {}
+async function generateArteIA() {}
 
 function resetMP() {
   document.getElementById('mp-content').style.display='none';
