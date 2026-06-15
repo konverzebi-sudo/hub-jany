@@ -1597,7 +1597,17 @@ async function startAnalysis() {
   setStep(1,'done');setStep(2,'active');await delay(400);
   const m=calcM(ads);
   setStep(2,'done');setStep(3,'active');
-  let ai;try{ai=await callAI(ads,m,proj);}catch(e){ai={insights:fbInsights(ads,m),acciones:fbAcciones(ads,m)};}
+  // callAI con timeout de 25 segundos - si falla usa fallback local
+  let ai;
+  try {
+    const aiPromise = callAI(ads,m,proj);
+    const timeoutPromise = new Promise((_,reject) => setTimeout(() => reject(new Error('timeout')), 25000));
+    ai = await Promise.race([aiPromise, timeoutPromise]);
+    if (!ai || !ai.insights) throw new Error('respuesta vacía');
+  } catch(e) {
+    console.warn('callAI falló, usando fallback:', e.message);
+    ai = { insights: fbInsights(ads,m), acciones: fbAcciones(ads,m) };
+  }
   setStep(3,'done');setStep(4,'active');await delay(400);
   try {
     renderAdsDash(ads,m,ai,proj,filasParaGraficas);
