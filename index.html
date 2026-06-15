@@ -1335,56 +1335,111 @@ async function generateMasterpiece() {
   const meta=document.getElementById('meta-input').value.trim();
   const waLink=brand.redes?.whatsapp?`wa.me/${brand.redes.whatsapp.replace(/\D/g,'')}`:'[tu-whatsapp]';
   const ctx=brandCtx();
-  const prompt=`Eres un experto en marketing digital y producción de contenido.
-${ctx?'MARCA:\n'+ctx+'\n':''}
-Idea: "${cSelIdea.topic}" — Gancho: "${cSelIdea.hook}"
-Formato: ${cSelFormat}
-Objetivo: ${meta||'Crecer en redes y generar ventas'}
+  // Construir prompt como objeto para evitar problemas de escape
+  const systemMsg = [
+    'Eres un experto en marketing digital y producción de contenido para redes sociales.',
+    ctx ? 'MARCA:\n' + ctx : '',
+    'Idea de contenido: ' + cSelIdea.topic,
+    'Gancho inicial: ' + cSelIdea.hook,
+    'Formato: ' + cSelFormat,
+    'Objetivo: ' + (meta || 'Crecer en redes y generar ventas'),
+    '',
+    'Genera exactamente este JSON. NO incluyas texto antes ni después. NO uses backticks ni markdown.',
+    'El JSON debe tener esta estructura exacta (usa comillas dobles, sin caracteres especiales que rompan JSON):',
+    '{',
+    '"tomas": [',
+    '  {"tiempo": "00:00 a 00:08", "visual": "escena filmable con celular", "guion": "texto del audio"},',
+    '  {"tiempo": "00:09 a 00:15", "visual": "escena filmable con celular", "guion": "texto del audio"},',
+    '  {"tiempo": "00:16 a 00:22", "visual": "escena filmable con celular", "guion": "texto del audio"},',
+    '  {"tiempo": "00:23 a 00:28", "visual": "escena filmable con celular", "guion": "texto del audio"},',
+    '  {"tiempo": "00:29 a 00:35", "visual": "escena filmable con celular", "guion": "texto del audio"}',
+    '],',
+    '"prompt": "prompt detallado en inglés para generar imagen o video con IA. Menciona: colores de la marca, estilo visual, iluminación, composición, mood. Mínimo 80 palabras.",',
+    '"tool": "Canva o Higgsfield AI",',
+    '"caption": "caption completo en español. Gancho potente + desarrollo + CTA hacia WhatsApp. Con emojis estratégicos. Máximo 150 palabras.",',
+    '"hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"]',
+    '}',
+    '',
+    'IMPORTANTE para el campo prompt: debe mencionar los colores de la marca, el estilo visual que comunica la personalidad de la marca, iluminación y mood acorde al tono de comunicación.',
+    'IMPORTANTE para el caption: usa el tono y personalidad de la marca, incluye CTA hacia WhatsApp si aplica, hashtags relevantes al nicho.'
+  ].filter(Boolean).join('\n');
 
-Genera el contenido. Responde ÚNICAMENTE con este JSON exacto, sin texto adicional, sin backticks, sin markdown:
-{"tomas":[{"tiempo":"00:00 a 00:05","visual":"descripción de lo que se ve en pantalla, escena sencilla que cualquier negocio puede filmar","guion":"lo que se dice en audio o texto en pantalla"},{"tiempo":"00:06 a 00:12","visual":"descripción de lo que se ve","guion":"audio o texto"},{"tiempo":"00:13 a 00:20","visual":"descripción de lo que se ve","guion":"audio o texto"},{"tiempo":"00:21 a 00:28","visual":"descripción de lo que se ve","guion":"audio o texto"},{"tiempo":"00:29 a 00:35","visual":"descripción de lo que se ve","guion":"audio o texto"}],"prompt":"Prompt en inglés para IA generativa, mín 60 palabras, describe composición visual, iluminación, colores, mood","tool":"Canva o Higgsfield AI","caption":"Caption en español con gancho + mensaje + CTA + ${waLink}, máx 120 palabras, con emojis","hashtags":["#tag1","#tag2","#${(brand.nombre||'marca').replace(/\s+/g,'')}","#tag4","#tag5"]}`;
   try {
-    const r=await fetch('https://hub-jany-api.konverze-bi.workers.dev',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:1500,messages:[{role:'user',content:prompt}]})});
-    const d=await r.json();
-    const rawText = d.content?.map(i=>i.text||'').join('') || '';
+    const r = await fetch('https://hub-jany-api.konverze-bi.workers.dev', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1800,
+        messages: [{role: 'user', content: systemMsg}]
+      })
+    });
+    const d = await r.json();
+    const rawText = d.content?.map(i => i.text || '').join('') || '';
     if (!rawText) throw new Error('Sin respuesta del servidor');
-    const cleanText = rawText.replace(/```json|```/g,'').trim();
-    const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('Formato de respuesta incorrecto');
-    const mp = JSON.parse(jsonMatch[0]);
-    // Render guión con tomas
+
+    // Extraer JSON de forma robusta
+    let mp = null;
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('La IA no devolvió JSON válido');
+    try {
+      mp = JSON.parse(jsonMatch[0]);
+    } catch(parseErr) {
+      // Intentar limpiar caracteres problemáticos
+      const cleaned = jsonMatch[0]
+        .replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ')
+        .replace(/,\s*([}\]])/g, '$1'); // trailing commas
+      mp = JSON.parse(cleaned);
+    }
+
+    // ── GUIÓN con tomas ──
     const guionEl = document.getElementById('mp-guion');
     const tomas = mp.tomas || mp.segmentos || [];
     if (tomas.length > 0) {
-      guionEl.innerHTML = tomas.map(s => {
-        const tiempo = s.tiempo || s.time || '';
+      guionEl.innerHTML = tomas.map((s, i) => {
+        const tiempo = s.tiempo || s.time || `Toma ${i+1}`;
         const visual = s.visual || s.escena || s.scene || '';
-        const guion = s.guion || s.voz || s.audio || s.voice || '';
+        const guion  = s.guion  || s.voz   || s.audio || s.voice || '';
         return `<div style="margin-bottom:10px;padding:10px 12px;background:var(--dark4);border-left:3px solid var(--lime);border-radius:0 4px 4px 0">
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--lime);margin-bottom:6px">⏱ Tiempo: ${tiempo}</div>
-          <div style="margin-bottom:5px;display:flex;gap:6px">
-            <span style="font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;color:var(--muted);min-width:52px;text-transform:uppercase;letter-spacing:.06em;padding-top:1px">Visual:</span>
-            <span style="font-size:12px;color:#ddd;line-height:1.5;flex:1">${visual}</span>
+          <div style="display:flex;gap:8px;margin-bottom:5px">
+            <span style="font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;color:var(--muted);min-width:56px;text-transform:uppercase;letter-spacing:.06em;padding-top:2px;flex-shrink:0">Visual:</span>
+            <span style="font-size:12px;color:#ddd;line-height:1.55;flex:1">${visual}</span>
           </div>
-          <div style="display:flex;gap:6px">
-            <span style="font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;color:var(--muted);min-width:52px;text-transform:uppercase;letter-spacing:.06em;padding-top:1px">Guión:</span>
-            <span style="font-size:12px;color:#fff;line-height:1.5;flex:1;font-style:italic">"${guion}"</span>
+          <div style="display:flex;gap:8px">
+            <span style="font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;color:var(--muted);min-width:56px;text-transform:uppercase;letter-spacing:.06em;padding-top:2px;flex-shrink:0">Guión:</span>
+            <span style="font-size:12px;color:#fff;line-height:1.55;flex:1;font-style:italic">"${guion}"</span>
           </div>
         </div>`;
       }).join('');
     } else {
-      guionEl.textContent = mp.guion || 'Sin guión generado';
+      guionEl.textContent = mp.guion || 'Genera de nuevo';
     }
-    document.getElementById('mp-prompt').textContent=mp.prompt||'';
-    document.getElementById('mp-tool-badge').textContent=mp.tool||'Canva';
-    document.getElementById('mp-caption').textContent=mp.caption||'';
-    const hh=document.getElementById('mp-hashtags');hh.innerHTML='';
-    (mp.hashtags||[]).forEach(h=>{const t=document.createElement('span');t.className='tag';t.textContent=h;hh.appendChild(t);});
-    mpC.style.display='block';showToast('Masterpiece generado ✓');
+
+    // ── PROMPT IA ──
+    document.getElementById('mp-prompt').textContent = mp.prompt || '';
+    document.getElementById('mp-tool-badge').textContent = mp.tool || 'Canva';
+
+    // ── CAPTION ──
+    document.getElementById('mp-caption').textContent = mp.caption || '';
+
+    // ── HASHTAGS ──
+    const hh = document.getElementById('mp-hashtags');
+    hh.innerHTML = '';
+    (mp.hashtags || []).forEach(h => {
+      const t = document.createElement('span');
+      t.className = 'tag';
+      t.textContent = h;
+      hh.appendChild(t);
+    });
+
+    mpC.style.display = 'block';
+    showToast('Masterpiece generado ✓');
+
   } catch(e) {
     console.error('Error masterpiece:', e);
-    document.getElementById('mp-guion').innerHTML=`<div style="color:var(--red);font-size:12px;padding:8px">⚠ ${e.message||'Error al generar'}. Intenta de nuevo.</div>`;
-    mpC.style.display='block';
+    document.getElementById('mp-guion').innerHTML = `<div style="color:var(--red);font-size:12px;padding:8px;line-height:1.6">⚠ ${e.message || 'Error al generar'}.<br>Intenta de nuevo — si persiste, escribe una meta más específica arriba.</div>`;
+    mpC.style.display = 'block';
   }
   mpL.style.display='none';btn.disabled=false;
 }
