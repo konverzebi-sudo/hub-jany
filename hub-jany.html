@@ -419,7 +419,7 @@ td.red{color:var(--red)}
     <p class="login-sub">Tu espacio de trabajo con IA. Ingresa tus credenciales para continuar.</p>
     <div class="login-field">
       <label class="field-label">Usuario</label>
-      <input class="field-input" id="li-user" type="text" placeholder="tu_usuario" autocomplete="username">
+      <input class="field-input" id="li-user" type="text" placeholder="tu@email.com" autocomplete="username">
     </div>
     <div class="login-field">
       <label class="field-label">Contraseña</label>
@@ -990,19 +990,95 @@ td.red{color:var(--red)}
 /* ═══════════════════════════════════════════
    USERS CONFIG
 ═══════════════════════════════════════════ */
-const USERS = {
-  "demo":        { pass:"demo",              role:"client", display:"Demo" },
-  "NinfaIE":     { pass:"ieENexpansion",     role:"client", display:"Ninfa IE" },
-  "losPinos":    { pass:"pinosENexpansion",  role:"client", display:"Los Pinos" },
-  "laGotita":    { pass:"maxENexpansion",    role:"client", display:"La Gotita" },
-  "chelyRIM":    { pass:"mamiENexpansion",   role:"client", display:"Chely RIM" },
-  "moldesYP":    { pass:"cindyENexpansion",  role:"client", display:"Moldes YP" },
-  "viajesGALA":  { pass:"julioENexpansion",  role:"client", display:"Viajes Gala" },
-  "Drjorge":     { pass:"jorgeENexpansion",  role:"client", display:"Dr. Jorge" },
-  "javierMUDANZAS": { pass:"javierENexpansion", role:"client", display:"Javier Mudanzas" },
-  "carengoAP":   { pass:"anaENexpansion",    role:"client", display:"Carengo AP" },
-  "janydr":      { pass:"mechasENexpansion", role:"admin",  display:"Jany DR (Admin)" }
-};
+/* ═══════════════════════════════════════════
+   SUPABASE CONFIG
+═══════════════════════════════════════════ */
+const SUPA_URL = 'https://wyiqigrzcipywvijtchg.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind5aXFpZ3J6Y2lweXd2aWp0Y2hnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyMzUwNDEsImV4cCI6MjA5NDgxMTA0MX0.yfpH0QIvcatbeCWW6bJAfKxJkk03diaXUVUpnuWwtAE';
+
+let supaSession = null;
+
+async function doLogin() {
+  const email = document.getElementById('li-user').value.trim();
+  const pass = document.getElementById('li-pass').value;
+  const errEl = document.getElementById('login-err');
+  errEl.style.display = 'none';
+
+  if (!email || !pass) {
+    errEl.textContent = 'Ingresa tu email y contraseña';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  // Mostrar loading
+  const btn = document.querySelector('#screen-login .btn-lime');
+  btn.textContent = 'VERIFICANDO...';
+  btn.disabled = true;
+
+  try {
+    // 1. Login con Supabase Auth
+    const loginRes = await fetch(`${SUPA_URL}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPA_KEY
+      },
+      body: JSON.stringify({ email, password: pass })
+    });
+    const loginData = await loginRes.json();
+
+    if (loginData.error || !loginData.access_token) {
+      errEl.textContent = 'Email o contraseña incorrectos';
+      errEl.style.display = 'block';
+      btn.textContent = 'ENTRAR →';
+      btn.disabled = false;
+      return;
+    }
+
+    supaSession = loginData;
+    const userId = loginData.user.id;
+    const userEmail = loginData.user.email;
+    CU = userEmail;
+
+    // 2. Verificar membresía activa
+    const memRes = await fetch(`${SUPA_URL}/rest/v1/memberships?user_id=eq.${userId}&activa=eq.true&select=activa`, {
+      headers: {
+        'apikey': SUPA_KEY,
+        'Authorization': `Bearer ${loginData.access_token}`
+      }
+    });
+    const memData = await memRes.json();
+
+    if (!memData || memData.length === 0) {
+      // Sin membresía activa → mandar a pago
+      errEl.textContent = '⚠ Tu membresía no está activa. Serás redirigido al portal de pago...';
+      errEl.style.display = 'block';
+      btn.textContent = 'ENTRAR →';
+      btn.disabled = false;
+      setTimeout(() => {
+        window.location.href = 'https://link.fastpaydirect.com/payment-link/6a32f45a71a0aa761e46548e';
+      }, 2500);
+      return;
+    }
+
+    // 3. Membresía activa — continuar
+    const saved = await getSaved();
+    if (saved) {
+      brand = saved;
+      renderDash();
+      showScreen('screen-dash');
+    } else {
+      showScreen('screen-onboard');
+    }
+
+  } catch(err) {
+    errEl.textContent = 'Error de conexión. Intenta de nuevo.';
+    errEl.style.display = 'block';
+  }
+
+  btn.textContent = 'ENTRAR →';
+  btn.disabled = false;
+}
 
 /* ═══════════════════════════════════════════
    STATE
@@ -1037,21 +1113,6 @@ function goBack() { showScreen('screen-dash'); }
 /* ═══════════════════════════════════════════
    AUTH
 ═══════════════════════════════════════════ */
-function doLogin() {
-  const u = document.getElementById('li-user').value.trim();
-  const p = document.getElementById('li-pass').value;
-  const ukey = Object.keys(USERS).find(k => k.toLowerCase() === u.toLowerCase());
-  if (ukey && USERS[ukey].pass === p) {
-    document.getElementById('login-err').style.display = 'none';
-    CU = ukey;
-    if (USERS[ukey].role === 'admin') { buildAdmin().then(() => showScreen('screen-admin')); return; }
-    const saved = getSaved();
-    if (saved) { brand = saved; renderDash(); showScreen('screen-dash'); }
-    else { showScreen('screen-onboard'); }
-  } else {
-    document.getElementById('login-err').style.display = 'block';
-  }
-}
 function doLogout() { CU = null; brand = {}; logoB64 = null; showScreen('screen-login'); }
 async function getSaved() {
   // Try Supabase first, fallback to localStorage
@@ -1264,7 +1325,7 @@ function saveProfile() {
    DASHBOARD
 ═══════════════════════════════════════════ */
 function renderDash() {
-  document.getElementById('dash-uname').textContent = USERS[CU]?.display || CU;
+  document.getElementById('dash-uname').textContent = CU;
   document.getElementById('dash-brand-name').textContent = brand.nombre || 'Tu Marca';
   document.getElementById('dash-giro-pill').textContent = brand.giro || '';
 }
@@ -2123,10 +2184,11 @@ function exportProfile() {
    ADMIN PANEL
 ═══════════════════════════════════════════ */
 async function buildAdmin() {
-  // Load all profiles from Supabase
-  try {
-    const r = await fetch(`${SUPA_URL}/rest/v1/brand_profiles?select=usuario,datos,actualizado_at&order=actualizado_at.desc`, {
-      headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY }
+  const grid = document.getElementById('admin-users-grid');
+  const credsTable = document.getElementById('creds-table');
+  credsTable.innerHTML = `<thead><tr><th>Info</th></tr></thead><tbody><tr><td style="color:var(--muted);font-size:12px;padding:12px">Panel admin en construcción — usuarios gestionados vía Supabase Auth.</td></tr></tbody>`;
+  grid.innerHTML = `<div style="grid-column:1/-1;font-size:13px;color:var(--muted);text-align:center;padding:32px;border:1px dashed var(--border);border-radius:8px">Los perfiles aparecen aquí una vez que los clientes completan su registro.</div>`;
+}
     });
     const supaProfiles = await r.json();
     // Merge with localStorage
@@ -2201,7 +2263,31 @@ function adminViewUser(key) {
   const w=window.open('','_blank');
   w.document.write(`<html><head><title>Brand Book — ${d.nombre}</title><style>body{font-family:sans-serif;background:#0a0a0a;color:#e8e8e8;padding:40px;max-width:700px;margin:0 auto}h1{color:#C8FF00;font-size:36px;margin-bottom:4px}h2{color:#C8FF00;font-size:14px;letter-spacing:3px;text-transform:uppercase;margin:24px 0 8px;border-bottom:1px solid #222;padding-bottom:6px}p,li{font-size:14px;color:#aaa;line-height:1.6;margin-bottom:4px}ul{padding-left:20px}.chip{display:inline-block;padding:3px 10px;background:#1a1f00;border:1px solid #C8FF00;border-radius:4px;color:#C8FF00;font-size:12px;margin:2px}</style></head><body><h1>${d.nombre}</h1><p>${d.giro} · ${d.tel||''}</p><h2>Producto estrella</h2><p>${d.prod}</p><h2>Tono</h2>${(d.tonos||[]).map(t=>`<span class="chip">${t}</span>`).join(' ')}<h2>Identidad Visual</h2><p>Paleta: ${d.paleta?.v||'—'} · Tipografía: ${d.tipografia||'—'}</p><h2>Redes y Presencia</h2><ul>${Object.entries(r).filter(([,v])=>v).map(([k,v])=>`<li><b>${k}:</b> ${v}</li>`).join('')||'<li>Sin redes</li>'}</ul><h2>Audiencia Objetivo</h2><p>${d.audiencia}</p><h2>Metas del Negocio</h2>${(d.metas||[]).map(m=>`<span class="chip">${m}</span>`).join(' ')}<h2>Notas</h2><p>${d.notas||'Sin notas adicionales'}</p><hr style="border-color:#222;margin:24px 0"><p style="font-size:11px;color:#555">Generado por Hub Jefes en Expansión · ${new Date().toLocaleDateString('es-MX')}</p></body></html>`);
 }
+/* ═══════════════════════════════════════════
+   SUPABASE HELPERS
+═══════════════════════════════════════════ */
+async function supaGet(userKey) {
+  if (!supaSession) return null;
+  try {
+    const res = await fetch(`${SUPA_URL}/rest/v1/brand_profiles?email=eq.${encodeURIComponent(userKey)}&select=datos`, {
+      headers: { 'apikey': SUPA_KEY, 'Authorization': `Bearer ${supaSession.access_token}` }
+    });
+    const data = await res.json();
+    if (data && data.length > 0) return data[0].datos;
+    return null;
+  } catch(e) { return null; }
+}
 
+async function supaSet(userKey, datos) {
+  if (!supaSession) return;
+  try {
+    await fetch(`${SUPA_URL}/rest/v1/brand_profiles`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPA_KEY, 'Authorization': `Bearer ${supaSession.access_token}`, 'Prefer': 'resolution=merge-duplicates' },
+      body: JSON.stringify({ email: userKey, datos: datos })
+    });
+  } catch(e) {}
+}
 /* ═══════════════════════════════════════════
    TOAST & UTILS
 ═══════════════════════════════════════════ */
