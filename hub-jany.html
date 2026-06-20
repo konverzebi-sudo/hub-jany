@@ -2186,64 +2186,9 @@ function exportProfile() {
 async function buildAdmin() {
   const grid = document.getElementById('admin-users-grid');
   const credsTable = document.getElementById('creds-table');
-  credsTable.innerHTML = `<thead><tr><th>Info</th></tr></thead><tbody><tr><td style="color:var(--muted);font-size:12px;padding:12px">Panel admin en construcción — usuarios gestionados vía Supabase Auth.</td></tr></tbody>`;
+  credsTable.innerHTML = `<thead><tr><th>Info</th></tr></thead><tbody><tr><td style="color:var(--muted);font-size:12px;padding:12px">Panel admin — usuarios gestionados vía Supabase Auth.</td></tr></tbody>`;
   grid.innerHTML = `<div style="grid-column:1/-1;font-size:13px;color:var(--muted);text-align:center;padding:32px;border:1px dashed var(--border);border-radius:8px">Los perfiles aparecen aquí una vez que los clientes completan su registro.</div>`;
 }
-    });
-    const supaProfiles = await r.json();
-    // Merge with localStorage
-    if (supaProfiles && supaProfiles.length) {
-      supaProfiles.forEach(p => {
-        try { localStorage.setItem('jeb_' + p.usuario, JSON.stringify(p.datos)); } catch(e) {}
-      });
-    }
-  } catch(e) {}
-  const clients = Object.entries(USERS).filter(([,u])=>u.role==='client');
-  // Credentials table
-  const credsTable = document.getElementById('creds-table');
-  credsTable.innerHTML=`<thead><tr><th>#</th><th>Usuario</th><th>Contraseña</th><th>Nombre</th><th>Estado</th></tr></thead><tbody>${clients.map(([key,u],i)=>{
-    const saved=localStorage.getItem('jeb_'+key);
-    const reg=saved?'<span class="status-dot registered"></span> Registrado':'<span class="status-dot pending"></span> Pendiente';
-    return`<tr><td style="color:var(--muted);font-weight:600">${String(i+1).padStart(2,'0')}</td><td><span class="cred-user">${key}</span></td><td><span class="cred-pass">${u.pass}</span></td><td style="color:var(--muted)">${u.display}</td><td style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)">${reg}</td></tr>`;
-  }).join('')}</tbody>`;
-  // User cards
-  const grid = document.getElementById('admin-users-grid');
-  grid.innerHTML='';
-  let hasData=false;
-  clients.forEach(([key,u])=>{
-    const saved=localStorage.getItem('jeb_'+key);
-    if(!saved) return;
-    hasData=true;
-    const d=JSON.parse(saved);
-    const hist=JSON.parse(localStorage.getItem('jebhist_'+key)||'[]');
-    const r=d.redes||{};
-    const redesStr=Object.entries(r).filter(([,v])=>v).map(([k,v])=>`<div class="admin-user-field"><b>${k}</b><span>${v}</span></div>`).join('');
-    const card=document.createElement('div');
-    card.className='admin-user-card';
-    card.innerHTML=`
-      <div class="admin-user-head">
-        <div><div class="admin-user-name">${d.nombre||key}</div><div style="font-size:11px;color:var(--muted);margin-top:2px">${key} · ${d.giro||'Sin giro'}</div></div>
-        <span class="admin-user-role" style="color:var(--lime)">Activo</span>
-      </div>
-      <div class="admin-user-body">
-        <div class="admin-user-field"><b>Producto</b><span>${d.prod||'—'}</span></div>
-        <div class="admin-user-field"><b>Tono</b><span>${(d.tonos||[]).join(', ')||'—'}</span></div>
-        <div class="admin-user-field"><b>Audiencia</b><span>${d.audiencia?.slice(0,60)||'—'}${d.audiencia?.length>60?'...':''}</span></div>
-        <div class="admin-user-field"><b>Metas</b><span>${(d.metas||[]).join(', ')||'—'}</span></div>
-        ${redesStr}
-        ${hist.length?`<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)"><div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;font-family:'Barlow Condensed',sans-serif;font-weight:700">Último cambio</div><div style="font-size:11px;color:var(--muted2)">${hist[0].fecha} — ${hist[0].resumen.slice(0,40)}</div></div>`:''}
-        ${d.guardado?`<div style="font-size:10px;color:var(--muted2);margin-top:6px">Guardado: ${new Date(d.guardado).toLocaleDateString('es-MX')}</div>`:''}
-      </div>
-      <div class="admin-user-actions">
-        <button class="btn-ghost" style="font-size:11px;flex:1" onclick="adminExport('${key}')">⬇ Exportar</button>
-        <button class="btn-lime" style="font-size:11px;flex:1;padding:8px 12px" onclick="adminViewUser('${key}')">Ver Brand Book</button>
-      </div>
-    `;
-    grid.appendChild(card);
-  });
-  if(!hasData){ grid.innerHTML=`<div style="grid-column:1/-1;font-size:13px;color:var(--muted);text-align:center;padding:32px;border:1px dashed var(--border);border-radius:8px">💡 Los perfiles de los clientes aparecen aquí una vez que completan su registro.</div>`; }
-}
-
 function adminExport(key) {
   const saved=localStorage.getItem('jeb_'+key);
   if(!saved){showToast('Este usuario aún no ha registrado su marca');return;}
