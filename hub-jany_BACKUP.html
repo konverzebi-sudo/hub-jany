@@ -74,8 +74,6 @@ body{background:var(--dark);color:var(--text);font-family:'Barlow',sans-serif;mi
 ═══════════════════════════════════════════ */
 #screen-login{align-items:center;justify-content:center;min-height:100vh;background:var(--dark);padding:2rem}
 #screen-login.active{display:flex}
-#screen-set-password{align-items:center;justify-content:center;min-height:100vh;background:var(--dark);padding:2rem}
-#screen-set-password.active{display:flex}
 .login-wrap{width:100%;max-width:420px}
 .login-eyebrow{display:flex;align-items:center;gap:12px;margin-bottom:28px}
 .login-eyebrow::before{content:'';width:28px;height:1px;background:var(--muted)}
@@ -450,28 +448,6 @@ td.red{color:var(--red)}
       <p style="font-size:12px;color:var(--muted);margin-bottom:6px">¿Aún no tienes acceso?</p>
       <a href="https://jefeshub.com/en-expansion.html" target="_blank" style="font-size:12px;color:var(--lime);text-decoration:none;font-family:'Barlow',sans-serif;font-weight:600">Prueba 1 mes gratis aquí →</a>
     </div>
-  </div>
-</div>
-
-<!-- ═════════════════════════════════
-     SCREEN 1B: CREAR CONTRASEÑA (invitación / recovery)
-═════════════════════════════════ -->
-<div id="screen-set-password" class="screen" style="display:none">
-  <div class="login-wrap">
-    <div class="login-eyebrow"><span>Jefes en Expansión</span></div>
-    <h1 class="login-title">CREA TU<span class="lime">CONTRASEÑA.</span></h1>
-    <p class="login-sub" id="sp-sub">Este es tu primer acceso. Crea una contraseña para activar tu cuenta.</p>
-    <div class="login-field">
-      <label class="field-label">Nueva contraseña</label>
-      <input class="field-input" id="sp-pass1" type="password" placeholder="••••••••" autocomplete="new-password">
-    </div>
-    <div class="login-field">
-      <label class="field-label">Confirmar contraseña</label>
-      <input class="field-input" id="sp-pass2" type="password" placeholder="••••••••" autocomplete="new-password">
-    </div>
-    <button class="btn-lime btn-lime-lg" style="margin-top:8px" onclick="doSetPassword()">GUARDAR Y ENTRAR →</button>
-    <p class="login-error" id="sp-err"></p>
-    <p class="login-footer">Hub v3 · Jefes en Expansión</p>
   </div>
 </div>
 
@@ -1121,123 +1097,6 @@ async function doLogin() {
 }
 
 /* ═══════════════════════════════════════════
-   INVITACIÓN / RECOVERY — manejo de #access_token en URL
-═══════════════════════════════════════════ */
-let inviteTokens = null;
-
-function handleAuthRedirect() {
-  const hash = window.location.hash;
-  if (!hash || hash.length < 2) return;
-  const params = new URLSearchParams(hash.substring(1));
-
-  const error = params.get('error') || params.get('error_description');
-  const accessToken = params.get('access_token');
-  const type = params.get('type');
-
-  if (error) {
-    showScreen('screen-login');
-    const errEl = document.getElementById('login-err');
-    errEl.textContent = 'El enlace de invitación expiró o ya fue usado. Solicita uno nuevo.';
-    errEl.style.display = 'block';
-    history.replaceState(null, '', window.location.pathname + window.location.search);
-    return;
-  }
-
-  if (accessToken && (type === 'invite' || type === 'recovery')) {
-    inviteTokens = { access_token: accessToken, refresh_token: params.get('refresh_token') };
-    document.getElementById('sp-sub').textContent = type === 'invite'
-      ? 'Este es tu primer acceso. Crea una contraseña para activar tu cuenta.'
-      : 'Crea una nueva contraseña para tu cuenta.';
-    showScreen('screen-set-password');
-    history.replaceState(null, '', window.location.pathname + window.location.search);
-  }
-}
-
-async function doSetPassword() {
-  const pass1 = document.getElementById('sp-pass1').value;
-  const pass2 = document.getElementById('sp-pass2').value;
-  const errEl = document.getElementById('sp-err');
-  errEl.style.display = 'none';
-
-  if (!pass1 || !pass2) {
-    errEl.textContent = 'Completa ambos campos';
-    errEl.style.display = 'block';
-    return;
-  }
-  if (pass1.length < 6) {
-    errEl.textContent = 'La contraseña debe tener al menos 6 caracteres';
-    errEl.style.display = 'block';
-    return;
-  }
-  if (pass1 !== pass2) {
-    errEl.textContent = 'Las contraseñas no coinciden';
-    errEl.style.display = 'block';
-    return;
-  }
-  if (!inviteTokens || !inviteTokens.access_token) {
-    errEl.textContent = 'El enlace ya no es válido. Solicita uno nuevo.';
-    errEl.style.display = 'block';
-    return;
-  }
-
-  const btn = document.querySelector('#screen-set-password .btn-lime');
-  btn.textContent = 'GUARDANDO...';
-  btn.disabled = true;
-
-  try {
-    const res = await fetch(`${SUPA_URL}/auth/v1/user`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': SUPA_KEY,
-        'Authorization': `Bearer ${inviteTokens.access_token}`
-      },
-      body: JSON.stringify({ password: pass1 })
-    });
-    const data = await res.json();
-
-    if (data.error || !data.id) {
-      errEl.textContent = 'No se pudo guardar la contraseña. Intenta de nuevo.';
-      errEl.style.display = 'block';
-      btn.textContent = 'GUARDAR Y ENTRAR →';
-      btn.disabled = false;
-      return;
-    }
-
-    supaSession = inviteTokens;
-    CU = data.email;
-    inviteTokens = null;
-
-    const memRes = await fetch(`${SUPA_URL}/rest/v1/memberships?user_id=eq.${data.id}&activa=eq.true&select=activa`, {
-      headers: { 'apikey': SUPA_KEY, 'Authorization': `Bearer ${supaSession.access_token}` }
-    });
-    const memData = await memRes.json();
-
-    if (!memData || memData.length === 0) {
-      showToast('Cuenta creada. Activa tu membresía para continuar.');
-      setTimeout(() => {
-        window.location.href = 'https://link.fastpaydirect.com/payment-link/6a32f45a71a0aa761e46548e';
-      }, 2500);
-      return;
-    }
-
-    const saved = await getSaved();
-    if (saved) {
-      brand = saved;
-      renderDash();
-      showScreen('screen-dash');
-    } else {
-      showScreen('screen-onboard');
-    }
-  } catch(err) {
-    errEl.textContent = 'Error de conexión. Intenta de nuevo.';
-    errEl.style.display = 'block';
-    btn.textContent = 'GUARDAR Y ENTRAR →';
-    btn.disabled = false;
-  }
-}
-
-/* ═══════════════════════════════════════════
    STATE
 ═══════════════════════════════════════════ */
 let CU = null; // current user key
@@ -1261,7 +1120,7 @@ function showScreen(id) {
   if (!el) return;
   el.classList.add('active');
   // Flex screens
-  const flexScreens = ['screen-login','screen-dash','screen-set-password'];
+  const flexScreens = ['screen-login','screen-dash'];
   el.style.display = flexScreens.includes(id) ? 'flex' : 'block';
   window.scrollTo(0,0);
 }
@@ -2410,9 +2269,6 @@ function showToast(msg){const t=document.getElementById('toast');t.textContent=m
 ═══════════════════════════════════════════ */
 document.getElementById('li-pass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
 document.getElementById('li-user').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('li-pass').focus();});
-document.getElementById('sp-pass1').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('sp-pass2').focus();});
-document.getElementById('sp-pass2').addEventListener('keydown',e=>{if(e.key==='Enter')doSetPassword();});
-handleAuthRedirect();
 </script>
 </body>
 </html>
