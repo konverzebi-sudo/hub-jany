@@ -34,6 +34,17 @@
   .paso-num { font-family: 'Bebas Neue', sans-serif; font-size: 22px; color: var(--verde); line-height: 1; flex-shrink: 0; margin-top: 2px; }
   .paso-txt { font-size: 14px; color: var(--gris); line-height: 1.6; }
   .paso-txt strong { color: var(--blanco); }
+  .form-crear { display: flex; flex-direction: column; gap: 12px; margin-bottom: 28px; opacity: 0; animation: fadeUp 0.6s ease forwards 0.5s; }
+  .campo { text-align: left; }
+  .input { width: 100%; background: #111111; border: 1px solid #222222; color: var(--blanco); padding: 14px 16px; font-family: 'Inter', sans-serif; font-size: 14px; border-radius: 4px; outline: none; transition: border-color 0.2s; }
+  .input::placeholder { color: #555555; }
+  .input:focus { border-color: var(--verde); }
+  .btn-crear { background: var(--verde); color: var(--negro); border: none; font-family: 'Bebas Neue', sans-serif; font-size: 18px; letter-spacing: 0.1em; text-transform: uppercase; padding: 16px; cursor: pointer; border-radius: 4px; transition: background 0.2s, transform 0.15s; margin-top: 4px; }
+  .btn-crear:hover { background: var(--verde-hover); transform: translateY(-2px); }
+  .btn-crear:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .bv-msg { font-size: 13px; min-height: 18px; line-height: 1.5; }
+  .bv-msg.err { color: #ff4d4d; }
+  .bv-msg.ok { color: var(--verde); }
   .btns-titulo { font-size: 11px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gris); margin-bottom: 16px; opacity: 0; animation: fadeUp 0.6s ease forwards 0.55s; }
   .btns { display: flex; flex-direction: column; gap: 12px; margin-bottom: 36px; opacity: 0; animation: fadeUp 0.6s ease forwards 0.6s; }
   .btn-email { display: flex; align-items: center; justify-content: space-between; background: #111111; border: 1px solid #222222; color: var(--blanco); text-decoration: none; padding: 16px 20px; font-size: 14px; font-weight: 600; transition: border-color 0.2s, background 0.2s; }
@@ -55,14 +66,21 @@
   <div class="logo">JEFES<span class="verde">HUB</span></div>
   <div class="emoji">🎉</div>
   <h1 class="titulo">¡Ya eres parte del Hub!</h1>
-  <p class="sub">Tu pago fue procesado exitosamente.<br><strong>Revisa tu correo</strong> — te enviamos un link para activar tu cuenta y crear tu contraseña.</p>
-  <div class="pasos">
-    <div class="pasos-titulo">Cómo activar tu acceso</div>
-    <div class="paso"><div class="paso-num">01</div><div class="paso-txt">Busca el email de <strong>Hub Jefes en Expansión</strong> en tu bandeja de entrada (revisa también spam).</div></div>
-    <div class="paso"><div class="paso-num">02</div><div class="paso-txt">Haz clic en el botón <strong>"Crear mi contraseña y acceder"</strong> dentro del email.</div></div>
-    <div class="paso"><div class="paso-num">03</div><div class="paso-txt">Crea tu contraseña y entra a tu Hub. <strong>¡Listo!</strong></div></div>
+  <p class="sub">Tu pago fue procesado exitosamente.<br><strong>Crea tu contraseña</strong> aquí mismo para entrar a tu Hub.</p>
+  <div class="form-crear">
+    <div class="campo">
+      <input class="input" type="email" id="bv-email" placeholder="Tu correo (el mismo del pago)">
+    </div>
+    <div class="campo">
+      <input class="input" type="password" id="bv-pass1" placeholder="Crea tu contraseña (mín. 6 caracteres)">
+    </div>
+    <div class="campo">
+      <input class="input" type="password" id="bv-pass2" placeholder="Confirma tu contraseña">
+    </div>
+    <button class="btn-crear" id="bv-submit" onclick="crearCuenta()">CREAR MI CUENTA Y ENTRAR →</button>
+    <div class="bv-msg" id="bv-msg"></div>
   </div>
-  <p class="btns-titulo">Ir directo a tu correo</p>
+  <p class="btns-titulo">¿Prefieres el correo? Tienes el link ahí también</p>
   <div class="btns">
     <a class="btn-email" href="https://mail.google.com" target="_blank"><div class="left"><span class="icon">📧</span><span>Abrir Gmail</span></div><span class="arrow">→</span></a>
     <a class="btn-email" href="https://outlook.live.com" target="_blank"><div class="left"><span class="icon">📨</span><span>Abrir Outlook / Hotmail</span></div><span class="arrow">→</span></a>
@@ -74,5 +92,53 @@
   </div>
   <footer>© 2026 JefesHub · Konverze</footer>
 </div>
+<script>
+  (function autofillEmail() {
+    const params = new URLSearchParams(window.location.search);
+    const email = params.get('email') || params.get('contact_email');
+    if (email) document.getElementById('bv-email').value = email;
+  })();
+
+  function showMsg(text, type) {
+    const el = document.getElementById('bv-msg');
+    el.textContent = text;
+    el.className = 'bv-msg ' + (type || '');
+  }
+
+  async function crearCuenta() {
+    const email = document.getElementById('bv-email').value.trim();
+    const pass1 = document.getElementById('bv-pass1').value;
+    const pass2 = document.getElementById('bv-pass2').value;
+    const btn = document.getElementById('bv-submit');
+
+    const emailValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    if (!emailValido) { showMsg('Ingresa un correo válido', 'err'); return; }
+    if (pass1.length < 6) { showMsg('La contraseña debe tener al menos 6 caracteres', 'err'); return; }
+    if (pass1 !== pass2) { showMsg('Las contraseñas no coinciden', 'err'); return; }
+
+    btn.disabled = true;
+    showMsg('Creando tu cuenta...', '');
+
+    try {
+      const res = await fetch('https://hub-registro.konverze-bi.workers.dev/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: pass1 })
+      });
+      const data = await res.json();
+
+      if (data.ok) {
+        showMsg('¡Cuenta creada! Entrando a tu Hub...', 'ok');
+        setTimeout(() => { window.location.href = 'https://jefeshub.com/hub-jany.html'; }, 1500);
+      } else {
+        showMsg(data.error || 'No se pudo crear la cuenta', 'err');
+        btn.disabled = false;
+      }
+    } catch (err) {
+      showMsg('Hubo un problema de conexión, intenta de nuevo', 'err');
+      btn.disabled = false;
+    }
+  }
+</script>
 </body>
 </html>
