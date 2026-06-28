@@ -786,7 +786,7 @@ td.red{color:var(--red)}
               </button>
             </div>
           </div></div>
-          <div class="mp-card"><div class="mp-card-head"><span class="mp-card-title">✍️ Caption</span><button class="copy-btn" onclick="copyEl('mp-caption',this)">⧉</button></div><div class="mp-card-body"><div class="mp-content" id="mp-caption"></div></div></div>
+          <div class="mp-card"><div class="mp-card-head"><span class="mp-card-title">✍️ Caption</span><button class="copy-btn" onclick="copyCaptionFull(this)">⧉</button></div><div class="mp-card-body"><div class="mp-content" id="mp-caption"></div></div></div>
         </div>
         <div style="margin-top:10px;background:var(--dark3);border:1px solid var(--border);padding:14px 16px;border-radius:4px"><div class="badge-lime" style="margin-bottom:8px">Hashtags recomendados</div><div class="tag-row" id="mp-hashtags"></div></div>
         <div style="text-align:right;margin-top:14px"><button class="btn-ghost" onclick="resetMP()">NUEVA PIEZA ↺</button></div>
@@ -1588,12 +1588,12 @@ async function generateMasterpiece() {
     '],',
     '"prompt": "prompt detallado en inglés para generar imagen o video con IA. Menciona: colores de la marca, estilo visual, iluminación, composición, mood. Mínimo 80 palabras.",',
     '"tool": "Canva o Higgsfield AI",',
-    '"caption": "caption completo en español. Gancho potente + desarrollo + CTA hacia WhatsApp. Con emojis estratégicos. Máximo 150 palabras.",',
+    '"caption": "caption completo en español. Gancho potente + desarrollo, con emojis naturales y estratégicos. NO incluyas despedida con número ni link de WhatsApp — eso se agrega automáticamente después. Máximo 110 palabras.",',
     '"hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"]',
     '}',
     '',
     'IMPORTANTE para el campo prompt: debe mencionar los colores de la marca, el estilo visual que comunica la personalidad de la marca, iluminación y mood acorde al tono de comunicación.',
-    'IMPORTANTE para el caption: usa el tono y personalidad de la marca, incluye CTA hacia WhatsApp si aplica, hashtags relevantes al nicho.'
+    'IMPORTANTE para el caption: usa el tono y personalidad de la marca. NO escribas ningún CTA, número ni link de WhatsApp — el sistema lo agrega después automáticamente con el link real.'
   ].filter(Boolean).join('\n');
 
   try {
@@ -1652,10 +1652,21 @@ async function generateMasterpiece() {
     document.getElementById('mp-prompt').textContent = mp.prompt || '';
     document.getElementById('mp-tool-badge').textContent = mp.tool || 'Canva';
 
-    // ── CAPTION ──
-    document.getElementById('mp-caption').textContent = mp.caption || '';
+    // ── CAPTION (cuerpo + CTA real de WhatsApp + hashtags en color lima) ──
+    const waLinkFinal = brand.redes?.whatsapp ? buildWspLink(brand.redes.whatsapp, brand.redes.whatsappMsg) : '';
+    const captionBody = (mp.caption || '').trim();
+    const ctaLine = waLinkFinal ? `📲 Escríbenos: ${waLinkFinal}` : '';
+    const hashtagsStr = (mp.hashtags || []).join(' ');
 
-    // ── HASHTAGS ──
+    const capEl = document.getElementById('mp-caption');
+    capEl.innerHTML = [
+      captionBody ? `<div>${captionBody.replace(/\n/g,'<br>')}</div>` : '',
+      ctaLine ? `<div style="margin-top:10px">${ctaLine}</div>` : '',
+      hashtagsStr ? `<div style="margin-top:10px;color:var(--lime)">${hashtagsStr}</div>` : ''
+    ].join('');
+    capEl.dataset.full = [captionBody, ctaLine, hashtagsStr].filter(Boolean).join('\n\n');
+
+    // ── HASHTAGS (chips visuales, se mantienen igual que hoy) ──
     const hh = document.getElementById('mp-hashtags');
     hh.innerHTML = '';
     (mp.hashtags || []).forEach(h => {
@@ -1706,6 +1717,16 @@ function resetMP() {
   if(dalleResult) dalleResult.style.display='none';
 }
 function copyEl(id,btn) { const el=document.getElementById(id); navigator.clipboard.writeText(el.textContent||el.innerText).then(()=>{const o=btn.textContent;btn.textContent='✓';btn.style.color='var(--lime)';showToast('Copiado ✓');setTimeout(()=>{btn.textContent=o;btn.style.color='';},1800);}); }
+
+function copyCaptionFull(btn) {
+  const el = document.getElementById('mp-caption');
+  const text = el.dataset.full || el.textContent || el.innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    const o = btn.textContent; btn.textContent='✓'; btn.style.color='var(--lime)';
+    showToast('Caption completo copiado ✓');
+    setTimeout(()=>{btn.textContent=o; btn.style.color='';},1800);
+  });
+}
 
 function buildWspLink(numero, msg) {
   const limpio = (numero||'').replace(/\D/g,'');
