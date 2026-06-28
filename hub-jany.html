@@ -760,8 +760,7 @@ td.red{color:var(--red)}
       <div id="mp-content" style="display:none">
         <div class="mp-grid">
           <div class="mp-card"><div class="mp-card-head"><span class="mp-card-title">✍️ Caption</span><button class="copy-btn" onclick="copyCaptionFull(this)">⧉</button></div><div class="mp-card-body"><div class="mp-content" id="mp-caption"></div></div></div>
-          <div class="mp-card"><div class="mp-card-head"><span class="mp-card-title">🎬 Guión</span><button class="copy-btn" onclick="copyEl('mp-guion',this)">⧉</button></div><div class="mp-card-body"><div class="mp-content" id="mp-guion"></div></div></div>
-          <div class="mp-card"><div class="mp-card-head"><span class="mp-card-title">🤖 Prompt IA</span><button class="copy-btn" onclick="copyEl('mp-prompt',this)">⧉</button></div><div class="mp-card-body"><div class="mp-content" id="mp-prompt"></div><div style="margin-top:10px;display:flex;align-items:center;gap:8px"><span id="mp-tool-badge" class="badge-lime"></span><span style="font-size:10px;color:var(--muted)">Herramienta recomendada</span></div></div></div>
+          <div id="mp-dynamic-blocks" style="display:contents"></div>
           <div class="mp-card" style="grid-column:1/-1"><div class="mp-card-head"><span class="mp-card-title">🎨 Arte — Crea con IA</span></div><div class="mp-card-body">
             <div style="font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted2);margin-bottom:10px">El Prompt IA ya está copiado al portapapeles al hacer clic:</div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
@@ -787,6 +786,7 @@ td.red{color:var(--red)}
               </button>
             </div>
           </div></div>
+          <div id="mp-dynamic-blocks-after" style="display:contents"></div>
         </div>
         <div style="margin-top:10px;background:var(--dark3);border:1px solid var(--border);padding:14px 16px;border-radius:4px"><div class="badge-lime" style="margin-bottom:8px">Hashtags recomendados</div><div class="tag-row" id="mp-hashtags"></div></div>
         <div style="text-align:right;margin-top:14px"><button class="btn-ghost" onclick="resetMP()">NUEVA PIEZA ↺</button></div>
@@ -1560,22 +1560,28 @@ function selIdea(idx) { cSelIdea=cIdeas[idx]; document.querySelectorAll('.idea-c
 function selFormat(fmt,el) { cSelFormat=fmt; document.querySelectorAll('.fmt-card').forEach(c=>c.classList.remove('selected')); el.classList.add('selected'); checkMP(); }
 function checkMP() { const ok=cSelIdea&&cSelFormat; const btn=document.getElementById('btn-mp'); btn.style.opacity=ok?'1':'0.4'; btn.style.pointerEvents=ok?'auto':'none'; document.getElementById('mp-prereq').style.display=ok?'none':'block'; }
 
-async function generateMasterpiece() {
-  if(!cSelIdea||!cSelFormat)return;
-  const mpL=document.getElementById('mp-loading'),mpC=document.getElementById('mp-content'),mpP=document.getElementById('mp-prereq'),btn=document.getElementById('btn-mp');
-  mpL.style.display='flex';mpC.style.display='none';mpP.style.display='none';btn.disabled=true;
-  const meta=document.getElementById('meta-input').value.trim();
-  const waLink = brand.redes?.whatsapp ? buildWspLink(brand.redes.whatsapp, brand.redes.whatsappMsg) : '[tu-whatsapp]';
-  const ctx=brandCtx();
-  // Construir prompt como objeto para evitar problemas de escape
-  const systemMsg = [
-    'Eres un experto en marketing digital y producción de contenido para redes sociales.',
-    ctx ? 'MARCA:\n' + ctx : '',
-    'Idea de contenido: ' + cSelIdea.topic,
-    'Gancho inicial: ' + cSelIdea.hook,
-    'Formato: ' + cSelFormat,
-    'Objetivo: ' + (meta || 'Crecer en redes y generar ventas'),
-    '',
+function buildOutputSpec(formato, waLink) {
+  if (formato === 'imagen') {
+    const colorTxt = brand.paleta ? `${brand.paleta.c1||''}${brand.paleta.c2 ? ' y ' + brand.paleta.c2 : ''}` : 'los colores de la marca';
+    const tipoTxt = brand.tipografia || 'la tipografía de la marca';
+    return [
+      'Genera exactamente este JSON. NO incluyas texto antes ni después. NO uses backticks ni markdown.',
+      'El JSON debe tener esta estructura exacta (usa comillas dobles, sin caracteres especiales que rompan JSON):',
+      '{',
+      `"prompt": "prompt en ESPAÑOL, muy detallado, para generar una IMAGEN de post de Instagram. Debe especificar: medidas 1080x1350px (4:5) o 1080x1080px (1:1) según convenga al contenido, los colores de marca (${colorTxt}), la tipografía (${tipoTxt}), el mood/estilo visual acorde al tono de la marca, y debe indicar que el diseño incluya visible el texto de llamado a la acción y el link de WhatsApp: ${waLink}. Mínimo 80 palabras.",`,
+      '"tool": "Canva o Higgsfield AI",',
+      '"descripcionDiseno": "explicación breve en español de qué va en cada zona del diseño (arriba, centro, abajo), para armarlo manualmente en Canva si no se usa IA.",',
+      '"caption": "caption completo en español. Gancho potente + desarrollo, con emojis naturales y estratégicos. NO incluyas despedida con número ni link de WhatsApp — eso se agrega automáticamente después. Máximo 110 palabras.",',
+      '"hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"]',
+      '}',
+      '',
+      'IMPORTANTE para el campo prompt: menciona explícitamente las medidas, los colores de marca, la tipografía, y que el CTA + link de WhatsApp deben quedar visibles en el diseño.',
+      'IMPORTANTE para el caption: usa el tono y personalidad de la marca. NO escribas ningún CTA, número ni link de WhatsApp — el sistema lo agrega después automáticamente con el link real.'
+    ];
+  }
+
+  // DEFAULT — video y formatos aún no migrados (carrusel, flyer): estructura actual, sin cambios
+  return [
     'Genera exactamente este JSON. NO incluyas texto antes ni después. NO uses backticks ni markdown.',
     'El JSON debe tener esta estructura exacta (usa comillas dobles, sin caracteres especiales que rompan JSON):',
     '{',
@@ -1594,6 +1600,70 @@ async function generateMasterpiece() {
     '',
     'IMPORTANTE para el campo prompt: debe mencionar los colores de la marca, el estilo visual que comunica la personalidad de la marca, iluminación y mood acorde al tono de comunicación.',
     'IMPORTANTE para el caption: usa el tono y personalidad de la marca. NO escribas ningún CTA, número ni link de WhatsApp — el sistema lo agrega después automáticamente con el link real.'
+  ];
+}
+
+function renderDynamicBlocks(mp, formato) {
+  const before = document.getElementById('mp-dynamic-blocks');
+  const after = document.getElementById('mp-dynamic-blocks-after');
+  after.innerHTML = '';
+
+  if (formato === 'imagen') {
+    before.innerHTML = `<div class="mp-card"><div class="mp-card-head"><span class="mp-card-title">🤖 Prompt IA — Imagen</span><button class="copy-btn" onclick="copyEl('mp-prompt',this)">⧉</button></div><div class="mp-card-body"><div class="mp-content" id="mp-prompt"></div><div style="margin-top:10px;display:flex;align-items:center;gap:8px"><span id="mp-tool-badge" class="badge-lime"></span><span style="font-size:10px;color:var(--muted)">Herramienta recomendada</span></div></div></div>`;
+    document.getElementById('mp-prompt').textContent = mp.prompt || '';
+    document.getElementById('mp-tool-badge').textContent = mp.tool || 'Canva';
+
+    after.innerHTML = `<div class="mp-card" style="grid-column:1/-1"><div class="mp-card-head"><span class="mp-card-title">📐 Descripción del diseño</span></div><div class="mp-card-body"><div class="mp-content" style="white-space:pre-wrap">${(mp.descripcionDiseno||'').replace(/\n/g,'<br>')}</div></div></div>`;
+    return;
+  }
+
+  // DEFAULT — video y formatos aún no migrados
+  before.innerHTML = `<div class="mp-card"><div class="mp-card-head"><span class="mp-card-title">🎬 Guión</span><button class="copy-btn" onclick="copyEl('mp-guion',this)">⧉</button></div><div class="mp-card-body"><div class="mp-content" id="mp-guion"></div></div></div>
+    <div class="mp-card"><div class="mp-card-head"><span class="mp-card-title">🤖 Prompt IA</span><button class="copy-btn" onclick="copyEl('mp-prompt',this)">⧉</button></div><div class="mp-card-body"><div class="mp-content" id="mp-prompt"></div><div style="margin-top:10px;display:flex;align-items:center;gap:8px"><span id="mp-tool-badge" class="badge-lime"></span><span style="font-size:10px;color:var(--muted)">Herramienta recomendada</span></div></div></div>`;
+
+  const guionEl = document.getElementById('mp-guion');
+  const tomas = mp.tomas || mp.segmentos || [];
+  if (tomas.length > 0) {
+    guionEl.innerHTML = tomas.map((s, i) => {
+      const tiempo = s.tiempo || s.time || `Toma ${i+1}`;
+      const visual = s.visual || s.escena || s.scene || '';
+      const guion  = s.guion  || s.voz   || s.audio || s.voice || '';
+      return `<div style="margin-bottom:10px;padding:10px 12px;background:var(--dark4);border-left:3px solid var(--lime);border-radius:0 4px 4px 0">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--lime);margin-bottom:6px">⏱ Tiempo: ${tiempo}</div>
+        <div style="display:flex;gap:8px;margin-bottom:5px">
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;color:var(--muted);min-width:56px;text-transform:uppercase;letter-spacing:.06em;padding-top:2px;flex-shrink:0">Visual:</span>
+          <span style="font-size:12px;color:#ddd;line-height:1.55;flex:1">${visual}</span>
+        </div>
+        <div style="display:flex;gap:8px">
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;color:var(--muted);min-width:56px;text-transform:uppercase;letter-spacing:.06em;padding-top:2px;flex-shrink:0">Guión:</span>
+          <span style="font-size:12px;color:#fff;line-height:1.55;flex:1;font-style:italic">"${guion}"</span>
+        </div>
+      </div>`;
+    }).join('');
+  } else {
+    guionEl.textContent = mp.guion || 'Genera de nuevo';
+  }
+  document.getElementById('mp-prompt').textContent = mp.prompt || '';
+  document.getElementById('mp-tool-badge').textContent = mp.tool || 'Canva';
+}
+
+async function generateMasterpiece() {
+  if(!cSelIdea||!cSelFormat)return;
+  const mpL=document.getElementById('mp-loading'),mpC=document.getElementById('mp-content'),mpP=document.getElementById('mp-prereq'),btn=document.getElementById('btn-mp');
+  mpL.style.display='flex';mpC.style.display='none';mpP.style.display='none';btn.disabled=true;
+  const meta=document.getElementById('meta-input').value.trim();
+  const waLink = brand.redes?.whatsapp ? buildWspLink(brand.redes.whatsapp, brand.redes.whatsappMsg) : '[tu-whatsapp]';
+  const ctx=brandCtx();
+  const specLines = buildOutputSpec(cSelFormat, waLink);
+  const systemMsg = [
+    'Eres un experto en marketing digital y producción de contenido para redes sociales.',
+    ctx ? 'MARCA:\n' + ctx : '',
+    'Idea de contenido: ' + cSelIdea.topic,
+    'Gancho inicial: ' + cSelIdea.hook,
+    'Formato: ' + cSelFormat,
+    'Objetivo: ' + (meta || 'Crecer en redes y generar ventas'),
+    '',
+    ...specLines
   ].filter(Boolean).join('\n');
 
   try {
@@ -1624,33 +1694,8 @@ async function generateMasterpiece() {
       mp = JSON.parse(cleaned);
     }
 
-    // ── GUIÓN con tomas ──
-    const guionEl = document.getElementById('mp-guion');
-    const tomas = mp.tomas || mp.segmentos || [];
-    if (tomas.length > 0) {
-      guionEl.innerHTML = tomas.map((s, i) => {
-        const tiempo = s.tiempo || s.time || `Toma ${i+1}`;
-        const visual = s.visual || s.escena || s.scene || '';
-        const guion  = s.guion  || s.voz   || s.audio || s.voice || '';
-        return `<div style="margin-bottom:10px;padding:10px 12px;background:var(--dark4);border-left:3px solid var(--lime);border-radius:0 4px 4px 0">
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--lime);margin-bottom:6px">⏱ Tiempo: ${tiempo}</div>
-          <div style="display:flex;gap:8px;margin-bottom:5px">
-            <span style="font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;color:var(--muted);min-width:56px;text-transform:uppercase;letter-spacing:.06em;padding-top:2px;flex-shrink:0">Visual:</span>
-            <span style="font-size:12px;color:#ddd;line-height:1.55;flex:1">${visual}</span>
-          </div>
-          <div style="display:flex;gap:8px">
-            <span style="font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;color:var(--muted);min-width:56px;text-transform:uppercase;letter-spacing:.06em;padding-top:2px;flex-shrink:0">Guión:</span>
-            <span style="font-size:12px;color:#fff;line-height:1.55;flex:1;font-style:italic">"${guion}"</span>
-          </div>
-        </div>`;
-      }).join('');
-    } else {
-      guionEl.textContent = mp.guion || 'Genera de nuevo';
-    }
-
-    // ── PROMPT IA ──
-    document.getElementById('mp-prompt').textContent = mp.prompt || '';
-    document.getElementById('mp-tool-badge').textContent = mp.tool || 'Canva';
+    // ── BLOQUES DINÁMICOS según formato (Guión+Prompt en video, Prompt+Descripción en imagen) ──
+    renderDynamicBlocks(mp, cSelFormat);
 
     // ── CAPTION (cuerpo + CTA real de WhatsApp + hashtags en color lima) ──
     const waLinkFinal = brand.redes?.whatsapp ? buildWspLink(brand.redes.whatsapp, brand.redes.whatsappMsg) : '';
@@ -1681,7 +1726,7 @@ async function generateMasterpiece() {
 
   } catch(e) {
     console.error('Error masterpiece:', e);
-    document.getElementById('mp-guion').innerHTML = `<div style="color:var(--red);font-size:12px;padding:8px;line-height:1.6">⚠ ${e.message || 'Error al generar'}.<br>Intenta de nuevo — si persiste, escribe una meta más específica arriba.</div>`;
+    document.getElementById('mp-dynamic-blocks').innerHTML = `<div style="color:var(--red);font-size:12px;padding:8px;line-height:1.6">⚠ ${e.message || 'Error al generar'}.<br>Intenta de nuevo — si persiste, escribe una meta más específica arriba.</div>`;
     mpC.style.display = 'block';
   }
   mpL.style.display='none';btn.disabled=false;
