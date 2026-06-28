@@ -606,12 +606,19 @@ td.red{color:var(--red)}
         <div><div class="field-label" style="margin-bottom:6px">Facebook</div><div class="social-row"><span class="soc-icon">📘</span><input type="text" id="soc-fb" placeholder="facebook.com/tumarca"></div></div>
         <div><div class="field-label" style="margin-bottom:6px">Instagram</div><div class="social-row"><span class="soc-icon">📸</span><input type="text" id="soc-ig" placeholder="@tumarca"></div></div>
         <div><div class="field-label" style="margin-bottom:6px">TikTok</div><div class="social-row"><span class="soc-icon">🎵</span><input type="text" id="soc-tt" placeholder="@tumarca"></div></div>
-        <div><div class="field-label" style="margin-bottom:6px">WhatsApp (número con lada)</div><div class="social-row"><span class="soc-icon">💬</span><input type="text" id="soc-wsp" placeholder="521XXXXXXXXXX"></div></div>
+        <div><div class="field-label" style="margin-bottom:6px">WhatsApp (número con lada)</div><div class="social-row"><span class="soc-icon">💬</span><input type="text" id="soc-wsp" placeholder="521XXXXXXXXXX" oninput="updateWspPreview()"></div></div>
         <div><div class="field-label" style="margin-bottom:6px">Seguidores Facebook <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted)">(referencia)</span></div><div class="social-row"><span class="soc-icon">📘</span><input type="number" id="soc-fb-seg" placeholder="Ej: 4500" min="0"></div></div>
         <div><div class="field-label" style="margin-bottom:6px">Seguidores Instagram <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted)">(referencia)</span></div><div class="social-row"><span class="soc-icon">📸</span><input type="number" id="soc-ig-seg" placeholder="Ej: 2800" min="0"></div></div>
         <div><div class="field-label" style="margin-bottom:6px">Website</div><div class="social-row"><span class="soc-icon">🌐</span><input type="text" id="soc-web" placeholder="www.tumarca.com"></div></div>
-        <div><div class="field-label" style="margin-bottom:6px">Link de WhatsApp <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted)">(wa.me/521... o link personalizado)</span></div><div class="social-row"><span class="soc-icon">🔗</span><input type="text" id="soc-wsp-link" placeholder="https://wa.me/521XXXXXXXXXX?text=Hola..."></div></div>
+        <div><div class="field-label" style="margin-bottom:6px">Mensaje con el que te gustaría que te contacten <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted)">(opcional)</span></div><div class="social-row"><span class="soc-icon">💭</span><input type="text" id="soc-wsp-msg" placeholder="Ej: Me interesa tu servicio de ___" oninput="updateWspPreview()"></div></div>
         <div><div class="field-label" style="margin-bottom:6px">YouTube</div><div class="social-row"><span class="soc-icon">▶️</span><input type="text" id="soc-yt" placeholder="@canal"></div></div>
+      </div>
+      <div style="margin-top:14px;background:var(--dark3);border:1px solid var(--border);border-radius:6px;padding:12px 14px">
+        <div class="field-label" style="margin-bottom:8px">Tu link de WhatsApp (se genera automáticamente)</div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <div id="soc-wsp-preview" style="font-size:13px;color:var(--lime);font-family:monospace;word-break:break-all;flex:1">wa.me/[tu-número]</div>
+          <button type="button" class="btn-ghost" onclick="copyEl('soc-wsp-preview',this)">⧉ Copiar mi link de WhatsApp</button>
+        </div>
       </div>
       <div style="margin-top:14px">
         <div class="field-label" style="margin-bottom:6px">Dirección física <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted)">(opcional)</span></div>
@@ -1462,7 +1469,7 @@ function saveProfile() {
       instagram: document.getElementById('soc-ig').value.trim(),
       tiktok: document.getElementById('soc-tt').value.trim(),
       whatsapp: document.getElementById('soc-wsp').value.trim(),
-      whatsappLink: document.getElementById('soc-wsp-link').value.trim(),
+      whatsappMsg: document.getElementById('soc-wsp-msg').value.trim(),
       facebook_seguidores: document.getElementById('soc-fb-seg').value || '',
       instagram_seguidores: document.getElementById('soc-ig-seg').value || '',
       website: document.getElementById('soc-web').value.trim(),
@@ -1558,7 +1565,7 @@ async function generateMasterpiece() {
   const mpL=document.getElementById('mp-loading'),mpC=document.getElementById('mp-content'),mpP=document.getElementById('mp-prereq'),btn=document.getElementById('btn-mp');
   mpL.style.display='flex';mpC.style.display='none';mpP.style.display='none';btn.disabled=true;
   const meta=document.getElementById('meta-input').value.trim();
-  const waLink=brand.redes?.whatsapp?`wa.me/${brand.redes.whatsapp.replace(/\D/g,'')}`:'[tu-whatsapp]';
+  const waLink = brand.redes?.whatsapp ? buildWspLink(brand.redes.whatsapp, brand.redes.whatsappMsg) : '[tu-whatsapp]';
   const ctx=brandCtx();
   // Construir prompt como objeto para evitar problemas de escape
   const systemMsg = [
@@ -1699,6 +1706,20 @@ function resetMP() {
   if(dalleResult) dalleResult.style.display='none';
 }
 function copyEl(id,btn) { const el=document.getElementById(id); navigator.clipboard.writeText(el.textContent||el.innerText).then(()=>{const o=btn.textContent;btn.textContent='✓';btn.style.color='var(--lime)';showToast('Copiado ✓');setTimeout(()=>{btn.textContent=o;btn.style.color='';},1800);}); }
+
+function buildWspLink(numero, msg) {
+  const limpio = (numero||'').replace(/\D/g,'');
+  if (!limpio) return '';
+  const base = `https://wa.me/${limpio}`;
+  return msg && msg.trim() ? `${base}?text=${encodeURIComponent(msg.trim())}` : base;
+}
+function updateWspPreview() {
+  const numero = document.getElementById('soc-wsp')?.value || '';
+  const msg = document.getElementById('soc-wsp-msg')?.value || '';
+  const preview = document.getElementById('soc-wsp-preview');
+  if (!preview) return;
+  preview.textContent = numero.trim() ? buildWspLink(numero, msg) : 'wa.me/[tu-número]';
+}
 
 /* ═══════════════════════════════════════════
    META ADS MODULE
@@ -2318,7 +2339,8 @@ function fillOnboardForm() {
   document.getElementById('soc-ig').value=r.instagram||'';
   document.getElementById('soc-tt').value=r.tiktok||'';
   document.getElementById('soc-wsp').value=r.whatsapp||'';
-  document.getElementById('soc-wsp-link').value=r.whatsappLink||'';
+  document.getElementById('soc-wsp-msg').value=r.whatsappMsg||'';
+  updateWspPreview();
   if(document.getElementById('soc-fb-seg')) document.getElementById('soc-fb-seg').value=r.facebook_seguidores||'';
   if(document.getElementById('soc-ig-seg')) document.getElementById('soc-ig-seg').value=r.instagram_seguidores||'';
   document.getElementById('soc-web').value=r.website||'';
