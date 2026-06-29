@@ -1580,7 +1580,26 @@ function buildOutputSpec(formato, waLink) {
     ];
   }
 
-  // DEFAULT — video y formatos aún no migrados (carrusel, flyer): estructura actual, sin cambios
+  if (formato === 'flyer') {
+    const colorTxt = brand.paleta ? `${brand.paleta.c1||''}${brand.paleta.c2 ? ' y ' + brand.paleta.c2 : ''}` : 'los colores de la marca';
+    const tipoTxt = brand.tipografia || 'la tipografía de la marca';
+    return [
+      'Genera exactamente este JSON. NO incluyas texto antes ni después. NO uses backticks ni markdown.',
+      'El JSON debe tener esta estructura exacta (usa comillas dobles, sin caracteres especiales que rompan JSON):',
+      '{',
+      `"prompt": "prompt en ESPAÑOL, muy detallado, para generar un FLYER de pantalla completa (formato Story/vertical). Debe especificar: medidas 1080x1920px, los colores de marca (${colorTxt}), la tipografía (${tipoTxt}), el mood/estilo visual acorde al tono de la marca, y una jerarquía visual clara: la oferta o producto destacado en la parte de arriba/centro, y los datos de contacto (CTA + link de WhatsApp: ${waLink}) visibles en la parte de abajo. Mínimo 80 palabras.",`,
+      '"tool": "Canva o Higgsfield AI",',
+      '"descripcionDiseno": "explicación breve en español de la jerarquía visual del flyer: qué va arriba, qué destaca al centro, qué va abajo.",',
+      '"caption": "caption completo en español. Gancho potente + desarrollo, con emojis naturales y estratégicos. NO incluyas despedida con número ni link de WhatsApp — eso se agrega automáticamente después. Máximo 110 palabras.",',
+      '"hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"]',
+      '}',
+      '',
+      'IMPORTANTE para el campo prompt: menciona explícitamente las medidas de pantalla completa, los colores de marca, la tipografía, y la jerarquía visual (oferta/producto arriba, CTA + WhatsApp abajo).',
+      'IMPORTANTE para el caption: usa el tono y personalidad de la marca. NO escribas ningún CTA, número ni link de WhatsApp — el sistema lo agrega después automáticamente con el link real.'
+    ];
+  }
+
+  // DEFAULT — video y formatos aún no migrados (carrusel): estructura actual, sin cambios
   return [
     'Genera exactamente este JSON. NO incluyas texto antes ni después. NO uses backticks ni markdown.',
     'El JSON debe tener esta estructura exacta (usa comillas dobles, sin caracteres especiales que rompan JSON):',
@@ -1608,8 +1627,9 @@ function renderDynamicBlocks(mp, formato) {
   const after = document.getElementById('mp-dynamic-blocks-after');
   after.innerHTML = '';
 
-  if (formato === 'imagen') {
-    before.innerHTML = `<div class="mp-card"><div class="mp-card-head"><span class="mp-card-title">🤖 Prompt IA — Imagen</span><button class="copy-btn" onclick="copyEl('mp-prompt',this)">⧉</button></div><div class="mp-card-body"><div class="mp-content" id="mp-prompt"></div><div style="margin-top:10px;display:flex;align-items:center;gap:8px"><span id="mp-tool-badge" class="badge-lime"></span><span style="font-size:10px;color:var(--muted)">Herramienta recomendada</span></div></div></div>`;
+  if (formato === 'imagen' || formato === 'flyer') {
+    const tituloPrompt = formato === 'flyer' ? '🤖 Prompt IA — Flyer' : '🤖 Prompt IA — Imagen';
+    before.innerHTML = `<div class="mp-card"><div class="mp-card-head"><span class="mp-card-title">${tituloPrompt}</span><button class="copy-btn" onclick="copyEl('mp-prompt',this)">⧉</button></div><div class="mp-card-body"><div class="mp-content" id="mp-prompt"></div><div style="margin-top:10px;display:flex;align-items:center;gap:8px"><span id="mp-tool-badge" class="badge-lime"></span><span style="font-size:10px;color:var(--muted)">Herramienta recomendada</span></div></div></div>`;
     document.getElementById('mp-prompt').textContent = mp.prompt || '';
     document.getElementById('mp-tool-badge').textContent = mp.tool || 'Canva';
 
