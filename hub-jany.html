@@ -1599,7 +1599,27 @@ function buildOutputSpec(formato, waLink) {
     ];
   }
 
-  // DEFAULT — video y formatos aún no migrados (carrusel): estructura actual, sin cambios
+  if (formato === 'carrusel') {
+    const colorTxt = brand.paleta ? `${brand.paleta.c1||''}${brand.paleta.c2 ? ' y ' + brand.paleta.c2 : ''}` : 'los colores de la marca';
+    const tipoTxt = brand.tipografia || 'la tipografía de la marca';
+    return [
+      'Genera exactamente este JSON. NO incluyas texto antes ni después. NO uses backticks ni markdown.',
+      'El JSON debe tener esta estructura exacta (usa comillas dobles, sin caracteres especiales que rompan JSON):',
+      '{',
+      '"laminas": [',
+      '  {"descripcion": "qué transmite esta lámina dentro de la narrativa del carrusel", "prompt": "prompt en ESPAÑOL para esta lámina, medidas 1080x1350px, colores de marca, tipografía, coherente visualmente con las demás láminas"}',
+      '],',
+      '"tool": "Canva o Higgsfield AI",',
+      '"caption": "caption completo en español. Gancho potente + desarrollo, con emojis naturales y estratégicos. NO incluyas despedida con número ni link de WhatsApp — eso se agrega automáticamente después. Máximo 110 palabras.",',
+      '"hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"]',
+      '}',
+      '',
+      `IMPORTANTE para "laminas": decide entre 3 y 7 láminas según lo que necesite el tema, ni más ni menos de las necesarias. Cada prompt debe especificar medidas 1080x1350px, los colores de marca (${colorTxt}), la tipografía (${tipoTxt}), y mantener coherencia visual entre todas las láminas (mismo estilo, mismo mood, misma paleta).`,
+      'IMPORTANTE para el caption: usa el tono y personalidad de la marca. NO escribas ningún CTA, número ni link de WhatsApp — el sistema lo agrega después automáticamente con el link real.'
+    ];
+  }
+
+  // DEFAULT — video: estructura actual, sin cambios
   return [
     'Genera exactamente este JSON. NO incluyas texto antes ni después. NO uses backticks ni markdown.',
     'El JSON debe tener esta estructura exacta (usa comillas dobles, sin caracteres especiales que rompan JSON):',
@@ -1637,7 +1657,17 @@ function renderDynamicBlocks(mp, formato) {
     return;
   }
 
-  // DEFAULT — video y formatos aún no migrados
+  if (formato === 'carrusel') {
+    const laminas = mp.laminas || [];
+    before.innerHTML = laminas.map((l, i) => `<div class="mp-card" style="grid-column:1/-1"><div class="mp-card-head"><span class="mp-card-title">🎠 Lámina ${i+1}</span><button class="copy-btn" onclick="copyEl('mp-lamina-prompt-${i}',this)">⧉</button></div><div class="mp-card-body"><div id="mp-lamina-desc-${i}" style="font-size:12px;color:#ccc;margin-bottom:10px;line-height:1.55"></div><div class="mp-content" id="mp-lamina-prompt-${i}"></div></div></div>`).join('');
+    laminas.forEach((l, i) => {
+      document.getElementById(`mp-lamina-desc-${i}`).textContent = l.descripcion || '';
+      document.getElementById(`mp-lamina-prompt-${i}`).textContent = l.prompt || '';
+    });
+    return;
+  }
+
+  // DEFAULT — video
   before.innerHTML = `<div class="mp-card"><div class="mp-card-head"><span class="mp-card-title">🎬 Guión</span><button class="copy-btn" onclick="copyEl('mp-guion',this)">⧉</button></div><div class="mp-card-body"><div class="mp-content" id="mp-guion"></div></div></div>
     <div class="mp-card"><div class="mp-card-head"><span class="mp-card-title">🤖 Prompt IA</span><button class="copy-btn" onclick="copyEl('mp-prompt',this)">⧉</button></div><div class="mp-card-body"><div class="mp-content" id="mp-prompt"></div><div style="margin-top:10px;display:flex;align-items:center;gap:8px"><span id="mp-tool-badge" class="badge-lime"></span><span style="font-size:10px;color:var(--muted)">Herramienta recomendada</span></div></div></div>`;
 
@@ -1756,6 +1786,11 @@ function arteOpen(tool) {
   const prompt = document.getElementById('mp-prompt')?.textContent || '';
   if (prompt) {
     navigator.clipboard.writeText(prompt).then(() => showToast('✓ Prompt copiado — pégalo en ' + tool.charAt(0).toUpperCase()+tool.slice(1))).catch(()=>{});
+  } else {
+    const primerLamina = document.getElementById('mp-lamina-prompt-0')?.textContent || '';
+    if (primerLamina) {
+      navigator.clipboard.writeText(primerLamina).then(() => showToast('✓ Prompt de la Lámina 1 copiado — pégalo en ' + tool.charAt(0).toUpperCase()+tool.slice(1) + '. Usa ⧉ en cada lámina para las demás.')).catch(()=>{});
+    }
   }
   const urls = {
     chatgpt: 'https://chatgpt.com/?model=gpt-4o',
