@@ -1,12 +1,13 @@
 # hub-jany
 
-Sitio estático de JefesHub (`jefeshub.com`), servido en producción desde GitHub Pages.
+Sitio estático de JefesHub (`jefeshub.com`), servido en producción desde GitHub Pages. El Centro de Agentes (`/agentes`) corre por separado en Vercel, desplegado desde la rama `feature/agentes-dashboard-backend`, en `agentes.jefeshub.com`.
 
 ## Centro de Agentes (`/agentes`)
 
-Este proyecto suma un backend serverless en Vercel para dos piezas:
+Este proyecto suma un backend serverless en Vercel para tres piezas:
 
 - `api/agente-conversion.js` — endpoint que llama a la API de Anthropic desde el servidor (la `ANTHROPIC_API_KEY` nunca toca el cliente). Usado por `agente-conversion-ventas.html`.
+- `api/sugerir-contenido.js` — mismo patrón, sugiere gancho + caption a partir de una idea cruda. Usado por el Banco de ideas en `selector-historias-contenido.html`.
 - `api/storage/[key].js` — key-value store en Postgres que reemplaza `window.storage` (entorno de artifacts) para que los datos persistan entre celular y computadora. Usado por `agente-conversion-ventas.html` y `selector-historias-contenido.html` a través de `js/storage-client.js`.
 
 ### Setup en Vercel (una sola vez)

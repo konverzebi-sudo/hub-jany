@@ -12,6 +12,11 @@ async function ensureTable() {
 }
 
 module.exports = async function handler(req, res) {
+  // Los datos cambian por dispositivo en cualquier momento: nunca cachear
+  // esta respuesta (ni en el browser ni en el edge de Vercel), o un refresh
+  // puede mostrar una copia vieja y dar la impresión de que se perdió lo guardado.
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
+
   const { key } = req.query;
   if (!key || Array.isArray(key) || !/^[a-zA-Z0-9_-]+$/.test(key)) {
     return res.status(400).json({ error: 'Key inválida.' });

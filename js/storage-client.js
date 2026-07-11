@@ -12,14 +12,16 @@
 
   window.storage = {
     async get(key) {
-      const res = await fetch('/api/storage/' + encodeURIComponent(key));
+      const res = await fetch('/api/storage/' + encodeURIComponent(key), { cache: 'no-store' });
       if (!res.ok) return null;
       const data = await res.json();
       return data.value != null ? { value: data.value } : null;
     },
-    async set(key, value) {
+    async set(key, value, opts) {
       const res = await fetch('/api/storage/' + encodeURIComponent(key), {
         method: 'POST',
+        cache: 'no-store',
+        keepalive: !!(opts && opts.keepalive),
         headers: { 'Content-Type': 'application/json', 'X-Storage-Token': getToken() },
         body: JSON.stringify({ value }),
       });
