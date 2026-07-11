@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Selector de Historias y Contenido — JefesHub</title>
+<style>
+  :root{
+    --bg:#f7f7f5; --card:#ffffff; --border:#e2e0d8; --border-strong:#c9c6b8;
+    --text:#1f1f1d; --text-2:#6b6a63; --text-3:#9c9a8e;
+    --accent:#7a9200; --accent-bg:#eef6d6; --accent-text:#3d4a00;
+    --proc-bg:#fff4d9; --proc-text:#7a5400; --proc-border:#e8c874;
+    --pub-bg:#ffe3da; --pub-text:#9a3a12; --pub-border:#f0a781;
+    --idea-bg:#eef1fb; --idea-text:#33408a; --idea-border:#b9c2ec;
+    --radius:8px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg); color:var(--text); padding:24px 16px 80px;
+  }
+  .wrap{max-width:1450px; margin:0 auto;}
+  h1{font-size:20px; font-weight:600; margin:0 0 4px;}
+  .sub{color:var(--text-2); font-size:14px; margin:0 0 20px;}
+  .tabs{display:flex; gap:8px; margin-bottom:16px; border-bottom:1px solid var(--border);}
+  .tab{
+    padding:10px 18px; cursor:pointer; font-size:14px; font-weight:500; color:var(--text-2);
+    border-bottom:2px solid transparent; user-select:none;
+  }
+  .tab.active{color:var(--accent-text); border-bottom-color:#b5ff00;}
+  .tab .count{
+    display:inline-block; margin-left:6px; background:#eee; color:var(--text-2);
+    border-radius:10px; padding:1px 7px; font-size:11px;
+  }
+  .toolbar{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; flex-wrap:wrap;}
+  .toolbar-left{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  input[type=text].search{
+    padding:7px 10px; border:1px solid var(--border-strong); border-radius:var(--radius);
+    font-size:13px; width:220px; background:var(--card);
+  }
+  select.filter{
+    padding:7px 10px; border:1px solid var(--border-strong); border-radius:var(--radius);
+    font-size:13px; background:var(--card);
+  }
+  .status{font-size:12px; color:var(--text-3); margin-bottom:10px; min-height:16px;}
+
+  .section{margin-bottom:28px;}
+  .section-head{
+    display:flex; align-items:center; gap:8px; padding:8px 14px; border-radius:8px;
+    margin-bottom:10px; font-weight:600; font-size:14px;
+  }
+  .section-head.proceso{background:var(--proc-bg); color:var(--proc-text);}
+  .section-head.idea{background:var(--idea-bg); color:var(--idea-text);}
+  .section-head.publicado{background:var(--pub-bg); color:var(--pub-text);}
+  .section-head .scount{font-weight:400; opacity:.75; font-size:12px;}
+  .empty-row{padding:14px; text-align:center; color:var(--text-3); font-size:13px; background:var(--card); border:1px dashed var(--border); border-radius:8px;}
+
+  .table-scroll{overflow-x:auto; border:1px solid var(--border); border-radius:12px; background:var(--card);}
+  table{border-collapse:collapse; width:100%; min-width:1550px;}
+  thead th{
+    position:sticky; top:0; background:#fafaf7; text-align:left; font-size:11px; font-weight:600;
+    color:var(--text-2); text-transform:uppercase; letter-spacing:.03em; padding:10px 10px;
+    border-bottom:1px solid var(--border); white-space:nowrap; z-index:1;
+  }
+  tbody tr{border-bottom:1px solid var(--border);}
+  tbody tr:last-child{border-bottom:none;}
+  tbody tr:hover{background:#fbfbf8;}
+  td{padding:8px 10px; font-size:13px; vertical-align:top; line-height:1.5;}
+  td.col-estado{width:130px;}
+  td.col-orden{width:34px; color:var(--text-3); font-variant-numeric:tabular-nums;}
+  td.col-fase{width:140px; color:var(--text-2); font-size:12px;}
+  td.col-gancho{width:210px; font-weight:500;}
+  td.col-desc{width:210px; color:var(--text-2);}
+  td.col-dolor{width:160px;}
+  td.col-instr{width:210px; color:var(--text-2);}
+  td.col-reco{width:210px; color:var(--text-2);}
+  td.col-fecha{width:110px;}
+  td.col-link{width:140px;}
+
+  select.estado-select{
+    width:100%; font-size:12px; padding:5px 6px; border-radius:6px; border:1px solid var(--border-strong);
+    font-weight:500; cursor:pointer; background:var(--card); color:var(--text);
+  }
+  select.estado-select.idea{background:var(--idea-bg); color:var(--idea-text); border-color:var(--idea-border);}
+  select.estado-select.proceso{background:var(--proc-bg); color:var(--proc-text); border-color:var(--proc-border);}
+  select.estado-select.publicado{background:var(--pub-bg); color:var(--pub-text); border-color:var(--pub-border);}
+
+  input.cell, textarea.cell{
+    width:100%; border:1px solid transparent; background:transparent; font-size:13px;
+    font-family:inherit; padding:4px 6px; border-radius:6px; resize:none; color:inherit;
+    line-height:1.5;
+  }
+  textarea.cell{min-height:34px; overflow:hidden;}
+  input.cell:hover, textarea.cell:hover{border-color:var(--border);}
+  input.cell:focus, textarea.cell:focus{
+    outline:none; border-color:var(--accent); background:#fff; box-shadow:0 0 0 2px var(--accent-bg);
+  }
+  input.cell.link-input{color:#3a6ea5;}
+  ::placeholder{color:var(--text-3);}
+
+  .banco-add{
+    background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px;
+    margin-bottom:20px; display:flex; flex-direction:column; gap:10px;
+  }
+  .banco-add-row{display:flex; gap:10px; flex-wrap:wrap;}
+  .banco-add textarea{
+    flex:1 1 300px; min-height:60px; border:1px solid var(--border-strong); border-radius:8px;
+    padding:8px 10px; font-size:14px; font-family:inherit; resize:vertical;
+  }
+  .banco-add input[type=text]{
+    flex:1 1 200px; border:1px solid var(--border-strong); border-radius:8px; padding:8px 10px; font-size:14px;
+  }
+  .banco-add-btn{
+    align-self:flex-end; background:#b5ff00; color:#26330a; border:none; padding:9px 18px;
+    border-radius:8px; font-size:13px; font-weight:600; cursor:pointer;
+  }
+  .banco-add-btn:hover{background:#a3e800;}
+  .banco-list{display:flex; flex-direction:column; gap:10px;}
+  .banco-item{
+    background:var(--card); border:1px solid var(--border); border-radius:10px; padding:12px 14px;
+    display:flex; justify-content:space-between; align-items:flex-start; gap:12px;
+  }
+  .banco-item-text{flex:1; font-size:14px; line-height:1.5; white-space:pre-wrap;}
+  .banco-item-link{font-size:12px; color:#3a6ea5; margin-top:6px; display:inline-block; word-break:break-all;}
+  .banco-item-date{font-size:11px; color:var(--text-3); margin-top:6px;}
+  .banco-item-actions{display:flex; gap:6px; flex-shrink:0;}
+  .icon-btn{
+    border:1px solid var(--border-strong); background:var(--card); border-radius:6px; width:28px; height:28px;
+    display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--text-2); font-size:14px;
+  }
+  .icon-btn:hover{background:#f0efe9;}
+  .banco-empty{color:var(--text-3); font-size:13px; padding:20px; text-align:center; border:1px dashed var(--border); border-radius:10px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Selector de Historias y Contenido</h1>
+  <p class="sub">Mueve cada pieza de estado con el selector — se acomoda sola en su sección. Todos los campos son editables directo aquí.</p>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="historias">Historias <span class="count" id="count-historias">50</span></div>
+    <div class="tab" data-tab="contenido">Contenido <span class="count" id="count-contenido">10</span></div>
+    <div class="tab" data-tab="banco">💭 Banco de ideas <span class="count" id="count-banco">0</span></div>
+  </div>
+
+  <div id="table-controls">
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <input type="text" class="search" id="search" placeholder="Buscar por gancho, descripción, dolor...">
+        <select class="filter" id="filter-fase"></select>
+      </div>
+      <span class="status" id="status" style="margin:0;"></span>
+    </div>
+  </div>
+
+  <div id="content"></div>
+</div>
+
+<script src="/js/storage-client.js"></script>
+<script>
+const RAW_DATA = {"historias": [{"id": "h1", "orden": 1, "fase": "Semana 1 · Atraer/Conexión", "gancho": "Vendía pacas. Hacía 10 chambas yo sola 😮‍💨", "descripcion": "Storytime de apertura: el gancho que abre toda la narrativa de la marca.", "dolor": "", "instrucciones": "Habla a cámara 15 seg, texto grande overlay igual al gancho, usa un sonido tipo storytime en tendencia.", "recomendacion": "Que suene a anécdota con humor, no a queja. Este es tu momento más importante, cuídalo.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h2", "orden": 2, "fase": "Semana 1 · Atraer/Conexión", "gancho": "¿Tú también le haces a TODO en tu negocio?", "descripcion": "Encuesta para calentar audiencia y detectar quién se identifica con el dolor.", "dolor": "", "instrucciones": "Fondo simple, pregunta grande, sticker de encuesta nativo (Sí/No).", "recomendacion": "Responde el resultado del poll en la siguiente historia con un dato real tuyo.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h3", "orden": 3, "fase": "Semana 1 · Atraer/Conexión", "gancho": "El truco de pausa y stop, parte 1 (mudanzas)", "descripcion": "Tip práctico de edición en cámara, con el negocio de tu amigo de mudanzas como ejemplo.", "dolor": "", "instrucciones": "Graba el truco en vivo narrando cada paso; usa tomas rápidas al inicio para enganchar.", "recomendacion": "Sigue tu propio consejo: primeras tomas cortas o la gente se aburre.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h4", "orden": 4, "fase": "Semana 1 · Atraer/Conexión", "gancho": "La vida antes de Claude / después de Claude", "descripcion": "Humor + libertad: laptop cerrada vs. apenas abierta.", "dolor": "", "instrucciones": "Dos clips cortos con transición simple; el segundo con la laptop casi cerrada.", "recomendacion": "Que el gesto se vea como chiste visual espontáneo, no forzado ni sobreexplicado.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h5", "orden": 5, "fase": "Semana 1 · Atraer/Conexión", "gancho": "Gracias por todo, perdón por tener miedo del futuro", "descripcion": "Conexión personal real, fuera del contexto de negocio.", "dolor": "", "instrucciones": "Habla a cámara en tono íntimo, sin música de fondo.", "recomendacion": "Deja silencios, no aceleres el ritmo. Esta historia no vende nada, solo conecta.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h6", "orden": 6, "fase": "Semana 1 · Atraer/Conexión", "gancho": "¿Cuántos puestos crees que hacía yo sola vendiendo pacas?", "descripcion": "Quiz con opciones (3, 6, 10) que arma expectativa para la respuesta real.", "dolor": "", "instrucciones": "Sticker de quiz con 3 opciones; revela la respuesta en el repost del resultado.", "recomendacion": "La respuesta correcta (10) debe sorprender — no la reveles antes de tiempo.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h7", "orden": 7, "fase": "Semana 1 · Atraer/Conexión", "gancho": "Pantalla dividida: yo vs. el Hub trabajando", "descripcion": "Humor tech mostrando el contraste de esfuerzo.", "dolor": "", "instrucciones": "Split screen grabado con el teléfono en tripié; un lado tú, otro la pantalla del Hub.", "recomendacion": "El chiste es el contraste de esfuerzo, no solo mostrar la herramienta.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h8", "orden": 8, "fase": "Semana 1 · Atraer/Conexión", "gancho": "¿Qué tan cansada estás de hacer todo tú?", "descripcion": "Slider emoji para generar interacción ligera antes de profundizar.", "dolor": "", "instrucciones": "Sticker slider simple, pregunta corta, deja que interactúen.", "recomendacion": "Úsalo para calentar audiencia justo antes de contar tu propia historia.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h9", "orden": 9, "fase": "Semana 1 · Atraer/Conexión", "gancho": "El truco de pausa y stop, parte 2 (canchas de fútbol)", "descripcion": "Continúa la serie de tips con un negocio distinto.", "dolor": "", "instrucciones": "Mismo formato que la parte 1, pero con otro giro de negocio.", "recomendacion": "Menciona 'parte 2' explícitamente para que la reconozcan como serie.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h10", "orden": 10, "fase": "Semana 1 · Atraer/Conexión", "gancho": "Yo igual hacía 10 puestos en mi negocio", "descripcion": "Puente narrativo: conecta tu historia con la del amigo de mudanzas.", "dolor": "", "instrucciones": "Habla a cámara en tono de complicidad ('yo igual viví esto').", "recomendacion": "No lo presentes como el origen de tu marca — preséntalo como anécdota compartida.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h11", "orden": 11, "fase": "Semana 1 · Atraer/Conexión", "gancho": "Mira lo que me escribieron", "descripcion": "Prueba social ligera con un comentario real sobre no dar abasto.", "dolor": "", "instrucciones": "Captura de pantalla del comentario + tu reacción grabada encima.", "recomendacion": "Elige un comentario que hable del dolor (no dar abasto), no uno de venta directa.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h12", "orden": 12, "fase": "Semana 1 · Atraer/Conexión", "gancho": "Teaser viaje a París", "descripcion": "Cierre de semana con gancho de lifestyle, sin explicar el porqué todavía.", "dolor": "", "instrucciones": "Clip corto de maleta o aeropuerto, sin contexto explícito.", "recomendacion": "Publica solo si ya tienes tus links de difusión listos; si no, sustitúyela.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h13", "orden": 13, "fase": "Semana 2 · Educar/Objeciones", "gancho": "¿Cómo hago el link de mi WhatsApp?", "descripcion": "Pregunta falsa que sirve de gancho para presentar el Hub de forma orgánica.", "dolor": "", "instrucciones": "Screenshot de la 'pregunta' + tu respuesta en video.", "recomendacion": "Que se sienta auténtico — evita que se note como venta forzada.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h14", "orden": 14, "fase": "Semana 2 · Educar/Objeciones", "gancho": "El Hub funciona para cualquier negocio", "descripcion": "Mano tocando el Hub mientras cambia de giro: panadería, dentista, taquería.", "dolor": "", "instrucciones": "Grabación rápida de pantalla, transición cada 2-3 segundos entre giros.", "recomendacion": "Usa negocios que tu audiencia reconozca fácilmente en su día a día.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h15", "orden": 15, "fase": "Semana 2 · Educar/Objeciones", "gancho": "Así le pones voz a tus videos en 3 pasos", "descripcion": "Tutorial práctico y accionable.", "dolor": "", "instrucciones": "Screen recording paso a paso, máximo 3 pasos.", "recomendacion": "No lo satures — si son más de 3 pasos, ya no es un tip rápido.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h16", "orden": 16, "fase": "Semana 2 · Educar/Objeciones", "gancho": "'La IA suena robótica' — mito o realidad", "descripcion": "Desmiente una objeción común con ejemplo real.", "dolor": "", "instrucciones": "Texto grande con el mito, después un clip mostrando un resultado natural.", "recomendacion": "Nunca te burles de quien cree el mito — solo del mito en sí.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h17", "orden": 17, "fase": "Semana 2 · Educar/Objeciones", "gancho": "Así armo el contenido de una semana en 10 minutos", "descripcion": "Demo con el negocio de mudanzas como caso práctico.", "dolor": "", "instrucciones": "Screen recording acelerado + tu narración en vivo.", "recomendacion": "Muestra el 'antes' (pantalla en blanco) para que el contraste de velocidad impacte.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h18", "orden": 18, "fase": "Semana 2 · Educar/Objeciones", "gancho": "¿Qué dudas tienes sobre usar IA en tu negocio?", "descripcion": "Caja de preguntas para recolectar objeciones reales de tu audiencia.", "dolor": "", "instrucciones": "Sticker de pregunta abierta y simple.", "recomendacion": "Responde las 3 dudas más repetidas en las siguientes historias.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h19", "orden": 19, "fase": "Semana 2 · Educar/Objeciones", "gancho": "ChatGPT genérico vs. tu Hub entrenado", "descripcion": "Comparación con humor irreverente — hacia la herramienta genérica, no al cliente.", "dolor": "", "instrucciones": "Formato lista simple o split screen de resultados.", "recomendacion": "El chiste va contra la herramienta genérica, nunca contra quien la usa.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h20", "orden": 20, "fase": "Semana 2 · Educar/Objeciones", "gancho": "Así armo contenido en tiempo real", "descripcion": "Detrás de cámaras mostrando el proceso genuino con el Hub.", "dolor": "", "instrucciones": "Grabación casual, sin guion, en el momento.", "recomendacion": "Que se vea auténticamente rápido — no lo actúes ni lo repitas dos veces.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h21", "orden": 21, "fase": "Semana 2 · Educar/Objeciones", "gancho": "'No tengo tiempo para aprender otra herramienta'", "descripcion": "Responde la objeción #1 con empatía antes de resolverla.", "dolor": "", "instrucciones": "Habla a cámara en tono empático, valida el miedo primero.", "recomendacion": "Valida la objeción antes de resolverla — si saltas directo a la solución, suena a venta.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h22", "orden": 22, "fase": "Semana 2 · Educar/Objeciones", "gancho": "¿Qué tanto confías en que la IA suene como tú?", "descripcion": "Slider que introduce el tema de personalización del Hub.", "dolor": "", "instrucciones": "Sticker slider simple con emoji de extremos.", "recomendacion": "Úsalo como puente hacia la siguiente historia sobre personalización.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h23", "orden": 23, "fase": "Semana 2 · Educar/Objeciones", "gancho": "'Ya uso otra IA, para qué cambiar'", "descripcion": "Responde la objeción #2 con comparación honesta.", "dolor": "", "instrucciones": "Lista de 2-3 diferencias reales y concretas.", "recomendacion": "No ataques a la competencia — resalta lo que tú sí resuelves.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h24", "orden": 24, "fase": "Semana 2 · Educar/Objeciones", "gancho": "3 prompts que sí funcionan (y 3 que no)", "descripcion": "Valor práctico y accionable sobre uso de IA.", "dolor": "", "instrucciones": "Texto simple con ejemplos cortos, sin teoría.", "recomendacion": "Mantenlo 100% accionable — nada de explicación técnica larga.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h25", "orden": 25, "fase": "Semana 2 · Educar/Objeciones", "gancho": "'¿Cuánto cuesta de verdad?'", "descripcion": "Responde la objeción #3 con transparencia total.", "dolor": "", "instrucciones": "Habla directo a cámara y di el precio sin rodeos.", "recomendacion": "Justifica el valor antes de decir el número, no después.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h26", "orden": 26, "fase": "Semana 3 · Prueba social/Resultado", "gancho": "Cuando el Hub te distrae hasta de la salsa", "descripcion": "Hook con humor en una taquería, resultado con energía.", "dolor": "", "instrucciones": "Grabación con efecto acelerado y audio en tendencia.", "recomendacion": "El chiste visual debe pasar en los primeros 2 segundos.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h27", "orden": 27, "fase": "Semana 3 · Prueba social/Resultado", "gancho": "Mira lo que me escribió una clienta", "descripcion": "Testimonio real en texto, prueba social directa.", "dolor": "", "instrucciones": "Screenshot de conversación real + tu reacción grabada.", "recomendacion": "Pide permiso siempre antes de publicar cualquier conversación.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h28", "orden": 28, "fase": "Semana 3 · Prueba social/Resultado", "gancho": "Antes y después de un negocio real con el Hub", "descripcion": "Comparación de resultados de un cliente real.", "dolor": "", "instrucciones": "Dos clips cortos del mismo negocio, antes y después.", "recomendacion": "Usa números reales si los tienes: tiempo ahorrado, posts generados, etc.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h29", "orden": 29, "fase": "Semana 3 · Prueba social/Resultado", "gancho": "¿Cuánto crees que le tomó armar su semana de contenido?", "descripcion": "Quiz de tiempo que genera sorpresa por la velocidad del Hub.", "dolor": "", "instrucciones": "Sticker quiz con 3 opciones de tiempo distintas.", "recomendacion": "La respuesta correcta debe ser dramáticamente más rápida de lo esperado.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h30", "orden": 30, "fase": "Semana 3 · Prueba social/Resultado", "gancho": "Este fue mi contenido con más alcance", "descripcion": "Repost de tu mejor reel como prueba social de tu propio crecimiento.", "dolor": "", "instrucciones": "Reshare del reel con un comentario nuevo agregado.", "recomendacion": "Agrega contexto: qué aprendiste de por qué funcionó ese contenido.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h31", "orden": 31, "fase": "Semana 3 · Prueba social/Resultado", "gancho": "Sobre ese comentario que me dejaron...", "descripcion": "Respondes con calma a una objeción o comentario negativo público.", "dolor": "", "instrucciones": "Screenshot del comentario + tu respuesta honesta en video.", "recomendacion": "Nunca a la defensiva — responde con calma y datos, no con emoción.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h32", "orden": 32, "fase": "Semana 3 · Prueba social/Resultado", "gancho": "Grabando el testimonio de una clienta", "descripcion": "Detrás de cámaras del proceso real de capturar un testimonio.", "dolor": "", "instrucciones": "Clip corto y casual del momento de grabación.", "recomendacion": "Dale el protagonismo a la clienta, no a ti.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h33", "orden": 33, "fase": "Semana 3 · Prueba social/Resultado", "gancho": "Contenido genérico de IA vs. contenido con tu Hub", "descripcion": "Comparación visual directa del resultado final.", "dolor": "", "instrucciones": "Side by side de dos piezas de contenido reales.", "recomendacion": "La diferencia debe ser obvia a simple vista, sin que tengas que explicarla.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h34", "orden": 34, "fase": "Semana 3 · Prueba social/Resultado", "gancho": "¿Ya conocías el Hub antes de esta serie?", "descripcion": "Encuesta que mide el alcance real de tu campaña de historias.", "dolor": "", "instrucciones": "Sticker de encuesta simple (Sí/No).", "recomendacion": "Usa el resultado para ajustar tu comunicación de las siguientes historias.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h35", "orden": 35, "fase": "Semana 3 · Prueba social/Resultado", "gancho": "Así le fue a mi amigo de mudanzas, 2 semanas después", "descripcion": "Cierre del mini-caso de éxito iniciado en la Semana 1.", "dolor": "", "instrucciones": "Habla a cámara con datos concretos y reales.", "recomendacion": "Conecta explícitamente con las partes 1 y 2 ya publicadas — genera continuidad.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h36", "orden": 36, "fase": "Semana 3 · Prueba social/Resultado", "gancho": "¿Qué te gustaría que el Hub resolviera por ti?", "descripcion": "Pregunta abierta que demuestra escucha activa y genera insumos.", "dolor": "", "instrucciones": "Sticker de pregunta abierta.", "recomendacion": "Responde en vivo a 2-3 respuestas en la siguiente tanda de historias.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h37", "orden": 37, "fase": "Semana 3 · Prueba social/Resultado", "gancho": "Escúchalo de mi clienta, no de mí", "descripcion": "Repost de testimonio en video si ya lo tienes disponible.", "dolor": "", "instrucciones": "Reshare directo del testimonio en video.", "recomendacion": "Agrega tu propia reacción o comentario encima del repost.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h38", "orden": 38, "fase": "Semana 3 · Prueba social/Resultado", "gancho": "Un día normal usando el Hub", "descripcion": "Detrás de cámaras auténtico de tu propio uso diario.", "dolor": "", "instrucciones": "Clips cortos tipo vlog a lo largo del día.", "recomendacion": "Que se vea espontáneo, no como un comercial armado.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h39", "orden": 39, "fase": "Semana 4 · Urgencia/Cierre", "gancho": "Quedan pocos días de prueba gratis", "descripcion": "Countdown real hacia el cierre de la promoción.", "dolor": "", "instrucciones": "Sticker de countdown nativo con fecha real.", "recomendacion": "Solo úsalo si la oferta tiene fecha real — nunca urgencia falsa.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h40", "orden": 40, "fase": "Semana 4 · Urgencia/Cierre", "gancho": "Prueba 30 días. Así de simple.", "descripcion": "Pieza visual de cierre fuerte con diseño y CTA directo.", "dolor": "", "instrucciones": "Diseño simple con texto grande, tu verde de marca como acento.", "recomendacion": "El CTA debe ser el elemento más grande de toda la pantalla.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h41", "orden": 41, "fase": "Semana 4 · Urgencia/Cierre", "gancho": "Así se ve la página de cotizaciones que armamos", "descripcion": "Cierre de la serie de mudanzas con demo final del producto.", "dolor": "", "instrucciones": "Screen recording del sitio de cotizaciones en vivo.", "recomendacion": "Conecta explícitamente con las partes 1 y 2 ya publicadas de esa serie.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h42", "orden": 42, "fase": "Semana 4 · Urgencia/Cierre", "gancho": "Última ronda de dudas antes de que cierre la promo", "descripcion": "Genera urgencia real a través del servicio al cliente.", "dolor": "", "instrucciones": "Sticker de pregunta abierta.", "recomendacion": "Responde rápido, en la misma tanda de historias del día.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h43", "orden": 43, "fase": "Semana 4 · Urgencia/Cierre", "gancho": "¿Cuánto crees que cuesta el Hub al mes?", "descripcion": "Quiz con precios falsos y el real, corrige el mito de que es caro.", "dolor": "", "instrucciones": "Sticker quiz con 3 opciones de precio.", "recomendacion": "La sorpresa debe ser 'es más barato de lo que creías'.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h44", "orden": 44, "fase": "Semana 4 · Urgencia/Cierre", "gancho": "Esto fue lo que me dijo, y por eso te lo cuento", "descripcion": "Testimonio final combinado con un CTA directo y claro.", "dolor": "", "instrucciones": "Reshare de testimonio + tu voz encima con instrucción de acción.", "recomendacion": "Cierra con instrucción clara: 'manda WhatsApp' o 'link en bio'.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h45", "orden": 45, "fase": "Semana 4 · Urgencia/Cierre", "gancho": "¿Qué tan lista estás para dejar de hacerlo todo tú?", "descripcion": "Última interacción ligera antes del cierre fuerte de la serie.", "dolor": "", "instrucciones": "Sticker slider con emojis de extremos.", "recomendacion": "Úsalo como puente directo hacia el siguiente story con el CTA final.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h46", "orden": 46, "fase": "Semana 4 · Urgencia/Cierre", "gancho": "De vender pacas a construir esto", "descripcion": "Recapitulación narrativa de toda la serie: origen, proceso, resultado.", "dolor": "", "instrucciones": "Habla a cámara resumiendo el arco completo de la historia.", "recomendacion": "No repitas todo — destaca solo 3 momentos clave de la serie.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h47", "orden": 47, "fase": "Semana 4 · Urgencia/Cierre", "gancho": "Acaba de pasar esto y no lo puedo creer", "descripcion": "Reacción espontánea a una venta o cliente nuevo en tiempo real.", "dolor": "", "instrucciones": "Grabación espontánea del momento exacto en que sucede.", "recomendacion": "Solo publícala si sucede de verdad — nunca la actúes.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h48", "orden": 48, "fase": "Semana 4 · Urgencia/Cierre", "gancho": "Este es tu último recordatorio", "descripcion": "Countdown final antes del cierre de la promoción activa.", "dolor": "", "instrucciones": "Sticker de countdown + tu voz explicando por qué es el último aviso.", "recomendacion": "Que se sienta como aviso genuino, no como presión desesperada.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h49", "orden": 49, "fase": "Semana 4 · Urgencia/Cierre", "gancho": "Por esto estoy en París ahorita mismo", "descripcion": "Revela el 'por qué' del viaje, conectando libertad con resultado de negocio.", "dolor": "", "instrucciones": "Clips del viaje + texto conectando con el tiempo que te devolvió el Hub.", "recomendacion": "Publica solo si ya tienes tus links de difusión de campaña listos.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "h50", "orden": 50, "fase": "Semana 4 · Urgencia/Cierre", "gancho": "Gracias por acompañarme estos días", "descripcion": "Cierre emocional de toda la serie con invitación abierta a conversar.", "dolor": "", "instrucciones": "Habla a cámara en tono cálido, cierra el ciclo narrativo completo.", "recomendacion": "Invita a comentar o escribir — cierra con calidez, nunca con presión.", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}], "contenido": [{"id": "c1", "orden": 1, "fase": "Semana 1", "gancho": "Si no sabes que es un prompt, esta palabra te va a ahorrar horas. 2 clics: copiar... pegar.", "descripcion": "Que es un prompt? — Filtro de entrada para quien apenas empieza", "dolor": "", "instrucciones": "(agregada por Claude, no estaba en tu lista original)", "recomendacion": "Filtro de entrada para quien apenas empieza", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "c2", "orden": 2, "fase": "Semana 1", "gancho": "2 oportunidades diarias... y si no la cagas, tienes 60 videos al mes.", "descripcion": "Cuando Gemini te da puro mugrero — Usa ChatGPT para armar el prompt preciso antes de gastar tus intentos en Gemini", "dolor": "", "instrucciones": "problema: gemini te hace puro mugrero y solo tienes 2 videos diarios... usa chat gpt para pedirle el prompt para gemini y asi ser mas preciso, recuerda agregar medidas y colores (con el hub ya te damos el prompt listo)", "recomendacion": "Usa ChatGPT para armar el prompt preciso antes de gastar tus intentos en Gemini", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "c3", "orden": 3, "fase": "Semana 1", "gancho": "Tu video sin voz no vende ni la mitad.", "descripcion": "Ponle voz a tus videos en 3 minutos — Tutorial practico y corto", "dolor": "", "instrucciones": "Como ponerle voz a tus videos en 3 minutos (guion de la plataforma)", "recomendacion": "Tutorial practico y corto", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "c4", "orden": 4, "fase": "Semana 2", "gancho": "Cuando el ChatGPT le parte la madre a Gemini.", "descripcion": "Cuando ChatGPT le parte la madre a Gemini — Comparativa disruptiva: imagenes, textos, investigaciones, memoria — por que ChatGPT gana aqui", "dolor": "", "instrucciones": "Cuando cht pt es mejor que gemini, por --- cuando el cht pt le parte la madre a... claude", "recomendacion": "Comparativa disruptiva: imagenes, textos, investigaciones, memoria — por que ChatGPT gana aqui", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "c5", "orden": 5, "fase": "Semana 2", "gancho": "Y aqui Gemini se lleva la victoria.", "descripcion": "Cuando Gemini le gana a ChatGPT — Contraparte objetiva, no venta de una sola marca", "dolor": "", "instrucciones": "Cuando gemini le parte la m a chat gpt...", "recomendacion": "Contraparte objetiva, no venta de una sola marca", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "c6", "orden": 6, "fase": "Semana 2", "gancho": "Deja de dar tu numero, dales un link.", "descripcion": "Asi se hace tu propio link de WhatsApp — Tip tecnico accionable, reutiliza lo que ya armamos juntas", "dolor": "", "instrucciones": "link de whatsapp...", "recomendacion": "Tip tecnico accionable, reutiliza lo que ya armamos juntas", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "c7", "orden": 7, "fase": "Semana 3", "gancho": "Dale esto a tu IA y que trabaje como tu director de contenido.", "descripcion": "El prompt que te da estrategia de contenido — Ensena contexto + rol + confirmacion antes de responder", "dolor": "", "instrucciones": "prompt para que chat gpt te de estrategia de contenido (no olvidar dar contexto, pedir que se comporte como, el prompt o la indicacion para el contenido, decirle que pregunte cualquier cosa antes de dar una respuesta) en el hub solo dale la idea y te da 10 formas de hacerlo viral", "recomendacion": "Ensena contexto + rol + confirmacion antes de responder", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "c8", "orden": 8, "fase": "Semana 3", "gancho": "Ese boton de 'promocionar' te esta costando dinero de mas.", "descripcion": "Promocionar publicacion vs. Anuncios de Meta — Diferencia real — abre puerta a futura mini-serie de Meta Ads", "dolor": "", "instrucciones": "'promocionar publicacion' vs. 'anuncios facebook' no se si despues hacer una serie de solo fb ads, puedo preguntar", "recomendacion": "Diferencia real — abre puerta a futura mini-serie de Meta Ads", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "c9", "orden": 9, "fase": "Semana 3", "gancho": "KPI, CPM, objetivo... sabes que significan de verdad?", "descripcion": "Lo que todo dueno de negocio debe saber de mkt — Glosario rapido y aterrizado", "dolor": "", "instrucciones": "sigas que todo dueno de negocio debe saber para dirigir su mkt: kpi, cpm, objetivo", "recomendacion": "Glosario rapido y aterrizado", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}, {"id": "c10", "orden": 10, "fase": "Semana 4", "gancho": "Por que tu contenido con IA no suena a ti?", "descripcion": "Como lograr que la IA suene como tu — Cierre — personalizacion, puente natural hacia el Hub sin nombrarlo", "dolor": "", "instrucciones": "dame ideas", "recomendacion": "Cierre — personalizacion, puente natural hacia el Hub sin nombrarlo", "linkRef": "", "linkArchivo": "", "fecha": "", "estado": "idea"}], "banco": []};
+
+let state = JSON.parse(JSON.stringify(RAW_DATA));
+let currentTab = 'historias';
+let searchTerm = '';
+let filterFase = '';
+
+const contentEl = document.getElementById('content');
+const controlsEl = document.getElementById('table-controls');
+const statusEl = document.getElementById('status');
+const searchEl = document.getElementById('search');
+const filterEl = document.getElementById('filter-fase');
+
+const SECTIONS = [
+  {key:'proceso', emoji:'⚙️', label:'EN PROCESO', cls:'proceso'},
+  {key:'idea', emoji:'💡', label:'IDEAS', cls:'idea'},
+  {key:'publicado', emoji:'🔥', label:'YA PUBLICADOS', cls:'publicado'}
+];
+
+document.getElementById('count-historias').textContent = state.historias.length;
+document.getElementById('count-contenido').textContent = state.contenido.length;
+document.getElementById('count-banco').textContent = state.banco.length;
+
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    currentTab = t.dataset.tab;
+    filterFase = '';
+    searchTerm = '';
+    searchEl.value = '';
+    controlsEl.style.display = currentTab === 'banco' ? 'none' : 'block';
+    if(currentTab !== 'banco') buildFaseFilter();
+    render();
+  });
+});
+
+searchEl.addEventListener('input', () => { searchTerm = searchEl.value.toLowerCase(); render(); });
+filterEl.addEventListener('change', () => { filterFase = filterEl.value; render(); });
+
+async function loadStorage(){
+  try{
+    const result = await window.storage.get('jefeshub-selector-v2');
+    if(result && result.value){
+      const saved = JSON.parse(result.value);
+      if(saved.historias) state.historias = saved.historias;
+      if(saved.contenido) state.contenido = saved.contenido;
+      if(saved.banco) state.banco = saved.banco;
+      statusEl.textContent = 'Tu selección guardada se cargó correctamente.';
+    }
+  }catch(e){
+    statusEl.textContent = 'Empezando selección nueva (sin datos guardados aún).';
+  }
+  document.getElementById('count-banco').textContent = state.banco.length;
+  buildFaseFilter();
+  render();
+}
+
+let saveTimer = null;
+function scheduleSave(){
+  statusEl.textContent = 'Guardando...';
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try{
+      await window.storage.set('jefeshub-selector-v2', JSON.stringify({historias: state.historias, contenido: state.contenido, banco: state.banco}));
+      statusEl.textContent = 'Guardado.';
+    }catch(e){
+      statusEl.textContent = 'No se pudo guardar (revisa tu conexión).';
+    }
+  }, 500);
+}
+
+function buildFaseFilter(){
+  if(currentTab === 'banco') return;
+  const list = state[currentTab];
+  const fases = [...new Set(list.map(r => r.fase))];
+  filterEl.innerHTML = '<option value="">Todas las fases</option>' + fases.map(f => `<option value="${escapeHtml(f)}">${escapeHtml(f)}</option>`).join('');
+  filterEl.value = filterFase;
+}
+
+function escapeHtml(str){
+  const d = document.createElement('div');
+  d.textContent = str || '';
+  return d.innerHTML;
+}
+
+function render(){
+  if(currentTab === 'banco'){
+    renderBanco();
+    return;
+  }
+  const list = state[currentTab];
+  let rows = list.filter(r => {
+    if(filterFase && r.fase !== filterFase) return false;
+    if(searchTerm){
+      const hay = (r.gancho + ' ' + r.descripcion + ' ' + r.dolor + ' ' + r.instrucciones + ' ' + r.recomendacion).toLowerCase();
+      if(!hay.includes(searchTerm)) return false;
+    }
+    return true;
+  });
+
+  contentEl.innerHTML = '';
+  SECTIONS.forEach(sec => {
+    const secRows = rows.filter(r => r.estado === sec.key).sort((a,b) => a.orden - b.orden);
+    const section = document.createElement('div');
+    section.className = 'section';
+    const head = document.createElement('div');
+    head.className = 'section-head ' + sec.cls;
+    head.innerHTML = `${sec.emoji} ${sec.label} <span class="scount">${secRows.length}</span>`;
+    section.appendChild(head);
+
+    if(secRows.length === 0){
+      const empty = document.createElement('div');
+      empty.className = 'empty-row';
+      empty.textContent = 'Nada aquí todavía.';
+      section.appendChild(empty);
+    } else {
+      const scrollWrap = document.createElement('div');
+      scrollWrap.className = 'table-scroll';
+      const table = document.createElement('table');
+      table.innerHTML = `
+        <thead>
+          <tr>
+            <th class="col-estado">Estado</th>
+            <th class="col-orden">#</th>
+            <th class="col-fase">Fase</th>
+            <th class="col-fecha">Fecha tentativa</th>
+            <th class="col-gancho">Gancho</th>
+            <th class="col-desc">Descripción / ángulo</th>
+            <th class="col-dolor">Dolor con que conectamos</th>
+            <th class="col-instr">Instrucciones</th>
+            <th class="col-reco">Recomendación</th>
+            <th class="col-link">Link de referencia</th>
+            <th class="col-link">Link de archivo terminado</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      `;
+      const tb = table.querySelector('tbody');
+      secRows.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="col-estado">
+            <select class="estado-select ${r.estado}" data-id="${r.id}" data-field="estado">
+              <option value="idea" ${r.estado==='idea'?'selected':''}>💡 Idea</option>
+              <option value="proceso" ${r.estado==='proceso'?'selected':''}>⚙️ En proceso</option>
+              <option value="publicado" ${r.estado==='publicado'?'selected':''}>🔥 Publicado</option>
+            </select>
+          </td>
+          <td class="col-orden">${r.orden}</td>
+          <td class="col-fase">${escapeHtml(r.fase)}</td>
+          <td class="col-fecha"><input type="text" class="cell" placeholder="dd/mm" value="${escapeHtml(r.fecha)}" data-id="${r.id}" data-field="fecha"></td>
+          <td class="col-gancho"><textarea class="cell" data-id="${r.id}" data-field="gancho">${escapeHtml(r.gancho)}</textarea></td>
+          <td class="col-desc"><textarea class="cell" data-id="${r.id}" data-field="descripcion">${escapeHtml(r.descripcion)}</textarea></td>
+          <td class="col-dolor"><textarea class="cell" placeholder="Agrega el dolor..." data-id="${r.id}" data-field="dolor">${escapeHtml(r.dolor)}</textarea></td>
+          <td class="col-instr"><textarea class="cell" data-id="${r.id}" data-field="instrucciones">${escapeHtml(r.instrucciones)}</textarea></td>
+          <td class="col-reco"><textarea class="cell" data-id="${r.id}" data-field="recomendacion">${escapeHtml(r.recomendacion)}</textarea></td>
+          <td class="col-link"><input type="text" class="cell link-input" placeholder="https://..." value="${escapeHtml(r.linkRef)}" data-id="${r.id}" data-field="linkRef"></td>
+          <td class="col-link"><input type="text" class="cell link-input" placeholder="https://..." value="${escapeHtml(r.linkArchivo)}" data-id="${r.id}" data-field="linkArchivo"></td>
+        `;
+        tb.appendChild(tr);
+      });
+      scrollWrap.appendChild(table);
+      section.appendChild(scrollWrap);
+    }
+    contentEl.appendChild(section);
+  });
+
+  contentEl.querySelectorAll('select.estado-select').forEach(sel => {
+    sel.addEventListener('change', onFieldChange);
+  });
+  contentEl.querySelectorAll('input.cell, textarea.cell').forEach(inp => {
+    inp.addEventListener('input', onFieldChange);
+    if(inp.tagName === 'TEXTAREA'){
+      autoGrow(inp);
+      inp.addEventListener('input', () => autoGrow(inp));
+    }
+  });
+}
+
+function autoGrow(el){
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
+}
+
+function onFieldChange(e){
+  const id = e.target.dataset.id;
+  const field = e.target.dataset.field;
+  const list = state[currentTab];
+  const row = list.find(r => r.id === id);
+  if(!row) return;
+  row[field] = e.target.value;
+  if(field === 'estado'){
+    render();
+  }
+  scheduleSave();
+}
+
+function renderBanco(){
+  contentEl.innerHTML = '';
+
+  const addBox = document.createElement('div');
+  addBox.className = 'banco-add';
+  addBox.innerHTML = `
+    <div class="banco-add-row">
+      <textarea id="banco-idea-input" placeholder="Escribe la idea, nota o referencia que quieres guardar para después..."></textarea>
+      <input type="text" id="banco-link-input" placeholder="Link (opcional)">
+    </div>
+    <button class="banco-add-btn" id="banco-add-btn">Agregar a la lista</button>
+  `;
+  contentEl.appendChild(addBox);
+
+  document.getElementById('banco-add-btn').addEventListener('click', () => {
+    const ideaEl = document.getElementById('banco-idea-input');
+    const linkEl = document.getElementById('banco-link-input');
+    const texto = ideaEl.value.trim();
+    const link = linkEl.value.trim();
+    if(!texto && !link) return;
+    state.banco.unshift({
+      id: 'b' + Date.now(),
+      texto: texto,
+      link: link,
+      fecha: new Date().toLocaleDateString('es-MX', {day:'2-digit', month:'short', year:'numeric'})
+    });
+    ideaEl.value = '';
+    linkEl.value = '';
+    document.getElementById('count-banco').textContent = state.banco.length;
+    renderBanco();
+    scheduleSave();
+  });
+
+  const list = document.createElement('div');
+  list.className = 'banco-list';
+
+  if(state.banco.length === 0){
+    list.innerHTML = '<div class="banco-empty">Todavía no has guardado nada aquí. Agrega tu primera idea, link o referencia arriba.</div>';
+  } else {
+    state.banco.forEach(item => {
+      const card = document.createElement('div');
+      card.className = 'banco-item';
+      card.innerHTML = `
+        <div style="flex:1;">
+          ${item.texto ? `<div class="banco-item-text">${escapeHtml(item.texto)}</div>` : ''}
+          ${item.link ? `<a class="banco-item-link" href="${escapeHtml(item.link)}" target="_blank" rel="noopener">${escapeHtml(item.link)}</a>` : ''}
+          <div class="banco-item-date">${escapeHtml(item.fecha)}</div>
+        </div>
+        <div class="banco-item-actions">
+          <button class="icon-btn" data-id="${item.id}" title="Eliminar">✕</button>
+        </div>
+      `;
+      list.appendChild(card);
+    });
+  }
+  contentEl.appendChild(list);
+
+  contentEl.querySelectorAll('.banco-item-actions .icon-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      state.banco = state.banco.filter(i => i.id !== id);
+      document.getElementById('count-banco').textContent = state.banco.length;
+      renderBanco();
+      scheduleSave();
+    });
+  });
+}
+
+loadStorage();
+</script>
+</body>
+</html>
