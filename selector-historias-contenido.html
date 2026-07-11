@@ -67,8 +67,9 @@
 
   .cards-grid{display:grid;grid-template-columns:repeat(auto-fill, minmax(300px, 1fr));gap:14px;}
   .item-card{
-    background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--t1);
+    background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--horizon, var(--t1));
     border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:10px;
+    touch-action:pan-y;
   }
   .item-top{display:flex;align-items:center;gap:8px;justify-content:space-between;}
   select.estado-select{
@@ -89,7 +90,7 @@
   }
   .item-fase{font-size:11.5px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;}
   .item-details{border-top:1px solid var(--line);padding-top:8px;}
-  .item-details summary{cursor:pointer;font-size:12px;color:var(--accent);font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.03em;list-style:none;}
+  .item-details summary{cursor:pointer;font-size:12px;color:var(--horizon, var(--accent));font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.03em;list-style:none;}
   .item-details summary::-webkit-details-marker{display:none;}
   .detail-grid{display:flex;flex-direction:column;gap:10px;margin-top:10px;}
   .detail-field label{display:block;font-size:10.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em;font-family:'JetBrains Mono',monospace;margin-bottom:4px;}
@@ -281,7 +282,7 @@ function render(){
       secRows.forEach(r => {
         const card = document.createElement('div');
         card.className = 'item-card';
-        card.style.borderLeftColor = horizonColorVar(r.fecha);
+        card.style.setProperty('--horizon', horizonColorVar(r.fecha));
         card.innerHTML = `
           <div class="item-top">
             <select class="estado-select ${r.estado}" data-id="${r.id}" data-field="estado">
@@ -322,11 +323,65 @@ function render(){
       inp.addEventListener('input', () => autoGrow(inp));
     }
   });
+  contentEl.querySelectorAll('.item-card').forEach(card => {
+    attachSwipeToDetails(card, card.querySelector('.item-details'));
+  });
 }
 
 function autoGrow(el){
   el.style.height = 'auto';
   el.style.height = el.scrollHeight + 'px';
+}
+
+// En escritorio "Ver detalles" ya expande con el <details> nativo. En touch
+// agregamos ademas un swipe hacia la derecha sobre la tarjeta para revelarlo
+// sin tener que apuntarle al summary con el dedo.
+function attachSwipeToDetails(card, detailsEl){
+  if(!detailsEl) return;
+  const OPEN_THRESHOLD = 46;
+  let startX = 0, startY = 0, lastDx = 0, dragging = false, horizontal = false;
+
+  card.addEventListener('touchstart', (e) => {
+    if(e.target.closest('input, textarea, select, button, a, summary')){ dragging = false; return; }
+    const touch = e.touches[0];
+    startX = touch.clientX;
+    startY = touch.clientY;
+    lastDx = 0;
+    dragging = true;
+    horizontal = false;
+  }, {passive:true});
+
+  card.addEventListener('touchmove', (e) => {
+    if(!dragging) return;
+    const touch = e.touches[0];
+    const dx = touch.clientX - startX;
+    const dy = touch.clientY - startY;
+    if(!horizontal){
+      if(Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      horizontal = Math.abs(dx) > Math.abs(dy) * 1.3;
+      if(!horizontal){ dragging = false; return; }
+    }
+    if(dx > 0){
+      e.preventDefault();
+      lastDx = dx;
+      card.style.transform = `translateX(${Math.min(dx * 0.35, 40)}px)`;
+    }
+  }, {passive:false});
+
+  function endSwipe(){
+    if(!dragging) return;
+    dragging = false;
+    card.style.transition = 'transform .2s ease';
+    card.style.transform = '';
+    setTimeout(() => { card.style.transition = ''; }, 220);
+    if(horizontal && lastDx > OPEN_THRESHOLD){
+      detailsEl.open = true;
+    }
+    horizontal = false;
+    lastDx = 0;
+  }
+  card.addEventListener('touchend', endSwipe);
+  card.addEventListener('touchcancel', endSwipe);
 }
 
 function onFieldChange(e){
