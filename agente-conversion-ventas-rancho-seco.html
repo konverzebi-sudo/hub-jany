@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agente de Conversión y Ventas — Rancho Seco</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0F0B16;
+    --surface:#181120;
+    --surface-2:#211829;
+    --line:#332A3D;
+    --text:#F3EEF9;
+    --text-dim:#B6A9C7;
+    --purple:#B8F725;
+    --purple-soft:#2E3610;
+    --t1:#1E3A8A; /* frio */
+    --t2:#3B82C4;
+    --t3:#38BDF8;
+    --t4:#FACC15; /* interes */
+    --t5:#F5B21C;
+    --t6:#FB923C; /* objecion */
+    --t7:#F97316;
+    --t8:#EF4444; /* cierre */
+    --t9:#DC2626;
+    --t10:#B91C1C;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:radial-gradient(1200px 600px at 50% -10%, #241733 0%, var(--bg) 55%);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.display{font-family:'Sora',sans-serif;}
+  mono, .mono{font-family:'JetBrains Mono',monospace;}
+
+  /* HEADER */
+  header{
+    padding:38px 20px 24px;
+    text-align:center;
+    max-width:760px;
+    margin:0 auto;
+  }
+  .eyebrow{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--purple);
+    margin-bottom:10px;
+  }
+  header h1{
+    font-size:clamp(28px,4vw,40px);
+    font-weight:800;
+    margin:0 0 8px;
+    line-height:1.1;
+  }
+  header p{
+    color:var(--text-dim);
+    font-size:15px;
+    line-height:1.5;
+    margin:0 auto;
+    max-width:520px;
+  }
+
+  /* SEARCH */
+  .search-wrap{
+    max-width:640px;
+    margin:26px auto 0;
+    padding:0 20px;
+    position:sticky;
+    top:14px;
+    z-index:50;
+  }
+  .search-box{
+    background:var(--surface);
+    border:1.5px solid var(--line);
+    border-radius:16px;
+    padding:14px 18px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    box-shadow:0 12px 30px rgba(0,0,0,.4);
+    transition:border-color .15s;
+  }
+  .search-box:focus-within{border-color:var(--purple);}
+  .search-box svg{flex:none;opacity:.6;}
+  .search-box input{
+    flex:1;
+    background:transparent;
+    border:none;
+    outline:none;
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    font-size:15px;
+  }
+  .search-box input::placeholder{color:var(--text-dim);}
+  .search-hint{
+    font-size:12px;
+    color:var(--text-dim);
+    text-align:center;
+    margin-top:8px;
+  }
+
+  #searchResults{
+    max-width:640px;
+    margin:10px auto 0;
+    padding:0 20px;
+  }
+  .result-card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-left:4px solid var(--purple);
+    border-radius:12px;
+    padding:14px 16px;
+    margin-bottom:10px;
+  }
+  .result-card .tag{
+    font-family:'JetBrains Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    padding:3px 8px;
+    border-radius:100px;
+    display:inline-block;
+    margin-bottom:8px;
+    color:#0F0B16;
+    font-weight:700;
+  }
+  .result-card .q{font-size:13px;color:var(--text-dim);margin-bottom:6px;}
+  .result-card .a{font-size:14.5px;line-height:1.5;margin-bottom:10px;}
+  .no-results{color:var(--text-dim);text-align:center;padding:20px;font-size:14px;}
+
+  /* THERMOMETER NAV */
+  .thermo-nav{
+    max-width:900px;
+    margin:34px auto 6px;
+    padding:0 20px;
+  }
+  .thermo-track{
+    display:flex;
+    height:14px;
+    border-radius:100px;
+    overflow:hidden;
+    box-shadow:inset 0 2px 6px rgba(0,0,0,.5);
+  }
+  .thermo-track div{flex:1;cursor:pointer;transition:transform .15s;}
+  .thermo-track div:hover{transform:scaleY(1.6);}
+  .thermo-labels{
+    display:flex;
+    justify-content:space-between;
+    margin-top:10px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:10.5px;
+    color:var(--text-dim);
+    letter-spacing:.04em;
+    text-transform:uppercase;
+  }
+
+  /* SECTIONS */
+  main{max-width:900px;margin:0 auto;padding:30px 20px 80px;}
+  .stage{
+    margin-bottom:34px;
+    scroll-margin-top:90px;
+  }
+  .stage-head{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    margin-bottom:14px;
+  }
+  .stage-dot{
+    width:34px;height:34px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-family:'JetBrains Mono',monospace;
+    font-weight:700;font-size:12px;color:#0F0B16;
+    flex:none;
+  }
+  .stage-head h2{font-size:19px;margin:0;}
+  .stage-head .sub{font-size:12.5px;color:var(--text-dim);margin-top:2px;}
+
+  .cards{display:grid;gap:12px;}
+  .card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:16px 18px;
+  }
+  .card .label{
+    font-size:12px;
+    color:var(--text-dim);
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    font-family:'JetBrains Mono',monospace;
+    margin-bottom:8px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  .card p{font-size:14.5px;line-height:1.55;margin:0 0 12px;white-space:pre-line;}
+  .copy-btn{
+    background:var(--purple-soft);
+    border:1px solid var(--purple);
+    color:var(--purple);
+    font-family:'Inter',sans-serif;
+    font-size:12.5px;
+    font-weight:600;
+    padding:7px 12px;
+    border-radius:8px;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    transition:.15s;
+  }
+  .copy-btn:hover{background:var(--purple);color:#0F0B16;}
+  .copy-btn.copied{background:#22C55E;border-color:#22C55E;color:#0F0B16;}
+
+  .obj-card .versions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;}
+  @media(max-width:560px){.obj-card .versions{grid-template-columns:1fr;}}
+  .obj-card .versions .v{
+    background:var(--surface-2);
+    border-radius:10px;
+    padding:10px 12px;
+  }
+  .obj-card .versions .v .vlabel{font-size:10.5px;color:var(--text-dim);margin-bottom:5px;text-transform:uppercase;font-family:'JetBrains Mono',monospace;}
+  .obj-card .versions .v p{font-size:13px;margin-bottom:8px;}
+
+  /* TABS for seguimiento / reactivacion */
+  .extra-section{
+    margin-top:54px;
+    padding-top:34px;
+    border-top:1px solid var(--line);
+  }
+  .extra-head{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
+  .extra-head h2{font-size:20px;margin:0;}
+  .extra-desc{color:var(--text-dim);font-size:13.5px;margin-bottom:18px;}
+  .accordion{border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:10px;background:var(--surface);}
+  .accordion summary{
+    padding:14px 18px;
+    cursor:pointer;
+    font-weight:600;
+    font-size:14.5px;
+    list-style:none;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  .accordion summary::-webkit-details-marker{display:none;}
+  .accordion summary:after{content:'+';font-size:20px;color:var(--purple);transition:.2s;}
+  .accordion[open] summary:after{content:'–';}
+  .accordion .body{padding:0 18px 16px;}
+  .accordion .meta{font-size:12px;color:var(--text-dim);margin-bottom:10px;}
+  .accordion .meta b{color:var(--text);}
+
+  /* LIVE AGENT */
+  .live-wrap{max-width:640px;margin:22px auto 0;padding:0 20px;}
+  .live-box{
+    background:linear-gradient(160deg, var(--surface) 0%, var(--purple-soft) 220%);
+    border:1.5px solid var(--purple);
+    border-radius:18px;
+    padding:20px 22px;
+  }
+  .live-head{display:flex;align-items:center;gap:9px;margin-bottom:8px;}
+  .live-dot{width:8px;height:8px;border-radius:50%;background:#22C55E;box-shadow:0 0 8px #22C55E;flex:none;animation:pulse 1.8s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  .live-head h3{margin:0;font-size:16px;}
+  .live-sub{font-size:13px;color:var(--text-dim);margin:0 0 12px;line-height:1.5;}
+  .live-box textarea{
+    width:100%;
+    min-height:70px;
+    resize:vertical;
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    border-radius:10px;
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    font-size:14px;
+    padding:12px;
+    outline:none;
+  }
+  .live-box textarea:focus{border-color:var(--purple);}
+  .live-controls{display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap;}
+  .file-btn{
+    font-size:12.5px;
+    color:var(--text-dim);
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    padding:8px 12px;
+    border-radius:8px;
+    cursor:pointer;
+  }
+  .file-btn:hover{border-color:var(--purple);color:var(--text);}
+  .file-name{font-size:11.5px;color:var(--purple);}
+  .ask-btn{
+    margin-left:auto;
+    background:var(--purple);
+    border:none;
+    color:#0F0B16;
+    font-weight:700;
+    font-size:13.5px;
+    padding:10px 16px;
+    border-radius:9px;
+    cursor:pointer;
+    transition:.15s;
+  }
+  .ask-btn:hover{filter:brightness(1.1);transform:translateY(-1px);}
+  .ask-btn:disabled{opacity:.5;cursor:wait;}
+  #liveAnswer{margin-top:14px;}
+  .answer-card{
+    background:var(--surface-2);
+    border-left:3px solid #22C55E;
+    border-radius:10px;
+    padding:14px 16px;
+    font-size:14px;
+    line-height:1.6;
+    white-space:pre-line;
+  }
+  .answer-card .a-label{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#22C55E;text-transform:uppercase;margin-bottom:8px;}
+  .error-card{
+    background:#3B1B1B;border-left:3px solid #EF4444;border-radius:10px;
+    padding:12px 14px;font-size:13px;color:#FCA5A5;
+  }
+
+  /* LOG */
+  .log-input-row{display:flex;gap:10px;margin-bottom:8px;}
+  .log-input-row input{
+    flex:1;background:var(--surface);border:1px solid var(--line);border-radius:10px;
+    color:var(--text);padding:11px 14px;font-family:'Inter',sans-serif;font-size:14px;outline:none;
+  }
+  .log-input-row input:focus{border-color:var(--purple);}
+  .log-status{font-size:12px;color:#22C55E;min-height:16px;margin-bottom:8px;}
+  .log-item{
+    background:var(--surface);border:1px solid var(--line);border-radius:10px;
+    padding:11px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;
+  }
+  .log-item .qtext{font-size:13.5px;line-height:1.5;}
+  .log-item .qdate{font-size:11px;color:var(--text-dim);margin-top:4px;font-family:'JetBrains Mono',monospace;}
+  .log-item button{
+    flex:none;background:transparent;border:1px solid var(--line);color:var(--text-dim);
+    border-radius:7px;padding:5px 9px;font-size:11px;cursor:pointer;
+  }
+  .log-item button:hover{border-color:#EF4444;color:#EF4444;}
+  .log-empty{color:var(--text-dim);font-size:13px;padding:8px 0;}
+
+  footer{
+    text-align:center;
+    padding:30px 20px 50px;
+    color:var(--text-dim);
+    font-size:12px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">Rancho Seco · Equipo de marketing IA</div>
+  <h1>Agente de Conversión y Ventas</h1>
+  <p>Tu manual de ventas por mensaje, listo para copiar y pegar. Sube o baja por el termómetro según qué tan caliente esté la conversación.</p>
+</header>
+
+<div class="search-wrap">
+  <div class="search-box">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+    <input id="searchInput" type="text" placeholder="¿Qué te preguntó el cliente? Ej: “está caro”, “no entiendo”, “tarjeta”...">
+  </div>
+  <div class="search-hint">Escribe lo que te dijo el cliente y te doy la respuesta lista para copiar</div>
+</div>
+<div id="searchResults"></div>
+
+<div class="live-wrap">
+  <div class="live-box">
+    <div class="live-head">
+      <span class="live-dot"></span>
+      <h3>Consulta en vivo con el Agente</h3>
+    </div>
+    <p class="live-sub">Pega el último mensaje del cliente (o sube una captura) y el Agente te contesta con la lógica completa del manual — no solo lo que ya está guardado.</p>
+    <textarea id="liveInput" placeholder="Ej: &quot;oye pero mi negocio es de repostería, ¿esto igual me sirve?&quot;"></textarea>
+    <div class="live-controls">
+      <label class="file-btn">
+        📎 Adjuntar captura
+        <input type="file" id="liveImage" accept="image/*" hidden>
+      </label>
+      <span id="liveImageName" class="file-name"></span>
+      <button class="ask-btn" id="askBtn" onclick="askAgent()">Preguntar al Agente →</button>
+    </div>
+    <div id="liveAnswer"></div>
+  </div>
+</div>
+
+<div class="thermo-nav" id="thermoNav">
+  <div class="thermo-track">
+    <div style="background:var(--t1)" data-target="s1"></div>
+    <div style="background:var(--t2)" data-target="s1"></div>
+    <div style="background:var(--t3)" data-target="s2"></div>
+    <div style="background:var(--t3)" data-target="s2"></div>
+    <div style="background:var(--t4)" data-target="s3"></div>
+    <div style="background:var(--t5)" data-target="s3"></div>
+    <div style="background:var(--t6)" data-target="s4"></div>
+    <div style="background:var(--t7)" data-target="s4"></div>
+    <div style="background:var(--t8)" data-target="s5"></div>
+    <div style="background:var(--t10)" data-target="s5"></div>
+  </div>
+  <div class="thermo-labels">
+    <span>1–2 Frío</span><span>3–4 Tibio</span><span>5–6 Interés</span><span>7–8 Objeciones</span><span>9–10 Cierre</span>
+  </div>
+</div>
+
+<main>
+
+  <!-- STAGE 1-2 -->
+  <section class="stage" id="s1">
+    <div class="stage-head">
+      <div class="stage-dot" style="background:var(--t1)">1–2</div>
+      <div>
+        <h2>Primer contacto — Frío</h2>
+        <div class="sub">La persona apenas llega. Objetivo: generar curiosidad y validar interés.</div>
+      </div>
+    </div>
+    <div class="cards">
+      <div class="card">
+        <div class="label">Bienvenida — primer contacto <button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+        <p data-copy>Hola! Te comparto la propuesta para que tu marca tenga presencia real en Rancho Seco ⚽ Aquí tu marca no solo se ve… se queda en la mente de quienes nos visitan: +20,000 asistentes al mes, presencia en 4 canchas activas, diseño+instalación+mantenimiento incluidos. ¿Cuál es el giro de tu negocio?</p>
+      </div>
+      <div class="card">
+        <div class="label">Video de apertura (se envía junto con el mensaje de bienvenida)</div>
+        <p>0:00–0:05 Toma aérea de las 4 canchas, logo Rancho Seco — "Tu marca en el centro del juego"
+0:05–0:15 Gente en gradas, familias, jugadores — "+20,000 personas nos visitan cada mes"
+0:15–0:25 Valla instalada en cancha real — "Aquí tu marca no solo se ve… se vive cada semana"
+0:25–0:35 Los 3 paquetes en pantalla — "Tenemos 3 opciones según lo que buscas: desde $3,000"
+0:35–0:45 Clip de activación con marca de cliente real — "Diseñamos, imprimimos e instalamos todo por ti"
+0:45–0:50 Logo + contacto — "Escríbenos y te armamos tu propuesta hoy mismo"</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- STAGE 3-4 -->
+  <section class="stage" id="s2">
+    <div class="stage-head">
+      <div class="stage-dot" style="background:var(--t3)">3–4</div>
+      <div>
+        <h2>Calificación — Tibio</h2>
+        <div class="sub">Ya contestó. Objetivo: entender su giro y ofrecer el paquete de vallas aplicado a SU caso.</div>
+      </div>
+    </div>
+    <div class="cards">
+      <div class="card">
+        <div class="label">Preguntas de calificación (usar 1-2, no las 3 de golpe)</div>
+        <p>1. ¿Cuál es el giro de tu negocio?
+2. ¿Buscas presencia puntual (1 valla) o presencia total en el deportivo?
+3. ¿Ya tienes tu logo en buena calidad (.png/.pdf)?
+4. ¿Tú decides o hay que consultarlo con alguien más?</p>
+      </div>
+      <div class="card">
+        <div class="label">Explicación del producto <button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+        <p data-copy>Tenemos 3 opciones: Paquete 1 ($3,000, 1 valla, 4 meses), Paquete 2 ($4,900, valla + 2 piezas de video/contenido), Torneo de Empresa (cotización a la medida). ¿Cuál te late más para lo que buscas?</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- STAGE 5-6 -->
+  <section class="stage" id="s3">
+    <div class="stage-head">
+      <div class="stage-dot" style="background:var(--t4)">5–6</div>
+      <div>
+        <h2>Presentación de oferta — Interés</h2>
+        <div class="sub">Ya mostró interés real o preguntó precio. Objetivo: dejar clarísimo el valor y el número.</div>
+      </div>
+    </div>
+    <div class="cards">
+      <div class="card">
+        <div class="label">Mensaje de precio / oferta <button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+        <p data-copy>El Paquete Básico son $3,000 por 4 meses, todo incluido. Esta semana tenemos 2x1: pagas 1 y te instalamos 2 vallas por los mismos 4 meses. Para apartar son $1,000 y liquidas el resto al aprobar tu diseño. ¿Te late así?</p>
+      </div>
+      <div class="card">
+        <div class="label">FAQ — ¿El precio es por los 4 meses o mensual? <button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+        <p data-copy>Es el total por los 4 meses, un solo precio, no se paga cada mes.</p>
+      </div>
+      <div class="card">
+        <div class="label">FAQ — ¿Puedo pagar en 2 partes? <button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+        <p data-copy>Sí, la mitad al iniciar y la otra al aprobar el diseño.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- STAGE 7-8 -->
+  <section class="stage" id="s4">
+    <div class="stage-head">
+      <div class="stage-dot" style="background:var(--t6)">7–8</div>
+      <div>
+        <h2>Objeciones — Se calienta</h2>
+        <div class="sub">Está dudando. Objetivo: resolver sin dejar nada abierto.</div>
+      </div>
+    </div>
+    <div class="cards">
+      <div class="card obj-card">
+        <div class="label">Precio</div>
+        <div class="versions">
+          <div class="v"><div class="vlabel">Respuesta ideal</div><p>Te entiendo. Piensa que son 4 meses de presencia constante frente a +20,000 personas al mes — el costo por impacto sale muy bajo. Si el presupuesto es el tema, puedo ofrecerte 2 vallas por el precio de 1 esta semana.</p><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+          <div class="v"><div class="vlabel">Versión corta</div><p>¿Qué presupuesto tenías en mente? Así te armo algo a tu medida</p><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+        </div>
+      </div>
+      <div class="card obj-card">
+        <div class="label">Tiempo — "lo tengo que consultar"</div>
+        <div class="versions">
+          <div class="v"><div class="vlabel">Respuesta ideal</div><p>Sin problema, tómate el tiempo que necesites. Te dejo la info lista para cuando puedas revisarla con calma.</p><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+          <div class="v"><div class="vlabel">Versión corta</div><p>Perfecto, te preparo un resumen ejecutivo claro para compartir internamente</p><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+        </div>
+      </div>
+      <div class="card obj-card">
+        <div class="label">Confianza — "¿esto es real / va a quedar bien?"</div>
+        <div class="versions">
+          <div class="v"><div class="vlabel">Respuesta ideal</div><p>Claro, te comparto fotos reales de cómo quedan instaladas las vallas y algunos negocios que ya confían en nosotros (Colegio Los Pinos, Materias Primas del Norte, La Cenaduría).</p><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+          <div class="v"><div class="vlabel">Versión corta</div><p>Te mando fotos reales de instalaciones + negocios que ya confían en nosotros 📸</p><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+        </div>
+      </div>
+      <div class="card obj-card">
+        <div class="label">“Lo voy a pensar”</div>
+        <div class="versions">
+          <div class="v"><div class="vlabel">Respuesta ideal</div><p>Claro, tómate tu tiempo 🤝 Cualquier duda aquí ando. Si gustas, en un par de días te escribo para ver cómo vas.</p><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+          <div class="v"><div class="vlabel">Versión corta</div><p>Va, quedo pendiente 🤝</p><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+        </div>
+      </div>
+      <div class="card obj-card">
+        <div class="label">“Lo consulto” (con socio / jefe / contador)</div>
+        <div class="versions">
+          <div class="v"><div class="vlabel">Respuesta ideal</div><p>Perfecto, te preparo un resumen ejecutivo claro para compartir internamente. Cualquier duda que les surja, aquí ando.</p><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+          <div class="v"><div class="vlabel">Versión corta</div><p>Te armo un resumen fácil de compartir con ellos 👍</p><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STAGE 9-10 -->
+  <section class="stage" id="s5">
+    <div class="stage-head">
+      <div class="stage-dot" style="background:var(--t8)">9–10</div>
+      <div>
+        <h2>Cierre — Ardiendo</h2>
+        <div class="sub">Ya casi. Objetivo: acción concreta y confirmación sin dejarla sola.</div>
+      </div>
+    </div>
+    <div class="cards">
+      <div class="card">
+        <div class="label">Mensaje de cierre <button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+        <p data-copy>¡Qué bueno que te interesó! Para apartar son $1,000 de anticipo y tu logo en buena calidad. El segundo pago se hace al aprobar tu diseño. ⚽ Transferencia: 728969000105104622 ⚽ Depósito Oxxo: 2242-1700-7032-4520 (titular Alejandra Dávila, también acepta Spin)</p>
+      </div>
+      <div class="card">
+        <div class="label">Checklist para pedir junto con el cierre <button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+        <p data-copy>Solo necesitaría:
+• Tu logotipo en la mejor calidad posible
+• Teléfono, redes sociales o info que quieras en el anuncio
+• Foto de tu comprobante de pago
+
+(Si el logo llega borroso, se pide mejor resolución antes de mandar a imprenta — checkpoint obligatorio de calidad)</p>
+      </div>
+      <div class="card">
+        <div class="label">Mensaje de confirmación <button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+        <p data-copy>¡Recibido! ✅ Ya quedó registrado tu pago. Te compartimos las propuestas de diseño en máximo 3 días, y una vez que apruebes, instalamos en aprox. 15 días. Cualquier duda, aquí estoy 🙌</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SEGUIMIENTO -->
+  <div class="extra-section">
+    <div class="extra-head"><h2>🔄 Seguimiento</h2></div>
+    <div class="extra-desc">Para conversaciones activas que se quedaron a medias. No es parte del termómetro — aplica en cualquier punto donde el cliente dejó de responder.</div>
+    <div id="seguimientoList"></div>
+  </div>
+
+  <!-- REACTIVACION -->
+  <div class="extra-section">
+    <div class="extra-head"><h2>🔥 Reactivación</h2></div>
+    <div class="extra-desc">Para leads ya enfriados o clientas que podrían volver. Sin presión falsa, sin urgencia inventada.</div>
+    <div id="reactivacionList"></div>
+  </div>
+
+  <!-- PREGUNTAS SIN RESPUESTA -->
+  <div class="extra-section">
+    <div class="extra-head"><h2>📝 Preguntas sin respuesta</h2></div>
+    <div class="extra-desc">Cuando un cliente pregunte algo que no está en el manual, anótalo aquí. Después lo revisamos juntas en el chat con Claude y actualizamos el manual oficial.</div>
+    <div class="log-input-row">
+      <input type="text" id="logInput" placeholder="Escribe la pregunta o situación que no supiste contestar...">
+      <button class="ask-btn" onclick="saveQuestion()">Guardar</button>
+    </div>
+    <div id="logStatus" class="log-status"></div>
+    <div id="logList"></div>
+  </div>
+
+</main>
+
+<footer>Agente de Conversión y Ventas · Rancho Seco — construido sobre el Manual de Ventas por Mensaje oficial</footer>
+
+<script src="/js/storage-client.js"></script>
+<script>
+// ---------- DATA (Rancho Seco — fuente: Notion, Día 3 Conversión y Cierre > Tu conversión optimizada) ----------
+const seguimiento = [
+  {t:"Preguntó información y no respondió", cuando:"24-48 hrs después", objetivo:"Retomar conversación", calido:"Hola de nuevo 😊 No sé si alcanzaste a ver la info que te compartí. ¿Tienes alguna duda o te ayudo con algo más?", directo:"Hola, ¿pudiste revisar la propuesta que te mandé? Quedo atenta a lo que decidas.", corto:"¿Alguna duda con lo que te compartí?"},
+  {t:"Recibió precio y no contestó", cuando:"48-72 hrs después", objetivo:"Detectar si el precio fue la barrera", calido:"Hola, quería saber si te quedó claro el paquete que platicamos o si tienes alguna duda con el precio.", directo:"¿Ya tuviste oportunidad de revisar la inversión? Si quieres ajustamos el paquete a lo que necesitas.", corto:"¿Cómo la ves?"},
+  {t:"Dijo “lo voy a pensar”", cuando:"Inmediato + recontacto a 72h", objetivo:"Dejar la puerta abierta sin presionar — punto donde más se pierden ventas", calido:"Claro, tómate tu tiempo 🤝 Cualquier duda aquí ando. Si gustas, en un par de días te escribo para ver cómo vas.", directo:"Perfecto. Te aviso que esta semana tenemos algunos espacios disponibles — cualquier cosa me dices y lo apartamos.", corto:"Va, quedo pendiente 🤝"},
+  {t:"Dijo que se le hace caro", cuando:"Inmediato, misma conversación", objetivo:"Reencuadrar valor, nunca bajar el precio base directo", calido:"Te entiendo. Piensa que son 4 meses de presencia constante frente a +20,000 personas al mes — el costo por impacto sale muy bajo comparado con otros medios.", directo:"Si el presupuesto es el tema, puedo ofrecerte 2 vallas por el precio de 1 esta semana, para que tu inversión rinda más.", corto:"¿Qué presupuesto tenías en mente? Así te armo algo a tu medida."},
+  {t:"Dijo que sí le interesa pero no ha pagado", cuando:"24 hrs después de \"me interesa\"", objetivo:"Convertir intención en acción concreta", calido:"¡Qué bueno que te interesó! Para apartar tu promoción puedes hacerlo con $1,000 de anticipo y tu logo en buena calidad. El segundo pago lo haces cuando apruebes tu diseño.", directo:"Solo necesitaría: tu logotipo en buena calidad, teléfono/redes que quieras en el anuncio, y foto de tu comprobante. ⚽ Transferencia: 728969000105104622 ⚽ Depósito Oxxo: 2242-1700-7032-4520", corto:"Para apartar son $1,000 de anticipo + tu logo en buena calidad 🙌"},
+  {t:"Preguntó disponibilidad y desapareció", cuando:"48 hrs después", objetivo:"Recuperar el hilo con razón concreta", calido:"Hola, ¿sigues interesado en el espacio que preguntaste? Te aviso que esta semana activamos la promoción de 2x1 en vallas — mismos 4 meses, pagas 1 y te instalamos 2. Si te late, aprovechamos.", directo:"Todavía tenemos ese espacio disponible, y esta semana aplica 2x1 en vallas. ¿Te lo aparto?", corto:"2x1 esta semana en vallas, ¿lo aprovechamos?"},
+  {t:"Último seguimiento amable", cuando:"Después de 2-3 intentos sin respuesta", objetivo:"Cerrar el ciclo con elegancia, mover a reactivación (no eliminar)", calido:"No quiero ser inoportuna 😊 Aquí quedo por si más adelante te interesa o cambian tus planes. ¡Que te vaya muy bien!", directo:"Entiendo que tal vez no es el momento. Cualquier cosa, aquí estoy.", corto:"Sin problema, aquí ando si me necesitas 🤝"},
+];
+
+const reactivacion = [
+  {t:"Preguntó y nunca compró", cuando:"30-45 días después", objetivo:"Retomar interés con novedad real — nunca inventada", principal:"Hola de nuevo 😊 Hace un tiempo platicamos sobre publicidad en Rancho Seco. Quería contarte que [esta semana tenemos 2x1 en vallas / ahora manejamos presencia total en las 4 canchas / se acerca temporada de finales con mucha más afluencia] — pensé que te podría interesar.", corto:"Hola, ¿sigue en tu radar anunciarte con nosotros? Tenemos novedades."},
+  {t:"Recibió precio y desapareció", cuando:"30 días después", objetivo:"Dar razón fresca para retomar, sin asumir precio anterior vigente", principal:"Hola, ¿cómo has estado? Te había compartido una propuesta de publicidad hace un tiempo. Justo ahora estamos por iniciar nueva temporada con más actividad en el deportivo — si te interesa retomar, con gusto te actualizo la info.", corto:"¿Seguimos en contacto para tu publicidad en Rancho Seco?"},
+  {t:"Dijo “lo voy a pensar” y no volvió", cuando:"30-40 días después", objetivo:"Cerrar el loop abierto", principal:"Hola, no quiero ser inoportuna — solo quería saber si ya tomaste una decisión sobre lo que platicamos o si prefieres que te contacte más adelante.", corto:"¿Cómo quedó lo que platicamos?"},
+  {t:"No respondió después de varios seguimientos", cuando:"60 días después (último intento)", objetivo:"Último intento genuino, sin presión — luego pasa a lista pasiva", principal:"Hola, hace tiempo no platicamos. Sé que tal vez no era el momento antes, pero quería dejarte la puerta abierta por si ahora es diferente. Aquí ando si te interesa retomar 🤝", corto:"¿Seguimos en contacto o lo dejamos por ahora?"},
+  {t:"Cliente que compró una vez (contrato por vencer)", cuando:"2-3 semanas antes de terminar su contrato", objetivo:"Renovar antes de que se enfríe", principal:"Hola [nombre], tu publicidad con nosotros está por terminar su periodo. Nos encantaría seguir teniendo tu marca en Rancho Seco — ¿te gustaría renovar por otros 4 meses?", corto:"¿Renovamos tu espacio otros 4 meses?"},
+  {t:"Clienta antigua que podría volver", cuando:"6+ meses después de terminar contrato", objetivo:"Reconectar reconociendo relación previa — tratar como lead calificado", principal:"Hola [nombre], ¡tanto tiempo! Fuiste parte de nuestros anunciantes hace un tiempo y quería saber cómo te fue con la presencia en Rancho Seco y si te gustaría volver a anunciarte con nosotros.", corto:"¿Te interesaría volver a anunciarte con nosotros?"},
+  {t:"Clienta VIP o recurrente", cuando:"Antes de que termine cada ciclo, proactivo", objetivo:"Cuidar relación, priorizar antes que nuevos leads", principal:"Hola [nombre], como siempre valoramos mucho tenerte con nosotros 🤝 Quería avisarte primero a ti antes de abrir espacios: ¿te gustaría seguir con tu publicidad este próximo periodo?", corto:"¿Seguimos otro periodo juntos?"},
+];
+
+// Search index: pregunta del cliente -> respuesta recomendada
+const searchIndex = [
+  {level:1, color:"var(--t6)", q:"está caro / mucho presupuesto / se me hace mucho", a:"Te entiendo. Piensa que son 4 meses de presencia constante frente a +20,000 personas al mes — el costo por impacto sale muy bajo. Si el presupuesto es el tema, puedo ofrecerte 2 vallas por el precio de 1 esta semana."},
+  {level:1, color:"var(--t6)", q:"lo tengo que consultar / con mi socio / con mi contador / con mi jefe", a:"Sin problema, tómate el tiempo que necesites. Te preparo un resumen ejecutivo claro para compartir internamente."},
+  {level:1, color:"var(--t6)", q:"es esto real / va a quedar bien / tienen ejemplos", a:"Claro, te comparto fotos reales de cómo quedan instaladas las vallas y algunos negocios que ya confían en nosotros (Colegio Los Pinos, Materias Primas del Norte, La Cenaduría)."},
+  {level:1, color:"var(--t6)", q:"lo voy a pensar / déjame ver / al rato te digo", a:"Claro, tómate tu tiempo 🤝 Cualquier duda aquí ando. Si gustas, en un par de días te escribo para ver cómo vas."},
+  {level:2, color:"var(--t4)", q:"el precio es por los 4 meses o mensual", a:"Es el total por los 4 meses, un solo precio, no se paga cada mes."},
+  {level:2, color:"var(--t4)", q:"puedo pagar en 2 partes / a meses / pago dividido", a:"Sí, la mitad al iniciar y la otra al aprobar el diseño."},
+  {level:2, color:"var(--t4)", q:"facturan / necesito factura", a:"Sí, sin problema — solo necesito tus datos fiscales."},
+  {level:2, color:"var(--t4)", q:"cuánto tardan en instalar / tiempos de entrega", a:"Aprox. 15 días desde que apruebas el diseño."},
+  {level:2, color:"var(--t4)", q:"la valla es por cancha o general / cuántas canchas", a:"Depende del paquete: en el básico es 1 valla en 1 cancha; se puede ampliar a más canchas con el paquete de presencia total."},
+  {level:2, color:"var(--t4)", q:"qué pasa cuando terminan los 4 meses / se renueva solo / compromiso", a:"El contrato termina solo, sin renovación automática. Te contactamos antes para preguntarte si quieres continuar."},
+  {level:2, color:"var(--t4)", q:"puedo elegir en qué cancha va mi valla / ubicación", a:"Sí, si tienes preferencia por alguna cancha o zona te la asignamos según disponibilidad."},
+  {level:2, color:"var(--t4)", q:"me ayudan con el diseño / tengo que mandarlo listo", a:"Nosotros diseñamos, solo necesitamos tu logo en buena calidad y la info que quieras incluir."},
+  {level:2, color:"var(--t4)", q:"mi logo está en baja calidad / no tengo buen logo", a:"Te lo hacemos saber antes de mandar a imprenta y te pedimos el archivo original o una mejor versión, para que se vea profesional."},
+  {level:2, color:"var(--t4)", q:"publican en redes sociales / me etiquetan / promoción extra", a:"Sí, con el material que nos compartas publicamos en nuestras redes (13K Facebook, 850 Instagram) 1 a 2 veces al mes."},
+  {level:0, color:"var(--t1)", q:"hola / me interesa / qué es esto / información", a:"Hola! Te comparto la propuesta para que tu marca tenga presencia real en Rancho Seco ⚽ +20,000 asistentes al mes, presencia en 4 canchas activas, diseño+instalación+mantenimiento incluidos. ¿Cuál es el giro de tu negocio?"},
+];
+
+// ---------- SEARCH ----------
+const input = document.getElementById('searchInput');
+const resultsBox = document.getElementById('searchResults');
+
+function normalize(s){return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");}
+
+input.addEventListener('input', () => {
+  const q = normalize(input.value.trim());
+  if(q.length < 2){ resultsBox.innerHTML = ""; return; }
+  const matches = searchIndex.filter(item => normalize(item.q).includes(q) || q.split(" ").some(w => w.length>2 && normalize(item.q).includes(w)));
+  if(matches.length === 0){
+    resultsBox.innerHTML = '<div class="no-results">No encontré coincidencia exacta — revisa la sección de Objeciones o Seguimiento manualmente 👇</div>';
+    return;
+  }
+  resultsBox.innerHTML = matches.map(m => `
+    <div class="result-card" style="border-left-color:${m.color}">
+      <span class="tag" style="background:${m.color}">Cliente dice: match</span>
+      <div class="q">${m.q}</div>
+      <div class="a">${m.a}</div>
+      <button class="copy-btn" onclick="copyText(this, \`${m.a.replace(/`/g,"'")}\`)">Copiar respuesta</button>
+    </div>
+  `).join("");
+});
+
+// ---------- COPY ----------
+function copyCard(btn){
+  const card = btn.closest('.card, .v');
+  const p = card.querySelector('p');
+  copyText(btn, p.innerText);
+}
+function copyText(btn, text){
+  navigator.clipboard.writeText(text).then(() => {
+    const original = btn.innerText;
+    btn.innerText = "¡Copiado! ✓";
+    btn.classList.add('copied');
+    setTimeout(() => { btn.innerText = original; btn.classList.remove('copied'); }, 1600);
+  });
+}
+
+// ---------- LIVE AGENT (via /api/agente-conversion — la API key vive en el servidor) ----------
+let liveImageData = null;
+document.getElementById('liveImage').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    liveImageData = {mediaType: file.type, data: reader.result.split(',')[1]};
+    document.getElementById('liveImageName').innerText = "📎 " + file.name;
+  };
+  reader.readAsDataURL(file);
+});
+
+async function askAgent(){
+  const input = document.getElementById('liveInput').value.trim();
+  const answerBox = document.getElementById('liveAnswer');
+  const btn = document.getElementById('askBtn');
+  if(!input && !liveImageData){
+    answerBox.innerHTML = '<div class="error-card">Escribe el mensaje del cliente o adjunta una captura primero.</div>';
+    return;
+  }
+  btn.disabled = true;
+  btn.innerText = "Pensando...";
+  answerBox.innerHTML = '<div class="log-empty">El Agente está armando tu respuesta...</div>';
+
+  try{
+    const response = await fetch("/api/agente-conversion", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ mensaje: input, imagen: liveImageData, cliente: "rancho-seco" })
+    });
+    const data = await response.json();
+    if(!response.ok){
+      answerBox.innerHTML = `<div class="error-card">${data.error || "No se pudo generar respuesta. Intenta de nuevo."}</div>`;
+      return;
+    }
+    const text = data.text;
+    answerBox.innerHTML = `<div class="answer-card"><div class="a-label">Respuesta del Agente</div>${text}</div>
+      <button class="copy-btn" style="margin-top:8px" onclick="copyText(this, \`${text.replace(/`/g,"'")}\`)">Copiar todo</button>`;
+  } catch(err){
+    answerBox.innerHTML = '<div class="error-card">Hubo un error de conexión. Intenta de nuevo en un momento.</div>';
+  } finally {
+    btn.disabled = false;
+    btn.innerText = "Preguntar al Agente →";
+  }
+}
+
+// ---------- LOG DE PREGUNTAS SIN RESPUESTA ----------
+async function loadQuestions(){
+  const listEl = document.getElementById('logList');
+  try{
+    const result = await window.storage.get('rancho-seco:preguntas-sin-respuesta', false);
+    const items = result ? JSON.parse(result.value) : [];
+    renderQuestions(items);
+  } catch(e){
+    renderQuestions([]);
+  }
+}
+
+function renderQuestions(items){
+  const listEl = document.getElementById('logList');
+  if(!items || items.length === 0){
+    listEl.innerHTML = '<div class="log-empty">Todavía no hay preguntas guardadas.</div>';
+    return;
+  }
+  listEl.innerHTML = items.slice().reverse().map(item => `
+    <div class="log-item">
+      <div>
+        <div class="qtext">${item.text}</div>
+        <div class="qdate">${item.date}</div>
+      </div>
+      <button onclick="deleteQuestion('${item.id}')">Eliminar</button>
+    </div>
+  `).join("");
+}
+
+async function saveQuestion(){
+  const input = document.getElementById('logInput');
+  const status = document.getElementById('logStatus');
+  const text = input.value.trim();
+  if(!text) return;
+  try{
+    const result = await window.storage.get('rancho-seco:preguntas-sin-respuesta', false);
+    const items = result ? JSON.parse(result.value) : [];
+    items.push({
+      id: Date.now().toString(),
+      text,
+      date: new Date().toLocaleDateString('es-MX', {day:'numeric', month:'short', year:'numeric'})
+    });
+    await window.storage.set('rancho-seco:preguntas-sin-respuesta', JSON.stringify(items), false);
+    input.value = "";
+    status.innerText = "Guardado ✓";
+    setTimeout(() => status.innerText = "", 1800);
+    renderQuestions(items);
+  } catch(e){
+    status.innerText = e.status === 401 ? "Token incorrecto — vuelve a intentar guardar para reingresarlo." : "No se pudo guardar, intenta de nuevo.";
+  }
+}
+
+async function deleteQuestion(id){
+  try{
+    const result = await window.storage.get('rancho-seco:preguntas-sin-respuesta', false);
+    let items = result ? JSON.parse(result.value) : [];
+    items = items.filter(i => i.id !== id);
+    await window.storage.set('rancho-seco:preguntas-sin-respuesta', JSON.stringify(items), false);
+    renderQuestions(items);
+  } catch(e){}
+}
+
+document.getElementById('logInput').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter') saveQuestion();
+});
+
+loadQuestions();
+
+// ---------- THERMOMETER NAV ----------
+document.querySelectorAll('.thermo-track div').forEach(seg => {
+  seg.addEventListener('click', () => {
+    document.getElementById(seg.dataset.target).scrollIntoView({behavior:'smooth', block:'start'});
+  });
+});
+
+// ---------- RENDER SEGUIMIENTO / REACTIVACION ----------
+document.getElementById('seguimientoList').innerHTML = seguimiento.map(s => `
+  <details class="accordion">
+    <summary>${s.t}</summary>
+    <div class="body">
+      <div class="meta"><b>Cuándo:</b> ${s.cuando} &nbsp;·&nbsp; <b>Objetivo:</b> ${s.objetivo}</div>
+      <div class="card" style="margin-bottom:8px;"><div class="label">Cálido <button class="copy-btn" onclick="copyText(this, \`${s.calido.replace(/`/g,"'")}\`)">Copiar</button></div><p>${s.calido}</p></div>
+      <div class="card" style="margin-bottom:8px;"><div class="label">Directo <button class="copy-btn" onclick="copyText(this, \`${s.directo.replace(/`/g,"'")}\`)">Copiar</button></div><p>${s.directo}</p></div>
+      <div class="card"><div class="label">Corto <button class="copy-btn" onclick="copyText(this, \`${s.corto.replace(/`/g,"'")}\`)">Copiar</button></div><p>${s.corto}</p></div>
+    </div>
+  </details>
+`).join("");
+
+document.getElementById('reactivacionList').innerHTML = reactivacion.map(r => `
+  <details class="accordion">
+    <summary>${r.t}</summary>
+    <div class="body">
+      <div class="meta"><b>Cuándo:</b> ${r.cuando} &nbsp;·&nbsp; <b>Objetivo:</b> ${r.objetivo}</div>
+      <div class="card" style="margin-bottom:8px;"><div class="label">Mensaje principal <button class="copy-btn" onclick="copyText(this, \`${r.principal.replace(/`/g,"'")}\`)">Copiar</button></div><p>${r.principal}</p></div>
+      <div class="card"><div class="label">Versión corta <button class="copy-btn" onclick="copyText(this, \`${r.corto.replace(/`/g,"'")}\`)">Copiar</button></div><p>${r.corto}</p></div>
+    </div>
+  </details>
+`).join("");
+</script>
+</body>
+</html>
