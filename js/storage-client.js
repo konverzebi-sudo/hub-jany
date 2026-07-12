@@ -18,7 +18,7 @@
       const res = await fetch('/api/storage/' + encodeURIComponent(key), { cache: 'no-store' });
       if (!res.ok) return null;
       const data = await res.json();
-      return data.value != null ? { value: data.value } : null;
+      return data.value != null ? { value: data.value, updatedAt: data.updatedAt || null } : null;
     },
     async set(key, value, opts) {
       const res = await fetch('/api/storage/' + encodeURIComponent(key), {

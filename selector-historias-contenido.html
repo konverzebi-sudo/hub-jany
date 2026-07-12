@@ -218,9 +218,9 @@ function parseFechaDDMM(str){
   return d;
 }
 
-function horizonIndex(fechaStr){
+function fechaHorizonIndex(fechaStr){
   const d = parseFechaDDMM(fechaStr);
-  if(!d) return 0; // sin fecha valida = lo mas lejano = azul
+  if(!d) return null; // sin fecha valida capturada
   const today = new Date(); today.setHours(0,0,0,0);
   const days = Math.round((d - today) / 86400000);
   if(days <= 14) return 9; // proximas 2 semanas = rojo, lo mas urgente
@@ -229,8 +229,30 @@ function horizonIndex(fechaStr){
   return Math.max(0, Math.min(8, Math.round(8 - t * 8)));
 }
 
-function horizonColorVar(fechaStr){
-  return 'var(--t' + (horizonIndex(fechaStr) + 1) + ')';
+// Semana 1 = mas proximo/rojo, Semana 4 = mas lejano/azul, igual que el eje de fecha.
+const WEEK_HORIZON_INDEX = {1: 9, 2: 7, 3: 4, 4: 1};
+
+function weekFromFase(fase){
+  if(!fase) return null;
+  const m = fase.match(/Semana\s*(\d+)/i);
+  if(!m) return null;
+  const w = parseInt(m[1], 10);
+  return (w >= 1 && w <= 4) ? w : null;
+}
+
+// La fecha exacta casi nunca esta capturada, asi que el color se apoya
+// principalmente en la semana asignada (Semana 1-4). Si ademas hay una
+// fecha valida, esta gana por ser mas precisa.
+function horizonIndex(item){
+  const byFecha = fechaHorizonIndex(item.fecha);
+  if(byFecha !== null) return byFecha;
+  const week = weekFromFase(item.fase);
+  if(week !== null) return WEEK_HORIZON_INDEX[week];
+  return 0; // ni fecha ni semana reconocible = ultimo recurso, azul
+}
+
+function horizonColorVar(item){
+  return 'var(--t' + (horizonIndex(item) + 1) + ')';
 }
 
 function buildFaseFilter(){
@@ -264,7 +286,7 @@ function render(){
 
   contentEl.innerHTML = '';
   SECTIONS.forEach(sec => {
-    const secRows = rows.filter(r => r.estado === sec.key).sort((a,b) => horizonIndex(b.fecha) - horizonIndex(a.fecha));
+    const secRows = rows.filter(r => r.estado === sec.key).sort((a,b) => horizonIndex(b) - horizonIndex(a));
     const section = document.createElement('div');
     section.className = 'section';
     const head = document.createElement('div');
@@ -283,7 +305,7 @@ function render(){
       secRows.forEach(r => {
         const card = document.createElement('div');
         card.className = 'item-card';
-        const horizonColor = horizonColorVar(r.fecha);
+        const horizonColor = horizonColorVar(r);
         card.style.setProperty('--horizon', horizonColor);
         card.innerHTML = `
           <div class="item-top">
@@ -552,7 +574,8 @@ async function loadStorage(){
         saved.banco.forEach(b => { if(b.aprobada === undefined) b.aprobada = !!b.gancho; });
         state.banco = saved.banco;
       }
-      statusEl.textContent = 'Tu selección guardada se cargó correctamente.';
+      const when = result.updatedAt ? new Date(result.updatedAt).toLocaleString('es-MX', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}) : '';
+      statusEl.textContent = when ? `Cargado — último guardado ${when}` : 'Tu selección guardada se cargó correctamente.';
     }
   }catch(e){
     statusEl.textContent = 'Empezando selección nueva (sin datos guardados aún).';

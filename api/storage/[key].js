@@ -30,8 +30,11 @@ module.exports = async function handler(req, res) {
 
   if (req.method === 'GET') {
     try {
-      const { rows } = await sql`SELECT value FROM kv_store WHERE key = ${key}`;
-      return res.status(200).json({ value: rows[0] ? rows[0].value : null });
+      const { rows } = await sql`SELECT value, updated_at FROM kv_store WHERE key = ${key}`;
+      return res.status(200).json({
+        value: rows[0] ? rows[0].value : null,
+        updatedAt: rows[0] ? rows[0].updated_at : null,
+      });
     } catch (err) {
       return res.status(500).json({ error: 'Error leyendo storage.' });
     }
