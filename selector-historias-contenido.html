@@ -122,6 +122,7 @@
   .suggest-status.error{color:#F87171;}
 
   .banco-section-head{font-family:'Sora',sans-serif;font-weight:700;font-size:14px;margin-bottom:10px;color:var(--text);}
+  .banco-section-head .count{font-weight:400;opacity:.7;font-size:12px;font-family:'JetBrains Mono',monospace;color:var(--text-dim);}
   .banco-list{display:flex;flex-direction:column;gap:10px;margin-bottom:28px;}
   .banco-item{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}
   .banco-item.aprobada{border-left:4px solid var(--accent);}
@@ -282,7 +283,8 @@ function render(){
       secRows.forEach(r => {
         const card = document.createElement('div');
         card.className = 'item-card';
-        card.style.setProperty('--horizon', horizonColorVar(r.fecha));
+        const horizonColor = horizonColorVar(r.fecha);
+        card.style.setProperty('--horizon', horizonColor);
         card.innerHTML = `
           <div class="item-top">
             <select class="estado-select ${r.estado}" data-id="${r.id}" data-field="estado">
@@ -295,7 +297,7 @@ function render(){
           <textarea class="gancho-input" data-id="${r.id}" data-field="gancho">${escapeHtml(r.gancho)}</textarea>
           <div class="item-fase">${escapeHtml(r.fase)}</div>
           <details class="item-details">
-            <summary>Ver detalles</summary>
+            <summary style="color:${horizonColor}">Ver detalles</summary>
             <div class="detail-grid">
               <div class="detail-field"><label>Descripción / ángulo</label><textarea data-id="${r.id}" data-field="descripcion">${escapeHtml(r.descripcion)}</textarea></div>
               <div class="detail-field"><label>Dolor con que conectamos</label><textarea placeholder="Agrega el dolor..." data-id="${r.id}" data-field="dolor">${escapeHtml(r.dolor)}</textarea></div>
@@ -399,6 +401,10 @@ function onFieldChange(e){
 
 // ---------- BANCO DE IDEAS ----------
 function renderBanco(){
+  // Unica fuente de verdad para el contador del tab: se recalcula aqui,
+  // en el mismo render que arma las tarjetas, para que nunca puedan
+  // desincronizarse entre si.
+  document.getElementById('count-banco').textContent = state.banco.length;
   contentEl.innerHTML = '';
 
   const addBox = document.createElement('div');
@@ -470,7 +476,7 @@ function renderBanco(){
     const caption = captionEl ? captionEl.value.trim() : '';
     if(!texto && !link && !gancho) return;
     state.banco.unshift({
-      id: 'b' + Date.now(),
+      id: 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
       texto, link, gancho, caption,
       aprobada: !!gancho,
       fecha: new Date().toLocaleDateString('es-MX', {day:'2-digit', month:'short', year:'numeric'})
@@ -479,7 +485,6 @@ function renderBanco(){
     linkEl.value = '';
     suggestResult.hidden = true;
     suggestStatus.textContent = '';
-    document.getElementById('count-banco').textContent = state.banco.length;
     renderBanco();
     scheduleSave();
   });
@@ -488,7 +493,7 @@ function renderBanco(){
   const crudas = state.banco.filter(i => !i.aprobada);
 
   const aprobadasBlock = document.createElement('div');
-  aprobadasBlock.innerHTML = '<div class="banco-section-head">✅ Ideas aprobadas</div>';
+  aprobadasBlock.innerHTML = `<div class="banco-section-head">✅ Ideas aprobadas <span class="count">${aprobadas.length}</span></div>`;
   const aprobadasList = document.createElement('div');
   aprobadasList.className = 'banco-list';
   if(aprobadas.length === 0){
@@ -500,7 +505,7 @@ function renderBanco(){
   contentEl.appendChild(aprobadasBlock);
 
   const crudasBlock = document.createElement('div');
-  crudasBlock.innerHTML = '<div class="banco-section-head">💭 Ideas crudas</div>';
+  crudasBlock.innerHTML = `<div class="banco-section-head">💭 Ideas crudas <span class="count">${crudas.length}</span></div>`;
   const crudasList = document.createElement('div');
   crudasList.className = 'banco-list';
   if(crudas.length === 0){
@@ -529,7 +534,6 @@ function bancoItemCard(item){
   `;
   card.querySelector('.icon-btn').addEventListener('click', () => {
     state.banco = state.banco.filter(i => i.id !== item.id);
-    document.getElementById('count-banco').textContent = state.banco.length;
     renderBanco();
     scheduleSave();
   });
@@ -577,7 +581,7 @@ async function doSave(opts){
     pendingSave = false;
     statusEl.textContent = 'Guardado.';
   }catch(e){
-    statusEl.textContent = 'No se pudo guardar (revisa tu conexión).';
+    statusEl.textContent = e.status === 401 ? 'Token incorrecto — vuelve a intentar guardar para reingresarlo.' : 'No se pudo guardar (revisa tu conexión).';
   }
 }
 

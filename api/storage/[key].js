@@ -38,8 +38,13 @@ module.exports = async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
-    const token = req.headers['x-storage-token'];
-    if (!token || !process.env.STORAGE_WRITE_TOKEN || token !== process.env.STORAGE_WRITE_TOKEN) {
+    // trim: un espacio o salto de linea de mas al copiar/pegar el token (ya sea
+    // al escribirlo en el prompt o al pegarlo en las env vars de Vercel) rompe
+    // la comparacion exacta y hace que el cliente borre el token guardado y
+    // vuelva a pedirlo en cada guardado.
+    const token = (req.headers['x-storage-token'] || '').toString().trim();
+    const expected = (process.env.STORAGE_WRITE_TOKEN || '').trim();
+    if (!token || !expected || token !== expected) {
       return res.status(401).json({ error: 'No autorizado.' });
     }
     const body = req.body || {};
