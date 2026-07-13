@@ -1,19 +1,29 @@
-// Endpoint server-side para el "agente vivo" del Agente de Conversión y Ventas.
+// Endpoint server-side para el "agente vivo" de Conversión y Ventas — multi-tenant.
 // La ANTHROPIC_API_KEY vive solo aquí (variable de entorno de Vercel), nunca en el cliente.
 
-const AGENT_SYSTEM_CONTEXT = `Eres el Agente de Conversión y Ventas de JefesHub, un negocio de Jany Dávila.
+const fs = require('fs');
+const path = require('path');
 
-NEGOCIO: JefesHub — plataforma de generación de contenido con IA para emprendedores. $22 USD/mes, 30 días de trial gratis (se pide tarjeta, se cobra automático si no se cancela, se puede cancelar cuando quieran).
-CLIENTE IDEAL: Emprendedor(a) independiente, 28-40 años, opera su negocio mayormente solo/a, ya probó IA genérica sin resultados, busca libertad real.
-TONO: Cercano, directo, mexicano-casual, irreverente pero NUNCA burlón hacia el cliente. Nada de lenguaje corporativo.
-REGLAS DURAS: Toda pregunta de precio se contesta con el número exacto, siempre. "No entiendo" nunca se deja abierto — se ofrece captura o videollamada de 5 min. Nunca presión falsa ni urgencia inventada. Nunca ofrecer descuentos extra al código JEFE5 sin aprobación de Jany.
+const PROMPTS_DIR = path.join(__dirname, '..', 'prompts');
+const DEFAULT_CLIENTE = 'jefeshub';
 
-Vas a recibir el último mensaje real de un cliente (o la descripción de una captura de conversación). Responde en este formato exacto, breve y accionable:
+// Mapeo explícito cliente -> archivo (evita path traversal desde el body,
+// y le da a Vercel un literal detectable para incluir el archivo en el bundle).
+const CLIENTES = {
+  jefeshub: 'system-prompt-jefeshub.md',
+  'rancho-seco': 'system-prompt-rancho-seco.md',
+};
 
-RESPUESTA LISTA PARA COPIAR: [el mensaje exacto que Jany debería mandar]
-POR QUÉ FUNCIONA: [1 línea]
-VERSIÓN CORTA: [alternativa más breve para WhatsApp/DM]
-SIGUIENTE SEGUIMIENTO: [qué hacer si no contesta]`;
+const promptCache = new Map();
+
+function cargarSystemPrompt(cliente) {
+  if (promptCache.has(cliente)) return promptCache.get(cliente);
+  const archivo = CLIENTES[cliente];
+  if (!archivo) return null;
+  const contenido = fs.readFileSync(path.join(PROMPTS_DIR, archivo), 'utf-8');
+  promptCache.set(cliente, contenido);
+  return contenido;
+}
 
 // Rate limit básico en memoria (por IP, best-effort entre invocaciones warm de la misma instancia).
 const WINDOW_MS = 5 * 60 * 1000;
@@ -46,9 +56,15 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ error: 'Falta configurar ANTHROPIC_API_KEY en el servidor.' });
   }
 
-  const { mensaje, imagen } = req.body || {};
+  const { mensaje, imagen, cliente } = req.body || {};
   if (!mensaje && !imagen) {
     return res.status(400).json({ error: 'Falta mensaje o imagen.' });
+  }
+
+  const clienteId = (cliente || DEFAULT_CLIENTE).toString();
+  const systemPrompt = cargarSystemPrompt(clienteId);
+  if (!systemPrompt) {
+    return res.status(400).json({ error: `Cliente desconocido: ${clienteId}` });
   }
 
   const content = [];
@@ -57,7 +73,7 @@ module.exports = async function handler(req, res) {
   }
   content.push({
     type: 'text',
-    text: AGENT_SYSTEM_CONTEXT + '\n\nMensaje del cliente / captura a analizar:\n' + (mensaje || '(ver captura adjunta)'),
+    text: systemPrompt + '\n\nMensaje del cliente / captura a analizar:\n' + (mensaje || '(ver captura adjunta)'),
   });
 
   try {

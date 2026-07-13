@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rancho Seco — Central de Agentes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0F0B16;
+    --surface: #181120;
+    --surface-2: #211829;
+    --accent: #B8F725;
+    --accent-soft: rgba(184,247,37,0.12);
+    --chalk: #F3EEF9;
+    --chalk-dim: #B6A9C7;
+    --line: #332A3D;
+    --locked: var(--surface);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background: radial-gradient(ellipse 120% 60% at 50% -10%, #1B1224 0%, var(--bg) 55%);
+    color: var(--chalk);
+    font-family: 'Inter', sans-serif;
+    min-height:100vh;
+    padding: 56px 24px 80px;
+  }
+  .wrap{ max-width: 1120px; margin: 0 auto; }
+
+  /* Header */
+  .eyebrow{
+    font-family:'Oswald', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.28em;
+    font-size: 12px;
+    color: var(--accent);
+    display:flex; align-items:center; gap:10px;
+    margin-bottom: 18px;
+  }
+  .eyebrow::before{
+    content:"";
+    width:7px; height:7px; border-radius:50%;
+    background: var(--accent);
+    box-shadow: 0 0 10px 2px var(--accent);
+  }
+  h1{
+    font-family:'Oswald', sans-serif;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: clamp(34px, 5.4vw, 58px);
+    line-height: 1.02;
+    letter-spacing: 0.01em;
+    color: var(--chalk);
+  }
+  h1 span{ color: var(--accent); }
+  .sub{
+    max-width: 560px;
+    margin-top: 16px;
+    color: var(--chalk-dim);
+    font-size: 15px;
+    line-height: 1.6;
+  }
+  .scoreboard{
+    margin-top: 40px;
+    display:flex; gap: 28px; flex-wrap: wrap;
+    padding: 18px 22px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: rgba(244,242,234,0.02);
+  }
+  .stat{ font-family:'Oswald',sans-serif; }
+  .stat b{ font-size: 26px; color: var(--chalk); display:block; }
+  .stat span{ font-size: 11px; text-transform:uppercase; letter-spacing:0.12em; color: var(--chalk-dim); }
+
+  /* Grid */
+  .grid{
+    margin-top: 48px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  @media (max-width: 880px){ .grid{ grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px){ .grid{ grid-template-columns: 1fr; } }
+
+  .card{
+    position: relative;
+    border-radius: 12px;
+    padding: 22px 20px 20px;
+    border: 1px solid var(--line);
+    background: var(--locked);
+    overflow: hidden;
+    transition: transform .25s ease, border-color .25s ease;
+  }
+  .card .num{
+    font-family:'Oswald',sans-serif;
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    color: var(--chalk-dim);
+  }
+  .card h3{
+    font-family:'Oswald',sans-serif;
+    text-transform: uppercase;
+    font-size: 18px;
+    margin-top: 10px;
+    letter-spacing: 0.01em;
+    color: var(--chalk-dim);
+  }
+  .card p{
+    margin-top: 8px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: rgba(169,179,170,0.65);
+  }
+  .tag{
+    display:inline-flex; align-items:center; gap:6px;
+    margin-top: 16px;
+    font-family:'Oswald',sans-serif;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--chalk-dim);
+  }
+  .tag svg{ width:12px; height:12px; opacity:0.6; }
+
+  /* Locked state */
+  .card.locked::after{
+    content:"";
+    position:absolute; inset:0;
+    background: repeating-linear-gradient(135deg, rgba(0,0,0,0.15) 0 2px, transparent 2px 14px);
+    pointer-events:none;
+  }
+
+  /* Active card */
+  .card.active{
+    background: linear-gradient(165deg, var(--surface-2) 0%, var(--surface) 100%);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px rgba(184,247,37,0.25), 0 20px 40px -20px rgba(184,247,37,0.35);
+  }
+  .card.active .num{ color: var(--accent); }
+  .card.active h3{ color: var(--chalk); }
+  .card.active p{ color: var(--chalk-dim); }
+  .card.active .tag{ color: var(--accent); }
+  .card.active:hover{ transform: translateY(-3px); }
+
+  .live-dot{
+    width:8px; height:8px; border-radius:50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px 2px var(--accent);
+    display:inline-block;
+    animation: pulse 1.8s ease-in-out infinite;
+  }
+  @keyframes pulse{ 0%,100%{ opacity:1; } 50%{ opacity:0.35; } }
+
+  .cta{
+    margin-top: 18px;
+    display:inline-flex; align-items:center; gap:8px;
+    font-family:'Oswald',sans-serif;
+    text-transform:uppercase; letter-spacing:0.1em; font-size:13px;
+    color: var(--bg);
+    background: var(--accent);
+    padding: 10px 16px;
+    border-radius: 7px;
+    text-decoration:none;
+    transition: background .2s ease;
+  }
+  .cta:hover{ background: var(--chalk); }
+
+  footer{
+    margin-top: 56px;
+    padding-top: 24px;
+    border-top: 1px solid var(--line);
+    font-size: 12px;
+    color: var(--chalk-dim);
+    display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="eyebrow">Centro de mando · Rancho Seco</div>
+  <h1>Central de <span>Agentes</span></h1>
+  <p class="sub">Tu equipo de marketing con inteligencia artificial. Cada agente resuelve una función específica del sistema de ventas — hoy solo Conversión y Ventas está en cancha.</p>
+
+  <div class="scoreboard">
+    <div class="stat"><b>1 / 9</b><span>Agentes activos</span></div>
+    <div class="stat"><b>+20,000</b><span>Visitantes / mes</span></div>
+    <div class="stat"><b>4</b><span>Canchas activas</span></div>
+  </div>
+
+  <div class="grid">
+
+    <!-- Card 1: Evergreen -->
+    <div class="card locked">
+      <div class="num">01</div>
+      <h3>Estrategia Evergreen</h3>
+      <p>Diseña el sistema base de ventas recurrentes: entrada, cierre, seguimiento y fidelización.</p>
+      <div class="tag">🔒 Próximamente</div>
+    </div>
+
+    <!-- Card 2: Financiero -->
+    <div class="card locked">
+      <div class="num">02</div>
+      <h3>Financiero de Marketing</h3>
+      <p>Calcula CPA máximo, presupuesto y punto de equilibrio antes de invertir en campañas.</p>
+      <div class="tag">🔒 Próximamente</div>
+    </div>
+
+    <!-- Card 3: Investigación -->
+    <div class="card locked">
+      <div class="num">03</div>
+      <h3>Investigación &amp; Tendencias</h3>
+      <p>Radar de competencia, formatos y hooks que están funcionando en la industria.</p>
+      <div class="tag">🔒 Próximamente</div>
+    </div>
+
+    <!-- Card 4: Contenido -->
+    <div class="card locked">
+      <div class="num">04</div>
+      <h3>Contenido Orgánico</h3>
+      <p>Calendario, guiones y copies para alimentar el sistema y crecer comunidad.</p>
+      <div class="tag">🔒 Próximamente</div>
+    </div>
+
+    <!-- Card 5: Ads -->
+    <div class="card locked">
+      <div class="num">05</div>
+      <h3>Anuncios &amp; Creativos Pagados</h3>
+      <p>Banco de anuncios evergreen: hooks, testimonios y remarketing para Meta Ads.</p>
+      <div class="tag">🔒 Próximamente</div>
+    </div>
+
+    <!-- Card 6: Conversión y Ventas — ACTIVO -->
+    <div class="card active">
+      <div class="num">06</div>
+      <h3>Conversión y Ventas</h3>
+      <p>Cierra más ventas de publicidad en vallas: búsqueda instantánea, seguimiento, reactivación y consulta en vivo.</p>
+      <div class="tag"><span class="live-dot"></span> Activo ahora</div>
+      <a class="cta" href="/rancho-seco/conversion-ventas">Entrar al agente →</a>
+    </div>
+
+    <!-- Card 7: Activos IA -->
+    <div class="card locked">
+      <div class="num">07</div>
+      <h3>Productor de Activos IA</h3>
+      <p>Convierte guiones e ideas en videos, textos y visuales listos para producir.</p>
+      <div class="tag">🔒 Próximamente</div>
+    </div>
+
+    <!-- Card 8: Optimización -->
+    <div class="card locked">
+      <div class="num">08</div>
+      <h3>Optimización</h3>
+      <p>Lee métricas, detecta fugas y arma el plan de mejora semanal.</p>
+      <div class="tag">🔒 Próximamente</div>
+    </div>
+
+    <!-- Card 9: Temporada -->
+    <div class="card locked">
+      <div class="num">09</div>
+      <h3>Campañas de Temporada</h3>
+      <p>Precampaña, campaña activa y postcampaña para fechas y promociones clave.</p>
+      <div class="tag">🔒 Próximamente</div>
+    </div>
+
+  </div>
+
+  <footer>
+    <span>Rancho Seco — filial oficial Club Chivas</span>
+    <span>Equipo de Marketing IA por <a href="https://jefeshub.com" style="color:var(--accent); text-decoration:none;">JefesHub</a></span>
+  </footer>
+
+</div>
+</body>
+</html>
