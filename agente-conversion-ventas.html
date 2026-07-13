@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agente de Conversión y Ventas — JefesHub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0F0B16;
+    --surface:#181120;
+    --surface-2:#211829;
+    --line:#332A3D;
+    --text:#F3EEF9;
+    --text-dim:#B6A9C7;
+    --purple:#B8F725;
+    --purple-soft:#2E3610;
+    --t1:#1E3A8A; /* frio */
+    --t2:#3B82C4;
+    --t3:#38BDF8;
+    --t4:#FACC15; /* interes */
+    --t5:#F5B21C;
+    --t6:#FB923C; /* objecion */
+    --t7:#F97316;
+    --t8:#EF4444; /* cierre */
+    --t9:#DC2626;
+    --t10:#B91C1C;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:radial-gradient(1200px 600px at 50% -10%, #241733 0%, var(--bg) 55%);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.display{font-family:'Sora',sans-serif;}
+  mono, .mono{font-family:'JetBrains Mono',monospace;}
+
+  /* HEADER */
+  header{
+    padding:38px 20px 24px;
+    text-align:center;
+    max-width:760px;
+    margin:0 auto;
+  }
+  .eyebrow{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--purple);
+    margin-bottom:10px;
+  }
+  header h1{
+    font-size:clamp(28px,4vw,40px);
+    font-weight:800;
+    margin:0 0 8px;
+    line-height:1.1;
+  }
+  header p{
+    color:var(--text-dim);
+    font-size:15px;
+    line-height:1.5;
+    margin:0 auto;
+    max-width:520px;
+  }
+
+  /* SEARCH */
+  .search-wrap{
+    max-width:640px;
+    margin:26px auto 0;
+    padding:0 20px;
+    position:sticky;
+    top:14px;
+    z-index:50;
+  }
+  .search-box{
+    background:var(--surface);
+    border:1.5px solid var(--line);
+    border-radius:16px;
+    padding:14px 18px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    box-shadow:0 12px 30px rgba(0,0,0,.4);
+    transition:border-color .15s;
+  }
+  .search-box:focus-within{border-color:var(--purple);}
+  .search-box svg{flex:none;opacity:.6;}
+  .search-box input{
+    flex:1;
+    background:transparent;
+    border:none;
+    outline:none;
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    font-size:15px;
+  }
+  .search-box input::placeholder{color:var(--text-dim);}
+  .search-hint{
+    font-size:12px;
+    color:var(--text-dim);
+    text-align:center;
+    margin-top:8px;
+  }
+
+  #searchResults{
+    max-width:640px;
+    margin:10px auto 0;
+    padding:0 20px;
+  }
+  .result-card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-left:4px solid var(--purple);
+    border-radius:12px;
+    padding:14px 16px;
+    margin-bottom:10px;
+  }
+  .result-card .tag{
+    font-family:'JetBrains Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    padding:3px 8px;
+    border-radius:100px;
+    display:inline-block;
+    margin-bottom:8px;
+    color:#0F0B16;
+    font-weight:700;
+  }
+  .result-card .q{font-size:13px;color:var(--text-dim);margin-bottom:6px;}
+  .result-card .a{font-size:14.5px;line-height:1.5;margin-bottom:10px;}
+  .no-results{color:var(--text-dim);text-align:center;padding:20px;font-size:14px;}
+
+  /* THERMOMETER NAV */
+  .thermo-nav{
+    max-width:900px;
+    margin:34px auto 6px;
+    padding:0 20px;
+  }
+  .thermo-track{
+    display:flex;
+    height:14px;
+    border-radius:100px;
+    overflow:hidden;
+    box-shadow:inset 0 2px 6px rgba(0,0,0,.5);
+  }
+  .thermo-track div{flex:1;cursor:pointer;transition:transform .15s;}
+  .thermo-track div:hover{transform:scaleY(1.6);}
+  .thermo-labels{
+    display:flex;
+    justify-content:space-between;
+    margin-top:10px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:10.5px;
+    color:var(--text-dim);
+    letter-spacing:.04em;
+    text-transform:uppercase;
+  }
+
+  /* SECTIONS */
+  main{max-width:900px;margin:0 auto;padding:30px 20px 80px;}
+  .stage{
+    margin-bottom:34px;
+    scroll-margin-top:90px;
+  }
+  .stage-head{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    margin-bottom:14px;
+  }
+  .stage-dot{
+    width:34px;height:34px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-family:'JetBrains Mono',monospace;
+    font-weight:700;font-size:12px;color:#0F0B16;
+    flex:none;
+  }
+  .stage-head h2{font-size:19px;margin:0;}
+  .stage-head .sub{font-size:12.5px;color:var(--text-dim);margin-top:2px;}
+
+  .cards{display:grid;gap:12px;}
+  .card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:16px 18px;
+  }
+  .card .label{
+    font-size:12px;
+    color:var(--text-dim);
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    font-family:'JetBrains Mono',monospace;
+    margin-bottom:8px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  .card p{font-size:14.5px;line-height:1.55;margin:0 0 12px;white-space:pre-line;}
+  .copy-btn{
+    background:var(--purple-soft);
+    border:1px solid var(--purple);
+    color:var(--purple);
+    font-family:'Inter',sans-serif;
+    font-size:12.5px;
+    font-weight:600;
+    padding:7px 12px;
+    border-radius:8px;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    transition:.15s;
+  }
+  .copy-btn:hover{background:var(--purple);color:#0F0B16;}
+  .copy-btn.copied{background:#22C55E;border-color:#22C55E;color:#0F0B16;}
+
+  .obj-card .versions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;}
+  @media(max-width:560px){.obj-card .versions{grid-template-columns:1fr;}}
+  .obj-card .versions .v{
+    background:var(--surface-2);
+    border-radius:10px;
+    padding:10px 12px;
+  }
+  .obj-card .versions .v .vlabel{font-size:10.5px;color:var(--text-dim);margin-bottom:5px;text-transform:uppercase;font-family:'JetBrains Mono',monospace;}
+  .obj-card .versions .v p{font-size:13px;margin-bottom:8px;}
+
+  /* TABS for seguimiento / reactivacion */
+  .extra-section{
+    margin-top:54px;
+    padding-top:34px;
+    border-top:1px solid var(--line);
+  }
+  .extra-head{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
+  .extra-head h2{font-size:20px;margin:0;}
+  .extra-desc{color:var(--text-dim);font-size:13.5px;margin-bottom:18px;}
+  .accordion{border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:10px;background:var(--surface);}
+  .accordion summary{
+    padding:14px 18px;
+    cursor:pointer;
+    font-weight:600;
+    font-size:14.5px;
+    list-style:none;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  .accordion summary::-webkit-details-marker{display:none;}
+  .accordion summary:after{content:'+';font-size:20px;color:var(--purple);transition:.2s;}
+  .accordion[open] summary:after{content:'–';}
+  .accordion .body{padding:0 18px 16px;}
+  .accordion .meta{font-size:12px;color:var(--text-dim);margin-bottom:10px;}
+  .accordion .meta b{color:var(--text);}
+
+  /* LIVE AGENT */
+  .live-wrap{max-width:640px;margin:22px auto 0;padding:0 20px;}
+  .live-box{
+    background:linear-gradient(160deg, var(--surface) 0%, var(--purple-soft) 220%);
+    border:1.5px solid var(--purple);
+    border-radius:18px;
+    padding:20px 22px;
+  }
+  .live-head{display:flex;align-items:center;gap:9px;margin-bottom:8px;}
+  .live-dot{width:8px;height:8px;border-radius:50%;background:#22C55E;box-shadow:0 0 8px #22C55E;flex:none;animation:pulse 1.8s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  .live-head h3{margin:0;font-size:16px;}
+  .live-sub{font-size:13px;color:var(--text-dim);margin:0 0 12px;line-height:1.5;}
+  .live-box textarea{
+    width:100%;
+    min-height:70px;
+    resize:vertical;
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    border-radius:10px;
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    font-size:14px;
+    padding:12px;
+    outline:none;
+  }
+  .live-box textarea:focus{border-color:var(--purple);}
+  .live-controls{display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap;}
+  .file-btn{
+    font-size:12.5px;
+    color:var(--text-dim);
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    padding:8px 12px;
+    border-radius:8px;
+    cursor:pointer;
+  }
+  .file-btn:hover{border-color:var(--purple);color:var(--text);}
+  .file-name{font-size:11.5px;color:var(--purple);}
+  .ask-btn{
+    margin-left:auto;
+    background:var(--purple);
+    border:none;
+    color:#0F0B16;
+    font-weight:700;
+    font-size:13.5px;
+    padding:10px 16px;
+    border-radius:9px;
+    cursor:pointer;
+    transition:.15s;
+  }
+  .ask-btn:hover{filter:brightness(1.1);transform:translateY(-1px);}
+  .ask-btn:disabled{opacity:.5;cursor:wait;}
+  #liveAnswer{margin-top:14px;}
+  .answer-card{
+    background:var(--surface-2);
+    border-left:3px solid #22C55E;
+    border-radius:10px;
+    padding:14px 16px;
+    font-size:14px;
+    line-height:1.6;
+    white-space:pre-line;
+  }
+  .answer-card .a-label{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#22C55E;text-transform:uppercase;margin-bottom:8px;}
+  .error-card{
+    background:#3B1B1B;border-left:3px solid #EF4444;border-radius:10px;
+    padding:12px 14px;font-size:13px;color:#FCA5A5;
+  }
+
+  /* LOG */
+  .log-input-row{display:flex;gap:10px;margin-bottom:8px;}
+  .log-input-row input{
+    flex:1;background:var(--surface);border:1px solid var(--line);border-radius:10px;
+    color:var(--text);padding:11px 14px;font-family:'Inter',sans-serif;font-size:14px;outline:none;
+  }
+  .log-input-row input:focus{border-color:var(--purple);}
+  .log-status{font-size:12px;color:#22C55E;min-height:16px;margin-bottom:8px;}
+  .log-item{
+    background:var(--surface);border:1px solid var(--line);border-radius:10px;
+    padding:11px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;
+  }
+  .log-item .qtext{font-size:13.5px;line-height:1.5;}
+  .log-item .qdate{font-size:11px;color:var(--text-dim);margin-top:4px;font-family:'JetBrains Mono',monospace;}
+  .log-item button{
+    flex:none;background:transparent;border:1px solid var(--line);color:var(--text-dim);
+    border-radius:7px;padding:5px 9px;font-size:11px;cursor:pointer;
+  }
+  .log-item button:hover{border-color:#EF4444;color:#EF4444;}
+  .log-empty{color:var(--text-dim);font-size:13px;padding:8px 0;}
+
+  footer{
+    text-align:center;
+    padding:30px 20px 50px;
+    color:var(--text-dim);
+    font-size:12px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">JefesHub · Equipo de marketing IA</div>
+  <h1>Agente de Conversión y Ventas</h1>
+  <p>Tu manual de ventas por mensaje, listo para copiar y pegar. Sube o baja por el termómetro según qué tan caliente esté la conversación.</p>
+</header>
+
+<div class="search-wrap">
+  <div class="search-box">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+    <input id="searchInput" type="text" placeholder="¿Qué te preguntó el cliente? Ej: “está caro”, “no entiendo”, “tarjeta”...">
+  </div>
+  <div class="search-hint">Escribe lo que te dijo el cliente y te doy la respuesta lista para copiar</div>
+</div>
+<div id="searchResults"></div>
+
+<div class="live-wrap">
+  <div class="live-box">
+    <div class="live-head">
+      <span class="live-dot"></span>
+      <h3>Consulta en vivo con el Agente</h3>
+    </div>
+    <p class="live-sub">Pega el último mensaje del cliente (o sube una captura) y el Agente te contesta con la lógica completa del manual — no solo lo que ya está guardado.</p>
+    <textarea id="liveInput" placeholder="Ej: &quot;oye pero mi negocio es de repostería, ¿esto igual me sirve?&quot;"></textarea>
+    <div class="live-controls">
+      <label class="file-btn">
+        📎 Adjuntar captura
+        <input type="file" id="liveImage" accept="image/*" hidden>
+      </label>
+      <span id="liveImageName" class="file-name"></span>
+      <button class="ask-btn" id="askBtn" onclick="askAgent()">Preguntar al Agente →</button>
+    </div>
+    <div id="liveAnswer"></div>
+  </div>
+</div>
+
+<div class="thermo-nav" id="thermoNav">
+  <div class="thermo-track">
+    <div style="background:var(--t1)" data-target="s1"></div>
+    <div style="background:var(--t2)" data-target="s1"></div>
+    <div style="background:var(--t3)" data-target="s2"></div>
+    <div style="background:var(--t3)" data-target="s2"></div>
+    <div style="background:var(--t4)" data-target="s3"></div>
+    <div style="background:var(--t5)" data-target="s3"></div>
+    <div style="background:var(--t6)" data-target="s4"></div>
+    <div style="background:var(--t7)" data-target="s4"></div>
+    <div style="background:var(--t8)" data-target="s5"></div>
+    <div style="background:var(--t10)" data-target="s5"></div>
+  </div>
+  <div class="thermo-labels">
+    <span>1–2 Frío</span><span>3–4 Tibio</span><span>5–6 Interés</span><span>7–8 Objeciones</span><span>9–10 Cierre</span>
+  </div>
+</div>
+
+<main>
+
+  <!-- STAGE 1-2 -->
+  <section class="stage" id="s1">
+    <div class="stage-head">
+      <div class="stage-dot" style="background:var(--t1)">1–2</div>
+      <div>
+        <h2>Primer contacto — Frío</h2>
+        <div class="sub">La persona apenas llega. Objetivo: generar curiosidad y validar interés.</div>
+      </div>
+    </div>
+    <div class="cards">
+      <div class="card">
+        <div class="label">Bienvenida — responde a story/broadcast <button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+        <p data-copy>Ey! Qué gusto que quieras entrarle 🙌 Cuéntame rapidito: ¿ya tienes negocio corriendo o apenas estás arrancando? Así te digo exacto cómo te ayuda esto</p>
+      </div>
+      <div class="card">
+        <div class="label">Bienvenida — DM orgánico / curiosidad <button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+        <p data-copy>Hola! Esto es JefesHub: tú pones la idea de tu negocio y la IA te arma contenido, guiones y hasta anuncios — sin que te sientas Community Manager de medio tiempo. ¿A qué te dedicas? Te digo si te sirve</p>
+      </div>
+      <div class="card">
+        <div class="label">Bienvenida — referido <button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+        <p data-copy>Hola! [Nombre] me contó de tu negocio, qué bueno. Te explico rapidísimo qué es JefesHub y vemos si te funciona para tu negocio — ¿en qué andas vendiendo ahorita?</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- STAGE 3-4 -->
+  <section class="stage" id="s2">
+    <div class="stage-head">
+      <div class="stage-dot" style="background:var(--t3)">3–4</div>
+      <div>
+        <h2>Calificación — Tibio</h2>
+        <div class="sub">Ya contestó. Objetivo: entender su negocio y explicarle JefesHub aplicado a SU caso.</div>
+      </div>
+    </div>
+    <div class="cards">
+      <div class="card">
+        <div class="label">Preguntas de calificación (usar 1-2, no las 3 de golpe)</div>
+        <p>1. ¿A qué te dedicas / qué vendes?
+2. ¿Ahorita quién te hace tus redes o contenido — tú sola, alguien más, o ya usas alguna IA?
+3. ¿Qué es lo que más se te complica: crear contenido, tener ideas, o simplemente el tiempo?</p>
+      </div>
+      <div class="card">
+        <div class="label">Explicación del producto <button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+        <p data-copy>Mira, JefesHub es básicamente tu equipo de marketing con IA metido en una plataforma: tú pones la idea de tu negocio y automático te da 10 conceptos de contenido con guion, caption y hasta el prompt para hacer el video en ChatGPT o Gemini. Nada de estarle rogando a un ChatGPT en blanco para que te entienda tu negocio 😅</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- STAGE 5-6 -->
+  <section class="stage" id="s3">
+    <div class="stage-head">
+      <div class="stage-dot" style="background:var(--t4)">5–6</div>
+      <div>
+        <h2>Presentación de oferta — Interés</h2>
+        <div class="sub">Ya mostró interés real o preguntó precio. Objetivo: dejar clarísimo el valor y el número.</div>
+      </div>
+    </div>
+    <div class="cards">
+      <div class="card">
+        <div class="label">Mensaje de precio / oferta <button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+        <p data-copy>Son $22 USD al mes — con 30 días gratis para que lo pruebes sin compromiso. Solo para que lo compares: una agencia te cobra como $5,000/mes y un community manager unos $8,000/mes. Esto te sale en pesos menos que una pizza 🍕 y usa el código JEFE5 para que además te quede con descuento.</p>
+      </div>
+      <div class="card">
+        <div class="label">FAQ — ¿Tengo que dar tarjeta para el trial? <button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+        <p data-copy>Sí — se pide tarjeta para activar el trial de 30 días. Si no cancelas antes de que termine, se cobra automático el mes. Puedes cancelar cuando quieras desde tu cuenta.</p>
+      </div>
+      <div class="card">
+        <div class="label">FAQ — ¿Qué pasa si me atoro usándolo? <button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+        <p data-copy>Me mandas captura o agendamos 5 min y te ayudo directo</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- STAGE 7-8 -->
+  <section class="stage" id="s4">
+    <div class="stage-head">
+      <div class="stage-dot" style="background:var(--t6)">7–8</div>
+      <div>
+        <h2>Objeciones — Se calienta</h2>
+        <div class="sub">Está dudando. Objetivo: resolver sin dejar nada abierto.</div>
+      </div>
+    </div>
+    <div class="cards">
+      <div class="card obj-card">
+        <div class="label">“No le entiendo” / “me perdí”</div>
+        <div class="versions">
+          <div class="v"><div class="vlabel">Respuesta ideal</div><p>Tranqui, es normal la primera vez. Mándame captura de dónde te quedaste, o si prefieres nos brincamos 5 min por videollamada ahorita y te lo destrabo yo misma</p><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+          <div class="v"><div class="vlabel">Versión corta</div><p>Mándame screenshot de donde te trabaste y te ayudo al toque 📸</p><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+        </div>
+      </div>
+      <div class="card obj-card">
+        <div class="label">“Está caro”</div>
+        <div class="versions">
+          <div class="v"><div class="vlabel">Respuesta ideal</div><p>Te entiendo, pero compáralo: esto reemplaza lo que te costaría una agencia o un community manager, y aquí son $22 al mes con 30 días gratis para que veas si te funciona antes de gastar un peso</p><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+          <div class="v"><div class="vlabel">Versión corta</div><p>Con $22/mes te ahorras contratar a alguien — y los primeros 30 días son gratis</p><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+        </div>
+      </div>
+      <div class="card obj-card">
+        <div class="label">“Ya uso ChatGPT / otra IA”</div>
+        <div class="versions">
+          <div class="v"><div class="vlabel">Respuesta ideal</div><p>Esa es justo la diferencia: ChatGPT no conoce tu negocio, tienes que explicarle todo cada vez. JefesHub ya trae la estructura armada para que solo pongas la idea y te dé el contenido listo</p><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+          <div class="v"><div class="vlabel">Versión corta</div><p>La diferencia es que aquí no le explicas tu negocio cada vez — ya está armado</p><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+        </div>
+      </div>
+      <div class="card obj-card">
+        <div class="label">“Lo voy a pensar”</div>
+        <div class="versions">
+          <div class="v"><div class="vlabel">Respuesta ideal</div><p>Va, tómate tu tiempo. Nomás para que no se te pase: el trial es gratis 30 días, o sea que pensarlo no te cuesta nada — regístrate y decides con calma mientras lo usas</p><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+          <div class="v"><div class="vlabel">Versión corta</div><p>No hay bronca en pensarlo — el trial es gratis, así que puedes decidir usándolo</p><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+        </div>
+      </div>
+      <div class="card obj-card">
+        <div class="label">“No tengo tiempo”</div>
+        <div class="versions">
+          <div class="v"><div class="vlabel">Respuesta ideal</div><p>Por eso mismo te sirve — es literal 2 minutos: pones tu idea y la IA te arma 10 conceptos listos. Menos tiempo que el que te toma pensar qué publicar hoy</p><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+          <div class="v"><div class="vlabel">Versión corta</div><p>Toma 2 min: pones la idea y la IA arma el contenido</p><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STAGE 9-10 -->
+  <section class="stage" id="s5">
+    <div class="stage-head">
+      <div class="stage-dot" style="background:var(--t8)">9–10</div>
+      <div>
+        <h2>Cierre — Ardiendo</h2>
+        <div class="sub">Ya casi. Objetivo: acción concreta y confirmación sin dejarla sola.</div>
+      </div>
+    </div>
+    <div class="cards">
+      <div class="card">
+        <div class="label">Mensaje de cierre <button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+        <p data-copy>Va, entonces te dejo el link con tu código: [link + JEFE5]. Ojo: para activar el trial de 30 días te va a pedir tarjeta, pero no se te cobra nada hasta que termine el mes — y puedes cancelar cuando quieras antes de esa fecha. Regístrate ahorita y en cuanto entres me dices qué te pareció 🙌</p>
+      </div>
+      <div class="card">
+        <div class="label">Mensaje de confirmación <button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+        <p data-copy>Yaaaa! Al fin llego el día, es el paso para activar y crecer las redes de tu negocio 🎉 El link directo a tu hub es: https://jefeshub.com/hub-jany.html
+
+Lo primero es llenar todos los datos de tu empresa — esto solo será una vez, y es importante llenarlo completo, porque es la base con la que hará su magia la IA.
+
+Cualquier duda mientras lo pruebas, mándame mensaje directo — no te dejo sola.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SEGUIMIENTO -->
+  <div class="extra-section">
+    <div class="extra-head"><h2>🔄 Seguimiento</h2></div>
+    <div class="extra-desc">Para conversaciones activas que se quedaron a medias. No es parte del termómetro — aplica en cualquier punto donde el cliente dejó de responder.</div>
+    <div id="seguimientoList"></div>
+  </div>
+
+  <!-- REACTIVACION -->
+  <div class="extra-section">
+    <div class="extra-head"><h2>🔥 Reactivación</h2></div>
+    <div class="extra-desc">Para leads ya enfriados o clientas que podrían volver. Sin presión falsa, sin urgencia inventada.</div>
+    <div id="reactivacionList"></div>
+  </div>
+
+  <!-- PREGUNTAS SIN RESPUESTA -->
+  <div class="extra-section">
+    <div class="extra-head"><h2>📝 Preguntas sin respuesta</h2></div>
+    <div class="extra-desc">Cuando un cliente pregunte algo que no está en el manual, anótalo aquí. Después lo revisamos juntas en el chat con Claude y actualizamos el manual oficial.</div>
+    <div class="log-input-row">
+      <input type="text" id="logInput" placeholder="Escribe la pregunta o situación que no supiste contestar...">
+      <button class="ask-btn" onclick="saveQuestion()">Guardar</button>
+    </div>
+    <div id="logStatus" class="log-status"></div>
+    <div id="logList"></div>
+  </div>
+
+</main>
+
+<footer>Agente de Conversión y Ventas · JefesHub — construido sobre el Manual de Ventas por Mensaje oficial</footer>
+
+<script src="/js/storage-client.js"></script>
+<script>
+// ---------- DATA ----------
+const seguimiento = [
+  {t:"Preguntó información y no respondió", cuando:"24-48 hrs después del último mensaje sin respuesta", objetivo:"Reabrir sin presionar, dar salida fácil", calido:"Ey! No sé si se te pasó o sigues viendo info por tu lado — estoy pendiente si tienes alguna duda, sin bronca 🙌", directo:"Hola, ¿sigues interesada en JefesHub o prefieres que te deje de escribir por ahora?", corto:"¿Alguna duda que te haya quedado? 👀"},
+  {t:"Ya recibió precio y no contestó", cuando:"24 hrs después de mandar precio", objetivo:"Resolver objeción de precio sin repetirlo", calido:"Oye, nomás checando — ¿el precio te hizo sentido o hay algo que no te quedó claro?", directo:"¿Qué te pareció lo de los $22/mes? Recuerda que son 30 días gratis, así que puedes probarlo antes de decidir del todo", corto:"¿Alguna duda con el precio? 💭"},
+  {t:"Dijo “lo voy a pensar”", cuando:"2-3 días después", objetivo:"Dar espacio real, recordar que pensar no cuesta nada", calido:"Va, tómate tu tiempo con calma. Nomás te recuerdo que el trial es gratis, o sea que ni siquiera tienes que decidir del todo ahorita — lo pruebas y ya sabes", directo:"¿Ya tuviste chance de pensarlo? Si quieres platicamos 5 min y te resuelvo lo que te esté deteniendo", corto:"¿Cómo vas con la decisión? 🙂"},
+  {t:"Dijo que se le hace caro", cuando:"Mismo día o siguiente", objetivo:"Reforzar valor con comparación, no bajar precio", calido:"Te entiendo, cualquier gasto nuevo se siente así al principio. Pero ponlo en perspectiva: esto reemplaza lo que te costaría una agencia (~$5,000/mes) o un community manager (~$8,000/mes) — aquí son $22 al mes", directo:"Con lo que cuesta un café a la semana tienes tu contenido resuelto todo el mes. Y son 30 días gratis para probarlo antes de gastar algo", corto:"Son $22/mes — menos que una suscripción de streaming 😅 y con 30 días gratis"},
+  {t:"Dijo que sí le interesa pero no ha pagado", cuando:"24-48 hrs después", objetivo:"Quitar fricción del registro, detectar si se atoró", calido:"Oye, vi que dijiste que te latió — ¿ya te pudiste registrar o te trabaste en algo? Te ayudo si quieres", directo:"¿Qué te faltó para completar el registro? Te mando el link de nuevo por si acaso: [link + JEFE5]", corto:"¿Te ayudo con el registro? 🙌"},
+  {t:"Preguntó disponibilidad y desapareció", cuando:"24 hrs después", objetivo:"Confirmar si sigue interesada sin sonar insistente", calido:"Hola! ¿Sigues por ahí? Nomás confirmando si quieres que te aparte algo o si mejor te dejo de escribir por ahora", directo:"¿Seguimos en contacto o prefieres que te busque más adelante?", corto:"¿Sigues interesada? 👀"},
+  {t:"Cierre de conversación sin sonar intensa", cuando:"Después de 2-3 seguimientos sin respuesta", objetivo:"Cerrar el ciclo con permiso, dejar la puerta abierta", calido:"Oye, no quiero saturarte de mensajes 😅 estoy pendiente si en algún momento se te antoja retomarlo — sin presión", directo:"Voy a dejar de escribirte por ahora, pero cualquier día que quieras retomar, estoy pendiente", corto:"Estoy pendiente si me necesitas 🙌"},
+];
+
+const reactivacion = [
+  {t:"Preguntó y nunca compró", cuando:"2-3 semanas después", objetivo:"Reabrir con algo nuevo, no repetir el mismo pitch", principal:"Ey! Hace rato platicamos de JefesHub y no sé si se quedó pendiente por tu lado. Desde entonces metimos mejoras — ¿te gustaría que te cuente qué cambió?", corto:"¿Seguimos platicando de JefesHub o ya no te interesa? 🙂"},
+  {t:"Recibió precio y desapareció", cuando:"2-3 semanas después", objetivo:"Bajar la barrera recordando el trial gratis", principal:"Hola! Nomás te dejo por aquí: el trial de JefesHub sigue siendo 30 días gratis, así que si en algún momento quieres probarlo sin compromiso, aquí está tu código: JEFE5", corto:"El trial gratis sigue disponible, por si se te antoja probar 🙌"},
+  {t:"Dijo “lo voy a pensar” y no volvió", cuando:"3-4 semanas después", objetivo:"Check-in genuino, sin insistir en venta directa", principal:"Hola! Solo pasaba a saludar — ¿cómo va todo con tu negocio? Si en algún momento quieres retomar lo de JefesHub, estoy pendiente", corto:"¿Cómo vas? Estoy pendiente si se te antoja retomarlo 🙂"},
+  {t:"No respondió después de varios seguimientos", cuando:"1-2 meses después (último intento)", objetivo:"Cierre definitivo con puerta abierta", principal:"Hola! Este es mi último mensaje por ahora — no quiero saturarte. Si algún día te interesa JefesHub, aquí me vas a encontrar. Te mando mucho éxito con tu negocio 🙌", corto:"Último mensaje por ahora — aquí me vas a encontrar si me necesitas 🙂"},
+  {t:"Cliente que compró una vez y podría recomprar", cuando:"Al mes de vencerse el trial o al detectar inactividad", objetivo:"Recordar valor y facilitar recompra", principal:"Hola! ¿Cómo te fue con JefesHub? Quería saber si te sirvió y si sigues activa — cualquier duda con tu cuenta, estoy pendiente", corto:"¿Cómo te fue con JefesHub? 👀"},
+  {t:"Clienta antigua que podría volver", cuando:"Campaña trimestral o al lanzar algo nuevo", objetivo:"Reconectar con base de época “pacas”", principal:"Hola! Tanto tiempo 🙌 Te quería contar que ahora tengo JefesHub, una plataforma de IA para ayudar a negocios como el tuyo con contenido y marketing. Pensé en ti — ¿cómo va tu negocio?", corto:"Hola! Te quería contar de algo nuevo que armé — ¿cómo vas? 🙂"},
+  {t:"Clienta VIP o recurrente", cuando:"Mensual, touch de relación", objetivo:"Fidelizar y abrir puerta a referidos", principal:"Hola! Nomás pasando a agradecerte por seguir confiando en JefesHub 🙏 Si conoces a alguien que le pueda servir, con gusto le doy una manita", corto:"Gracias por seguir aquí 🙌 Si conoces a alguien que le sirva esto, me avisas"},
+];
+
+// Search index: cliente pregunta -> respuesta recomendada
+const searchIndex = [
+  {level:1, color:"var(--t6)", q:"no le entiendo / me perdí / no entiendo cómo usarlo", a:"Tranqui, es normal la primera vez. Mándame captura de dónde te quedaste, o si prefieres nos brincamos 5 min por videollamada ahorita y te lo destrabo yo misma"},
+  {level:1, color:"var(--t6)", q:"está caro / no tengo presupuesto / se me hace mucho", a:"Te entiendo, pero compáralo: esto reemplaza lo que te costaría una agencia o un community manager, y aquí son $22 al mes con 30 días gratis para que veas si te funciona antes de gastar un peso"},
+  {level:1, color:"var(--t6)", q:"ya uso chatgpt / ya tengo otra ia / para qué pago esto", a:"Esa es justo la diferencia: ChatGPT no conoce tu negocio, tienes que explicarle todo cada vez. JefesHub ya trae la estructura armada para que solo pongas la idea y te dé el contenido listo"},
+  {level:1, color:"var(--t6)", q:"lo voy a pensar / déjame ver / al rato te digo", a:"Va, tómate tu tiempo. Nomás para que no se te pase: el trial es gratis 30 días, o sea que pensarlo no te cuesta nada — regístrate y decides con calma mientras lo usas"},
+  {level:1, color:"var(--t6)", q:"no tengo tiempo / ando muy ocupada", a:"Por eso mismo te sirve — es literal 2 minutos: pones tu idea y la IA te arma 10 conceptos listos. Menos tiempo que el que te toma pensar qué publicar hoy"},
+  {level:2, color:"var(--t4)", q:"cuánto cuesta / cuánto sale / precio", a:"Son $22 USD al mes — con 30 días gratis para que lo pruebes sin compromiso. Una agencia cobra ~$5,000/mes y un community manager ~$8,000/mes."},
+  {level:2, color:"var(--t4)", q:"tengo que dar tarjeta / me van a cobrar sin avisar / cobro automático", a:"Sí — se pide tarjeta para activar el trial de 30 días. Si no cancelas antes de que termine, se cobra automático el mes. Puedes cancelar cuando quieras desde tu cuenta."},
+  {level:2, color:"var(--t4)", q:"sirve para cualquier negocio / aplica para mí", a:"Sí, mientras tengas claro qué vendes — funciona para producto físico, servicio, digital"},
+  {level:2, color:"var(--t4)", q:"necesito saber de ia / soy mala para la tecnología", a:"No, solo pones tu idea y la plataforma hace el resto"},
+  {level:2, color:"var(--t4)", q:"puedo cancelar / me puedo salir cuando quiera", a:"Sí, sin compromiso"},
+  {level:2, color:"var(--t4)", q:"me atoré / no puedo entrar / no funciona", a:"Me mandas captura o agendamos 5 min y te ayudo directo"},
+  {level:0, color:"var(--t1)", q:"hola / me interesa / qué es esto", a:"Hola! Esto es JefesHub: tú pones la idea de tu negocio y la IA te arma contenido, guiones y hasta anuncios — sin que te sientas Community Manager de medio tiempo. ¿A qué te dedicas? Te digo si te sirve"},
+];
+
+// ---------- SEARCH ----------
+const input = document.getElementById('searchInput');
+const resultsBox = document.getElementById('searchResults');
+
+function normalize(s){return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");}
+
+input.addEventListener('input', () => {
+  const q = normalize(input.value.trim());
+  if(q.length < 2){ resultsBox.innerHTML = ""; return; }
+  const matches = searchIndex.filter(item => normalize(item.q).includes(q) || q.split(" ").some(w => w.length>2 && normalize(item.q).includes(w)));
+  if(matches.length === 0){
+    resultsBox.innerHTML = '<div class="no-results">No encontré coincidencia exacta — revisa la sección de Objeciones o Seguimiento manualmente 👇</div>';
+    return;
+  }
+  resultsBox.innerHTML = matches.map(m => `
+    <div class="result-card" style="border-left-color:${m.color}">
+      <span class="tag" style="background:${m.color}">Cliente dice: match</span>
+      <div class="q">${m.q}</div>
+      <div class="a">${m.a}</div>
+      <button class="copy-btn" onclick="copyText(this, \`${m.a.replace(/`/g,"'")}\`)">Copiar respuesta</button>
+    </div>
+  `).join("");
+});
+
+// ---------- COPY ----------
+function copyCard(btn){
+  const card = btn.closest('.card, .v');
+  const p = card.querySelector('p');
+  copyText(btn, p.innerText);
+}
+function copyText(btn, text){
+  navigator.clipboard.writeText(text).then(() => {
+    const original = btn.innerText;
+    btn.innerText = "¡Copiado! ✓";
+    btn.classList.add('copied');
+    setTimeout(() => { btn.innerText = original; btn.classList.remove('copied'); }, 1600);
+  });
+}
+
+// ---------- LIVE AGENT (via /api/agente-conversion — la API key vive en el servidor) ----------
+let liveImageData = null;
+document.getElementById('liveImage').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    liveImageData = {mediaType: file.type, data: reader.result.split(',')[1]};
+    document.getElementById('liveImageName').innerText = "📎 " + file.name;
+  };
+  reader.readAsDataURL(file);
+});
+
+async function askAgent(){
+  const input = document.getElementById('liveInput').value.trim();
+  const answerBox = document.getElementById('liveAnswer');
+  const btn = document.getElementById('askBtn');
+  if(!input && !liveImageData){
+    answerBox.innerHTML = '<div class="error-card">Escribe el mensaje del cliente o adjunta una captura primero.</div>';
+    return;
+  }
+  btn.disabled = true;
+  btn.innerText = "Pensando...";
+  answerBox.innerHTML = '<div class="log-empty">El Agente está armando tu respuesta...</div>';
+
+  try{
+    const response = await fetch("/api/agente-conversion", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ mensaje: input, imagen: liveImageData })
+    });
+    const data = await response.json();
+    if(!response.ok){
+      answerBox.innerHTML = `<div class="error-card">${data.error || "No se pudo generar respuesta. Intenta de nuevo."}</div>`;
+      return;
+    }
+    const text = data.text;
+    answerBox.innerHTML = `<div class="answer-card"><div class="a-label">Respuesta del Agente</div>${text}</div>
+      <button class="copy-btn" style="margin-top:8px" onclick="copyText(this, \`${text.replace(/`/g,"'")}\`)">Copiar todo</button>`;
+  } catch(err){
+    answerBox.innerHTML = '<div class="error-card">Hubo un error de conexión. Intenta de nuevo en un momento.</div>';
+  } finally {
+    btn.disabled = false;
+    btn.innerText = "Preguntar al Agente →";
+  }
+}
+
+// ---------- LOG DE PREGUNTAS SIN RESPUESTA ----------
+async function loadQuestions(){
+  const listEl = document.getElementById('logList');
+  try{
+    const result = await window.storage.get('preguntas-sin-respuesta', false);
+    const items = result ? JSON.parse(result.value) : [];
+    renderQuestions(items);
+  } catch(e){
+    renderQuestions([]);
+  }
+}
+
+function renderQuestions(items){
+  const listEl = document.getElementById('logList');
+  if(!items || items.length === 0){
+    listEl.innerHTML = '<div class="log-empty">Todavía no hay preguntas guardadas.</div>';
+    return;
+  }
+  listEl.innerHTML = items.slice().reverse().map(item => `
+    <div class="log-item">
+      <div>
+        <div class="qtext">${item.text}</div>
+        <div class="qdate">${item.date}</div>
+      </div>
+      <button onclick="deleteQuestion('${item.id}')">Eliminar</button>
+    </div>
+  `).join("");
+}
+
+async function saveQuestion(){
+  const input = document.getElementById('logInput');
+  const status = document.getElementById('logStatus');
+  const text = input.value.trim();
+  if(!text) return;
+  try{
+    const result = await window.storage.get('preguntas-sin-respuesta', false);
+    const items = result ? JSON.parse(result.value) : [];
+    items.push({
+      id: Date.now().toString(),
+      text,
+      date: new Date().toLocaleDateString('es-MX', {day:'numeric', month:'short', year:'numeric'})
+    });
+    await window.storage.set('preguntas-sin-respuesta', JSON.stringify(items), false);
+    input.value = "";
+    status.innerText = "Guardado ✓";
+    setTimeout(() => status.innerText = "", 1800);
+    renderQuestions(items);
+  } catch(e){
+    status.innerText = e.status === 401 ? "Token incorrecto — vuelve a intentar guardar para reingresarlo." : "No se pudo guardar, intenta de nuevo.";
+  }
+}
+
+async function deleteQuestion(id){
+  try{
+    const result = await window.storage.get('preguntas-sin-respuesta', false);
+    let items = result ? JSON.parse(result.value) : [];
+    items = items.filter(i => i.id !== id);
+    await window.storage.set('preguntas-sin-respuesta', JSON.stringify(items), false);
+    renderQuestions(items);
+  } catch(e){}
+}
+
+document.getElementById('logInput').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter') saveQuestion();
+});
+
+loadQuestions();
+
+// ---------- THERMOMETER NAV ----------
+document.querySelectorAll('.thermo-track div').forEach(seg => {
+  seg.addEventListener('click', () => {
+    document.getElementById(seg.dataset.target).scrollIntoView({behavior:'smooth', block:'start'});
+  });
+});
+
+// ---------- RENDER SEGUIMIENTO / REACTIVACION ----------
+document.getElementById('seguimientoList').innerHTML = seguimiento.map(s => `
+  <details class="accordion">
+    <summary>${s.t}</summary>
+    <div class="body">
+      <div class="meta"><b>Cuándo:</b> ${s.cuando} &nbsp;·&nbsp; <b>Objetivo:</b> ${s.objetivo}</div>
+      <div class="card" style="margin-bottom:8px;"><div class="label">Cálido <button class="copy-btn" onclick="copyText(this, \`${s.calido.replace(/`/g,"'")}\`)">Copiar</button></div><p>${s.calido}</p></div>
+      <div class="card" style="margin-bottom:8px;"><div class="label">Directo <button class="copy-btn" onclick="copyText(this, \`${s.directo.replace(/`/g,"'")}\`)">Copiar</button></div><p>${s.directo}</p></div>
+      <div class="card"><div class="label">Corto <button class="copy-btn" onclick="copyText(this, \`${s.corto.replace(/`/g,"'")}\`)">Copiar</button></div><p>${s.corto}</p></div>
+    </div>
+  </details>
+`).join("");
+
+document.getElementById('reactivacionList').innerHTML = reactivacion.map(r => `
+  <details class="accordion">
+    <summary>${r.t}</summary>
+    <div class="body">
+      <div class="meta"><b>Cuándo:</b> ${r.cuando} &nbsp;·&nbsp; <b>Objetivo:</b> ${r.objetivo}</div>
+      <div class="card" style="margin-bottom:8px;"><div class="label">Mensaje principal <button class="copy-btn" onclick="copyText(this, \`${r.principal.replace(/`/g,"'")}\`)">Copiar</button></div><p>${r.principal}</p></div>
+      <div class="card"><div class="label">Versión corta <button class="copy-btn" onclick="copyText(this, \`${r.corto.replace(/`/g,"'")}\`)">Copiar</button></div><p>${r.corto}</p></div>
+    </div>
+  </details>
+`).join("");
+</script>
+</body>
+</html>
