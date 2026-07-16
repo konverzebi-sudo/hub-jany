@@ -18,7 +18,10 @@ module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
 
   const { key } = req.query;
-  if (!key || Array.isArray(key) || !/^[a-zA-Z0-9_:-]+$/.test(key)) {
+  // Permite letras, numeros, "_", "-", ":" (prefijo multi-tenant "cliente:key")
+  // y "." (subclaves tipo "brand-book.identidad"). Sigue rechazando espacios,
+  // barras y comillas — cualquier caracter fuera de esta lista tumba el match.
+  if (!key || Array.isArray(key) || !/^[a-zA-Z0-9_.:-]+$/.test(key)) {
     return res.status(400).json({ error: 'Key inválida.' });
   }
 
