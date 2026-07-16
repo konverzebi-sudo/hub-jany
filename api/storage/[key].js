@@ -55,7 +55,9 @@ module.exports = async function handler(req, res) {
       return res.status(400).json({ error: 'Falta value.' });
     }
     const json = JSON.stringify(body.value);
-    if (json.length > 2000000) {
+    // 6MB: deja margen para el logo (base64, ya redimensionado a ~400px en el
+    // cliente antes de guardarse) conviviendo con el resto del value en la misma key.
+    if (json.length > 6000000) {
       return res.status(413).json({ error: 'Valor demasiado grande.' });
     }
     try {
