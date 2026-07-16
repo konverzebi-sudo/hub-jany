@@ -170,23 +170,6 @@
   .verify-btn:hover{border-color:var(--accent);color:var(--accent);}
   .verify-status{font-size:10.5px;font-family:'JetBrains Mono',monospace;flex:none;min-width:76px;}
 
-  /* CARDS (radar de referentes) */
-  .card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px;}
-  .ref-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;}
-  .ref-card .field{margin-bottom:10px;}
-  .ref-card .field label{font-size:10px;}
-  .ref-card .field input, .ref-card .field textarea, .ref-card .field select{font-size:12.5px;padding:7px 9px;}
-  .ref-card .ref-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;}
-  .ref-card .ref-link-row{display:flex;align-items:center;gap:8px;margin-top:6px;}
-  .ref-card .ref-link{font-size:11px;color:#7CB9E8;word-break:break-all;flex:1;}
-  .ref-details{margin-top:12px;border-top:1px solid var(--line);padding-top:10px;}
-  .ref-details summary{
-    cursor:pointer;font-size:11px;color:var(--accent);font-family:'JetBrains Mono',monospace;
-    text-transform:uppercase;letter-spacing:.04em;list-style:none;margin-bottom:10px;
-  }
-  .ref-details summary::-webkit-details-marker{display:none;}
-  .origen-pendiente{color:var(--text-dim);}
-
   /* LISTA MAESTRA viewer */
   .tag-pill{
     display:inline-block;font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;
@@ -216,7 +199,7 @@
 <header>
   <div class="eyebrow">JefesHub · Rancho Seco</div>
   <h1>Cerebro Central</h1>
-  <p>Brand Book, catálogo, cliente ideal y radar de referentes — la base de datos que alimenta a los agentes. Pantalla de captura y visualización, sin IA en vivo.</p>
+  <p>Brand Book, catálogo y cliente ideal — la base de datos que alimenta a los agentes. Pantalla de captura y visualización, sin IA en vivo.</p>
 </header>
 
 <main>
@@ -232,8 +215,7 @@
     <button class="tab-btn" data-tab="clienteideal">9. Cliente ideal</button>
     <button class="tab-btn" data-tab="objetivos">10. Objetivos</button>
     <button class="tab-btn" data-tab="contenido">11. Contenido</button>
-    <button class="tab-btn" data-tab="radar">12. Radar</button>
-    <button class="tab-btn" data-tab="optimizacion">13. Optimización</button>
+    <button class="tab-btn" data-tab="optimizacion">12. Optimización</button>
   </div>
 
   <!-- 1. IDENTIDAD -->
@@ -447,31 +429,7 @@
     </div>
   </section>
 
-  <!-- 12. RADAR DE REFERENTES -->
-  <section class="tab-panel" id="panel-radar">
-    <div class="panel-head"><h2>Radar de referentes</h2><div class="panel-desc">Cuentas para inspiración, benchmarking o alianzas.</div></div>
-    <div class="card">
-      <div class="field-row">
-        <div class="field"><label>Link</label><input type="text" id="radar-add-link" placeholder="https://instagram.com/usuario"></div>
-        <div class="field"><label>Plataforma</label><select id="radar-add-plataforma"></select></div>
-      </div>
-      <details class="ref-details" id="radar-add-details">
-        <summary>+ agregar detalles manualmente</summary>
-        <div class="field"><label>Nombre de cuenta</label><input type="text" id="radar-add-nombre"></div>
-        <div class="field"><label>Tipo</label><select id="radar-add-tipo"></select></div>
-        <div class="field"><label>Seguidores aprox.</label><input type="text" id="radar-add-seguidores"></div>
-        <div class="field"><label>Qué hace bien</label><textarea id="radar-add-quehacebien"></textarea></div>
-        <div class="field"><label>Qué podemos aprender</label><textarea id="radar-add-queaprender"></textarea></div>
-        <div class="field"><label>Frecuencia de publicación</label><input type="text" id="radar-add-frecuencia"></div>
-        <div class="field"><label>Notas</label><textarea id="radar-add-notas"></textarea></div>
-      </details>
-      <button class="ask-btn add-row-btn" onclick="addRadarCard()">+ Agregar cuenta</button>
-    </div>
-    <div class="card-grid" id="radar-grid" style="margin-top:14px;"></div>
-    <div id="radar-status" class="log-status"></div>
-  </section>
-
-  <!-- 13. OPTIMIZACION INICIAL -->
+  <!-- 12. OPTIMIZACION INICIAL -->
   <section class="tab-panel" id="panel-optimizacion">
     <div class="panel-head"><h2>Optimización inicial</h2><div class="panel-desc">Qué tan lista está la operación para escalar marketing.</div></div>
     <div class="card" id="optimizacion-list"></div>
@@ -1160,208 +1118,7 @@ function saveContenido(){
   saveObj('contenido_actual', contenidoState, 'contenido-status');
 }
 
-// ==================== 12. RADAR DE REFERENTES ====================
-const RADAR_TIPOS = ['Competencia directa', 'Inspiración', 'Aliado potencial'];
-const RADAR_PLATAFORMAS = ['Instagram', 'TikTok', 'Facebook', 'YouTube', 'X / Twitter', 'LinkedIn', 'Otro'];
-// Campos que, si tienen contenido, marcan la cuenta como origen:'manual' en
-// vez de 'pendiente' (solo link+plataforma, sin detalles todavia).
-const RADAR_CAMPOS_DETALLE = ['nombre_cuenta', 'tipo', 'seguidores_aprox', 'que_hace_bien', 'que_podemos_aprender', 'frecuencia_publicacion', 'notas'];
-let radarState = [];
-let radarSaveTimer = null, radarPending = false;
-
-async function loadRadar(){
-  try{
-    const result = await window.storage.get(storageKey('radar-referentes'));
-    radarState = result && result.value ? JSON.parse(result.value) : [];
-  }catch(e){
-    radarState = [];
-  }
-  renderRadar();
-}
-
-// Respaldo para cuentas viejas que solo tenian handle+plataforma (shape
-// anterior a este cambio) y todavia no tienen link propio guardado.
-function radarLinkDesdeHandle(item){
-  if(!item.handle) return '';
-  const p = (item.plataforma || '').toLowerCase();
-  if(p === 'instagram') return `https://instagram.com/${item.handle.replace(/^@/, '')}`;
-  if(p === 'tiktok') return `https://tiktok.com/@${item.handle.replace(/^@/, '')}`;
-  if(p === 'facebook') return `https://facebook.com/${item.handle}`;
-  if(p === 'youtube') return `https://youtube.com/@${item.handle.replace(/^@/, '')}`;
-  if(p === 'x / twitter') return `https://x.com/${item.handle.replace(/^@/, '')}`;
-  return item.handle.startsWith('http') ? item.handle : `https://${item.handle}`;
-}
-function radarLink(item){
-  return item.link || radarLinkDesdeHandle(item);
-}
-
-// Mismo patron de matching por dominio que usa api/check-link.js, en
-// direccion inversa: del link deducimos la plataforma, editable despues.
-function detectarPlataformaDeLink(url){
-  if(!url) return '';
-  let hostname = '';
-  try{
-    hostname = new URL(/^https?:\/\//i.test(url) ? url : 'https://' + url).hostname.toLowerCase();
-  }catch(e){
-    return '';
-  }
-  if(hostname.includes('tiktok.com')) return 'TikTok';
-  if(hostname.includes('instagram.com')) return 'Instagram';
-  if(hostname.includes('facebook.com') || hostname.includes('fb.com')) return 'Facebook';
-  if(hostname.includes('youtube.com') || hostname.includes('youtu.be')) return 'YouTube';
-  if(hostname.includes('x.com') || hostname.includes('twitter.com')) return 'X / Twitter';
-  if(hostname.includes('linkedin.com')) return 'LinkedIn';
-  return 'Otro';
-}
-
-function calcOrigenRadar(item){
-  const tieneDetalle = RADAR_CAMPOS_DETALLE.some(k => (item[k] || '').toString().trim() !== '');
-  return tieneDetalle ? 'manual' : 'pendiente';
-}
-
-function initRadarAddForm(){
-  document.getElementById('radar-add-plataforma').innerHTML = '<option value="">—</option>' + RADAR_PLATAFORMAS.map(p => `<option value="${p}">${p}</option>`).join('');
-  document.getElementById('radar-add-tipo').innerHTML = '<option value="">—</option>' + RADAR_TIPOS.map(t => `<option value="${t}">${t}</option>`).join('');
-  document.getElementById('radar-add-link').addEventListener('input', (e) => {
-    const detectada = detectarPlataformaDeLink(e.target.value.trim());
-    if(detectada) document.getElementById('radar-add-plataforma').value = detectada;
-  });
-}
-
-function renderRadar(){
-  const grid = document.getElementById('radar-grid');
-  if(radarState.length === 0){
-    grid.innerHTML = '<div class="log-empty">Todavía no hay referentes. Usa "+ Agregar cuenta".</div>';
-    return;
-  }
-  grid.innerHTML = radarState.map(item => `
-    <div class="ref-card" data-id="${item.id}">
-      <div class="ref-top">
-        <div class="field" style="flex:1;margin-bottom:0;"><input type="text" placeholder="https://..." value="${escapeHtml(item.link || radarLinkDesdeHandle(item))}" data-field="link"></div>
-        <button class="icon-btn" onclick="deleteRadarCard('${item.id}')">✕</button>
-      </div>
-      <div class="field"><label>Plataforma</label><select data-field="plataforma">
-        <option value="">—</option>
-        ${RADAR_PLATAFORMAS.map(p => `<option value="${p}" ${item.plataforma === p ? 'selected' : ''}>${p}</option>`).join('')}
-      </select></div>
-      <div class="ref-link-row">
-        <button type="button" class="verify-btn" data-verify>Verificar</button>
-        <span class="verify-status" data-verify-status></span>
-      </div>
-      <details class="ref-details" ${item.origen === 'manual' ? 'open' : ''}>
-        <summary>+ agregar detalles manualmente</summary>
-        <div class="field"><label>Nombre de cuenta</label><input type="text" value="${escapeHtml(item.nombre_cuenta)}" data-field="nombre_cuenta"></div>
-        <div class="field"><label>Tipo</label><select data-field="tipo">
-          <option value="">—</option>
-          ${RADAR_TIPOS.map(t => `<option value="${t}" ${item.tipo === t ? 'selected' : ''}>${t}</option>`).join('')}
-        </select></div>
-        <div class="field"><label>Seguidores aprox.</label><input type="text" value="${escapeHtml(item.seguidores_aprox)}" data-field="seguidores_aprox"></div>
-        <div class="field"><label>Qué hace bien</label><textarea data-field="que_hace_bien">${escapeHtml(item.que_hace_bien)}</textarea></div>
-        <div class="field"><label>Qué podemos aprender</label><textarea data-field="que_podemos_aprender">${escapeHtml(item.que_podemos_aprender)}</textarea></div>
-        <div class="field"><label>Frecuencia de publicación</label><input type="text" value="${escapeHtml(item.frecuencia_publicacion)}" data-field="frecuencia_publicacion"></div>
-        <div class="field"><label>Notas</label><textarea data-field="notas">${escapeHtml(item.notas)}</textarea></div>
-      </details>
-      <div class="qdate">${escapeHtml(item.date)}<span data-origen-label class="origen-pendiente">${item.origen === 'pendiente' ? ' · Pendiente de detalles' : ''}</span></div>
-    </div>
-  `).join('');
-
-  grid.querySelectorAll('.ref-card').forEach(card => {
-    const id = card.dataset.id;
-    card.querySelectorAll('[data-field]').forEach(el => {
-      el.addEventListener('input', () => {
-        const item = radarState.find(r => r.id === id);
-        if(!item) return;
-        item[el.dataset.field] = el.value;
-        item.origen = calcOrigenRadar(item);
-        const label = card.querySelector('[data-origen-label]');
-        if(label) label.textContent = item.origen === 'pendiente' ? ' · Pendiente de detalles' : '';
-        scheduleRadarSave();
-      });
-    });
-    card.querySelector('[data-verify]').addEventListener('click', async () => {
-      const item = radarState.find(r => r.id === id);
-      const statusEl = card.querySelector('[data-verify-status]');
-      const url = radarLink(item);
-      if(!url){ statusEl.textContent = 'Sin link'; statusEl.style.color = 'var(--text-dim)'; return; }
-      statusEl.textContent = 'Revisando...';
-      statusEl.style.color = 'var(--text-dim)';
-      try{
-        const res = await fetch('/api/check-link?url=' + encodeURIComponent(url));
-        const data = await res.json();
-        statusEl.textContent = data.ok ? '✓ Verificado' : '✕ No accesible';
-        statusEl.style.color = data.ok ? '#22C55E' : '#F87171';
-      }catch(err){
-        statusEl.textContent = '✕ Error';
-        statusEl.style.color = '#F87171';
-      }
-    });
-  });
-}
-
-function addRadarCard(){
-  const link = document.getElementById('radar-add-link').value.trim();
-  const statusEl = document.getElementById('radar-status');
-  if(!link){
-    statusEl.textContent = 'Escribe un link primero.';
-    statusEl.style.color = 'var(--text-dim)';
-    return;
-  }
-  const nuevo = {
-    id: newId(),
-    link,
-    plataforma: document.getElementById('radar-add-plataforma').value,
-    handle: '',
-    nombre_cuenta: document.getElementById('radar-add-nombre').value.trim(),
-    tipo: document.getElementById('radar-add-tipo').value,
-    seguidores_aprox: document.getElementById('radar-add-seguidores').value.trim(),
-    que_hace_bien: document.getElementById('radar-add-quehacebien').value.trim(),
-    que_podemos_aprender: document.getElementById('radar-add-queaprender').value.trim(),
-    frecuencia_publicacion: document.getElementById('radar-add-frecuencia').value.trim(),
-    notas: document.getElementById('radar-add-notas').value.trim(),
-    date: new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }),
-  };
-  nuevo.origen = calcOrigenRadar(nuevo);
-  radarState.push(nuevo);
-
-  document.getElementById('radar-add-link').value = '';
-  document.getElementById('radar-add-plataforma').value = '';
-  document.getElementById('radar-add-nombre').value = '';
-  document.getElementById('radar-add-tipo').value = '';
-  document.getElementById('radar-add-seguidores').value = '';
-  document.getElementById('radar-add-quehacebien').value = '';
-  document.getElementById('radar-add-queaprender').value = '';
-  document.getElementById('radar-add-frecuencia').value = '';
-  document.getElementById('radar-add-notas').value = '';
-  document.getElementById('radar-add-details').open = false;
-
-  renderRadar();
-  scheduleRadarSave();
-}
-function deleteRadarCard(id){
-  radarState = radarState.filter(r => r.id !== id);
-  renderRadar();
-  scheduleRadarSave();
-}
-function scheduleRadarSave(){
-  radarPending = true;
-  document.getElementById('radar-status').textContent = 'Guardando...';
-  clearTimeout(radarSaveTimer);
-  radarSaveTimer = setTimeout(() => doSaveRadar(), 500);
-}
-async function doSaveRadar(opts){
-  clearTimeout(radarSaveTimer); radarSaveTimer = null;
-  if(!radarPending) return;
-  try{
-    await window.storage.set(storageKey('radar-referentes'), JSON.stringify(radarState), opts);
-    radarPending = false;
-    document.getElementById('radar-status').textContent = 'Guardado.';
-  }catch(e){
-    document.getElementById('radar-status').textContent = e.status === 401 ? 'Token incorrecto — vuelve a intentar guardar.' : 'No se pudo guardar (revisa tu conexión).';
-  }
-}
-registerFlusher(() => { if(radarPending) doSaveRadar({ keepalive: true }); });
-
-// ==================== 13. OPTIMIZACION INICIAL ====================
+// ==================== 12. OPTIMIZACION INICIAL ====================
 const OPTIMIZACION_PREGUNTAS = [
   '¿Tiene fotos o video profesional de sus productos/servicio?',
   '¿Ya ha corrido anuncios pagados antes?',
@@ -1414,8 +1171,6 @@ loadJourney();
 loadListaMaestra();
 loadObjetivos();
 loadContenido();
-initRadarAddForm();
-loadRadar();
 loadOptimizacion();
 </script>
 </body>
