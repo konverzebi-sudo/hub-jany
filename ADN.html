@@ -1,0 +1,1422 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cerebro Central — JefesHub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/colorthief@2.4.0/dist/color-thief.umd.js"></script>
+<style>
+  :root{
+    --bg:#0F0B16;
+    --surface:#181120;
+    --surface-2:#211829;
+    --line:#332A3D;
+    --text:#F3EEF9;
+    --text-dim:#B6A9C7;
+    --accent:#B8F725;
+    --accent-soft:#2E3610;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:radial-gradient(1200px 600px at 50% -10%, #241733 0%, var(--bg) 55%);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,h4,.display{font-family:'Sora',sans-serif;}
+
+  header{padding:34px 20px 20px;text-align:center;max-width:760px;margin:0 auto;}
+  .eyebrow{
+    font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--accent);margin-bottom:10px;
+  }
+  header h1{font-size:clamp(26px,3.6vw,36px);font-weight:800;margin:0 0 8px;line-height:1.1;}
+  header p{color:var(--text-dim);font-size:14.5px;line-height:1.5;margin:0 auto;max-width:560px;}
+
+  main{max-width:980px;margin:0 auto;padding:20px 20px 90px;}
+
+  /* TABS */
+  .tabs{display:flex;gap:2px;overflow-x:auto;border-bottom:1px solid var(--line);margin-bottom:26px;}
+  .tab-btn{
+    padding:10px 14px;cursor:pointer;font-size:12px;font-weight:600;color:var(--text-dim);
+    border-bottom:2px solid transparent;white-space:nowrap;font-family:'Sora',sans-serif;
+    background:none;border-top:none;border-left:none;border-right:none;
+  }
+  .tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);}
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+
+  .panel-head{margin-bottom:18px;}
+  .panel-head h2{font-size:19px;margin:0 0 6px;}
+  .panel-desc{color:var(--text-dim);font-size:13px;line-height:1.5;}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px;}
+
+  .field{margin-bottom:14px;}
+  .field:last-child{margin-bottom:0;}
+  .field label{
+    display:block;font-size:11px;color:var(--text-dim);text-transform:uppercase;
+    letter-spacing:.05em;font-family:'JetBrains Mono',monospace;margin-bottom:6px;
+  }
+  .field textarea, .field input[type=text], .field input[type=tel], .field input[type=number], .field select{
+    width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;color:var(--text);
+    padding:10px 12px;font-family:'Inter',sans-serif;font-size:14px;outline:none;resize:vertical;
+  }
+  .field textarea{min-height:64px;}
+  .field textarea:focus, .field input:focus, .field select:focus{border-color:var(--accent);}
+  .field-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media(max-width:560px){.field-row{grid-template-columns:1fr;}}
+
+  .ask-btn{
+    background:var(--accent);border:none;color:#0F0B16;font-weight:700;font-size:13.5px;
+    padding:10px 16px;border-radius:9px;cursor:pointer;transition:.15s;
+  }
+  .ask-btn:hover{filter:brightness(1.1);transform:translateY(-1px);}
+  .ask-btn:disabled{opacity:.5;cursor:wait;}
+  .log-status{font-size:12px;min-height:16px;margin-top:8px;}
+
+  /* CHIPS */
+  .chips{display:flex;flex-wrap:wrap;gap:8px;}
+  .chip{
+    font-family:'Inter',sans-serif;font-size:13px;padding:7px 14px;border-radius:100px;
+    border:1px solid var(--line);background:var(--surface-2);color:var(--text-dim);cursor:pointer;transition:.15s;
+  }
+  .chip:hover{border-color:var(--accent);}
+  .chip.selected{background:var(--accent);border-color:var(--accent);color:#0F0B16;font-weight:600;}
+
+  /* SCALE 1-5 */
+  .scale-row{display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap;}
+  .scale-row .scale-label{flex:0 0 110px;font-size:13px;color:var(--text-dim);}
+  .scale-btns{display:flex;gap:6px;}
+  .scale-btn{
+    width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:var(--surface-2);
+    color:var(--text-dim);cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:12px;
+  }
+  .scale-btn.selected{background:var(--accent);border-color:var(--accent);color:#0F0B16;font-weight:700;}
+
+  /* TABLE (catalogo) */
+  .table-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface);}
+  table.data-table{width:100%;border-collapse:collapse;min-width:820px;}
+  table.data-table th{
+    text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);
+    font-family:'JetBrains Mono',monospace;padding:10px 8px;border-bottom:1px solid var(--line);white-space:nowrap;
+  }
+  table.data-table td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:middle;}
+  table.data-table input, table.data-table select{
+    width:100%;background:transparent;border:1px solid transparent;border-radius:6px;color:var(--text);
+    padding:6px 8px;font-family:'Inter',sans-serif;font-size:12.5px;outline:none;
+  }
+  table.data-table input:hover, table.data-table select:hover{border-color:var(--line);}
+  table.data-table input:focus, table.data-table select:focus{border-color:var(--accent);background:var(--surface-2);}
+  .margin-cell{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent);padding:0 8px;white-space:nowrap;}
+  .icon-btn{
+    border:1px solid var(--line);background:var(--surface-2);border-radius:7px;width:26px;height:26px;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-dim);font-size:12px;
+  }
+  .icon-btn:hover{border-color:#EF4444;color:#EF4444;}
+  .add-row-btn{margin-top:12px;}
+  .log-empty{color:var(--text-dim);font-size:13px;padding:16px;text-align:center;}
+
+  /* STEPPER */
+  .stepper{display:flex;flex-wrap:wrap;gap:10px;}
+  .step{flex:1 1 150px;padding:14px;border:1px solid var(--line);background:var(--surface);border-radius:12px;}
+  .step .step-num{
+    width:22px;height:22px;border-radius:50%;background:var(--accent-soft);color:var(--accent);
+    display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;
+    font-family:'JetBrains Mono',monospace;margin-bottom:8px;
+  }
+  .step h4{font-size:13px;margin:0 0 8px;}
+  .step textarea{
+    width:100%;min-height:60px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;
+    color:var(--text);padding:8px;font-family:'Inter',sans-serif;font-size:12.5px;outline:none;resize:vertical;
+  }
+  .step textarea:focus{border-color:var(--accent);}
+
+  /* LOGO / PALETA */
+  .upload-box{
+    border:1.5px dashed var(--line);border-radius:14px;padding:24px;text-align:center;cursor:pointer;
+    background:var(--surface-2);transition:.15s;
+  }
+  .upload-box:hover{border-color:var(--accent);}
+  .upload-box img{max-width:140px;max-height:140px;border-radius:8px;display:block;margin:0 auto 10px;object-fit:contain;}
+  .upload-hint{font-size:12.5px;color:var(--text-dim);}
+  .swatches{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;}
+  .swatch{width:38px;height:38px;border-radius:10px;border:2px solid var(--line);cursor:pointer;padding:0;}
+  .swatch.selected{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft);}
+  .presets{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}
+  .preset{display:flex;gap:3px;padding:6px;border:1px solid var(--line);border-radius:10px;cursor:pointer;background:var(--surface-2);}
+  .preset.selected{border-color:var(--accent);}
+  .preset span{width:20px;height:20px;border-radius:5px;display:block;}
+
+  /* CANALES (redes / contenido) */
+  .channel-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--line);}
+  .channel-row:last-child{border-bottom:none;}
+  .channel-row .channel-icon{width:26px;font-size:17px;flex:none;text-align:center;}
+  .channel-row .channel-name{flex:0 0 84px;font-size:13px;font-weight:600;}
+  .channel-row input[type=text]{
+    flex:1 1 130px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;color:var(--text);
+    padding:8px 10px;font-family:'Inter',sans-serif;font-size:13px;outline:none;
+  }
+  .channel-row input[type=text]:focus{border-color:var(--accent);}
+  .channel-row .channel-link{font-size:11px;color:#7CB9E8;flex:1 1 150px;word-break:break-all;}
+  .verify-btn{
+    flex:none;font-family:'JetBrains Mono',monospace;font-size:10.5px;text-transform:uppercase;
+    background:var(--surface-2);border:1px solid var(--line);color:var(--text-dim);border-radius:8px;
+    padding:7px 10px;cursor:pointer;
+  }
+  .verify-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .verify-status{font-size:10.5px;font-family:'JetBrains Mono',monospace;flex:none;min-width:76px;}
+
+  /* CARDS (radar de referentes) */
+  .card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px;}
+  .ref-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;}
+  .ref-card .field{margin-bottom:10px;}
+  .ref-card .field label{font-size:10px;}
+  .ref-card .field input, .ref-card .field textarea, .ref-card .field select{font-size:12.5px;padding:7px 9px;}
+  .ref-card .ref-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;}
+  .ref-card .ref-link-row{display:flex;align-items:center;gap:8px;margin-top:6px;}
+  .ref-card .ref-link{font-size:11px;color:#7CB9E8;word-break:break-all;flex:1;}
+  .ref-details{margin-top:12px;border-top:1px solid var(--line);padding-top:10px;}
+  .ref-details summary{
+    cursor:pointer;font-size:11px;color:var(--accent);font-family:'JetBrains Mono',monospace;
+    text-transform:uppercase;letter-spacing:.04em;list-style:none;margin-bottom:10px;
+  }
+  .ref-details summary::-webkit-details-marker{display:none;}
+  .origen-pendiente{color:var(--text-dim);}
+
+  /* LISTA MAESTRA viewer */
+  .tag-pill{
+    display:inline-block;font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;
+    letter-spacing:.04em;background:var(--accent-soft);color:var(--accent);border-radius:100px;padding:2px 8px;margin-right:6px;
+  }
+  .tag-pill.dim{background:var(--surface-2);color:var(--text-dim);}
+  .log-item{
+    background:var(--surface);border:1px solid var(--line);border-radius:10px;
+    padding:11px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;
+  }
+  .log-item .qtext{font-size:13px;line-height:1.5;}
+  .log-item .qdate{font-size:10.5px;color:var(--text-dim);margin-top:4px;font-family:'JetBrains Mono',monospace;}
+  .log-item button{
+    flex:none;background:transparent;border:1px solid var(--line);color:var(--text-dim);
+    border-radius:7px;padding:5px 9px;font-size:11px;cursor:pointer;
+  }
+  .log-item button:hover{border-color:#EF4444;color:#EF4444;}
+
+  .divider{border:none;border-top:1px solid var(--line);margin:24px 0;}
+  .subhead{font-size:14px;font-weight:700;margin:0 0 12px;}
+
+  footer{text-align:center;padding:30px 20px 50px;color:var(--text-dim);font-size:12px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">JefesHub · Rancho Seco</div>
+  <h1>Cerebro Central</h1>
+  <p>Brand Book, catálogo, cliente ideal y radar de referentes — la base de datos que alimenta a los agentes. Pantalla de captura y visualización, sin IA en vivo.</p>
+</header>
+
+<main>
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="identidad">1. Identidad</button>
+    <button class="tab-btn" data-tab="visual">2. Logo y colores</button>
+    <button class="tab-btn" data-tab="tono">3. Voz y Tono</button>
+    <button class="tab-btn" data-tab="redes">4. Redes</button>
+    <button class="tab-btn" data-tab="audiencia">5. Audiencia y metas</button>
+    <button class="tab-btn" data-tab="catalogo">6. Catálogo</button>
+    <button class="tab-btn" data-tab="metricas">7. Métricas</button>
+    <button class="tab-btn" data-tab="journey">8. Customer Journey</button>
+    <button class="tab-btn" data-tab="clienteideal">9. Cliente ideal</button>
+    <button class="tab-btn" data-tab="objetivos">10. Objetivos</button>
+    <button class="tab-btn" data-tab="contenido">11. Contenido</button>
+    <button class="tab-btn" data-tab="radar">12. Radar</button>
+    <button class="tab-btn" data-tab="optimizacion">13. Optimización</button>
+  </div>
+
+  <!-- 1. IDENTIDAD -->
+  <section class="tab-panel active" id="panel-identidad">
+    <div class="panel-head"><h2>Identidad</h2><div class="panel-desc">Lo básico del negocio.</div></div>
+    <div class="card">
+      <div class="field"><label>Nombre del negocio</label><input type="text" id="id-nombre"></div>
+      <div class="field"><label>Giro</label><input type="text" id="id-giro"></div>
+      <div class="field"><label>Teléfono</label><input type="tel" id="id-telefono"></div>
+      <div class="field"><label>Producto estrella</label><input type="text" id="id-producto"></div>
+      <button class="ask-btn" onclick="saveIdentidad()">Guardar cambios</button>
+      <div id="identidad-status" class="log-status"></div>
+    </div>
+  </section>
+
+  <!-- 2. LOGO Y COLORES -->
+  <section class="tab-panel" id="panel-visual">
+    <div class="panel-head"><h2>Logo y colores</h2><div class="panel-desc">Sube el logo y detectamos la paleta automáticamente. Si prefieres, elige un preset como respaldo.</div></div>
+    <div class="card">
+      <div class="field">
+        <label>Logo</label>
+        <div class="upload-box" id="logo-drop" onclick="document.getElementById('logo-input').click()">
+          <img id="logo-preview" style="display:none;">
+          <div class="upload-hint" id="logo-hint">Haz clic para subir el logo (se redimensiona automático)</div>
+        </div>
+        <input type="file" id="logo-input" accept="image/*" hidden>
+      </div>
+      <div class="field">
+        <label>Paleta detectada</label>
+        <div class="swatches" id="paleta-swatches"></div>
+      </div>
+      <div class="field">
+        <label>O elige un preset</label>
+        <div class="presets" id="paleta-presets"></div>
+      </div>
+      <div class="field">
+        <label>Tipografía</label>
+        <select id="visual-tipografia">
+          <option value="Sora">Sora</option>
+          <option value="Inter">Inter</option>
+          <option value="Poppins">Poppins</option>
+          <option value="Montserrat">Montserrat</option>
+          <option value="Oswald">Oswald</option>
+          <option value="Bebas Neue">Bebas Neue</option>
+          <option value="Playfair Display">Playfair Display</option>
+        </select>
+      </div>
+      <button class="ask-btn" onclick="saveVisual()">Guardar cambios</button>
+      <div id="visual-status" class="log-status"></div>
+    </div>
+  </section>
+
+  <!-- 3. VOZ Y TONO -->
+  <section class="tab-panel" id="panel-tono">
+    <div class="panel-head"><h2>Voz y Tono</h2><div class="panel-desc">Cómo suena la marca cuando escribe.</div></div>
+    <div class="card">
+      <div class="field"><label>Tono (elige los que apliquen)</label><div class="chips" id="tono-chips"></div></div>
+      <div class="field"><label>Palabras sí (separadas por coma)</label><input type="text" id="tono-palabras-si" placeholder="ej. chambear, jefa, tribu"></div>
+      <div class="field"><label>Palabras no (separadas por coma)</label><input type="text" id="tono-palabras-no" placeholder="ej. sinergia, disruptivo"></div>
+      <div class="field"><label>Persona / a quién le habla la marca</label><textarea id="tono-persona"></textarea></div>
+      <div class="field">
+        <label>Escala de personalidad (1-5)</label>
+        <div class="scale-row"><span class="scale-label">Formalidad</span><div class="scale-btns" id="scale-formalidad"></div></div>
+        <div class="scale-row"><span class="scale-label">Humor</span><div class="scale-btns" id="scale-humor"></div></div>
+        <div class="scale-row"><span class="scale-label">Autoridad</span><div class="scale-btns" id="scale-autoridad"></div></div>
+        <div class="scale-row"><span class="scale-label">Cercanía</span><div class="scale-btns" id="scale-cercania"></div></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Ejemplo — así sí</label><textarea id="tono-ejemplo-si"></textarea></div>
+        <div class="field"><label>Ejemplo — así no</label><textarea id="tono-ejemplo-no"></textarea></div>
+      </div>
+      <button class="ask-btn" onclick="saveTono()">Guardar cambios</button>
+      <div id="tono-status" class="log-status"></div>
+    </div>
+  </section>
+
+  <!-- 4. REDES Y PRESENCIA -->
+  <section class="tab-panel" id="panel-redes">
+    <div class="panel-head"><h2>Redes y presencia</h2><div class="panel-desc">El handle arma el link solo — "Verificar" checa que el link responda.</div></div>
+    <div class="card" id="redes-list"></div>
+    <button class="ask-btn" style="margin-top:14px;" onclick="saveRedes()">Guardar cambios</button>
+    <div id="redes-status" class="log-status"></div>
+  </section>
+
+  <!-- 5. AUDIENCIA Y METAS -->
+  <section class="tab-panel" id="panel-audiencia">
+    <div class="panel-head"><h2>Audiencia y metas</h2><div class="panel-desc">A quién le vende y qué está buscando lograr.</div></div>
+    <div class="card">
+      <div class="field"><label>Descripción de clientes</label><textarea id="aud-descripcion"></textarea></div>
+      <div class="field"><label>Metas del negocio</label><div class="chips" id="aud-metas-chips"></div></div>
+      <div class="field"><label>Notas adicionales</label><textarea id="aud-notas"></textarea></div>
+      <button class="ask-btn" onclick="saveAudiencia()">Guardar cambios</button>
+      <div id="audiencia-status" class="log-status"></div>
+    </div>
+  </section>
+
+  <!-- 6. CATALOGO -->
+  <section class="tab-panel" id="panel-catalogo">
+    <div class="panel-head"><h2>Catálogo de productos</h2><div class="panel-desc">El margen se calcula solo con precio y costo.</div></div>
+    <div class="table-scroll">
+      <table class="data-table">
+        <thead><tr>
+          <th>Nombre</th><th>Tipo</th><th>Precio</th><th>Costo</th><th>Margen</th><th>Se vende</th><th>Inventario</th><th>Notas</th><th></th>
+        </tr></thead>
+        <tbody id="catalogo-tbody"></tbody>
+      </table>
+    </div>
+    <button class="ask-btn add-row-btn" onclick="addCatalogoRow()">+ Agregar fila</button>
+    <div id="catalogo-status" class="log-status"></div>
+  </section>
+
+  <!-- 7. METRICAS Y FINANCIEROS -->
+  <section class="tab-panel" id="panel-metricas">
+    <div class="panel-head"><h2>Métricas y Financieros</h2><div class="panel-desc">Números base del negocio, del diagnóstico.</div></div>
+    <div class="card">
+      <div class="subhead">Métricas</div>
+      <div class="field-row">
+        <div class="field"><label>Ticket promedio ($)</label><input type="number" step="0.01" id="met-ticket"></div>
+        <div class="field"><label>Ventas del mes ($)</label><input type="number" step="0.01" id="met-ventas"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Clientes nuevos / mes</label><input type="number" step="1" id="met-clientes"></div>
+        <div class="field"><label>Tasa de conversión (%)</label><input type="number" step="0.1" id="met-conversion"></div>
+      </div>
+      <hr class="divider">
+      <div class="subhead">Financieros</div>
+      <div class="field-row">
+        <div class="field"><label>Costo fijo mensual ($)</label><input type="number" step="0.01" id="fin-costofijo"></div>
+        <div class="field"><label>Costo variable (%)</label><input type="number" step="0.1" id="fin-costovariable" oninput="recalcMargenBruto()"></div>
+      </div>
+      <div class="field"><label>Margen bruto estimado (100% − costo variable)</label><input type="text" id="fin-margenbruto" disabled></div>
+      <button class="ask-btn" onclick="saveMetricasFinancieros()">Guardar cambios</button>
+      <div id="metricas-status" class="log-status"></div>
+    </div>
+  </section>
+
+  <!-- 8. CUSTOMER JOURNEY -->
+  <section class="tab-panel" id="panel-journey">
+    <div class="panel-head"><h2>Customer Journey</h2><div class="panel-desc">Los 6 pasos que sigue un cliente, con notas de cómo pasa hoy.</div></div>
+    <div class="stepper" id="journey-stepper"></div>
+    <button class="ask-btn" style="margin-top:14px;" onclick="saveJourney()">Guardar cambios</button>
+    <div id="journey-status" class="log-status"></div>
+  </section>
+
+  <!-- 9. CLIENTE IDEAL Y OBJECIONES -->
+  <section class="tab-panel" id="panel-clienteideal">
+    <div class="panel-head"><h2>Cliente ideal y objeciones</h2><div class="panel-desc">Cada campo que llenes se guarda como una entrada individual en la lista maestra del cliente ideal.</div></div>
+    <div class="card">
+      <div id="ci-campos-nuevo">
+        <div class="field"><label>¿Quién compra hoy?</label><textarea id="ci-quien-compra"></textarea></div>
+        <div class="field"><label>¿Qué busca?</label><textarea id="ci-que-busca"></textarea></div>
+        <div class="field"><label>Objeción común</label><textarea id="ci-objecion-comun"></textarea></div>
+        <div class="field-row">
+          <div class="field"><label>Por qué SÍ compran</label><textarea id="ci-por-que-si"></textarea></div>
+          <div class="field"><label>Por qué NO compran</label><textarea id="ci-por-que-no"></textarea></div>
+        </div>
+        <div class="field"><label>Dudas frecuentes</label><textarea id="ci-dudas"></textarea></div>
+        <div class="field"><label>Preguntas frecuentes</label><textarea id="ci-preguntas"></textarea></div>
+        <div class="field"><label>Frases reales de clientes (una por línea)</label><textarea id="ci-frases" placeholder="Una frase por línea..."></textarea></div>
+      </div>
+      <div id="ci-campos-editar" style="display:none;">
+        <div class="field"><label>Texto</label><textarea id="ci-edit-text"></textarea></div>
+        <div class="field"><label>Tipo</label>
+          <select id="ci-edit-tipo">
+            <option value="dolor_visible">Dolor visible</option>
+            <option value="dolor_oculto">Dolor oculto</option>
+            <option value="deseo_visible">Deseo visible</option>
+            <option value="deseo_secreto">Deseo secreto</option>
+            <option value="miedo">Miedo</option>
+            <option value="objecion">Objeción</option>
+          </select>
+        </div>
+      </div>
+      <button class="ask-btn" id="ci-save-btn" onclick="saveClienteIdeal()">Guardar en la lista maestra</button>
+      <button class="ask-btn" id="ci-cancel-btn" style="display:none;margin-left:8px;background:var(--surface-2);color:var(--text-dim);border:1px solid var(--line);" onclick="cancelarEdicionClienteIdeal()">Cancelar edición</button>
+      <div id="clienteideal-status" class="log-status"></div>
+    </div>
+    <hr class="divider">
+    <div class="subhead">Lista maestra guardada</div>
+    <div id="lm-list"></div>
+  </section>
+
+  <!-- 10. OBJETIVOS -->
+  <section class="tab-panel" id="panel-objetivos">
+    <div class="panel-head"><h2>Objetivos</h2><div class="panel-desc">Qué quiere lograr el negocio en esta etapa.</div></div>
+    <div class="card">
+      <div class="chips" id="objetivos-chips"></div>
+      <button class="ask-btn" style="margin-top:16px;" onclick="saveObjetivos()">Guardar cambios</button>
+      <div id="objetivos-status" class="log-status"></div>
+    </div>
+  </section>
+
+  <!-- 11. CONTENIDO Y CANALES -->
+  <section class="tab-panel" id="panel-contenido">
+    <div class="panel-head"><h2>Contenido y canales</h2><div class="panel-desc">Dónde y cómo está publicando hoy.</div></div>
+    <div class="card" id="contenido-canales-list"></div>
+    <div class="card" style="margin-top:14px;">
+      <div class="field"><label>Frecuencia de publicación</label>
+        <select id="cont-frecuencia">
+          <option value="">—</option>
+          <option value="Diario">Diario</option>
+          <option value="3-4 veces por semana">3-4 veces por semana</option>
+          <option value="1-2 veces por semana">1-2 veces por semana</option>
+          <option value="Esporádico">Esporádico</option>
+        </select>
+      </div>
+      <div class="field"><label>Tipos de contenido</label><div class="chips" id="cont-tipos-chips"></div></div>
+      <div class="field"><label>Temas que ya toca</label><textarea id="cont-temas"></textarea></div>
+      <button class="ask-btn" onclick="saveContenido()">Guardar cambios</button>
+      <div id="contenido-status" class="log-status"></div>
+    </div>
+  </section>
+
+  <!-- 12. RADAR DE REFERENTES -->
+  <section class="tab-panel" id="panel-radar">
+    <div class="panel-head"><h2>Radar de referentes</h2><div class="panel-desc">Cuentas para inspiración, benchmarking o alianzas.</div></div>
+    <div class="card">
+      <div class="field-row">
+        <div class="field"><label>Link</label><input type="text" id="radar-add-link" placeholder="https://instagram.com/usuario"></div>
+        <div class="field"><label>Plataforma</label><select id="radar-add-plataforma"></select></div>
+      </div>
+      <details class="ref-details" id="radar-add-details">
+        <summary>+ agregar detalles manualmente</summary>
+        <div class="field"><label>Nombre de cuenta</label><input type="text" id="radar-add-nombre"></div>
+        <div class="field"><label>Tipo</label><select id="radar-add-tipo"></select></div>
+        <div class="field"><label>Seguidores aprox.</label><input type="text" id="radar-add-seguidores"></div>
+        <div class="field"><label>Qué hace bien</label><textarea id="radar-add-quehacebien"></textarea></div>
+        <div class="field"><label>Qué podemos aprender</label><textarea id="radar-add-queaprender"></textarea></div>
+        <div class="field"><label>Frecuencia de publicación</label><input type="text" id="radar-add-frecuencia"></div>
+        <div class="field"><label>Notas</label><textarea id="radar-add-notas"></textarea></div>
+      </details>
+      <button class="ask-btn add-row-btn" onclick="addRadarCard()">+ Agregar cuenta</button>
+    </div>
+    <div class="card-grid" id="radar-grid" style="margin-top:14px;"></div>
+    <div id="radar-status" class="log-status"></div>
+  </section>
+
+  <!-- 13. OPTIMIZACION INICIAL -->
+  <section class="tab-panel" id="panel-optimizacion">
+    <div class="panel-head"><h2>Optimización inicial</h2><div class="panel-desc">Qué tan lista está la operación para escalar marketing.</div></div>
+    <div class="card" id="optimizacion-list"></div>
+    <button class="ask-btn" style="margin-top:14px;" onclick="saveOptimizacion()">Guardar cambios</button>
+    <div id="optimizacion-status" class="log-status"></div>
+  </section>
+
+</main>
+
+<footer>Cerebro Central · JefesHub</footer>
+
+<script src="/js/storage-client.js"></script>
+<script>
+// Cliente por defecto de esta pantalla. Mismo prefijo multi-tenant que ya
+// usa agente-conversion-ventas-rancho-seco.html (ej. "rancho-seco:...").
+const CLIENTE_ID = 'rancho-seco';
+function storageKey(suffix){ return CLIENTE_ID + ':' + suffix; }
+function newId(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+function escapeHtml(str){
+  const d = document.createElement('div');
+  d.textContent = str == null ? '' : String(str);
+  return d.innerHTML;
+}
+
+// ---------- TABS ----------
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ---------- HELPERS GENERICOS (tabs tipo "objeto unico + Guardar cambios") ----------
+async function loadObj(suffix){
+  try{
+    const result = await window.storage.get(storageKey('brand-book.' + suffix));
+    return result && result.value ? JSON.parse(result.value) : {};
+  }catch(e){
+    return {};
+  }
+}
+async function saveObj(suffix, data, statusElId){
+  const statusEl = document.getElementById(statusElId);
+  try{
+    await window.storage.set(storageKey('brand-book.' + suffix), JSON.stringify(data));
+    statusEl.textContent = 'Guardado ✓';
+    statusEl.style.color = '#22C55E';
+    setTimeout(() => { statusEl.textContent = ''; }, 1800);
+  }catch(e){
+    statusEl.textContent = e.status === 401 ? 'Token incorrecto — vuelve a intentar guardar.' : 'No se pudo guardar, intenta de nuevo.';
+    statusEl.style.color = '#F87171';
+  }
+}
+
+// ---------- CHIPS ----------
+function renderChipGroup(containerEl, options, selected, multi){
+  containerEl.innerHTML = options.map(opt => {
+    const isSel = selected.includes(opt);
+    return `<button type="button" class="chip${isSel ? ' selected' : ''}" data-val="${escapeHtml(opt)}">${escapeHtml(opt)}</button>`;
+  }).join('');
+  containerEl.querySelectorAll('.chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const val = btn.dataset.val;
+      if(multi){
+        const idx = selected.indexOf(val);
+        if(idx >= 0) selected.splice(idx, 1); else selected.push(val);
+      } else {
+        selected.length = 0;
+        selected.push(val);
+      }
+      renderChipGroup(containerEl, options, selected, multi);
+    });
+  });
+}
+
+// ---------- FLUSH GLOBAL (guardado pendiente al ocultar/cerrar pestaña) ----------
+const pendingFlushers = [];
+function registerFlusher(fn){ pendingFlushers.push(fn); }
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'hidden') pendingFlushers.forEach(fn => fn());
+});
+window.addEventListener('pagehide', () => { pendingFlushers.forEach(fn => fn()); });
+
+// ==================== 1. IDENTIDAD ====================
+async function loadIdentidad(){
+  const data = await loadObj('identidad');
+  document.getElementById('id-nombre').value = data.nombre || '';
+  document.getElementById('id-giro').value = data.giro || '';
+  document.getElementById('id-telefono').value = data.telefono || '';
+  document.getElementById('id-producto').value = data.producto_estrella || '';
+}
+function saveIdentidad(){
+  const data = {
+    nombre: document.getElementById('id-nombre').value.trim(),
+    giro: document.getElementById('id-giro').value.trim(),
+    telefono: document.getElementById('id-telefono').value.trim(),
+    producto_estrella: document.getElementById('id-producto').value.trim(),
+  };
+  saveObj('identidad', data, 'identidad-status');
+}
+
+// ==================== 2. LOGO Y COLORES ====================
+const PALETA_PRESETS = [
+  ['#B8F725', '#0F0B16', '#181120', '#F3EEF9'],
+  ['#FF6B6B', '#4ECDC4', '#1A1A2E', '#F7FFF7'],
+  ['#F4A261', '#2A9D8F', '#264653', '#E9C46A'],
+  ['#FFD166', '#EF476F', '#06D6A0', '#073B4C'],
+  ['#C9A227', '#0B0B0B', '#F5F0E6', '#7A6A3A'],
+  ['#8338EC', '#3A86FF', '#FB5607', '#FFBE0B'],
+];
+let visualState = { logo: '', paleta: [], tipografia: 'Sora' };
+
+async function loadVisual(){
+  const data = await loadObj('visual');
+  visualState = { logo: '', paleta: [], tipografia: 'Sora', ...data };
+  if(visualState.logo){
+    const img = document.getElementById('logo-preview');
+    img.src = visualState.logo;
+    img.style.display = 'block';
+    document.getElementById('logo-hint').textContent = 'Haz clic para cambiar el logo';
+  }
+  document.getElementById('visual-tipografia').value = visualState.tipografia || 'Sora';
+  renderSwatches();
+  renderPresets();
+}
+
+function renderSwatches(){
+  const el = document.getElementById('paleta-swatches');
+  if(!visualState.paleta || visualState.paleta.length === 0){
+    el.innerHTML = '<div class="upload-hint">Sube un logo para detectar colores automáticamente.</div>';
+    return;
+  }
+  el.innerHTML = visualState.paleta.map(c => `<button type="button" class="swatch selected" style="background:${escapeHtml(c)}" title="${escapeHtml(c)}"></button>`).join('');
+}
+
+function renderPresets(){
+  const el = document.getElementById('paleta-presets');
+  el.innerHTML = PALETA_PRESETS.map((preset, i) => `
+    <div class="preset" data-i="${i}">${preset.map(c => `<span style="background:${c}"></span>`).join('')}</div>
+  `).join('');
+  el.querySelectorAll('.preset').forEach(p => {
+    p.addEventListener('click', () => {
+      visualState.paleta = PALETA_PRESETS[parseInt(p.dataset.i, 10)];
+      renderSwatches();
+    });
+  });
+}
+
+function resizeImageToDataUrl(file, maxDim){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if(width > height && width > maxDim){ height = Math.round(height * maxDim / width); width = maxDim; }
+        else if(height > maxDim){ width = Math.round(width * maxDim / height); height = maxDim; }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve({ dataUrl: canvas.toDataURL('image/png'), el: img });
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function rgbToHex(rgb){
+  return '#' + rgb.map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
+document.getElementById('logo-input').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  try{
+    const { dataUrl } = await resizeImageToDataUrl(file, 400);
+    visualState.logo = dataUrl;
+    const img = document.getElementById('logo-preview');
+    img.src = dataUrl;
+    img.style.display = 'block';
+    document.getElementById('logo-hint').textContent = 'Haz clic para cambiar el logo';
+    img.onload = () => {
+      try{
+        const colorThief = new ColorThief();
+        const palette = colorThief.getPalette(img, 5).map(rgbToHex);
+        visualState.paleta = palette;
+        renderSwatches();
+      }catch(err){
+        // si la extraccion falla (ej. libreria no cargo), se queda con el preset manual
+      }
+    };
+  }catch(err){
+    document.getElementById('logo-hint').textContent = 'No se pudo procesar la imagen, intenta con otra.';
+  }
+});
+
+function saveVisual(){
+  visualState.tipografia = document.getElementById('visual-tipografia').value;
+  saveObj('visual', visualState, 'visual-status');
+}
+
+// ==================== 3. VOZ Y TONO ====================
+const TONO_OPCIONES = ['Divertido', 'Profesional', 'Inspirador', 'Directo', 'Cercano', 'Aspiracional', 'Educativo', 'Urgente'];
+let tonoState = { tonos: [], palabras_si: [], palabras_no: [], persona: '', escala: { formalidad: 3, humor: 3, autoridad: 3, cercania: 3 }, ejemplo_si: '', ejemplo_no: '' };
+
+async function loadTono(){
+  const data = await loadObj('tono');
+  tonoState = { tonos: [], palabras_si: [], palabras_no: [], persona: '', escala: { formalidad: 3, humor: 3, autoridad: 3, cercania: 3 }, ejemplo_si: '', ejemplo_no: '', ...data };
+  renderChipGroup(document.getElementById('tono-chips'), TONO_OPCIONES, tonoState.tonos, true);
+  document.getElementById('tono-palabras-si').value = (tonoState.palabras_si || []).join(', ');
+  document.getElementById('tono-palabras-no').value = (tonoState.palabras_no || []).join(', ');
+  document.getElementById('tono-persona').value = tonoState.persona || '';
+  document.getElementById('tono-ejemplo-si').value = tonoState.ejemplo_si || '';
+  document.getElementById('tono-ejemplo-no').value = tonoState.ejemplo_no || '';
+  ['formalidad', 'humor', 'autoridad', 'cercania'].forEach(dim => renderScale(dim));
+}
+
+function renderScale(dim){
+  const container = document.getElementById('scale-' + dim);
+  const value = tonoState.escala[dim];
+  container.innerHTML = [1, 2, 3, 4, 5].map(n => `<button type="button" class="scale-btn${n === value ? ' selected' : ''}" data-n="${n}">${n}</button>`).join('');
+  container.querySelectorAll('.scale-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      tonoState.escala[dim] = parseInt(btn.dataset.n, 10);
+      renderScale(dim);
+    });
+  });
+}
+
+function saveTono(){
+  tonoState.palabras_si = document.getElementById('tono-palabras-si').value.split(',').map(s => s.trim()).filter(Boolean);
+  tonoState.palabras_no = document.getElementById('tono-palabras-no').value.split(',').map(s => s.trim()).filter(Boolean);
+  tonoState.persona = document.getElementById('tono-persona').value.trim();
+  tonoState.ejemplo_si = document.getElementById('tono-ejemplo-si').value.trim();
+  tonoState.ejemplo_no = document.getElementById('tono-ejemplo-no').value.trim();
+  saveObj('tono', tonoState, 'tono-status');
+}
+
+// ==================== 4. REDES Y PRESENCIA (+ 11 comparte el patron de canal) ====================
+const CANAL_DEFS = {
+  facebook: { icon: '📘', nombre: 'Facebook', builder: h => `https://facebook.com/${h}`, placeholder: 'usuario o pagina' },
+  instagram: { icon: '📸', nombre: 'Instagram', builder: h => `https://instagram.com/${h.replace(/^@/, '')}`, placeholder: '@usuario' },
+  tiktok: { icon: '🎵', nombre: 'TikTok', builder: h => `https://tiktok.com/@${h.replace(/^@/, '')}`, placeholder: '@usuario' },
+  youtube: { icon: '▶️', nombre: 'YouTube', builder: h => `https://youtube.com/@${h.replace(/^@/, '')}`, placeholder: '@canal' },
+  whatsapp: { icon: '💬', nombre: 'WhatsApp', builder: h => `https://wa.me/${h.replace(/[^\d]/g, '')}`, placeholder: 'numero con codigo de pais' },
+  website: { icon: '🌐', nombre: 'Website', builder: h => (h.startsWith('http') ? h : `https://${h}`), placeholder: 'tudominio.com' },
+};
+
+let redesState = {};
+
+function renderCanalRow(key, def, state, containerId){
+  const row = document.createElement('div');
+  row.className = 'channel-row';
+  const handle = (state[key] && state[key].handle) || '';
+  const link = handle ? def.builder(handle) : '';
+  row.innerHTML = `
+    <span class="channel-icon">${def.icon}</span>
+    <span class="channel-name">${def.nombre}</span>
+    <input type="text" placeholder="${def.placeholder}" value="${escapeHtml(handle)}" data-canal="${key}">
+    <span class="channel-link">${link ? escapeHtml(link) : ''}</span>
+    <button type="button" class="verify-btn" data-canal="${key}">Verificar</button>
+    <span class="verify-status" data-canal-status="${key}"></span>
+  `;
+  const input = row.querySelector('input');
+  const linkEl = row.querySelector('.channel-link');
+  input.addEventListener('input', () => {
+    if(!state[key]) state[key] = {};
+    state[key].handle = input.value.trim();
+    state[key].link = state[key].handle ? def.builder(state[key].handle) : '';
+    linkEl.textContent = state[key].link || '';
+  });
+  row.querySelector('.verify-btn').addEventListener('click', async () => {
+    const statusEl = row.querySelector('.verify-status');
+    const url = (state[key] && state[key].link) || '';
+    if(!url){ statusEl.textContent = 'Sin link'; statusEl.style.color = 'var(--text-dim)'; return; }
+    statusEl.textContent = 'Revisando...';
+    statusEl.style.color = 'var(--text-dim)';
+    try{
+      const res = await fetch('/api/check-link?url=' + encodeURIComponent(url));
+      const data = await res.json();
+      state[key].verificado = !!data.ok;
+      statusEl.textContent = data.ok ? '✓ Verificado' : '✕ No accesible';
+      statusEl.style.color = data.ok ? '#22C55E' : '#F87171';
+    }catch(err){
+      statusEl.textContent = '✕ Error';
+      statusEl.style.color = '#F87171';
+    }
+  });
+  document.getElementById(containerId).appendChild(row);
+}
+
+async function loadRedes(){
+  redesState = await loadObj('redes');
+  const container = document.getElementById('redes-list');
+  container.innerHTML = '';
+  ['facebook', 'instagram', 'tiktok', 'youtube', 'whatsapp', 'website'].forEach(key => {
+    renderCanalRow(key, CANAL_DEFS[key], redesState, 'redes-list');
+  });
+}
+function saveRedes(){
+  saveObj('redes', redesState, 'redes-status');
+}
+
+// ==================== 5. AUDIENCIA Y METAS ====================
+// Misma lista de metas que usa el tab 10 (Objetivos) — una sola fuente de
+// verdad para no tener dos catalogos de "metas" distintos en la pantalla.
+const METAS_OPCIONES = ['Más posicionamiento', 'Más prospectos', 'Elevar ventas en sitio web', 'Participación en evento', 'Anunciar vacantes', 'Otro'];
+let audienciaState = { metas: [] };
+
+async function loadAudiencia(){
+  const data = await loadObj('audiencia');
+  audienciaState = { metas: [], ...data };
+  document.getElementById('aud-descripcion').value = audienciaState.descripcion_clientes || '';
+  document.getElementById('aud-notas').value = audienciaState.notas || '';
+  renderChipGroup(document.getElementById('aud-metas-chips'), METAS_OPCIONES, audienciaState.metas, true);
+}
+function saveAudiencia(){
+  audienciaState.descripcion_clientes = document.getElementById('aud-descripcion').value.trim();
+  audienciaState.notas = document.getElementById('aud-notas').value.trim();
+  saveObj('audiencia', audienciaState, 'audiencia-status');
+}
+
+// ==================== 6. CATALOGO DE PRODUCTOS ====================
+let catalogoState = [];
+let catalogoSaveTimer = null, catalogoPending = false;
+
+async function loadCatalogo(){
+  try{
+    const result = await window.storage.get(storageKey('catalogo-productos'));
+    catalogoState = result && result.value ? JSON.parse(result.value) : [];
+  }catch(e){
+    catalogoState = [];
+  }
+  renderCatalogo();
+}
+
+function calcMargen(precio, costo){
+  const p = parseFloat(precio), c = parseFloat(costo);
+  if(!p || p <= 0 || isNaN(c)) return '';
+  return (((p - c) / p) * 100).toFixed(1) + '%';
+}
+
+function renderCatalogo(){
+  const tbody = document.getElementById('catalogo-tbody');
+  if(catalogoState.length === 0){
+    tbody.innerHTML = '<tr><td colspan="9" class="log-empty">Todavía no hay productos. Usa "+ Agregar fila".</td></tr>';
+    return;
+  }
+  tbody.innerHTML = catalogoState.map(row => `
+    <tr data-id="${row.id}">
+      <td><input type="text" value="${escapeHtml(row.nombre)}" data-field="nombre"></td>
+      <td><select data-field="tipo">
+        ${['Producto', 'Servicio', 'Paquete'].map(t => `<option value="${t}" ${row.tipo === t ? 'selected' : ''}>${t}</option>`).join('')}
+      </select></td>
+      <td><input type="number" step="0.01" value="${row.precio ?? ''}" data-field="precio" style="width:80px;"></td>
+      <td><input type="number" step="0.01" value="${row.costo ?? ''}" data-field="costo" style="width:80px;"></td>
+      <td class="margin-cell">${calcMargen(row.precio, row.costo)}</td>
+      <td><select data-field="que_tanto_se_vende">
+        <option value="" ${!row.que_tanto_se_vende ? 'selected' : ''}>—</option>
+        ${['Mucho', 'Regular', 'Poco', 'No sé aún'].map(o => `<option value="${o}" ${row.que_tanto_se_vende === o ? 'selected' : ''}>${o}</option>`).join('')}
+      </select></td>
+      <td><input type="text" value="${escapeHtml(row.inventario)}" data-field="inventario" style="width:90px;"></td>
+      <td><input type="text" value="${escapeHtml(row.notas)}" data-field="notas"></td>
+      <td><button class="icon-btn" onclick="deleteCatalogoRow('${row.id}')">✕</button></td>
+    </tr>
+  `).join('');
+
+  tbody.querySelectorAll('input, select').forEach(el => {
+    el.addEventListener('input', onCatalogoFieldChange);
+  });
+}
+
+function onCatalogoFieldChange(e){
+  const tr = e.target.closest('tr');
+  const id = tr.dataset.id;
+  const field = e.target.dataset.field;
+  const row = catalogoState.find(r => r.id === id);
+  if(!row) return;
+  row[field] = e.target.value;
+  if(field === 'precio' || field === 'costo'){
+    row.margen_pct = calcMargen(row.precio, row.costo);
+    tr.querySelector('.margin-cell').textContent = row.margen_pct;
+  }
+  scheduleCatalogoSave();
+}
+
+function addCatalogoRow(){
+  catalogoState.push({ id: newId(), nombre: '', tipo: 'Producto', precio: '', costo: '', margen_pct: '', que_tanto_se_vende: '', inventario: '', notas: '' });
+  renderCatalogo();
+  scheduleCatalogoSave();
+}
+function deleteCatalogoRow(id){
+  catalogoState = catalogoState.filter(r => r.id !== id);
+  renderCatalogo();
+  scheduleCatalogoSave();
+}
+function scheduleCatalogoSave(){
+  catalogoPending = true;
+  document.getElementById('catalogo-status').textContent = 'Guardando...';
+  clearTimeout(catalogoSaveTimer);
+  catalogoSaveTimer = setTimeout(() => doSaveCatalogo(), 500);
+}
+async function doSaveCatalogo(opts){
+  clearTimeout(catalogoSaveTimer); catalogoSaveTimer = null;
+  if(!catalogoPending) return;
+  try{
+    await window.storage.set(storageKey('catalogo-productos'), JSON.stringify(catalogoState), opts);
+    catalogoPending = false;
+    document.getElementById('catalogo-status').textContent = 'Guardado.';
+  }catch(e){
+    document.getElementById('catalogo-status').textContent = e.status === 401 ? 'Token incorrecto — vuelve a intentar guardar.' : 'No se pudo guardar (revisa tu conexión).';
+  }
+}
+registerFlusher(() => { if(catalogoPending) doSaveCatalogo({ keepalive: true }); });
+
+// ==================== 7. METRICAS Y FINANCIEROS ====================
+function recalcMargenBruto(){
+  const cv = parseFloat(document.getElementById('fin-costovariable').value);
+  document.getElementById('fin-margenbruto').value = isNaN(cv) ? '' : (100 - cv).toFixed(1) + '%';
+}
+async function loadMetricasFinancieros(){
+  const metricas = await loadObj('metricas');
+  const financieros = await loadObj('financieros');
+  document.getElementById('met-ticket').value = metricas.ticket_promedio ?? '';
+  document.getElementById('met-ventas').value = metricas.ventas_mes ?? '';
+  document.getElementById('met-clientes').value = metricas.clientes_nuevos_mes ?? '';
+  document.getElementById('met-conversion').value = metricas.tasa_conversion_pct ?? '';
+  document.getElementById('fin-costofijo').value = financieros.costo_fijo_mensual ?? '';
+  document.getElementById('fin-costovariable').value = financieros.costo_variable_pct ?? '';
+  recalcMargenBruto();
+}
+async function saveMetricasFinancieros(){
+  const metricas = {
+    ticket_promedio: document.getElementById('met-ticket').value,
+    ventas_mes: document.getElementById('met-ventas').value,
+    clientes_nuevos_mes: document.getElementById('met-clientes').value,
+    tasa_conversion_pct: document.getElementById('met-conversion').value,
+  };
+  const costoVariable = document.getElementById('fin-costovariable').value;
+  const financieros = {
+    costo_fijo_mensual: document.getElementById('fin-costofijo').value,
+    costo_variable_pct: costoVariable,
+    margen_bruto_pct: costoVariable === '' ? '' : (100 - parseFloat(costoVariable)).toFixed(1),
+  };
+  const statusEl = document.getElementById('metricas-status');
+  try{
+    await window.storage.set(storageKey('brand-book.metricas'), JSON.stringify(metricas));
+    await window.storage.set(storageKey('brand-book.financieros'), JSON.stringify(financieros));
+    statusEl.textContent = 'Guardado ✓';
+    statusEl.style.color = '#22C55E';
+    setTimeout(() => { statusEl.textContent = ''; }, 1800);
+  }catch(e){
+    statusEl.textContent = e.status === 401 ? 'Token incorrecto — vuelve a intentar guardar.' : 'No se pudo guardar, intenta de nuevo.';
+    statusEl.style.color = '#F87171';
+  }
+}
+
+// ==================== 8. CUSTOMER JOURNEY ====================
+const JOURNEY_PASOS = ['Descubre', 'Pide info', 'Decide', 'Paga', 'Recibe', 'Post-compra'];
+let journeyState = { pasos: JOURNEY_PASOS.map(p => ({ paso: p, notas: '' })) };
+
+async function loadJourney(){
+  const data = await loadObj('customer_journey');
+  if(data.pasos && data.pasos.length === JOURNEY_PASOS.length){
+    journeyState = data;
+  }
+  const container = document.getElementById('journey-stepper');
+  container.innerHTML = journeyState.pasos.map((p, i) => `
+    <div class="step">
+      <div class="step-num">${i + 1}</div>
+      <h4>${escapeHtml(p.paso)}</h4>
+      <textarea data-i="${i}" placeholder="¿Cómo pasa esto hoy?">${escapeHtml(p.notas)}</textarea>
+    </div>
+  `).join('');
+  container.querySelectorAll('textarea').forEach(ta => {
+    ta.addEventListener('input', () => {
+      journeyState.pasos[parseInt(ta.dataset.i, 10)].notas = ta.value;
+    });
+  });
+}
+function saveJourney(){
+  saveObj('customer_journey', journeyState, 'journey-status');
+}
+
+// ==================== 9. CLIENTE IDEAL Y OBJECIONES (siembra lista-maestra-cliente-ideal) ====================
+const TIPO_LABELS = { dolor_visible: 'Dolor visible', dolor_oculto: 'Dolor oculto', deseo_visible: 'Deseo visible', deseo_secreto: 'Deseo secreto', miedo: 'Miedo', objecion: 'Objeción' };
+const ORIGEN_LABELS = { manual: 'Manual', conversacion_real: 'Conversación real' };
+// Mapeo de cada campo del formulario a un tipo del enum existente. Es una
+// interpretacion razonable, no algo que venga en los datos — ajustable.
+const CAMPO_TIPO_MAP = {
+  'ci-quien-compra': 'deseo_visible',
+  'ci-que-busca': 'deseo_visible',
+  'ci-objecion-comun': 'objecion',
+  'ci-por-que-si': 'deseo_visible',
+  'ci-por-que-no': 'objecion',
+  'ci-dudas': 'objecion',
+  'ci-preguntas': 'objecion',
+};
+
+let editingLmId = null;
+
+async function loadListaMaestra(){
+  try{
+    const result = await window.storage.get(storageKey('lista-maestra-cliente-ideal'));
+    const items = result && result.value ? JSON.parse(result.value) : [];
+    renderListaMaestra(items);
+  }catch(e){
+    renderListaMaestra([]);
+  }
+}
+function renderListaMaestra(items){
+  const listEl = document.getElementById('lm-list');
+  if(!items || items.length === 0){
+    listEl.innerHTML = '<div class="log-empty">Todavía no hay nada guardado aquí.</div>';
+    return;
+  }
+  const ordenados = items.slice().reverse();
+  listEl.innerHTML = ordenados.map(item => `
+    <div class="log-item">
+      <div>
+        <div class="qtext">
+          <span class="tag-pill">${escapeHtml(TIPO_LABELS[item.tipo] || item.tipo)}</span><span class="tag-pill dim">${escapeHtml(ORIGEN_LABELS[item.origen] || item.origen)}</span>${item.editado ? '<span class="tag-pill dim">✏️ Editado</span>' : ''}
+        </div>
+        <div class="qtext" style="margin-top:6px;">${escapeHtml(item.text)}</div>
+        <div class="qdate">${escapeHtml(item.date)}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <button data-edit-id="${item.id}">Editar</button>
+        <button data-delete-id="${item.id}">Eliminar</button>
+      </div>
+    </div>
+  `).join('');
+  listEl.querySelectorAll('[data-edit-id]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const item = items.find(i => i.id === btn.dataset.editId);
+      if(item) iniciarEdicionClienteIdeal(item);
+    });
+  });
+  listEl.querySelectorAll('[data-delete-id]').forEach(btn => {
+    btn.addEventListener('click', () => deleteListaMaestraItem(btn.dataset.deleteId));
+  });
+}
+async function deleteListaMaestraItem(id){
+  try{
+    const result = await window.storage.get(storageKey('lista-maestra-cliente-ideal'));
+    let items = result && result.value ? JSON.parse(result.value) : [];
+    items = items.filter(i => i.id !== id);
+    await window.storage.set(storageKey('lista-maestra-cliente-ideal'), JSON.stringify(items));
+    if(editingLmId === id) cancelarEdicionClienteIdeal();
+    renderListaMaestra(items);
+  }catch(e){}
+}
+
+function iniciarEdicionClienteIdeal(item){
+  editingLmId = item.id;
+  document.getElementById('ci-campos-nuevo').style.display = 'none';
+  document.getElementById('ci-campos-editar').style.display = '';
+  document.getElementById('ci-edit-text').value = item.text;
+  document.getElementById('ci-edit-tipo').value = item.tipo;
+  document.getElementById('ci-save-btn').textContent = 'Actualizar';
+  document.getElementById('ci-cancel-btn').style.display = '';
+  document.getElementById('clienteideal-status').textContent = '';
+  document.getElementById('panel-clienteideal').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function cancelarEdicionClienteIdeal(){
+  editingLmId = null;
+  document.getElementById('ci-campos-nuevo').style.display = '';
+  document.getElementById('ci-campos-editar').style.display = 'none';
+  document.getElementById('ci-edit-text').value = '';
+  document.getElementById('ci-save-btn').textContent = 'Guardar en la lista maestra';
+  document.getElementById('ci-cancel-btn').style.display = 'none';
+  document.getElementById('clienteideal-status').textContent = '';
+}
+
+async function saveClienteIdeal(){
+  if(editingLmId){
+    await actualizarListaMaestraItem();
+    return;
+  }
+
+  const statusEl = document.getElementById('clienteideal-status');
+  const hoy = new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+  const nuevasEntradas = [];
+
+  Object.keys(CAMPO_TIPO_MAP).forEach(fieldId => {
+    const val = document.getElementById(fieldId).value.trim();
+    if(val){
+      nuevasEntradas.push({ id: newId(), text: val, tipo: CAMPO_TIPO_MAP[fieldId], origen: 'manual', date: hoy });
+    }
+  });
+
+  const frases = document.getElementById('ci-frases').value.split('\n').map(s => s.trim()).filter(Boolean);
+  frases.forEach(frase => {
+    nuevasEntradas.push({ id: newId(), text: frase, tipo: 'dolor_visible', origen: 'manual', date: hoy });
+  });
+
+  if(nuevasEntradas.length === 0){ statusEl.textContent = 'Escribe algo primero.'; statusEl.style.color = 'var(--text-dim)'; return; }
+
+  try{
+    const result = await window.storage.get(storageKey('lista-maestra-cliente-ideal'));
+    const items = result && result.value ? JSON.parse(result.value) : [];
+    const merged = items.concat(nuevasEntradas);
+    await window.storage.set(storageKey('lista-maestra-cliente-ideal'), JSON.stringify(merged));
+    Object.keys(CAMPO_TIPO_MAP).forEach(fieldId => { document.getElementById(fieldId).value = ''; });
+    document.getElementById('ci-frases').value = '';
+    statusEl.textContent = `Guardado ✓ (${nuevasEntradas.length} entrada${nuevasEntradas.length === 1 ? '' : 's'})`;
+    statusEl.style.color = '#22C55E';
+    setTimeout(() => { statusEl.textContent = ''; }, 2400);
+    renderListaMaestra(merged);
+  }catch(e){
+    statusEl.textContent = e.status === 401 ? 'Token incorrecto — vuelve a intentar guardar.' : 'No se pudo guardar, intenta de nuevo.';
+    statusEl.style.color = '#F87171';
+  }
+}
+
+async function actualizarListaMaestraItem(){
+  const statusEl = document.getElementById('clienteideal-status');
+  const text = document.getElementById('ci-edit-text').value.trim();
+  const tipo = document.getElementById('ci-edit-tipo').value;
+  if(!text){ statusEl.textContent = 'Escribe algo primero.'; statusEl.style.color = 'var(--text-dim)'; return; }
+  const hoy = new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  try{
+    const result = await window.storage.get(storageKey('lista-maestra-cliente-ideal'));
+    let items = result && result.value ? JSON.parse(result.value) : [];
+    const idx = items.findIndex(i => i.id === editingLmId);
+    if(idx === -1){
+      statusEl.textContent = 'Esa entrada ya no existe (puede que se haya eliminado).';
+      statusEl.style.color = '#F87171';
+      cancelarEdicionClienteIdeal();
+      renderListaMaestra(items);
+      return;
+    }
+    // origen se conserva del original a proposito: el texto se ajusto, pero
+    // sigue viniendo de donde vino (conversacion real o manual).
+    items[idx] = { ...items[idx], text, tipo, editado: true, date: hoy };
+    await window.storage.set(storageKey('lista-maestra-cliente-ideal'), JSON.stringify(items));
+    statusEl.textContent = 'Actualizado ✓';
+    statusEl.style.color = '#22C55E';
+    setTimeout(() => { statusEl.textContent = ''; }, 1800);
+    renderListaMaestra(items);
+    cancelarEdicionClienteIdeal();
+  }catch(e){
+    statusEl.textContent = e.status === 401 ? 'Token incorrecto — vuelve a intentar guardar.' : 'No se pudo guardar, intenta de nuevo.';
+    statusEl.style.color = '#F87171';
+  }
+}
+
+// ==================== 10. OBJETIVOS ====================
+// Reutiliza METAS_OPCIONES (definida en la seccion 5) — mismo catalogo de
+// metas, sin duplicarlo con una segunda lista.
+let objetivosState = { objetivos: [] };
+async function loadObjetivos(){
+  const data = await loadObj('objetivos');
+  objetivosState = { objetivos: [], ...data };
+  renderChipGroup(document.getElementById('objetivos-chips'), METAS_OPCIONES, objetivosState.objetivos, true);
+}
+function saveObjetivos(){
+  saveObj('objetivos', objetivosState, 'objetivos-status');
+}
+
+// ==================== 11. CONTENIDO Y CANALES ====================
+const TIPOS_CONTENIDO_OPCIONES = ['Fotos', 'Videos cortos', 'Stories', 'Reels', 'Lives', 'Blog', 'Newsletter'];
+let contenidoState = { canales: {}, tipos_contenido: [] };
+async function loadContenido(){
+  const data = await loadObj('contenido_actual');
+  contenidoState = { canales: {}, tipos_contenido: [], ...data };
+  const container = document.getElementById('contenido-canales-list');
+  container.innerHTML = '';
+  ['instagram', 'tiktok', 'facebook', 'youtube'].forEach(key => {
+    renderCanalRow(key, CANAL_DEFS[key], contenidoState.canales, 'contenido-canales-list');
+  });
+  document.getElementById('cont-frecuencia').value = contenidoState.frecuencia || '';
+  document.getElementById('cont-temas').value = contenidoState.temas || '';
+  renderChipGroup(document.getElementById('cont-tipos-chips'), TIPOS_CONTENIDO_OPCIONES, contenidoState.tipos_contenido, true);
+}
+function saveContenido(){
+  contenidoState.frecuencia = document.getElementById('cont-frecuencia').value;
+  contenidoState.temas = document.getElementById('cont-temas').value.trim();
+  saveObj('contenido_actual', contenidoState, 'contenido-status');
+}
+
+// ==================== 12. RADAR DE REFERENTES ====================
+const RADAR_TIPOS = ['Competencia directa', 'Inspiración', 'Aliado potencial'];
+const RADAR_PLATAFORMAS = ['Instagram', 'TikTok', 'Facebook', 'YouTube', 'X / Twitter', 'LinkedIn', 'Otro'];
+// Campos que, si tienen contenido, marcan la cuenta como origen:'manual' en
+// vez de 'pendiente' (solo link+plataforma, sin detalles todavia).
+const RADAR_CAMPOS_DETALLE = ['nombre_cuenta', 'tipo', 'seguidores_aprox', 'que_hace_bien', 'que_podemos_aprender', 'frecuencia_publicacion', 'notas'];
+let radarState = [];
+let radarSaveTimer = null, radarPending = false;
+
+async function loadRadar(){
+  try{
+    const result = await window.storage.get(storageKey('radar-referentes'));
+    radarState = result && result.value ? JSON.parse(result.value) : [];
+  }catch(e){
+    radarState = [];
+  }
+  renderRadar();
+}
+
+// Respaldo para cuentas viejas que solo tenian handle+plataforma (shape
+// anterior a este cambio) y todavia no tienen link propio guardado.
+function radarLinkDesdeHandle(item){
+  if(!item.handle) return '';
+  const p = (item.plataforma || '').toLowerCase();
+  if(p === 'instagram') return `https://instagram.com/${item.handle.replace(/^@/, '')}`;
+  if(p === 'tiktok') return `https://tiktok.com/@${item.handle.replace(/^@/, '')}`;
+  if(p === 'facebook') return `https://facebook.com/${item.handle}`;
+  if(p === 'youtube') return `https://youtube.com/@${item.handle.replace(/^@/, '')}`;
+  if(p === 'x / twitter') return `https://x.com/${item.handle.replace(/^@/, '')}`;
+  return item.handle.startsWith('http') ? item.handle : `https://${item.handle}`;
+}
+function radarLink(item){
+  return item.link || radarLinkDesdeHandle(item);
+}
+
+// Mismo patron de matching por dominio que usa api/check-link.js, en
+// direccion inversa: del link deducimos la plataforma, editable despues.
+function detectarPlataformaDeLink(url){
+  if(!url) return '';
+  let hostname = '';
+  try{
+    hostname = new URL(/^https?:\/\//i.test(url) ? url : 'https://' + url).hostname.toLowerCase();
+  }catch(e){
+    return '';
+  }
+  if(hostname.includes('tiktok.com')) return 'TikTok';
+  if(hostname.includes('instagram.com')) return 'Instagram';
+  if(hostname.includes('facebook.com') || hostname.includes('fb.com')) return 'Facebook';
+  if(hostname.includes('youtube.com') || hostname.includes('youtu.be')) return 'YouTube';
+  if(hostname.includes('x.com') || hostname.includes('twitter.com')) return 'X / Twitter';
+  if(hostname.includes('linkedin.com')) return 'LinkedIn';
+  return 'Otro';
+}
+
+function calcOrigenRadar(item){
+  const tieneDetalle = RADAR_CAMPOS_DETALLE.some(k => (item[k] || '').toString().trim() !== '');
+  return tieneDetalle ? 'manual' : 'pendiente';
+}
+
+function initRadarAddForm(){
+  document.getElementById('radar-add-plataforma').innerHTML = '<option value="">—</option>' + RADAR_PLATAFORMAS.map(p => `<option value="${p}">${p}</option>`).join('');
+  document.getElementById('radar-add-tipo').innerHTML = '<option value="">—</option>' + RADAR_TIPOS.map(t => `<option value="${t}">${t}</option>`).join('');
+  document.getElementById('radar-add-link').addEventListener('input', (e) => {
+    const detectada = detectarPlataformaDeLink(e.target.value.trim());
+    if(detectada) document.getElementById('radar-add-plataforma').value = detectada;
+  });
+}
+
+function renderRadar(){
+  const grid = document.getElementById('radar-grid');
+  if(radarState.length === 0){
+    grid.innerHTML = '<div class="log-empty">Todavía no hay referentes. Usa "+ Agregar cuenta".</div>';
+    return;
+  }
+  grid.innerHTML = radarState.map(item => `
+    <div class="ref-card" data-id="${item.id}">
+      <div class="ref-top">
+        <div class="field" style="flex:1;margin-bottom:0;"><input type="text" placeholder="https://..." value="${escapeHtml(item.link || radarLinkDesdeHandle(item))}" data-field="link"></div>
+        <button class="icon-btn" onclick="deleteRadarCard('${item.id}')">✕</button>
+      </div>
+      <div class="field"><label>Plataforma</label><select data-field="plataforma">
+        <option value="">—</option>
+        ${RADAR_PLATAFORMAS.map(p => `<option value="${p}" ${item.plataforma === p ? 'selected' : ''}>${p}</option>`).join('')}
+      </select></div>
+      <div class="ref-link-row">
+        <button type="button" class="verify-btn" data-verify>Verificar</button>
+        <span class="verify-status" data-verify-status></span>
+      </div>
+      <details class="ref-details" ${item.origen === 'manual' ? 'open' : ''}>
+        <summary>+ agregar detalles manualmente</summary>
+        <div class="field"><label>Nombre de cuenta</label><input type="text" value="${escapeHtml(item.nombre_cuenta)}" data-field="nombre_cuenta"></div>
+        <div class="field"><label>Tipo</label><select data-field="tipo">
+          <option value="">—</option>
+          ${RADAR_TIPOS.map(t => `<option value="${t}" ${item.tipo === t ? 'selected' : ''}>${t}</option>`).join('')}
+        </select></div>
+        <div class="field"><label>Seguidores aprox.</label><input type="text" value="${escapeHtml(item.seguidores_aprox)}" data-field="seguidores_aprox"></div>
+        <div class="field"><label>Qué hace bien</label><textarea data-field="que_hace_bien">${escapeHtml(item.que_hace_bien)}</textarea></div>
+        <div class="field"><label>Qué podemos aprender</label><textarea data-field="que_podemos_aprender">${escapeHtml(item.que_podemos_aprender)}</textarea></div>
+        <div class="field"><label>Frecuencia de publicación</label><input type="text" value="${escapeHtml(item.frecuencia_publicacion)}" data-field="frecuencia_publicacion"></div>
+        <div class="field"><label>Notas</label><textarea data-field="notas">${escapeHtml(item.notas)}</textarea></div>
+      </details>
+      <div class="qdate">${escapeHtml(item.date)}<span data-origen-label class="origen-pendiente">${item.origen === 'pendiente' ? ' · Pendiente de detalles' : ''}</span></div>
+    </div>
+  `).join('');
+
+  grid.querySelectorAll('.ref-card').forEach(card => {
+    const id = card.dataset.id;
+    card.querySelectorAll('[data-field]').forEach(el => {
+      el.addEventListener('input', () => {
+        const item = radarState.find(r => r.id === id);
+        if(!item) return;
+        item[el.dataset.field] = el.value;
+        item.origen = calcOrigenRadar(item);
+        const label = card.querySelector('[data-origen-label]');
+        if(label) label.textContent = item.origen === 'pendiente' ? ' · Pendiente de detalles' : '';
+        scheduleRadarSave();
+      });
+    });
+    card.querySelector('[data-verify]').addEventListener('click', async () => {
+      const item = radarState.find(r => r.id === id);
+      const statusEl = card.querySelector('[data-verify-status]');
+      const url = radarLink(item);
+      if(!url){ statusEl.textContent = 'Sin link'; statusEl.style.color = 'var(--text-dim)'; return; }
+      statusEl.textContent = 'Revisando...';
+      statusEl.style.color = 'var(--text-dim)';
+      try{
+        const res = await fetch('/api/check-link?url=' + encodeURIComponent(url));
+        const data = await res.json();
+        statusEl.textContent = data.ok ? '✓ Verificado' : '✕ No accesible';
+        statusEl.style.color = data.ok ? '#22C55E' : '#F87171';
+      }catch(err){
+        statusEl.textContent = '✕ Error';
+        statusEl.style.color = '#F87171';
+      }
+    });
+  });
+}
+
+function addRadarCard(){
+  const link = document.getElementById('radar-add-link').value.trim();
+  const statusEl = document.getElementById('radar-status');
+  if(!link){
+    statusEl.textContent = 'Escribe un link primero.';
+    statusEl.style.color = 'var(--text-dim)';
+    return;
+  }
+  const nuevo = {
+    id: newId(),
+    link,
+    plataforma: document.getElementById('radar-add-plataforma').value,
+    handle: '',
+    nombre_cuenta: document.getElementById('radar-add-nombre').value.trim(),
+    tipo: document.getElementById('radar-add-tipo').value,
+    seguidores_aprox: document.getElementById('radar-add-seguidores').value.trim(),
+    que_hace_bien: document.getElementById('radar-add-quehacebien').value.trim(),
+    que_podemos_aprender: document.getElementById('radar-add-queaprender').value.trim(),
+    frecuencia_publicacion: document.getElementById('radar-add-frecuencia').value.trim(),
+    notas: document.getElementById('radar-add-notas').value.trim(),
+    date: new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }),
+  };
+  nuevo.origen = calcOrigenRadar(nuevo);
+  radarState.push(nuevo);
+
+  document.getElementById('radar-add-link').value = '';
+  document.getElementById('radar-add-plataforma').value = '';
+  document.getElementById('radar-add-nombre').value = '';
+  document.getElementById('radar-add-tipo').value = '';
+  document.getElementById('radar-add-seguidores').value = '';
+  document.getElementById('radar-add-quehacebien').value = '';
+  document.getElementById('radar-add-queaprender').value = '';
+  document.getElementById('radar-add-frecuencia').value = '';
+  document.getElementById('radar-add-notas').value = '';
+  document.getElementById('radar-add-details').open = false;
+
+  renderRadar();
+  scheduleRadarSave();
+}
+function deleteRadarCard(id){
+  radarState = radarState.filter(r => r.id !== id);
+  renderRadar();
+  scheduleRadarSave();
+}
+function scheduleRadarSave(){
+  radarPending = true;
+  document.getElementById('radar-status').textContent = 'Guardando...';
+  clearTimeout(radarSaveTimer);
+  radarSaveTimer = setTimeout(() => doSaveRadar(), 500);
+}
+async function doSaveRadar(opts){
+  clearTimeout(radarSaveTimer); radarSaveTimer = null;
+  if(!radarPending) return;
+  try{
+    await window.storage.set(storageKey('radar-referentes'), JSON.stringify(radarState), opts);
+    radarPending = false;
+    document.getElementById('radar-status').textContent = 'Guardado.';
+  }catch(e){
+    document.getElementById('radar-status').textContent = e.status === 401 ? 'Token incorrecto — vuelve a intentar guardar.' : 'No se pudo guardar (revisa tu conexión).';
+  }
+}
+registerFlusher(() => { if(radarPending) doSaveRadar({ keepalive: true }); });
+
+// ==================== 13. OPTIMIZACION INICIAL ====================
+const OPTIMIZACION_PREGUNTAS = [
+  '¿Tiene fotos o video profesional de sus productos/servicio?',
+  '¿Ya ha corrido anuncios pagados antes?',
+  '¿Tiene una base de datos o lista de clientes?',
+  '¿Su equipo responde mensajes en menos de 1 hora?',
+  '¿Tiene testimonios o reseñas de clientes reales?',
+  '¿Tiene catálogo, menú o lista de precios actualizado?',
+];
+let optimizacionState = { items: [] };
+async function loadOptimizacion(){
+  const data = await loadObj('optimizacion_inicial');
+  const saved = {};
+  (data.items || []).forEach(i => { saved[i.pregunta] = i.respuesta; });
+  optimizacionState = { items: OPTIMIZACION_PREGUNTAS.map(p => ({ pregunta: p, respuesta: saved[p] || '' })) };
+  renderOptimizacion();
+}
+function renderOptimizacion(){
+  const container = document.getElementById('optimizacion-list');
+  container.innerHTML = optimizacionState.items.map((item, i) => `
+    <div class="field">
+      <label>${escapeHtml(item.pregunta)}</label>
+      <div class="chips" data-i="${i}">
+        ${['Sí', 'Algo', 'No'].map(op => `<button type="button" class="chip${item.respuesta === op ? ' selected' : ''}" data-op="${op}">${op}</button>`).join('')}
+      </div>
+    </div>
+  `).join('');
+  container.querySelectorAll('[data-i]').forEach(group => {
+    const i = parseInt(group.dataset.i, 10);
+    group.querySelectorAll('.chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        optimizacionState.items[i].respuesta = btn.dataset.op;
+        renderOptimizacion();
+      });
+    });
+  });
+}
+function saveOptimizacion(){
+  saveObj('optimizacion_inicial', optimizacionState, 'optimizacion-status');
+}
+
+// ==================== INIT ====================
+loadIdentidad();
+loadVisual();
+loadTono();
+loadRedes();
+loadAudiencia();
+loadCatalogo();
+loadMetricasFinancieros();
+loadJourney();
+loadListaMaestra();
+loadObjetivos();
+loadContenido();
+initRadarAddForm();
+loadRadar();
+loadOptimizacion();
+</script>
+</body>
+</html>

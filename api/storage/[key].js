@@ -18,7 +18,10 @@ module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
 
   const { key } = req.query;
-  if (!key || Array.isArray(key) || !/^[a-zA-Z0-9_:-]+$/.test(key)) {
+  // Permite letras, numeros, "_", "-", ":" (prefijo multi-tenant "cliente:key")
+  // y "." (subclaves tipo "brand-book.identidad"). Sigue rechazando espacios,
+  // barras y comillas — cualquier caracter fuera de esta lista tumba el match.
+  if (!key || Array.isArray(key) || !/^[a-zA-Z0-9_.:-]+$/.test(key)) {
     return res.status(400).json({ error: 'Key inválida.' });
   }
 
@@ -55,7 +58,9 @@ module.exports = async function handler(req, res) {
       return res.status(400).json({ error: 'Falta value.' });
     }
     const json = JSON.stringify(body.value);
-    if (json.length > 2000000) {
+    // 6MB: deja margen para el logo (base64, ya redimensionado a ~400px en el
+    // cliente antes de guardarse) conviviendo con el resto del value en la misma key.
+    if (json.length > 6000000) {
       return res.status(413).json({ error: 'Valor demasiado grande.' });
     }
     try {
