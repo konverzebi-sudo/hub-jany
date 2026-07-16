@@ -375,17 +375,33 @@
   <section class="tab-panel" id="panel-clienteideal">
     <div class="panel-head"><h2>Cliente ideal y objeciones</h2><div class="panel-desc">Cada campo que llenes se guarda como una entrada individual en la lista maestra del cliente ideal.</div></div>
     <div class="card">
-      <div class="field"><label>¿Quién compra hoy?</label><textarea id="ci-quien-compra"></textarea></div>
-      <div class="field"><label>¿Qué busca?</label><textarea id="ci-que-busca"></textarea></div>
-      <div class="field"><label>Objeción común</label><textarea id="ci-objecion-comun"></textarea></div>
-      <div class="field-row">
-        <div class="field"><label>Por qué SÍ compran</label><textarea id="ci-por-que-si"></textarea></div>
-        <div class="field"><label>Por qué NO compran</label><textarea id="ci-por-que-no"></textarea></div>
+      <div id="ci-campos-nuevo">
+        <div class="field"><label>¿Quién compra hoy?</label><textarea id="ci-quien-compra"></textarea></div>
+        <div class="field"><label>¿Qué busca?</label><textarea id="ci-que-busca"></textarea></div>
+        <div class="field"><label>Objeción común</label><textarea id="ci-objecion-comun"></textarea></div>
+        <div class="field-row">
+          <div class="field"><label>Por qué SÍ compran</label><textarea id="ci-por-que-si"></textarea></div>
+          <div class="field"><label>Por qué NO compran</label><textarea id="ci-por-que-no"></textarea></div>
+        </div>
+        <div class="field"><label>Dudas frecuentes</label><textarea id="ci-dudas"></textarea></div>
+        <div class="field"><label>Preguntas frecuentes</label><textarea id="ci-preguntas"></textarea></div>
+        <div class="field"><label>Frases reales de clientes (una por línea)</label><textarea id="ci-frases" placeholder="Una frase por línea..."></textarea></div>
       </div>
-      <div class="field"><label>Dudas frecuentes</label><textarea id="ci-dudas"></textarea></div>
-      <div class="field"><label>Preguntas frecuentes</label><textarea id="ci-preguntas"></textarea></div>
-      <div class="field"><label>Frases reales de clientes (una por línea)</label><textarea id="ci-frases" placeholder="Una frase por línea..."></textarea></div>
-      <button class="ask-btn" onclick="saveClienteIdeal()">Guardar en la lista maestra</button>
+      <div id="ci-campos-editar" style="display:none;">
+        <div class="field"><label>Texto</label><textarea id="ci-edit-text"></textarea></div>
+        <div class="field"><label>Tipo</label>
+          <select id="ci-edit-tipo">
+            <option value="dolor_visible">Dolor visible</option>
+            <option value="dolor_oculto">Dolor oculto</option>
+            <option value="deseo_visible">Deseo visible</option>
+            <option value="deseo_secreto">Deseo secreto</option>
+            <option value="miedo">Miedo</option>
+            <option value="objecion">Objeción</option>
+          </select>
+        </div>
+      </div>
+      <button class="ask-btn" id="ci-save-btn" onclick="saveClienteIdeal()">Guardar en la lista maestra</button>
+      <button class="ask-btn" id="ci-cancel-btn" style="display:none;margin-left:8px;background:var(--surface-2);color:var(--text-dim);border:1px solid var(--line);" onclick="cancelarEdicionClienteIdeal()">Cancelar edición</button>
       <div id="clienteideal-status" class="log-status"></div>
     </div>
     <hr class="divider">
@@ -937,6 +953,8 @@ const CAMPO_TIPO_MAP = {
   'ci-preguntas': 'objecion',
 };
 
+let editingLmId = null;
+
 async function loadListaMaestra(){
   try{
     const result = await window.storage.get(storageKey('lista-maestra-cliente-ideal'));
@@ -952,16 +970,31 @@ function renderListaMaestra(items){
     listEl.innerHTML = '<div class="log-empty">Todavía no hay nada guardado aquí.</div>';
     return;
   }
-  listEl.innerHTML = items.slice().reverse().map(item => `
+  const ordenados = items.slice().reverse();
+  listEl.innerHTML = ordenados.map(item => `
     <div class="log-item">
       <div>
-        <div class="qtext"><span class="tag-pill">${escapeHtml(TIPO_LABELS[item.tipo] || item.tipo)}</span><span class="tag-pill dim">${escapeHtml(ORIGEN_LABELS[item.origen] || item.origen)}</span></div>
+        <div class="qtext">
+          <span class="tag-pill">${escapeHtml(TIPO_LABELS[item.tipo] || item.tipo)}</span><span class="tag-pill dim">${escapeHtml(ORIGEN_LABELS[item.origen] || item.origen)}</span>${item.editado ? '<span class="tag-pill dim">✏️ Editado</span>' : ''}
+        </div>
         <div class="qtext" style="margin-top:6px;">${escapeHtml(item.text)}</div>
         <div class="qdate">${escapeHtml(item.date)}</div>
       </div>
-      <button onclick="deleteListaMaestraItem('${item.id}')">Eliminar</button>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <button data-edit-id="${item.id}">Editar</button>
+        <button data-delete-id="${item.id}">Eliminar</button>
+      </div>
     </div>
   `).join('');
+  listEl.querySelectorAll('[data-edit-id]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const item = items.find(i => i.id === btn.dataset.editId);
+      if(item) iniciarEdicionClienteIdeal(item);
+    });
+  });
+  listEl.querySelectorAll('[data-delete-id]').forEach(btn => {
+    btn.addEventListener('click', () => deleteListaMaestraItem(btn.dataset.deleteId));
+  });
 }
 async function deleteListaMaestraItem(id){
   try{
@@ -969,11 +1002,39 @@ async function deleteListaMaestraItem(id){
     let items = result && result.value ? JSON.parse(result.value) : [];
     items = items.filter(i => i.id !== id);
     await window.storage.set(storageKey('lista-maestra-cliente-ideal'), JSON.stringify(items));
+    if(editingLmId === id) cancelarEdicionClienteIdeal();
     renderListaMaestra(items);
   }catch(e){}
 }
 
+function iniciarEdicionClienteIdeal(item){
+  editingLmId = item.id;
+  document.getElementById('ci-campos-nuevo').style.display = 'none';
+  document.getElementById('ci-campos-editar').style.display = '';
+  document.getElementById('ci-edit-text').value = item.text;
+  document.getElementById('ci-edit-tipo').value = item.tipo;
+  document.getElementById('ci-save-btn').textContent = 'Actualizar';
+  document.getElementById('ci-cancel-btn').style.display = '';
+  document.getElementById('clienteideal-status').textContent = '';
+  document.getElementById('panel-clienteideal').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function cancelarEdicionClienteIdeal(){
+  editingLmId = null;
+  document.getElementById('ci-campos-nuevo').style.display = '';
+  document.getElementById('ci-campos-editar').style.display = 'none';
+  document.getElementById('ci-edit-text').value = '';
+  document.getElementById('ci-save-btn').textContent = 'Guardar en la lista maestra';
+  document.getElementById('ci-cancel-btn').style.display = 'none';
+  document.getElementById('clienteideal-status').textContent = '';
+}
+
 async function saveClienteIdeal(){
+  if(editingLmId){
+    await actualizarListaMaestraItem();
+    return;
+  }
+
   const statusEl = document.getElementById('clienteideal-status');
   const hoy = new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
   const nuevasEntradas = [];
@@ -1003,6 +1064,39 @@ async function saveClienteIdeal(){
     statusEl.style.color = '#22C55E';
     setTimeout(() => { statusEl.textContent = ''; }, 2400);
     renderListaMaestra(merged);
+  }catch(e){
+    statusEl.textContent = e.status === 401 ? 'Token incorrecto — vuelve a intentar guardar.' : 'No se pudo guardar, intenta de nuevo.';
+    statusEl.style.color = '#F87171';
+  }
+}
+
+async function actualizarListaMaestraItem(){
+  const statusEl = document.getElementById('clienteideal-status');
+  const text = document.getElementById('ci-edit-text').value.trim();
+  const tipo = document.getElementById('ci-edit-tipo').value;
+  if(!text){ statusEl.textContent = 'Escribe algo primero.'; statusEl.style.color = 'var(--text-dim)'; return; }
+  const hoy = new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  try{
+    const result = await window.storage.get(storageKey('lista-maestra-cliente-ideal'));
+    let items = result && result.value ? JSON.parse(result.value) : [];
+    const idx = items.findIndex(i => i.id === editingLmId);
+    if(idx === -1){
+      statusEl.textContent = 'Esa entrada ya no existe (puede que se haya eliminado).';
+      statusEl.style.color = '#F87171';
+      cancelarEdicionClienteIdeal();
+      renderListaMaestra(items);
+      return;
+    }
+    // origen se conserva del original a proposito: el texto se ajusto, pero
+    // sigue viniendo de donde vino (conversacion real o manual).
+    items[idx] = { ...items[idx], text, tipo, editado: true, date: hoy };
+    await window.storage.set(storageKey('lista-maestra-cliente-ideal'), JSON.stringify(items));
+    statusEl.textContent = 'Actualizado ✓';
+    statusEl.style.color = '#22C55E';
+    setTimeout(() => { statusEl.textContent = ''; }, 1800);
+    renderListaMaestra(items);
+    cancelarEdicionClienteIdeal();
   }catch(e){
     statusEl.textContent = e.status === 401 ? 'Token incorrecto — vuelve a intentar guardar.' : 'No se pudo guardar, intenta de nuevo.';
     statusEl.style.color = '#F87171';
