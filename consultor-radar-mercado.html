@@ -63,34 +63,61 @@
   .section-head h2{font-size:19px;margin:0;}
   .section-head .sub{font-size:12.5px;color:var(--text-dim);}
 
-  /* REFERENTES SUMMARY */
+  /* REFERENTES — form card */
   .ref-summary{
     background:var(--surface);
     border:1px solid var(--line);
     border-radius:14px;
     padding:16px 18px;
   }
-  .ref-summary .ref-count{
+  .field-row{display:flex;gap:12px;}
+  @media(max-width:560px){.field-row{flex-direction:column;gap:0;}}
+  .field{margin-bottom:10px;flex:1;}
+  .field label{
     font-family:'JetBrains Mono',monospace;
-    font-size:12px;
+    font-size:10.5px;
+    text-transform:uppercase;
+    letter-spacing:.04em;
     color:var(--text-dim);
-    margin-bottom:10px;
+    display:block;
+    margin-bottom:6px;
   }
-  .ref-summary .ref-count b{color:var(--accent);}
-  .ref-chip-list{display:flex;flex-wrap:wrap;gap:8px;}
-  .ref-chip{
+  .field input, .field select, .field textarea{
+    width:100%;
     background:var(--surface-2);
     border:1px solid var(--line);
-    border-radius:100px;
-    padding:6px 12px;
-    font-size:12.5px;
-    color:var(--text-dim);
-    display:inline-flex;
-    align-items:center;
-    gap:6px;
+    border-radius:8px;
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    font-size:13px;
+    padding:9px 10px;
+    outline:none;
   }
-  .ref-chip a{color:var(--text);text-decoration:none;}
-  .ref-chip a:hover{color:var(--accent);}
+  .field textarea{min-height:64px;resize:vertical;}
+  .field input:focus, .field select:focus, .field textarea:focus{border-color:var(--accent);}
+  .ref-details{margin-top:2px;margin-bottom:10px;border-top:1px solid var(--line);padding-top:10px;}
+  .ref-details summary{
+    cursor:pointer;font-size:11px;color:var(--accent);font-family:'JetBrains Mono',monospace;
+    text-transform:uppercase;letter-spacing:.04em;list-style:none;margin-bottom:10px;
+  }
+  .ref-details summary::-webkit-details-marker{display:none;}
+
+  /* REFERENTES — grid de cuentas guardadas */
+  .card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;}
+  .ref-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;}
+  .ref-card .ref-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;}
+  .ref-card .ref-name{font-weight:700;font-size:14px;}
+  .ref-card .ref-meta{font-size:11px;color:var(--text-dim);margin-top:2px;font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.03em;}
+  .ref-card .ref-link{font-size:12px;color:#7CB9E8;word-break:break-all;display:block;margin-bottom:8px;text-decoration:none;}
+  .ref-card .ref-link:hover{color:var(--accent);}
+  .ref-card .ref-notes{font-size:12.5px;color:var(--text-dim);line-height:1.5;}
+  .ref-card .ref-actions{display:flex;gap:8px;flex:none;}
+  .icon-btn{
+    background:transparent;border:1px solid var(--line);color:var(--text-dim);
+    border-radius:7px;padding:5px 9px;font-size:11px;cursor:pointer;
+  }
+  .icon-btn:hover{border-color:#EF4444;color:#EF4444;}
+  .icon-btn.edit:hover{border-color:var(--accent);color:var(--accent);}
 
   /* MODES GRID */
   .modes-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
@@ -173,7 +200,8 @@
     transition:.15s;
   }
   .run-btn:hover{filter:brightness(1.1);transform:translateY(-1px);}
-  .run-btn:disabled{opacity:.5;cursor:wait;}
+  .run-btn:disabled{opacity:.5;cursor:not-allowed;}
+  .log-status{font-size:12px;color:#22C55E;min-height:16px;margin-top:8px;}
 
   /* RESULT */
   #resultBox{margin-top:20px;}
@@ -255,12 +283,32 @@
   <div class="section">
     <div class="section-head">
       <h2>Radar de referentes</h2>
-      <div class="sub">Gestionado en el Brand Book — aquí solo se usa para el análisis.</div>
+      <div class="sub" id="refCounterSub">Cargando cuentas...</div>
     </div>
-    <div class="ref-summary">
-      <div class="ref-count" id="refCount">Cargando cuentas...</div>
-      <div class="ref-chip-list" id="refChips"></div>
+
+    <div class="ref-summary" id="refFormCard">
+      <div class="field-row">
+        <div class="field"><label>Link</label><input type="text" id="radar-add-link" placeholder="https://instagram.com/usuario"></div>
+        <div class="field"><label>Plataforma</label><select id="radar-add-plataforma"></select></div>
+      </div>
+      <details class="ref-details" id="radar-add-details">
+        <summary>+ agregar detalles manualmente</summary>
+        <div class="field"><label>Nombre de cuenta</label><input type="text" id="radar-add-nombre"></div>
+        <div class="field"><label>Tipo</label><select id="radar-add-tipo"></select></div>
+        <div class="field"><label>Seguidores aprox.</label><input type="text" id="radar-add-seguidores"></div>
+        <div class="field"><label>Qué hace bien</label><textarea id="radar-add-quehacebien"></textarea></div>
+        <div class="field"><label>Qué podemos aprender</label><textarea id="radar-add-queaprender"></textarea></div>
+        <div class="field"><label>Frecuencia de publicación</label><input type="text" id="radar-add-frecuencia"></div>
+        <div class="field"><label>Notas</label><textarea id="radar-add-notas"></textarea></div>
+      </details>
+      <div class="extra-controls">
+        <button class="ghost-btn" id="radar-cancel-btn" style="display:none;" onclick="cancelarEdicionReferente()">Cancelar</button>
+        <button class="run-btn" id="radar-save-btn" onclick="guardarReferente()">+ Agregar cuenta</button>
+      </div>
+      <div id="radar-status" class="log-status"></div>
     </div>
+
+    <div class="card-grid" id="radar-grid" style="margin-top:14px;"></div>
   </div>
 
   <div class="section">
@@ -403,26 +451,244 @@ function copyText(btn, text){
   });
 }
 
-// ---------- RADAR DE REFERENTES (solo lectura) ----------
+// ---------- RADAR DE REFERENTES (CRUD, límite de 10) ----------
+const RADAR_TIPOS = ['Competencia directa', 'Inspiración', 'Aliado potencial'];
+const RADAR_PLATAFORMAS = ['Instagram', 'TikTok', 'Facebook', 'YouTube', 'X / Twitter', 'LinkedIn', 'Otro'];
+const RADAR_LIMIT = 10;
+// Campos que, si tienen contenido, marcan la cuenta como origen:'manual' en
+// vez de 'pendiente' (solo link+plataforma, sin detalles todavía). Mismo
+// criterio que usaba ADN.html antes de que este tab se moviera aquí.
+const RADAR_CAMPOS_DETALLE = ['nombre_cuenta', 'tipo', 'seguidores_aprox', 'que_hace_bien', 'que_podemos_aprender', 'frecuencia_publicacion', 'notas'];
+
+let referentesState = [];
+let editingRefId = null;
+
+function newId(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+function escapeHtml(str){
+  const d = document.createElement('div');
+  d.textContent = str == null ? '' : String(str);
+  return d.innerHTML;
+}
+
+// Mismo patrón de matching por dominio que usa ADN.html / api/check-link.js,
+// en dirección inversa: del link deducimos la plataforma, editable después.
+function detectarPlataformaDeLink(url){
+  if(!url) return '';
+  let hostname = '';
+  try{
+    hostname = new URL(/^https?:\/\//i.test(url) ? url : 'https://' + url).hostname.toLowerCase();
+  }catch(e){
+    return '';
+  }
+  if(hostname.includes('tiktok.com')) return 'TikTok';
+  if(hostname.includes('instagram.com')) return 'Instagram';
+  if(hostname.includes('facebook.com') || hostname.includes('fb.com')) return 'Facebook';
+  if(hostname.includes('youtube.com') || hostname.includes('youtu.be')) return 'YouTube';
+  if(hostname.includes('x.com') || hostname.includes('twitter.com')) return 'X / Twitter';
+  if(hostname.includes('linkedin.com')) return 'LinkedIn';
+  return 'Otro';
+}
+
+function calcOrigenRadar(item){
+  const tieneDetalle = RADAR_CAMPOS_DETALLE.some(k => (item[k] || '').toString().trim() !== '');
+  return tieneDetalle ? 'manual' : 'pendiente';
+}
+
+function initRadarAddForm(){
+  document.getElementById('radar-add-plataforma').innerHTML = '<option value="">—</option>' + RADAR_PLATAFORMAS.map(p => `<option value="${p}">${p}</option>`).join('');
+  document.getElementById('radar-add-tipo').innerHTML = '<option value="">—</option>' + RADAR_TIPOS.map(t => `<option value="${t}">${t}</option>`).join('');
+  document.getElementById('radar-add-link').addEventListener('input', (e) => {
+    const detectada = detectarPlataformaDeLink(e.target.value.trim());
+    if(detectada) document.getElementById('radar-add-plataforma').value = detectada;
+  });
+}
+
 async function loadReferentes(){
-  const countEl = document.getElementById('refCount');
-  const chipsEl = document.getElementById('refChips');
   try{
     const result = await window.storage.get(storageKey('radar-referentes'), false);
-    const items = result && result.value ? JSON.parse(result.value) : [];
-    if(!items.length){
-      countEl.innerHTML = 'Todavía no hay cuentas guardadas en <span class="mono">radar-referentes</span>.';
-      chipsEl.innerHTML = '';
-      return;
-    }
-    countEl.innerHTML = `<b>${items.length}</b> cuenta${items.length === 1 ? '' : 's'} en el radar de referentes`;
-    chipsEl.innerHTML = items.map(it => {
-      const nombre = it.nombre_cuenta || it.plataforma || 'Sin nombre';
-      const link = it.link || '';
-      return `<span class="ref-chip">${link ? `<a href="${link}" target="_blank" rel="noopener">${nombre}</a>` : nombre} · ${it.plataforma || '—'}</span>`;
-    }).join('');
+    referentesState = result && result.value ? JSON.parse(result.value) : [];
   } catch(e){
-    countEl.textContent = 'No se pudo cargar el radar de referentes.';
+    referentesState = [];
+  }
+  renderReferentesCounter();
+  renderReferentesGrid();
+}
+
+function renderReferentesCounter(){
+  const subEl = document.getElementById('refCounterSub');
+  const n = referentesState.length;
+  subEl.textContent = `${n} / ${RADAR_LIMIT} cuentas guardadas` + (n >= RADAR_LIMIT ? ' — límite alcanzado, elimina una para agregar otra' : '');
+  if(!editingRefId){
+    document.getElementById('radar-save-btn').disabled = n >= RADAR_LIMIT;
+  }
+}
+
+function renderReferentesGrid(){
+  const grid = document.getElementById('radar-grid');
+  if(referentesState.length === 0){
+    grid.innerHTML = '<div class="log-empty">Todavía no hay cuentas. Usa "+ Agregar cuenta".</div>';
+    return;
+  }
+  grid.innerHTML = referentesState.map(item => `
+    <div class="ref-card">
+      <div class="ref-top">
+        <div>
+          <div class="ref-name">${escapeHtml(item.nombre_cuenta || item.plataforma || 'Sin nombre')}</div>
+          <div class="ref-meta">${escapeHtml(item.plataforma || 'Plataforma sin definir')} · ${escapeHtml(item.tipo || 'Tipo sin definir')}${item.origen === 'pendiente' ? ' · Pendiente de detalles' : ''}</div>
+        </div>
+        <div class="ref-actions">
+          <button class="icon-btn edit" type="button" onclick="iniciarEdicionReferente('${item.id}')">Editar</button>
+          <button class="icon-btn" type="button" onclick="eliminarReferente('${item.id}')">✕</button>
+        </div>
+      </div>
+      ${item.link ? `<a class="ref-link" href="${escapeHtml(item.link)}" target="_blank" rel="noopener">${escapeHtml(item.link)}</a>` : ''}
+      ${item.notas ? `<div class="ref-notes">${escapeHtml(item.notas)}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+function leerCamposReferenteForm(){
+  return {
+    link: document.getElementById('radar-add-link').value.trim(),
+    plataforma: document.getElementById('radar-add-plataforma').value,
+    nombre_cuenta: document.getElementById('radar-add-nombre').value.trim(),
+    tipo: document.getElementById('radar-add-tipo').value,
+    seguidores_aprox: document.getElementById('radar-add-seguidores').value.trim(),
+    que_hace_bien: document.getElementById('radar-add-quehacebien').value.trim(),
+    que_podemos_aprender: document.getElementById('radar-add-queaprender').value.trim(),
+    frecuencia_publicacion: document.getElementById('radar-add-frecuencia').value.trim(),
+    notas: document.getElementById('radar-add-notas').value.trim(),
+  };
+}
+
+function limpiarReferenteForm(){
+  document.getElementById('radar-add-link').value = '';
+  document.getElementById('radar-add-plataforma').value = '';
+  document.getElementById('radar-add-nombre').value = '';
+  document.getElementById('radar-add-tipo').value = '';
+  document.getElementById('radar-add-seguidores').value = '';
+  document.getElementById('radar-add-quehacebien').value = '';
+  document.getElementById('radar-add-queaprender').value = '';
+  document.getElementById('radar-add-frecuencia').value = '';
+  document.getElementById('radar-add-notas').value = '';
+  document.getElementById('radar-add-details').open = false;
+}
+
+function iniciarEdicionReferente(id){
+  const item = referentesState.find(r => r.id === id);
+  if(!item) return;
+  editingRefId = id;
+  document.getElementById('radar-add-link').value = item.link || '';
+  document.getElementById('radar-add-plataforma').value = item.plataforma || '';
+  document.getElementById('radar-add-nombre').value = item.nombre_cuenta || '';
+  document.getElementById('radar-add-tipo').value = item.tipo || '';
+  document.getElementById('radar-add-seguidores').value = item.seguidores_aprox || '';
+  document.getElementById('radar-add-quehacebien').value = item.que_hace_bien || '';
+  document.getElementById('radar-add-queaprender').value = item.que_podemos_aprender || '';
+  document.getElementById('radar-add-frecuencia').value = item.frecuencia_publicacion || '';
+  document.getElementById('radar-add-notas').value = item.notas || '';
+  document.getElementById('radar-add-details').open = RADAR_CAMPOS_DETALLE.some(k => (item[k] || '').toString().trim() !== '');
+  document.getElementById('radar-save-btn').textContent = 'Actualizar cuenta';
+  document.getElementById('radar-save-btn').disabled = false;
+  document.getElementById('radar-cancel-btn').style.display = '';
+  document.getElementById('radar-status').textContent = '';
+  document.getElementById('refFormCard').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function cancelarEdicionReferente(){
+  editingRefId = null;
+  limpiarReferenteForm();
+  document.getElementById('radar-save-btn').textContent = '+ Agregar cuenta';
+  document.getElementById('radar-cancel-btn').style.display = 'none';
+  document.getElementById('radar-status').textContent = '';
+  renderReferentesCounter();
+}
+
+async function guardarReferente(){
+  if(editingRefId){
+    await actualizarReferente();
+    return;
+  }
+  const statusEl = document.getElementById('radar-status');
+  if(referentesState.length >= RADAR_LIMIT){
+    statusEl.textContent = `Límite de ${RADAR_LIMIT} cuentas alcanzado — elimina una para agregar otra.`;
+    statusEl.style.color = 'var(--text-dim)';
+    return;
+  }
+  const campos = leerCamposReferenteForm();
+  if(!campos.link){
+    statusEl.textContent = 'Escribe un link primero.';
+    statusEl.style.color = 'var(--text-dim)';
+    return;
+  }
+  const nuevo = Object.assign({
+    id: newId(),
+    date: new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }),
+  }, campos);
+  nuevo.origen = calcOrigenRadar(nuevo);
+
+  const anterior = referentesState;
+  referentesState = referentesState.concat([nuevo]);
+  try{
+    await window.storage.set(storageKey('radar-referentes'), JSON.stringify(referentesState), false);
+    limpiarReferenteForm();
+    statusEl.textContent = 'Guardado ✓';
+    statusEl.style.color = '#22C55E';
+    setTimeout(() => { statusEl.textContent = ''; }, 1800);
+    renderReferentesCounter();
+    renderReferentesGrid();
+  } catch(e){
+    referentesState = anterior;
+    statusEl.textContent = e.status === 401 ? 'Token incorrecto — vuelve a intentar guardar.' : 'No se pudo guardar, intenta de nuevo.';
+    statusEl.style.color = '#F87171';
+  }
+}
+
+async function actualizarReferente(){
+  const statusEl = document.getElementById('radar-status');
+  const campos = leerCamposReferenteForm();
+  if(!campos.link){
+    statusEl.textContent = 'Escribe un link primero.';
+    statusEl.style.color = 'var(--text-dim)';
+    return;
+  }
+  const idx = referentesState.findIndex(r => r.id === editingRefId);
+  if(idx === -1){ cancelarEdicionReferente(); return; }
+
+  const anterior = referentesState;
+  const actualizado = Object.assign({}, referentesState[idx], campos);
+  actualizado.origen = calcOrigenRadar(actualizado);
+  const items = referentesState.slice();
+  items[idx] = actualizado;
+  referentesState = items;
+
+  try{
+    await window.storage.set(storageKey('radar-referentes'), JSON.stringify(referentesState), false);
+    statusEl.textContent = 'Actualizado ✓';
+    statusEl.style.color = '#22C55E';
+    setTimeout(() => { statusEl.textContent = ''; }, 1800);
+    cancelarEdicionReferente();
+    renderReferentesGrid();
+  } catch(e){
+    referentesState = anterior;
+    statusEl.textContent = e.status === 401 ? 'Token incorrecto — vuelve a intentar guardar.' : 'No se pudo guardar, intenta de nuevo.';
+    statusEl.style.color = '#F87171';
+  }
+}
+
+async function eliminarReferente(id){
+  const statusEl = document.getElementById('radar-status');
+  const anterior = referentesState;
+  referentesState = referentesState.filter(r => r.id !== id);
+  try{
+    await window.storage.set(storageKey('radar-referentes'), JSON.stringify(referentesState), false);
+    if(editingRefId === id) cancelarEdicionReferente();
+    renderReferentesCounter();
+    renderReferentesGrid();
+  } catch(e){
+    referentesState = anterior;
+    statusEl.textContent = e.status === 401 ? 'Token incorrecto — vuelve a intentar eliminar.' : 'No se pudo eliminar, intenta de nuevo.';
+    statusEl.style.color = '#F87171';
   }
 }
 
@@ -465,6 +731,7 @@ async function deleteHistorialItem(id){
   } catch(e){}
 }
 
+initRadarAddForm();
 loadReferentes();
 loadHistorial();
 </script>
