@@ -17,6 +17,7 @@ const DEFAULT_CLIENTE = 'rancho-seco';
 // incluir el archivo en el bundle.
 const CLIENTES = {
   'rancho-seco': 'system-prompt-consultor-radar-rancho-seco.md',
+  jefeshub: 'system-prompt-consultor-radar-jefeshub.md',
 };
 
 const promptCache = new Map();
