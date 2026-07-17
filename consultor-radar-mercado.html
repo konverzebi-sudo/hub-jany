@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Consultor Radar de Mercado — JefesHub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0F0B16;
+    --surface:#181120;
+    --surface-2:#211829;
+    --line:#332A3D;
+    --text:#F3EEF9;
+    --text-dim:#B6A9C7;
+    --accent:#B8F725;
+    --accent-soft:#2E3610;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:radial-gradient(1200px 600px at 50% -10%, #241733 0%, var(--bg) 55%);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.display{font-family:'Sora',sans-serif;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+
+  header{
+    padding:38px 20px 24px;
+    text-align:center;
+    max-width:760px;
+    margin:0 auto;
+  }
+  .eyebrow{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--accent);
+    margin-bottom:10px;
+  }
+  header h1{
+    font-size:clamp(28px,4vw,40px);
+    font-weight:800;
+    margin:0 0 8px;
+    line-height:1.1;
+  }
+  header p{
+    color:var(--text-dim);
+    font-size:15px;
+    line-height:1.5;
+    margin:0 auto;
+    max-width:560px;
+  }
+
+  main{max-width:900px;margin:0 auto;padding:10px 20px 80px;}
+
+  .section{margin-bottom:40px;}
+  .section-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap;}
+  .section-head h2{font-size:19px;margin:0;}
+  .section-head .sub{font-size:12.5px;color:var(--text-dim);}
+
+  /* REFERENTES SUMMARY */
+  .ref-summary{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:16px 18px;
+  }
+  .ref-summary .ref-count{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    color:var(--text-dim);
+    margin-bottom:10px;
+  }
+  .ref-summary .ref-count b{color:var(--accent);}
+  .ref-chip-list{display:flex;flex-wrap:wrap;gap:8px;}
+  .ref-chip{
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    border-radius:100px;
+    padding:6px 12px;
+    font-size:12.5px;
+    color:var(--text-dim);
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+  }
+  .ref-chip a{color:var(--text);text-decoration:none;}
+  .ref-chip a:hover{color:var(--accent);}
+
+  /* MODES GRID */
+  .modes-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  @media(max-width:640px){.modes-grid{grid-template-columns:1fr;}}
+  .mode-btn{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:16px 18px;
+    text-align:left;
+    cursor:pointer;
+    color:var(--text);
+    transition:.15s;
+    font-family:'Inter',sans-serif;
+  }
+  .mode-btn:hover{border-color:var(--accent);transform:translateY(-1px);}
+  .mode-btn.active{border-color:var(--accent);background:linear-gradient(160deg, var(--surface) 0%, var(--accent-soft) 220%);}
+  .mode-btn .num{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    color:var(--accent);
+    margin-bottom:6px;
+    display:block;
+  }
+  .mode-btn .t{font-weight:700;font-size:14.5px;margin-bottom:4px;}
+  .mode-btn .d{font-size:12.5px;color:var(--text-dim);line-height:1.4;}
+
+  /* EXTRA INPUT PANEL */
+  #extraPanel{
+    margin-top:14px;
+    background:var(--surface);
+    border:1.5px solid var(--accent);
+    border-radius:14px;
+    padding:18px 20px;
+    display:none;
+  }
+  #extraPanel label{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    color:var(--text-dim);
+    display:block;
+    margin-bottom:8px;
+  }
+  #extraPanel input, #extraPanel textarea{
+    width:100%;
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    border-radius:10px;
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    font-size:14px;
+    padding:12px;
+    outline:none;
+  }
+  #extraPanel textarea{min-height:100px;resize:vertical;}
+  #extraPanel input:focus, #extraPanel textarea:focus{border-color:var(--accent);}
+  .extra-controls{display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap;}
+  .ghost-btn{
+    font-size:12.5px;
+    color:var(--text-dim);
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    padding:9px 12px;
+    border-radius:8px;
+    cursor:pointer;
+  }
+  .ghost-btn:hover{border-color:var(--accent);color:var(--text);}
+  .run-btn{
+    margin-left:auto;
+    background:var(--accent);
+    border:none;
+    color:#0F0B16;
+    font-weight:700;
+    font-size:13.5px;
+    padding:10px 18px;
+    border-radius:9px;
+    cursor:pointer;
+    transition:.15s;
+  }
+  .run-btn:hover{filter:brightness(1.1);transform:translateY(-1px);}
+  .run-btn:disabled{opacity:.5;cursor:wait;}
+
+  /* RESULT */
+  #resultBox{margin-top:20px;}
+  .answer-card{
+    background:var(--surface-2);
+    border-left:3px solid #22C55E;
+    border-radius:10px;
+    padding:16px 18px;
+    font-size:14px;
+    line-height:1.6;
+    white-space:pre-line;
+  }
+  .answer-card .a-label{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#22C55E;text-transform:uppercase;margin-bottom:10px;}
+  .error-card{
+    background:#3B1B1B;border-left:3px solid #EF4444;border-radius:10px;
+    padding:12px 14px;font-size:13px;color:#FCA5A5;
+  }
+  .loading-card{color:var(--text-dim);font-size:13.5px;padding:12px 0;}
+  .copy-btn{
+    background:var(--accent-soft);
+    border:1px solid var(--accent);
+    color:var(--accent);
+    font-family:'Inter',sans-serif;
+    font-size:12.5px;
+    font-weight:600;
+    padding:8px 14px;
+    border-radius:8px;
+    cursor:pointer;
+    margin-top:10px;
+    transition:.15s;
+  }
+  .copy-btn:hover{background:var(--accent);color:#0F0B16;}
+  .copy-btn.copied{background:#22C55E;border-color:#22C55E;color:#0F0B16;}
+
+  /* HISTORIAL */
+  .accordion{border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:10px;background:var(--surface);}
+  .accordion summary{
+    padding:14px 18px;
+    cursor:pointer;
+    font-weight:600;
+    font-size:14px;
+    list-style:none;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+  }
+  .accordion summary::-webkit-details-marker{display:none;}
+  .accordion summary .meta{font-size:11.5px;color:var(--text-dim);font-weight:400;font-family:'JetBrains Mono',monospace;}
+  .accordion summary:after{content:'+';font-size:20px;color:var(--accent);flex:none;}
+  .accordion[open] summary:after{content:'–';}
+  .accordion .body{padding:0 18px 16px;}
+  .accordion .body p{font-size:13.5px;line-height:1.6;white-space:pre-line;margin:0 0 10px;}
+  .accordion .del-btn{
+    flex:none;background:transparent;border:1px solid var(--line);color:var(--text-dim);
+    border-radius:7px;padding:5px 9px;font-size:11px;cursor:pointer;
+  }
+  .accordion .del-btn:hover{border-color:#EF4444;color:#EF4444;}
+  .log-empty{color:var(--text-dim);font-size:13px;padding:8px 0;}
+
+  footer{
+    text-align:center;
+    padding:30px 20px 50px;
+    color:var(--text-dim);
+    font-size:12px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow" id="eyebrow">JefesHub · Equipo de marketing IA</div>
+  <h1>Consultor Radar de Mercado</h1>
+  <p>Observa cuentas de referencia, detecta patrones de contenido y los convierte en insights accionables — sin copiar contenido ni perder la voz de marca.</p>
+</header>
+
+<main>
+
+  <div class="section">
+    <div class="section-head">
+      <h2>Radar de referentes</h2>
+      <div class="sub">Gestionado en el Brand Book — aquí solo se usa para el análisis.</div>
+    </div>
+    <div class="ref-summary">
+      <div class="ref-count" id="refCount">Cargando cuentas...</div>
+      <div class="ref-chip-list" id="refChips"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-head">
+      <h2>Modos del Consultor</h2>
+      <div class="sub">Cada botón arma su propio análisis — no hay chat libre.</div>
+    </div>
+    <div class="modes-grid" id="modesGrid"></div>
+
+    <div id="extraPanel">
+      <label id="extraLabel"></label>
+      <div id="extraInputWrap"></div>
+      <div class="extra-controls">
+        <button class="ghost-btn" id="useLastBtn" style="display:none;" onclick="usarUltimoResultado()">Usar último resultado</button>
+        <button class="run-btn" id="runBtn" onclick="ejecutarModoActual()">Ejecutar →</button>
+      </div>
+    </div>
+
+    <div id="resultBox"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-head">
+      <h2>Historial de radares</h2>
+      <div class="sub">Cada corrida de Radar Semanal se guarda aquí automáticamente.</div>
+    </div>
+    <div id="historialList"></div>
+  </div>
+
+</main>
+
+<footer>Consultor Radar de Mercado y Tendencias · JefesHub</footer>
+
+<script src="/js/storage-client.js"></script>
+<script>
+// ---------- CLIENTE (multi-tenant por ?cliente=, default rancho-seco) ----------
+const CLIENTE_ID = new URLSearchParams(location.search).get('cliente') || 'rancho-seco';
+function storageKey(suffix){ return CLIENTE_ID + ':' + suffix; }
+document.getElementById('eyebrow').textContent = 'JefesHub · Cliente: ' + CLIENTE_ID;
+
+// ---------- MODOS (deben coincidir con los ids que espera api/consultor-radar.js) ----------
+const MODES = [
+  { id:'radar-semanal', num:1, t:'Radar Semanal', d:'Analiza las 10 cuentas guardadas con web_search y entrega insights de la semana.', extra:null },
+  { id:'analisis-cuenta', num:2, t:'Análisis de cuenta específica', d:'Pega el link de una cuenta o publicación puntual.', extra:'link', extraLabel:'Link de la cuenta o publicación', extraPlaceholder:'https://instagram.com/...', extraType:'input' },
+  { id:'analisis-contenido', num:3, t:'Análisis de contenido específico', d:'Pega el texto o guion de un contenido puntual (sin web_search).', extra:'contenido', extraLabel:'Contenido pegado', extraPlaceholder:'Pega aquí el guion, caption o texto...', extraType:'textarea' },
+  { id:'insights-a-ideas', num:4, t:'Insights a Ideas', d:'Convierte insights ya detectados en ideas accionables.', extra:'insights', extraLabel:'Insights', extraPlaceholder:'Pega los insights (o usa el último resultado)...', extraType:'textarea' },
+  { id:'ideas-a-creativos', num:5, t:'Ideas a Creativos', d:'Convierte ideas en conceptos listos para anuncios.', extra:'ideas', extraLabel:'Ideas', extraPlaceholder:'Pega las ideas (o usa el último resultado)...', extraType:'textarea' },
+  { id:'benchmark-estilo', num:6, t:'Benchmark de estilo', d:'Compara tono y formato de la marca contra una referencia.', extra:'referencia', extraLabel:'Link o texto de referencia', extraPlaceholder:'https://... o pega el texto', extraType:'textarea' },
+  { id:'optimizacion-semanal', num:7, t:'Optimización semanal', d:'Revisa el historial de radares y sugiere ajustes.', extra:null },
+  { id:'activacion-silenciosa', num:8, t:'Activación silenciosa', d:'Solo confirma el estado del sistema — no analiza nada.', extra:null },
+];
+
+let modoActivo = null;
+let lastResultText = '';
+
+const grid = document.getElementById('modesGrid');
+grid.innerHTML = MODES.map(m => `
+  <button class="mode-btn" id="mode-${m.id}" onclick="seleccionarModo('${m.id}')">
+    <span class="num">MODO ${m.num}</span>
+    <div class="t">${m.t}</div>
+    <div class="d">${m.d}</div>
+  </button>
+`).join('');
+
+function seleccionarModo(id){
+  modoActivo = MODES.find(m => m.id === id);
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('mode-' + id).classList.add('active');
+
+  const panel = document.getElementById('extraPanel');
+  const useLastBtn = document.getElementById('useLastBtn');
+
+  if(!modoActivo.extra){
+    panel.style.display = 'none';
+    ejecutarModo(modoActivo, null);
+    return;
+  }
+
+  panel.style.display = 'block';
+  document.getElementById('extraLabel').textContent = modoActivo.extraLabel;
+  const wrap = document.getElementById('extraInputWrap');
+  if(modoActivo.extraType === 'textarea'){
+    wrap.innerHTML = `<textarea id="extraInput" placeholder="${modoActivo.extraPlaceholder}"></textarea>`;
+  } else {
+    wrap.innerHTML = `<input type="text" id="extraInput" placeholder="${modoActivo.extraPlaceholder}">`;
+  }
+  useLastBtn.style.display = (lastResultText && (modoActivo.id === 'insights-a-ideas' || modoActivo.id === 'ideas-a-creativos')) ? 'inline-flex' : 'none';
+  panel.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function usarUltimoResultado(){
+  const input = document.getElementById('extraInput');
+  if(input) input.value = lastResultText;
+}
+
+function ejecutarModoActual(){
+  const input = document.getElementById('extraInput');
+  const valor = input ? input.value.trim() : '';
+  if(modoActivo.extra && !valor){
+    document.getElementById('resultBox').innerHTML = '<div class="error-card">Completa el campo antes de ejecutar.</div>';
+    return;
+  }
+  ejecutarModo(modoActivo, valor);
+}
+
+async function ejecutarModo(modo, extra){
+  const resultBox = document.getElementById('resultBox');
+  const runBtn = document.getElementById('runBtn');
+  if(runBtn) { runBtn.disabled = true; runBtn.innerText = 'Analizando...'; }
+  resultBox.innerHTML = '<div class="loading-card">El Consultor está armando el análisis' + (modo.id === 'radar-semanal' ? ' (puede tardar más porque revisa cuentas en vivo)' : '') + '...</div>';
+
+  try{
+    const response = await fetch('/api/consultor-radar', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ modo: modo.id, cliente: CLIENTE_ID, extra })
+    });
+    const data = await response.json();
+    if(!response.ok){
+      resultBox.innerHTML = `<div class="error-card">${data.error || 'No se pudo generar el análisis. Intenta de nuevo.'}</div>`;
+      return;
+    }
+    lastResultText = data.text;
+    resultBox.innerHTML = `<div class="answer-card"><div class="a-label">${modo.t}</div>${data.text}</div>
+      <button class="copy-btn" onclick="copyText(this, \`${data.text.replace(/`/g,"'")}\`)">Copiar para Notion</button>`;
+    if(modo.id === 'radar-semanal') loadHistorial();
+  } catch(err){
+    resultBox.innerHTML = '<div class="error-card">Hubo un error de conexión. Intenta de nuevo en un momento.</div>';
+  } finally {
+    if(runBtn) { runBtn.disabled = false; runBtn.innerText = 'Ejecutar →'; }
+  }
+}
+
+function copyText(btn, text){
+  navigator.clipboard.writeText(text).then(() => {
+    const original = btn.innerText;
+    btn.innerText = '¡Copiado! ✓';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.innerText = original; btn.classList.remove('copied'); }, 1600);
+  });
+}
+
+// ---------- RADAR DE REFERENTES (solo lectura) ----------
+async function loadReferentes(){
+  const countEl = document.getElementById('refCount');
+  const chipsEl = document.getElementById('refChips');
+  try{
+    const result = await window.storage.get(storageKey('radar-referentes'), false);
+    const items = result && result.value ? JSON.parse(result.value) : [];
+    if(!items.length){
+      countEl.innerHTML = 'Todavía no hay cuentas guardadas en <span class="mono">radar-referentes</span>.';
+      chipsEl.innerHTML = '';
+      return;
+    }
+    countEl.innerHTML = `<b>${items.length}</b> cuenta${items.length === 1 ? '' : 's'} en el radar de referentes`;
+    chipsEl.innerHTML = items.map(it => {
+      const nombre = it.nombre_cuenta || it.plataforma || 'Sin nombre';
+      const link = it.link || '';
+      return `<span class="ref-chip">${link ? `<a href="${link}" target="_blank" rel="noopener">${nombre}</a>` : nombre} · ${it.plataforma || '—'}</span>`;
+    }).join('');
+  } catch(e){
+    countEl.textContent = 'No se pudo cargar el radar de referentes.';
+  }
+}
+
+// ---------- HISTORIAL ----------
+async function loadHistorial(){
+  const listEl = document.getElementById('historialList');
+  try{
+    const result = await window.storage.get(storageKey('radar-historial'), false);
+    const items = result && result.value ? JSON.parse(result.value) : [];
+    renderHistorial(items);
+  } catch(e){
+    renderHistorial([]);
+  }
+}
+
+function renderHistorial(items){
+  const listEl = document.getElementById('historialList');
+  if(!items || items.length === 0){
+    listEl.innerHTML = '<div class="log-empty">Todavía no hay corridas guardadas. Ejecuta el Modo 1 (Radar Semanal) para generar la primera.</div>';
+    return;
+  }
+  listEl.innerHTML = items.slice().reverse().map(item => `
+    <details class="accordion">
+      <summary>
+        <span>${item.date} <span class="meta">· ${item.modo}</span></span>
+        <button class="del-btn" type="button" onclick="event.preventDefault(); deleteHistorialItem('${item.id}')">Eliminar</button>
+      </summary>
+      <div class="body"><p>${item.text}</p></div>
+    </details>
+  `).join('');
+}
+
+async function deleteHistorialItem(id){
+  try{
+    const result = await window.storage.get(storageKey('radar-historial'), false);
+    let items = result && result.value ? JSON.parse(result.value) : [];
+    items = items.filter(i => i.id !== id);
+    await window.storage.set(storageKey('radar-historial'), JSON.stringify(items), false);
+    renderHistorial(items);
+  } catch(e){}
+}
+
+loadReferentes();
+loadHistorial();
+</script>
+</body>
+</html>
