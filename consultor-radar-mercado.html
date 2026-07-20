@@ -139,6 +139,12 @@
   .ref-card .ref-link:hover{color:var(--accent);}
   .ref-card .ref-notes{font-size:12.5px;color:var(--text-dim);line-height:1.5;}
   .ref-card .ref-actions{display:flex;gap:8px;flex:none;}
+  .ref-handle{color:var(--accent);font-weight:600;}
+  .ref-extra-plataformas{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
+  .ref-extra-plataformas a{font-size:11px;color:var(--text-dim);text-decoration:none;background:var(--surface-2);padding:3px 8px;border-radius:100px;border:1px solid var(--line);}
+  .ref-extra-plataformas a:hover{color:var(--accent);border-color:var(--accent);}
+  .plataforma-extra-row{display:flex;gap:8px;align-items:flex-end;margin-bottom:8px;}
+  .plataforma-extra-row .field{margin-bottom:0;}
   .icon-btn{
     background:transparent;border:1px solid var(--line);color:var(--text-dim);
     border-radius:7px;padding:5px 9px;font-size:11px;cursor:pointer;
@@ -185,6 +191,13 @@
   .kv-row .v ul{margin:0;padding-left:18px;}
 
   .week-note{font-size:11.5px;color:var(--text-dim);margin-top:8px;}
+
+  /* SECCIÓN 4/5 — tarjetas visuales escaneables (no markdown crudo) */
+  .insight-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;margin-top:4px;}
+  .insight-card{background:var(--surface-2);border-radius:10px;padding:12px 14px;}
+  .insight-card-title{font-family:'JetBrains Mono',monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--accent);margin-bottom:6px;}
+  .insight-card-body{font-size:13px;line-height:1.5;}
+  .insight-card-body ul{margin:0;padding-left:16px;}
 
   /* MODES GRID */
   .modes-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
@@ -367,6 +380,11 @@
         <div class="field"><label>Qué podemos aprender</label><textarea id="radar-add-queaprender"></textarea></div>
         <div class="field"><label>Frecuencia de publicación</label><input type="text" id="radar-add-frecuencia"></div>
         <div class="field"><label>Notas</label><textarea id="radar-add-notas"></textarea></div>
+        <div class="field">
+          <label>Otras plataformas de esta misma cuenta</label>
+          <div id="radar-add-plataformas-extra"></div>
+          <button type="button" class="ghost-btn" onclick="agregarPlataformaExtra()">+ Agregar plataforma</button>
+        </div>
       </details>
       <div class="extra-controls">
         <button class="ghost-btn" id="radar-cancel-btn" style="display:none;" onclick="cancelarEdicionReferente()">Cancelar</button>
@@ -486,6 +504,22 @@ function normalizarLink(url){
   if(!url) return '';
   return url.toString().trim().toLowerCase().replace(/\/+$/,'').replace(/^https?:\/\//,'').replace(/^www\./,'');
 }
+function extraerHandleDeLink(link){
+  if(!link) return '';
+  try{
+    const u = new URL(/^https?:\/\//i.test(link) ? link : 'https://' + link);
+    let seg = u.pathname.split('/').filter(Boolean)[0] || '';
+    seg = seg.replace(/^@/, '');
+    return seg ? '@' + seg : '';
+  }catch(e){
+    return '';
+  }
+}
+function buscarReferentePorLink(link){
+  const norm = normalizarLink(link);
+  if(!norm) return null;
+  return referentesState.find(r => (r.plataformas || []).some(p => p.link && normalizarLink(p.link) === norm)) || null;
+}
 function asList(x){
   if(Array.isArray(x)) return x;
   if(typeof x === 'string' && x.trim()) return x.split(/\n|,/).map(s => s.trim()).filter(Boolean);
@@ -512,6 +546,57 @@ const RADAR_CAMPOS_DETALLE = ['nombre_cuenta', 'tipo', 'seguidores_aprox', 'que_
 
 let referentesState = [];
 let editingRefId = null;
+// Plataformas adicionales que se están componiendo en el formulario de alta/edición
+// (además del Link+Plataforma principal), antes de guardar.
+let formPlataformasExtra = [];
+
+// Compatibilidad con el shape viejo (link/plataforma sueltos): lo convierte a
+// plataformas:[{plataforma,link}] la primera vez que se carga, sin perder datos
+// ya guardados en Postgres con el shape anterior.
+function migrarReferenteAPlataformas(item){
+  if(Array.isArray(item.plataformas)) return item;
+  const plataformas = [];
+  if(item.link) plataformas.push({ plataforma: item.plataforma || '', link: item.link });
+  return Object.assign({}, item, { plataformas });
+}
+
+function renderFormPlataformasExtra(){
+  const wrap = document.getElementById('radar-add-plataformas-extra');
+  if(formPlataformasExtra.length === 0){
+    wrap.innerHTML = '<div class="log-empty" style="padding:2px 0 8px;">Sin plataformas adicionales.</div>';
+    return;
+  }
+  wrap.innerHTML = formPlataformasExtra.map((p, i) => `
+    <div class="plataforma-extra-row" data-extra-idx="${i}">
+      <div class="field" style="flex:1;"><input type="text" data-extra-field="link" value="${escapeHtml(p.link)}" placeholder="https://..."></div>
+      <div class="field" style="flex:0 0 130px;"><select data-extra-field="plataforma"></select></div>
+      <button type="button" class="icon-btn" data-extra-remove>✕</button>
+    </div>
+  `).join('');
+  wrap.querySelectorAll('[data-extra-idx]').forEach(row => {
+    const idx = Number(row.dataset.extraIdx);
+    const sel = row.querySelector('[data-extra-field="plataforma"]');
+    sel.innerHTML = '<option value="">—</option>' + RADAR_PLATAFORMAS.map(p => `<option value="${p}" ${formPlataformasExtra[idx].plataforma === p ? 'selected' : ''}>${p}</option>`).join('');
+    sel.addEventListener('change', (e) => { formPlataformasExtra[idx].plataforma = e.target.value; });
+    row.querySelector('[data-extra-field="link"]').addEventListener('input', (e) => {
+      formPlataformasExtra[idx].link = e.target.value.trim();
+      const detectada = detectarPlataformaDeLink(e.target.value.trim());
+      if(detectada && formPlataformasExtra[idx].plataforma !== detectada){
+        formPlataformasExtra[idx].plataforma = detectada;
+        renderFormPlataformasExtra();
+      }
+    });
+    row.querySelector('[data-extra-remove]').addEventListener('click', () => {
+      formPlataformasExtra.splice(idx, 1);
+      renderFormPlataformasExtra();
+    });
+  });
+}
+
+function agregarPlataformaExtra(){
+  formPlataformasExtra.push({ plataforma: '', link: '' });
+  renderFormPlataformasExtra();
+}
 
 function detectarPlataformaDeLink(url){
   if(!url) return '';
@@ -542,12 +627,14 @@ function initRadarAddForm(){
     const detectada = detectarPlataformaDeLink(e.target.value.trim());
     if(detectada) document.getElementById('radar-add-plataforma').value = detectada;
   });
+  renderFormPlataformasExtra();
 }
 
 async function loadReferentes(){
   try{
     const result = await window.storage.get(storageKey('radar-referentes'), false);
-    referentesState = result && result.value ? JSON.parse(result.value) : [];
+    const items = result && result.value ? JSON.parse(result.value) : [];
+    referentesState = items.map(migrarReferenteAPlataformas);
   } catch(e){
     referentesState = [];
   }
@@ -572,30 +659,44 @@ function renderReferentesGrid(){
     grid.innerHTML = '<div class="log-empty">Todavía no hay cuentas. Usa "+ Agregar cuenta".</div>';
     return;
   }
-  grid.innerHTML = referentesState.map(item => `
+  grid.innerHTML = referentesState.map(item => {
+    const plataformas = item.plataformas || [];
+    const principal = plataformas[0] || {};
+    const extras = plataformas.slice(1);
+    const handlePrincipal = extraerHandleDeLink(principal.link);
+    return `
     <div class="ref-card">
       <div class="ref-top">
         <div>
-          <div class="ref-name">${escapeHtml(item.nombre_cuenta || item.plataforma || 'Sin nombre')}</div>
-          <div class="ref-meta">${escapeHtml(item.plataforma || 'Plataforma sin definir')} · ${escapeHtml(item.tipo || 'Tipo sin definir')}${item.origen === 'pendiente' ? ' · Pendiente de detalles' : ''}</div>
+          <div class="ref-name">${escapeHtml(item.nombre_cuenta || principal.plataforma || 'Sin nombre')}</div>
+          <div class="ref-meta"><b>${escapeHtml(principal.plataforma || 'Plataforma sin definir')}</b>${handlePrincipal ? ` <span class="ref-handle">${escapeHtml(handlePrincipal)}</span>` : ''} · ${escapeHtml(item.tipo || 'Tipo sin definir')}${item.origen === 'pendiente' ? ' · Pendiente de detalles' : ''}</div>
         </div>
         <div class="ref-actions">
           <button class="icon-btn edit" type="button" data-edit-id="${item.id}">Editar</button>
           <button class="icon-btn" type="button" data-delete-id="${item.id}">✕</button>
         </div>
       </div>
-      ${item.link ? `<a class="ref-link" href="${escapeHtml(item.link)}" target="_blank" rel="noopener">${escapeHtml(item.link)}</a>` : ''}
+      ${principal.link ? `<a class="ref-link" href="${escapeHtml(principal.link)}" target="_blank" rel="noopener">${escapeHtml(principal.link)}</a>` : ''}
+      ${extras.length ? `<div class="ref-extra-plataformas">${extras.map(p => {
+        const h = extraerHandleDeLink(p.link);
+        return `<a href="${escapeHtml(p.link || '')}" target="_blank" rel="noopener"><b>${escapeHtml(p.plataforma || '—')}</b>${h ? ` <span class="ref-handle">${escapeHtml(h)}</span>` : ''}</a>`;
+      }).join('')}</div>` : ''}
       ${item.notas ? `<div class="ref-notes">${escapeHtml(item.notas)}</div>` : ''}
     </div>
-  `).join('');
+  `;
+  }).join('');
   grid.querySelectorAll('[data-edit-id]').forEach(btn => btn.addEventListener('click', () => iniciarEdicionReferente(btn.dataset.editId)));
   grid.querySelectorAll('[data-delete-id]').forEach(btn => btn.addEventListener('click', () => eliminarReferente(btn.dataset.deleteId)));
 }
 
 function leerCamposReferenteForm(){
+  const linkPrincipal = document.getElementById('radar-add-link').value.trim();
+  const plataformaPrincipal = document.getElementById('radar-add-plataforma').value;
+  const plataformas = [];
+  if(linkPrincipal) plataformas.push({ plataforma: plataformaPrincipal, link: linkPrincipal });
+  formPlataformasExtra.forEach(p => { if(p.link) plataformas.push({ plataforma: p.plataforma, link: p.link }); });
   return {
-    link: document.getElementById('radar-add-link').value.trim(),
-    plataforma: document.getElementById('radar-add-plataforma').value,
+    plataformas,
     nombre_cuenta: document.getElementById('radar-add-nombre').value.trim(),
     tipo: document.getElementById('radar-add-tipo').value,
     seguidores_aprox: document.getElementById('radar-add-seguidores').value.trim(),
@@ -617,14 +718,18 @@ function limpiarReferenteForm(){
   document.getElementById('radar-add-frecuencia').value = '';
   document.getElementById('radar-add-notas').value = '';
   document.getElementById('radar-add-details').open = false;
+  formPlataformasExtra = [];
+  renderFormPlataformasExtra();
 }
 
 function iniciarEdicionReferente(id){
   const item = referentesState.find(r => r.id === id);
   if(!item) return;
   editingRefId = id;
-  document.getElementById('radar-add-link').value = item.link || '';
-  document.getElementById('radar-add-plataforma').value = item.plataforma || '';
+  const plataformas = item.plataformas || [];
+  const principal = plataformas[0] || {};
+  document.getElementById('radar-add-link').value = principal.link || '';
+  document.getElementById('radar-add-plataforma').value = principal.plataforma || '';
   document.getElementById('radar-add-nombre').value = item.nombre_cuenta || '';
   document.getElementById('radar-add-tipo').value = item.tipo || '';
   document.getElementById('radar-add-seguidores').value = item.seguidores_aprox || '';
@@ -632,7 +737,9 @@ function iniciarEdicionReferente(id){
   document.getElementById('radar-add-queaprender').value = item.que_podemos_aprender || '';
   document.getElementById('radar-add-frecuencia').value = item.frecuencia_publicacion || '';
   document.getElementById('radar-add-notas').value = item.notas || '';
-  document.getElementById('radar-add-details').open = RADAR_CAMPOS_DETALLE.some(k => (item[k] || '').toString().trim() !== '');
+  formPlataformasExtra = plataformas.slice(1).map(p => Object.assign({}, p));
+  renderFormPlataformasExtra();
+  document.getElementById('radar-add-details').open = formPlataformasExtra.length > 0 || RADAR_CAMPOS_DETALLE.some(k => (item[k] || '').toString().trim() !== '');
   document.getElementById('radar-save-btn').textContent = 'Actualizar cuenta';
   document.getElementById('radar-save-btn').disabled = false;
   document.getElementById('radar-cancel-btn').style.display = '';
@@ -661,7 +768,7 @@ async function guardarReferente(){
     return;
   }
   const campos = leerCamposReferenteForm();
-  if(!campos.link){
+  if(campos.plataformas.length === 0){
     statusEl.textContent = 'Escribe un link primero.';
     statusEl.style.color = 'var(--text-dim)';
     return;
@@ -694,7 +801,7 @@ async function guardarReferente(){
 async function actualizarReferente(){
   const statusEl = document.getElementById('radar-status');
   const campos = leerCamposReferenteForm();
-  if(!campos.link){
+  if(campos.plataformas.length === 0){
     statusEl.textContent = 'Escribe un link primero.';
     statusEl.style.color = 'var(--text-dim)';
     return;
@@ -770,7 +877,7 @@ Al final, dame todo en un solo bloque de texto que pueda copiar y pegar tal cual
 
 function renderChromePrompt(){
   const el = document.getElementById('chromePromptText');
-  const links = referentesState.map(r => r.link).filter(Boolean);
+  const links = referentesState.flatMap(r => (r.plataformas || []).map(p => p.link)).filter(Boolean);
   if(links.length === 0){
     el.textContent = 'Agrega al menos una cuenta en "Radar de referentes" (arriba) para generar este prompt.';
     return;
@@ -807,7 +914,7 @@ async function generarDiagnostico(){
       resultEl.innerHTML = `<div class="error-card">${data.error || 'No se pudo generar el diagnóstico.'}</div>`;
       return;
     }
-    resultEl.innerHTML = `<div class="answer-card"><div class="a-label">Diagnóstico general</div>${data.text}</div>`;
+    resultEl.innerHTML = '<div class="answer-card" style="border-left-color:#22C55E;"><div class="a-label" style="color:#22C55E;">✅ Diagnóstico listo</div>Guardado — ya puedes usarlo en las Secciones 3, 4 y 5 de abajo.</div>';
     await loadHistorial();
   } catch(err){
     resultEl.innerHTML = '<div class="error-card">Hubo un error de conexión. Intenta de nuevo en un momento.</div>';
@@ -835,6 +942,8 @@ function renderSeccion3(){
   }
   const porCuenta = diagnosticoActual.porCuenta || {};
   grid.innerHTML = referentesState.map(item => {
+    const principal = (item.plataformas && item.plataformas[0]) || {};
+    const handle = extraerHandleDeLink(principal.link);
     const cache = porCuenta[item.id];
     let badge = '<span class="badge pending">Sin analizar</span>';
     if(cache){
@@ -844,8 +953,8 @@ function renderSeccion3(){
     }
     return `
       <button type="button" class="account-item" data-id="${item.id}">
-        <div class="an">${escapeHtml(item.nombre_cuenta || item.plataforma || 'Sin nombre')}</div>
-        <div class="am">${escapeHtml(item.plataforma || '—')}</div>
+        <div class="an">${escapeHtml(item.nombre_cuenta || principal.plataforma || 'Sin nombre')}</div>
+        <div class="am">${escapeHtml(principal.plataforma || '—')}${handle ? ' · ' + escapeHtml(handle) : ''}</div>
         ${badge}
       </button>
     `;
@@ -965,8 +1074,7 @@ async function ejecutarAnalisisGeneral(){
       resultEl.innerHTML = `<div class="error-card">${data.error || 'No se pudo generar el análisis general.'}</div>`;
       return;
     }
-    resultEl.innerHTML = `<div class="answer-card"><div class="a-label">Análisis general</div>${data.text}</div>`;
-    await loadHistorial();
+    await loadHistorial(); // recalcula analisisGeneralActual y renderiza Sección 4/5 en tarjetas
   } catch(err){
     resultEl.innerHTML = '<div class="error-card">Hubo un error de conexión. Intenta de nuevo en un momento.</div>';
   } finally {
@@ -974,19 +1082,93 @@ async function ejecutarAnalisisGeneral(){
   }
 }
 
+// Tarjetas escaneables en vez de markdown crudo. analisisData es el JSON
+// estructurado que arma api/consultor-radar.js; analisisRaw es respaldo por
+// si el parseo de JSON falla (o para corridas viejas guardadas en otro shape).
+function renderSeccion4Result(){
+  const el = document.getElementById('seccion4Result');
+  if(!analisisGeneralActual){ el.innerHTML = ''; return; }
+  const d = analisisGeneralActual.analisisData;
+  if(!d){
+    const raw = analisisGeneralActual.analisisRaw || analisisGeneralActual.text || '';
+    el.innerHTML = raw ? `<div class="answer-card"><div class="a-label">Análisis general</div>${escapeHtml(raw)}</div>` : '';
+    return;
+  }
+  const puntos = [
+    ['Qué funciona', d.que_funciona],
+    ['Hooks que se repiten', asList(d.hooks_que_se_repiten)],
+    ['Formatos que usan', asList(d.formatos_que_usan)],
+    ['Temas que ganan atención', asList(d.temas_que_ganan_atencion)],
+    ['Ideas para adaptar esta semana', asList(d.ideas_adaptar_semana)],
+  ];
+  el.innerHTML = `<div class="insight-grid">${puntos.map(([k, v]) => `
+    <div class="insight-card">
+      <div class="insight-card-title">${escapeHtml(k)}</div>
+      <div class="insight-card-body">${Array.isArray(v) ? (v.length ? '<ul>' + v.map(i => `<li>${escapeHtml(i)}</li>`).join('') + '</ul>' : '—') : escapeHtml(v || '—')}</div>
+    </div>
+  `).join('')}</div>`;
+}
+
 // ============================================================
 // SECCIÓN 5 — Insights y ideas accionables (derivado de Sección 4)
 // ============================================================
 function renderSeccion5(){
   const el = document.getElementById('seccion5Result');
-  if(!analisisGeneralActual || !analisisGeneralActual.insightsIdeas){
+  if(!analisisGeneralActual){
     el.innerHTML = '<div class="log-empty">Genera el Análisis general (Sección 4) primero.</div>';
     return;
   }
-  const texto = analisisGeneralActual.insightsIdeas;
-  el.innerHTML = `<div class="answer-card"><div class="a-label">Insights e ideas</div>${escapeHtml(texto)}</div>
-    <button class="copy-btn" id="copySeccion5Btn">Copiar</button>`;
-  document.getElementById('copySeccion5Btn').addEventListener('click', (e) => copyText(e.target, texto));
+
+  const insights = analisisGeneralActual.insights;
+  let insightsHtml;
+  if(Array.isArray(insights) && insights.length){
+    insightsHtml = `<div class="insight-grid">${insights.map((ins, i) => `
+      <div class="insight-card"><div class="insight-card-title">Insight ${i + 1}</div><div class="insight-card-body">${escapeHtml(ins)}</div></div>
+    `).join('')}</div>`;
+  } else {
+    const raw = analisisGeneralActual.insightsRaw || analisisGeneralActual.insightsIdeas || '';
+    insightsHtml = raw ? `<div class="answer-card">${escapeHtml(raw)}</div>` : '<div class="log-empty">Sin insights disponibles.</div>';
+  }
+
+  const ideasHtml = analisisGeneralActual.ideas
+    ? `<div class="answer-card" style="margin-top:14px;"><div class="a-label">10 ideas de contenido accionables</div>${escapeHtml(analisisGeneralActual.ideas)}</div>
+       <button class="copy-btn" id="copyIdeasBtn">Copiar</button>`
+    : `<button class="run-btn" id="pedirIdeasBtn" style="margin-top:14px;">DAME 10 IDEAS DE CONTENIDO ACCIONABLES</button><div id="ideasLoadingArea"></div>`;
+
+  el.innerHTML = insightsHtml + ideasHtml;
+
+  if(analisisGeneralActual.ideas){
+    document.getElementById('copyIdeasBtn').addEventListener('click', (e) => copyText(e.target, analisisGeneralActual.ideas));
+  } else {
+    document.getElementById('pedirIdeasBtn').addEventListener('click', pedirIdeasAccionables);
+  }
+}
+
+// Las 10 ideas NO se generan junto con el análisis general — solo al hacer
+// click aquí, para no gastar tokens si el usuario solo quería ver los insights.
+async function pedirIdeasAccionables(){
+  const btn = document.getElementById('pedirIdeasBtn');
+  const loadingArea = document.getElementById('ideasLoadingArea');
+  if(btn){ btn.disabled = true; btn.innerText = 'Generando...'; }
+  loadingArea.innerHTML = '<div class="loading-card">Generando las 10 ideas...</div>';
+  try{
+    const response = await fetch('/api/consultor-radar', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ modo: 'ideas-accionables', cliente: CLIENTE_ID })
+    });
+    const data = await response.json();
+    if(!response.ok){
+      loadingArea.innerHTML = `<div class="error-card">${data.error || 'No se pudieron generar las ideas.'}</div>`;
+      if(btn){ btn.disabled = false; btn.innerText = 'DAME 10 IDEAS DE CONTENIDO ACCIONABLES'; }
+      return;
+    }
+    analisisGeneralActual.ideas = data.ideas;
+    renderSeccion5();
+  } catch(err){
+    loadingArea.innerHTML = '<div class="error-card">Hubo un error de conexión. Intenta de nuevo en un momento.</div>';
+    if(btn){ btn.disabled = false; btn.innerText = 'DAME 10 IDEAS DE CONTENIDO ACCIONABLES'; }
+  }
 }
 
 // ============================================================
@@ -1066,7 +1248,7 @@ function ejecutarModoActual(){
 // sola cuenta + textarea de pegado, mismo patrón que Secciones 1/2.
 function continuarAnalisisCuentaEspecifica(link){
   const resultBox = document.getElementById('resultBox');
-  const match = referentesState.find(r => r.link && normalizarLink(r.link) === normalizarLink(link));
+  const match = buscarReferentePorLink(link);
   if(match){
     resultBox.innerHTML = '<div class="loading-card">Esta cuenta ya está en tu radar de referentes — mostrando su análisis en la Sección 3.</div>';
     document.getElementById('seccion3Grid').scrollIntoView({behavior:'smooth', block:'start'});
@@ -1172,6 +1354,7 @@ async function loadHistorial(){
   renderHistorial(items);
   renderSeccion3();
   renderSeccion4WeekNote();
+  renderSeccion4Result();
   renderSeccion5();
 }
 
@@ -1183,8 +1366,9 @@ function renderHistorial(items){
   }
   listEl.innerHTML = items.slice().reverse().map(item => {
     const esDiag = item.tipo === 'diagnostico-general';
-    const titulo = esDiag ? 'Diagnóstico general' : (item.tipo === 'analisis-general' ? `Análisis general (${item.isoWeek || ''})` : (item.modo || 'Corrida'));
-    const cuerpo = esDiag ? item.diagnostico : (item.text || '');
+    const esAnalisis = item.tipo === 'analisis-general';
+    const titulo = esDiag ? 'Diagnóstico general' : (esAnalisis ? `Análisis general (${item.isoWeek || ''})` : (item.modo || 'Corrida'));
+    const cuerpo = esDiag ? item.diagnostico : (esAnalisis ? (item.analisisRaw || item.text || '') : (item.text || ''));
     return `
       <details class="accordion">
         <summary>
@@ -1210,6 +1394,7 @@ async function deleteHistorialItem(id){
     renderHistorial(items);
     renderSeccion3();
     renderSeccion4WeekNote();
+    renderSeccion4Result();
     renderSeccion5();
   } catch(e){}
 }

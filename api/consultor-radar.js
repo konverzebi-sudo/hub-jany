@@ -114,6 +114,17 @@ function extractJson(text) {
   }
 }
 
+function extractJsonArray(text) {
+  const match = text.match(/\[[\s\S]*\]/);
+  if (!match) return null;
+  try {
+    const parsed = JSON.parse(match[0]);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch (err) {
+    return null;
+  }
+}
+
 function normalizarLink(url) {
   if (!url) return '';
   return url
@@ -175,7 +186,7 @@ function formatearHistorial(items) {
   if (!Array.isArray(items) || items.length === 0) return null;
   const lineas = items.slice(-8).map((it) => {
     if (it.tipo === 'diagnostico-general') return `### ${it.date} (diagnóstico general)\n${it.diagnostico || ''}`;
-    if (it.tipo === 'analisis-general') return `### ${it.date} (análisis general, ${it.isoWeek || ''})\n${it.text || ''}`;
+    if (it.tipo === 'analisis-general') return `### ${it.date} (análisis general, ${it.isoWeek || ''})\n${it.analisisRaw || it.text || ''}`;
     return `### ${it.date} (${it.modo || 'corrida'})\n${it.text || ''}`;
   });
   return 'Historial de corridas anteriores:\n' + lineas.join('\n\n');
@@ -370,6 +381,9 @@ async function handleAnalisisGeneral(req, res, clienteId, systemPrompt) {
     'lista-maestra-cliente-ideal',
   ]).catch(() => '');
 
+  // Las 10 ideas accionables ya NO se piden aquí — se generan aparte, bajo
+  // demanda, en 'ideas-accionables' (botón de la Sección 5) para no gastar
+  // tokens si el usuario solo quería ver los insights.
   const instruccion =
     'Genera el ANÁLISIS GENERAL de la semana. Combina:\n' +
     '1) El diagnóstico general ya calculado sobre las cuentas de referencia (abajo, en DIAGNÓSTICO PREVIO).\n' +
@@ -377,27 +391,74 @@ async function handleAnalisisGeneral(req, res, clienteId, systemPrompt) {
     'no busques en las cuentas de referencia, busca tendencias generales del nicho.\n' +
     '3) El contexto del Brand Book (abajo, si está disponible).\n\n' +
     `Entrega tu respuesta en DOS bloques, separados exactamente por esta línea sola (nada más en esa línea): ${SEPARADOR_INSIGHTS}\n\n` +
-    'BLOQUE 1 — ANÁLISIS GENERAL, con este formato fijo y en este orden:\n' +
-    '1) Qué contenidos funcionan\n2) Qué hooks se repiten\n3) Qué formatos usan\n4) Qué temas ganan atención\n5) Qué ideas adaptar esta semana\n\n' +
-    'BLOQUE 2 — INSIGHTS Y IDEAS, con este formato fijo:\n5 insights principales (numerados)\n10 ideas de contenido accionables (numeradas)\n\n' +
+    'BLOQUE 1 — responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional antes ni después, con este formato exacto:\n' +
+    '{"que_funciona": "...", "hooks_que_se_repiten": ["...", "..."], "formatos_que_usan": ["...", "..."], "temas_que_ganan_atencion": ["...", "..."], "ideas_adaptar_semana": ["...", "..."]}\n\n' +
+    'BLOQUE 2 — responde ÚNICAMENTE con un arreglo JSON de exactamente 5 strings (sin texto adicional antes ni después), ' +
+    'cada uno un insight principal breve y accionable, en el orden de prioridad. Formato exacto: ' +
+    '["insight 1", "insight 2", "insight 3", "insight 4", "insight 5"]\n\n' +
     `DIAGNÓSTICO PREVIO:\n"""\n${diagEntry.diagnostico}\n"""`;
 
   const promptCompleto = [systemPrompt, contexto, instruccion].filter(Boolean).join('\n\n');
-  const r = await llamarClaude({ promptCompleto, webSearch: true, maxTokens: 3500 });
+  const r = await llamarClaude({ promptCompleto, webSearch: true, maxTokens: 2200 });
   if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
 
   const partes = r.text.split(SEPARADOR_INSIGHTS);
-  const textoAnalisis = (partes[0] || '').trim();
-  const insightsIdeas = (partes[1] || '').trim();
+  const analisisRaw = (partes[0] || '').trim();
+  const insightsRaw = (partes[1] || '').trim();
+  const analisisData = extractJson(analisisRaw);
+  const insights = extractJsonArray(insightsRaw);
   const isoWeek = isoWeekKey(new Date());
 
+  let entryGuardada = null;
   try {
-    await guardarHistorialEntry(clienteId, { tipo: 'analisis-general', isoWeek, text: textoAnalisis, insightsIdeas });
+    entryGuardada = await guardarHistorialEntry(clienteId, {
+      tipo: 'analisis-general',
+      isoWeek,
+      analisisData,
+      analisisRaw,
+      insights,
+      insightsRaw,
+      ideas: null,
+    });
   } catch (err) {
     // No bloquear la respuesta al usuario si falla el guardado del historial.
   }
 
-  return res.status(200).json({ text: textoAnalisis, insightsIdeas, isoWeek });
+  return res.status(200).json({ analisisData, analisisRaw, insights, insightsRaw, isoWeek, date: entryGuardada && entryGuardada.date });
+}
+
+async function handleIdeasAccionables(req, res, clienteId, systemPrompt) {
+  const key = `${clienteId}:radar-historial`;
+  const items = await leerHistorial(clienteId);
+  let idx = -1;
+  for (let i = items.length - 1; i >= 0; i--) {
+    if (items[i].tipo === 'analisis-general') { idx = i; break; }
+  }
+  if (idx === -1) {
+    return res.status(400).json({ error: 'Genera el análisis general primero (Sección 4).' });
+  }
+  const entry = items[idx];
+  if (entry.ideas) {
+    return res.status(200).json({ ideas: entry.ideas });
+  }
+
+  const contexto = await construirContexto(clienteId, ['brand-book.identidad', 'brand-book.tono', 'brand-book.audiencia']).catch(() => '');
+  const instruccion =
+    'A partir del análisis general y los insights ya generados (abajo), da EXACTAMENTE 10 ideas de contenido ' +
+    'accionables, numeradas, en formato listo para copiar y pegar (sin explicaciones adicionales, sin JSON — texto plano numerado).\n\n' +
+    `ANÁLISIS GENERAL:\n"""\n${entry.analisisRaw || ''}\n"""\n\nINSIGHTS:\n"""\n${entry.insightsRaw || ''}\n"""`;
+  const promptCompleto = [systemPrompt, contexto, instruccion].filter(Boolean).join('\n\n');
+  const r = await llamarClaude({ promptCompleto, webSearch: false, maxTokens: 1500 });
+  if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
+
+  try {
+    entry.ideas = r.text;
+    await escribirJSON(key, items);
+  } catch (err) {
+    // No bloquear la respuesta al usuario si falla el guardado del cache.
+  }
+
+  return res.status(200).json({ ideas: r.text });
 }
 
 async function handleBenchmarkEstilo(req, res, clienteId, systemPrompt) {
@@ -406,8 +467,13 @@ async function handleBenchmarkEstilo(req, res, clienteId, systemPrompt) {
 
   const contexto = await construirContexto(clienteId, ['brand-book.identidad', 'brand-book.tono', 'brand-book.audiencia']).catch(() => '');
   const referentes = (await leerJSON(`${clienteId}:radar-referentes`).catch(() => null)) || [];
+  const referenciaNorm = normalizarLink(referencia);
   const match = Array.isArray(referentes)
-    ? referentes.find((r) => r.link && normalizarLink(r.link) === normalizarLink(referencia))
+    ? referentes.find((r) => {
+        // Shape nuevo: plataformas:[{plataforma,link}]. Shape viejo (compatibilidad): link suelto.
+        const links = Array.isArray(r.plataformas) ? r.plataformas.map((p) => p.link) : (r.link ? [r.link] : []);
+        return links.some((l) => l && normalizarLink(l) === referenciaNorm);
+      })
     : null;
 
   if (match) {
@@ -552,6 +618,7 @@ module.exports = async function handler(req, res) {
     if (modo === 'analisis-cuenta-guardada') return await handleAnalisisCuentaGuardada(req, res, clienteId, systemPrompt);
     if (modo === 'analisis-cuenta-nueva') return await handleAnalisisCuentaNueva(req, res, clienteId, systemPrompt);
     if (modo === 'analisis-general') return await handleAnalisisGeneral(req, res, clienteId, systemPrompt);
+    if (modo === 'ideas-accionables') return await handleIdeasAccionables(req, res, clienteId, systemPrompt);
     if (modo === 'benchmark-estilo') return await handleBenchmarkEstilo(req, res, clienteId, systemPrompt);
     if (modo === 'optimizacion-semanal') return await handleOptimizacionSemanal(req, res, clienteId, systemPrompt);
   } catch (err) {
