@@ -63,13 +63,18 @@
   .section-head h2{font-size:19px;margin:0;}
   .section-head .sub{font-size:12.5px;color:var(--text-dim);}
 
-  /* REFERENTES — form card */
-  .ref-summary{
+  /* Bloque generico tipo "tarjeta" reusado por CRUD, subsecciones y modos */
+  .ref-summary, .subsection{
     background:var(--surface);
     border:1px solid var(--line);
     border-radius:14px;
     padding:16px 18px;
   }
+  .subsection{margin-bottom:14px;}
+  .subsection:last-child{margin-bottom:0;}
+  .subsection-title{font-size:15px;font-weight:700;margin:0 0 10px;font-family:'Sora',sans-serif;}
+  .subsection-sub{font-size:12.5px;color:var(--text-dim);margin:-4px 0 10px;}
+
   .field-row{display:flex;gap:12px;}
   @media(max-width:560px){.field-row{flex-direction:column;gap:0;}}
   .field{margin-bottom:10px;flex:1;}
@@ -102,6 +107,28 @@
   }
   .ref-details summary::-webkit-details-marker{display:none;}
 
+  .standalone-textarea{
+    width:100%;min-height:110px;resize:vertical;
+    background:var(--surface-2);border:1px solid var(--line);border-radius:10px;
+    color:var(--text);font-family:'Inter',sans-serif;font-size:13.5px;padding:12px;outline:none;
+  }
+  .standalone-textarea:focus{border-color:var(--accent);}
+
+  .prompt-block{
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:14px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    line-height:1.6;
+    white-space:pre-wrap;
+    word-break:break-word;
+    max-height:320px;
+    overflow-y:auto;
+    margin:0 0 12px;
+  }
+
   /* REFERENTES — grid de cuentas guardadas */
   .card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;}
   .ref-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;}
@@ -118,6 +145,46 @@
   }
   .icon-btn:hover{border-color:#EF4444;color:#EF4444;}
   .icon-btn.edit:hover{border-color:var(--accent);color:var(--accent);}
+
+  /* SECCIÓN 3 — lista de cuentas clickeables */
+  .account-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;}
+  .account-item{
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:12px 14px;
+    cursor:pointer;
+    text-align:left;
+    color:var(--text);
+    transition:.15s;
+    font-family:'Inter',sans-serif;
+  }
+  .account-item:hover{border-color:var(--accent);}
+  .account-item.active{border-color:var(--accent);background:var(--accent-soft);}
+  .account-item .an{font-weight:700;font-size:13.5px;margin-bottom:4px;}
+  .account-item .am{font-size:11px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;text-transform:uppercase;}
+  .badge{
+    display:inline-block;
+    font-family:'JetBrains Mono',monospace;
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:.03em;
+    padding:2px 7px;
+    border-radius:100px;
+    margin-top:6px;
+  }
+  .badge.ok{background:rgba(34,197,94,.15);color:#22C55E;}
+  .badge.pending{background:var(--surface);color:var(--text-dim);}
+  .badge.blocked{background:rgba(239,68,68,.15);color:#F87171;}
+
+  .kv-card{background:var(--surface-2);border-radius:10px;padding:14px 16px;margin-top:12px;}
+  .kv-row{margin-bottom:10px;}
+  .kv-row:last-child{margin-bottom:0;}
+  .kv-row .k{font-family:'JetBrains Mono',monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--accent);margin-bottom:3px;}
+  .kv-row .v{font-size:13.5px;line-height:1.55;}
+  .kv-row .v ul{margin:0;padding-left:18px;}
+
+  .week-note{font-size:11.5px;color:var(--text-dim);margin-top:8px;}
 
   /* MODES GRID */
   .modes-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
@@ -204,7 +271,6 @@
   .log-status{font-size:12px;color:#22C55E;min-height:16px;margin-top:8px;}
 
   /* RESULT */
-  #resultBox{margin-top:20px;}
   .answer-card{
     background:var(--surface-2);
     border-left:3px solid #22C55E;
@@ -280,6 +346,7 @@
 
 <main>
 
+  <!-- RADAR DE REFERENTES (CRUD) -->
   <div class="section">
     <div class="section-head">
       <h2>Radar de referentes</h2>
@@ -311,9 +378,60 @@
     <div class="card-grid" id="radar-grid" style="margin-top:14px;"></div>
   </div>
 
+  <!-- RADAR SEMANAL — FLUJO HÍBRIDO (Chrome extension + web) -->
   <div class="section">
     <div class="section-head">
-      <h2>Modos del Consultor</h2>
+      <h2>Radar Semanal — flujo híbrido</h2>
+      <div class="sub">Chrome hace la lectura en vivo (tu sesión); el Consultor arma el diagnóstico y las tendencias.</div>
+    </div>
+
+    <!-- SECCIÓN 1 -->
+    <div class="subsection">
+      <div class="subsection-title">1. Prompt para Claude en Chrome</div>
+      <div class="subsection-sub">Copia esto y pégalo en la extensión de Claude en Chrome, con tu sesión de Instagram/TikTok ya iniciada.</div>
+      <pre class="prompt-block" id="chromePromptText"></pre>
+      <button class="copy-btn" id="copyChromePromptBtn">Copiar prompt</button>
+    </div>
+
+    <!-- SECCIÓN 2 -->
+    <div class="subsection">
+      <div class="subsection-title">2. Pegar resultado y diagnóstico general</div>
+      <textarea class="standalone-textarea" id="seccion2Input" placeholder="Pega aquí lo que te devolvió Claude"></textarea>
+      <div class="extra-controls">
+        <button class="run-btn" id="seccion2Btn" onclick="generarDiagnostico()">Generar diagnóstico</button>
+      </div>
+      <div id="seccion2Result"></div>
+    </div>
+
+    <!-- SECCIÓN 3 -->
+    <div class="subsection">
+      <div class="subsection-title">3. Análisis por cuenta</div>
+      <div class="subsection-sub" id="seccion3Sub">Genera el diagnóstico general (Sección 2) primero.</div>
+      <div class="account-list" id="seccion3Grid"></div>
+      <div id="seccion3Detail"></div>
+    </div>
+
+    <!-- SECCIÓN 4 -->
+    <div class="subsection">
+      <div class="subsection-title">4. Análisis general</div>
+      <div class="subsection-sub">Combina el diagnóstico con tendencias frescas de la industria (web_search). Puede variar entre corridas — es esperado.</div>
+      <button class="run-btn" id="seccion4Btn" onclick="generarAnalisisGeneral()">Generar análisis general</button>
+      <div class="week-note" id="seccion4WeekNote"></div>
+      <div id="seccion4Result"></div>
+    </div>
+
+    <!-- SECCIÓN 5 -->
+    <div class="subsection">
+      <div class="subsection-title">5. Insights y ideas accionables</div>
+      <div class="subsection-sub">Formato listo para pegar en el futuro Consultor de Contenido.</div>
+      <div id="seccion5Result"></div>
+    </div>
+  </div>
+
+  <!-- OTROS MODOS -->
+  <div class="section">
+    <div class="section-head">
+      <h2>Otros modos</h2>
       <div class="sub">Cada botón arma su propio análisis — no hay chat libre.</div>
     </div>
     <div class="modes-grid" id="modesGrid"></div>
@@ -330,10 +448,11 @@
     <div id="resultBox"></div>
   </div>
 
+  <!-- HISTORIAL -->
   <div class="section">
     <div class="section-head">
-      <h2>Historial de radares</h2>
-      <div class="sub">Cada corrida de Radar Semanal se guarda aquí automáticamente.</div>
+      <h2>Historial</h2>
+      <div class="sub">Diagnósticos generales y análisis generales guardados.</div>
     </div>
     <div id="historialList"></div>
   </div>
@@ -349,99 +468,12 @@ const CLIENTE_ID = new URLSearchParams(location.search).get('cliente') || 'ranch
 function storageKey(suffix){ return CLIENTE_ID + ':' + suffix; }
 document.getElementById('eyebrow').textContent = 'JefesHub · Cliente: ' + CLIENTE_ID;
 
-// ---------- MODOS (deben coincidir con los ids que espera api/consultor-radar.js) ----------
-const MODES = [
-  { id:'radar-semanal', num:1, t:'Radar Semanal', d:'Analiza las 10 cuentas guardadas con web_search y entrega insights de la semana.', extra:null },
-  { id:'analisis-cuenta', num:2, t:'Análisis de cuenta específica', d:'Pega el link de una cuenta o publicación puntual.', extra:'link', extraLabel:'Link de la cuenta o publicación', extraPlaceholder:'https://instagram.com/...', extraType:'input' },
-  { id:'analisis-contenido', num:3, t:'Análisis de contenido específico', d:'Pega el texto o guion de un contenido puntual (sin web_search).', extra:'contenido', extraLabel:'Contenido pegado', extraPlaceholder:'Pega aquí el guion, caption o texto...', extraType:'textarea' },
-  { id:'insights-a-ideas', num:4, t:'Insights a Ideas', d:'Convierte insights ya detectados en ideas accionables.', extra:'insights', extraLabel:'Insights', extraPlaceholder:'Pega los insights (o usa el último resultado)...', extraType:'textarea' },
-  { id:'ideas-a-creativos', num:5, t:'Ideas a Creativos', d:'Convierte ideas en conceptos listos para anuncios.', extra:'ideas', extraLabel:'Ideas', extraPlaceholder:'Pega las ideas (o usa el último resultado)...', extraType:'textarea' },
-  { id:'benchmark-estilo', num:6, t:'Benchmark de estilo', d:'Compara tono y formato de la marca contra una referencia.', extra:'referencia', extraLabel:'Link o texto de referencia', extraPlaceholder:'https://... o pega el texto', extraType:'textarea' },
-  { id:'optimizacion-semanal', num:7, t:'Optimización semanal', d:'Revisa el historial de radares y sugiere ajustes.', extra:null },
-  { id:'activacion-silenciosa', num:8, t:'Activación silenciosa', d:'Solo confirma el estado del sistema — no analiza nada.', extra:null },
-];
-
-let modoActivo = null;
-let lastResultText = '';
-
-const grid = document.getElementById('modesGrid');
-grid.innerHTML = MODES.map(m => `
-  <button class="mode-btn" id="mode-${m.id}" onclick="seleccionarModo('${m.id}')">
-    <span class="num">MODO ${m.num}</span>
-    <div class="t">${m.t}</div>
-    <div class="d">${m.d}</div>
-  </button>
-`).join('');
-
-function seleccionarModo(id){
-  modoActivo = MODES.find(m => m.id === id);
-  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('mode-' + id).classList.add('active');
-
-  const panel = document.getElementById('extraPanel');
-  const useLastBtn = document.getElementById('useLastBtn');
-
-  if(!modoActivo.extra){
-    panel.style.display = 'none';
-    ejecutarModo(modoActivo, null);
-    return;
-  }
-
-  panel.style.display = 'block';
-  document.getElementById('extraLabel').textContent = modoActivo.extraLabel;
-  const wrap = document.getElementById('extraInputWrap');
-  if(modoActivo.extraType === 'textarea'){
-    wrap.innerHTML = `<textarea id="extraInput" placeholder="${modoActivo.extraPlaceholder}"></textarea>`;
-  } else {
-    wrap.innerHTML = `<input type="text" id="extraInput" placeholder="${modoActivo.extraPlaceholder}">`;
-  }
-  useLastBtn.style.display = (lastResultText && (modoActivo.id === 'insights-a-ideas' || modoActivo.id === 'ideas-a-creativos')) ? 'inline-flex' : 'none';
-  panel.scrollIntoView({behavior:'smooth', block:'nearest'});
+function newId(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+function escapeHtml(str){
+  const d = document.createElement('div');
+  d.textContent = str == null ? '' : String(str);
+  return d.innerHTML;
 }
-
-function usarUltimoResultado(){
-  const input = document.getElementById('extraInput');
-  if(input) input.value = lastResultText;
-}
-
-function ejecutarModoActual(){
-  const input = document.getElementById('extraInput');
-  const valor = input ? input.value.trim() : '';
-  if(modoActivo.extra && !valor){
-    document.getElementById('resultBox').innerHTML = '<div class="error-card">Completa el campo antes de ejecutar.</div>';
-    return;
-  }
-  ejecutarModo(modoActivo, valor);
-}
-
-async function ejecutarModo(modo, extra){
-  const resultBox = document.getElementById('resultBox');
-  const runBtn = document.getElementById('runBtn');
-  if(runBtn) { runBtn.disabled = true; runBtn.innerText = 'Analizando...'; }
-  resultBox.innerHTML = '<div class="loading-card">El Consultor está armando el análisis' + (modo.id === 'radar-semanal' ? ' (puede tardar más porque revisa cuentas en vivo)' : '') + '...</div>';
-
-  try{
-    const response = await fetch('/api/consultor-radar', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ modo: modo.id, cliente: CLIENTE_ID, extra })
-    });
-    const data = await response.json();
-    if(!response.ok){
-      resultBox.innerHTML = `<div class="error-card">${data.error || 'No se pudo generar el análisis. Intenta de nuevo.'}</div>`;
-      return;
-    }
-    lastResultText = data.text;
-    resultBox.innerHTML = `<div class="answer-card"><div class="a-label">${modo.t}</div>${data.text}</div>
-      <button class="copy-btn" onclick="copyText(this, \`${data.text.replace(/`/g,"'")}\`)">Copiar para Notion</button>`;
-    if(modo.id === 'radar-semanal') loadHistorial();
-  } catch(err){
-    resultBox.innerHTML = '<div class="error-card">Hubo un error de conexión. Intenta de nuevo en un momento.</div>';
-  } finally {
-    if(runBtn) { runBtn.disabled = false; runBtn.innerText = 'Ejecutar →'; }
-  }
-}
-
 function copyText(btn, text){
   navigator.clipboard.writeText(text).then(() => {
     const original = btn.innerText;
@@ -450,28 +482,37 @@ function copyText(btn, text){
     setTimeout(() => { btn.innerText = original; btn.classList.remove('copied'); }, 1600);
   });
 }
+function normalizarLink(url){
+  if(!url) return '';
+  return url.toString().trim().toLowerCase().replace(/\/+$/,'').replace(/^https?:\/\//,'').replace(/^www\./,'');
+}
+function asList(x){
+  if(Array.isArray(x)) return x;
+  if(typeof x === 'string' && x.trim()) return x.split(/\n|,/).map(s => s.trim()).filter(Boolean);
+  return [];
+}
+function isoWeekKey(d){
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+  return `${date.getUTCFullYear()}-W${String(weekNo).padStart(2,'0')}`;
+}
 
-// ---------- RADAR DE REFERENTES (CRUD, límite de 10) ----------
+// ============================================================
+// RADAR DE REFERENTES (CRUD, límite de 10)
+// ============================================================
 const RADAR_TIPOS = ['Competencia directa', 'Inspiración', 'Aliado potencial'];
 const RADAR_PLATAFORMAS = ['Instagram', 'TikTok', 'Facebook', 'YouTube', 'X / Twitter', 'LinkedIn', 'Otro'];
 const RADAR_LIMIT = 10;
 // Campos que, si tienen contenido, marcan la cuenta como origen:'manual' en
-// vez de 'pendiente' (solo link+plataforma, sin detalles todavía). Mismo
-// criterio que usaba ADN.html antes de que este tab se moviera aquí.
+// vez de 'pendiente' (solo link+plataforma, sin detalles todavía).
 const RADAR_CAMPOS_DETALLE = ['nombre_cuenta', 'tipo', 'seguidores_aprox', 'que_hace_bien', 'que_podemos_aprender', 'frecuencia_publicacion', 'notas'];
 
 let referentesState = [];
 let editingRefId = null;
 
-function newId(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
-function escapeHtml(str){
-  const d = document.createElement('div');
-  d.textContent = str == null ? '' : String(str);
-  return d.innerHTML;
-}
-
-// Mismo patrón de matching por dominio que usa ADN.html / api/check-link.js,
-// en dirección inversa: del link deducimos la plataforma, editable después.
 function detectarPlataformaDeLink(url){
   if(!url) return '';
   let hostname = '';
@@ -512,6 +553,8 @@ async function loadReferentes(){
   }
   renderReferentesCounter();
   renderReferentesGrid();
+  renderChromePrompt();
+  renderSeccion3();
 }
 
 function renderReferentesCounter(){
@@ -537,14 +580,16 @@ function renderReferentesGrid(){
           <div class="ref-meta">${escapeHtml(item.plataforma || 'Plataforma sin definir')} · ${escapeHtml(item.tipo || 'Tipo sin definir')}${item.origen === 'pendiente' ? ' · Pendiente de detalles' : ''}</div>
         </div>
         <div class="ref-actions">
-          <button class="icon-btn edit" type="button" onclick="iniciarEdicionReferente('${item.id}')">Editar</button>
-          <button class="icon-btn" type="button" onclick="eliminarReferente('${item.id}')">✕</button>
+          <button class="icon-btn edit" type="button" data-edit-id="${item.id}">Editar</button>
+          <button class="icon-btn" type="button" data-delete-id="${item.id}">✕</button>
         </div>
       </div>
       ${item.link ? `<a class="ref-link" href="${escapeHtml(item.link)}" target="_blank" rel="noopener">${escapeHtml(item.link)}</a>` : ''}
       ${item.notas ? `<div class="ref-notes">${escapeHtml(item.notas)}</div>` : ''}
     </div>
   `).join('');
+  grid.querySelectorAll('[data-edit-id]').forEach(btn => btn.addEventListener('click', () => iniciarEdicionReferente(btn.dataset.editId)));
+  grid.querySelectorAll('[data-delete-id]').forEach(btn => btn.addEventListener('click', () => eliminarReferente(btn.dataset.deleteId)));
 }
 
 function leerCamposReferenteForm(){
@@ -637,6 +682,8 @@ async function guardarReferente(){
     setTimeout(() => { statusEl.textContent = ''; }, 1800);
     renderReferentesCounter();
     renderReferentesGrid();
+    renderChromePrompt();
+    renderSeccion3();
   } catch(e){
     referentesState = anterior;
     statusEl.textContent = e.status === 401 ? 'Token incorrecto — vuelve a intentar guardar.' : 'No se pudo guardar, intenta de nuevo.';
@@ -669,6 +716,8 @@ async function actualizarReferente(){
     setTimeout(() => { statusEl.textContent = ''; }, 1800);
     cancelarEdicionReferente();
     renderReferentesGrid();
+    renderChromePrompt();
+    renderSeccion3();
   } catch(e){
     referentesState = anterior;
     statusEl.textContent = e.status === 401 ? 'Token incorrecto — vuelve a intentar guardar.' : 'No se pudo guardar, intenta de nuevo.';
@@ -685,6 +734,8 @@ async function eliminarReferente(id){
     if(editingRefId === id) cancelarEdicionReferente();
     renderReferentesCounter();
     renderReferentesGrid();
+    renderChromePrompt();
+    renderSeccion3();
   } catch(e){
     referentesState = anterior;
     statusEl.textContent = e.status === 401 ? 'Token incorrecto — vuelve a intentar eliminar.' : 'No se pudo eliminar, intenta de nuevo.';
@@ -692,33 +743,461 @@ async function eliminarReferente(id){
   }
 }
 
-// ---------- HISTORIAL ----------
+// ============================================================
+// SECCIÓN 1 — Prompt para Claude en Chrome (sin llamada a IA)
+// ============================================================
+function buildChromePrompt(links){
+  const listado = links.map(l => `- ${l}`).join('\n');
+  return `Visita cada una de estas cuentas en Instagram/TikTok usando mi sesión ya iniciada:
+${listado}
+
+Para cada cuenta, revisa los 5-8 posts/videos más recientes y extrae:
+---
+CUENTA: @usuario
+TIPO DE CUENTA/NICHO:
+CADA CUÁNTO PUBLICAN (frecuencia estimada):
+TIPO DE CONTENIDO QUE PUBLICA:
+TEMAS QUE REPITE:
+HOOKS USADOS (uno por post):
+FORMATOS USADOS:
+ENGAGEMENT VISIBLE:
+CAPTIONS COMPLETOS de los posts revisados:
+COMENTARIOS DESTACADOS del público:
+---
+Si alguna cuenta no es accesible, anota solo: '🔒 @cuenta — no accesible' y sigue con la siguiente.
+Al final, dame todo en un solo bloque de texto que pueda copiar y pegar tal cual.`;
+}
+
+function renderChromePrompt(){
+  const el = document.getElementById('chromePromptText');
+  const links = referentesState.map(r => r.link).filter(Boolean);
+  if(links.length === 0){
+    el.textContent = 'Agrega al menos una cuenta en "Radar de referentes" (arriba) para generar este prompt.';
+    return;
+  }
+  el.textContent = buildChromePrompt(links);
+}
+
+document.getElementById('copyChromePromptBtn').addEventListener('click', (e) => {
+  copyText(e.target, document.getElementById('chromePromptText').textContent);
+});
+
+// ============================================================
+// SECCIÓN 2 — Pegar resultado y diagnóstico general
+// ============================================================
+async function generarDiagnostico(){
+  const input = document.getElementById('seccion2Input');
+  const texto = input.value.trim();
+  const resultEl = document.getElementById('seccion2Result');
+  const btn = document.getElementById('seccion2Btn');
+  if(!texto){
+    resultEl.innerHTML = '<div class="error-card">Pega primero lo que te devolvió Claude.</div>';
+    return;
+  }
+  btn.disabled = true; btn.innerText = 'Generando...';
+  resultEl.innerHTML = '<div class="loading-card">Generando el diagnóstico general...</div>';
+  try{
+    const response = await fetch('/api/consultor-radar', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ modo: 'diagnostico-general', cliente: CLIENTE_ID, extra: texto })
+    });
+    const data = await response.json();
+    if(!response.ok){
+      resultEl.innerHTML = `<div class="error-card">${data.error || 'No se pudo generar el diagnóstico.'}</div>`;
+      return;
+    }
+    resultEl.innerHTML = `<div class="answer-card"><div class="a-label">Diagnóstico general</div>${data.text}</div>`;
+    await loadHistorial();
+  } catch(err){
+    resultEl.innerHTML = '<div class="error-card">Hubo un error de conexión. Intenta de nuevo en un momento.</div>';
+  } finally {
+    btn.disabled = false; btn.innerText = 'Generar diagnóstico';
+  }
+}
+
+// ============================================================
+// SECCIÓN 3 — Análisis por cuenta (bajo demanda, cacheado)
+// ============================================================
+function renderSeccion3(){
+  const sub = document.getElementById('seccion3Sub');
+  const grid = document.getElementById('seccion3Grid');
+  if(!diagnosticoActual){
+    sub.textContent = 'Genera el diagnóstico general (Sección 2) primero.';
+    grid.innerHTML = '';
+    document.getElementById('seccion3Detail').innerHTML = '';
+    return;
+  }
+  sub.textContent = `Basado en el diagnóstico del ${diagnosticoActual.date}. Click en una cuenta para ver su análisis.`;
+  if(referentesState.length === 0){
+    grid.innerHTML = '<div class="log-empty">No hay cuentas guardadas todavía.</div>';
+    return;
+  }
+  const porCuenta = diagnosticoActual.porCuenta || {};
+  grid.innerHTML = referentesState.map(item => {
+    const cache = porCuenta[item.id];
+    let badge = '<span class="badge pending">Sin analizar</span>';
+    if(cache){
+      badge = (cache.data && cache.data.accesible === false)
+        ? '<span class="badge blocked">🔒 No accesible</span>'
+        : '<span class="badge ok">✓ Analizado</span>';
+    }
+    return `
+      <button type="button" class="account-item" data-id="${item.id}">
+        <div class="an">${escapeHtml(item.nombre_cuenta || item.plataforma || 'Sin nombre')}</div>
+        <div class="am">${escapeHtml(item.plataforma || '—')}</div>
+        ${badge}
+      </button>
+    `;
+  }).join('');
+  grid.querySelectorAll('.account-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const item = referentesState.find(r => r.id === btn.dataset.id);
+      if(item) analizarCuentaGuardada(item.id, item.nombre_cuenta || item.plataforma || 'Sin nombre');
+    });
+  });
+}
+
+function renderAnalisisCuentaDetail(targetEl, label, cache){
+  const d = cache.data;
+  if(!d){
+    targetEl.innerHTML = `<div class="answer-card"><div class="a-label">${escapeHtml(label)}</div>${escapeHtml(cache.raw || 'Sin datos.')}</div>`;
+    return;
+  }
+  if(d.accesible === false){
+    targetEl.innerHTML = `<div class="kv-card">🔒 <b>${escapeHtml(label)}</b> — no accesible en el texto pegado. Vuelve a pegar el resultado de Chrome incluyendo esta cuenta.</div>`;
+    return;
+  }
+  const filas = [
+    ['Tipo de contenido', d.tipo_de_contenido],
+    ['Frecuencia', d.frecuencia],
+    ['Temas', asList(d.temas)],
+    ['Hooks', asList(d.hooks)],
+    ['Formatos', asList(d.formatos)],
+    ['Qué funciona', d.que_funciona],
+    ['Qué aprender', d.que_aprender],
+    ['Qué NO copiar', d.que_no_copiar],
+    ['Qué adaptar', d.que_adaptar],
+  ];
+  targetEl.innerHTML = `
+    <div class="kv-card">
+      <div class="a-label" style="color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:10.5px;text-transform:uppercase;margin-bottom:10px;">${escapeHtml(label)}</div>
+      ${filas.map(([k, v]) => `
+        <div class="kv-row">
+          <div class="k">${escapeHtml(k)}</div>
+          <div class="v">${Array.isArray(v) ? (v.length ? '<ul>' + v.map(i => `<li>${escapeHtml(i)}</li>`).join('') + '</ul>' : '—') : escapeHtml(v || '—')}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+async function analizarCuentaGuardada(id, label){
+  if(!diagnosticoActual) return;
+  const cache = (diagnosticoActual.porCuenta || {})[id];
+  const detailEl = document.getElementById('seccion3Detail');
+  document.querySelectorAll('#seccion3Grid .account-item').forEach(b => b.classList.toggle('active', b.dataset.id === id));
+
+  if(cache){
+    renderAnalisisCuentaDetail(detailEl, label, cache);
+    detailEl.scrollIntoView({behavior:'smooth', block:'nearest'});
+    return;
+  }
+
+  detailEl.innerHTML = '<div class="loading-card">Analizando esta cuenta...</div>';
+  detailEl.scrollIntoView({behavior:'smooth', block:'nearest'});
+  try{
+    const response = await fetch('/api/consultor-radar', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ modo: 'analisis-cuenta-guardada', cliente: CLIENTE_ID, accountId: id, accountLabel: label })
+    });
+    const data = await response.json();
+    if(!response.ok){
+      detailEl.innerHTML = `<div class="error-card">${data.error || 'No se pudo analizar esta cuenta.'}</div>`;
+      return;
+    }
+    diagnosticoActual.porCuenta = diagnosticoActual.porCuenta || {};
+    diagnosticoActual.porCuenta[id] = { data: data.data, raw: data.raw, date: new Date().toLocaleDateString('es-MX', {day:'numeric', month:'short', year:'numeric'}) };
+    renderAnalisisCuentaDetail(detailEl, label, diagnosticoActual.porCuenta[id]);
+    renderSeccion3();
+    const btn = document.querySelector(`#seccion3Grid .account-item[data-id="${id}"]`);
+    if(btn) btn.classList.add('active');
+  } catch(err){
+    detailEl.innerHTML = '<div class="error-card">Hubo un error de conexión. Intenta de nuevo en un momento.</div>';
+  }
+}
+
+// ============================================================
+// SECCIÓN 4 — Análisis general (bajo demanda, siempre fresco)
+// ============================================================
+function renderSeccion4WeekNote(){
+  const el = document.getElementById('seccion4WeekNote');
+  el.textContent = analisisGeneralActual ? `Última corrida: ${analisisGeneralActual.date}` : 'Todavía no se ha generado ninguna corrida.';
+}
+
+function generarAnalisisGeneral(){
+  if(!diagnosticoActual){
+    document.getElementById('seccion4Result').innerHTML = '<div class="error-card">Genera el diagnóstico general primero (Sección 2).</div>';
+    return;
+  }
+  const semanaActual = isoWeekKey(new Date());
+  if(analisisGeneralActual && analisisGeneralActual.isoWeek === semanaActual){
+    const seguir = confirm(`Ya generaste un análisis general esta semana el ${analisisGeneralActual.date}. ¿Generar otro? Esto usa una llamada nueva a la API.`);
+    if(!seguir) return;
+  }
+  ejecutarAnalisisGeneral();
+}
+
+async function ejecutarAnalisisGeneral(){
+  const resultEl = document.getElementById('seccion4Result');
+  const btn = document.getElementById('seccion4Btn');
+  btn.disabled = true; btn.innerText = 'Analizando...';
+  resultEl.innerHTML = '<div class="loading-card">Buscando tendencias y generando el análisis general...</div>';
+  try{
+    const response = await fetch('/api/consultor-radar', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ modo: 'analisis-general', cliente: CLIENTE_ID })
+    });
+    const data = await response.json();
+    if(!response.ok){
+      resultEl.innerHTML = `<div class="error-card">${data.error || 'No se pudo generar el análisis general.'}</div>`;
+      return;
+    }
+    resultEl.innerHTML = `<div class="answer-card"><div class="a-label">Análisis general</div>${data.text}</div>`;
+    await loadHistorial();
+  } catch(err){
+    resultEl.innerHTML = '<div class="error-card">Hubo un error de conexión. Intenta de nuevo en un momento.</div>';
+  } finally {
+    btn.disabled = false; btn.innerText = 'Generar análisis general';
+  }
+}
+
+// ============================================================
+// SECCIÓN 5 — Insights y ideas accionables (derivado de Sección 4)
+// ============================================================
+function renderSeccion5(){
+  const el = document.getElementById('seccion5Result');
+  if(!analisisGeneralActual || !analisisGeneralActual.insightsIdeas){
+    el.innerHTML = '<div class="log-empty">Genera el Análisis general (Sección 4) primero.</div>';
+    return;
+  }
+  const texto = analisisGeneralActual.insightsIdeas;
+  el.innerHTML = `<div class="answer-card"><div class="a-label">Insights e ideas</div>${escapeHtml(texto)}</div>
+    <button class="copy-btn" id="copySeccion5Btn">Copiar</button>`;
+  document.getElementById('copySeccion5Btn').addEventListener('click', (e) => copyText(e.target, texto));
+}
+
+// ============================================================
+// OTROS MODOS (deben coincidir con los ids que espera api/consultor-radar.js)
+// ============================================================
+const MODES = [
+  { id:'analisis-cuenta', num:1, t:'Análisis de cuenta específica', d:'Si es una de tus 10 cuentas, reutiliza su análisis (Sección 3). Si es nueva, arma un prompt para pegar resultado.', extra:'link', extraLabel:'Link de la cuenta', extraPlaceholder:'https://instagram.com/...', extraType:'input' },
+  { id:'analisis-contenido', num:2, t:'Análisis de contenido específico', d:'Pega el texto o guion de un contenido puntual.', extra:'contenido', extraLabel:'Contenido pegado', extraPlaceholder:'Pega aquí el guion, caption o texto...', extraType:'textarea' },
+  { id:'benchmark-estilo', num:3, t:'Benchmark de estilo', d:'Compara tono y formato de la marca contra una referencia.', extra:'referencia', extraLabel:'Link o texto de referencia', extraPlaceholder:'https://... o pega el texto', extraType:'textarea' },
+  { id:'insights-a-ideas', num:4, t:'Insights a Ideas', d:'Herramienta secundaria: convierte insights sueltos en ideas accionables.', extra:'insights', extraLabel:'Insights', extraPlaceholder:'Pega los insights...', extraType:'textarea' },
+  { id:'ideas-a-creativos', num:5, t:'Ideas a Creativos', d:'Convierte ideas en conceptos listos para anuncios.', extra:'ideas', extraLabel:'Ideas', extraPlaceholder:'Pega las ideas...', extraType:'textarea' },
+  { id:'optimizacion-semanal', num:6, t:'Optimización semanal', d:'Revisa el historial y tus métricas propias (pegadas a mano) y sugiere ajustes.', extra:'metricas', extraLabel:'Tus métricas (views, guardados, ventas)', extraPlaceholder:'Pega tus métricas...', extraType:'textarea' },
+  { id:'activacion-silenciosa', num:7, t:'Activación silenciosa', d:'Solo confirma el estado del sistema — no analiza nada.', extra:null },
+];
+
+let modoActivo = null;
+let lastResultText = '';
+
+const grid = document.getElementById('modesGrid');
+grid.innerHTML = MODES.map(m => `
+  <button class="mode-btn" id="mode-${m.id}" onclick="seleccionarModo('${m.id}')">
+    <span class="num">MODO ${m.num}</span>
+    <div class="t">${m.t}</div>
+    <div class="d">${m.d}</div>
+  </button>
+`).join('');
+
+function seleccionarModo(id){
+  modoActivo = MODES.find(m => m.id === id);
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('mode-' + id).classList.add('active');
+
+  const panel = document.getElementById('extraPanel');
+  const useLastBtn = document.getElementById('useLastBtn');
+
+  if(!modoActivo.extra){
+    panel.style.display = 'none';
+    ejecutarModo(modoActivo, null);
+    return;
+  }
+
+  panel.style.display = 'block';
+  document.getElementById('extraLabel').textContent = modoActivo.extraLabel;
+  const wrap = document.getElementById('extraInputWrap');
+  if(modoActivo.extraType === 'textarea'){
+    wrap.innerHTML = `<textarea id="extraInput" placeholder="${modoActivo.extraPlaceholder}"></textarea>`;
+  } else {
+    wrap.innerHTML = `<input type="text" id="extraInput" placeholder="${modoActivo.extraPlaceholder}">`;
+  }
+  useLastBtn.style.display = (lastResultText && (modoActivo.id === 'insights-a-ideas' || modoActivo.id === 'ideas-a-creativos')) ? 'inline-flex' : 'none';
+  document.getElementById('runBtn').textContent = modoActivo.id === 'analisis-cuenta' ? 'Continuar →' : 'Ejecutar →';
+  panel.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function usarUltimoResultado(){
+  const input = document.getElementById('extraInput');
+  if(input) input.value = lastResultText;
+}
+
+function ejecutarModoActual(){
+  const input = document.getElementById('extraInput');
+  const valor = input ? input.value.trim() : '';
+  if(modoActivo.extra && !valor){
+    document.getElementById('resultBox').innerHTML = '<div class="error-card">Completa el campo antes de ejecutar.</div>';
+    return;
+  }
+  if(modoActivo.id === 'analisis-cuenta'){
+    continuarAnalisisCuentaEspecifica(valor);
+    return;
+  }
+  ejecutarModo(modoActivo, valor);
+}
+
+// "Modo 1: Análisis de cuenta específica" — si el link ya es una de las 10
+// cuentas fijas, reusa el flujo de la Sección 3 (sin llamada nueva si ya
+// estaba cacheado). Si es una cuenta nueva, arma un prompt de Chrome de una
+// sola cuenta + textarea de pegado, mismo patrón que Secciones 1/2.
+function continuarAnalisisCuentaEspecifica(link){
+  const resultBox = document.getElementById('resultBox');
+  const match = referentesState.find(r => r.link && normalizarLink(r.link) === normalizarLink(link));
+  if(match){
+    resultBox.innerHTML = '<div class="loading-card">Esta cuenta ya está en tu radar de referentes — mostrando su análisis en la Sección 3.</div>';
+    document.getElementById('seccion3Grid').scrollIntoView({behavior:'smooth', block:'start'});
+    analizarCuentaGuardada(match.id, match.nombre_cuenta || match.plataforma || 'Sin nombre');
+    return;
+  }
+  resultBox.innerHTML = `
+    <div class="subsection">
+      <div class="subsection-title">Cuenta nueva — prompt para Chrome</div>
+      <pre class="prompt-block">${escapeHtml(buildChromePrompt([link]))}</pre>
+      <button class="copy-btn" id="copyCuentaNuevaBtn">Copiar prompt</button>
+      <textarea class="standalone-textarea" id="cuentaNuevaInput" placeholder="Pega aquí lo que te devolvió Claude" style="margin-top:12px;"></textarea>
+      <div class="extra-controls">
+        <button class="run-btn" id="analizarCuentaNuevaBtn">Analizar</button>
+      </div>
+      <div id="cuentaNuevaResult"></div>
+    </div>
+  `;
+  const promptText = resultBox.querySelector('.prompt-block').textContent;
+  document.getElementById('copyCuentaNuevaBtn').addEventListener('click', (e) => copyText(e.target, promptText));
+  document.getElementById('analizarCuentaNuevaBtn').addEventListener('click', () => analizarCuentaNueva(link));
+}
+
+async function analizarCuentaNueva(link){
+  const input = document.getElementById('cuentaNuevaInput');
+  const contenido = input.value.trim();
+  const resultEl = document.getElementById('cuentaNuevaResult');
+  if(!contenido){
+    resultEl.innerHTML = '<div class="error-card">Pega primero lo que te devolvió Claude.</div>';
+    return;
+  }
+  resultEl.innerHTML = '<div class="loading-card">Analizando...</div>';
+  try{
+    const response = await fetch('/api/consultor-radar', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ modo: 'analisis-cuenta-nueva', cliente: CLIENTE_ID, accountLabel: link, contenidoPegado: contenido })
+    });
+    const data = await response.json();
+    if(!response.ok){
+      resultEl.innerHTML = `<div class="error-card">${data.error || 'No se pudo analizar esta cuenta.'}</div>`;
+      return;
+    }
+    renderAnalisisCuentaDetail(resultEl, link, { data: data.data, raw: data.raw });
+  } catch(err){
+    resultEl.innerHTML = '<div class="error-card">Hubo un error de conexión. Intenta de nuevo en un momento.</div>';
+  }
+}
+
+async function ejecutarModo(modo, extra){
+  const resultBox = document.getElementById('resultBox');
+  const runBtn = document.getElementById('runBtn');
+  if(runBtn) { runBtn.disabled = true; runBtn.innerText = 'Analizando...'; }
+  resultBox.innerHTML = '<div class="loading-card">El Consultor está armando el análisis...</div>';
+
+  try{
+    const response = await fetch('/api/consultor-radar', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ modo: modo.id, cliente: CLIENTE_ID, extra })
+    });
+    const data = await response.json();
+    if(!response.ok){
+      resultBox.innerHTML = `<div class="error-card">${data.error || 'No se pudo generar el análisis. Intenta de nuevo.'}</div>`;
+      return;
+    }
+    lastResultText = data.text;
+    resultBox.innerHTML = `<div class="answer-card"><div class="a-label">${modo.t}</div>${data.text}</div>
+      <button class="copy-btn" id="copyModoBtn">Copiar</button>`;
+    document.getElementById('copyModoBtn').addEventListener('click', (e) => copyText(e.target, data.text));
+  } catch(err){
+    resultBox.innerHTML = '<div class="error-card">Hubo un error de conexión. Intenta de nuevo en un momento.</div>';
+  } finally {
+    if(runBtn) { runBtn.disabled = false; runBtn.innerText = (modoActivo && modoActivo.id === 'analisis-cuenta') ? 'Continuar →' : 'Ejecutar →'; }
+  }
+}
+
+// ============================================================
+// HISTORIAL ({cliente}:radar-historial)
+// ============================================================
+let diagnosticoActual = null;
+let analisisGeneralActual = null;
+
+function recalcularActuales(items){
+  diagnosticoActual = null;
+  analisisGeneralActual = null;
+  for(let i = items.length - 1; i >= 0; i--){
+    if(!diagnosticoActual && items[i].tipo === 'diagnostico-general') diagnosticoActual = items[i];
+    if(!analisisGeneralActual && items[i].tipo === 'analisis-general') analisisGeneralActual = items[i];
+    if(diagnosticoActual && analisisGeneralActual) break;
+  }
+}
+
 async function loadHistorial(){
-  const listEl = document.getElementById('historialList');
+  let items = [];
   try{
     const result = await window.storage.get(storageKey('radar-historial'), false);
-    const items = result && result.value ? JSON.parse(result.value) : [];
-    renderHistorial(items);
+    items = result && result.value ? JSON.parse(result.value) : [];
   } catch(e){
-    renderHistorial([]);
+    items = [];
   }
+  recalcularActuales(items);
+  renderHistorial(items);
+  renderSeccion3();
+  renderSeccion4WeekNote();
+  renderSeccion5();
 }
 
 function renderHistorial(items){
   const listEl = document.getElementById('historialList');
   if(!items || items.length === 0){
-    listEl.innerHTML = '<div class="log-empty">Todavía no hay corridas guardadas. Ejecuta el Modo 1 (Radar Semanal) para generar la primera.</div>';
+    listEl.innerHTML = '<div class="log-empty">Todavía no hay corridas guardadas. Genera el diagnóstico general (Sección 2) para empezar.</div>';
     return;
   }
-  listEl.innerHTML = items.slice().reverse().map(item => `
-    <details class="accordion">
-      <summary>
-        <span>${item.date} <span class="meta">· ${item.modo}</span></span>
-        <button class="del-btn" type="button" onclick="event.preventDefault(); deleteHistorialItem('${item.id}')">Eliminar</button>
-      </summary>
-      <div class="body"><p>${item.text}</p></div>
-    </details>
-  `).join('');
+  listEl.innerHTML = items.slice().reverse().map(item => {
+    const esDiag = item.tipo === 'diagnostico-general';
+    const titulo = esDiag ? 'Diagnóstico general' : (item.tipo === 'analisis-general' ? `Análisis general (${item.isoWeek || ''})` : (item.modo || 'Corrida'));
+    const cuerpo = esDiag ? item.diagnostico : (item.text || '');
+    return `
+      <details class="accordion">
+        <summary>
+          <span>${item.date} <span class="meta">· ${escapeHtml(titulo)}</span></span>
+          <button class="del-btn" type="button" data-del-id="${item.id}">Eliminar</button>
+        </summary>
+        <div class="body"><p>${escapeHtml(cuerpo)}</p></div>
+      </details>
+    `;
+  }).join('');
+  listEl.querySelectorAll('[data-del-id]').forEach(btn => {
+    btn.addEventListener('click', (e) => { e.preventDefault(); deleteHistorialItem(btn.dataset.delId); });
+  });
 }
 
 async function deleteHistorialItem(id){
@@ -727,10 +1206,17 @@ async function deleteHistorialItem(id){
     let items = result && result.value ? JSON.parse(result.value) : [];
     items = items.filter(i => i.id !== id);
     await window.storage.set(storageKey('radar-historial'), JSON.stringify(items), false);
+    recalcularActuales(items);
     renderHistorial(items);
+    renderSeccion3();
+    renderSeccion4WeekNote();
+    renderSeccion5();
   } catch(e){}
 }
 
+// ============================================================
+// INIT
+// ============================================================
 initRadarAddForm();
 loadReferentes();
 loadHistorial();
