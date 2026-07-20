@@ -125,17 +125,6 @@ function extractJsonArray(text) {
   }
 }
 
-function normalizarLink(url) {
-  if (!url) return '';
-  return url
-    .toString()
-    .trim()
-    .toLowerCase()
-    .replace(/\/+$/, '')
-    .replace(/^https?:\/\//, '')
-    .replace(/^www\./, '');
-}
-
 // ---------- historial ({cliente}:radar-historial) ----------
 // Entradas mezcladas por 'tipo': 'diagnostico-general' (Sección 2, con cache
 // por cuenta en porCuenta) y 'analisis-general' (Sección 4, siempre fresco).
@@ -154,7 +143,7 @@ async function guardarHistorialEntry(cliente, datos) {
   );
   items.push(entry);
   // Evita crecimiento sin limite: solo se necesitan las corridas recientes
-  // para el contexto de Optimizacion semanal y el historial visible.
+  // para el historial visible.
   const recortado = items.slice(-30);
   await escribirJSON(key, recortado);
   return entry;
@@ -182,16 +171,6 @@ function formatearListaMaestra(items) {
   return 'Lista maestra del cliente ideal:\n' + lineas.join('\n');
 }
 
-function formatearHistorial(items) {
-  if (!Array.isArray(items) || items.length === 0) return null;
-  const lineas = items.slice(-8).map((it) => {
-    if (it.tipo === 'diagnostico-general') return `### ${it.date} (diagnóstico general)\n${it.diagnostico || ''}`;
-    if (it.tipo === 'analisis-general') return `### ${it.date} (análisis general, ${it.isoWeek || ''})\n${it.analisisRaw || it.text || ''}`;
-    return `### ${it.date} (${it.modo || 'corrida'})\n${it.text || ''}`;
-  });
-  return 'Historial de corridas anteriores:\n' + lineas.join('\n\n');
-}
-
 function formatearBrandBookCampo(nombre, valor) {
   if (valor == null) return null;
   if (typeof valor === 'object' && Object.keys(valor).length === 0) return null;
@@ -216,7 +195,6 @@ async function construirContexto(cliente, campos) {
     if (valor == null) return;
     let bloque = null;
     if (campo === 'lista-maestra-cliente-ideal') bloque = formatearListaMaestra(valor);
-    else if (campo === 'radar-historial') bloque = formatearHistorial(valor);
     else bloque = formatearBrandBookCampo(CAMPOS_LABEL[campo] || campo, valor);
     if (bloque) bloques.push(bloque);
   });
@@ -262,15 +240,28 @@ async function llamarClaude({ promptCompleto, webSearch, maxTokens }) {
   return { ok: true, text };
 }
 
-function instruccionAnalisisCuentaJSON(accountLabel, fuenteTexto, buscarEnTexto) {
-  const contextoFuente = buscarEnTexto
-    ? `Del siguiente texto pegado (capturado manualmente de varias cuentas), enfócate ÚNICAMENTE en la cuenta ${accountLabel} — busca el bloque que corresponda a esa cuenta o link. Si no encuentras esa cuenta en el texto, no inventes nada.\n\nTEXTO PEGADO:\n"""\n${fuenteTexto}\n"""`
-    : `Analiza este contenido pegado manualmente de la cuenta ${accountLabel} (capturado por el usuario, sin web_search).\n\nCONTENIDO PEGADO:\n"""\n${fuenteTexto}\n"""`;
+function instruccionAnalisisCuentaJSON(accountLabel, fuenteTexto) {
   return (
-    `${contextoFuente}\n\nDetecta patrones (sin copiar) y responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional antes ni después, con este formato exacto:\n` +
+    `Del siguiente texto pegado (capturado manualmente de varias cuentas), enfócate ÚNICAMENTE en la cuenta ${accountLabel} — busca el bloque que corresponda a esa cuenta o link. Si no encuentras esa cuenta en el texto, no inventes nada.\n\n` +
+    `TEXTO PEGADO:\n"""\n${fuenteTexto}\n"""\n\n` +
+    `Detecta patrones (sin copiar) y responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional antes ni después, con este formato exacto:\n` +
     `{"accesible": true, "tipo_de_contenido": "...", "frecuencia": "...", "temas": ["..."], "hooks": ["..."], "formatos": ["..."], "que_funciona": "...", "que_aprender": "...", "que_no_copiar": "...", "que_adaptar": "..."}\n` +
     `Si la cuenta no aparece en el texto o no hay suficiente información, responde exactamente:\n` +
     `{"accesible": false, "tipo_de_contenido": "", "frecuencia": "", "temas": [], "hooks": [], "formatos": [], "que_funciona": "", "que_aprender": "", "que_no_copiar": "", "que_adaptar": ""}`
+  );
+}
+
+// "Análisis de contenido específico" (Otros modos, Modo 2) — pieza puntual,
+// no una cuenta completa. Exige explícitamente cómo se adapta a la marca.
+function instruccionAnalisisContenidoJSON(link, contenidoPegado) {
+  return (
+    `Analiza esta pieza de contenido específica (link: ${link}), a partir del siguiente texto pegado manualmente ` +
+    `(capturado por el usuario desde Chrome, sin web_search).\n\nCONTENIDO PEGADO:\n"""\n${contenidoPegado}\n"""\n\n` +
+    'Detecta el patrón (sin copiar) y responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional antes ni después, con este formato exacto:\n' +
+    '{"accesible": true, "hook": "...", "estructura": "...", "tema": "...", "formato": "...", "emocion_o_deseo": "...", "que_funciona": "...", "que_no_copiar": "...", "como_adaptarlo_a_la_marca": "..."}\n' +
+    'El campo "como_adaptarlo_a_la_marca" debe conectar explícitamente el patrón detectado con la marca del negocio, usando el contexto del Brand Book de abajo si está disponible.\n' +
+    'Si no hay suficiente información en el texto pegado, responde exactamente:\n' +
+    '{"accesible": false, "hook": "", "estructura": "", "tema": "", "formato": "", "emocion_o_deseo": "", "que_funciona": "", "que_no_copiar": "", "como_adaptarlo_a_la_marca": ""}'
   );
 }
 
@@ -328,7 +319,7 @@ async function handleAnalisisCuentaGuardada(req, res, clienteId, systemPrompt) {
   }
 
   const contexto = await construirContexto(clienteId, ['brand-book.identidad', 'brand-book.tono', 'brand-book.audiencia']).catch(() => '');
-  const instruccion = instruccionAnalisisCuentaJSON(accountLabel, entry.textoPegado, true);
+  const instruccion = instruccionAnalisisCuentaJSON(accountLabel, entry.textoPegado);
   const promptCompleto = [systemPrompt, contexto, instruccion].filter(Boolean).join('\n\n');
 
   const r = await llamarClaude({ promptCompleto, webSearch: false });
@@ -348,15 +339,18 @@ async function handleAnalisisCuentaGuardada(req, res, clienteId, systemPrompt) {
   return res.status(200).json(resultado);
 }
 
-async function handleAnalisisCuentaNueva(req, res, clienteId, systemPrompt) {
-  const accountLabel = ((req.body && req.body.accountLabel) || '').toString().trim();
+// "Análisis de contenido específico" (Otros modos, Modo 2) — link a una
+// pieza puntual + texto pegado desde Chrome (mismo patrón que Secciones 1/2,
+// a escala de una sola pieza).
+async function handleAnalisisContenido(req, res, clienteId, systemPrompt) {
+  const link = ((req.body && req.body.link) || '').toString().trim();
   const contenidoPegado = ((req.body && req.body.contenidoPegado) || '').toString().trim();
-  if (!accountLabel || !contenidoPegado) {
+  if (!link || !contenidoPegado) {
     return res.status(400).json({ error: 'Falta el link o el contenido pegado.' });
   }
 
   const contexto = await construirContexto(clienteId, ['brand-book.identidad', 'brand-book.tono', 'brand-book.audiencia']).catch(() => '');
-  const instruccion = instruccionAnalisisCuentaJSON(accountLabel, contenidoPegado, false);
+  const instruccion = instruccionAnalisisContenidoJSON(link, contenidoPegado);
   const promptCompleto = [systemPrompt, contexto, instruccion].filter(Boolean).join('\n\n');
 
   const r = await llamarClaude({ promptCompleto, webSearch: false });
@@ -391,8 +385,9 @@ async function handleAnalisisGeneral(req, res, clienteId, systemPrompt) {
     'no busques en las cuentas de referencia, busca tendencias generales del nicho.\n' +
     '3) El contexto del Brand Book (abajo, si está disponible).\n\n' +
     `Entrega tu respuesta en DOS bloques, separados exactamente por esta línea sola (nada más en esa línea): ${SEPARADOR_INSIGHTS}\n\n` +
-    'BLOQUE 1 — responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional antes ni después, con este formato exacto:\n' +
-    '{"que_funciona": "...", "hooks_que_se_repiten": ["...", "..."], "formatos_que_usan": ["...", "..."], "temas_que_ganan_atencion": ["...", "..."], "ideas_adaptar_semana": ["...", "..."]}\n\n' +
+    'BLOQUE 1 — responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional antes ni después, con este formato exacto. ' +
+    'TODOS los campos son arreglos de puntos clave CORTOS (máximo ~12 palabras cada uno) — nunca un párrafo largo de prosa, ni siquiera en "que_funciona":\n' +
+    '{"que_funciona": ["...", "..."], "hooks_que_se_repiten": ["...", "..."], "formatos_que_usan": ["...", "..."], "temas_que_ganan_atencion": ["...", "..."], "ideas_adaptar_semana": ["...", "..."]}\n\n' +
     'BLOQUE 2 — responde ÚNICAMENTE con un arreglo JSON de exactamente 5 strings (sin texto adicional antes ni después), ' +
     'cada uno un insight principal breve y accionable, en el orden de prioridad. Formato exacto: ' +
     '["insight 1", "insight 2", "insight 3", "insight 4", "insight 5"]\n\n' +
@@ -461,123 +456,6 @@ async function handleIdeasAccionables(req, res, clienteId, systemPrompt) {
   return res.status(200).json({ ideas: r.text });
 }
 
-async function handleBenchmarkEstilo(req, res, clienteId, systemPrompt) {
-  const referencia = ((req.body && req.body.extra) || '').toString().trim();
-  if (!referencia) return res.status(400).json({ error: 'Falta el dato requerido para este modo.' });
-
-  const contexto = await construirContexto(clienteId, ['brand-book.identidad', 'brand-book.tono', 'brand-book.audiencia']).catch(() => '');
-  const referentes = (await leerJSON(`${clienteId}:radar-referentes`).catch(() => null)) || [];
-  const referenciaNorm = normalizarLink(referencia);
-  const match = Array.isArray(referentes)
-    ? referentes.find((r) => {
-        // Shape nuevo: plataformas:[{plataforma,link}]. Shape viejo (compatibilidad): link suelto.
-        const links = Array.isArray(r.plataformas) ? r.plataformas.map((p) => p.link) : (r.link ? [r.link] : []);
-        return links.some((l) => l && normalizarLink(l) === referenciaNorm);
-      })
-    : null;
-
-  if (match) {
-    const items = await leerHistorial(clienteId);
-    let cache = null;
-    for (let i = items.length - 1; i >= 0; i--) {
-      if (items[i].tipo === 'diagnostico-general' && items[i].porCuenta && items[i].porCuenta[match.id]) {
-        cache = items[i].porCuenta[match.id];
-        break;
-      }
-    }
-    if (!cache) {
-      return res.status(200).json({
-        text:
-          'Esta cuenta ya está en tu radar de referentes pero todavía no tiene análisis calculado. Ve a la ' +
-          'Sección 3 (Análisis por cuenta) y haz click en ella primero — luego repite el benchmark.',
-      });
-    }
-    const instruccion =
-      'Haz un benchmark de estilo entre nuestra marca y el análisis ya calculado de esta cuenta de referencia ' +
-      '(abajo) — no vuelvas a buscarla, usa el análisis dado. Compara tono, estructura narrativa y formato — ' +
-      `nunca recomiendes copiar diseño o identidad visual idéntica.\n\nANÁLISIS DE LA CUENTA:\n"""\n${cache.raw || JSON.stringify(cache.data)}\n"""`;
-    const promptCompleto = [systemPrompt, contexto, instruccion].filter(Boolean).join('\n\n');
-    const r = await llamarClaude({ promptCompleto, webSearch: false });
-    if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
-    return res.status(200).json({ text: r.text });
-  }
-
-  const instruccion =
-    `Haz un benchmark de estilo entre nuestra marca y esta referencia externa (usa web_search si es un link): ${referencia}\n\n` +
-    'Compara tono, estructura narrativa y formato — nunca recomiendes copiar diseño o identidad visual idéntica.';
-  const promptCompleto = [systemPrompt, contexto, instruccion].filter(Boolean).join('\n\n');
-  const r = await llamarClaude({ promptCompleto, webSearch: true });
-  if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
-  return res.status(200).json({ text: r.text });
-}
-
-async function handleOptimizacionSemanal(req, res, clienteId, systemPrompt) {
-  const metricas = ((req.body && req.body.extra) || '').toString().trim();
-  if (!metricas) return res.status(400).json({ error: 'Falta el dato requerido para este modo.' });
-
-  const contexto = await construirContexto(clienteId, ['radar-historial']).catch(() => '');
-  const instruccion =
-    'Revisa el historial de corridas anteriores (arriba, si lo hay) y las métricas propias que pegó el usuario ' +
-    '(abajo). Genera una optimización semanal: qué insights/ideas se repiten corrida tras corrida, qué se ' +
-    'confirma o refuta con las métricas reales, y qué ajustar para la próxima semana.\n\n' +
-    `MÉTRICAS PEGADAS POR EL USUARIO:\n"""\n${metricas}\n"""`;
-  const promptCompleto = [systemPrompt, contexto, instruccion].filter(Boolean).join('\n\n');
-  const r = await llamarClaude({ promptCompleto, webSearch: false });
-  if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
-  return res.status(200).json({ text: r.text });
-}
-
-async function handleActivacionSilenciosa(res, cliente) {
-  try {
-    const [identidad, referentes, historial] = await Promise.all([
-      leerJSON(`${cliente}:brand-book.identidad`),
-      leerJSON(`${cliente}:radar-referentes`),
-      leerJSON(`${cliente}:radar-historial`),
-    ]);
-    const cuentas = Array.isArray(referentes) ? referentes.length : 0;
-    const corridas = Array.isArray(historial) ? historial.length : 0;
-    const ultima = corridas ? historial[historial.length - 1].date : null;
-    const brandBookListo = !!identidad && typeof identidad === 'object' && Object.keys(identidad).length > 0;
-
-    const lineas = [
-      `Estado del Consultor Radar de Mercado — cliente "${cliente}"`,
-      `Brand Book: ${brandBookListo ? 'cargado ✓' : 'sin datos todavía ✗'}`,
-      `Cuentas en el radar de referentes: ${cuentas}`,
-      `Corridas guardadas en el historial: ${corridas}${ultima ? ` (última: ${ultima})` : ''}`,
-      'No se realizó ningún análisis — este modo solo confirma estado.',
-    ];
-    return res.status(200).json({ text: lineas.join('\n') });
-  } catch (err) {
-    return res.status(500).json({ error: 'No se pudo leer el estado.' });
-  }
-}
-
-// ---------- modos simples (sin web_search, sin persistencia) ----------
-
-const MODOS = {
-  'analisis-contenido': {
-    necesitaExtra: true,
-    contexto: ['brand-book.identidad', 'brand-book.tono', 'brand-book.audiencia', 'lista-maestra-cliente-ideal'],
-    instruccion(extra) {
-      return `Analiza este contenido pegado manualmente (NO tienes web_search en este modo, trabaja únicamente con el texto de abajo):\n\n"""\n${extra}\n"""\n\nDetecta patrones y cómo adaptarlos a nuestro negocio — sin copiar.`;
-    },
-  },
-  'insights-a-ideas': {
-    necesitaExtra: true,
-    contexto: ['brand-book.identidad', 'brand-book.tono', 'brand-book.audiencia', 'lista-maestra-cliente-ideal'],
-    instruccion(extra) {
-      return `Convierte estos insights en ideas de contenido accionables y concretas para nuestro negocio:\n\n${extra}`;
-    },
-  },
-  'ideas-a-creativos': {
-    necesitaExtra: true,
-    contexto: ['brand-book.identidad', 'brand-book.tono', 'brand-book.audiencia', 'lista-maestra-cliente-ideal'],
-    instruccion(extra) {
-      return `Convierte estas ideas en conceptos creativos listos para anuncios pagados (ads): describe concepto, hook visual/texto, y formato recomendado — sin copiar diseño ni claims ajenos:\n\n${extra}`;
-    },
-  },
-};
-
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
 
@@ -600,10 +478,6 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: `Cliente desconocido: ${clienteId}` });
   }
 
-  if (modo === 'activacion-silenciosa') {
-    return handleActivacionSilenciosa(res, clienteId);
-  }
-
   if (!process.env.ANTHROPIC_API_KEY) {
     return res.status(500).json({ error: 'Falta configurar ANTHROPIC_API_KEY en el servidor.' });
   }
@@ -616,32 +490,12 @@ module.exports = async function handler(req, res) {
   try {
     if (modo === 'diagnostico-general') return await handleDiagnosticoGeneral(req, res, clienteId, systemPrompt);
     if (modo === 'analisis-cuenta-guardada') return await handleAnalisisCuentaGuardada(req, res, clienteId, systemPrompt);
-    if (modo === 'analisis-cuenta-nueva') return await handleAnalisisCuentaNueva(req, res, clienteId, systemPrompt);
+    if (modo === 'analisis-contenido') return await handleAnalisisContenido(req, res, clienteId, systemPrompt);
     if (modo === 'analisis-general') return await handleAnalisisGeneral(req, res, clienteId, systemPrompt);
     if (modo === 'ideas-accionables') return await handleIdeasAccionables(req, res, clienteId, systemPrompt);
-    if (modo === 'benchmark-estilo') return await handleBenchmarkEstilo(req, res, clienteId, systemPrompt);
-    if (modo === 'optimizacion-semanal') return await handleOptimizacionSemanal(req, res, clienteId, systemPrompt);
   } catch (err) {
     return res.status(500).json({ error: 'Error de conexión con el Agente.' });
   }
 
-  const modoCfg = MODOS[modo];
-  if (!modoCfg) {
-    return res.status(400).json({ error: `Modo desconocido: ${modo}` });
-  }
-  const extraTexto = (req.body && req.body.extra != null ? req.body.extra.toString().trim() : '');
-  if (modoCfg.necesitaExtra && !extraTexto) {
-    return res.status(400).json({ error: 'Falta el dato requerido para este modo.' });
-  }
-
-  try {
-    const contexto = await construirContexto(clienteId, modoCfg.contexto).catch(() => '');
-    const instruccion = modoCfg.instruccion(extraTexto);
-    const promptCompleto = [systemPrompt, contexto, instruccion].filter(Boolean).join('\n\n');
-    const r = await llamarClaude({ promptCompleto, webSearch: false });
-    if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
-    return res.status(200).json({ text: r.text });
-  } catch (err) {
-    return res.status(500).json({ error: 'Error de conexión con el Agente.' });
-  }
+  return res.status(400).json({ error: `Modo desconocido: ${modo}` });
 };

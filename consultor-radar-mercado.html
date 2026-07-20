@@ -458,7 +458,6 @@
       <label id="extraLabel"></label>
       <div id="extraInputWrap"></div>
       <div class="extra-controls">
-        <button class="ghost-btn" id="useLastBtn" style="display:none;" onclick="usarUltimoResultado()">Usar último resultado</button>
         <button class="run-btn" id="runBtn" onclick="ejecutarModoActual()">Ejecutar →</button>
       </div>
     </div>
@@ -500,10 +499,6 @@ function copyText(btn, text){
     setTimeout(() => { btn.innerText = original; btn.classList.remove('copied'); }, 1600);
   });
 }
-function normalizarLink(url){
-  if(!url) return '';
-  return url.toString().trim().toLowerCase().replace(/\/+$/,'').replace(/^https?:\/\//,'').replace(/^www\./,'');
-}
 function extraerHandleDeLink(link){
   if(!link) return '';
   try{
@@ -514,11 +509,6 @@ function extraerHandleDeLink(link){
   }catch(e){
     return '';
   }
-}
-function buscarReferentePorLink(link){
-  const norm = normalizarLink(link);
-  if(!norm) return null;
-  return referentesState.find(r => (r.plataformas || []).some(p => p.link && normalizarLink(p.link) === norm)) || null;
 }
 function asList(x){
   if(Array.isArray(x)) return x;
@@ -532,6 +522,56 @@ function isoWeekKey(d){
   const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
   const weekNo = Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
   return `${date.getUTCFullYear()}-W${String(weekNo).padStart(2,'0')}`;
+}
+
+// Tarjeta clave/valor reusada por el análisis de cuenta (Sección 3) y el
+// análisis de contenido específico (Otros modos, Modo 2).
+function renderKvCard(targetEl, filas, headerLabel){
+  targetEl.innerHTML = `
+    <div class="kv-card">
+      ${headerLabel ? `<div class="a-label" style="color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:10.5px;text-transform:uppercase;margin-bottom:10px;">${escapeHtml(headerLabel)}</div>` : ''}
+      ${filas.map(([k, v]) => `
+        <div class="kv-row">
+          <div class="k">${escapeHtml(k)}</div>
+          <div class="v">${Array.isArray(v) ? (v.length ? '<ul>' + v.map(i => `<li>${escapeHtml(i)}</li>`).join('') + '</ul>' : '—') : escapeHtml(v || '—')}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function badgeHtmlParaCache(cache){
+  if(!cache) return '<span class="badge pending">Sin analizar</span>';
+  return (cache.data && cache.data.accesible === false)
+    ? '<span class="badge blocked">🔒 No accesible</span>'
+    : '<span class="badge ok">✓ Analizado</span>';
+}
+
+// Lista de cuentas clickeables (name+plataforma+handle+badge) reusada por la
+// Sección 3 y por el modo "Análisis de cuenta específica" (Otros modos, Modo 1).
+function construirListaCuentasHtml(){
+  if(referentesState.length === 0) return '<div class="log-empty">No hay cuentas guardadas todavía.</div>';
+  const porCuenta = (diagnosticoActual && diagnosticoActual.porCuenta) || {};
+  return referentesState.map(item => {
+    const principal = (item.plataformas && item.plataformas[0]) || {};
+    const handle = extraerHandleDeLink(principal.link);
+    return `
+      <button type="button" class="account-item" data-id="${item.id}">
+        <div class="an">${escapeHtml(item.nombre_cuenta || principal.plataforma || 'Sin nombre')}</div>
+        <div class="am">${escapeHtml(principal.plataforma || '—')}${handle ? ' · ' + escapeHtml(handle) : ''}</div>
+        ${badgeHtmlParaCache(porCuenta[item.id])}
+      </button>
+    `;
+  }).join('');
+}
+
+function wireAccountListClicks(containerEl, detailEl){
+  containerEl.querySelectorAll('.account-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const item = referentesState.find(r => r.id === btn.dataset.id);
+      if(item) analizarCuentaGuardada(item.id, item.nombre_cuenta || item.plataformas?.[0]?.plataforma || 'Sin nombre', detailEl);
+    });
+  });
 }
 
 // ============================================================
@@ -936,35 +976,8 @@ function renderSeccion3(){
     return;
   }
   sub.textContent = `Basado en el diagnóstico del ${diagnosticoActual.date}. Click en una cuenta para ver su análisis.`;
-  if(referentesState.length === 0){
-    grid.innerHTML = '<div class="log-empty">No hay cuentas guardadas todavía.</div>';
-    return;
-  }
-  const porCuenta = diagnosticoActual.porCuenta || {};
-  grid.innerHTML = referentesState.map(item => {
-    const principal = (item.plataformas && item.plataformas[0]) || {};
-    const handle = extraerHandleDeLink(principal.link);
-    const cache = porCuenta[item.id];
-    let badge = '<span class="badge pending">Sin analizar</span>';
-    if(cache){
-      badge = (cache.data && cache.data.accesible === false)
-        ? '<span class="badge blocked">🔒 No accesible</span>'
-        : '<span class="badge ok">✓ Analizado</span>';
-    }
-    return `
-      <button type="button" class="account-item" data-id="${item.id}">
-        <div class="an">${escapeHtml(item.nombre_cuenta || principal.plataforma || 'Sin nombre')}</div>
-        <div class="am">${escapeHtml(principal.plataforma || '—')}${handle ? ' · ' + escapeHtml(handle) : ''}</div>
-        ${badge}
-      </button>
-    `;
-  }).join('');
-  grid.querySelectorAll('.account-item').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const item = referentesState.find(r => r.id === btn.dataset.id);
-      if(item) analizarCuentaGuardada(item.id, item.nombre_cuenta || item.plataforma || 'Sin nombre');
-    });
-  });
+  grid.innerHTML = construirListaCuentasHtml();
+  wireAccountListClicks(grid, document.getElementById('seccion3Detail'));
 }
 
 function renderAnalisisCuentaDetail(targetEl, label, cache){
@@ -988,24 +1001,17 @@ function renderAnalisisCuentaDetail(targetEl, label, cache){
     ['Qué NO copiar', d.que_no_copiar],
     ['Qué adaptar', d.que_adaptar],
   ];
-  targetEl.innerHTML = `
-    <div class="kv-card">
-      <div class="a-label" style="color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:10.5px;text-transform:uppercase;margin-bottom:10px;">${escapeHtml(label)}</div>
-      ${filas.map(([k, v]) => `
-        <div class="kv-row">
-          <div class="k">${escapeHtml(k)}</div>
-          <div class="v">${Array.isArray(v) ? (v.length ? '<ul>' + v.map(i => `<li>${escapeHtml(i)}</li>`).join('') + '</ul>' : '—') : escapeHtml(v || '—')}</div>
-        </div>
-      `).join('')}
-    </div>
-  `;
+  renderKvCard(targetEl, filas, label);
 }
 
-async function analizarCuentaGuardada(id, label){
+// detailEl es opcional (default Sección 3) para que el modo "Análisis de
+// cuenta específica" (Otros modos) pueda reusar esta misma función con su
+// propio contenedor de detalle.
+async function analizarCuentaGuardada(id, label, detailEl){
+  detailEl = detailEl || document.getElementById('seccion3Detail');
   if(!diagnosticoActual) return;
   const cache = (diagnosticoActual.porCuenta || {})[id];
-  const detailEl = document.getElementById('seccion3Detail');
-  document.querySelectorAll('#seccion3Grid .account-item').forEach(b => b.classList.toggle('active', b.dataset.id === id));
+  document.querySelectorAll('.account-item').forEach(b => b.classList.toggle('active', b.dataset.id === id));
 
   if(cache){
     renderAnalisisCuentaDetail(detailEl, label, cache);
@@ -1029,9 +1035,12 @@ async function analizarCuentaGuardada(id, label){
     diagnosticoActual.porCuenta = diagnosticoActual.porCuenta || {};
     diagnosticoActual.porCuenta[id] = { data: data.data, raw: data.raw, date: new Date().toLocaleDateString('es-MX', {day:'numeric', month:'short', year:'numeric'}) };
     renderAnalisisCuentaDetail(detailEl, label, diagnosticoActual.porCuenta[id]);
-    renderSeccion3();
-    const btn = document.querySelector(`#seccion3Grid .account-item[data-id="${id}"]`);
-    if(btn) btn.classList.add('active');
+    // Actualiza el badge en cualquier lista visible (Sección 3 y/o el modo
+    // "Análisis de cuenta específica") sin re-renderizar y perder el detalle recién mostrado.
+    document.querySelectorAll(`.account-item[data-id="${id}"] .badge`).forEach(b => {
+      b.outerHTML = badgeHtmlParaCache(diagnosticoActual.porCuenta[id]);
+    });
+    document.querySelectorAll(`.account-item[data-id="${id}"]`).forEach(b => b.classList.add('active'));
   } catch(err){
     detailEl.innerHTML = '<div class="error-card">Hubo un error de conexión. Intenta de nuevo en un momento.</div>';
   }
@@ -1095,7 +1104,7 @@ function renderSeccion4Result(){
     return;
   }
   const puntos = [
-    ['Qué funciona', d.que_funciona],
+    ['Qué funciona', asList(d.que_funciona)],
     ['Hooks que se repiten', asList(d.hooks_que_se_repiten)],
     ['Formatos que usan', asList(d.formatos_que_usan)],
     ['Temas que ganan atención', asList(d.temas_que_ganan_atencion)],
@@ -1175,17 +1184,11 @@ async function pedirIdeasAccionables(){
 // OTROS MODOS (deben coincidir con los ids que espera api/consultor-radar.js)
 // ============================================================
 const MODES = [
-  { id:'analisis-cuenta', num:1, t:'Análisis de cuenta específica', d:'Si es una de tus 10 cuentas, reutiliza su análisis (Sección 3). Si es nueva, arma un prompt para pegar resultado.', extra:'link', extraLabel:'Link de la cuenta', extraPlaceholder:'https://instagram.com/...', extraType:'input' },
-  { id:'analisis-contenido', num:2, t:'Análisis de contenido específico', d:'Pega el texto o guion de un contenido puntual.', extra:'contenido', extraLabel:'Contenido pegado', extraPlaceholder:'Pega aquí el guion, caption o texto...', extraType:'textarea' },
-  { id:'benchmark-estilo', num:3, t:'Benchmark de estilo', d:'Compara tono y formato de la marca contra una referencia.', extra:'referencia', extraLabel:'Link o texto de referencia', extraPlaceholder:'https://... o pega el texto', extraType:'textarea' },
-  { id:'insights-a-ideas', num:4, t:'Insights a Ideas', d:'Herramienta secundaria: convierte insights sueltos en ideas accionables.', extra:'insights', extraLabel:'Insights', extraPlaceholder:'Pega los insights...', extraType:'textarea' },
-  { id:'ideas-a-creativos', num:5, t:'Ideas a Creativos', d:'Convierte ideas en conceptos listos para anuncios.', extra:'ideas', extraLabel:'Ideas', extraPlaceholder:'Pega las ideas...', extraType:'textarea' },
-  { id:'optimizacion-semanal', num:6, t:'Optimización semanal', d:'Revisa el historial y tus métricas propias (pegadas a mano) y sugiere ajustes.', extra:'metricas', extraLabel:'Tus métricas (views, guardados, ventas)', extraPlaceholder:'Pega tus métricas...', extraType:'textarea' },
-  { id:'activacion-silenciosa', num:7, t:'Activación silenciosa', d:'Solo confirma el estado del sistema — no analiza nada.', extra:null },
+  { id:'analisis-cuenta', num:1, t:'Análisis de cuenta específica', d:'Elige una de tus cuentas guardadas para ver o generar su análisis.' },
+  { id:'analisis-contenido', num:2, t:'Análisis de contenido específico', d:'Pega el link de una pieza puntual — arma un prompt para Chrome y analiza el resultado, conectándolo con tu marca.' },
 ];
 
 let modoActivo = null;
-let lastResultText = '';
 
 const grid = document.getElementById('modesGrid');
 grid.innerHTML = MODES.map(m => `
@@ -1202,80 +1205,87 @@ function seleccionarModo(id){
   document.getElementById('mode-' + id).classList.add('active');
 
   const panel = document.getElementById('extraPanel');
-  const useLastBtn = document.getElementById('useLastBtn');
+  panel.style.display = 'none';
+  document.getElementById('resultBox').innerHTML = '';
 
-  if(!modoActivo.extra){
-    panel.style.display = 'none';
-    ejecutarModo(modoActivo, null);
+  if(id === 'analisis-cuenta'){
+    mostrarListaCuentasModo();
     return;
   }
 
-  panel.style.display = 'block';
-  document.getElementById('extraLabel').textContent = modoActivo.extraLabel;
-  const wrap = document.getElementById('extraInputWrap');
-  if(modoActivo.extraType === 'textarea'){
-    wrap.innerHTML = `<textarea id="extraInput" placeholder="${modoActivo.extraPlaceholder}"></textarea>`;
-  } else {
-    wrap.innerHTML = `<input type="text" id="extraInput" placeholder="${modoActivo.extraPlaceholder}">`;
+  if(id === 'analisis-contenido'){
+    panel.style.display = 'block';
+    document.getElementById('extraLabel').textContent = 'Link de la pieza de contenido';
+    document.getElementById('extraInputWrap').innerHTML = '<input type="text" id="extraInput" placeholder="https://instagram.com/p/...">';
+    document.getElementById('runBtn').textContent = 'Continuar →';
+    panel.scrollIntoView({behavior:'smooth', block:'nearest'});
   }
-  useLastBtn.style.display = (lastResultText && (modoActivo.id === 'insights-a-ideas' || modoActivo.id === 'ideas-a-creativos')) ? 'inline-flex' : 'none';
-  document.getElementById('runBtn').textContent = modoActivo.id === 'analisis-cuenta' ? 'Continuar →' : 'Ejecutar →';
-  panel.scrollIntoView({behavior:'smooth', block:'nearest'});
 }
 
-function usarUltimoResultado(){
-  const input = document.getElementById('extraInput');
-  if(input) input.value = lastResultText;
+// "Modo 1: Análisis de cuenta específica" — ya no pide un link a mano: solo
+// muestra la lista de cuentas guardadas (mismo estilo que Sección 3) para
+// elegir una con un click.
+function mostrarListaCuentasModo(){
+  const resultBox = document.getElementById('resultBox');
+  resultBox.innerHTML = `<div class="account-list">${construirListaCuentasHtml()}</div><div id="modoAnalisisCuentaDetail"></div>`;
+  wireAccountListClicks(resultBox, document.getElementById('modoAnalisisCuentaDetail'));
 }
 
 function ejecutarModoActual(){
   const input = document.getElementById('extraInput');
   const valor = input ? input.value.trim() : '';
-  if(modoActivo.extra && !valor){
-    document.getElementById('resultBox').innerHTML = '<div class="error-card">Completa el campo antes de ejecutar.</div>';
+  if(!valor){
+    document.getElementById('resultBox').innerHTML = '<div class="error-card">Completa el campo antes de continuar.</div>';
     return;
   }
-  if(modoActivo.id === 'analisis-cuenta'){
-    continuarAnalisisCuentaEspecifica(valor);
-    return;
-  }
-  ejecutarModo(modoActivo, valor);
+  continuarAnalisisContenidoEspecifico(valor);
 }
 
-// "Modo 1: Análisis de cuenta específica" — si el link ya es una de las 10
-// cuentas fijas, reusa el flujo de la Sección 3 (sin llamada nueva si ya
-// estaba cacheado). Si es una cuenta nueva, arma un prompt de Chrome de una
-// sola cuenta + textarea de pegado, mismo patrón que Secciones 1/2.
-function continuarAnalisisCuentaEspecifica(link){
+// "Modo 2: Análisis de contenido específico" — mismo patrón híbrido que
+// Secciones 1/2, a escala de una sola pieza: prompt para Chrome -> pegar
+// resultado -> Analizar.
+function buildChromePromptPieza(link){
+  return `Abre esta publicación/video específico en Instagram/TikTok usando mi sesión ya iniciada:
+${link}
+
+Extrae exactamente esto de esa pieza puntual:
+---
+HOOK (primeras palabras o texto en pantalla):
+ESTRUCTURA/GUION (qué pasa de inicio a fin):
+TEMA:
+FORMATO (reel, carrusel, video largo, etc.):
+EMOCIÓN O DESEO QUE ACTIVA:
+CAPTION COMPLETO:
+COMENTARIOS DESTACADOS del público:
+ENGAGEMENT VISIBLE:
+---
+Si no es accesible, anota solo: '🔒 no accesible'.
+Al final, dame todo en un solo bloque de texto que pueda copiar y pegar tal cual.`;
+}
+
+function continuarAnalisisContenidoEspecifico(link){
   const resultBox = document.getElementById('resultBox');
-  const match = buscarReferentePorLink(link);
-  if(match){
-    resultBox.innerHTML = '<div class="loading-card">Esta cuenta ya está en tu radar de referentes — mostrando su análisis en la Sección 3.</div>';
-    document.getElementById('seccion3Grid').scrollIntoView({behavior:'smooth', block:'start'});
-    analizarCuentaGuardada(match.id, match.nombre_cuenta || match.plataforma || 'Sin nombre');
-    return;
-  }
   resultBox.innerHTML = `
     <div class="subsection">
-      <div class="subsection-title">Cuenta nueva — prompt para Chrome</div>
-      <pre class="prompt-block">${escapeHtml(buildChromePrompt([link]))}</pre>
-      <button class="copy-btn" id="copyCuentaNuevaBtn">Copiar prompt</button>
-      <textarea class="standalone-textarea" id="cuentaNuevaInput" placeholder="Pega aquí lo que te devolvió Claude" style="margin-top:12px;"></textarea>
+      <div class="subsection-title">Prompt para Chrome — esta pieza</div>
+      <pre class="prompt-block">${escapeHtml(buildChromePromptPieza(link))}</pre>
+      <button class="copy-btn" id="copyPiezaPromptBtn">Copiar prompt</button>
+      <textarea class="standalone-textarea" id="piezaInput" placeholder="Pega aquí lo que te devolvió Claude" style="margin-top:12px;"></textarea>
       <div class="extra-controls">
-        <button class="run-btn" id="analizarCuentaNuevaBtn">Analizar</button>
+        <button class="run-btn" id="analizarPiezaBtn">Analizar</button>
       </div>
-      <div id="cuentaNuevaResult"></div>
+      <div id="piezaResult"></div>
     </div>
   `;
   const promptText = resultBox.querySelector('.prompt-block').textContent;
-  document.getElementById('copyCuentaNuevaBtn').addEventListener('click', (e) => copyText(e.target, promptText));
-  document.getElementById('analizarCuentaNuevaBtn').addEventListener('click', () => analizarCuentaNueva(link));
+  document.getElementById('copyPiezaPromptBtn').addEventListener('click', (e) => copyText(e.target, promptText));
+  document.getElementById('analizarPiezaBtn').addEventListener('click', () => analizarContenidoEspecifico(link));
 }
 
-async function analizarCuentaNueva(link){
-  const input = document.getElementById('cuentaNuevaInput');
+async function analizarContenidoEspecifico(link){
+  const input = document.getElementById('piezaInput');
   const contenido = input.value.trim();
-  const resultEl = document.getElementById('cuentaNuevaResult');
+  const resultEl = document.getElementById('piezaResult');
   if(!contenido){
     resultEl.innerHTML = '<div class="error-card">Pega primero lo que te devolvió Claude.</div>';
     return;
@@ -1285,45 +1295,39 @@ async function analizarCuentaNueva(link){
     const response = await fetch('/api/consultor-radar', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ modo: 'analisis-cuenta-nueva', cliente: CLIENTE_ID, accountLabel: link, contenidoPegado: contenido })
+      body: JSON.stringify({ modo: 'analisis-contenido', cliente: CLIENTE_ID, link, contenidoPegado: contenido })
     });
     const data = await response.json();
     if(!response.ok){
-      resultEl.innerHTML = `<div class="error-card">${data.error || 'No se pudo analizar esta cuenta.'}</div>`;
+      resultEl.innerHTML = `<div class="error-card">${data.error || 'No se pudo analizar este contenido.'}</div>`;
       return;
     }
-    renderAnalisisCuentaDetail(resultEl, link, { data: data.data, raw: data.raw });
+    renderAnalisisContenidoDetail(resultEl, data.data, data.raw);
   } catch(err){
     resultEl.innerHTML = '<div class="error-card">Hubo un error de conexión. Intenta de nuevo en un momento.</div>';
   }
 }
 
-async function ejecutarModo(modo, extra){
-  const resultBox = document.getElementById('resultBox');
-  const runBtn = document.getElementById('runBtn');
-  if(runBtn) { runBtn.disabled = true; runBtn.innerText = 'Analizando...'; }
-  resultBox.innerHTML = '<div class="loading-card">El Consultor está armando el análisis...</div>';
-
-  try{
-    const response = await fetch('/api/consultor-radar', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ modo: modo.id, cliente: CLIENTE_ID, extra })
-    });
-    const data = await response.json();
-    if(!response.ok){
-      resultBox.innerHTML = `<div class="error-card">${data.error || 'No se pudo generar el análisis. Intenta de nuevo.'}</div>`;
-      return;
-    }
-    lastResultText = data.text;
-    resultBox.innerHTML = `<div class="answer-card"><div class="a-label">${modo.t}</div>${data.text}</div>
-      <button class="copy-btn" id="copyModoBtn">Copiar</button>`;
-    document.getElementById('copyModoBtn').addEventListener('click', (e) => copyText(e.target, data.text));
-  } catch(err){
-    resultBox.innerHTML = '<div class="error-card">Hubo un error de conexión. Intenta de nuevo en un momento.</div>';
-  } finally {
-    if(runBtn) { runBtn.disabled = false; runBtn.innerText = (modoActivo && modoActivo.id === 'analisis-cuenta') ? 'Continuar →' : 'Ejecutar →'; }
+function renderAnalisisContenidoDetail(targetEl, data, raw){
+  if(!data){
+    targetEl.innerHTML = `<div class="answer-card">${escapeHtml(raw || 'Sin datos.')}</div>`;
+    return;
   }
+  if(data.accesible === false){
+    targetEl.innerHTML = '<div class="kv-card">🔒 No accesible en el texto pegado. Vuelve a pegar el resultado de Chrome.</div>';
+    return;
+  }
+  const filas = [
+    ['Hook', data.hook],
+    ['Estructura', data.estructura],
+    ['Tema', data.tema],
+    ['Formato', data.formato],
+    ['Emoción o deseo', data.emocion_o_deseo],
+    ['Qué funciona', data.que_funciona],
+    ['Qué NO copiar', data.que_no_copiar],
+    ['Cómo adaptarlo a la marca', data.como_adaptarlo_a_la_marca],
+  ];
+  renderKvCard(targetEl, filas, null);
 }
 
 // ============================================================
