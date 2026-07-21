@@ -334,6 +334,9 @@
   .accordion[open] summary:after{content:'–';}
   .accordion .body{padding:0 18px 16px;}
   .accordion .body p{font-size:13.5px;line-height:1.6;white-space:pre-line;margin:0 0 10px;}
+  .mini-chip-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
+  .mini-chip{font-size:11px;color:var(--text-dim);background:var(--surface-2);padding:3px 9px;border-radius:100px;border:1px solid var(--line);}
+  .historial-reco{font-size:13.5px;line-height:1.55;background:var(--surface-2);border-radius:10px;padding:10px 12px;}
   .accordion .del-btn{
     flex:none;background:transparent;border:1px solid var(--line);color:var(--text-dim);
     border-radius:7px;padding:5px 9px;font-size:11px;cursor:pointer;
@@ -526,8 +529,8 @@ function isoWeekKey(d){
 
 // Tarjeta clave/valor reusada por el análisis de cuenta (Sección 3) y el
 // análisis de contenido específico (Otros modos, Modo 2).
-function renderKvCard(targetEl, filas, headerLabel){
-  targetEl.innerHTML = `
+function buildKvCardHtml(filas, headerLabel){
+  return `
     <div class="kv-card">
       ${headerLabel ? `<div class="a-label" style="color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:10.5px;text-transform:uppercase;margin-bottom:10px;">${escapeHtml(headerLabel)}</div>` : ''}
       ${filas.map(([k, v]) => `
@@ -538,6 +541,9 @@ function renderKvCard(targetEl, filas, headerLabel){
       `).join('')}
     </div>
   `;
+}
+function renderKvCard(targetEl, filas, headerLabel){
+  targetEl.innerHTML = buildKvCardHtml(filas, headerLabel);
 }
 
 function badgeHtmlParaCache(cache){
@@ -986,28 +992,46 @@ function renderSeccion3(){
   wireAccountListClicks(grid, document.getElementById('seccion3Detail'));
 }
 
-function renderAnalisisCuentaDetail(targetEl, label, cache){
+// Envuelve el detalle en el mismo acordeón (<details>/<summary>) que ya usa
+// el Historial: abrir una cuenta reemplaza por completo el contenido de
+// targetEl (nunca se acumulan varios), y el toggle nativo del navegador
+// permite colapsar con el botón − y reabrir con + sin volver a calcular
+// nada (el cache-hit ya evita la llamada; esto solo abre/cierra HTML ya
+// renderizado). El listener de 'toggle' mantiene sincronizado el borde
+// verde de la tarjeta con si su detalle está abierto o colapsado.
+function renderAnalisisCuentaDetail(targetEl, id, label, cache){
   const d = cache.data;
+  let cuerpoHtml;
   if(!d){
-    targetEl.innerHTML = `<div class="answer-card"><div class="a-label">${escapeHtml(label)}</div>${escapeHtml(cache.raw || 'Sin datos.')}</div>`;
-    return;
+    cuerpoHtml = `<p>${escapeHtml(cache.raw || 'Sin datos.')}</p>`;
+  } else if(d.accesible === false){
+    cuerpoHtml = '<div class="kv-card">🔒 No accesible en el texto pegado. Vuelve a pegar el resultado de Chrome incluyendo esta cuenta.</div>';
+  } else {
+    const filas = [
+      ['Tipo de contenido', d.tipo_de_contenido],
+      ['Frecuencia', d.frecuencia],
+      ['Temas', asList(d.temas)],
+      ['Hooks', asList(d.hooks)],
+      ['Formatos', asList(d.formatos)],
+      ['Qué funciona', d.que_funciona],
+      ['Qué aprender', d.que_aprender],
+      ['Qué NO copiar', d.que_no_copiar],
+      ['Qué adaptar', d.que_adaptar],
+    ];
+    cuerpoHtml = buildKvCardHtml(filas, null);
   }
-  if(d.accesible === false){
-    targetEl.innerHTML = `<div class="kv-card">🔒 <b>${escapeHtml(label)}</b> — no accesible en el texto pegado. Vuelve a pegar el resultado de Chrome incluyendo esta cuenta.</div>`;
-    return;
-  }
-  const filas = [
-    ['Tipo de contenido', d.tipo_de_contenido],
-    ['Frecuencia', d.frecuencia],
-    ['Temas', asList(d.temas)],
-    ['Hooks', asList(d.hooks)],
-    ['Formatos', asList(d.formatos)],
-    ['Qué funciona', d.que_funciona],
-    ['Qué aprender', d.que_aprender],
-    ['Qué NO copiar', d.que_no_copiar],
-    ['Qué adaptar', d.que_adaptar],
-  ];
-  renderKvCard(targetEl, filas, label);
+
+  targetEl.innerHTML = `
+    <details class="accordion" open>
+      <summary><span>${escapeHtml(label)}</span></summary>
+      <div class="body">${cuerpoHtml}</div>
+    </details>
+  `;
+
+  const detailsEl = targetEl.querySelector('details');
+  detailsEl.addEventListener('toggle', () => {
+    document.querySelectorAll(`.account-item[data-id="${id}"]`).forEach(b => b.classList.toggle('active', detailsEl.open));
+  });
 }
 
 // detailEl es opcional (default Sección 3) para que el modo "Análisis de
@@ -1031,7 +1055,7 @@ async function analizarCuentaGuardada(item, detailEl){
   document.querySelectorAll('.account-item').forEach(b => b.classList.toggle('active', b.dataset.id === id));
 
   if(cache){
-    renderAnalisisCuentaDetail(detailEl, label, cache);
+    renderAnalisisCuentaDetail(detailEl, id, label, cache);
     detailEl.scrollIntoView({behavior:'smooth', block:'nearest'});
     return;
   }
@@ -1058,7 +1082,7 @@ async function analizarCuentaGuardada(item, detailEl){
     }
     diagnosticoActual.porCuenta = diagnosticoActual.porCuenta || {};
     diagnosticoActual.porCuenta[id] = { data: data.data, raw: data.raw, date: new Date().toLocaleDateString('es-MX', {day:'numeric', month:'short', year:'numeric'}) };
-    renderAnalisisCuentaDetail(detailEl, label, diagnosticoActual.porCuenta[id]);
+    renderAnalisisCuentaDetail(detailEl, id, label, diagnosticoActual.porCuenta[id]);
     // Actualiza el badge en cualquier lista visible (Sección 3 y/o el modo
     // "Análisis de cuenta específica") sin re-renderizar y perder el detalle recién mostrado.
     document.querySelectorAll(`.account-item[data-id="${id}"] .badge`).forEach(b => {
@@ -1386,24 +1410,93 @@ async function loadHistorial(){
   renderSeccion5();
 }
 
+// Primera oración (o primeros maxLen caracteres) de un texto largo — usado
+// como resumen de una entrada 'diagnostico-general', que no trae un campo
+// corto propio como sí tienen las entradas 'analisis-general'.
+function primeraFrase(texto, maxLen){
+  if(!texto) return '';
+  const limpio = texto.trim();
+  const corte = limpio.search(/[.\n]/);
+  let frase = corte > 10 ? limpio.slice(0, corte + 1) : limpio;
+  if(frase.length > maxLen) frase = frase.slice(0, maxLen).trim() + '…';
+  return frase;
+}
+
+// Busca la entrada 'diagnostico-general' más reciente ANTES de la posición
+// idx en el arreglo original (orden cronológico) — es de la que salió el
+// 'analisis-general' en esa posición, así que sus cuentas cacheadas en
+// porCuenta son las que alimentaron esa corrida.
+function diagnosticoPrevioA(items, idx){
+  for(let i = idx - 1; i >= 0; i--){
+    if(items[i].tipo === 'diagnostico-general') return items[i];
+  }
+  return null;
+}
+
+// Chips cortos (nombre/@handle) de las cuentas con análisis cacheado en
+// porCuenta — no el detalle completo de cada una.
+function construirResumenCuentasHtml(diagEntry){
+  if(!diagEntry || !diagEntry.porCuenta) return '';
+  const ids = Object.keys(diagEntry.porCuenta);
+  if(ids.length === 0) return '';
+  const nombres = ids.map(id => {
+    const ref = referentesState.find(r => r.id === id);
+    if(!ref) return null;
+    const principal = (ref.plataformas && ref.plataformas[0]) || {};
+    return ref.nombre_cuenta || extraerHandleDeLink(principal.link) || principal.plataforma || null;
+  }).filter(Boolean);
+  if(nombres.length === 0) return '';
+  return `<div class="mini-chip-list">${nombres.map(n => `<span class="mini-chip">${escapeHtml(n)}</span>`).join('')}</div>`;
+}
+
+// 1-2 líneas de recomendación clave para una entrada 'analisis-general':
+// la primera idea de "ideas_adaptar_semana", o el primer punto de
+// "que_funciona" si no hay ideas.
+function obtenerRecomendacionClave(analisisData){
+  if(!analisisData) return '';
+  const ideas = asList(analisisData.ideas_adaptar_semana);
+  if(ideas.length) return ideas[0];
+  const funciona = asList(analisisData.que_funciona);
+  if(funciona.length) return funciona[0];
+  return '';
+}
+
 function renderHistorial(items){
   const listEl = document.getElementById('historialList');
   if(!items || items.length === 0){
     listEl.innerHTML = '<div class="log-empty">Todavía no hay corridas guardadas. Genera el diagnóstico general (Sección 2) para empezar.</div>';
     return;
   }
-  listEl.innerHTML = items.slice().reverse().map(item => {
+  // Se conserva el índice original (antes de invertir para mostrar más
+  // reciente primero) porque diagnosticoPrevioA necesita el orden cronológico real.
+  listEl.innerHTML = items.map((item, idx) => ({ item, idx })).slice().reverse().map(({ item, idx }) => {
     const esDiag = item.tipo === 'diagnostico-general';
     const esAnalisis = item.tipo === 'analisis-general';
     const titulo = esDiag ? 'Diagnóstico general' : (esAnalisis ? `Análisis general (${item.isoWeek || ''})` : (item.modo || 'Corrida'));
-    const cuerpo = esDiag ? item.diagnostico : (esAnalisis ? (item.analisisRaw || item.text || '') : (item.text || ''));
+
+    let cuentasHtml = '';
+    let recomendacion = '';
+    if(esDiag){
+      cuentasHtml = construirResumenCuentasHtml(item);
+      recomendacion = primeraFrase(item.diagnostico, 180);
+    } else if(esAnalisis){
+      cuentasHtml = construirResumenCuentasHtml(diagnosticoPrevioA(items, idx));
+      recomendacion = obtenerRecomendacionClave(item.analisisData);
+    } else {
+      recomendacion = primeraFrase(item.text, 180);
+    }
+
+    const cuerpoHtml = (cuentasHtml || recomendacion)
+      ? `${cuentasHtml}${recomendacion ? `<div class="historial-reco">💡 ${escapeHtml(recomendacion)}</div>` : ''}`
+      : '<p class="log-empty" style="padding:0;">Sin resumen disponible.</p>';
+
     return `
       <details class="accordion">
         <summary>
           <span>${item.date} <span class="meta">· ${escapeHtml(titulo)}</span></span>
           <button class="del-btn" type="button" data-del-id="${item.id}">Eliminar</button>
         </summary>
-        <div class="body"><p>${escapeHtml(cuerpo)}</p></div>
+        <div class="body">${cuerpoHtml}</div>
       </details>
     `;
   }).join('');
