@@ -1,0 +1,1224 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agente de Contenido y Creativos — JefesHub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0F0B16;
+    --surface:#181120;
+    --surface-2:#211829;
+    --line:#332A3D;
+    --text:#F3EEF9;
+    --text-dim:#B6A9C7;
+    --accent:#B8F725;
+    --accent-soft:#2E3610;
+    --t1:#1E3A8A;--t2:#3B82C4;--t3:#38BDF8;--t4:#FACC15;--t5:#F5B21C;
+    --t6:#FB923C;--t7:#F97316;--t8:#EF4444;--t9:#DC2626;--t10:#B91C1C;
+    --adq:#6366F1;--adq-soft:#1E1B4B;
+    --con:#0EA5E9;--con-soft:#082F49;
+    --conv:#22C55E;--conv-soft:#052E16;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:radial-gradient(1200px 600px at 50% -10%,#241733 0%,var(--bg) 55%);color:var(--text);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;padding:28px 16px 80px;}
+  h1,.display{font-family:'Sora',sans-serif;}
+  .wrap{max-width:1400px;margin:0 auto;}
+  h1{font-size:clamp(24px,3.4vw,32px);font-weight:800;margin:0 0 6px;}
+  .sub{color:var(--text-dim);font-size:14px;margin:0 0 22px;line-height:1.5;max-width:640px;}
+
+  /* TABS */
+  .tabs{display:flex;gap:6px;margin-bottom:18px;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+  .tab{padding:10px 16px;cursor:pointer;font-size:14px;font-weight:600;color:var(--text-dim);border-bottom:2px solid transparent;user-select:none;font-family:'Sora',sans-serif;}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+  .tab .count{display:inline-block;margin-left:6px;background:var(--surface-2);color:var(--text-dim);border-radius:10px;padding:1px 8px;font-size:11px;font-family:'JetBrains Mono',monospace;}
+  .tab.tab-agente .count{background:var(--accent-soft);color:var(--accent);}
+
+  /* STATS BAR */
+  .stats-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;padding:12px 16px;background:var(--surface);border:1px solid var(--line);border-radius:12px;}
+  .stat-pill{display:flex;align-items:center;gap:6px;font-size:12px;font-family:'JetBrains Mono',monospace;}
+  .stat-pill .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+  .stat-pill .dot-adq{background:var(--adq);}
+  .stat-pill .dot-con{background:var(--con);}
+  .stat-pill .dot-conv{background:var(--conv);}
+  .stat-pill .dot-dim{background:var(--text-dim);}
+  .stat-value{font-weight:600;color:var(--text);}
+  .stat-label{color:var(--text-dim);}
+  .stats-bar-track{flex:1;min-width:160px;display:flex;border-radius:6px;overflow:hidden;height:8px;align-self:center;}
+  .track-seg{height:100%;transition:width .4s;}
+
+  /* TOOLBAR */
+  .toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap;}
+  .toolbar-left{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  input[type=text].search,select.filter{padding:9px 12px;border:1px solid var(--line);border-radius:10px;font-size:13px;background:var(--surface);color:var(--text);font-family:'Inter',sans-serif;outline:none;}
+  input[type=text].search{width:200px;}
+  input[type=text].search::placeholder{color:var(--text-dim);}
+  input[type=text].search:focus,select.filter:focus{border-color:var(--accent);}
+  .status{font-size:12px;color:var(--text-dim);margin:0;min-height:16px;font-family:'JetBrains Mono',monospace;}
+
+  /* SECTIONS & CARDS */
+  .section{margin-bottom:30px;}
+  .section-head{display:flex;align-items:center;gap:8px;padding:9px 16px;border-radius:10px;margin-bottom:14px;font-weight:700;font-size:13.5px;font-family:'Sora',sans-serif;letter-spacing:.02em;}
+  .section-head.proceso{background:#332708;color:#F5C84C;}
+  .section-head.idea{background:#1B2142;color:#A8B4F0;}
+  .section-head.publicado{background:#3A2013;color:#FF9466;}
+  .section-head .scount{font-weight:400;opacity:.7;font-size:12px;font-family:'JetBrains Mono',monospace;}
+  .empty-row{padding:18px;text-align:center;color:var(--text-dim);font-size:13px;background:var(--surface);border:1px dashed var(--line);border-radius:12px;}
+  .cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;}
+  .item-card{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--horizon,var(--t1));border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:10px;touch-action:pan-y;}
+  .item-top{display:flex;align-items:center;gap:8px;justify-content:space-between;}
+  select.estado-select{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:5px 10px;border-radius:100px;border:1px solid transparent;cursor:pointer;}
+  select.estado-select.idea{background:#1B2142;color:#A8B4F0;border-color:#3A4380;}
+  select.estado-select.proceso{background:#332708;color:#F5C84C;border-color:#6B4F14;}
+  select.estado-select.publicado{background:#3A2013;color:#FF9466;border-color:#7A3A1E;}
+  .fecha-input{width:76px;text-align:right;background:transparent;border:1px solid var(--line);border-radius:8px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:11.5px;padding:5px 8px;outline:none;}
+  .fecha-input:focus{border-color:var(--accent);color:var(--text);}
+  textarea.gancho-input{width:100%;border:none;background:transparent;color:var(--text);font-family:'Sora',sans-serif;font-size:15.5px;font-weight:700;line-height:1.4;resize:none;padding:0;outline:none;min-height:24px;}
+  .item-fase{font-size:11.5px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;}
+
+  /* BADGES */
+  .badges-row{display:flex;gap:5px;flex-wrap:wrap;align-items:center;}
+  .badge{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-family:'JetBrains Mono',monospace;font-weight:700;padding:3px 8px;border-radius:100px;letter-spacing:.02em;border:1px solid transparent;}
+  .badge-adquisicion{background:var(--adq-soft);color:var(--adq);border-color:#312E81;}
+  .badge-consideracion{background:var(--con-soft);color:var(--con);border-color:#0C4A6E;}
+  .badge-conversion{background:var(--conv-soft);color:var(--conv);border-color:#14532D;}
+  .badge-fria{background:#0F172A;color:#94A3B8;border-color:#1E293B;}
+  .badge-tibia{background:#1C1917;color:#D4A96A;border-color:#292524;}
+  .badge-caliente{background:#1C0A0A;color:#F97316;border-color:#3B1515;}
+  .badge-organico{background:#1E1B4B;color:#A5B4FC;border-color:#312E81;}
+  .badge-evergreen{background:#1A2E05;color:#84CC16;border-color:#1A3A05;}
+  .badge-ambos{background:#1C1A2E;color:#C084FC;border-color:#2E1A4B;}
+  .badge-tipo{background:var(--surface-2);color:var(--text-dim);border-color:var(--line);}
+
+  /* CARD DETAILS */
+  .item-details{border-top:1px solid var(--line);padding-top:8px;}
+  .item-details summary{cursor:pointer;font-size:12px;color:var(--horizon,var(--accent));font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.03em;list-style:none;display:flex;align-items:center;justify-content:space-between;}
+  .item-details summary::-webkit-details-marker{display:none;}
+  .detail-grid{display:flex;flex-direction:column;gap:10px;margin-top:10px;}
+  .detail-field label{display:block;font-size:10.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em;font-family:'JetBrains Mono',monospace;margin-bottom:4px;}
+  .detail-field textarea,.detail-field input{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:8px 10px;resize:none;outline:none;line-height:1.5;}
+  .detail-field textarea:focus,.detail-field input:focus{border-color:var(--accent);}
+  .detail-field input.link-input{color:#7CB9E8;}
+  .detail-meta-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .angulos-section{margin-top:10px;}
+  .angulos-title{font-size:10.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em;font-family:'JetBrains Mono',monospace;margin-bottom:8px;padding-top:8px;border-top:1px solid var(--line);}
+  .angulos-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .btn-guion{border:none;background:transparent;color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;cursor:pointer;padding:2px 0;letter-spacing:.03em;text-transform:uppercase;opacity:.8;}
+  .btn-guion:hover{opacity:1;}
+  .guion-result{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:8px;font-size:13px;line-height:1.7;white-space:pre-wrap;max-height:320px;overflow-y:auto;}
+
+  /* BANCO */
+  .banco-add{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:26px;display:flex;flex-direction:column;gap:12px;}
+  .banco-add-row{display:flex;gap:10px;flex-wrap:wrap;}
+  .banco-add textarea{flex:1 1 300px;min-height:64px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;color:var(--text);padding:10px 12px;font-family:'Inter',sans-serif;font-size:14px;resize:vertical;outline:none;}
+  .banco-add textarea:focus{border-color:var(--accent);}
+  .banco-add input[type=text]{flex:1 1 200px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;color:var(--text);padding:10px 12px;font-size:14px;outline:none;}
+  .banco-add input[type=text]:focus{border-color:var(--accent);}
+  .banco-add-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+  .btn{font-family:'Inter',sans-serif;font-weight:700;font-size:13px;padding:10px 16px;border-radius:9px;cursor:pointer;border:none;transition:.15s;}
+  .btn-ghost{background:var(--accent-soft);border:1px solid var(--accent);color:var(--accent);}
+  .btn-ghost:hover{background:var(--accent);color:#0F0B16;}
+  .btn-solid{background:var(--accent);color:#0F0B16;}
+  .btn-solid:hover{filter:brightness(1.08);}
+  .btn:disabled{opacity:.5;cursor:wait;}
+  .suggest-result{display:flex;flex-direction:column;gap:10px;background:var(--surface-2);border-radius:10px;padding:12px 14px;}
+  .suggest-result label{display:block;font-size:10.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em;font-family:'JetBrains Mono',monospace;margin-bottom:4px;}
+  .suggest-result textarea{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:'Inter',sans-serif;font-size:13.5px;padding:8px 10px;resize:vertical;outline:none;}
+  .suggest-result textarea:focus{border-color:var(--accent);}
+  .suggest-status{font-size:12px;color:var(--text-dim);min-height:16px;}
+  .suggest-status.error{color:#F87171;}
+  .banco-section-head{font-family:'Sora',sans-serif;font-weight:700;font-size:14px;margin-bottom:10px;color:var(--text);}
+  .banco-section-head .count{font-weight:400;opacity:.7;font-size:12px;font-family:'JetBrains Mono',monospace;color:var(--text-dim);}
+  .banco-list{display:flex;flex-direction:column;gap:10px;margin-bottom:28px;}
+  .banco-item{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}
+  .banco-item.aprobada{border-left:4px solid var(--accent);}
+  .banco-item-text{flex:1;font-size:14px;line-height:1.5;white-space:pre-wrap;}
+  .banco-item-gancho{font-family:'Sora',sans-serif;font-weight:700;font-size:15px;margin-bottom:4px;}
+  .banco-item-caption{font-size:13px;color:var(--text-dim);white-space:pre-wrap;}
+  .banco-item-link{font-size:12px;color:#7CB9E8;margin-top:6px;display:inline-block;word-break:break-all;}
+  .banco-item-date{font-size:11px;color:var(--text-dim);margin-top:6px;font-family:'JetBrains Mono',monospace;}
+  .banco-item-actions{display:flex;gap:6px;flex-shrink:0;}
+  .icon-btn{border:1px solid var(--line);background:var(--surface-2);border-radius:8px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-dim);font-size:14px;}
+  .icon-btn:hover{border-color:#EF4444;color:#EF4444;}
+  .banco-empty{color:var(--text-dim);font-size:13px;padding:20px;text-align:center;border:1px dashed var(--line);border-radius:12px;}
+
+  /* AGENTE TAB */
+  .agente-wrap{display:flex;flex-direction:column;gap:16px;}
+  .agente-header{font-family:'Sora',sans-serif;font-size:13px;font-weight:600;color:var(--text-dim);margin-bottom:4px;}
+  .mode-selector{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px;}
+  .mode-btn{padding:8px 14px;border-radius:100px;border:1px solid var(--line);background:var(--surface);color:var(--text-dim);font-size:12px;font-family:'JetBrains Mono',monospace;font-weight:700;cursor:pointer;letter-spacing:.02em;transition:.15s;}
+  .mode-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .mode-btn.active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);}
+  .mode-panel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:14px;}
+  .mode-panel-title{font-family:'Sora',sans-serif;font-size:15px;font-weight:700;margin:0 0 4px;}
+  .mode-panel-desc{font-size:13px;color:var(--text-dim);line-height:1.5;margin:0 0 6px;}
+  .mode-field{display:flex;flex-direction:column;gap:4px;}
+  .mode-field label{font-size:10.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em;font-family:'JetBrains Mono',monospace;}
+  .mode-field input,.mode-field select,.mode-field textarea{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:10px 12px;outline:none;resize:vertical;}
+  .mode-field input:focus,.mode-field select:focus,.mode-field textarea:focus{border-color:var(--accent);}
+  .mode-fields-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .mode-actions{display:flex;gap:10px;align-items:center;}
+  .mode-output{background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:16px;font-size:13.5px;line-height:1.8;white-space:pre-wrap;min-height:80px;color:var(--text);max-height:600px;overflow-y:auto;font-family:'Inter',sans-serif;}
+  .mode-output-placeholder{color:var(--text-dim);font-style:italic;}
+  .mode-status{font-size:12px;font-family:'JetBrains Mono',monospace;color:var(--text-dim);}
+  .mode-status.error{color:#F87171;}
+  .mode-add-banco{border:none;background:transparent;color:var(--accent);font-size:12px;font-family:'JetBrains Mono',monospace;cursor:pointer;padding:0;font-weight:700;text-transform:uppercase;letter-spacing:.03em;}
+  .mode-add-banco:hover{text-decoration:underline;}
+
+  /* BANCO IDEAS TABLE v2 */
+  .banco-v2{display:flex;flex-direction:column;gap:16px;}
+  .banco-registrador{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;}
+  .banco-reg-label{font-family:'Sora',sans-serif;font-weight:700;font-size:14px;margin-bottom:10px;color:var(--text);}
+  .banco-reg-row{display:flex;gap:10px;align-items:flex-start;}
+  .banco-reg-row textarea{flex:1;min-height:64px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;color:var(--text);padding:10px 12px;font-family:'Inter',sans-serif;font-size:14px;resize:vertical;outline:none;}
+  .banco-reg-row textarea:focus{border-color:var(--accent);}
+  .banco-ideas-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:10px;}
+  .banco-ideas-title{font-family:'Sora',sans-serif;font-weight:700;font-size:14px;color:var(--text);}
+  .banco-selection-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  .btn-outline{font-family:'Inter',sans-serif;font-weight:600;font-size:12px;padding:7px 12px;border-radius:8px;cursor:pointer;border:1px solid var(--line);background:transparent;color:var(--text-dim);transition:.15s;}
+  .btn-outline:hover{border-color:var(--accent);color:var(--accent);}
+  .btn-outline.to-historias:hover{border-color:var(--adq);color:var(--adq);}
+  .btn-outline.to-contenido:hover{border-color:var(--conv);color:var(--conv);}
+  .ideas-table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;}
+  .ideas-table{width:100%;border-collapse:collapse;font-size:12px;}
+  .ideas-table th{background:var(--surface-2);color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:10px 12px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--line);}
+  .ideas-table th:first-child{width:36px;text-align:center;}
+  .ideas-table td{padding:9px 12px;vertical-align:top;border-bottom:1px solid var(--line);color:var(--text);line-height:1.45;}
+  .ideas-table tr:last-child td{border-bottom:none;}
+  .ideas-table tr.ai-gen td:not(:first-child):not(:last-child){color:#4ADE80;}
+  .ideas-table tr.ai-gen{background:rgba(34,197,94,.04);}
+  .ideas-table tr:hover{background:var(--surface-2);}
+  .ideas-table tr.ai-gen:hover{background:rgba(34,197,94,.08);}
+  .ideas-table td.idea-cell{font-weight:600;font-family:'Sora',sans-serif;min-width:180px;max-width:220px;}
+  .ideas-table td.angle-cell{min-width:160px;max-width:200px;font-size:11px;}
+  .ideas-table td.uso-cell,.ideas-table td.pri-cell{white-space:nowrap;min-width:80px;}
+  .pri-alta{color:#22C55E;font-weight:700;}
+  .pri-media{color:#FACC15;font-weight:700;}
+  .pri-baja{color:var(--text-dim);font-weight:700;}
+  .ideas-empty-row td{padding:40px;text-align:center;color:var(--text-dim);font-size:13px;}
+  .row-del{border:none;background:transparent;color:var(--text-dim);cursor:pointer;font-size:13px;padding:2px 4px;opacity:.4;transition:.15s;}
+  .row-del:hover{color:#EF4444;opacity:1;}
+  .hist-limit-notice{font-size:12px;color:var(--text-dim);padding:14px 0;text-align:center;font-family:'JetBrains Mono',monospace;border-top:1px solid var(--line);margin-top:6px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Agente de Contenido y Creativos</h1>
+  <p class="sub">Gestiona tus ideas, cambia estados y usa el agente IA para generar guiones, ideas evergreen, creativos y calendarios alineados a tu sistema de ventas.</p>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="historias">Historias <span class="count" id="count-historias">50</span></div>
+    <div class="tab" data-tab="contenido">Contenido <span class="count" id="count-contenido">10</span></div>
+    <div class="tab" data-tab="banco">💭 Banco <span class="count" id="count-banco">0</span></div>
+    <div class="tab tab-agente" data-tab="agente">✨ Agente <span class="count">IA</span></div>
+  </div>
+
+  <div id="stats-bar" class="stats-bar" style="display:none;"></div>
+
+  <div id="table-controls">
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <input type="text" class="search" id="search" placeholder="Buscar gancho, dolor, idea...">
+        <select class="filter" id="filter-fase"></select>
+        <select class="filter" id="filter-etapa">
+          <option value="">Todas las etapas</option>
+          <option value="adquisicion">📢 Adquisición</option>
+          <option value="consideracion">🔵 Consideración</option>
+          <option value="conversion">🟢 Conversión</option>
+        </select>
+        <select class="filter" id="filter-tipo">
+          <option value="">Todos los tipos</option>
+          <option value="conexion">💬 Conexión</option>
+          <option value="educativo">📚 Educativo</option>
+          <option value="testimonio">⭐ Testimonio</option>
+          <option value="comparacion">⚖️ Comparación</option>
+          <option value="entretenimiento">🎭 Entretenimiento</option>
+          <option value="venta">💰 Venta</option>
+        </select>
+      </div>
+      <span class="status" id="status"></span>
+    </div>
+  </div>
+
+  <div id="content"></div>
+</div>
+
+<script src="/js/storage-client.js"></script>
+<script>
+// ─── RAW DATA ───────────────────────────────────────────────────────────────
+const RAW_DATA = {"historias":[{"id":"h1","orden":1,"fase":"Semana 1 · Atraer/Conexión","gancho":"Vendía pacas. Hacía 10 chambas yo sola 😮‍💨","descripcion":"Storytime de apertura: el gancho que abre toda la narrativa de la marca.","dolor":"","instrucciones":"Habla a cámara 15 seg, texto grande overlay igual al gancho, usa un sonido tipo storytime en tendencia.","recomendacion":"Que suene a anécdota con humor, no a queja. Este es tu momento más importante, cuídalo.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h2","orden":2,"fase":"Semana 1 · Atraer/Conexión","gancho":"¿Tú también le haces a TODO en tu negocio?","descripcion":"Encuesta para calentar audiencia y detectar quién se identifica con el dolor.","dolor":"","instrucciones":"Fondo simple, pregunta grande, sticker de encuesta nativo (Sí/No).","recomendacion":"Responde el resultado del poll en la siguiente historia con un dato real tuyo.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h3","orden":3,"fase":"Semana 1 · Atraer/Conexión","gancho":"El truco de pausa y stop, parte 1 (mudanzas)","descripcion":"Tip práctico de edición en cámara, con el negocio de tu amigo de mudanzas como ejemplo.","dolor":"","instrucciones":"Graba el truco en vivo narrando cada paso; usa tomas rápidas al inicio para enganchar.","recomendacion":"Sigue tu propio consejo: primeras tomas cortas o la gente se aburre.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h4","orden":4,"fase":"Semana 1 · Atraer/Conexión","gancho":"La vida antes de Claude / después de Claude","descripcion":"Humor + libertad: laptop cerrada vs. apenas abierta.","dolor":"","instrucciones":"Dos clips cortos con transición simple; el segundo con la laptop casi cerrada.","recomendacion":"Que el gesto se vea como chiste visual espontáneo, no forzado ni sobreexplicado.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h5","orden":5,"fase":"Semana 1 · Atraer/Conexión","gancho":"Gracias por todo, perdón por tener miedo del futuro","descripcion":"Conexión personal real, fuera del contexto de negocio.","dolor":"","instrucciones":"Habla a cámara en tono íntimo, sin música de fondo.","recomendacion":"Deja silencios, no aceleres el ritmo. Esta historia no vende nada, solo conecta.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h6","orden":6,"fase":"Semana 1 · Atraer/Conexión","gancho":"¿Cuántos puestos crees que hacía yo sola vendiendo pacas?","descripcion":"Quiz con opciones (3, 6, 10) que arma expectativa para la respuesta real.","dolor":"","instrucciones":"Sticker de quiz con 3 opciones; revela la respuesta en el repost del resultado.","recomendacion":"La respuesta correcta (10) debe sorprender — no la reveles antes de tiempo.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h7","orden":7,"fase":"Semana 1 · Atraer/Conexión","gancho":"Pantalla dividida: yo vs. el Hub trabajando","descripcion":"Humor tech mostrando el contraste de esfuerzo.","dolor":"","instrucciones":"Split screen grabado con el teléfono en tripié; un lado tú, otro la pantalla del Hub.","recomendacion":"El chiste es el contraste de esfuerzo, no solo mostrar la herramienta.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h8","orden":8,"fase":"Semana 1 · Atraer/Conexión","gancho":"¿Qué tan cansada estás de hacer todo tú?","descripcion":"Slider emoji para generar interacción ligera antes de profundizar.","dolor":"","instrucciones":"Sticker slider simple, pregunta corta, deja que interactúen.","recomendacion":"Úsalo para calentar audiencia justo antes de contar tu propia historia.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h9","orden":9,"fase":"Semana 1 · Atraer/Conexión","gancho":"El truco de pausa y stop, parte 2 (canchas de fútbol)","descripcion":"Continúa la serie de tips con un negocio distinto.","dolor":"","instrucciones":"Mismo formato que la parte 1, pero con otro giro de negocio.","recomendacion":"Menciona 'parte 2' explícitamente para que la reconozcan como serie.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h10","orden":10,"fase":"Semana 1 · Atraer/Conexión","gancho":"Yo igual hacía 10 puestos en mi negocio","descripcion":"Puente narrativo: conecta tu historia con la del amigo de mudanzas.","dolor":"","instrucciones":"Habla a cámara en tono de complicidad ('yo igual viví esto').","recomendacion":"No lo presentes como el origen de tu marca — preséntalo como anécdota compartida.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h11","orden":11,"fase":"Semana 1 · Atraer/Conexión","gancho":"Mira lo que me escribieron","descripcion":"Prueba social ligera con un comentario real sobre no dar abasto.","dolor":"","instrucciones":"Captura de pantalla del comentario + tu reacción grabada encima.","recomendacion":"Elige un comentario que hable del dolor (no dar abasto), no uno de venta directa.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h12","orden":12,"fase":"Semana 1 · Atraer/Conexión","gancho":"Teaser viaje a París","descripcion":"Cierre de semana con gancho de lifestyle, sin explicar el porqué todavía.","dolor":"","instrucciones":"Clip corto de maleta o aeropuerto, sin contexto explícito.","recomendacion":"Publica solo si ya tienes tus links de difusión listos; si no, sustitúyela.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h13","orden":13,"fase":"Semana 2 · Educar/Objeciones","gancho":"¿Cómo hago el link de mi WhatsApp?","descripcion":"Pregunta falsa que sirve de gancho para presentar el Hub de forma orgánica.","dolor":"","instrucciones":"Screenshot de la 'pregunta' + tu respuesta en video.","recomendacion":"Que se sienta auténtico — evita que se note como venta forzada.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h14","orden":14,"fase":"Semana 2 · Educar/Objeciones","gancho":"El Hub funciona para cualquier negocio","descripcion":"Mano tocando el Hub mientras cambia de giro: panadería, dentista, taquería.","dolor":"","instrucciones":"Grabación rápida de pantalla, transición cada 2-3 segundos entre giros.","recomendacion":"Usa negocios que tu audiencia reconozca fácilmente en su día a día.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h15","orden":15,"fase":"Semana 2 · Educar/Objeciones","gancho":"Así le pones voz a tus videos en 3 pasos","descripcion":"Tutorial práctico y accionable.","dolor":"","instrucciones":"Screen recording paso a paso, máximo 3 pasos.","recomendacion":"No lo satures — si son más de 3 pasos, ya no es un tip rápido.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h16","orden":16,"fase":"Semana 2 · Educar/Objeciones","gancho":"'La IA suena robótica' — mito o realidad","descripcion":"Desmiente una objeción común con ejemplo real.","dolor":"","instrucciones":"Texto grande con el mito, después un clip mostrando un resultado natural.","recomendacion":"Nunca te burles de quien cree el mito — solo del mito en sí.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h17","orden":17,"fase":"Semana 2 · Educar/Objeciones","gancho":"Así armo el contenido de una semana en 10 minutos","descripcion":"Demo con el negocio de mudanzas como caso práctico.","dolor":"","instrucciones":"Screen recording acelerado + tu narración en vivo.","recomendacion":"Muestra el 'antes' (pantalla en blanco) para que el contraste de velocidad impacte.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h18","orden":18,"fase":"Semana 2 · Educar/Objeciones","gancho":"¿Qué dudas tienes sobre usar IA en tu negocio?","descripcion":"Caja de preguntas para recolectar objeciones reales de tu audiencia.","dolor":"","instrucciones":"Sticker de pregunta abierta y simple.","recomendacion":"Responde las 3 dudas más repetidas en las siguientes historias.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h19","orden":19,"fase":"Semana 2 · Educar/Objeciones","gancho":"ChatGPT genérico vs. tu Hub entrenado","descripcion":"Comparación con humor irreverente — hacia la herramienta genérica, no al cliente.","dolor":"","instrucciones":"Formato lista simple o split screen de resultados.","recomendacion":"El chiste va contra la herramienta genérica, nunca contra quien la usa.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h20","orden":20,"fase":"Semana 2 · Educar/Objeciones","gancho":"Así armo contenido en tiempo real","descripcion":"Detrás de cámaras mostrando el proceso genuino con el Hub.","dolor":"","instrucciones":"Grabación casual, sin guion, en el momento.","recomendacion":"Que se vea auténticamente rápido — no lo actúes ni lo repitas dos veces.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h21","orden":21,"fase":"Semana 2 · Educar/Objeciones","gancho":"'No tengo tiempo para aprender otra herramienta'","descripcion":"Responde la objeción #1 con empatía antes de resolverla.","dolor":"","instrucciones":"Habla a cámara en tono empático, valida el miedo primero.","recomendacion":"Valida la objeción antes de resolverla — si saltas directo a la solución, suena a venta.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h22","orden":22,"fase":"Semana 2 · Educar/Objeciones","gancho":"¿Qué tanto confías en que la IA suene como tú?","descripcion":"Slider que introduce el tema de personalización del Hub.","dolor":"","instrucciones":"Sticker slider simple con emoji de extremos.","recomendacion":"Úsalo como puente hacia la siguiente historia sobre personalización.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h23","orden":23,"fase":"Semana 2 · Educar/Objeciones","gancho":"'Ya uso otra IA, para qué cambiar'","descripcion":"Responde la objeción #2 con comparación honesta.","dolor":"","instrucciones":"Lista de 2-3 diferencias reales y concretas.","recomendacion":"No ataques a la competencia — resalta lo que tú sí resuelves.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h24","orden":24,"fase":"Semana 2 · Educar/Objeciones","gancho":"3 prompts que sí funcionan (y 3 que no)","descripcion":"Valor práctico y accionable sobre uso de IA.","dolor":"","instrucciones":"Texto simple con ejemplos cortos, sin teoría.","recomendacion":"Mantenlo 100% accionable — nada de explicación técnica larga.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h25","orden":25,"fase":"Semana 2 · Educar/Objeciones","gancho":"'¿Cuánto cuesta de verdad?'","descripcion":"Responde la objeción #3 con transparencia total.","dolor":"","instrucciones":"Habla directo a cámara y di el precio sin rodeos.","recomendacion":"Justifica el valor antes de decir el número, no después.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h26","orden":26,"fase":"Semana 3 · Prueba social/Resultado","gancho":"Cuando el Hub te distrae hasta de la salsa","descripcion":"Hook con humor en una taquería, resultado con energía.","dolor":"","instrucciones":"Grabación con efecto acelerado y audio en tendencia.","recomendacion":"El chiste visual debe pasar en los primeros 2 segundos.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h27","orden":27,"fase":"Semana 3 · Prueba social/Resultado","gancho":"Mira lo que me escribió una clienta","descripcion":"Testimonio real en texto, prueba social directa.","dolor":"","instrucciones":"Screenshot de conversación real + tu reacción grabada.","recomendacion":"Pide permiso siempre antes de publicar cualquier conversación.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h28","orden":28,"fase":"Semana 3 · Prueba social/Resultado","gancho":"Antes y después de un negocio real con el Hub","descripcion":"Comparación de resultados de un cliente real.","dolor":"","instrucciones":"Dos clips cortos del mismo negocio, antes y después.","recomendacion":"Usa números reales si los tienes: tiempo ahorrado, posts generados, etc.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h29","orden":29,"fase":"Semana 3 · Prueba social/Resultado","gancho":"¿Cuánto crees que le tomó armar su semana de contenido?","descripcion":"Quiz de tiempo que genera sorpresa por la velocidad del Hub.","dolor":"","instrucciones":"Sticker quiz con 3 opciones de tiempo distintas.","recomendacion":"La respuesta correcta debe ser dramáticamente más rápida de lo esperado.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h30","orden":30,"fase":"Semana 3 · Prueba social/Resultado","gancho":"Este fue mi contenido con más alcance","descripcion":"Repost de tu mejor reel como prueba social de tu propio crecimiento.","dolor":"","instrucciones":"Reshare del reel con un comentario nuevo agregado.","recomendacion":"Agrega contexto: qué aprendiste de por qué funcionó ese contenido.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h31","orden":31,"fase":"Semana 3 · Prueba social/Resultado","gancho":"Sobre ese comentario que me dejaron...","descripcion":"Respondes con calma a una objeción o comentario negativo público.","dolor":"","instrucciones":"Screenshot del comentario + tu respuesta honesta en video.","recomendacion":"Nunca a la defensiva — responde con calma y datos, no con emoción.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h32","orden":32,"fase":"Semana 3 · Prueba social/Resultado","gancho":"Grabando el testimonio de una clienta","descripcion":"Detrás de cámaras del proceso real de capturar un testimonio.","dolor":"","instrucciones":"Clip corto y casual del momento de grabación.","recomendacion":"Dale el protagonismo a la clienta, no a ti.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h33","orden":33,"fase":"Semana 3 · Prueba social/Resultado","gancho":"Contenido genérico de IA vs. contenido con tu Hub","descripcion":"Comparación visual directa del resultado final.","dolor":"","instrucciones":"Side by side de dos piezas de contenido reales.","recomendacion":"La diferencia debe ser obvia a simple vista, sin que tengas que explicarla.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h34","orden":34,"fase":"Semana 3 · Prueba social/Resultado","gancho":"¿Ya conocías el Hub antes de esta serie?","descripcion":"Encuesta que mide el alcance real de tu campaña de historias.","dolor":"","instrucciones":"Sticker de encuesta simple (Sí/No).","recomendacion":"Usa el resultado para ajustar tu comunicación de las siguientes historias.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h35","orden":35,"fase":"Semana 3 · Prueba social/Resultado","gancho":"Así le fue a mi amigo de mudanzas, 2 semanas después","descripcion":"Cierre del mini-caso de éxito iniciado en la Semana 1.","dolor":"","instrucciones":"Habla a cámara con datos concretos y reales.","recomendacion":"Conecta explícitamente con las partes 1 y 2 ya publicadas — genera continuidad.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h36","orden":36,"fase":"Semana 3 · Prueba social/Resultado","gancho":"¿Qué te gustaría que el Hub resolviera por ti?","descripcion":"Pregunta abierta que demuestra escucha activa y genera insumos.","dolor":"","instrucciones":"Sticker de pregunta abierta.","recomendacion":"Responde en vivo a 2-3 respuestas en la siguiente tanda de historias.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h37","orden":37,"fase":"Semana 3 · Prueba social/Resultado","gancho":"Escúchalo de mi clienta, no de mí","descripcion":"Repost de testimonio en video si ya lo tienes disponible.","dolor":"","instrucciones":"Reshare directo del testimonio en video.","recomendacion":"Agrega tu propia reacción o comentario encima del repost.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h38","orden":38,"fase":"Semana 3 · Prueba social/Resultado","gancho":"Un día normal usando el Hub","descripcion":"Detrás de cámaras auténtico de tu propio uso diario.","dolor":"","instrucciones":"Clips cortos tipo vlog a lo largo del día.","recomendacion":"Que se vea espontáneo, no como un comercial armado.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h39","orden":39,"fase":"Semana 4 · Urgencia/Cierre","gancho":"Quedan pocos días de prueba gratis","descripcion":"Countdown real hacia el cierre de la promoción.","dolor":"","instrucciones":"Sticker de countdown nativo con fecha real.","recomendacion":"Solo úsalo si la oferta tiene fecha real — nunca urgencia falsa.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h40","orden":40,"fase":"Semana 4 · Urgencia/Cierre","gancho":"Prueba 30 días. Así de simple.","descripcion":"Pieza visual de cierre fuerte con diseño y CTA directo.","dolor":"","instrucciones":"Diseño simple con texto grande, tu verde de marca como acento.","recomendacion":"El CTA debe ser el elemento más grande de toda la pantalla.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h41","orden":41,"fase":"Semana 4 · Urgencia/Cierre","gancho":"Así se ve la página de cotizaciones que armamos","descripcion":"Cierre de la serie de mudanzas con demo final del producto.","dolor":"","instrucciones":"Screen recording del sitio de cotizaciones en vivo.","recomendacion":"Conecta explícitamente con las partes 1 y 2 ya publicadas de esa serie.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h42","orden":42,"fase":"Semana 4 · Urgencia/Cierre","gancho":"Última ronda de dudas antes de que cierre la promo","descripcion":"Genera urgencia real a través del servicio al cliente.","dolor":"","instrucciones":"Sticker de pregunta abierta.","recomendacion":"Responde rápido, en la misma tanda de historias del día.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h43","orden":43,"fase":"Semana 4 · Urgencia/Cierre","gancho":"¿Cuánto crees que cuesta el Hub al mes?","descripcion":"Quiz con precios falsos y el real, corrige el mito de que es caro.","dolor":"","instrucciones":"Sticker quiz con 3 opciones de precio.","recomendacion":"La sorpresa debe ser 'es más barato de lo que creías'.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h44","orden":44,"fase":"Semana 4 · Urgencia/Cierre","gancho":"Esto fue lo que me dijo, y por eso te lo cuento","descripcion":"Testimonio final combinado con un CTA directo y claro.","dolor":"","instrucciones":"Reshare de testimonio + tu voz encima con instrucción de acción.","recomendacion":"Cierra con instrucción clara: 'manda WhatsApp' o 'link en bio'.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h45","orden":45,"fase":"Semana 4 · Urgencia/Cierre","gancho":"¿Qué tan lista estás para dejar de hacerlo todo tú?","descripcion":"Última interacción ligera antes del cierre fuerte de la serie.","dolor":"","instrucciones":"Sticker slider con emojis de extremos.","recomendacion":"Úsalo como puente directo hacia el siguiente story con el CTA final.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h46","orden":46,"fase":"Semana 4 · Urgencia/Cierre","gancho":"De vender pacas a construir esto","descripcion":"Recapitulación narrativa de toda la serie: origen, proceso, resultado.","dolor":"","instrucciones":"Habla a cámara resumiendo el arco completo de la historia.","recomendacion":"No repitas todo — destaca solo 3 momentos clave de la serie.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h47","orden":47,"fase":"Semana 4 · Urgencia/Cierre","gancho":"Acaba de pasar esto y no lo puedo creer","descripcion":"Reacción espontánea a una venta o cliente nuevo en tiempo real.","dolor":"","instrucciones":"Grabación espontánea del momento exacto en que sucede.","recomendacion":"Solo publícala si sucede de verdad — nunca la actúes.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h48","orden":48,"fase":"Semana 4 · Urgencia/Cierre","gancho":"Este es tu último recordatorio","descripcion":"Countdown final antes del cierre de la promoción activa.","dolor":"","instrucciones":"Sticker de countdown + tu voz explicando por qué es el último aviso.","recomendacion":"Que se sienta como aviso genuino, no como presión desesperada.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h49","orden":49,"fase":"Semana 4 · Urgencia/Cierre","gancho":"Por esto estoy en París ahorita mismo","descripcion":"Revela el 'por qué' del viaje, conectando libertad con resultado de negocio.","dolor":"","instrucciones":"Clips del viaje + texto conectando con el tiempo que te devolvió el Hub.","recomendacion":"Publica solo si ya tienes tus links de difusión de campaña listos.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"h50","orden":50,"fase":"Semana 4 · Urgencia/Cierre","gancho":"Gracias por acompañarme estos días","descripcion":"Cierre emocional de toda la serie con invitación abierta a conversar.","dolor":"","instrucciones":"Habla a cámara en tono cálido, cierra el ciclo narrativo completo.","recomendacion":"Invita a comentar o escribir — cierra con calidez, nunca con presión.","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"}],"contenido":[{"id":"c1","orden":1,"fase":"Semana 1","gancho":"Si no sabes que es un prompt, esta palabra te va a ahorrar horas. 2 clics: copiar... pegar.","descripcion":"Que es un prompt? — Filtro de entrada para quien apenas empieza","dolor":"","instrucciones":"(agregada por Claude, no estaba en tu lista original)","recomendacion":"Filtro de entrada para quien apenas empieza","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"c2","orden":2,"fase":"Semana 1","gancho":"2 oportunidades diarias... y si no la cagas, tienes 60 videos al mes.","descripcion":"Cuando Gemini te da puro mugrero","dolor":"","instrucciones":"problema: gemini te hace puro mugrero y solo tienes 2 videos diarios...","recomendacion":"Usa ChatGPT para armar el prompt preciso antes de gastar tus intentos en Gemini","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"c3","orden":3,"fase":"Semana 1","gancho":"Tu video sin voz no vende ni la mitad.","descripcion":"Ponle voz a tus videos en 3 minutos","dolor":"","instrucciones":"Como ponerle voz a tus videos en 3 minutos","recomendacion":"Tutorial practico y corto","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"c4","orden":4,"fase":"Semana 2","gancho":"Cuando el ChatGPT le parte la madre a Gemini.","descripcion":"Comparativa: imagenes, textos, investigaciones — por que ChatGPT gana aqui","dolor":"","instrucciones":"cuando cht pt es mejor que gemini","recomendacion":"Comparativa disruptiva","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"c5","orden":5,"fase":"Semana 2","gancho":"Y aqui Gemini se lleva la victoria.","descripcion":"Cuando Gemini le gana a ChatGPT — Contraparte objetiva","dolor":"","instrucciones":"Cuando gemini le parte la m a chat gpt...","recomendacion":"Contraparte objetiva, no venta de una sola marca","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"c6","orden":6,"fase":"Semana 2","gancho":"Deja de dar tu numero, dales un link.","descripcion":"Asi se hace tu propio link de WhatsApp","dolor":"","instrucciones":"link de whatsapp...","recomendacion":"Tip tecnico accionable","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"c7","orden":7,"fase":"Semana 3","gancho":"Dale esto a tu IA y que trabaje como tu director de contenido.","descripcion":"El prompt que te da estrategia de contenido","dolor":"","instrucciones":"prompt para que chat gpt te de estrategia de contenido","recomendacion":"Ensena contexto + rol + confirmacion antes de responder","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"c8","orden":8,"fase":"Semana 3","gancho":"Ese boton de 'promocionar' te esta costando dinero de mas.","descripcion":"Promocionar publicacion vs. Anuncios de Meta — Diferencia real","dolor":"","instrucciones":"'promocionar publicacion' vs. 'anuncios facebook'","recomendacion":"Diferencia real — abre puerta a futura mini-serie de Meta Ads","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"c9","orden":9,"fase":"Semana 3","gancho":"KPI, CPM, objetivo... sabes que significan de verdad?","descripcion":"Lo que todo dueno de negocio debe saber de mkt","dolor":"","instrucciones":"kpi, cpm, objetivo","recomendacion":"Glosario rapido y aterrizado","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"},{"id":"c10","orden":10,"fase":"Semana 4","gancho":"Por que tu contenido con IA no suena a ti?","descripcion":"Como lograr que la IA suene como tu","dolor":"","instrucciones":"personalizacion, puente natural hacia el Hub sin nombrarlo","recomendacion":"Cierre — puente natural hacia el Hub","linkRef":"","linkArchivo":"","fecha":"","estado":"idea"}],"banco":[]};
+
+// ─── CONTENT AGENT CONTEXT ─────────────────────────────────────────────────
+const NEGOCIO_CONTEXT = `NEGOCIO: JefesHub ($22 USD/mes · trial 30 días gratis)
+CLIENTE: Emprendedoras 28-40 años, llevan el negocio sola o con equipo mínimo. Ya probaron ChatGPT con resultados genéricos. Buscan tiempo de vida + sentirse adelante de su competencia.
+DOLOR PRINCIPAL: "Otra vez no publiqué nada esta semana." Sin sistema, sin tiempo, sin contenido que suene como ella.
+PROPUESTA: IA entrenada con el contexto del negocio — resultado en minutos, suena como tú, sin curva de aprendizaje.
+OBJECIONES: "Ya probé ChatGPT", "no tengo tiempo", "no quiero otro gasto mensual", "¿cómo sé que es para mi tipo de negocio?", "no quiero que suene robótico".
+ÁNGULO DE VENTA: No vendemos "más contenido" — vendemos tiempo de vida recuperado, libertad real y la sensación de estar adelante.
+GANCHO VALIDADO: "Crear contenido en tan solo 5 minutos" + "Saber qué está funcionando en tus campañas".
+ETAPAS: adquisición (audiencia fría·dolor/conexión), consideración (tibia·objeciones/demo), conversión (caliente·urgencia/prueba social).
+TONO: claro, práctico, directo, aterrizado, cero tecnicismos, cero gurú. Habla como Jany.`;
+
+const HALLAZGOS_JULIO = `HALLAZGOS RADAR DE MERCADO (Julio 2026):
+- Trigger de compra: ver "behind the scenes" real de alguien como ellas, con errores incluidos
+- Objeción principal activa: "ChatGPT genérico no me funcionó antes — ¿esto es diferente?"
+- Miedos reales: que la IA suene robótica, que usarla sea trampa, que sea solo para técnicas/grandes empresas
+- Deseos declarados: libertad geográfica real, contenido que suene como yo, consistencia sin agotamiento
+- Frases reales del mercado: "siento que las demás sí pueden menos yo", "me da pena no hacer el contenido yo"
+- Descubrimiento clave: diferencia entre "usar IA genérica" y "tener un sistema de IA entrenado con tu negocio"
+- Las que más compran: emprendedoras que ya tuvieron malas experiencias con herramientas genéricas
+- Referentes resonantes: mujeres mexicanas 30-40 que mezclan vida y negocio con autenticidad, no perfección`;
+
+const NOTION_IDEAS_EXISTENTES = [
+  'La verdad sobre usar IA en tu negocio',
+  'Soy experta en IA y así es mi día real',
+  'Estoy en [ciudad] y mi contenido ya salió',
+  'Claude y yo armando el contenido de la semana',
+  'La verdad detrás de ser emprendedora que usa IA',
+  'Expectativa vs realidad de crear contenido sin sistema',
+  'Normalicemos que las emprendedoras usen herramientas de IA',
+  'Historia real: clienta que transformó su contenido con JefesHub',
+  'Reto: 30 días de contenido con IA — te muestro todo',
+  'Comunidad: emprendedoras que conectan y se apoyan'
+];
+
+// ─── STATE ──────────────────────────────────────────────────────────────────
+let state = JSON.parse(JSON.stringify(RAW_DATA));
+state.banco.forEach(b => { if(b.aprobada===undefined) b.aprobada=!!b.gancho; });
+if(!state.bancoIdeas) state.bancoIdeas = [];
+let currentTab = 'historias';
+let searchTerm = '';
+let filterFase = '';
+let filterEtapa = '';
+let filterTipo = '';
+
+const contentEl = document.getElementById('content');
+const controlsEl = document.getElementById('table-controls');
+const statusEl = document.getElementById('status');
+const searchEl = document.getElementById('search');
+const filterFaseEl = document.getElementById('filter-fase');
+const filterEtapaEl = document.getElementById('filter-etapa');
+const filterTipoEl = document.getElementById('filter-tipo');
+const statsBarEl = document.getElementById('stats-bar');
+
+// ─── HELPERS ────────────────────────────────────────────────────────────────
+function getDefaults(item){
+  const fase = item.fase||'';
+  const semana = parseInt((fase.match(/Semana\s*(\d+)/i)||[,'1'])[1])||1;
+  const etapas   = ['adquisicion','consideracion','consideracion','conversion'];
+  const tipos    = ['conexion','educativo','testimonio','venta'];
+  const audis    = ['fria','tibia','tibia','caliente'];
+  const usos     = ['organico','organico','ambos','ambos'];
+  const objetivos= ['alcance','educacion','confianza','venta'];
+  const g = item.gancho||'';
+  let tipo = tipos[semana-1]||'educativo';
+  if(g.includes('mito')||g.includes('vs.')||g.includes('Antes y después')||g.includes('genérico')) tipo='comparacion';
+  return {
+    etapa: item.etapa || etapas[semana-1]||'adquisicion',
+    tipo:  item.tipo  || tipo,
+    audiencia: item.audiencia || audis[semana-1]||'fria',
+    uso: item.uso || usos[semana-1]||'organico',
+    objetivo: item.objetivo || objetivos[semana-1]||'alcance',
+    angulos: item.angulos || {problema:'',error:'',deseo:'',historia:'',descubrimiento:'',objecion:'',comparacion:''}
+  };
+}
+
+const ETAPA_META = {
+  adquisicion:{label:'📢 Adquisición',cls:'adquisicion',dotCls:'dot-adq',color:'var(--adq)'},
+  consideracion:{label:'🔵 Consideración',cls:'consideracion',dotCls:'dot-con',color:'var(--con)'},
+  conversion:{label:'🟢 Conversión',cls:'conversion',dotCls:'dot-conv',color:'var(--conv)'}
+};
+const TIPO_LABELS = {conexion:'💬 Conexión',educativo:'📚 Educativo',testimonio:'⭐ Testimonio',comparacion:'⚖️ Comparación',entretenimiento:'🎭 Entret.',venta:'💰 Venta'};
+const AUDIENCIA_LABELS = {fria:'❄️ Fría',tibia:'🌡 Tibia',caliente:'🔥 Caliente'};
+const USO_LABELS = {organico:'📱 Orgánico',evergreen:'♻️ Evergreen',ambos:'✳️ Ambos'};
+
+const SECTIONS = [
+  {key:'proceso',emoji:'⚙️',label:'EN PROCESO',cls:'proceso'},
+  {key:'idea',emoji:'💡',label:'IDEAS',cls:'idea'},
+  {key:'publicado',emoji:'🔥',label:'YA PUBLICADOS',cls:'publicado'}
+];
+
+// Tab init
+document.getElementById('count-historias').textContent = state.historias.length;
+document.getElementById('count-contenido').textContent = state.contenido.length;
+document.getElementById('count-banco').textContent = state.bancoIdeas.length;
+
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    currentTab = t.dataset.tab;
+    filterFase=''; searchTerm=''; searchEl.value='';
+    filterEtapa=''; filterFaseEl.value=''; filterEtapaEl.value=''; filterTipoEl.value=''; filterTipo='';
+    const isTracker = currentTab!=='banco' && currentTab!=='agente';
+    controlsEl.style.display = isTracker ? 'block':'none';
+    statsBarEl.style.display = isTracker ? 'flex':'none';
+    if(isTracker){ buildFaseFilter(); renderStats(); }
+    render();
+  });
+});
+
+searchEl.addEventListener('input',()=>{ searchTerm=searchEl.value.toLowerCase(); render(); });
+filterFaseEl.addEventListener('change',()=>{ filterFase=filterFaseEl.value; render(); });
+filterEtapaEl.addEventListener('change',()=>{ filterEtapa=filterEtapaEl.value; render(); });
+filterTipoEl.addEventListener('change',()=>{ filterTipo=filterTipoEl.value; render(); });
+
+// ─── DATE / HORIZON ─────────────────────────────────────────────────────────
+function parseFechaDDMM(str){
+  if(!str) return null;
+  const m=str.trim().match(/^(\d{1,2})\/(\d{1,2})$/);
+  if(!m) return null;
+  const day=parseInt(m[1],10),month=parseInt(m[2],10)-1;
+  if(month<0||month>11||day<1||day>31) return null;
+  const now=new Date();
+  let d=new Date(now.getFullYear(),month,day);
+  if((now-d)/86400000>30) d=new Date(now.getFullYear()+1,month,day);
+  return d;
+}
+function fechaHorizonIndex(fechaStr){
+  const d=parseFechaDDMM(fechaStr);
+  if(!d) return null;
+  const today=new Date(); today.setHours(0,0,0,0);
+  const days=Math.round((d-today)/86400000);
+  if(days<=14) return 9;
+  const span=120,t=Math.min(1,Math.max(0,(days-14)/(span-14)));
+  return Math.max(0,Math.min(8,Math.round(8-t*8)));
+}
+const WEEK_HORIZON_INDEX={1:9,2:7,3:4,4:1};
+function weekFromFase(fase){
+  if(!fase) return null;
+  const m=fase.match(/Semana\s*(\d+)/i);
+  if(!m) return null;
+  const w=parseInt(m[1],10);
+  return (w>=1&&w<=4)?w:null;
+}
+function horizonIndex(item){
+  const byFecha=fechaHorizonIndex(item.fecha);
+  if(byFecha!==null) return byFecha;
+  const week=weekFromFase(item.fase);
+  if(week!==null) return WEEK_HORIZON_INDEX[week];
+  return 0;
+}
+function horizonColorVar(item){ return 'var(--t'+(horizonIndex(item)+1)+')'; }
+
+// ─── FILTER SETUP ────────────────────────────────────────────────────────────
+function buildFaseFilter(){
+  if(currentTab==='banco'||currentTab==='agente') return;
+  const list=state[currentTab];
+  const fases=[...new Set(list.map(r=>r.fase))];
+  filterFaseEl.innerHTML='<option value="">Todas las fases</option>'+fases.map(f=>`<option value="${escHtml(f)}">${escHtml(f)}</option>`).join('');
+  filterFaseEl.value=filterFase;
+}
+
+// ─── STATS BAR ───────────────────────────────────────────────────────────────
+function renderStats(){
+  if(currentTab==='banco'||currentTab==='agente') return;
+  const list=state[currentTab];
+  const counts={adquisicion:0,consideracion:0,conversion:0};
+  list.forEach(item=>{
+    const d=getDefaults(item);
+    const etapa=item.etapa||d.etapa;
+    if(counts[etapa]!==undefined) counts[etapa]++;
+  });
+  const total=list.length||1;
+  const pct=e=>Math.round(counts[e]/total*100);
+  statsBarEl.innerHTML=`
+    <div class="stat-pill"><span class="dot dot-adq"></span><span class="stat-value">${counts.adquisicion}</span><span class="stat-label"> Adquisición</span></div>
+    <div class="stat-pill"><span class="dot dot-con"></span><span class="stat-value">${counts.consideracion}</span><span class="stat-label"> Consideración</span></div>
+    <div class="stat-pill"><span class="dot dot-conv"></span><span class="stat-value">${counts.conversion}</span><span class="stat-label"> Conversión</span></div>
+    <div class="stats-bar-track" title="Mix de etapas">
+      <div class="track-seg" style="width:${pct('adquisicion')}%;background:var(--adq);"></div>
+      <div class="track-seg" style="width:${pct('consideracion')}%;background:var(--con);"></div>
+      <div class="track-seg" style="width:${pct('conversion')}%;background:var(--conv);"></div>
+    </div>
+    <div class="stat-pill"><span class="stat-label">${total} piezas total</span></div>`;
+}
+
+function escHtml(str){
+  const d=document.createElement('div'); d.textContent=str||''; return d.innerHTML;
+}
+
+// ─── MAIN RENDER ─────────────────────────────────────────────────────────────
+function render(){
+  if(currentTab==='banco'){ renderBanco(); return; }
+  if(currentTab==='agente'){ renderAgente(); return; }
+
+  const list=state[currentTab];
+  let rows=list.filter(r=>{
+    const d=getDefaults(r);
+    const et=r.etapa||d.etapa;
+    const tp=r.tipo||d.tipo;
+    if(filterFase && r.fase!==filterFase) return false;
+    if(filterEtapa && et!==filterEtapa) return false;
+    if(filterTipo && tp!==filterTipo) return false;
+    if(searchTerm){
+      const hay=(r.gancho+' '+r.descripcion+' '+r.dolor+' '+r.instrucciones+' '+r.recomendacion).toLowerCase();
+      if(!hay.includes(searchTerm)) return false;
+    }
+    return true;
+  });
+
+  contentEl.innerHTML='';
+  // Limit historias to 20 items
+  const HIST_MAX=20;
+  const totalRows=rows.length;
+  if(currentTab==='historias') rows=rows.slice(0,HIST_MAX);
+
+  SECTIONS.forEach(sec=>{
+    const secRows=rows.filter(r=>r.estado===sec.key).sort((a,b)=>horizonIndex(b)-horizonIndex(a));
+    const section=document.createElement('div');
+    section.className='section';
+    const head=document.createElement('div');
+    head.className='section-head '+sec.cls;
+    head.innerHTML=`${sec.emoji} ${sec.label} <span class="scount">${secRows.length}</span>`;
+    section.appendChild(head);
+    if(secRows.length===0){
+      const empty=document.createElement('div');
+      empty.className='empty-row';
+      empty.textContent='Nada aquí todavía.';
+      section.appendChild(empty);
+    } else {
+      const grid=document.createElement('div');
+      grid.className='cards-grid';
+      secRows.forEach(r=>{ grid.appendChild(buildCard(r)); });
+      section.appendChild(grid);
+    }
+    contentEl.appendChild(section);
+  });
+
+  bindCardEvents();
+  if(currentTab==='historias' && totalRows>HIST_MAX){
+    const notice=document.createElement('p');
+    notice.className='hist-limit-notice';
+    notice.textContent=`Mostrando ${Math.min(HIST_MAX,rows.length)} de ${totalRows} historias · Usa los filtros para encontrar las demás`;
+    contentEl.appendChild(notice);
+  }
+}
+
+function buildCard(r){
+  const d=getDefaults(r);
+  const etapa = r.etapa||d.etapa;
+  const tipo = r.tipo||d.tipo;
+  const audiencia = r.audiencia||d.audiencia;
+  const uso = r.uso||d.uso;
+  const objetivo = r.objetivo||d.objetivo;
+  const angulos = r.angulos||d.angulos;
+  const em = ETAPA_META[etapa]||ETAPA_META.adquisicion;
+  const hColor = horizonColorVar(r);
+
+  const card=document.createElement('div');
+  card.className='item-card';
+  card.style.setProperty('--horizon',hColor);
+  card.innerHTML=`
+    <div class="item-top">
+      <select class="estado-select ${r.estado}" data-id="${r.id}" data-field="estado">
+        <option value="idea" ${r.estado==='idea'?'selected':''}>💡 Idea</option>
+        <option value="proceso" ${r.estado==='proceso'?'selected':''}>⚙️ En proceso</option>
+        <option value="publicado" ${r.estado==='publicado'?'selected':''}>🔥 Publicado</option>
+      </select>
+      <input type="text" class="fecha-input" placeholder="dd/mm" value="${escHtml(r.fecha)}" data-id="${r.id}" data-field="fecha">
+    </div>
+    <textarea class="gancho-input" data-id="${r.id}" data-field="gancho">${escHtml(r.gancho)}</textarea>
+    <div class="badges-row">
+      <span class="badge badge-${etapa}">${em.label}</span>
+      <span class="badge badge-tipo">${TIPO_LABELS[tipo]||tipo}</span>
+      <span class="badge badge-${audiencia}">${AUDIENCIA_LABELS[audiencia]||audiencia}</span>
+    </div>
+    <div class="item-fase">${escHtml(r.fase)}</div>
+    <details class="item-details">
+      <summary style="color:${hColor}">Ver detalles <button class="btn-guion" data-id="${r.id}" title="Generar guión con IA">✨ Guión</button></summary>
+      <div class="detail-grid">
+        <div class="detail-field"><label>Descripción / ángulo</label><textarea data-id="${r.id}" data-field="descripcion">${escHtml(r.descripcion)}</textarea></div>
+        <div class="detail-field"><label>Dolor que conectamos</label><textarea placeholder="Agrega el dolor..." data-id="${r.id}" data-field="dolor">${escHtml(r.dolor)}</textarea></div>
+        <div class="detail-meta-row">
+          <div class="detail-field">
+            <label>Etapa del cliente</label>
+            <select data-id="${r.id}" data-field="etapa">
+              <option value="adquisicion" ${etapa==='adquisicion'?'selected':''}>📢 Adquisición</option>
+              <option value="consideracion" ${etapa==='consideracion'?'selected':''}>🔵 Consideración</option>
+              <option value="conversion" ${etapa==='conversion'?'selected':''}>🟢 Conversión</option>
+            </select>
+          </div>
+          <div class="detail-field">
+            <label>Audiencia</label>
+            <select data-id="${r.id}" data-field="audiencia">
+              <option value="fria" ${audiencia==='fria'?'selected':''}>❄️ Fría</option>
+              <option value="tibia" ${audiencia==='tibia'?'selected':''}>🌡 Tibia</option>
+              <option value="caliente" ${audiencia==='caliente'?'selected':''}>🔥 Caliente</option>
+            </select>
+          </div>
+          <div class="detail-field">
+            <label>Tipo de contenido</label>
+            <select data-id="${r.id}" data-field="tipo">
+              <option value="conexion" ${tipo==='conexion'?'selected':''}>💬 Conexión</option>
+              <option value="educativo" ${tipo==='educativo'?'selected':''}>📚 Educativo</option>
+              <option value="testimonio" ${tipo==='testimonio'?'selected':''}>⭐ Testimonio</option>
+              <option value="comparacion" ${tipo==='comparacion'?'selected':''}>⚖️ Comparación</option>
+              <option value="entretenimiento" ${tipo==='entretenimiento'?'selected':''}>🎭 Entretenimiento</option>
+              <option value="venta" ${tipo==='venta'?'selected':''}>💰 Venta</option>
+            </select>
+          </div>
+          <div class="detail-field">
+            <label>Uso sugerido</label>
+            <select data-id="${r.id}" data-field="uso">
+              <option value="organico" ${uso==='organico'?'selected':''}>📱 Orgánico</option>
+              <option value="evergreen" ${uso==='evergreen'?'selected':''}>♻️ Evergreen</option>
+              <option value="ambos" ${uso==='ambos'?'selected':''}>✳️ Ambos</option>
+            </select>
+          </div>
+        </div>
+        <div class="angulos-section">
+          <div class="angulos-title">7 ángulos del contenido</div>
+          <div class="angulos-grid">
+            <div class="detail-field"><label>Problema</label><textarea rows="2" placeholder="¿Qué vive hoy el cliente?" data-id="${r.id}" data-field="angulos.problema">${escHtml(angulos.problema||'')}</textarea></div>
+            <div class="detail-field"><label>Error</label><textarea rows="2" placeholder="¿Qué está haciendo mal?" data-id="${r.id}" data-field="angulos.error">${escHtml(angulos.error||'')}</textarea></div>
+            <div class="detail-field"><label>Deseo</label><textarea rows="2" placeholder="¿Qué quiere lograr realmente?" data-id="${r.id}" data-field="angulos.deseo">${escHtml(angulos.deseo||'')}</textarea></div>
+            <div class="detail-field"><label>Historia</label><textarea rows="2" placeholder="Experiencia, caso, escena..." data-id="${r.id}" data-field="angulos.historia">${escHtml(angulos.historia||'')}</textarea></div>
+            <div class="detail-field"><label>Descubrimiento</label><textarea rows="2" placeholder="Nueva verdad o perspectiva..." data-id="${r.id}" data-field="angulos.descubrimiento">${escHtml(angulos.descubrimiento||'')}</textarea></div>
+            <div class="detail-field"><label>Objeción</label><textarea rows="2" placeholder="¿Qué duda puede resolver?" data-id="${r.id}" data-field="angulos.objecion">${escHtml(angulos.objecion||'')}</textarea></div>
+          </div>
+          <div class="detail-field" style="margin-top:8px;"><label>Comparación</label><textarea rows="2" placeholder="Antes/después · mito/realidad · opción A vs B..." data-id="${r.id}" data-field="angulos.comparacion">${escHtml(angulos.comparacion||'')}</textarea></div>
+        </div>
+        <div class="detail-field"><label>Instrucciones</label><textarea data-id="${r.id}" data-field="instrucciones">${escHtml(r.instrucciones)}</textarea></div>
+        <div class="detail-field"><label>Recomendación</label><textarea data-id="${r.id}" data-field="recomendacion">${escHtml(r.recomendacion)}</textarea></div>
+        <div class="detail-field"><label>Link de referencia</label><input type="text" class="link-input" placeholder="https://..." value="${escHtml(r.linkRef)}" data-id="${r.id}" data-field="linkRef"></div>
+        <div class="detail-field"><label>Link de archivo terminado</label><input type="text" class="link-input" placeholder="https://..." value="${escHtml(r.linkArchivo)}" data-id="${r.id}" data-field="linkArchivo"></div>
+      </div>
+    </details>
+    <div id="guion-${r.id}" class="guion-result" hidden></div>
+  `;
+  return card;
+}
+
+function bindCardEvents(){
+  contentEl.querySelectorAll('select.estado-select').forEach(sel=>sel.addEventListener('change',onFieldChange));
+  contentEl.querySelectorAll('.fecha-input,.gancho-input,.detail-field input,.detail-field textarea,.detail-field select:not(.estado-select)').forEach(inp=>{
+    inp.addEventListener('input',onFieldChange);
+    if(inp.tagName==='TEXTAREA'){ autoGrow(inp); inp.addEventListener('input',()=>autoGrow(inp)); }
+  });
+  contentEl.querySelectorAll('.btn-guion').forEach(btn=>{
+    btn.addEventListener('click',e=>{ e.preventDefault(); e.stopPropagation(); generateGuion(btn.dataset.id); });
+  });
+  contentEl.querySelectorAll('.item-card').forEach(card=>{
+    attachSwipe(card,card.querySelector('.item-details'));
+  });
+}
+
+function autoGrow(el){ el.style.height='auto'; el.style.height=el.scrollHeight+'px'; }
+
+function onFieldChange(e){
+  const id=e.target.dataset.id;
+  const field=e.target.dataset.field;
+  const list=state[currentTab];
+  const row=list.find(r=>r.id===id);
+  if(!row) return;
+  if(field.startsWith('angulos.')){
+    const key=field.split('.')[1];
+    if(!row.angulos) row.angulos={};
+    row.angulos[key]=e.target.value;
+  } else {
+    row[field]=e.target.value;
+  }
+  if(field==='estado'||field==='fecha'||field==='etapa'||field==='tipo'||field==='audiencia'){
+    if(field==='estado'||field==='fecha') render();
+    else{ buildCard_update(row); }
+    renderStats();
+  }
+  scheduleSave();
+}
+
+function buildCard_update(row){
+  // Re-render just the badges without full render
+  const card=[...contentEl.querySelectorAll('.item-card')].find(c=>{
+    const sel=c.querySelector('select.estado-select');
+    return sel && sel.dataset.id===row.id;
+  });
+  if(!card) return;
+  const badgesRow=card.querySelector('.badges-row');
+  if(!badgesRow) return;
+  const d=getDefaults(row);
+  const etapa=row.etapa||d.etapa;
+  const tipo=row.tipo||d.tipo;
+  const audiencia=row.audiencia||d.audiencia;
+  const em=ETAPA_META[etapa]||ETAPA_META.adquisicion;
+  badgesRow.innerHTML=`
+    <span class="badge badge-${etapa}">${em.label}</span>
+    <span class="badge badge-tipo">${TIPO_LABELS[tipo]||tipo}</span>
+    <span class="badge badge-${audiencia}">${AUDIENCIA_LABELS[audiencia]||audiencia}</span>`;
+}
+
+// ─── GUIÓN GENERATOR ─────────────────────────────────────────────────────────
+async function generateGuion(id){
+  const list=state[currentTab];
+  const row=list.find(r=>r.id===id);
+  if(!row) return;
+  const d=getDefaults(row);
+  const etapa=row.etapa||d.etapa;
+  const tipo=row.tipo||d.tipo;
+  const audiencia=row.audiencia||d.audiencia;
+  const uso=row.uso||d.uso;
+  const el=document.getElementById('guion-'+id);
+  if(!el) return;
+  el.hidden=false;
+  el.textContent='⏳ Generando guión...';
+
+  const prompt=`${NEGOCIO_CONTEXT}
+
+Actúa como Guionista de Contenido. Genera un guión para esta pieza:
+GANCHO: ${row.gancho}
+DESCRIPCIÓN: ${row.descripcion}
+ETAPA: ${etapa} · AUDIENCIA: ${audiencia} · TIPO: ${tipo} · USO: ${uso}
+DOLOR: ${row.dolor||'(ver descripción)'}
+
+Entrega en formato:
+HOOK (primeros 3-5 seg): …
+GANCHO ESCRITO: …
+PROBLEMA/SITUACIÓN: …
+SOLUCIÓN/INSIGHT: …
+CTA: …
+DURACIÓN SUGERIDA: …
+NOTAS DE GRABACIÓN: …`;
+
+  try{
+    const res=await fetch('/api/sugerir-contenido',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idea:prompt})});
+    const data=await res.json();
+    if(!res.ok){ el.textContent='Error: '+(data.error||'No se pudo generar.'); return; }
+    const texto=data.respuesta||data.guion||(data.gancho?(data.gancho+(data.caption?'\n\n'+data.caption:'')):'');
+    el.textContent=texto||JSON.stringify(data,null,2);
+  }catch(e){
+    el.textContent='Error de conexión. Intenta de nuevo.';
+  }
+}
+
+// ─── SWIPE (mobile) ──────────────────────────────────────────────────────────
+function attachSwipe(card,detailsEl){
+  if(!detailsEl) return;
+  const THRESH=46;
+  let sx=0,sy=0,ldx=0,dragging=false,horiz=false;
+  card.addEventListener('touchstart',e=>{
+    if(e.target.closest('input,textarea,select,button,a,summary')){ dragging=false; return; }
+    const t=e.touches[0]; sx=t.clientX; sy=t.clientY; ldx=0; dragging=true; horiz=false;
+  },{passive:true});
+  card.addEventListener('touchmove',e=>{
+    if(!dragging) return;
+    const t=e.touches[0],dx=t.clientX-sx,dy=t.clientY-sy;
+    if(!horiz){ if(Math.abs(dx)<8&&Math.abs(dy)<8) return; horiz=Math.abs(dx)>Math.abs(dy)*1.3; if(!horiz){dragging=false;return;} }
+    if(dx>0){ e.preventDefault(); ldx=dx; card.style.transform=`translateX(${Math.min(dx*.35,40)}px)`; }
+  },{passive:false});
+  function end(){ if(!dragging) return; dragging=false; card.style.transition='transform .2s ease'; card.style.transform=''; setTimeout(()=>{card.style.transition='';},220); if(horiz&&ldx>THRESH) detailsEl.open=true; horiz=false; ldx=0; }
+  card.addEventListener('touchend',end);
+  card.addEventListener('touchcancel',end);
+}
+
+// ─── BANCO DE IDEAS v2 ───────────────────────────────────────────────────────
+
+function parseIdeaJSON(text){
+  if(!text) return null;
+  let t=text.trim().replace(/```json\s*/g,'').replace(/```\s*/g,'');
+  const arrM=t.match(/\[[\s\S]*\]/);
+  if(arrM){ try{ return JSON.parse(arrM[0]); }catch(e){} }
+  const objM=t.match(/\{[\s\S]*\}/);
+  if(objM){ try{ return [JSON.parse(objM[0])]; }catch(e){} }
+  return null;
+}
+
+function mkBancoIdea(obj, src){
+  return {
+    id:'bi'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+    idea:obj.idea||'',
+    problema:obj.problema||'',
+    error:obj.error||'',
+    deseo:obj.deseo||'',
+    historia:obj.historia||'',
+    descubrimiento:obj.descubrimiento||'',
+    uso:obj.uso||'Orgánico',
+    prioridad:obj.prioridad||'Media',
+    source:src||'ai',
+    selected:false
+  };
+}
+
+function ideaRowHTML(item){
+  const priCls={alta:'pri-alta',media:'pri-media',baja:'pri-baja'}[(item.prioridad||'').toLowerCase()]||'pri-media';
+  return `<tr class="${item.source==='ai'?'ai-gen':''}" data-bid="${item.id}">
+    <td style="text-align:center;"><input type="checkbox" class="idea-check" data-bid="${item.id}"${item.selected?' checked':''}></td>
+    <td class="idea-cell">${escHtml(item.idea)}</td>
+    <td class="angle-cell">${escHtml(item.problema)}</td>
+    <td class="angle-cell">${escHtml(item.error)}</td>
+    <td class="angle-cell">${escHtml(item.deseo)}</td>
+    <td class="angle-cell">${escHtml(item.historia)}</td>
+    <td class="angle-cell">${escHtml(item.descubrimiento)}</td>
+    <td class="uso-cell">${escHtml(item.uso)}</td>
+    <td class="pri-cell"><span class="${priCls}">${escHtml(item.prioridad)}</span></td>
+    <td><button class="row-del" data-bid="${item.id}" title="Eliminar">✕</button></td>
+  </tr>`;
+}
+
+function renderBancoTable(){
+  const tbody=document.getElementById('ideas-tbody');
+  if(!tbody) return;
+  if(!state.bancoIdeas.length){
+    tbody.innerHTML='<tr class="ideas-empty-row"><td colspan="10">Todavía no hay ideas. Escribe una arriba o usa <strong>Actualizar ideas</strong> para generar 10 nuevas.</td></tr>';
+    return;
+  }
+  tbody.innerHTML=state.bancoIdeas.map(ideaRowHTML).join('');
+  tbody.querySelectorAll('.idea-check').forEach(cb=>{
+    cb.addEventListener('change',e=>{
+      const bid=e.target.dataset.bid;
+      const item=state.bancoIdeas.find(i=>i.id===bid);
+      if(item) item.selected=e.target.checked;
+      const selAll=document.getElementById('select-all-check');
+      if(selAll) selAll.checked=state.bancoIdeas.length>0&&state.bancoIdeas.every(i=>i.selected);
+    });
+  });
+  tbody.querySelectorAll('.row-del').forEach(btn=>{
+    btn.addEventListener('click',e=>{
+      const bid=e.currentTarget.dataset.bid;
+      state.bancoIdeas=state.bancoIdeas.filter(i=>i.id!==bid);
+      document.getElementById('count-banco').textContent=state.bancoIdeas.length;
+      const cntEl=document.getElementById('banco-ideas-count');
+      if(cntEl) cntEl.textContent=state.bancoIdeas.length;
+      renderBancoTable(); scheduleSave();
+    });
+  });
+}
+
+function renderBanco(){
+  document.getElementById('count-banco').textContent=state.bancoIdeas.length;
+  contentEl.innerHTML='';
+  const wrap=document.createElement('div');
+  wrap.className='banco-v2';
+
+  // ── REGISTRADOR DE IDEAS ──────────────────────────────────────────────────
+  const reg=document.createElement('div');
+  reg.className='banco-registrador';
+  reg.innerHTML=`
+    <div class="banco-reg-label">✏️ Registrador de ideas</div>
+    <div class="banco-reg-row">
+      <textarea id="banco-idea-reg" placeholder="Escribe tu idea y la IA generará los ángulos automáticamente con base en hallazgos, miedos y deseos de tu cliente ideal..."></textarea>
+      <button class="btn btn-ghost" id="btn-gen-angulos" type="button">✨ Generar ángulos</button>
+    </div>
+    <div id="banco-reg-status" class="suggest-status" style="margin-top:8px;"></div>`;
+  wrap.appendChild(reg);
+
+  // ── TABLA DE IDEAS ────────────────────────────────────────────────────────
+  const tableWrap=document.createElement('div');
+  tableWrap.innerHTML=`
+    <div class="banco-ideas-header">
+      <div class="banco-ideas-title">💡 Banco de ideas estratégicas <span style="font-weight:400;opacity:.7;font-size:12px;font-family:'JetBrains Mono',monospace;" id="banco-ideas-count">${state.bancoIdeas.length}</span></div>
+      <div class="banco-selection-actions">
+        <button class="btn btn-ghost" id="btn-actualizar-ideas" type="button">🔄 Actualizar ideas</button>
+        <button class="btn-outline to-historias" id="btn-to-historias" type="button">→ Agregar a Historias</button>
+        <button class="btn-outline to-contenido" id="btn-to-contenido" type="button">→ Agregar a Contenido</button>
+      </div>
+    </div>
+    <div id="actualizar-status" class="suggest-status" style="margin-bottom:8px;min-height:18px;"></div>
+    <div class="ideas-table-wrap">
+      <table class="ideas-table">
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="select-all-check"></th>
+            <th>Idea</th><th>Problema</th><th>Error</th><th>Deseo</th>
+            <th>Historia</th><th>Descubrimiento</th><th>Uso</th><th>Prioridad</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="ideas-tbody"></tbody>
+      </table>
+    </div>`;
+  wrap.appendChild(tableWrap);
+  contentEl.appendChild(wrap);
+
+  renderBancoTable();
+
+  // Select all
+  document.getElementById('select-all-check').addEventListener('change',e=>{
+    state.bancoIdeas.forEach(i=>i.selected=e.target.checked);
+    renderBancoTable();
+  });
+
+  // ── GENERAR ÁNGULOS (idea individual) ─────────────────────────────────────
+  document.getElementById('btn-gen-angulos').addEventListener('click',async()=>{
+    const ideaText=document.getElementById('banco-idea-reg').value.trim();
+    const stEl=document.getElementById('banco-reg-status');
+    stEl.className='suggest-status'; stEl.textContent='';
+    if(!ideaText){ stEl.textContent='Escribe la idea primero.'; stEl.classList.add('error'); return; }
+    const btn=document.getElementById('btn-gen-angulos');
+    btn.disabled=true; btn.textContent='Pensando...';
+    const prompt=`${NEGOCIO_CONTEXT}\n\n${HALLAZGOS_JULIO}\n\nPara esta idea de contenido de JefesHub, genera los 7 ángulos estratégicos.\nIDEA: ${ideaText}\n\nResponde SOLO con JSON válido (sin markdown, sin texto extra):\n{\n  "idea": "título exacto o ligeramente mejorado de la idea",\n  "problema": "qué problema vive hoy el cliente relacionado con esta idea",\n  "error": "qué error comete o qué malentiende",\n  "deseo": "qué quiere lograr realmente",\n  "historia": "cómo comunicar desde una experiencia o caso real",\n  "descubrimiento": "nueva verdad o perspectiva que puede mostrar",\n  "uso": "Orgánico | Ads | Ambos",\n  "prioridad": "Alta | Media | Baja"\n}`;
+    try{
+      const res=await fetch('/api/sugerir-contenido',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idea:prompt})});
+      const data=await res.json();
+      if(!res.ok){ stEl.textContent=data.error||'No se pudo generar.'; stEl.classList.add('error'); return; }
+      const texto=data.respuesta||data.guion||(data.gancho?(data.gancho+(data.caption?'\n\n'+data.caption:'')):'');
+      const parsed=parseIdeaJSON(texto);
+      if(parsed&&parsed.length){
+        const newItem=mkBancoIdea(parsed[0],'ai');
+        state.bancoIdeas.unshift(newItem);
+        document.getElementById('banco-idea-reg').value='';
+        document.getElementById('count-banco').textContent=state.bancoIdeas.length;
+        document.getElementById('banco-ideas-count').textContent=state.bancoIdeas.length;
+        renderBancoTable(); scheduleSave();
+        stEl.textContent='✅ Ángulos generados — idea añadida al banco (en verde = sugerida por IA, editable).';
+      } else {
+        stEl.textContent='Respuesta no estructurada — intenta de nuevo.'; stEl.classList.add('error');
+      }
+    }catch(e){ stEl.textContent='Error de conexión.'; stEl.classList.add('error'); }
+    finally{ btn.disabled=false; btn.textContent='✨ Generar ángulos'; }
+  });
+
+  // ── ACTUALIZAR IDEAS (generar 10 nuevas) ──────────────────────────────────
+  document.getElementById('btn-actualizar-ideas').addEventListener('click',async()=>{
+    const stEl=document.getElementById('actualizar-status');
+    const btn=document.getElementById('btn-actualizar-ideas');
+    stEl.className='suggest-status'; stEl.textContent='';
+    btn.disabled=true; btn.textContent='Generando 10 ideas...';
+    const existentes=[...NOTION_IDEAS_EXISTENTES,...state.bancoIdeas.map(i=>i.idea)].slice(0,25);
+    const prompt=`${NEGOCIO_CONTEXT}\n\n${HALLAZGOS_JULIO}\n\nActúa como el Agente de Contenido y Creativos de JefesHub. Genera 10 ideas estratégicas de contenido Evergreen que sean completamente diferentes a estas ya existentes:\n${existentes.map((x,i)=>`${i+1}. ${x}`).join('\n')}\n\nResponde SOLO con un JSON array válido (sin markdown, sin texto extra, sin comentarios):\n[\n  {\n    "idea": "título concreto y específico",\n    "problema": "qué problema vive hoy el cliente",\n    "error": "qué error está cometiendo o qué malentiende",\n    "deseo": "qué quiere lograr realmente",\n    "historia": "cómo comunicar desde una experiencia o caso real",\n    "descubrimiento": "nueva verdad o perspectiva que puede mostrar",\n    "uso": "Orgánico | Ads | Ambos",\n    "prioridad": "Alta | Media | Baja"\n  }\n]\n\nReglas: específicas para JefesHub, que alimenten el Sistema Evergreen, que ayuden a vender no solo a entretener, todas diferentes entre sí, basadas en los hallazgos del Radar de Mercado.`;
+    try{
+      const res=await fetch('/api/sugerir-contenido',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idea:prompt})});
+      const data=await res.json();
+      if(!res.ok){ stEl.textContent=data.error||'No se pudo generar.'; stEl.classList.add('error'); return; }
+      const texto=data.respuesta||data.guion||(data.gancho?(data.gancho+(data.caption?'\n\n'+data.caption:'')):'');
+      const parsed=parseIdeaJSON(texto);
+      if(parsed&&parsed.length){
+        const newItems=parsed.map(obj=>mkBancoIdea(obj,'ai'));
+        state.bancoIdeas=[...newItems,...state.bancoIdeas];
+        document.getElementById('count-banco').textContent=state.bancoIdeas.length;
+        document.getElementById('banco-ideas-count').textContent=state.bancoIdeas.length;
+        renderBancoTable(); scheduleSave();
+        stEl.textContent=`✅ ${newItems.length} ideas nuevas generadas — en verde = sugeridas por IA, editables.`;
+      } else {
+        stEl.textContent='Respuesta no estructurada — intenta de nuevo.'; stEl.classList.add('error');
+      }
+    }catch(e){ stEl.textContent='Error de conexión.'; stEl.classList.add('error'); }
+    finally{ btn.disabled=false; btn.textContent='🔄 Actualizar ideas'; }
+  });
+
+  // ── AGREGAR SELECCIONADAS A HISTORIAS / CONTENIDO ─────────────────────────
+  function addSelectedToTab(targetTab){
+    const stEl=document.getElementById('actualizar-status');
+    const selected=state.bancoIdeas.filter(i=>i.selected);
+    if(!selected.length){ stEl.className='suggest-status error'; stEl.textContent='Selecciona al menos una idea primero.'; return; }
+    selected.forEach(item=>{
+      const newId=(targetTab==='historias'?'h':'c')+'_bi'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+      state[targetTab].push({
+        id:newId,
+        orden:state[targetTab].length+1,
+        fase:targetTab==='historias'?'Semana 1 · Atraer/Conexión':'Semana 1',
+        gancho:item.idea,
+        descripcion:item.descubrimiento,
+        dolor:item.problema,
+        instrucciones:`Uso: ${item.uso}`,
+        recomendacion:'',
+        linkRef:'',linkArchivo:'',
+        fecha:'',estado:'idea',
+        angulos:{
+          problema:item.problema,
+          error:item.error,
+          deseo:item.deseo,
+          historia:item.historia,
+          descubrimiento:item.descubrimiento,
+          objecion:'',comparacion:''
+        }
+      });
+    });
+    document.getElementById(`count-${targetTab}`).textContent=state[targetTab].length;
+    scheduleSave();
+    stEl.className='suggest-status';
+    stEl.textContent=`✅ ${selected.length} idea(s) añadida(s) a ${targetTab==='historias'?'Historias':'Contenido'}.`;
+    state.bancoIdeas.forEach(i=>i.selected=false);
+    renderBancoTable();
+  }
+
+  document.getElementById('btn-to-historias').addEventListener('click',()=>addSelectedToTab('historias'));
+  document.getElementById('btn-to-contenido').addEventListener('click',()=>addSelectedToTab('contenido'));
+}
+
+// ─── AGENTE TAB ───────────────────────────────────────────────────────────────
+const AGENTE_MODES = [
+  {key:'ideas',  label:'💡 Ideas Evergreen',  desc:'Genera un banco de ideas estratégicas que puedas usar durante meses.',
+   fields:[
+     {id:'ag-objetivo',label:'Objetivo del banco de ideas',type:'text',placeholder:'ej. atraer emprendedoras que ya usan IA genérica'},
+     {id:'ag-etapa-focus',label:'Etapa prioritaria',type:'select',opts:['mixto','adquisicion','consideracion','conversion']},
+     {id:'ag-cantidad',label:'Número de ideas',type:'select',opts:['10','20','30']},
+   ],
+   buildPrompt: f=>`${NEGOCIO_CONTEXT}
+
+Actúa como el Agente de Contenido y Creativos. Modo: Ideas Evergreen.
+OBJETIVO: ${f['ag-objetivo']||'banco general'}
+ETAPA: ${f['ag-etapa-focus']||'mixto'}
+CANTIDAD: ${f['ag-cantidad']||'20'} ideas
+
+Genera las ideas en tabla markdown con estas columnas:
+| Idea | Ángulo: Problema | Ángulo: Error | Ángulo: Deseo | Ángulo: Historia | Descubrimiento | Objeción | Uso (orgánico/ads/ambos) | Prioridad |
+
+Reglas: específicas, que alimenten el Sistema Evergreen, que ayuden a vender no solo a entretener, sin guiones todavía.
+Al final indica las 5 ideas de mayor potencial.`
+  },
+  {key:'guion-ads',label:'🎯 Guionista Ads',  desc:'Guión completo para anuncio pagado con hook, estructura y CTA.',
+   fields:[
+     {id:'ag-oferta',label:'Oferta o producto',type:'text',placeholder:'ej. JefesHub trial 30 días gratis'},
+     {id:'ag-audiencia-ads',label:'Audiencia',type:'select',opts:['fria','tibia','caliente']},
+     {id:'ag-etapa-ads',label:'Etapa del cliente',type:'select',opts:['adquisicion','consideracion','conversion']},
+     {id:'ag-angulo-ads',label:'Ángulo principal',type:'text',placeholder:'ej. dolor de tiempo, ChatGPT genérico, libertad'},
+     {id:'ag-objetivo-ads',label:'Objetivo del anuncio',type:'text',placeholder:'ej. registro trial, agenda consulta, venta directa'},
+   ],
+   buildPrompt: f=>`${NEGOCIO_CONTEXT}
+
+Actúa como Guionista Ads. Genera el guión completo de un anuncio de video.
+OFERTA: ${f['ag-oferta']||'JefesHub'}
+AUDIENCIA: ${f['ag-audiencia-ads']||'fria'}
+ETAPA: ${f['ag-etapa-ads']||'adquisicion'}
+ÁNGULO: ${f['ag-angulo-ads']||''}
+OBJETIVO: ${f['ag-objetivo-ads']||'registro trial'}
+
+Formato obligatorio:
+OBJETIVO DEL ANUNCIO: …
+AUDIENCIA: …
+ÁNGULO: …
+HOOK (0-5 seg): …
+PROBLEMA/ERROR DEL CLIENTE: …
+SOLUCIÓN/MÉTODO: …
+PRUEBA/CONFIANZA: …
+COSTO DE INACCIÓN + CTA: …
+GUIÓN COMPLETO (conversacional, máx. 30s):
+---
+[guión aquí]
+---
+VISUAL SUGERIDO: …
+CTA: …
+DURACIÓN: …
+VERSIÓN 15s: …
+3 HOOKS ALTERNATIVOS:
+1. …
+2. …
+3. …`
+  },
+  {key:'guion-org',label:'📱 Guionista Orgánico',  desc:'Guión para reel, carrusel o historia con intención estratégica.',
+   fields:[
+     {id:'ag-objetivo-org',label:'Objetivo del contenido',type:'select',opts:['alcance','confianza','educacion','venta sutil','venta directa']},
+     {id:'ag-idea-org',label:'Idea o tema',type:'textarea',placeholder:'Describe la idea principal del contenido...'},
+     {id:'ag-formato-org',label:'Formato',type:'select',opts:['reel','tiktok','historia','carrusel','post estático']},
+   ],
+   buildPrompt: f=>`${NEGOCIO_CONTEXT}
+
+Actúa como Guionista de Contenido Orgánico.
+OBJETIVO: ${f['ag-objetivo-org']||'alcance'}
+IDEA: ${f['ag-idea-org']||''}
+FORMATO: ${f['ag-formato-org']||'reel'}
+
+Genera el guión completo. Incluye:
+HOOK (primeros 3 seg): …
+ESTRUCTURA: …
+GUIÓN LÍNEA A LÍNEA:
+---
+[guión aquí, natural, que suene como Jany]
+---
+CTA según objetivo: …
+NOTAS DE GRABACIÓN: …
+DURACIÓN APROXIMADA: …`
+  },
+  {key:'auditoria',label:'🔍 Auditoría de Guión',  desc:'Diagnóstico, calificación y versión corregida de tu guión.',
+   fields:[
+     {id:'ag-guion-audit',label:'Pega tu guión aquí',type:'textarea',placeholder:'Copia y pega el guión que quieres auditar...'},
+     {id:'ag-objetivo-audit',label:'¿Cuál era el objetivo?',type:'text',placeholder:'ej. adquisición de audiencia fría, conversión'},
+   ],
+   buildPrompt: f=>`${NEGOCIO_CONTEXT}
+
+Actúa como Auditor de Guiones. Revisa con criterio honesto y útil.
+OBJETIVO DECLARADO: ${f['ag-objetivo-audit']||'no especificado'}
+GUIÓN A AUDITAR:
+---
+${f['ag-guion-audit']||'(sin guión)'}
+---
+
+Entrega en este orden exacto:
+DIAGNÓSTICO EN UNA FRASE: …
+CALIFICACIÓN: X/10
+QUÉ SÍ FUNCIONA: …
+QUÉ NO FUNCIONA: …
+VERSIÓN CORREGIDA:
+---
+[guión mejorado aquí]
+---
+3 HOOKS ALTERNATIVOS:
+1. …
+2. …
+3. …
+5 ACCIONES DE MEJORA: …`
+  },
+  {key:'calendario',label:'📅 Calendario',  desc:'Calendario semanal o mensual combinando evergreen y campaña.',
+   fields:[
+     {id:'ag-objetivo-cal',label:'Objetivo del período',type:'text',placeholder:'ej. más alcance, activar trial, crecer confianza'},
+     {id:'ag-fechas-cal',label:'Fechas o período',type:'text',placeholder:'ej. semana del 21-27 julio'},
+     {id:'ag-campana-cal',label:'¿Hay campaña activa?',type:'text',placeholder:'ej. promo trial gratis vence el 31 julio'},
+     {id:'ag-mix-cal',label:'Mix preferido',type:'select',opts:['40% valor · 30% viralidad · 30% venta','mayoría adquisición','mayoría conversión','equilibrado']},
+   ],
+   buildPrompt: f=>`${NEGOCIO_CONTEXT}
+
+Actúa como Estratega de Calendario de Contenido.
+OBJETIVO: ${f['ag-objetivo-cal']||''}
+PERÍODO: ${f['ag-fechas-cal']||'próxima semana'}
+CAMPAÑA: ${f['ag-campana-cal']||'sin campaña activa'}
+MIX: ${f['ag-mix-cal']||'40% valor · 30% viralidad · 30% venta'}
+
+Entrega el calendario en tabla markdown:
+| Fecha | Tipo | Etapa | Hook / Idea | Formato | Objetivo | CTA | Prioridad |
+
+Primero coloca fechas de campaña si aplica. Luego llena con evergreen.
+Al final dame 3 recomendaciones estratégicas para este período.`
+  },
+];
+
+let agenteMode='ideas';
+let agenteOutput='';
+let agenteStatus='';
+
+function renderAgente(){
+  controlsEl.style.display='none';
+  statsBarEl.style.display='none';
+  contentEl.innerHTML='';
+  const wrap=document.createElement('div');
+  wrap.className='agente-wrap';
+
+  // Mode selector
+  const modeSel=document.createElement('div');
+  modeSel.innerHTML='<div class="agente-header">Selecciona el modo de trabajo:</div><div class="mode-selector"></div>';
+  const modeSelDiv=modeSel.querySelector('.mode-selector');
+  AGENTE_MODES.forEach(m=>{
+    const btn=document.createElement('button');
+    btn.className='mode-btn'+(m.key===agenteMode?' active':'');
+    btn.textContent=m.label;
+    btn.addEventListener('click',()=>{ agenteMode=m.key; agenteOutput=''; agenteStatus=''; renderAgente(); });
+    modeSelDiv.appendChild(btn);
+  });
+  wrap.appendChild(modeSel);
+
+  // Mode panel
+  const mode=AGENTE_MODES.find(m=>m.key===agenteMode)||AGENTE_MODES[0];
+  const panel=document.createElement('div');
+  panel.className='mode-panel';
+
+  let fieldsHtml='';
+  const gridFields=mode.fields.filter(f=>f.type!=='textarea');
+  const areaFields=mode.fields.filter(f=>f.type==='textarea');
+
+  // Grid fields (2-col)
+  if(gridFields.length){
+    fieldsHtml+=`<div class="mode-fields-grid">`;
+    gridFields.forEach(f=>{
+      if(f.type==='select'){
+        fieldsHtml+=`<div class="mode-field"><label>${f.label}</label><select id="${f.id}">${f.opts.map(o=>`<option value="${o}">${o.charAt(0).toUpperCase()+o.slice(1)}</option>`).join('')}</select></div>`;
+      } else {
+        fieldsHtml+=`<div class="mode-field"><label>${f.label}</label><input type="text" id="${f.id}" placeholder="${f.placeholder||''}"></div>`;
+      }
+    });
+    fieldsHtml+=`</div>`;
+  }
+  // Textarea fields (full width)
+  areaFields.forEach(f=>{
+    fieldsHtml+=`<div class="mode-field"><label>${f.label}</label><textarea id="${f.id}" rows="4" placeholder="${f.placeholder||''}"></textarea></div>`;
+  });
+
+  panel.innerHTML=`
+    <div>
+      <div class="mode-panel-title">${mode.label}</div>
+      <div class="mode-panel-desc">${mode.desc}</div>
+    </div>
+    ${fieldsHtml}
+    <div class="mode-actions">
+      <button class="btn btn-solid" id="agente-gen-btn">✨ Generar</button>
+      <span class="mode-status" id="agente-status">${escHtml(agenteStatus)}</span>
+    </div>
+    <div>
+      <div id="agente-output" class="mode-output">${agenteOutput?escHtml(agenteOutput):'<span class="mode-output-placeholder">El resultado aparecerá aquí...</span>'}</div>
+      ${agenteOutput?`<div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
+        <button class="mode-add-banco" id="agente-add-banco">+ Guardar en Banco de ideas</button>
+        <span style="font-size:11px;color:var(--text-dim);font-family:JetBrains Mono,monospace;">Ctrl+A para seleccionar todo el texto</span>
+      </div>`:''}
+    </div>`;
+  wrap.appendChild(panel);
+  contentEl.appendChild(wrap);
+
+  // Generate button
+  document.getElementById('agente-gen-btn').addEventListener('click',async()=>{
+    const btn=document.getElementById('agente-gen-btn');
+    const statusEl2=document.getElementById('agente-status');
+    const outputEl=document.getElementById('agente-output');
+    btn.disabled=true; btn.textContent='Generando...';
+    statusEl2.className='mode-status'; statusEl2.textContent='⏳ Consultando al agente...';
+
+    // Collect field values
+    const fieldValues={};
+    mode.fields.forEach(f=>{ const el=document.getElementById(f.id); if(el) fieldValues[f.id]=el.value; });
+
+    const prompt=mode.buildPrompt(fieldValues);
+    try{
+      const res=await fetch('/api/sugerir-contenido',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idea:prompt})});
+      const data=await res.json();
+      if(!res.ok){ statusEl2.textContent='Error: '+(data.error||'No se pudo generar.'); statusEl2.classList.add('error'); return; }
+      agenteOutput=data.respuesta||data.guion||(data.gancho?(data.gancho+(data.caption?'\n\n'+data.caption:'')):'');
+      if(!agenteOutput) agenteOutput=JSON.stringify(data,null,2);
+      statusEl2.textContent='✅ Listo';
+      outputEl.innerHTML=escHtml(agenteOutput);
+      // add "save to bank" button
+      const actDiv=document.createElement('div');
+      actDiv.style.cssText='margin-top:8px;display:flex;gap:12px;align-items:center;';
+      actDiv.innerHTML='<button class="mode-add-banco" id="agente-add-banco">+ Guardar en Banco de ideas</button><span style="font-size:11px;color:var(--text-dim);font-family:JetBrains Mono,monospace;">Ctrl+A para seleccionar todo</span>';
+      outputEl.after(actDiv);
+      actDiv.querySelector('#agente-add-banco').addEventListener('click',()=>{
+        state.banco.unshift({id:'b'+Date.now().toString(36)+Math.random().toString(36).slice(2,8),texto:agenteOutput,gancho:'',caption:'',link:'',aprobada:false,fecha:new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'})});
+        document.getElementById('count-banco').textContent=state.banco.length;
+        scheduleSave();
+        actDiv.innerHTML='<span style="color:var(--accent);font-size:12px;font-family:JetBrains Mono,monospace;">✅ Guardado en Banco de ideas</span>';
+      });
+    }catch(e){
+      statusEl2.textContent='Error de conexión.'; statusEl2.classList.add('error');
+    }finally{
+      btn.disabled=false; btn.textContent='✨ Generar';
+    }
+  });
+}
+
+// ─── STORAGE ──────────────────────────────────────────────────────────────────
+async function loadStorage(){
+  try{
+    const result=await window.storage.get('jefeshub-agente-contenido-v2');
+    if(result&&result.value){
+      const saved=JSON.parse(result.value);
+      if(saved.historias) state.historias=saved.historias;
+      if(saved.contenido) state.contenido=saved.contenido;
+      if(saved.banco){ saved.banco.forEach(b=>{if(b.aprobada===undefined)b.aprobada=!!b.gancho;}); state.banco=saved.banco; }
+      if(saved.bancoIdeas){ saved.bancoIdeas.forEach(b=>{if(b.selected===undefined)b.selected=false;}); state.bancoIdeas=saved.bancoIdeas; }
+      const when=result.updatedAt?new Date(result.updatedAt).toLocaleString('es-MX',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
+      statusEl.textContent=when?`Cargado — último guardado ${when}`:'Tu selección se cargó.';
+    }
+  }catch(e){
+    statusEl.textContent='Nueva sesión (sin datos guardados aún).';
+  }
+  document.getElementById('count-banco').textContent=state.banco.length;
+  buildFaseFilter();
+  renderStats();
+  render();
+}
+
+let saveTimer=null,pendingSave=false;
+function scheduleSave(){ pendingSave=true; statusEl.textContent='Guardando...'; clearTimeout(saveTimer); saveTimer=setTimeout(()=>doSave(),500); }
+async function doSave(opts){
+  clearTimeout(saveTimer); saveTimer=null; if(!pendingSave) return;
+  try{
+    await window.storage.set('jefeshub-agente-contenido-v2',JSON.stringify({historias:state.historias,contenido:state.contenido,banco:state.banco,bancoIdeas:state.bancoIdeas}),opts);
+    pendingSave=false; statusEl.textContent='Guardado.';
+  }catch(e){
+    statusEl.textContent=e.status===401?'Token incorrecto.':'No se pudo guardar.';
+  }
+}
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'&&pendingSave) doSave({keepalive:true}); });
+window.addEventListener('pagehide',()=>{ if(pendingSave) doSave({keepalive:true}); });
+
+loadStorage();
+</script>
+</body>
+</html>
