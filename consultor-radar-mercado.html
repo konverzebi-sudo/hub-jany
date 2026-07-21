@@ -569,7 +569,7 @@ function wireAccountListClicks(containerEl, detailEl){
   containerEl.querySelectorAll('.account-item').forEach(btn => {
     btn.addEventListener('click', () => {
       const item = referentesState.find(r => r.id === btn.dataset.id);
-      if(item) analizarCuentaGuardada(item.id, item.nombre_cuenta || item.plataformas?.[0]?.plataforma || 'Sin nombre', detailEl);
+      if(item) analizarCuentaGuardada(item, detailEl);
     });
   });
 }
@@ -1013,9 +1013,20 @@ function renderAnalisisCuentaDetail(targetEl, label, cache){
 // detailEl es opcional (default Sección 3) para que el modo "Análisis de
 // cuenta específica" (Otros modos) pueda reusar esta misma función con su
 // propio contenedor de detalle.
-async function analizarCuentaGuardada(id, label, detailEl){
+//
+// Recibe el item completo (no solo id+label): el servidor necesita el
+// @handle y el link reales para poder aislar el bloque correcto de esta
+// cuenta dentro del texto pegado en la Sección 2 — un label genérico como
+// "Instagram" no sirve para eso si hay varias cuentas de la misma
+// plataforma (bug: todas daban el mismo resultado porque el modelo no
+// tenía con qué distinguir una cuenta de otra).
+async function analizarCuentaGuardada(item, detailEl){
   detailEl = detailEl || document.getElementById('seccion3Detail');
-  if(!diagnosticoActual) return;
+  if(!diagnosticoActual || !item) return;
+  const id = item.id;
+  const principal = (item.plataformas && item.plataformas[0]) || {};
+  const handle = extraerHandleDeLink(principal.link);
+  const label = item.nombre_cuenta || principal.plataforma || 'Sin nombre';
   const cache = (diagnosticoActual.porCuenta || {})[id];
   document.querySelectorAll('.account-item').forEach(b => b.classList.toggle('active', b.dataset.id === id));
 
@@ -1031,7 +1042,14 @@ async function analizarCuentaGuardada(id, label, detailEl){
     const response = await fetch('/api/consultor-radar', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ modo: 'analisis-cuenta-guardada', cliente: CLIENTE_ID, accountId: id, accountLabel: label })
+      body: JSON.stringify({
+        modo: 'analisis-cuenta-guardada',
+        cliente: CLIENTE_ID,
+        accountId: id,
+        accountLabel: label,
+        accountHandle: handle,
+        accountLink: principal.link || '',
+      })
     });
     const data = await response.json();
     if(!response.ok){

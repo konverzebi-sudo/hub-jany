@@ -240,9 +240,23 @@ async function llamarClaude({ promptCompleto, webSearch, maxTokens }) {
   return { ok: true, text };
 }
 
-function instruccionAnalisisCuentaJSON(accountLabel, fuenteTexto) {
+// identificadores: { label, handle, link } — un label genérico como
+// "Instagram" (fallback cuando no se llenó "Nombre de cuenta") NO alcanza
+// para aislar una cuenta si hay varias de la misma plataforma en el texto
+// pegado; el @handle y el link son las señales confiables, porque son
+// literalmente lo que el prompt de la Sección 1 le pide a Claude en Chrome
+// que use como encabezado de cada bloque ("CUENTA: @usuario").
+function instruccionAnalisisCuentaJSON(identificadores, fuenteTexto) {
+  const { label, handle, link } = identificadores;
+  const senales = [];
+  if (handle) senales.push(`el handle ${handle}`);
+  if (link) senales.push(`el link ${link}`);
+  if (label && label !== handle) senales.push(`el nombre "${label}"`);
+  const senalesTexto = senales.length ? senales.join(', ') : `la cuenta "${label}"`;
+
   return (
-    `Del siguiente texto pegado (capturado manualmente de varias cuentas), enfócate ÚNICAMENTE en la cuenta ${accountLabel} — busca el bloque que corresponda a esa cuenta o link. Si no encuentras esa cuenta en el texto, no inventes nada.\n\n` +
+    `El siguiente texto pegado fue capturado manualmente de VARIAS cuentas y normalmente trae varios bloques, cada uno empezando con "CUENTA: @algo" (uno por cada cuenta visitada). Tu tarea es encontrar el bloque que corresponde a UNA sola cuenta específica — la que coincide con ${senalesTexto} — y analizar ÚNICAMENTE ese bloque, ignorando todos los demás por completo.\n\n` +
+    `Si ningún bloque coincide claramente con esta cuenta específica, NO tomes otro bloque al azar ni inventes datos — responde con accesible:false.\n\n` +
     `TEXTO PEGADO:\n"""\n${fuenteTexto}\n"""\n\n` +
     `Detecta patrones (sin copiar) y responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional antes ni después, con este formato exacto:\n` +
     `{"accesible": true, "tipo_de_contenido": "...", "frecuencia": "...", "temas": ["..."], "hooks": ["..."], "formatos": ["..."], "que_funciona": "...", "que_aprender": "...", "que_no_copiar": "...", "que_adaptar": "..."}\n` +
@@ -309,6 +323,8 @@ async function handleDiagnosticoGeneral(req, res, clienteId, systemPrompt) {
 async function handleAnalisisCuentaGuardada(req, res, clienteId, systemPrompt) {
   const accountId = ((req.body && req.body.accountId) || '').toString();
   const accountLabel = ((req.body && req.body.accountLabel) || accountId).toString();
+  const accountHandle = ((req.body && req.body.accountHandle) || '').toString().trim();
+  const accountLink = ((req.body && req.body.accountLink) || '').toString().trim();
   if (!accountId) return res.status(400).json({ error: 'Falta accountId.' });
 
   const key = `${clienteId}:radar-historial`;
@@ -319,7 +335,7 @@ async function handleAnalisisCuentaGuardada(req, res, clienteId, systemPrompt) {
   }
 
   const contexto = await construirContexto(clienteId, ['brand-book.identidad', 'brand-book.tono', 'brand-book.audiencia']).catch(() => '');
-  const instruccion = instruccionAnalisisCuentaJSON(accountLabel, entry.textoPegado);
+  const instruccion = instruccionAnalisisCuentaJSON({ label: accountLabel, handle: accountHandle, link: accountLink }, entry.textoPegado);
   const promptCompleto = [systemPrompt, contexto, instruccion].filter(Boolean).join('\n\n');
 
   const r = await llamarClaude({ promptCompleto, webSearch: false });
