@@ -17,10 +17,9 @@
   body{margin:0;background:radial-gradient(1200px 600px at 50% -10%,#241733 0%,var(--bg) 55%);color:var(--text);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;}
   h1,h2,h3,h4,.display{font-family:'Sora',sans-serif;}
 
-  header{padding:34px 20px 20px;text-align:center;max-width:760px;margin:0 auto;}
-  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:10px;}
-  header h1{font-size:clamp(26px,3.6vw,36px);font-weight:800;margin:0 0 8px;line-height:1.1;}
-  header p{color:var(--text-dim);font-size:14.5px;line-height:1.5;margin:0 auto;max-width:560px;}
+  header{padding:34px 20px 20px;text-align:left;max-width:980px;margin:0 auto;}
+  .panel-head h2{font-size:clamp(22px,2.8vw,30px)!important;font-weight:800!important;margin:0 0 8px!important;line-height:1.1!important;}
+  .panel-desc{color:var(--text-dim);font-size:14px;line-height:1.5;margin-bottom:20px;}
 
   main{max-width:980px;margin:0 auto;padding:20px 20px 90px;}
 
@@ -196,10 +195,10 @@
     ← Centro de Control
   </a>
   <script>(function(){var p=location.pathname;var b=p.indexOf('/rancho-seco/')!==-1||p.endsWith('/rancho-seco')?'/rancho-seco':p.indexOf('/rim/')!==-1||p.endsWith('/rim')?'/rim':null;if(b)document.getElementById('adn-back-hub').href=b;})();</script>
-  <div id="brand-bar" style="display:inline-flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:#B6A9C7;margin-bottom:10px;padding:5px 14px;border:1px solid #332A3D;border-radius:100px;background:rgba(255,255,255,.03);">
-    <span style="color:#B8F725;">JefesHub</span>
+  <div id="brand-bar" style="display:inline-flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:#B8F725;margin-bottom:14px;padding:5px 14px;border:1px solid #332A3D;border-radius:100px;background:rgba(255,255,255,.03);">
+    <span>JefesHub</span>
     <span style="opacity:.4;">·</span>
-    <span>ADN del Negocio</span>
+    <span id="brand-section-label">Identidad</span>
     <span style="opacity:.4;">·</span>
     <span id="brand-marca-label">—</span>
   </div>
@@ -212,15 +211,16 @@
     var p=location.pathname;
     var key=/\/rancho-seco(\/|$)/.test(p)?'rancho-seco':/\/rim(\/|$)/.test(p)?'rim':'jefeshub';
     var b=BRANDS[key];
+    var bar=document.getElementById('brand-bar');
+    bar.style.color=b.color;
+    bar.style.borderColor=b.color.replace('#','rgba(').slice(0,-1)+',0.3)';
     var el=document.getElementById('brand-marca-label');
-    el.textContent=b.fallback; el.style.color=b.color;
+    el.textContent=b.fallback;
     try{
       var r=await window.storage.get(key+':brand-book.identidad');
       if(r&&r.value){var d=JSON.parse(r.value);if(d.nombre){el.textContent=d.nombre;}}
     }catch(e){}
   })();</script>
-  <h1>Cerebro Central</h1>
-  <p>El brand book que alimenta a todos los Consejeros. Llénalo una vez, trabaja mejor siempre.</p>
 </header>
 
 <main>
@@ -840,12 +840,25 @@ function escapeHtml(str){
 }
 
 // ── TABS ─────────────────────────────────────────────────────
+const TAB_SECTION_NAMES = {
+  identidad: 'Identidad',
+  visual: 'Logo y Colores',
+  tono: 'Voz y Tono',
+  redes: 'Redes y Contenido',
+  audiencia: 'Audiencia',
+  catalogo: 'Catálogo',
+  metricas: 'Métricas',
+  journey: 'Customer Journey',
+  optimizacion: 'Optimización'
+};
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+    const sn = document.getElementById('brand-section-label');
+    if(sn) sn.textContent = TAB_SECTION_NAMES[btn.dataset.tab] || btn.textContent.replace(/^\d+\.\s*/,'');
   });
 });
 
