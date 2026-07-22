@@ -356,8 +356,12 @@
 
 <header>
   <a id="back-hub" href="/" style="display:inline-flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#B6A9C7;text-decoration:none;margin-bottom:16px;padding:7px 14px;border:1px solid #332A3D;border-radius:100px;transition:.15s;" onmouseover="this.style.borderColor='#B8F725';this.style.color='#B8F725'" onmouseout="this.style.borderColor='#332A3D';this.style.color='#B6A9C7'">← Centro de Control</a>
-  <script>(function(){const c=new URLSearchParams(location.search).get('cliente'),m={'rancho-seco':'/rancho-seco','rim':'/rim'};if(c&&m[c])document.getElementById('back-hub').href=m[c];})();</script>
-  <div class="eyebrow" id="eyebrow">JefesHub · Equipo de marketing IA</div>
+  <script>(function(){var p=location.pathname;var b=p.indexOf('/rancho-seco/')!==-1||p.endsWith('/rancho-seco')?'/rancho-seco':p.indexOf('/rim/')!==-1||p.endsWith('/rim')?'/rim':null;if(b)document.getElementById('back-hub').href=b;})();</script>
+  <div id="brand-bar" style="display:inline-flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:#B6A9C7;margin-bottom:14px;padding:5px 14px;border:1px solid #332A3D;border-radius:100px;background:rgba(255,255,255,.03);">
+    <span style="color:#B8F725;">JefesHub</span><span style="opacity:.4;">·</span>
+    <span>Radar de Tendencias</span><span style="opacity:.4;">·</span>
+    <span id="brand-marca-label">—</span>
+  </div>
   <h1>Radar de Tendencias & Investigación</h1>
   <p>Observa cuentas de referencia, detecta patrones de contenido y los convierte en insights accionables — sin copiar contenido ni perder la voz de marca.</p>
 </header>
@@ -486,13 +490,23 @@
 <script src="/js/storage-client.js"></script>
 <script>
 // ---------- CLIENTE (multi-tenant por ?cliente=, default rancho-seco) ----------
-const CLIENTE_ID = new URLSearchParams(location.search).get('cliente') || 'rancho-seco';
+// Detectado por pathname — Vercel no expone ?cliente= al browser
+function detectClienteId(){
+  var p=location.pathname;
+  if(/\/rancho-seco(\/|$)/.test(p)) return 'rancho-seco';
+  if(/\/rim(\/|$)/.test(p)) return 'rim';
+  return 'jefeshub';
+}
+const CLIENTE_ID = detectClienteId();
 function storageKey(suffix){ return CLIENTE_ID + ':' + suffix; }
-var _BRANDS={'rancho-seco':{name:'Rancho Seco',color:'#F2C230'},'rim':{name:'RIM',color:'#F472B6'}};
-var _path=location.pathname;
-var _key=Object.keys(_BRANDS).find(function(k){return _path.indexOf('/'+k+'/')!==-1||_path.endsWith('/'+k);});
-var _b=_BRANDS[_key];
-document.getElementById('eyebrow').innerHTML=_b?'JefesHub · Radar de Tendencias &amp; Investigación · <span style="color:'+_b.color+'">'+_b.name+'</span>':'JefesHub · Radar de Tendencias &amp; Investigación';
+// Banda de marca — lee nombre del ADN si está disponible
+(async function(){
+  var BRANDS={'rancho-seco':{fallback:'Rancho Seco',color:'#F2C230'},'rim':{fallback:'RIM',color:'#F472B6'},'jefeshub':{fallback:'JefesHub',color:'#B8F725'}};
+  var b=BRANDS[CLIENTE_ID];
+  var el=document.getElementById('brand-marca-label');
+  if(el){el.textContent=b.fallback;el.style.color=b.color;}
+  try{var r=await window.storage.get(CLIENTE_ID+':brand-book.identidad');if(r&&r.value){var d=JSON.parse(r.value);if(d.nombre&&el)el.textContent=d.nombre;}}catch(e){}
+})();
 
 function newId(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 function escapeHtml(str){

@@ -195,14 +195,29 @@
   <a id="adn-back-hub" href="/" style="display:inline-flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-dim);text-decoration:none;margin-bottom:16px;padding:7px 14px;border:1px solid var(--line);border-radius:100px;transition:.15s;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--line)';this.style.color='var(--text-dim)'">
     ← Centro de Control
   </a>
-  <script>(function(){const c=new URLSearchParams(location.search).get('cliente'),m={'rancho-seco':'/rancho-seco','rim':'/rim'};if(c&&m[c])document.getElementById('adn-back-hub').href=m[c];})();</script>
-  <div class="eyebrow" id="eyebrow-adn">JefesHub · ADN del Negocio</div>
-  <script>(function(){
-    var BRANDS={'rancho-seco':{name:'Rancho Seco',color:'#F2C230'},'rim':{name:'RIM',color:'#F472B6'}};
-    var path=location.pathname;
-    var key=Object.keys(BRANDS).find(function(k){return path.indexOf('/'+k+'/')!==-1||path.endsWith('/'+k);});
+  <script>(function(){var p=location.pathname;var b=p.indexOf('/rancho-seco/')!==-1||p.endsWith('/rancho-seco')?'/rancho-seco':p.indexOf('/rim/')!==-1||p.endsWith('/rim')?'/rim':null;if(b)document.getElementById('adn-back-hub').href=b;})();</script>
+  <div id="brand-bar" style="display:inline-flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:#B6A9C7;margin-bottom:10px;padding:5px 14px;border:1px solid #332A3D;border-radius:100px;background:rgba(255,255,255,.03);">
+    <span style="color:#B8F725;">JefesHub</span>
+    <span style="opacity:.4;">·</span>
+    <span>ADN del Negocio</span>
+    <span style="opacity:.4;">·</span>
+    <span id="brand-marca-label">—</span>
+  </div>
+  <script>(async function(){
+    var BRANDS={
+      'rancho-seco':{fallback:'Rancho Seco',color:'#F2C230'},
+      'rim':{fallback:'RIM',color:'#F472B6'},
+      'jefeshub':{fallback:'JefesHub',color:'#B8F725'}
+    };
+    var p=location.pathname;
+    var key=/\/rancho-seco(\/|$)/.test(p)?'rancho-seco':/\/rim(\/|$)/.test(p)?'rim':'jefeshub';
     var b=BRANDS[key];
-    if(b){var el=document.getElementById('eyebrow-adn');el.innerHTML='JefesHub · ADN del Negocio · <span style="color:'+b.color+'">'+b.name+'</span>';}
+    var el=document.getElementById('brand-marca-label');
+    el.textContent=b.fallback; el.style.color=b.color;
+    try{
+      var r=await window.storage.get(key+':brand-book.identidad');
+      if(r&&r.value){var d=JSON.parse(r.value);if(d.nombre){el.textContent=d.nombre;}}
+    }catch(e){}
   })();</script>
   <h1>Cerebro Central</h1>
   <p>El brand book que alimenta a todos los Consejeros. Llénalo una vez, trabaja mejor siempre.</p>
@@ -808,8 +823,14 @@ Al terminar, dame cada respuesta con su etiqueta en orden para copiar y pegar di
 <script src="/js/storage-client.js"></script>
 <script>
 // ── CONFIGURACIÓN ─────────────────────────────────────────────
-// Lee el cliente del URL (?cliente=jefeshub) — si no hay param, usa jefeshub por defecto
-const CLIENTE_ID = new URLSearchParams(location.search).get('cliente') || 'jefeshub';
+// Detecta la marca desde el pathname (Vercel rewrites no exponen ?cliente= al browser)
+function detectClienteId(){
+  var p = location.pathname;
+  if(/\/rancho-seco(\/|$)/.test(p)) return 'rancho-seco';
+  if(/\/rim(\/|$)/.test(p)) return 'rim';
+  return 'jefeshub';
+}
+const CLIENTE_ID = detectClienteId();
 function storageKey(s){ return CLIENTE_ID + ':' + s; }
 function newId(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
 function escapeHtml(str){
