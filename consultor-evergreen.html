@@ -33,8 +33,9 @@
     .group-tabs { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
     .group-tab { font-family: "JetBrains Mono", monospace; font-size: 12px; padding: 8px 18px; border-radius: 20px; border: 1.5px solid var(--line); background: transparent; color: var(--text-dim); cursor: pointer; transition: all 0.15s; }
     .group-tab.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); font-weight: 700; }
-    .group-tab.soon { opacity: 0.38; cursor: not-allowed; }
-    .group-tab:not(.soon):not(.active):hover { border-color: var(--text-dim); color: var(--text); }
+    .group-tab:not(.active):hover { border-color: var(--text-dim); color: var(--text); }
+    .group-tabs-hint { font-family: "JetBrains Mono", monospace; font-size: 12px; color: var(--text-dim); text-decoration: none; border-bottom: 1px dashed var(--text-dim); }
+    .group-tabs-hint:hover { color: var(--accent); border-color: var(--accent); }
 
     /* ── MAIN ── */
     main { max-width: 760px; margin: 0 auto; padding: 28px 20px 80px; display: flex; flex-direction: column; gap: 36px; }
@@ -287,11 +288,7 @@
   })();</script>
   <h1>Jefe Evergreen</h1>
   <p>Tu motor de ventas que funciona todos los meses. Selecciona el grupo activo.</p>
-  <div class="group-tabs">
-    <button class="group-tab active" onclick="switchGroup('publicidad')">📢 Publicidad</button>
-    <button class="group-tab soon" title="Próximamente — completa el evergreen de torneos primero">⚽ Torneos</button>
-    <button class="group-tab soon" title="Próximamente — completa el evergreen de academia primero">🎓 Academia</button>
-  </div>
+  <div class="group-tabs" id="groupTabs"></div>
 </header>
 
 <!-- ═══════════════════════════════════════════════ -->
@@ -634,35 +631,56 @@ Escríbenos y ve tu marca en Rancho Seco ¡ya!</div>
   </div>
 </main>
 
-<footer>Jefe Evergreen · JefesHub — Rancho Seco · Publicidad en Vallas</footer>
+<footer>Jefe Evergreen</footer>
 
 <script>
-/* ─── GROUP SWITCHING ─── */
-function switchGroup(group) {
-  const tabs = document.querySelectorAll('.group-tab');
-  tabs.forEach(t => t.classList.remove('active'));
+/* ─── GRUPOS DE NEGOCIO (editables desde el Catálogo del ADN) ─── */
+function escapeHtmlEv(str) {
+  const d = document.createElement('div');
+  d.textContent = str == null ? '' : String(str);
+  return d.innerHTML;
+}
+
+async function cargarGruposNegocio() {
+  let grupos = [];
+  try {
+    const r = await window.storage.get(CLIENTE_ID + ':grupos-negocio');
+    grupos = r && r.value ? JSON.parse(r.value) : [];
+  } catch (e) {}
+  renderGroupTabs(grupos);
+}
+
+function renderGroupTabs(grupos) {
+  const wrap = document.getElementById('groupTabs');
+  const rutaAdn = { 'rancho-seco': '/rancho-seco/adn', rim: '/rim/adn', jefeshub: '/adn' }[CLIENTE_ID] || '/adn';
+  if (!grupos.length) {
+    wrap.innerHTML = `<a class="group-tabs-hint" href="${rutaAdn}">Define tus grupos de negocio en el Catálogo del ADN →</a>`;
+    return;
+  }
+  wrap.innerHTML = grupos.map((g, i) => `<button class="group-tab${i === 0 ? ' active' : ''}" data-grupo-id="${g.id}" data-idx="${i}">${escapeHtmlEv(g.nombre)}</button>`).join('');
+  wrap.querySelectorAll('.group-tab').forEach((btn) => {
+    btn.addEventListener('click', () => switchGroup(grupos, +btn.dataset.idx));
+  });
+}
+
+function switchGroup(grupos, idx) {
+  document.querySelectorAll('.group-tab').forEach((t, i) => t.classList.toggle('active', i === idx));
 
   const pubContent = document.getElementById('publicidad-content');
   const soonContent = document.getElementById('soon-content');
-  const soonPanel = document.getElementById('soonPanel');
+  const grupo = grupos[idx];
 
-  if (group === 'publicidad') {
-    event.currentTarget.classList.add('active');
+  if (idx === 0) {
     pubContent.style.display = '';
     soonContent.style.display = 'none';
   } else {
     pubContent.style.display = 'none';
     soonContent.style.display = '';
-    soonPanel.style.display = 'block';
-    const names = { torneos: '⚽ Torneos', academia: '🎓 Academia' };
-    document.getElementById('soonTitle').textContent = names[group] + ' — Próximamente';
+    document.getElementById('soonPanel').style.display = 'block';
+    document.getElementById('soonTitle').textContent = grupo.nombre + ' — Próximamente';
     document.getElementById('soonDesc').textContent =
-      'Cuando completes el proceso evergreen para ' + names[group] +
+      'Cuando completes el proceso evergreen para ' + grupo.nombre +
       ', esta sección se activará con su propia estrategia, frases, ángulos y guiones de WhatsApp.';
-    // activate tab
-    tabs.forEach(t => {
-      if (t.textContent.toLowerCase().includes(group.substring(0,4))) t.classList.add('active');
-    });
   }
 }
 
@@ -1160,6 +1178,7 @@ function aplicarClienteUI() {
 }
 
 aplicarClienteUI();
+cargarGruposNegocio();
 calcular();
 loadConvos();
 cargarNotasEvergreen();
