@@ -164,6 +164,25 @@
   .mode-output-placeholder{color:var(--text-dim);font-style:italic;}
   .mode-status{font-size:12px;font-family:'JetBrains Mono',monospace;color:var(--text-dim);}
   .mode-status.error{color:#F87171;}
+
+  /* IDEAS EVERGREEN */
+  .evergreen-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 20px;}
+  .evergreen-toolbar select{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:9px 12px;outline:none;}
+  .evergreen-cat{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px 20px;margin-top:14px;}
+  .evergreen-cat-title{font-family:'Sora',sans-serif;font-weight:700;font-size:15px;margin:0 0 4px;}
+  .evergreen-cat-desc{color:var(--text-dim);font-size:12px;margin:0 0 12px;}
+  .evergreen-table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;}
+  table.evergreen-table{width:100%;border-collapse:collapse;min-width:640px;}
+  table.evergreen-table th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);font-family:'JetBrains Mono',monospace;padding:9px 8px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--surface-2);}
+  table.evergreen-table td{padding:4px 6px;border-bottom:1px solid var(--line);vertical-align:top;}
+  table.evergreen-table tr:last-child td{border-bottom:none;}
+  table.evergreen-table textarea{width:100%;min-height:44px;background:transparent;border:1px solid transparent;border-radius:6px;color:var(--text);padding:7px 8px;font-family:Inter,sans-serif;font-size:12.5px;outline:none;resize:vertical;}
+  table.evergreen-table textarea:hover{border-color:var(--line);}
+  table.evergreen-table textarea:focus{border-color:var(--accent);background:var(--surface-2);}
+  .evergreen-row-del{background:transparent;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;padding:4px 8px;}
+  .evergreen-row-del:hover{color:#EF4444;}
+  .evergreen-row-add{background:transparent;border:1px dashed var(--line);color:var(--text-dim);font-family:Inter,sans-serif;font-size:12px;padding:7px 12px;border-radius:8px;cursor:pointer;}
+  .evergreen-row-add:hover{border-color:var(--accent);color:var(--accent);}
   .mode-add-banco{border:none;background:transparent;color:var(--accent);font-size:12px;font-family:'JetBrains Mono',monospace;cursor:pointer;padding:0;font-weight:700;text-transform:uppercase;letter-spacing:.03em;}
   .mode-add-banco:hover{text-decoration:underline;}
 
@@ -229,6 +248,7 @@
     <div class="tab" data-tab="contenido">Contenido <span class="count" id="count-contenido">10</span></div>
     <div class="tab" data-tab="banco">💭 Banco <span class="count" id="count-banco">0</span></div>
     <div class="tab tab-agente" data-tab="agente">✨ Agente <span class="count">IA</span></div>
+    <div class="tab tab-agente" data-tab="evergreen">🌱 Ideas Evergreen <span class="count">IA</span></div>
   </div>
 
   <div id="stats-bar" class="stats-bar" style="display:none;"></div>
@@ -377,7 +397,7 @@ document.querySelectorAll('.tab').forEach(t=>{
     currentTab = t.dataset.tab;
     filterFase=''; searchTerm=''; searchEl.value='';
     filterEtapa=''; filterFaseEl.value=''; filterEtapaEl.value=''; filterTipoEl.value=''; filterTipo='';
-    const isTracker = currentTab!=='banco' && currentTab!=='agente';
+    const isTracker = currentTab!=='banco' && currentTab!=='agente' && currentTab!=='evergreen';
     controlsEl.style.display = isTracker ? 'block':'none';
     statsBarEl.style.display = isTracker ? 'flex':'none';
     if(isTracker){ buildFaseFilter(); renderStats(); }
@@ -430,7 +450,7 @@ function horizonColorVar(item){ return 'var(--t'+(horizonIndex(item)+1)+')'; }
 
 // ─── FILTER SETUP ────────────────────────────────────────────────────────────
 function buildFaseFilter(){
-  if(currentTab==='banco'||currentTab==='agente') return;
+  if(currentTab==='banco'||currentTab==='agente'||currentTab==='evergreen') return;
   const list=state[currentTab];
   const fases=[...new Set(list.map(r=>r.fase))];
   filterFaseEl.innerHTML='<option value="">Todas las fases</option>'+fases.map(f=>`<option value="${escHtml(f)}">${escHtml(f)}</option>`).join('');
@@ -439,7 +459,7 @@ function buildFaseFilter(){
 
 // ─── STATS BAR ───────────────────────────────────────────────────────────────
 function renderStats(){
-  if(currentTab==='banco'||currentTab==='agente') return;
+  if(currentTab==='banco'||currentTab==='agente'||currentTab==='evergreen') return;
   const list=state[currentTab];
   const counts={adquisicion:0,consideracion:0,conversion:0};
   list.forEach(item=>{
@@ -469,6 +489,7 @@ function escHtml(str){
 function render(){
   if(currentTab==='banco'){ renderBanco(); return; }
   if(currentTab==='agente'){ renderAgente(); return; }
+  if(currentTab==='evergreen'){ renderEvergreenIdeas(); return; }
 
   const list=state[currentTab];
   let rows=list.filter(r=>{
@@ -1207,6 +1228,171 @@ function renderAgente(){
   });
 }
 
+// ─── IDEAS DE CONTENIDO EVERGREEN ──────────────────────────────────────────────
+// Lee el mismo CONTEXTO DEL NEGOCIO que usa Jefe Evergreen + lo ya guardado en sus
+// Notas de Comunicación Evergreen (angulos, frases maestras) via api/generar-ideas-evergreen.js.
+// No copia tablas a mano: cada vez que se "Genera", el servidor vuelve a leer el ADN + las
+// Notas de Evergreen mas recientes.
+const EVERGREEN_IDEAS_KEY = CLIENTE_ID + ':contenido-ideas-evergreen';
+const EVERGREEN_CATEGORIAS = [
+  { key:'viral', label:'🔥 Contenido Viral', desc:'Alcance y compartibilidad — humor, sorpresa, tendencias.' },
+  { key:'educativo', label:'📚 Contenido Educativo', desc:'Enseña algo útil — genera autoridad y confianza.' },
+  { key:'venta', label:'💰 Contenido De Venta', desc:'Oferta directa — precio, promoción, urgencia, llamada a la acción.' },
+  { key:'entretenimiento', label:'🎭 Contenido De Entretenimiento', desc:'Humor y cultura de marca — humaniza sin vender directo.' },
+  { key:'testimonio', label:'⭐ Contenido De Testimonio', desc:'Casos reales, resultados, prueba social.' },
+];
+const EVERGREEN_COLUMNAS = [
+  { key:'idea', label:'Idea' },
+  { key:'video', label:'Video (Reels/TikTok)' },
+  { key:'stories', label:'Stories' },
+  { key:'whatsapp_email', label:'WhatsApp / Email' },
+];
+let evergreenGrupos = [];
+let evergreenGrupoId = '';
+let evergreenIdeasStore = {};
+let evergreenStatus = '';
+let evergreenLoaded = false;
+let evergreenSaveTimer = null;
+
+function evergreenGrupoKey(){ return evergreenGrupoId || 'general'; }
+
+async function ensureEvergreenLoaded(){
+  if(evergreenLoaded) return;
+  evergreenLoaded = true;
+  try{
+    const rg = await window.storage.get(CLIENTE_ID + ':grupos-negocio');
+    evergreenGrupos = rg && rg.value ? JSON.parse(rg.value) : [];
+  }catch(e){ evergreenGrupos = []; }
+  try{
+    const ri = await window.storage.get(EVERGREEN_IDEAS_KEY);
+    evergreenIdeasStore = ri && ri.value ? JSON.parse(ri.value) : {};
+  }catch(e){ evergreenIdeasStore = {}; }
+}
+
+function evergreenDatosActuales(){
+  const key = evergreenGrupoKey();
+  if(!evergreenIdeasStore[key]) evergreenIdeasStore[key] = {};
+  EVERGREEN_CATEGORIAS.forEach(c=>{ if(!Array.isArray(evergreenIdeasStore[key][c.key])) evergreenIdeasStore[key][c.key]=[]; });
+  return evergreenIdeasStore[key];
+}
+
+function renderEvergreenIdeas(){
+  controlsEl.style.display='none';
+  statsBarEl.style.display='none';
+  contentEl.innerHTML='<p class="status">Cargando...</p>';
+  ensureEvergreenLoaded().then(pintarEvergreenIdeas);
+}
+
+function pintarEvergreenIdeas(){
+  const datos = evergreenDatosActuales();
+  const wrap = document.createElement('div');
+  wrap.className='agente-wrap';
+
+  const toolbar = document.createElement('div');
+  toolbar.className='evergreen-toolbar';
+  toolbar.innerHTML = `
+    <div class="mode-field" style="min-width:220px;">
+      <label>Grupo de negocio</label>
+      <select id="evergreen-grupo-sel">
+        <option value="">General (sin grupo)</option>
+        ${evergreenGrupos.map(g=>`<option value="${g.id}"${evergreenGrupoId===g.id?' selected':''}>${escHtml(g.nombre)}</option>`).join('')}
+      </select>
+    </div>
+    <button class="btn btn-solid" id="evergreen-gen-btn">✨ Generar ideas con IA</button>
+    <span class="mode-status" id="evergreen-status">${escHtml(evergreenStatus)}</span>
+  `;
+  wrap.appendChild(toolbar);
+
+  EVERGREEN_CATEGORIAS.forEach(cat=>{
+    const filas = datos[cat.key];
+    const box = document.createElement('div');
+    box.className='evergreen-cat';
+    box.innerHTML = `
+      <p class="evergreen-cat-title">${cat.label}</p>
+      <p class="evergreen-cat-desc">${cat.desc}</p>
+      <div class="evergreen-table-wrap">
+        <table class="evergreen-table">
+          <thead><tr>${EVERGREEN_COLUMNAS.map(c=>`<th>${c.label}</th>`).join('')}<th></th></tr></thead>
+          <tbody>
+            ${filas.length ? filas.map((fila,i)=>`
+              <tr>${EVERGREEN_COLUMNAS.map(c=>`<td><textarea data-cat="${cat.key}" data-i="${i}" data-key="${c.key}">${escHtml(fila[c.key])}</textarea></td>`).join('')}
+              <td><button type="button" class="evergreen-row-del" data-cat="${cat.key}" data-i="${i}">✕</button></td></tr>
+            `).join('') : `<tr><td colspan="${EVERGREEN_COLUMNAS.length+1}" class="mode-status">Todavía no hay ideas. Usa "Generar ideas con IA" o agrega una fila a mano.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+      <button type="button" class="evergreen-row-add" data-cat="${cat.key}">+ Agregar fila</button>
+    `;
+    wrap.appendChild(box);
+  });
+
+  contentEl.innerHTML='';
+  contentEl.appendChild(wrap);
+
+  document.getElementById('evergreen-grupo-sel').addEventListener('change', (e)=>{
+    evergreenGrupoId = e.target.value;
+    pintarEvergreenIdeas();
+  });
+  document.getElementById('evergreen-gen-btn').addEventListener('click', generarIdeasEvergreen);
+
+  wrap.querySelectorAll('textarea[data-cat]').forEach(ta=>{
+    ta.addEventListener('input', (e)=>{
+      const { cat, i, key } = e.target.dataset;
+      evergreenDatosActuales()[cat][+i][key] = e.target.value;
+      scheduleEvergreenSave();
+    });
+  });
+  wrap.querySelectorAll('.evergreen-row-del').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const { cat, i } = btn.dataset;
+      evergreenDatosActuales()[cat].splice(+i, 1);
+      pintarEvergreenIdeas();
+      scheduleEvergreenSave();
+    });
+  });
+  wrap.querySelectorAll('.evergreen-row-add').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      evergreenDatosActuales()[btn.dataset.cat].push({ idea:'', video:'', stories:'', whatsapp_email:'' });
+      pintarEvergreenIdeas();
+      scheduleEvergreenSave();
+    });
+  });
+}
+
+async function generarIdeasEvergreen(){
+  const btn = document.getElementById('evergreen-gen-btn');
+  const statusEl2 = document.getElementById('evergreen-status');
+  btn.disabled = true; btn.textContent = 'Generando...';
+  statusEl2.className = 'mode-status'; statusEl2.textContent = '⏳ Leyendo tu ADN y tu Comunicación Evergreen...';
+  try{
+    const res = await fetch('/api/generar-ideas-evergreen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cliente: CLIENTE_ID, grupo_id: evergreenGrupoId }),
+    });
+    const data = await res.json();
+    if(!res.ok){ statusEl2.textContent = 'Error: ' + (data.error || 'No se pudo generar.'); statusEl2.classList.add('error'); return; }
+    evergreenIdeasStore[evergreenGrupoKey()] = data.ideas;
+    evergreenStatus = '✅ Ideas generadas — revísalas y ajústalas antes de usarlas.';
+    pintarEvergreenIdeas();
+    scheduleEvergreenSave();
+  }catch(e){
+    statusEl2.textContent = 'Error de conexión.'; statusEl2.classList.add('error');
+  }finally{
+    btn.disabled = false; btn.textContent = '✨ Generar ideas con IA';
+  }
+}
+
+function scheduleEvergreenSave(){
+  clearTimeout(evergreenSaveTimer);
+  evergreenSaveTimer = setTimeout(guardarIdeasEvergreen, 600);
+}
+async function guardarIdeasEvergreen(opts){
+  try{
+    await window.storage.set(EVERGREEN_IDEAS_KEY, JSON.stringify(evergreenIdeasStore), opts);
+  }catch(e){}
+}
+
 // ─── STORAGE ──────────────────────────────────────────────────────────────────
 async function loadStorage(){
   try{
@@ -1243,7 +1429,12 @@ async function doSave(opts){
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'&&pendingSave) doSave({keepalive:true}); });
 window.addEventListener('pagehide',()=>{ if(pendingSave) doSave({keepalive:true}); });
 
-loadStorage();
+loadStorage().then(()=>{
+  if(location.hash==='#evergreen'){
+    const tabEl=document.querySelector('.tab[data-tab="evergreen"]');
+    if(tabEl) tabEl.click();
+  }
+});
 </script>
 </body>
 </html>

@@ -64,6 +64,14 @@
   .chip:hover{border-color:var(--accent);}
   .chip.selected{background:var(--accent);border-color:var(--accent);color:#0F0B16;font-weight:600;}
 
+  /* GRUPOS DE NEGOCIO (catalogo) */
+  .grupo-chip{font-family:'Inter',sans-serif;font-size:13px;padding:7px 8px 7px 14px;border-radius:100px;border:1px solid var(--line);background:var(--surface-2);color:var(--text);display:inline-flex;align-items:center;gap:8px;}
+  .grupo-chip button{border:none;background:transparent;color:var(--text-dim);cursor:pointer;font-size:12px;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;}
+  .grupo-chip button:hover{background:#EF4444;color:#fff;}
+  .grupos-add-row{display:flex;gap:8px;margin-top:10px;}
+  .grupos-add-row input{flex:1;font-family:'Inter',sans-serif;font-size:13px;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--surface-2);color:var(--text);}
+  .grupos-add-row .ask-btn{white-space:nowrap;}
+
   /* CHIPS CON ICONO (objetivos) */
   .obj-chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;}
   .obj-chip{display:flex;align-items:center;gap:10px;padding:11px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2);cursor:pointer;transition:.15s;text-align:left;}
@@ -590,10 +598,21 @@ Al terminar, dame cada respuesta con su etiqueta en orden para copiar y pegar di
   ══════════════════════════════════════════════ -->
   <section class="tab-panel" id="panel-catalogo">
     <div class="panel-head"><h2>Catálogo de productos</h2><div class="panel-desc">El margen se calcula solo con precio y costo.</div></div>
+
+    <div class="field">
+      <label>Grupos de negocio — organiza tus productos por línea (ej. Publicidad, Torneos, Academia). Estos mismos nombres aparecen como pestañas en el Jefe Evergreen.</label>
+      <div class="chips" id="grupos-chips"></div>
+      <div class="grupos-add-row">
+        <input type="text" id="grupo-nuevo-input" placeholder="Nombre del nuevo grupo" maxlength="40" onkeydown="if(event.key==='Enter'){event.preventDefault();addGrupoNegocio();}">
+        <button class="ask-btn" type="button" onclick="addGrupoNegocio()">+ Agregar grupo</button>
+      </div>
+      <div id="grupos-status" class="log-status"></div>
+    </div>
+
     <div class="table-scroll">
       <table class="data-table">
         <thead><tr>
-          <th style="width:22px;"></th><th>Nombre</th><th>Tipo</th><th>Precio ($)</th><th>Costo ($)</th><th>Margen</th><th>Se vende</th><th>Inventario</th><th>Notas</th><th></th>
+          <th style="width:22px;"></th><th>Nombre</th><th>Tipo</th><th>Grupo</th><th>Precio ($)</th><th>Costo ($)</th><th>Margen</th><th>Se vende</th><th>Inventario</th><th>Notas</th><th></th>
         </tr></thead>
         <tbody id="catalogo-tbody"></tbody>
       </table>
@@ -1484,6 +1503,62 @@ function saveAudiencias(){
 // ══════════════════════════════════════════════════════════════
 // 6. CATÁLOGO
 // ══════════════════════════════════════════════════════════════
+let gruposState = [];
+let gruposSaveTimer = null, gruposPending = false;
+
+async function loadGruposNegocio(){
+  try{
+    const r = await window.storage.get(storageKey('grupos-negocio'));
+    gruposState = r && r.value ? JSON.parse(r.value) : [];
+  }catch(e){ gruposState = []; }
+  renderGruposChips();
+}
+function renderGruposChips(){
+  const wrap = document.getElementById('grupos-chips');
+  wrap.innerHTML = gruposState.length ? gruposState.map(g=>`
+    <span class="grupo-chip">${escapeHtml(g.nombre)}<button type="button" title="Quitar grupo" onclick="deleteGrupoNegocio('${g.id}')">✕</button></span>
+  `).join('') : '<span class="log-empty" style="padding:4px 0;">Todavía no hay grupos. Agrega uno arriba.</span>';
+}
+function slugify(str){
+  return String(str).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'') || newId();
+}
+function addGrupoNegocio(){
+  const input = document.getElementById('grupo-nuevo-input');
+  const nombre = input.value.trim();
+  if(!nombre) return;
+  let id = slugify(nombre);
+  if(gruposState.some(g=>g.id===id)) id = id + '-' + newId().slice(0,4);
+  gruposState.push({ id, nombre });
+  input.value = '';
+  renderGruposChips();
+  renderCatalogo();
+  scheduleGruposSave();
+}
+function deleteGrupoNegocio(id){
+  gruposState = gruposState.filter(g=>g.id!==id);
+  renderGruposChips();
+  renderCatalogo();
+  scheduleGruposSave();
+}
+function scheduleGruposSave(){
+  gruposPending = true;
+  document.getElementById('grupos-status').textContent = 'Guardando...';
+  clearTimeout(gruposSaveTimer);
+  gruposSaveTimer = setTimeout(()=>doSaveGrupos(), 500);
+}
+async function doSaveGrupos(opts){
+  clearTimeout(gruposSaveTimer); gruposSaveTimer = null;
+  if(!gruposPending) return;
+  try{
+    await window.storage.set(storageKey('grupos-negocio'), JSON.stringify(gruposState), opts);
+    gruposPending = false;
+    document.getElementById('grupos-status').textContent = 'Guardado.';
+  }catch(e){
+    document.getElementById('grupos-status').textContent = e.status===401 ? 'Token incorrecto.' : 'No se pudo guardar.';
+  }
+}
+registerFlusher(()=>{ if(gruposPending) doSaveGrupos({keepalive:true}); });
+
 let catalogoState = [];
 let catalogoSaveTimer = null, catalogoPending = false;
 
@@ -1503,7 +1578,7 @@ let dragSrcId = null;
 function renderCatalogo(){
   const tbody = document.getElementById('catalogo-tbody');
   if(!catalogoState.length){
-    tbody.innerHTML='<tr><td colspan="10" class="log-empty">Todavía no hay productos. Usa "+ Agregar fila".</td></tr>';
+    tbody.innerHTML='<tr><td colspan="11" class="log-empty">Todavía no hay productos. Usa "+ Agregar fila".</td></tr>';
     return;
   }
   tbody.innerHTML = catalogoState.map(row=>`
@@ -1511,6 +1586,10 @@ function renderCatalogo(){
       <td style="text-align:center;padding:0 4px;"><span class="drag-handle" title="Arrastrar para reordenar">⠿</span></td>
       <td><input type="text" value="${escapeHtml(row.nombre)}" data-field="nombre"></td>
       <td><select data-field="tipo">${['Producto','Servicio','Paquete'].map(t=>`<option value="${t}"${row.tipo===t?' selected':''}>${t}</option>`).join('')}</select></td>
+      <td><select data-field="grupo_id">
+        <option value="">—</option>
+        ${gruposState.map(g=>`<option value="${g.id}"${row.grupo_id===g.id?' selected':''}>${escapeHtml(g.nombre)}</option>`).join('')}
+      </select></td>
       <td><input type="number" step="0.01" value="${row.precio??''}" data-field="precio" style="width:80px;"></td>
       <td><input type="number" step="0.01" value="${row.costo??''}" data-field="costo" style="width:80px;"></td>
       <td class="margin-cell">${calcMargen(row.precio,row.costo)}</td>
@@ -1551,7 +1630,7 @@ function renderCatalogo(){
   });
 }
 function addCatalogoRow(){
-  catalogoState.push({id:newId(),nombre:'',tipo:'Producto',precio:'',costo:'',margen_pct:'',que_tanto_se_vende:'',inventario:'',notas:''});
+  catalogoState.push({id:newId(),nombre:'',tipo:'Producto',grupo_id:'',precio:'',costo:'',margen_pct:'',que_tanto_se_vende:'',inventario:'',notas:''});
   renderCatalogo(); scheduleCatalogoSave();
 }
 function deleteCatalogoRow(id){
@@ -1852,7 +1931,7 @@ loadVisual();
 loadTono();
 loadRedes();
 loadAudiencias();
-loadCatalogo();
+(async function(){ await loadGruposNegocio(); await loadCatalogo(); })();
 loadMetricasFinancieros();
 loadJourney();
 loadOptimizacion();
