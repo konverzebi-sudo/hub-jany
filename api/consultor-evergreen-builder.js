@@ -1,13 +1,15 @@
-// Endpoint server-side para el Constructor de Oferta Evergreen (chat guiado, multi-turno) — Rancho Seco.
+// Endpoint server-side para el Jefe Evergreen (chat guiado, multi-turno) — multi-tenant.
 // A diferencia de api/consultor-evergreen.js (pregunta suelta, sin memoria), este endpoint recibe el
 // historial completo de la conversación en cada llamada (asi funciona la Messages API: sin estado en
 // servidor) y usa el parametro `system` para no repetir el guion + contexto del ADN en cada turno.
+// El prompt fijo es una plantilla generica compartida por las 3 marcas -- lo unico que cambia por
+// cliente es el CONTEXTO DEL NEGOCIO, cargado en tiempo real desde su propio ADN.
 
 const fs = require('fs');
 const path = require('path');
 const { sql } = require('@vercel/postgres');
 
-const CLIENTE_ID = 'rancho-seco';
+const DEFAULT_CLIENTE = 'rancho-seco'; // no rompe la ruta actual, que todavia no manda `cliente`
 const PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-constructor-oferta-evergreen.md');
 const CONTEXT_CHAR_LIMIT = 6000;
 const MAX_MESSAGES = 40;
@@ -71,16 +73,16 @@ async function escribirJSON(key, valor) {
 // Log de uso de tokens por llamada — para medir costo real de una conversacion completa
 // (Paso 1 -> Modulo 4) y decidir cuanto cobrar. No afecta el consumo de tokens en si: es
 // solo un registro en Postgres, no se manda de vuelta al modelo en ningun momento.
-const USAGE_LOG_KEY = `${CLIENTE_ID}:evergreen-builder-usage-log`;
-async function registrarUso(usage) {
+async function registrarUso(clienteId, usage) {
   try {
-    const items = (await leerJSON(USAGE_LOG_KEY)) || [];
+    const key = `${clienteId}:evergreen-builder-usage-log`;
+    const items = (await leerJSON(key)) || [];
     items.push({
       date: new Date().toISOString(),
       inputTokens: usage?.input_tokens || 0,
       outputTokens: usage?.output_tokens || 0,
     });
-    await escribirJSON(USAGE_LOG_KEY, items.slice(-300));
+    await escribirJSON(key, items.slice(-300));
   } catch (err) {
     // No bloquear la respuesta al usuario si falla el registro de uso.
   }
@@ -195,15 +197,15 @@ function formatearMetricasFinancieros(m, f) {
   return 'MÉTRICAS Y FINANCIEROS:\n' + lineas.join('\n');
 }
 
-async function construirContextoNegocio() {
+async function construirContextoNegocio(clienteId) {
   const [identidad, tono, audiencia, catalogo, journey, metricas, financieros] = await Promise.all([
-    leerJSON(`${CLIENTE_ID}:brand-book.identidad`).catch(() => null),
-    leerJSON(`${CLIENTE_ID}:brand-book.tono`).catch(() => null),
-    leerJSON(`${CLIENTE_ID}:brand-book.audiencia`).catch(() => null),
-    leerJSON(`${CLIENTE_ID}:catalogo-productos`).catch(() => null),
-    leerJSON(`${CLIENTE_ID}:brand-book.customer_journey`).catch(() => null),
-    leerJSON(`${CLIENTE_ID}:brand-book.metricas`).catch(() => null),
-    leerJSON(`${CLIENTE_ID}:brand-book.financieros`).catch(() => null),
+    leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
+    leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
+    leerJSON(`${clienteId}:brand-book.audiencia`).catch(() => null),
+    leerJSON(`${clienteId}:catalogo-productos`).catch(() => null),
+    leerJSON(`${clienteId}:brand-book.customer_journey`).catch(() => null),
+    leerJSON(`${clienteId}:brand-book.metricas`).catch(() => null),
+    leerJSON(`${clienteId}:brand-book.financieros`).catch(() => null),
   ]);
 
   const bloques = [
@@ -216,7 +218,7 @@ async function construirContextoNegocio() {
   ].filter(Boolean);
 
   if (bloques.length === 0) {
-    return 'CONTEXTO DEL NEGOCIO: el ADN de Rancho Seco todavía no tiene datos guardados. Avísale al usuario que antes de continuar sería ideal llenar el ADN (/rancho-seco/adn), pero si quiere seguir de todas formas, hazle tú las preguntas mínimas necesarias antes del Paso 1.';
+    return 'CONTEXTO DEL NEGOCIO: el ADN de esta marca todavía no tiene datos guardados. Avísale al usuario que antes de continuar sería ideal llenar el ADN, pero si quiere seguir de todas formas, hazle tú las preguntas mínimas necesarias antes del Paso 1.';
   }
   return 'CONTEXTO DEL NEGOCIO (ya cargado del ADN — no le pidas al usuario que lo repita):\n\n' + truncar(bloques.join('\n\n'), CONTEXT_CHAR_LIMIT);
 }
@@ -244,6 +246,7 @@ module.exports = async function handler(req, res) {
   }
 
   const body = req.body || {};
+  const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
   const messages = Array.isArray(body.messages) ? body.messages : null;
   if (!messages || messages.length === 0) {
     return res.status(400).json({ error: 'Falta el historial de la conversación (messages).' });
@@ -258,7 +261,7 @@ module.exports = async function handler(req, res) {
 
   try {
     const promptFijo = cargarPromptFijo();
-    const contexto = await construirContextoNegocio();
+    const contexto = await construirContextoNegocio(clienteId);
     const system = promptFijo + '\n\n' + contexto;
 
     const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
@@ -285,7 +288,7 @@ module.exports = async function handler(req, res) {
     if (!text) {
       return res.status(502).json({ error: 'Respuesta vacía del modelo.' });
     }
-    await registrarUso(data.usage);
+    await registrarUso(clienteId, data.usage);
     return res.status(200).json({
       text,
       usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 },
