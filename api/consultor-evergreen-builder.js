@@ -57,6 +57,35 @@ async function leerJSON(key) {
   }
 }
 
+async function escribirJSON(key, valor) {
+  await ensureTable();
+  const value = JSON.stringify(valor);
+  const json = JSON.stringify(value);
+  await sql`
+    INSERT INTO kv_store (key, value, updated_at)
+    VALUES (${key}, ${json}::jsonb, now())
+    ON CONFLICT (key) DO UPDATE SET value = ${json}::jsonb, updated_at = now()
+  `;
+}
+
+// Log de uso de tokens por llamada — para medir costo real de una conversacion completa
+// (Paso 1 -> Modulo 4) y decidir cuanto cobrar. No afecta el consumo de tokens en si: es
+// solo un registro en Postgres, no se manda de vuelta al modelo en ningun momento.
+const USAGE_LOG_KEY = `${CLIENTE_ID}:evergreen-builder-usage-log`;
+async function registrarUso(usage) {
+  try {
+    const items = (await leerJSON(USAGE_LOG_KEY)) || [];
+    items.push({
+      date: new Date().toISOString(),
+      inputTokens: usage?.input_tokens || 0,
+      outputTokens: usage?.output_tokens || 0,
+    });
+    await escribirJSON(USAGE_LOG_KEY, items.slice(-300));
+  } catch (err) {
+    // No bloquear la respuesta al usuario si falla el registro de uso.
+  }
+}
+
 function truncar(str, limite) {
   if (!str) return str;
   return str.length > limite ? str.slice(0, limite) + '\n[...recortado...]' : str;
@@ -256,7 +285,11 @@ module.exports = async function handler(req, res) {
     if (!text) {
       return res.status(502).json({ error: 'Respuesta vacía del modelo.' });
     }
-    return res.status(200).json({ text });
+    await registrarUso(data.usage);
+    return res.status(200).json({
+      text,
+      usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 },
+    });
   } catch (err) {
     return res.status(500).json({ error: 'Error de conexión con el Agente.' });
   }
