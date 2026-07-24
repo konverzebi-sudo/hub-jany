@@ -355,8 +355,25 @@
   table.wa-table textarea:focus{outline:none;border-color:var(--accent);background:var(--surface);}
   .wa-table-del{background:transparent;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;padding:4px 8px;}
   .wa-table-del:hover{color:#EF4444;}
-  .wa-table-add{background:transparent;border:1px dashed var(--line);color:var(--text-dim);font-family:'Inter',sans-serif;font-size:12px;padding:7px 12px;border-radius:8px;cursor:pointer;}
+  .wa-table-add{background:transparent;border:1px dashed var(--line);color:var(--text-dim);font-family:'Inter',sans-serif;font-size:12px;padding:7px 12px;border-radius:8px;cursor:pointer;margin-top:10px;}
   .wa-table-add:hover{border-color:var(--accent);color:var(--accent);}
+
+  /* TARJETAS DE OBJECIONES / SEGUIMIENTO -- mismo estilo visual que el manual original */
+  .wa-obj-card .label{align-items:flex-start;}
+  .wa-obj-title{flex:1;background:transparent;border:1px solid transparent;border-radius:6px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;text-transform:uppercase;letter-spacing:.05em;padding:4px 6px;resize:vertical;min-height:20px;margin-right:8px;}
+  .wa-obj-title:hover{border-color:var(--line);}
+  .wa-obj-title:focus{outline:none;border-color:var(--accent);background:var(--surface-2);}
+  .obj-card .versions .v textarea{width:100%;min-height:64px;background:transparent;border:1px solid transparent;border-radius:6px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:6px 7px;resize:vertical;margin-bottom:8px;}
+  .obj-card .versions .v textarea:hover{border-color:var(--line);}
+  .obj-card .versions .v textarea:focus{outline:none;border-color:var(--accent);background:var(--surface);}
+  .wa-obj-extra{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line);}
+  @media(max-width:680px){.wa-obj-extra{grid-template-columns:1fr;}}
+  .wa-obj-extra-field .vlabel{font-size:10.5px;color:var(--text-dim);margin-bottom:5px;text-transform:uppercase;font-family:'JetBrains Mono',monospace;}
+  .wa-obj-extra-field textarea{width:100%;min-height:44px;background:var(--surface-2);border:1px solid transparent;border-radius:8px;color:var(--text);font-family:'Inter',sans-serif;font-size:12.5px;padding:7px 9px;resize:vertical;}
+  .wa-obj-extra-field textarea:hover{border-color:var(--line);}
+  .wa-obj-extra-field textarea:focus{outline:none;border-color:var(--accent);}
+  .wa-card-del{background:transparent;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;padding:2px 6px;flex:none;}
+  .wa-card-del:hover{color:#EF4444;}
 
   /* BANCO DE CONVERSACIONES */
   .convo-textarea{width:100%;background:var(--surface);border:1.5px solid var(--line);border-radius:12px;padding:14px;color:var(--text);font-family:'Inter',sans-serif;font-size:14px;min-height:100px;resize:vertical;transition:border-color .15s;}
@@ -1103,37 +1120,86 @@ async function auditarConversaciones(){
   }
 }
 
-// ---------- BANCO DE OBJECIONES / SEGUIMIENTO Y REACTIVACION ----------
+// ---------- BANCO DE OBJECIONES / SEGUIMIENTO Y REACTIVACION (tarjetas, mismo estilo que el manual original) ----------
 const WA_TABLA_CONFIGS = {
   objeciones: {
     storageSuffix: 'whatsapp-banco-objeciones',
     containerId: 'objecionesTablaWrap',
     btnId: 'objecionesBtn',
     statusId: 'objecionesStatus',
-    columnas: [
-      { key:'objecion', label:'Objeción' },
-      { key:'emocion', label:'Emoción' },
-      { key:'error_comun', label:'Error común' },
-      { key:'respuesta_ideal', label:'Respuesta ideal' },
-      { key:'version_corta', label:'Versión corta' },
-      { key:'seguimiento', label:'Seguimiento' },
-    ],
+    tituloKey: 'objecion',
+    tituloPlaceholder: 'Objeción del cliente...',
+    versiones: [ { key:'respuesta_ideal', label:'Respuesta ideal' }, { key:'version_corta', label:'Versión corta' } ],
+    extra: [ { key:'emocion', label:'Emoción' }, { key:'error_comun', label:'Error común' }, { key:'seguimiento', label:'Seguimiento' } ],
+    filaVacia: { objecion:'', emocion:'', error_comun:'', respuesta_ideal:'', version_corta:'', seguimiento:'' },
   },
   seguimiento: {
     storageSuffix: 'whatsapp-seguimiento-reactivacion',
     containerId: 'seguimientoTablaWrap',
     btnId: 'seguimientoBtn',
     statusId: 'seguimientoStatus',
-    columnas: [
-      { key:'segmento', label:'Segmento' },
-      { key:'mensaje', label:'Mensaje' },
-      { key:'version_corta', label:'Versión corta' },
-      { key:'cuando_enviarlo', label:'Cuándo enviarlo' },
-    ],
+    tituloKey: 'segmento',
+    tituloPlaceholder: 'Situación / segmento...',
+    versiones: [ { key:'mensaje', label:'Mensaje' }, { key:'version_corta', label:'Versión corta' } ],
+    extra: [ { key:'cuando_enviarlo', label:'Cuándo enviarlo' } ],
+    filaVacia: { segmento:'', mensaje:'', version_corta:'', cuando_enviarlo:'' },
   },
 };
 let waTablas = { objeciones: {}, seguimiento: {} };
 let waTablasSaveTimer = { objeciones: null, seguimiento: null };
+
+function renderCardTable(containerId, cfg, filas, onChange){
+  const container = document.getElementById(containerId);
+  if(!filas.length){
+    container.innerHTML = '<p class="log-empty">Todavía no hay tarjetas. Genera con IA o agrega una a mano.</p>' +
+      `<button type="button" class="wa-table-add" data-target="${containerId}">+ Agregar tarjeta</button>`;
+  } else {
+    container.innerHTML = '<div class="cards">' + filas.map((fila,i)=>`
+      <div class="card obj-card wa-obj-card">
+        <div class="label">
+          <textarea class="wa-obj-title" data-i="${i}" data-key="${cfg.tituloKey}" placeholder="${cfg.tituloPlaceholder}">${escHtmlWa(fila[cfg.tituloKey]||'')}</textarea>
+          <button type="button" class="wa-card-del" data-i="${i}" title="Borrar">✕</button>
+        </div>
+        <div class="versions">
+          ${cfg.versiones.map(v=>`
+            <div class="v">
+              <div class="vlabel">${v.label}</div>
+              <textarea data-i="${i}" data-key="${v.key}">${escHtmlWa(fila[v.key]||'')}</textarea>
+              <button type="button" class="copy-btn wa-obj-copy" data-i="${i}" data-key="${v.key}">Copiar</button>
+            </div>`).join('')}
+        </div>
+        ${cfg.extra.length ? `<div class="wa-obj-extra">${cfg.extra.map(x=>`
+          <div class="wa-obj-extra-field"><span class="vlabel">${x.label}</span><textarea data-i="${i}" data-key="${x.key}">${escHtmlWa(fila[x.key]||'')}</textarea></div>`).join('')}</div>` : ''}
+      </div>
+    `).join('') + `</div><button type="button" class="wa-table-add" data-target="${containerId}">+ Agregar tarjeta</button>`;
+  }
+  container.querySelectorAll('textarea[data-key]').forEach(ta=>{
+    ta.addEventListener('input', (e)=>{
+      filas[+e.target.dataset.i][e.target.dataset.key] = e.target.value;
+      onChange(filas);
+    });
+  });
+  container.querySelectorAll('.wa-card-del').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      filas.splice(+btn.dataset.i, 1);
+      renderCardTable(containerId, cfg, filas, onChange);
+      onChange(filas);
+    });
+  });
+  container.querySelectorAll('.wa-obj-copy').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const fila = filas[+btn.dataset.i];
+      copyText(btn, fila[btn.dataset.key] || '');
+    });
+  });
+  container.querySelectorAll('.wa-table-add').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      filas.push({ ...cfg.filaVacia });
+      renderCardTable(containerId, cfg, filas, onChange);
+      onChange(filas);
+    });
+  });
+}
 
 async function cargarTablaWhatsApp(modo){
   const cfg = WA_TABLA_CONFIGS[modo];
@@ -1142,7 +1208,7 @@ async function cargarTablaWhatsApp(modo){
     waTablas[modo] = r && r.value ? JSON.parse(r.value) : {};
   }catch(e){ waTablas[modo] = {}; }
   const filas = waTablas[modo][waGrupoKey()] || [];
-  renderWaTable(cfg.containerId, cfg.columnas, filas, (nuevasFilas)=>{
+  renderCardTable(cfg.containerId, cfg, filas, (nuevasFilas)=>{
     waTablas[modo][waGrupoKey()] = nuevasFilas;
     clearTimeout(waTablasSaveTimer[modo]);
     waTablasSaveTimer[modo] = setTimeout(()=>{
@@ -1168,7 +1234,7 @@ async function generarTablaWhatsApp(modo){
     if(!waTablas[modo][waGrupoKey()]) waTablas[modo][waGrupoKey()] = [];
     waTablas[modo][waGrupoKey()] = waTablas[modo][waGrupoKey()].concat(data.filas);
     // Pinta primero -- si el guardado falla, no se pierde lo que la IA acaba de generar.
-    renderWaTable(cfg.containerId, cfg.columnas, waTablas[modo][waGrupoKey()], (nuevasFilas)=>{
+    renderCardTable(cfg.containerId, cfg, waTablas[modo][waGrupoKey()], (nuevasFilas)=>{
       waTablas[modo][waGrupoKey()] = nuevasFilas;
       clearTimeout(waTablasSaveTimer[modo]);
       waTablasSaveTimer[modo] = setTimeout(()=>{
