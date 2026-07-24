@@ -862,11 +862,24 @@ async function guardarGuionesEvergreen(){
 
 // ---------- BANCO DE CONVERSACIONES (compartido con Jefe Evergreen) ----------
 function waConvosKey(){ return 'rancho-seco:whatsapp-convos'; }
+function waConvosKeyVieja(){ return 'rancho-seco:evergreen-convos'; }
 
 async function loadConvos(){
   try{
     const result = await window.storage.get(waConvosKey());
-    const items = result ? JSON.parse(result.value) : [];
+    let items = result ? JSON.parse(result.value) : [];
+    if(items.length === 0){
+      // Migracion: el Banco de Conversaciones vivia en Jefe Evergreen bajo esta llave vieja.
+      // Si hay datos ahi y nada en la llave nueva, los recuperamos y los guardamos en la nueva.
+      try{
+        const viejo = await window.storage.get(waConvosKeyVieja());
+        const itemsViejos = viejo ? JSON.parse(viejo.value) : [];
+        if(itemsViejos.length > 0){
+          items = itemsViejos;
+          await window.storage.set(waConvosKey(), JSON.stringify(items));
+        }
+      }catch(e){}
+    }
     renderConvos(items);
   }catch(e){
     renderConvos([]);

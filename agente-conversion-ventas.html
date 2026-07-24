@@ -777,7 +777,18 @@ async function loadQuestions(){
   const listEl = document.getElementById('logList');
   try{
     const result = await window.storage.get(CLIENTE_ID + ':preguntas-sin-respuesta', false);
-    const items = result ? JSON.parse(result.value) : [];
+    let items = result ? JSON.parse(result.value) : [];
+    if(items.length === 0 && CLIENTE_ID === 'jefeshub'){
+      // Migracion: jefeshub y rim compartian antes la misma llave sin prefijo.
+      try{
+        const viejo = await window.storage.get('preguntas-sin-respuesta', false);
+        const itemsViejos = viejo ? JSON.parse(viejo.value) : [];
+        if(itemsViejos.length > 0){
+          items = itemsViejos;
+          await window.storage.set(CLIENTE_ID + ':preguntas-sin-respuesta', JSON.stringify(items), false);
+        }
+      }catch(e){}
+    }
     renderQuestions(items);
   } catch(e){
     renderQuestions([]);
@@ -871,11 +882,24 @@ async function guardarGuionesEvergreen(){
 
 // ---------- BANCO DE CONVERSACIONES (compartido con Jefe Evergreen) ----------
 function waConvosKey(){ return CLIENTE_ID + ':whatsapp-convos'; }
+function waConvosKeyVieja(){ return CLIENTE_ID + ':evergreen-convos'; }
 
 async function loadConvos(){
   try{
     const result = await window.storage.get(waConvosKey());
-    const items = result ? JSON.parse(result.value) : [];
+    let items = result ? JSON.parse(result.value) : [];
+    if(items.length === 0){
+      // Migracion: el Banco de Conversaciones vivia en Jefe Evergreen bajo esta llave vieja.
+      // Si hay datos ahi y nada en la llave nueva, los recuperamos y los guardamos en la nueva.
+      try{
+        const viejo = await window.storage.get(waConvosKeyVieja());
+        const itemsViejos = viejo ? JSON.parse(viejo.value) : [];
+        if(itemsViejos.length > 0){
+          items = itemsViejos;
+          await window.storage.set(waConvosKey(), JSON.stringify(items));
+        }
+      }catch(e){}
+    }
     renderConvos(items);
   }catch(e){
     renderConvos([]);
