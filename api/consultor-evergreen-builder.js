@@ -10,15 +10,21 @@ const path = require('path');
 const { sql } = require('@vercel/postgres');
 
 const DEFAULT_CLIENTE = 'rancho-seco'; // no rompe la ruta actual, que todavia no manda `cliente`
-const PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-constructor-oferta-evergreen.md');
+const PROMPTS_POR_MODO = {
+  normal: path.join(__dirname, '..', 'prompts', 'system-prompt-constructor-oferta-evergreen.md'),
+  'documento-maestro': path.join(__dirname, '..', 'prompts', 'system-prompt-documento-maestro.md'),
+};
 const CONTEXT_CHAR_LIMIT = 6000;
+const NOTAS_CHAR_LIMIT = 6000;
 const MAX_MESSAGES = 40;
 
-let fixedPromptCache = null;
-function cargarPromptFijo() {
-  if (fixedPromptCache) return fixedPromptCache;
-  fixedPromptCache = fs.readFileSync(PROMPT_PATH, 'utf-8');
-  return fixedPromptCache;
+const promptCache = new Map();
+function cargarPromptFijo(modo) {
+  const ruta = PROMPTS_POR_MODO[modo] || PROMPTS_POR_MODO.normal;
+  if (promptCache.has(ruta)) return promptCache.get(ruta);
+  const contenido = fs.readFileSync(ruta, 'utf-8');
+  promptCache.set(ruta, contenido);
+  return contenido;
 }
 
 // Rate limit en memoria (por IP). Mas permisivo que los otros endpoints porque una sola
@@ -234,6 +240,55 @@ async function construirContextoNegocio(clienteId) {
   return 'CONTEXTO DEL NEGOCIO (ya cargado del ADN — no le pidas al usuario que lo repita):\n\n' + truncar(bloques.join('\n\n'), CONTEXT_CHAR_LIMIT);
 }
 
+// ---------- formateo de las Notas ya guardadas (para el modo "documento-maestro") ----------
+
+function formatearValorNota(valor) {
+  if (valor == null) return '';
+  if (Array.isArray(valor)) {
+    const filas = valor.filter((f) => f && Object.values(f).some((v) => (v || '').toString().trim()));
+    if (filas.length === 0) return '';
+    return filas
+      .map((f) => Object.entries(f).filter(([k, v]) => k !== '_marcada' && (v || '').toString().trim()).map(([k, v]) => `${k}: ${v}`).join(' | '))
+      .map((l) => '  - ' + l)
+      .join('\n');
+  }
+  if (typeof valor === 'object') {
+    const partes = Object.entries(valor).filter(([, v]) => (v || '').toString().trim()).map(([k, v]) => `  - ${k}: ${v}`);
+    return partes.join('\n');
+  }
+  return valor.toString().trim() ? '  ' + valor.toString().trim() : '';
+}
+
+const GRUPOS_NOTAS_EVERGREEN = [
+  { suffix: 'evergreen-producto', titulo: 'PRODUCTO EVERGREEN' },
+  { suffix: 'evergreen-perfil-cliente', titulo: 'PERFIL DE CLIENTE EVERGREEN' },
+  { suffix: 'evergreen-comunicacion', titulo: 'COMUNICACIÓN EVERGREEN' },
+  { suffix: 'evergreen-sistema', titulo: 'SISTEMA EVERGREEN' },
+];
+
+async function formatearNotasGuardadas(clienteId) {
+  const datos = await Promise.all(
+    GRUPOS_NOTAS_EVERGREEN.map((g) => leerJSON(`${clienteId}:brand-book.${g.suffix}`).catch(() => null))
+  );
+  const bloques = GRUPOS_NOTAS_EVERGREEN.map((g, i) => {
+    const d = datos[i];
+    if (!d) return null;
+    const campos = Object.entries(d)
+      .map(([campo, valor]) => {
+        const formateado = formatearValorNota(valor);
+        return formateado ? `${campo}:\n${formateado}` : null;
+      })
+      .filter(Boolean);
+    if (campos.length === 0) return null;
+    return g.titulo + ':\n' + campos.join('\n');
+  }).filter(Boolean);
+
+  if (bloques.length === 0) {
+    return 'NOTAS EVERGREEN YA GUARDADAS: todavía no hay nada guardado en ninguno de los 4 grupos de Notas.';
+  }
+  return 'NOTAS EVERGREEN YA GUARDADAS (esto es lo real, guardado por el usuario -- tu revisión se basa en esto, no en esta conversación):\n\n' + truncar(bloques.join('\n\n'), NOTAS_CHAR_LIMIT);
+}
+
 // ---------- handler ----------
 
 module.exports = async function handler(req, res) {
@@ -258,6 +313,7 @@ module.exports = async function handler(req, res) {
 
   const body = req.body || {};
   const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
+  const modo = body.modo === 'documento-maestro' ? 'documento-maestro' : 'normal';
   const messages = Array.isArray(body.messages) ? body.messages : null;
   if (!messages || messages.length === 0) {
     return res.status(400).json({ error: 'Falta el historial de la conversación (messages).' });
@@ -271,9 +327,13 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const promptFijo = cargarPromptFijo();
+    const promptFijo = cargarPromptFijo(modo);
     const contexto = await construirContextoNegocio(clienteId);
-    const system = promptFijo + '\n\n' + contexto;
+    const partesSystem = [promptFijo, contexto];
+    if (modo === 'documento-maestro') {
+      partesSystem.push(await formatearNotasGuardadas(clienteId));
+    }
+    const system = partesSystem.join('\n\n');
 
     const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -284,7 +344,7 @@ module.exports = async function handler(req, res) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 1500,
+        max_tokens: modo === 'documento-maestro' ? 3000 : 1500,
         system,
         messages: limpio,
       }),

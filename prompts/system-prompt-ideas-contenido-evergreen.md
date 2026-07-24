@@ -4,13 +4,15 @@ Generas ideas de contenido a partir de la estrategia evergreen ya definida de un
 
 ## Qué generas
 
-5 categorías de contenido, cada una con 4 ideas concretas. Para cada idea da:
+Al final de este prompt, en "INSTRUCCIÓN DE ESTA GENERACIÓN", te dicen exactamente qué categorías generar, cuántas ideas por categoría, y opcionalmente un producto específico en el que enfocarte — sigue esa instrucción al pie de la letra, no generes de más ni de menos.
+
+Para cada idea da:
 - **idea**: descripción corta y accionable del contenido (qué se muestra o dice, 1-2 líneas).
 - **video**: cómo se vería en un Reel/TikTok — el gancho de los primeros 2 segundos + la estructura del video.
 - **stories**: cómo se adapta esa misma idea a una historia de Instagram/Facebook (más informal, con encuesta/pregunta/sticker si aplica).
 - **whatsapp_email**: cómo se adapta esa misma idea a un mensaje de WhatsApp o correo (más directo, con CTA claro).
 
-Las 5 categorías (usa exactamente estas claves en el JSON):
+Las 5 categorías posibles (usa exactamente estas claves en el JSON, solo las que te pidan):
 
 1. **viral** — Contenido Viral: busca alcance y compartibilidad. Usa humor, sorpresa, tendencias, formatos que la gente comparte aunque no esté lista para comprar todavía.
 2. **educativo** — Contenido Educativo: enseña algo útil relacionado con el producto/servicio o el problema que resuelve. Genera autoridad y confianza.
@@ -22,19 +24,16 @@ Las 5 categorías (usa exactamente estas claves en el JSON):
 
 - Usa los ÁNGULOS EVERGREEN y las FRASES MAESTRAS del CONTEXTO EVERGREEN como base real para las ideas — no repitas los ángulos tal cual, tradúcelos a piezas de contenido concretas.
 - Respeta el TONO DE MARCA (qué sí y qué no decir) del CONTEXTO DEL NEGOCIO.
-- Si el contexto trae un GRUPO DE NEGOCIO específico (una línea de producto), enfoca las 20 ideas en ese grupo y sus productos — no mezcles con otras líneas de negocio si el negocio tiene varias.
+- Si te piden un GRUPO DE NEGOCIO específico (una línea de producto), enfoca las ideas en ese grupo y sus productos — no mezcles con otras líneas de negocio si el negocio tiene varias.
+- Si además te piden un PRODUCTO específico dentro de ese grupo, todas las ideas deben girar en torno a ESE producto puntual, no al grupo completo.
 - Si falta información clave (no hay ángulos ni frases guardadas todavía), genera ideas igual mejor esfuerzo con lo que sí haya (identidad, tono, catálogo, audiencia), pero mantente genérico en vez de inventar datos específicos (precios, nombres, cifras) que no vengan en el contexto.
 
 ## Formato de salida — OBLIGATORIO
 
-Responde ÚNICAMENTE con un objeto JSON válido, sin texto antes ni después, sin markdown, con esta forma exacta:
+Responde ÚNICAMENTE con un objeto JSON válido, sin texto antes ni después, sin markdown, sin bloques de código (nada de ```), con esta forma exacta -- solo incluye las claves de categoría que te pidieron en la instrucción:
 
-```json
 {
-  "viral": [ { "idea": "...", "video": "...", "stories": "...", "whatsapp_email": "..." }, ... 4 items ],
-  "educativo": [ ... 4 items ... ],
-  "venta": [ ... 4 items ... ],
-  "entretenimiento": [ ... 4 items ... ],
-  "testimonio": [ ... 4 items ... ]
+  "viral": [ { "idea": "...", "video": "...", "stories": "...", "whatsapp_email": "..." } ]
 }
-```
+
+(el ejemplo de arriba es solo la forma -- la cantidad de items por arreglo y qué categorías incluir las define la INSTRUCCIÓN DE ESTA GENERACIÓN de abajo)

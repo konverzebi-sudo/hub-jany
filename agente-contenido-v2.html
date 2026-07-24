@@ -1248,7 +1248,10 @@ const EVERGREEN_COLUMNAS = [
   { key:'whatsapp_email', label:'WhatsApp / Email' },
 ];
 let evergreenGrupos = [];
+let evergreenProductos = [];
 let evergreenGrupoId = '';
+let evergreenProductoId = '';
+let evergreenTipo = 'todos';
 let evergreenIdeasStore = {};
 let evergreenStatus = '';
 let evergreenLoaded = false;
@@ -1263,6 +1266,10 @@ async function ensureEvergreenLoaded(){
     const rg = await window.storage.get(CLIENTE_ID + ':grupos-negocio');
     evergreenGrupos = rg && rg.value ? JSON.parse(rg.value) : [];
   }catch(e){ evergreenGrupos = []; }
+  try{
+    const rp = await window.storage.get(CLIENTE_ID + ':catalogo-productos');
+    evergreenProductos = rp && rp.value ? JSON.parse(rp.value) : [];
+  }catch(e){ evergreenProductos = []; }
   try{
     const ri = await window.storage.get(EVERGREEN_IDEAS_KEY);
     evergreenIdeasStore = ri && ri.value ? JSON.parse(ri.value) : {};
@@ -1288,6 +1295,8 @@ function pintarEvergreenIdeas(){
   const wrap = document.createElement('div');
   wrap.className='agente-wrap';
 
+  const productosDisponibles = evergreenProductos.filter(p => p && p.nombre && (!evergreenGrupoId || p.grupo_id === evergreenGrupoId));
+
   const toolbar = document.createElement('div');
   toolbar.className='evergreen-toolbar';
   toolbar.innerHTML = `
@@ -1296,6 +1305,20 @@ function pintarEvergreenIdeas(){
       <select id="evergreen-grupo-sel">
         <option value="">General (sin grupo)</option>
         ${evergreenGrupos.map(g=>`<option value="${g.id}"${evergreenGrupoId===g.id?' selected':''}>${escHtml(g.nombre)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="mode-field" style="min-width:220px;">
+      <label>Producto (opcional)</label>
+      <select id="evergreen-producto-sel">
+        <option value="">Todo el grupo</option>
+        ${productosDisponibles.map(p=>`<option value="${p.id}"${evergreenProductoId===p.id?' selected':''}>${escHtml(p.nombre)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="mode-field" style="min-width:220px;">
+      <label>Tipo de contenido</label>
+      <select id="evergreen-tipo-sel">
+        <option value="todos"${evergreenTipo==='todos'?' selected':''}>Las 5 categorías</option>
+        ${EVERGREEN_CATEGORIAS.map(c=>`<option value="${c.key}"${evergreenTipo===c.key?' selected':''}>${escHtml(c.label)}</option>`).join('')}
       </select>
     </div>
     <button class="btn btn-solid" id="evergreen-gen-btn">✨ Generar ideas con IA</button>
@@ -1331,7 +1354,14 @@ function pintarEvergreenIdeas(){
 
   document.getElementById('evergreen-grupo-sel').addEventListener('change', (e)=>{
     evergreenGrupoId = e.target.value;
+    evergreenProductoId = '';
     pintarEvergreenIdeas();
+  });
+  document.getElementById('evergreen-producto-sel').addEventListener('change', (e)=>{
+    evergreenProductoId = e.target.value;
+  });
+  document.getElementById('evergreen-tipo-sel').addEventListener('change', (e)=>{
+    evergreenTipo = e.target.value;
   });
   document.getElementById('evergreen-gen-btn').addEventListener('click', generarIdeasEvergreen);
 
@@ -1368,11 +1398,11 @@ async function generarIdeasEvergreen(){
     const res = await fetch('/api/generar-ideas-evergreen', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cliente: CLIENTE_ID, grupo_id: evergreenGrupoId }),
+      body: JSON.stringify({ cliente: CLIENTE_ID, grupo_id: evergreenGrupoId, tipo: evergreenTipo, producto_id: evergreenProductoId }),
     });
     const data = await res.json();
     if(!res.ok){ statusEl2.textContent = 'Error: ' + (data.error || 'No se pudo generar.'); statusEl2.classList.add('error'); return; }
-    evergreenIdeasStore[evergreenGrupoKey()] = data.ideas;
+    Object.assign(evergreenDatosActuales(), data.ideas);
     evergreenStatus = '✅ Ideas generadas — revísalas y ajústalas antes de usarlas.';
     pintarEvergreenIdeas();
     scheduleEvergreenSave();
