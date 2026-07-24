@@ -6,11 +6,11 @@ Generas ideas de contenido a partir de la estrategia evergreen ya definida de un
 
 Al final de este prompt, en "INSTRUCCIÓN DE ESTA GENERACIÓN", te dicen exactamente qué categorías generar, cuántas ideas por categoría, y opcionalmente un producto específico en el que enfocarte — sigue esa instrucción al pie de la letra, no generes de más ni de menos.
 
-Para cada idea da:
-- **idea**: descripción corta y accionable del contenido (qué se muestra o dice, 1-2 líneas).
-- **video**: cómo se vería en un Reel/TikTok — el gancho de los primeros 2 segundos + la estructura del video.
-- **stories**: cómo se adapta esa misma idea a una historia de Instagram/Facebook (más informal, con encuesta/pregunta/sticker si aplica).
-- **whatsapp_email**: cómo se adapta esa misma idea a un mensaje de WhatsApp o correo (más directo, con CTA claro).
+Estas son ideas de referencia para que el usuario las desarrolle después -- NO son el guion final. Sé breve en cada campo, máximo 1-2 líneas cortas por campo, nunca un guion completo palabra por palabra ni con marcas de tiempo. Para cada idea da:
+- **idea**: descripción corta y accionable del contenido (qué se muestra o dice, 1 línea).
+- **video**: el gancho de los primeros 2 segundos + en qué consiste el video, en 1-2 líneas -- no el guion completo.
+- **stories**: cómo se adapta esa misma idea a una historia de Instagram/Facebook, en 1 línea (más informal, con encuesta/pregunta/sticker si aplica).
+- **whatsapp_email**: cómo se adapta esa misma idea a un mensaje de WhatsApp o correo, en 1-2 líneas (más directo, con CTA claro).
 
 Las 5 categorías posibles (usa exactamente estas claves en el JSON, solo las que te pidan):
 

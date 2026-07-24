@@ -263,9 +263,9 @@ module.exports = async function handler(req, res) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: tipo === 'todos' ? 4000 : 1200,
+        max_tokens: tipo === 'todos' ? 8000 : 2500,
         system,
-        messages: [{ role: 'user', content: 'Genera las ideas de contenido evergreen pedidas, en el formato JSON indicado.' }],
+        messages: [{ role: 'user', content: 'Genera las ideas de contenido evergreen pedidas, en el formato JSON indicado. Sé breve por campo -- son ideas de referencia, no el guion final.' }],
       }),
     });
 
@@ -277,8 +277,7 @@ module.exports = async function handler(req, res) {
     const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
     const parsed = extractJson(text);
     if (!parsed) {
-      console.error('[generar-ideas-evergreen] parse fail. stop_reason=' + data.stop_reason + ' len=' + text.length + ' text=' + text.slice(0, 1500));
-      return res.status(502).json({ error: 'No se pudo interpretar la respuesta del modelo.' });
+      return res.status(502).json({ error: data.stop_reason === 'max_tokens' ? 'La respuesta quedó incompleta (muy larga). Intenta de nuevo o genera una sola categoría a la vez.' : 'No se pudo interpretar la respuesta del modelo.' });
     }
 
     const resultado = {};
