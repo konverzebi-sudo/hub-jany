@@ -528,19 +528,19 @@
       <div class="section-dot">💬</div>
       <div>
         <p class="section-title">Guión de WhatsApp</p>
-        <p class="section-sub">Guiones reales guardados por el usuario en el Jefe WhatsApp y Ventas, organizados por temperatura del lead.</p>
+        <p class="section-sub">Banco de Objeciones real, generado y guardado en el Jefe WhatsApp y Ventas.</p>
       </div>
     </div>
 
     <div id="waStatusBanner" class="status-banner status-found" style="display:none">
       <span>✓</span>
-      <span>Guiones encontrados en el <a id="waLinkInline" href="/consultor-whatsapp">Jefe WhatsApp y Ventas</a> — los guardó el usuario allá, aquí solo se muestran como referencia.</span>
+      <span>Objeciones encontradas en el <a id="waLinkInline" href="/consultor-whatsapp">Jefe WhatsApp y Ventas</a> — se guardaron allá, aquí solo se muestran como referencia.</span>
     </div>
 
     <div id="waScripts"></div>
 
     <div id="waScriptGenerico" class="card" style="display:none">
-      <p>Todavía no hay guiones guardados para esta marca. Constrúyelos en el Jefe WhatsApp y Ventas y aparecerán referenciados aquí.</p>
+      <p>Todavía no hay Banco de Objeciones guardado para esta marca. Constrúyelo en el Jefe WhatsApp y Ventas (Auditoría de Conversaciones + Generar con IA) y aparecerá referenciado aquí.</p>
     </div>
 
     <a class="wa-link-btn" id="waLinkBtn" href="/consultor-whatsapp">→ Abrir Jefe WhatsApp y Ventas</a>
@@ -1207,36 +1207,33 @@ function guardarNotasGrupo(suffix, prefix, campos, statusId) {
   saveEvergreenGrupo(suffix, data, statusId);
 }
 
-/* ─── GUIÓN DE WHATSAPP (lee en vivo lo que el usuario guardó en Jefe WhatsApp y Ventas) ─── */
-const WA_GUIONES_LABELS = [
-  { key: 'apertura', label: 'Apertura — 1–2 Frío' },
-  { key: 'calificacion', label: 'Calificación — 3–4 Tibio' },
-  { key: 'oferta_precio', label: 'Oferta + precio — 5–6 Interés' },
-  { key: 'anti_objecion', label: 'Anti-objeción — 7–8 Objeciones' },
-  { key: 'cierre', label: 'Cierre — 9–10' },
-];
-
+/* ─── GUIÓN DE WHATSAPP (lee en vivo el Banco de Objeciones guardado en Jefe WhatsApp y Ventas) ─── */
 async function cargarGuionesWhatsApp() {
-  const data = await loadEvergreenGrupo('whatsapp-guiones');
-  const conContenido = WA_GUIONES_LABELS.filter((c) => data[c.key] && data[c.key].trim());
+  let data = {};
+  try {
+    const r = await window.storage.get(CLIENTE_ID + ':whatsapp-banco-objeciones');
+    data = r && r.value ? JSON.parse(r.value) : {};
+  } catch (e) {}
+  const filas = Object.values(data).flat().filter((f) => f && f.objecion && f.objecion.trim());
   const wrap = document.getElementById('waScripts');
   const banner = document.getElementById('waStatusBanner');
   const empty = document.getElementById('waScriptGenerico');
   wrap.innerHTML = '';
-  if (conContenido.length === 0) {
+  if (filas.length === 0) {
     banner.style.display = 'none';
     empty.style.display = '';
     return;
   }
   banner.style.display = '';
   empty.style.display = 'none';
-  conContenido.forEach((c) => {
+  filas.slice(0, 5).forEach((f) => {
+    const respuesta = f.respuesta_ideal || f.version_corta || '';
     const box = document.createElement('div');
     box.className = 'wa-main-script';
     box.style.marginBottom = '14px';
-    box.innerHTML = `<div class="card-label">${c.label}<button type="button" class="copy-btn wa-copy-btn" style="margin-left:auto">Copiar</button></div><div class="wa-script-text"></div>`;
-    box.querySelector('.wa-script-text').textContent = data[c.key];
-    box.querySelector('.wa-copy-btn').addEventListener('click', (e) => copyText(e.currentTarget, data[c.key]));
+    box.innerHTML = `<div class="card-label">${escapeHtmlEv(f.objecion)}<button type="button" class="copy-btn wa-copy-btn" style="margin-left:auto">Copiar</button></div><div class="wa-script-text"></div>`;
+    box.querySelector('.wa-script-text').textContent = respuesta;
+    box.querySelector('.wa-copy-btn').addEventListener('click', (e) => copyText(e.currentTarget, respuesta));
     wrap.appendChild(box);
   });
 }
