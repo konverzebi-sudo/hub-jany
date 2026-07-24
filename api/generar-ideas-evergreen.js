@@ -177,7 +177,15 @@ async function construirContexto(clienteId, grupoId) {
 }
 
 function extractJson(text) {
-  const match = text.match(/\{[\s\S]*\}/);
+  if (!text) return null;
+  // Quita bloques de código markdown si el modelo los agrego pese a la instruccion.
+  const limpio = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+  try {
+    return JSON.parse(limpio);
+  } catch (err) {
+    // Fallback: busca el primer '{' al primer '}' que cierre balanceado.
+  }
+  const match = limpio.match(/\{[\s\S]*\}/);
   if (!match) return null;
   try {
     return JSON.parse(match[0]);
@@ -186,7 +194,25 @@ function extractJson(text) {
   }
 }
 
-const CATEGORIAS = ['viral', 'educativo', 'venta', 'entretenimiento', 'testimonio'];
+const CATEGORIAS_INFO = {
+  viral: 'Contenido Viral',
+  educativo: 'Contenido Educativo',
+  venta: 'Contenido De Venta',
+  entretenimiento: 'Contenido De Entretenimiento',
+  testimonio: 'Contenido De Testimonio',
+};
+const CATEGORIAS = Object.keys(CATEGORIAS_INFO);
+const ITEMS_POR_CATEGORIA = 3;
+
+function formatearProducto(items, productoId) {
+  if (!productoId || !Array.isArray(items)) return null;
+  const p = items.find((it) => it && it.id === productoId);
+  if (!p) return null;
+  const partes = [p.nombre];
+  if (p.tipo) partes.push(p.tipo);
+  if (p.notas) partes.push(`notas: ${p.notas}`);
+  return 'PRODUCTO ESPECÍFICO A ENFOCAR (todas las ideas deben girar en torno a este producto puntual, no al grupo completo):\n- ' + partes.join(' · ');
+}
 
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
@@ -211,11 +237,22 @@ module.exports = async function handler(req, res) {
   const body = req.body || {};
   const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
   const grupoId = body.grupo_id ? body.grupo_id.toString() : '';
+  const tipo = CATEGORIAS.includes(body.tipo) ? body.tipo : 'todos';
+  const productoId = body.producto_id ? body.producto_id.toString() : '';
+  const categoriasPedidas = tipo === 'todos' ? CATEGORIAS : [tipo];
 
   try {
     const promptFijo = cargarPromptFijo();
     const contexto = await construirContexto(clienteId, grupoId);
-    const system = promptFijo + '\n\n' + contexto;
+    const catalogo = await leerJSON(`${clienteId}:catalogo-productos`).catch(() => null);
+    const bloqueProducto = formatearProducto(catalogo, productoId);
+
+    const instruccion = 'INSTRUCCIÓN DE ESTA GENERACIÓN:\n' +
+      `Genera SOLO estas categorías, ${ITEMS_POR_CATEGORIA} ideas cada una: ` +
+      categoriasPedidas.map((c) => `"${c}" (${CATEGORIAS_INFO[c]})`).join(', ') + '.' +
+      (bloqueProducto ? '\n\n' + bloqueProducto : '');
+
+    const system = [promptFijo, contexto, instruccion].join('\n\n');
 
     const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -226,9 +263,9 @@ module.exports = async function handler(req, res) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 4000,
+        max_tokens: tipo === 'todos' ? 4000 : 1200,
         system,
-        messages: [{ role: 'user', content: 'Genera las 5 categorías de ideas de contenido evergreen en el formato JSON indicado.' }],
+        messages: [{ role: 'user', content: 'Genera las ideas de contenido evergreen pedidas, en el formato JSON indicado.' }],
       }),
     });
 
@@ -244,7 +281,7 @@ module.exports = async function handler(req, res) {
     }
 
     const resultado = {};
-    CATEGORIAS.forEach((cat) => {
+    categoriasPedidas.forEach((cat) => {
       resultado[cat] = Array.isArray(parsed[cat]) ? parsed[cat] : [];
     });
 

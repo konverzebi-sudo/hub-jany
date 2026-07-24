@@ -461,6 +461,21 @@
     </details>
   </section>
 
+  <!-- ─── REVISIÓN DEL DOCUMENTO MAESTRO ─── -->
+  <div class="builder-box">
+    <p class="builder-title">🔎 Revisión del Documento Maestro</p>
+    <p class="builder-sub">Te doy un resumen completo de tu estrategia leyendo directo lo que ya guardaste arriba en tus Notas — no de esta conversación. Si algo no está bien, dímelo y lo platicamos; si hace falta un ajuste, te digo exactamente en qué sección de Notas corregirlo, tú lo haces manual.</p>
+    <div class="builder-chat" id="docMaestroChat"></div>
+    <div class="builder-start-wrap" id="docMaestroStartWrap">
+      <button class="ask-btn" id="docMaestroStartBtn" onclick="iniciarDocMaestro()">📋 Generar Documento Maestro</button>
+    </div>
+    <div class="builder-controls" id="docMaestroControls" style="display:none">
+      <input type="text" class="builder-input" id="docMaestroInput" placeholder="Escribe tu respuesta..." onkeydown="if(event.key==='Enter')enviarMensajeDocMaestro()">
+      <button class="ask-btn" id="docMaestroSendBtn" onclick="enviarMensajeDocMaestro()">Enviar</button>
+      <button class="builder-reset" onclick="reiniciarDocMaestro()">Reiniciar</button>
+    </div>
+  </div>
+
   <!-- ─── 2. IDEAS DE CONTENIDO ─── -->
   <section>
     <div class="section-header">
@@ -880,6 +895,109 @@ async function cargarConversacionEnProgreso() {
   } catch (e) {}
 }
 
+/* ─── REVISIÓN DEL DOCUMENTO MAESTRO (mismo patrón que el chat guiado, pero modo:'documento-maestro') ─── */
+let docMaestroMessages = [];
+let docMaestroBusy = false;
+const DOC_MAESTRO_CONVERSACION_KEY = CLIENTE_ID + ':evergreen-documento-maestro-conversacion';
+
+function renderDocMaestroChat() {
+  const chat = document.getElementById('docMaestroChat');
+  chat.innerHTML = docMaestroMessages.map((m) => {
+    if (m.role === 'user') {
+      return `<div class="bubble user">${escaparHtmlBuilder(m.content)}</div>`;
+    }
+    return `<div class="bubble assistant">${escaparHtmlBuilder(m.content)}</div>
+      <button class="copy-btn builder-doc-save" onclick="copyText(this, \`${m.content.replace(/`/g, "'")}\`)">Copiar</button>`;
+  }).join('');
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function persistirDocMaestro() {
+  window.storage.set(DOC_MAESTRO_CONVERSACION_KEY, JSON.stringify(docMaestroMessages)).catch(() => {});
+}
+
+async function llamarDocMaestro() {
+  docMaestroBusy = true;
+  document.getElementById('docMaestroSendBtn').disabled = true;
+  document.getElementById('docMaestroInput').disabled = true;
+  try {
+    const response = await fetch('/api/consultor-evergreen-builder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: docMaestroMessages, cliente: CLIENTE_ID, modo: 'documento-maestro' }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      docMaestroMessages.push({ role: 'assistant', content: '⚠️ ' + (data.error || 'No se pudo generar respuesta. Intenta de nuevo.') });
+    } else {
+      docMaestroMessages.push({ role: 'assistant', content: data.text });
+      if (data.usage) {
+        builderInputTokensTotal += (data.usage.inputTokens || 0);
+        builderOutputTokensTotal += (data.usage.outputTokens || 0);
+        builderTokensTotal = builderInputTokensTotal + builderOutputTokensTotal;
+        actualizarTokensDisplay();
+      }
+    }
+  } catch (err) {
+    docMaestroMessages.push({ role: 'assistant', content: '⚠️ Hubo un error de conexión. Intenta de nuevo en un momento.' });
+  } finally {
+    docMaestroBusy = false;
+    document.getElementById('docMaestroSendBtn').disabled = false;
+    document.getElementById('docMaestroInput').disabled = false;
+    renderDocMaestroChat();
+    persistirDocMaestro();
+  }
+}
+
+function iniciarDocMaestro() {
+  document.getElementById('docMaestroStartWrap').style.display = 'none';
+  document.getElementById('docMaestroControls').style.display = 'flex';
+  docMaestroMessages = [{ role: 'user', content: 'Hola, dame el Documento Maestro con lo que ya tengo guardado en mis Notas.' }];
+  renderDocMaestroChat();
+  llamarDocMaestro();
+}
+
+function enviarMensajeDocMaestro() {
+  if (docMaestroBusy) return;
+  const input = document.getElementById('docMaestroInput');
+  const texto = input.value.trim();
+  if (!texto) return;
+  docMaestroMessages.push({ role: 'user', content: texto });
+  input.value = '';
+  renderDocMaestroChat();
+  llamarDocMaestro();
+}
+
+function reiniciarDocMaestro() {
+  docMaestroMessages = [];
+  renderDocMaestroChat();
+  document.getElementById('docMaestroStartWrap').innerHTML = '<button class="ask-btn" id="docMaestroStartBtn" onclick="iniciarDocMaestro()">📋 Generar Documento Maestro</button>';
+  document.getElementById('docMaestroStartWrap').style.display = 'block';
+  document.getElementById('docMaestroControls').style.display = 'none';
+  window.storage.set(DOC_MAESTRO_CONVERSACION_KEY, JSON.stringify([])).catch(() => {});
+}
+
+function continuarDocMaestro() {
+  window.storage.get(DOC_MAESTRO_CONVERSACION_KEY).then((r) => {
+    docMaestroMessages = r && r.value ? JSON.parse(r.value) : [];
+    document.getElementById('docMaestroStartWrap').style.display = 'none';
+    document.getElementById('docMaestroControls').style.display = 'flex';
+    renderDocMaestroChat();
+  });
+}
+
+async function cargarDocMaestroEnProgreso() {
+  try {
+    const r = await window.storage.get(DOC_MAESTRO_CONVERSACION_KEY);
+    const guardado = r && r.value ? JSON.parse(r.value) : [];
+    if (Array.isArray(guardado) && guardado.length > 0) {
+      document.getElementById('docMaestroStartWrap').innerHTML = `
+        <button class="ask-btn" onclick="continuarDocMaestro()">▶ Continuar donde me quedé</button>
+        <button class="builder-reset" style="margin-left:10px" onclick="reiniciarDocMaestro()">Empezar de nuevo</button>`;
+    }
+  } catch (e) {}
+}
+
 /* ─── NOTAS MANUALES — Documento Maestro Evergreen (mismo patrón que ADN.html: loadObj/saveObj) ─── */
 function evergreenKey(suffix) { return CLIENTE_ID + ':brand-book.' + suffix; }
 
@@ -1140,6 +1258,7 @@ calcular();
 cargarGuionesWhatsApp();
 cargarNotasEvergreen();
 cargarConversacionEnProgreso();
+cargarDocMaestroEnProgreso();
 cargarPrecioTokens();
 document.getElementById('costoInputPrecio').addEventListener('input', guardarPrecioTokens);
 document.getElementById('costoOutputPrecio').addEventListener('input', guardarPrecioTokens);
