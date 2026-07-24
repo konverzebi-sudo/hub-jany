@@ -144,13 +144,22 @@ function formatearAudiencias(items) {
   return 'CLIENTE IDEAL (audiencias del ADN):\n' + bloques.join('\n\n');
 }
 
-function formatearCatalogo(items) {
+function formatearGrupos(grupos) {
+  if (!Array.isArray(grupos) || grupos.length === 0) return null;
+  return 'GRUPOS DE NEGOCIO YA DEFINIDOS (líneas de producto/servicio -- usa estos nombres tal cual, nunca inventes otros; si el usuario menciona una línea que no está aquí, dile que la agregue en el Catálogo del ADN):\n' +
+    grupos.map((g) => `- ${g.nombre}`).join('\n');
+}
+
+function formatearCatalogo(items, grupos) {
   if (!Array.isArray(items) || items.length === 0) return null;
+  const nombrePorGrupo = {};
+  (grupos || []).forEach((g) => { nombrePorGrupo[g.id] = g.nombre; });
   const lineas = items
     .filter((p) => p && p.nombre)
     .map((p) => {
       const partes = [p.nombre];
       if (p.tipo) partes.push(p.tipo);
+      if (p.grupo_id && nombrePorGrupo[p.grupo_id]) partes.push(`grupo: ${nombrePorGrupo[p.grupo_id]}`);
       if (p.precio != null && p.precio !== '') partes.push(`precio $${p.precio}`);
       if (p.costo != null && p.costo !== '') partes.push(`costo $${p.costo}`);
       if (p.que_tanto_se_vende) partes.push(`se vende: ${p.que_tanto_se_vende}`);
@@ -198,11 +207,12 @@ function formatearMetricasFinancieros(m, f) {
 }
 
 async function construirContextoNegocio(clienteId) {
-  const [identidad, tono, audiencia, catalogo, journey, metricas, financieros] = await Promise.all([
+  const [identidad, tono, audiencia, catalogo, grupos, journey, metricas, financieros] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.audiencia`).catch(() => null),
     leerJSON(`${clienteId}:catalogo-productos`).catch(() => null),
+    leerJSON(`${clienteId}:grupos-negocio`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.customer_journey`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.metricas`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.financieros`).catch(() => null),
@@ -212,7 +222,8 @@ async function construirContextoNegocio(clienteId) {
     formatearIdentidad(identidad),
     formatearTono(tono),
     formatearAudiencias(audiencia),
-    formatearCatalogo(catalogo),
+    formatearGrupos(grupos),
+    formatearCatalogo(catalogo, grupos),
     formatearJourney(journey),
     formatearMetricasFinancieros(metricas, financieros),
   ].filter(Boolean);
