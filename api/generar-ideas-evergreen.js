@@ -277,6 +277,7 @@ module.exports = async function handler(req, res) {
     const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
     const parsed = extractJson(text);
     if (!parsed) {
+      console.error('[generar-ideas-evergreen] parse fail. stop_reason=' + data.stop_reason + ' len=' + text.length + ' text=' + text.slice(0, 1500));
       return res.status(502).json({ error: 'No se pudo interpretar la respuesta del modelo.' });
     }
 
