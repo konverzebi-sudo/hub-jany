@@ -219,6 +219,13 @@
     table.tabla-notas textarea:focus { border-color: var(--accent); background: var(--surface-2); }
     .tabla-notas-del { background: transparent; border: none; color: var(--text-dim); cursor: pointer; font-size: 13px; padding: 4px 8px; }
     .tabla-notas-del:hover { color: #EF4444; }
+    .th-marca, .td-marca { width: 30px; }
+    .marca-btn { background: transparent; border: none; color: var(--text-dim); cursor: pointer; font-size: 15px; padding: 4px 6px; line-height: 1; }
+    .marca-btn:hover { color: var(--accent); }
+    .marca-btn.activa { color: var(--accent); }
+    table.tabla-notas tr.fila-marcada { background: var(--accent-soft); }
+    table.tabla-notas tr.fila-marcada td:not(.td-marca) { border-left: 2px solid var(--accent); }
+    table.tabla-notas tr.fila-marcada textarea:hover, table.tabla-notas tr.fila-marcada textarea:focus { border-color: var(--accent); }
     .tabla-notas-add { background: transparent; border: 1px dashed var(--line); color: var(--text-dim); font-family: Inter, sans-serif; font-size: 12px; padding: 7px 12px; border-radius: 8px; cursor: pointer; margin-bottom: 14px; }
     .tabla-notas-add:hover { border-color: var(--accent); color: var(--accent); }
 
@@ -1011,15 +1018,24 @@ function renderTablaNotas(id) {
   container.innerHTML = `
     <div class="tabla-notas-wrap">
       <table class="tabla-notas">
-        <thead><tr>${cfg.columnas.map((c) => `<th>${c.label}</th>`).join('')}<th></th></tr></thead>
+        <thead><tr><th class="th-marca" title="Marca las filas de tu plan de acción"></th>${cfg.columnas.map((c) => `<th>${c.label}</th>`).join('')}<th></th></tr></thead>
         <tbody>${filas.map((fila, i) => `
-          <tr>${cfg.columnas.map((c) => `<td><textarea oninput="actualizarCeldaTabla('${id}',${i},'${c.key}',this.value)">${escaparHtmlBuilder(fila[c.key] || '')}</textarea></td>`).join('')}
+          <tr class="${fila._marcada ? 'fila-marcada' : ''}">
+          <td class="td-marca"><button type="button" class="marca-btn${fila._marcada ? ' activa' : ''}" title="Marcar como parte de tu plan de acción" onclick="toggleFilaMarcada('${id}',${i})">${fila._marcada ? '★' : '☆'}</button></td>
+          ${cfg.columnas.map((c) => `<td><textarea oninput="actualizarCeldaTabla('${id}',${i},'${c.key}',this.value)">${escaparHtmlBuilder(fila[c.key] || '')}</textarea></td>`).join('')}
           <td><button type="button" class="tabla-notas-del" onclick="borrarFilaTabla('${id}',${i})">✕</button></td></tr>
         `).join('')}</tbody>
       </table>
     </div>
     <button type="button" class="tabla-notas-add" onclick="agregarFilaTabla('${id}')">+ Agregar fila</button>
   `;
+}
+
+function toggleFilaMarcada(id, i) {
+  const container = document.getElementById(id);
+  if (!container || !container._filas || !container._filas[i]) return;
+  container._filas[i]._marcada = !container._filas[i]._marcada;
+  renderTablaNotas(id);
 }
 
 function actualizarCeldaTabla(id, i, key, value) {
