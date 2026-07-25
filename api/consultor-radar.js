@@ -16,27 +16,20 @@ const fs = require('fs');
 const path = require('path');
 const { sql } = require('@vercel/postgres');
 
-const PROMPTS_DIR = path.join(__dirname, '..', 'prompts');
-const DEFAULT_CLIENTE = 'rancho-seco';
+const PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-consultor-radar.md');
+const DEFAULT_CLIENTE = 'jefeshub';
 const SEPARADOR_INSIGHTS = '---INSIGHTS-Y-IDEAS---';
 
-// Mismo motivo que en agente-conversion.js: mapeo explicito evita path
-// traversal desde el body y le da a Vercel un literal detectable para
-// incluir el archivo en el bundle.
-const CLIENTES = {
-  'rancho-seco': 'system-prompt-consultor-radar-rancho-seco.md',
-  jefeshub: 'system-prompt-consultor-radar-jefeshub.md',
-};
-
-const promptCache = new Map();
-
-function cargarSystemPrompt(cliente) {
-  if (promptCache.has(cliente)) return promptCache.get(cliente);
-  const archivo = CLIENTES[cliente];
-  if (!archivo) return null;
-  const contenido = fs.readFileSync(path.join(PROMPTS_DIR, archivo), 'utf-8');
-  promptCache.set(cliente, contenido);
-  return contenido;
+// Prompt fijo, generico, compartido por todas las marcas -- mismo patron que
+// api/agente-conversion.js. Lo unico que cambia por cliente es el CONTEXTO
+// DEL NEGOCIO (construirContexto, mas abajo), cargado en tiempo real desde
+// su propio Brand Book en storage. No hay datos de negocio hardcoded aqui,
+// y no hace falta un archivo .md por marca para soportar una marca nueva.
+let fixedPromptCache = null;
+function cargarPromptFijo() {
+  if (fixedPromptCache) return fixedPromptCache;
+  fixedPromptCache = fs.readFileSync(PROMPT_PATH, 'utf-8');
+  return fixedPromptCache;
 }
 
 // Rate limit basico en memoria (por IP, best-effort entre invocaciones warm de la misma instancia).
@@ -490,18 +483,12 @@ module.exports = async function handler(req, res) {
 
   const { modo, cliente } = req.body || {};
   const clienteId = (cliente || DEFAULT_CLIENTE).toString();
-  if (!CLIENTES[clienteId]) {
-    return res.status(400).json({ error: `Cliente desconocido: ${clienteId}` });
-  }
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return res.status(500).json({ error: 'Falta configurar ANTHROPIC_API_KEY en el servidor.' });
   }
 
-  const systemPrompt = cargarSystemPrompt(clienteId);
-  if (!systemPrompt) {
-    return res.status(400).json({ error: `Cliente desconocido: ${clienteId}` });
-  }
+  const systemPrompt = cargarPromptFijo();
 
   try {
     if (modo === 'diagnostico-general') return await handleDiagnosticoGeneral(req, res, clienteId, systemPrompt);
