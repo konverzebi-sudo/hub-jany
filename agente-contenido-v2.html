@@ -69,6 +69,9 @@
   .cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;}
   .item-card{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--horizon,var(--t1));border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:10px;touch-action:pan-y;}
   .item-top{display:flex;align-items:center;gap:8px;justify-content:space-between;}
+  .item-top-right{display:flex;align-items:center;gap:6px;}
+  .item-del{border:none;background:transparent;color:var(--text-dim);cursor:pointer;font-size:14px;padding:5px 7px;border-radius:6px;opacity:.5;transition:.15s;}
+  .item-del:hover{color:#EF4444;opacity:1;background:rgba(239,68,68,.1);}
   select.estado-select{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:5px 10px;border-radius:100px;border:1px solid transparent;cursor:pointer;}
   select.estado-select.idea{background:#1B2142;color:#A8B4F0;border-color:#3A4380;}
   select.estado-select.proceso{background:#332708;color:#F5C84C;border-color:#6B4F14;}
@@ -272,6 +275,7 @@
           <option value="venta">💰 Venta</option>
         </select>
       </div>
+      <button class="btn btn-solid" id="btn-nueva-idea" type="button">+ Nueva idea</button>
       <span class="status" id="status"></span>
     </div>
   </div>
@@ -344,6 +348,7 @@ const searchEl = document.getElementById('search');
 const filterFaseEl = document.getElementById('filter-fase');
 const filterEtapaEl = document.getElementById('filter-etapa');
 const filterTipoEl = document.getElementById('filter-tipo');
+const btnNuevaIdeaEl = document.getElementById('btn-nueva-idea');
 const statsBarEl = document.getElementById('stats-bar');
 
 // ─── HELPERS ────────────────────────────────────────────────────────────────
@@ -410,6 +415,32 @@ searchEl.addEventListener('input',()=>{ searchTerm=searchEl.value.toLowerCase();
 filterFaseEl.addEventListener('change',()=>{ filterFase=filterFaseEl.value; render(); });
 filterEtapaEl.addEventListener('change',()=>{ filterEtapa=filterEtapaEl.value; render(); });
 filterTipoEl.addEventListener('change',()=>{ filterTipo=filterTipoEl.value; render(); });
+
+btnNuevaIdeaEl.addEventListener('click',()=>{
+  const list=state[currentTab];
+  const newId=(currentTab==='historias'?'h':'c')+'_new'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+  const nuevaFase=currentTab==='historias' ? 'Semana 1 · Atraer/Conexión' : 'Semana 1';
+  list.unshift({
+    id:newId, orden:list.length+1, fase:nuevaFase,
+    gancho:'Nueva idea — escribe el gancho aquí',
+    descripcion:'', ganchoIdea:'', caption:'', notas:'',
+    linkRef:'', linkArchivo:'', fecha:'', estado:'idea'
+  });
+  document.getElementById(`count-${currentTab}`).textContent=list.length;
+  scheduleSave();
+  filterFase=''; filterEtapa=''; filterTipo=''; searchTerm='';
+  filterFaseEl.value=''; filterEtapaEl.value=''; filterTipoEl.value=''; searchEl.value='';
+  render();
+  renderStats();
+  const card=[...contentEl.querySelectorAll('.item-card')].find(c=>c.querySelector('select.estado-select')?.dataset.id===newId);
+  if(card){
+    const det=card.querySelector('.item-details');
+    if(det) det.open=true;
+    card.scrollIntoView({behavior:'smooth',block:'center'});
+    const gh=card.querySelector('.gancho-input');
+    if(gh){ gh.focus(); gh.select(); }
+  }
+});
 
 // ─── DATE / HORIZON ─────────────────────────────────────────────────────────
 function parseFechaDDMM(str){
@@ -566,7 +597,10 @@ function buildCard(r){
         <option value="proceso" ${r.estado==='proceso'?'selected':''}>⚙️ En proceso</option>
         <option value="publicado" ${r.estado==='publicado'?'selected':''}>🔥 Publicado</option>
       </select>
-      <input type="text" class="fecha-input" placeholder="dd/mm" value="${escHtml(r.fecha)}" data-id="${r.id}" data-field="fecha">
+      <div class="item-top-right">
+        <input type="text" class="fecha-input" placeholder="dd/mm" value="${escHtml(r.fecha)}" data-id="${r.id}" data-field="fecha">
+        <button type="button" class="item-del" data-id="${r.id}" title="Eliminar idea">✕</button>
+      </div>
     </div>
     <textarea class="gancho-input" data-id="${r.id}" data-field="gancho">${escHtml(r.gancho)}</textarea>
     <div class="badges-row">
@@ -618,6 +652,18 @@ function bindCardEvents(){
   });
   contentEl.querySelectorAll('.btn-guion').forEach(btn=>{
     btn.addEventListener('click',e=>{ e.preventDefault(); e.stopPropagation(); generateGuion(btn.dataset.id); });
+  });
+  contentEl.querySelectorAll('.item-del').forEach(btn=>{
+    btn.addEventListener('click',e=>{
+      e.preventDefault(); e.stopPropagation();
+      if(!confirm('¿Eliminar esta idea? No se puede deshacer.')) return;
+      const id=btn.dataset.id;
+      state[currentTab]=state[currentTab].filter(r=>r.id!==id);
+      document.getElementById(`count-${currentTab}`).textContent=state[currentTab].length;
+      scheduleSave();
+      render();
+      renderStats();
+    });
   });
   contentEl.querySelectorAll('.item-card').forEach(card=>{
     attachSwipe(card,card.querySelector('.item-details'));
