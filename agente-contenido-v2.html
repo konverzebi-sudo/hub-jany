@@ -102,9 +102,6 @@
   .detail-field textarea:focus,.detail-field input:focus{border-color:var(--accent);}
   .detail-field input.link-input{color:#7CB9E8;}
   .detail-meta-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
-  .angulos-section{margin-top:10px;}
-  .angulos-title{font-size:10.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em;font-family:'JetBrains Mono',monospace;margin-bottom:8px;padding-top:8px;border-top:1px solid var(--line);}
-  .angulos-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
   .btn-guion{border:none;background:transparent;color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;cursor:pointer;padding:2px 0;letter-spacing:.03em;text-transform:uppercase;opacity:.8;}
   .btn-guion:hover{opacity:1;}
   .guion-result{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:8px;font-size:13px;line-height:1.7;white-space:pre-wrap;max-height:320px;overflow-y:auto;}
@@ -168,6 +165,7 @@
   /* IDEAS EVERGREEN */
   .evergreen-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 20px;}
   .evergreen-toolbar select{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:9px 12px;outline:none;}
+  .evergreen-selection-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:10px;}
   .evergreen-cat{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px 20px;margin-top:14px;}
   .evergreen-cat-title{font-family:'Sora',sans-serif;font-weight:700;font-size:15px;margin:0 0 4px;}
   .evergreen-cat-desc{color:var(--text-dim);font-size:12px;margin:0 0 12px;}
@@ -370,6 +368,9 @@ function getDefaults(item){
   };
 }
 
+const FASE_SUFFIJOS = {1:'Atraer/Conexión',2:'Educar/Objeciones',3:'Prueba social/Resultado',4:'Urgencia/Cierre'};
+function semanaDeFase(fase){ return parseInt(((fase||'').match(/Semana\s*(\d+)/i)||[,'1'])[1])||1; }
+
 const ETAPA_META = {
   adquisicion:{label:'📢 Adquisición',cls:'adquisicion',dotCls:'dot-adq',color:'var(--adq)'},
   consideracion:{label:'🔵 Consideración',cls:'consideracion',dotCls:'dot-con',color:'var(--con)'},
@@ -550,7 +551,8 @@ function buildCard(r){
   const audiencia = r.audiencia||d.audiencia;
   const uso = r.uso||d.uso;
   const objetivo = r.objetivo||d.objetivo;
-  const angulos = r.angulos||d.angulos;
+  const semana = semanaDeFase(r.fase);
+  const notasValue = (r.notas!=null && r.notas!=='') ? r.notas : [r.instrucciones,r.recomendacion].filter(Boolean).join('\n\n');
   const em = ETAPA_META[etapa]||ETAPA_META.adquisicion;
   const hColor = horizonColorVar(r);
 
@@ -576,8 +578,6 @@ function buildCard(r){
     <details class="item-details">
       <summary style="color:${hColor}">Ver detalles <button class="btn-guion" data-id="${r.id}" title="Generar guión con IA">✨ Guión</button></summary>
       <div class="detail-grid">
-        <div class="detail-field"><label>Descripción / ángulo</label><textarea data-id="${r.id}" data-field="descripcion">${escHtml(r.descripcion)}</textarea></div>
-        <div class="detail-field"><label>Dolor que conectamos</label><textarea placeholder="Agrega el dolor..." data-id="${r.id}" data-field="dolor">${escHtml(r.dolor)}</textarea></div>
         <div class="detail-meta-row">
           <div class="detail-field">
             <label>Etapa del cliente</label>
@@ -588,49 +588,21 @@ function buildCard(r){
             </select>
           </div>
           <div class="detail-field">
-            <label>Audiencia</label>
-            <select data-id="${r.id}" data-field="audiencia">
-              <option value="fria" ${audiencia==='fria'?'selected':''}>❄️ Fría</option>
-              <option value="tibia" ${audiencia==='tibia'?'selected':''}>🌡 Tibia</option>
-              <option value="caliente" ${audiencia==='caliente'?'selected':''}>🔥 Caliente</option>
-            </select>
-          </div>
-          <div class="detail-field">
-            <label>Tipo de contenido</label>
-            <select data-id="${r.id}" data-field="tipo">
-              <option value="conexion" ${tipo==='conexion'?'selected':''}>💬 Conexión</option>
-              <option value="educativo" ${tipo==='educativo'?'selected':''}>📚 Educativo</option>
-              <option value="testimonio" ${tipo==='testimonio'?'selected':''}>⭐ Testimonio</option>
-              <option value="comparacion" ${tipo==='comparacion'?'selected':''}>⚖️ Comparación</option>
-              <option value="entretenimiento" ${tipo==='entretenimiento'?'selected':''}>🎭 Entretenimiento</option>
-              <option value="venta" ${tipo==='venta'?'selected':''}>💰 Venta</option>
-            </select>
-          </div>
-          <div class="detail-field">
-            <label>Uso sugerido</label>
-            <select data-id="${r.id}" data-field="uso">
-              <option value="organico" ${uso==='organico'?'selected':''}>📱 Orgánico</option>
-              <option value="evergreen" ${uso==='evergreen'?'selected':''}>♻️ Evergreen</option>
-              <option value="ambos" ${uso==='ambos'?'selected':''}>✳️ Ambos</option>
+            <label># de Semana</label>
+            <select data-id="${r.id}" data-field="semana">
+              <option value="1" ${semana===1?'selected':''}>Semana 1</option>
+              <option value="2" ${semana===2?'selected':''}>Semana 2</option>
+              <option value="3" ${semana===3?'selected':''}>Semana 3</option>
+              <option value="4" ${semana===4?'selected':''}>Semana 4</option>
             </select>
           </div>
         </div>
-        <div class="angulos-section">
-          <div class="angulos-title">7 ángulos del contenido</div>
-          <div class="angulos-grid">
-            <div class="detail-field"><label>Problema</label><textarea rows="2" placeholder="¿Qué vive hoy el cliente?" data-id="${r.id}" data-field="angulos.problema">${escHtml(angulos.problema||'')}</textarea></div>
-            <div class="detail-field"><label>Error</label><textarea rows="2" placeholder="¿Qué está haciendo mal?" data-id="${r.id}" data-field="angulos.error">${escHtml(angulos.error||'')}</textarea></div>
-            <div class="detail-field"><label>Deseo</label><textarea rows="2" placeholder="¿Qué quiere lograr realmente?" data-id="${r.id}" data-field="angulos.deseo">${escHtml(angulos.deseo||'')}</textarea></div>
-            <div class="detail-field"><label>Historia</label><textarea rows="2" placeholder="Experiencia, caso, escena..." data-id="${r.id}" data-field="angulos.historia">${escHtml(angulos.historia||'')}</textarea></div>
-            <div class="detail-field"><label>Descubrimiento</label><textarea rows="2" placeholder="Nueva verdad o perspectiva..." data-id="${r.id}" data-field="angulos.descubrimiento">${escHtml(angulos.descubrimiento||'')}</textarea></div>
-            <div class="detail-field"><label>Objeción</label><textarea rows="2" placeholder="¿Qué duda puede resolver?" data-id="${r.id}" data-field="angulos.objecion">${escHtml(angulos.objecion||'')}</textarea></div>
-          </div>
-          <div class="detail-field" style="margin-top:8px;"><label>Comparación</label><textarea rows="2" placeholder="Antes/después · mito/realidad · opción A vs B..." data-id="${r.id}" data-field="angulos.comparacion">${escHtml(angulos.comparacion||'')}</textarea></div>
-        </div>
-        <div class="detail-field"><label>Instrucciones</label><textarea data-id="${r.id}" data-field="instrucciones">${escHtml(r.instrucciones)}</textarea></div>
-        <div class="detail-field"><label>Recomendación</label><textarea data-id="${r.id}" data-field="recomendacion">${escHtml(r.recomendacion)}</textarea></div>
+        <div class="detail-field"><label>Idea</label><textarea data-id="${r.id}" data-field="descripcion">${escHtml(r.descripcion)}</textarea></div>
+        <div class="detail-field"><label>Gancho idea</label><textarea data-id="${r.id}" data-field="ganchoIdea">${escHtml(r.ganchoIdea)}</textarea></div>
+        <div class="detail-field"><label>Caption</label><textarea placeholder="Texto para redes: dinámico, con personalidad, potencial viral, emojis, CTA claro y breve — cierra con 5 hashtags." data-id="${r.id}" data-field="caption">${escHtml(r.caption)}</textarea></div>
+        <div class="detail-field"><label>Link de material</label><input type="text" class="link-input" placeholder="https://..." value="${escHtml(r.linkArchivo)}" data-id="${r.id}" data-field="linkArchivo"></div>
         <div class="detail-field"><label>Link de referencia</label><input type="text" class="link-input" placeholder="https://..." value="${escHtml(r.linkRef)}" data-id="${r.id}" data-field="linkRef"></div>
-        <div class="detail-field"><label>Link de archivo terminado</label><input type="text" class="link-input" placeholder="https://..." value="${escHtml(r.linkArchivo)}" data-id="${r.id}" data-field="linkArchivo"></div>
+        <div class="detail-field"><label>Notas</label><textarea data-id="${r.id}" data-field="notas">${escHtml(notasValue)}</textarea></div>
       </div>
     </details>
     <div id="guion-${r.id}" class="guion-result" hidden></div>
@@ -660,39 +632,44 @@ function onFieldChange(e){
   const list=state[currentTab];
   const row=list.find(r=>r.id===id);
   if(!row) return;
-  if(field.startsWith('angulos.')){
-    const key=field.split('.')[1];
-    if(!row.angulos) row.angulos={};
-    row.angulos[key]=e.target.value;
+  if(field==='semana'){
+    const suffix = currentTab==='historias' ? FASE_SUFFIJOS[+e.target.value]||'' : '';
+    row.fase = suffix ? `Semana ${e.target.value} · ${suffix}` : `Semana ${e.target.value}`;
   } else {
     row[field]=e.target.value;
   }
-  if(field==='estado'||field==='fecha'||field==='etapa'||field==='tipo'||field==='audiencia'){
-    if(field==='estado'||field==='fecha') render();
-    else{ buildCard_update(row); }
+  if(field==='estado'||field==='fecha'){
+    render();
+    renderStats();
+  } else if(field==='etapa'||field==='semana'){
+    updateCardChrome(row);
     renderStats();
   }
   scheduleSave();
 }
 
-function buildCard_update(row){
-  // Re-render just the badges without full render
+function updateCardChrome(row){
   const card=[...contentEl.querySelectorAll('.item-card')].find(c=>{
     const sel=c.querySelector('select.estado-select');
     return sel && sel.dataset.id===row.id;
   });
   if(!card) return;
-  const badgesRow=card.querySelector('.badges-row');
-  if(!badgesRow) return;
   const d=getDefaults(row);
   const etapa=row.etapa||d.etapa;
   const tipo=row.tipo||d.tipo;
   const audiencia=row.audiencia||d.audiencia;
   const em=ETAPA_META[etapa]||ETAPA_META.adquisicion;
-  badgesRow.innerHTML=`
+  const badgesRow=card.querySelector('.badges-row');
+  if(badgesRow) badgesRow.innerHTML=`
     <span class="badge badge-${etapa}">${em.label}</span>
     <span class="badge badge-tipo">${TIPO_LABELS[tipo]||tipo}</span>
     <span class="badge badge-${audiencia}">${AUDIENCIA_LABELS[audiencia]||audiencia}</span>`;
+  const faseEl=card.querySelector('.item-fase');
+  if(faseEl) faseEl.textContent=row.fase;
+  const hColor=horizonColorVar(row);
+  card.style.setProperty('--horizon',hColor);
+  const summary=card.querySelector('.item-details summary');
+  if(summary) summary.style.color=hColor;
 }
 
 // ─── GUIÓN GENERATOR ─────────────────────────────────────────────────────────
@@ -1245,8 +1222,8 @@ const EVERGREEN_COLUMNAS = [
   { key:'idea', label:'Idea' },
   { key:'video', label:'Video (Reels/TikTok)' },
   { key:'stories', label:'Stories' },
-  { key:'whatsapp_email', label:'WhatsApp / Email' },
 ];
+const EVERGREEN_TIPO_MAP = { viral:'conexion', educativo:'educativo', venta:'venta', entretenimiento:'entretenimiento', testimonio:'testimonio' };
 let evergreenGrupos = [];
 let evergreenProductos = [];
 let evergreenGrupoId = '';
@@ -1326,6 +1303,15 @@ function pintarEvergreenIdeas(){
   `;
   wrap.appendChild(toolbar);
 
+  const selBar = document.createElement('div');
+  selBar.className='evergreen-selection-bar';
+  selBar.innerHTML = `
+    <span id="evergreen-sel-count" class="mode-status">0 idea(s) seleccionada(s)</span>
+    <button class="btn-outline to-historias" id="evergreen-to-historias" type="button">→ Agregar a Historias</button>
+    <button class="btn-outline to-contenido" id="evergreen-to-contenido" type="button">→ Agregar a Contenido</button>
+  `;
+  wrap.appendChild(selBar);
+
   EVERGREEN_CATEGORIAS.forEach(cat=>{
     const filas = datos[cat.key];
     const box = document.createElement('div');
@@ -1335,12 +1321,12 @@ function pintarEvergreenIdeas(){
       <p class="evergreen-cat-desc">${cat.desc}</p>
       <div class="evergreen-table-wrap">
         <table class="evergreen-table">
-          <thead><tr>${EVERGREEN_COLUMNAS.map(c=>`<th>${c.label}</th>`).join('')}<th></th></tr></thead>
+          <thead><tr><th></th>${EVERGREEN_COLUMNAS.map(c=>`<th>${c.label}</th>`).join('')}<th></th></tr></thead>
           <tbody>
             ${filas.length ? filas.map((fila,i)=>`
-              <tr>${EVERGREEN_COLUMNAS.map(c=>`<td><textarea data-cat="${cat.key}" data-i="${i}" data-key="${c.key}">${escHtml(fila[c.key])}</textarea></td>`).join('')}
+              <tr><td style="text-align:center;"><input type="checkbox" class="evergreen-row-check" data-cat="${cat.key}" data-i="${i}"${fila.selected?' checked':''}></td>${EVERGREEN_COLUMNAS.map(c=>`<td><textarea data-cat="${cat.key}" data-i="${i}" data-key="${c.key}">${escHtml(fila[c.key])}</textarea></td>`).join('')}
               <td><button type="button" class="evergreen-row-del" data-cat="${cat.key}" data-i="${i}">✕</button></td></tr>
-            `).join('') : `<tr><td colspan="${EVERGREEN_COLUMNAS.length+1}" class="mode-status">Todavía no hay ideas. Usa "Generar ideas con IA" o agrega una fila a mano.</td></tr>`}
+            `).join('') : `<tr><td colspan="${EVERGREEN_COLUMNAS.length+2}" class="mode-status">Todavía no hay ideas. Usa "Generar ideas con IA" o agrega una fila a mano.</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -1351,6 +1337,7 @@ function pintarEvergreenIdeas(){
 
   contentEl.innerHTML='';
   contentEl.appendChild(wrap);
+  updateEvergreenSelCount();
 
   document.getElementById('evergreen-grupo-sel').addEventListener('change', (e)=>{
     evergreenGrupoId = e.target.value;
@@ -1382,18 +1369,78 @@ function pintarEvergreenIdeas(){
   });
   wrap.querySelectorAll('.evergreen-row-add').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      evergreenDatosActuales()[btn.dataset.cat].push({ idea:'', video:'', stories:'', whatsapp_email:'' });
+      evergreenDatosActuales()[btn.dataset.cat].push({ idea:'', video:'', stories:'', selected:false });
       pintarEvergreenIdeas();
       scheduleEvergreenSave();
     });
   });
+  wrap.querySelectorAll('.evergreen-row-check').forEach(cb=>{
+    cb.addEventListener('change', (e)=>{
+      const { cat, i } = e.target.dataset;
+      evergreenDatosActuales()[cat][+i].selected = e.target.checked;
+      updateEvergreenSelCount();
+    });
+  });
+  document.getElementById('evergreen-to-historias').addEventListener('click', ()=>addEvergreenSelectedToTab('historias'));
+  document.getElementById('evergreen-to-contenido').addEventListener('click', ()=>addEvergreenSelectedToTab('contenido'));
+}
+
+function evergreenSelectedItems(){
+  const datos = evergreenDatosActuales();
+  const items = [];
+  EVERGREEN_CATEGORIAS.forEach(cat=>{
+    (datos[cat.key]||[]).forEach((fila,i)=>{
+      if(fila.selected) items.push({ cat: cat.key, catLabel: cat.label, i, fila });
+    });
+  });
+  return items;
+}
+
+function updateEvergreenSelCount(){
+  const el = document.getElementById('evergreen-sel-count');
+  if(!el) return;
+  el.textContent = `${evergreenSelectedItems().length} idea(s) seleccionada(s)`;
+}
+
+function addEvergreenSelectedToTab(targetTab){
+  const statusEl = document.getElementById('evergreen-status');
+  const selected = evergreenSelectedItems();
+  if(!selected.length){
+    statusEl.className='mode-status error';
+    statusEl.textContent='Selecciona al menos una idea primero.';
+    return;
+  }
+  selected.forEach(({cat, catLabel, fila})=>{
+    const newId=(targetTab==='historias'?'h':'c')+'_ev'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+    state[targetTab].push({
+      id:newId,
+      orden:state[targetTab].length+1,
+      fase:targetTab==='historias'?'Semana 1 · Atraer/Conexión':'Semana 1',
+      gancho:fila.idea,
+      descripcion:fila.video,
+      dolor:'',
+      tipo:EVERGREEN_TIPO_MAP[cat]||'',
+      instrucciones:fila.stories?`Stories: ${fila.stories}`:'',
+      recomendacion:`Categoría evergreen: ${catLabel}`,
+      linkRef:'',linkArchivo:'',
+      fecha:'',estado:'idea',
+      angulos:{ problema:'',error:'',deseo:'',historia:'',descubrimiento:'',objecion:'',comparacion:'' }
+    });
+  });
+  document.getElementById(`count-${targetTab}`).textContent=state[targetTab].length;
+  scheduleSave();
+  const datos = evergreenDatosActuales();
+  EVERGREEN_CATEGORIAS.forEach(cat=>{ (datos[cat.key]||[]).forEach(f=>{ f.selected=false; }); });
+  scheduleEvergreenSave();
+  evergreenStatus = `✅ ${selected.length} idea(s) añadida(s) a ${targetTab==='historias'?'Historias':'Contenido'}.`;
+  pintarEvergreenIdeas();
 }
 
 async function generarIdeasEvergreen(){
   const btn = document.getElementById('evergreen-gen-btn');
   const statusEl2 = document.getElementById('evergreen-status');
   btn.disabled = true; btn.textContent = 'Generando...';
-  statusEl2.className = 'mode-status'; statusEl2.textContent = '⏳ Leyendo tu ADN y tu Comunicación Evergreen...';
+  statusEl2.className = 'mode-status'; statusEl2.textContent = '⏳ Analizando ADN + Brandbook + IA + Estrategia para darte la mejor respuesta...';
   try{
     const res = await fetch('/api/generar-ideas-evergreen', {
       method: 'POST',

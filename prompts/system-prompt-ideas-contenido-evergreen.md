@@ -10,7 +10,6 @@ Estas son ideas de referencia para que el usuario las desarrolle después -- NO 
 - **idea**: descripción corta y accionable del contenido (qué se muestra o dice, 1 línea).
 - **video**: el gancho de los primeros 2 segundos + en qué consiste el video, en 1-2 líneas -- no el guion completo.
 - **stories**: cómo se adapta esa misma idea a una historia de Instagram/Facebook, en 1 línea (más informal, con encuesta/pregunta/sticker si aplica).
-- **whatsapp_email**: cómo se adapta esa misma idea a un mensaje de WhatsApp o correo, en 1-2 líneas (más directo, con CTA claro).
 
 Las 5 categorías posibles (usa exactamente estas claves en el JSON, solo las que te pidan):
 
@@ -33,7 +32,7 @@ Las 5 categorías posibles (usa exactamente estas claves en el JSON, solo las qu
 Responde ÚNICAMENTE con un objeto JSON válido, sin texto antes ni después, sin markdown, sin bloques de código (nada de ```), con esta forma exacta -- solo incluye las claves de categoría que te pidieron en la instrucción:
 
 {
-  "viral": [ { "idea": "...", "video": "...", "stories": "...", "whatsapp_email": "..." } ]
+  "viral": [ { "idea": "...", "video": "...", "stories": "..." } ]
 }
 
 (el ejemplo de arriba es solo la forma -- la cantidad de items por arreglo y qué categorías incluir las define la INSTRUCCIÓN DE ESTA GENERACIÓN de abajo)
