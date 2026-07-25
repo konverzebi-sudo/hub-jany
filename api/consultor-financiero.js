@@ -3,32 +3,28 @@
 // el usuario ya tiene llenados en las 5 calculadoras de consultor-financiero.html (el frontend
 // los manda en `datosCalculadora` en cada pregunta, junto con el ADN).
 //
-// Mapeo explicito de clientes (mismo motivo que api/consultor-radar.js): evita path traversal
-// desde el body y le da a Vercel un literal detectable para el bundle. Solo 'jefeshub' esta
-// activo por ahora -- rancho-seco/rim se agregan cuando se dupliquen sus prompts.
+// Prompt fijo, generico, compartido por todas las marcas -- mismo patron que
+// api/agente-conversion.js y api/consultor-radar.js. El prompt original ya no tenia
+// ningun dato de negocio de JefesHub hardcodeado (solo formulas y tono), asi que se
+// reuso tal cual como plantilla generica. Lo unico que cambia por cliente es el
+// CONTEXTO DEL NEGOCIO (construirContextoNegocio, mas abajo), cargado en tiempo real
+// desde el ADN de cada marca -- no hace falta un archivo .md por marca.
 
 const fs = require('fs');
 const path = require('path');
 const { sql } = require('@vercel/postgres');
 
-const PROMPTS_DIR = path.join(__dirname, '..', 'prompts');
+const PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-consultor-financiero.md');
 const DEFAULT_CLIENTE = 'jefeshub';
-
-const CLIENTES = {
-  jefeshub: 'system-prompt-consultor-financiero-jefeshub.md',
-};
 
 const CONTEXT_CHAR_LIMIT = 6000;
 const CALC_CHAR_LIMIT = 3000;
 
-const promptCache = new Map();
-function cargarSystemPrompt(cliente) {
-  if (promptCache.has(cliente)) return promptCache.get(cliente);
-  const archivo = CLIENTES[cliente];
-  if (!archivo) return null;
-  const contenido = fs.readFileSync(path.join(PROMPTS_DIR, archivo), 'utf-8');
-  promptCache.set(cliente, contenido);
-  return contenido;
+let fixedPromptCache = null;
+function cargarPromptFijo() {
+  if (fixedPromptCache) return fixedPromptCache;
+  fixedPromptCache = fs.readFileSync(PROMPT_PATH, 'utf-8');
+  return fixedPromptCache;
 }
 
 // Rate limit básico en memoria (por IP, best-effort entre invocaciones warm de la misma instancia).
@@ -186,14 +182,7 @@ module.exports = async function handler(req, res) {
   }
 
   const clienteId = (cliente || DEFAULT_CLIENTE).toString();
-  if (!CLIENTES[clienteId]) {
-    return res.status(400).json({ error: `Cliente desconocido: ${clienteId}` });
-  }
-
-  const systemPrompt = cargarSystemPrompt(clienteId);
-  if (!systemPrompt) {
-    return res.status(400).json({ error: `Cliente desconocido: ${clienteId}` });
-  }
+  const systemPrompt = cargarPromptFijo();
 
   try {
     const contexto = await construirContextoNegocio(clienteId);
