@@ -112,26 +112,29 @@ function formatearCatalogo(items) {
   return 'CATÁLOGO DE PRODUCTOS (precios reales — úsalos siempre que pregunten precio):\n' + lineas.join('\n');
 }
 
-function formatearBancoObjeciones(d) {
-  if (!d || typeof d !== 'object') return null;
-  const filas = Object.values(d).flat().filter((f) => f && f.objecion && f.objecion.trim());
-  if (filas.length === 0) return null;
-  const lineas = filas.slice(0, 20).map((f) => {
-    const partes = [`Objeción: ${f.objecion}`];
-    if (f.respuesta_ideal) partes.push(`Respuesta ideal: ${f.respuesta_ideal}`);
-    if (f.version_corta) partes.push(`Versión corta: ${f.version_corta}`);
-    return '- ' + partes.join(' · ');
-  });
-  return 'BANCO DE OBJECIONES YA GUARDADO POR EL USUARIO (úsalo como base, no lo repitas tal cual si no aplica al mensaje):\n\n' + lineas.join('\n');
+function formatearGuionesGuardados(d) {
+  if (!d) return null;
+  const etiquetas = {
+    apertura: 'Apertura (1–2 Frío)',
+    calificacion: 'Calificación (3–4 Tibio)',
+    oferta_precio: 'Oferta + precio (5–6 Interés)',
+    anti_objecion: 'Anti-objeción (7–8 Objeciones)',
+    cierre: 'Cierre (9–10)',
+  };
+  const lineas = Object.keys(etiquetas)
+    .filter((k) => d[k] && d[k].trim())
+    .map((k) => `${etiquetas[k]}:\n${d[k].trim()}`);
+  if (lineas.length === 0) return null;
+  return 'GUIONES DE WHATSAPP YA GUARDADOS POR EL USUARIO (úsalos como base, no los repitas tal cual si no aplican al mensaje):\n\n' + lineas.join('\n\n');
 }
 
 async function construirContextoNegocio(clienteId) {
-  const [identidad, tono, audiencia, catalogo, objeciones] = await Promise.all([
+  const [identidad, tono, audiencia, catalogo, guiones] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.audiencia`).catch(() => null),
     leerJSON(`${clienteId}:catalogo-productos`).catch(() => null),
-    leerJSON(`${clienteId}:whatsapp-banco-objeciones`).catch(() => null),
+    leerJSON(`${clienteId}:brand-book.whatsapp-guiones`).catch(() => null),
   ]);
 
   const bloques = [
@@ -139,7 +142,7 @@ async function construirContextoNegocio(clienteId) {
     formatearTono(tono),
     formatearAudiencias(audiencia),
     formatearCatalogo(catalogo),
-    formatearBancoObjeciones(objeciones),
+    formatearGuionesGuardados(guiones),
   ].filter(Boolean);
 
   if (bloques.length === 0) {
