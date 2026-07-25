@@ -326,12 +326,6 @@
     padding:12px 14px;font-size:13px;color:#FCA5A5;
   }
 
-  /* NOTAS -- GUIONES EVERGREEN POR TEMPERATURA */
-  .field{margin-bottom:14px;}
-  .field label{display:block;font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em;font-family:'JetBrains Mono',monospace;margin-bottom:6px;}
-  .field textarea{width:100%;min-height:64px;background:var(--surface);border:1.5px solid var(--line);border-radius:9px;color:var(--text);padding:10px 12px;font-family:'Inter',sans-serif;font-size:13.5px;resize:vertical;}
-  .field textarea:focus{outline:none;border-color:var(--accent);}
-
   /* BANCO DE CONVERSACIONES */
   .convo-textarea{width:100%;background:var(--surface);border:1.5px solid var(--line);border-radius:12px;padding:14px;color:var(--text);font-family:'Inter',sans-serif;font-size:14px;min-height:100px;resize:vertical;transition:border-color .15s;}
   .convo-textarea:focus{outline:none;border-color:var(--accent);}
@@ -370,6 +364,50 @@
     color:var(--text-dim);
     font-size:12px;
   }
+
+  /* GENERAR ESTRATEGIA DE WHATSAPP (IA) */
+  .estrategia-wrap{max-width:640px;margin:22px auto 0;padding:0 20px;}
+  .estrategia-box{
+    background:linear-gradient(160deg, var(--surface) 0%, var(--accent-soft) 220%);
+    border:1.5px solid var(--accent);
+    border-radius:18px;
+    padding:20px 22px;
+  }
+  .estrategia-head{display:flex;align-items:center;gap:9px;margin-bottom:8px;}
+  .estrategia-head h3{margin:0;font-size:16px;}
+  .estrategia-sub{font-size:13px;color:var(--text-dim);margin:0 0 14px;line-height:1.5;}
+  .estrategia-uploads{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+  .estrategia-preguntas{display:flex;flex-direction:column;gap:10px;margin-bottom:14px;}
+  .estrategia-preguntas .pq-item label{display:block;font-size:12.5px;color:var(--text-dim);margin-bottom:5px;line-height:1.4;}
+  .estrategia-preguntas .pq-item input{
+    width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;
+    color:var(--text);padding:9px 12px;font-family:'Inter',sans-serif;font-size:13.5px;outline:none;
+  }
+  .estrategia-preguntas .pq-item input:focus{border-color:var(--accent);}
+
+  /* CAMPOS EDITABLES DENTRO DE LAS TARJETAS POR TEMPERATURA */
+  .field-textarea{
+    width:100%;background:transparent;border:1px solid transparent;border-radius:8px;
+    color:var(--text);font-family:'Inter',sans-serif;font-size:14.5px;line-height:1.55;
+    padding:8px 10px;margin:0 0 12px;resize:vertical;min-height:56px;
+  }
+  .field-textarea:hover{border-color:var(--line);}
+  .field-textarea:focus{outline:none;border-color:var(--accent);background:var(--surface-2);}
+  .obj-card .versions .v .field-textarea{font-size:13px;min-height:46px;margin-bottom:8px;}
+  .faq-label-wrap{display:flex;align-items:center;gap:4px;flex:1;min-width:0;}
+  .faq-label-input{
+    flex:1;min-width:0;background:transparent;border:1px solid transparent;border-radius:6px;
+    color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:11.5px;
+    text-transform:uppercase;letter-spacing:.04em;padding:3px 6px;
+  }
+  .faq-label-input:hover{border-color:var(--line);}
+  .faq-label-input:focus{outline:none;border-color:var(--accent);color:var(--text);}
+  .tarjetas-save-row{
+    max-width:900px;margin:0 auto;padding:0 20px 4px;
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  }
+  .tarjetas-save-hint{font-size:12px;color:var(--text-dim);flex:1;min-width:220px;}
+  .tarjetas-save-row .ask-btn{margin-left:0;}
 </style>
 </head>
 <body>
@@ -408,6 +446,27 @@
   <div class="search-hint">Escribe lo que te dijo el cliente y te doy la respuesta lista para copiar</div>
 </div>
 <div id="searchResults"></div>
+
+<div class="estrategia-wrap">
+  <div class="estrategia-box">
+    <div class="estrategia-head">
+      <h3>🧠 Generar Estrategia de WhatsApp</h3>
+    </div>
+    <p class="estrategia-sub">La IA llena las 5 tarjetas de abajo con tu ADN de marca (identidad, tono, catálogo, audiencia) y tu Agente Evergreen (comunicación, ángulos, frases) — no hace falta repetir nada. Si le falta algo clave, te hace hasta 3 preguntas antes de generar.</p>
+    <div class="estrategia-uploads">
+      <label class="file-btn">📎 Subir capturas
+        <input type="file" id="estCapturas" accept="image/*" multiple hidden>
+      </label>
+      <label class="file-btn">📄 Subir .txt de conversación
+        <input type="file" id="estTxt" accept=".txt" hidden>
+      </label>
+      <span id="estFilesName" class="file-name"></span>
+    </div>
+    <div id="estPreguntas"></div>
+    <button class="ask-btn" id="estBtn" onclick="generarEstrategia()">✨ Generar estrategia con IA</button>
+    <div id="estStatus" class="log-status"></div>
+  </div>
+</div>
 
 <div class="live-wrap">
   <div class="live-box">
@@ -460,16 +519,12 @@
     </div>
     <div class="cards">
       <div class="card">
-        <div class="label">Bienvenida — responde a story/broadcast <button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
-        <p data-copy>Ey! Qué gusto que quieras entrarle 🙌 Cuéntame rapidito: ¿ya tienes negocio corriendo o apenas estás arrancando? Así te digo exacto cómo te ayuda esto</p>
+        <div class="label">Bienvenida — primer contacto <button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+        <textarea class="field-textarea" data-field="s1_bienvenida" rows="4"></textarea>
       </div>
       <div class="card">
-        <div class="label">Bienvenida — DM orgánico / curiosidad <button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
-        <p data-copy>Hola! Esto es JefesHub: tú pones la idea de tu negocio y la IA te arma contenido, guiones y hasta anuncios — sin que te sientas Community Manager de medio tiempo. ¿A qué te dedicas? Te digo si te sirve</p>
-      </div>
-      <div class="card">
-        <div class="label">Bienvenida — referido <button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
-        <p data-copy>Hola! [Nombre] me contó de tu negocio, qué bueno. Te explico rapidísimo qué es JefesHub y vemos si te funciona para tu negocio — ¿en qué andas vendiendo ahorita?</p>
+        <div class="label">Video de apertura (se envía junto con el mensaje de bienvenida)</div>
+        <textarea class="field-textarea" data-field="s1_video_apertura" rows="8" placeholder="Guion corto del video de apertura, si aplica..."></textarea>
       </div>
     </div>
   </section>
@@ -486,13 +541,11 @@
     <div class="cards">
       <div class="card">
         <div class="label">Preguntas de calificación (usar 1-2, no las 3 de golpe)</div>
-        <p>1. ¿A qué te dedicas / qué vendes?
-2. ¿Ahorita quién te hace tus redes o contenido — tú sola, alguien más, o ya usas alguna IA?
-3. ¿Qué es lo que más se te complica: crear contenido, tener ideas, o simplemente el tiempo?</p>
+        <textarea class="field-textarea" data-field="s2_preguntas_calificacion" rows="5"></textarea>
       </div>
       <div class="card">
         <div class="label">Explicación del producto <button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
-        <p data-copy>Mira, JefesHub es básicamente tu equipo de marketing con IA metido en una plataforma: tú pones la idea de tu negocio y automático te da 10 conceptos de contenido con guion, caption y hasta el prompt para hacer el video en ChatGPT o Gemini. Nada de estarle rogando a un ChatGPT en blanco para que te entienda tu negocio 😅</p>
+        <textarea class="field-textarea" data-field="s2_explicacion_producto" rows="4"></textarea>
       </div>
     </div>
   </section>
@@ -509,15 +562,21 @@
     <div class="cards">
       <div class="card">
         <div class="label">Mensaje de precio / oferta <button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
-        <p data-copy>Son $22 USD al mes — con 30 días gratis para que lo pruebes sin compromiso. Solo para que lo compares: una agencia te cobra como $5,000/mes y un community manager unos $8,000/mes. Esto te sale en pesos menos que una pizza 🍕 y usa el código JEFE5 para que además te quede con descuento.</p>
+        <textarea class="field-textarea" data-field="s3_mensaje_precio" rows="4"></textarea>
       </div>
       <div class="card">
-        <div class="label">FAQ — ¿Tengo que dar tarjeta para el trial? <button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
-        <p data-copy>Sí — se pide tarjeta para activar el trial de 30 días. Si no cancelas antes de que termine, se cobra automático el mes. Puedes cancelar cuando quieras desde tu cuenta.</p>
+        <div class="label">
+          <span class="faq-label-wrap">FAQ — <input type="text" class="faq-label-input" data-field="s3_faq1_pregunta"></span>
+          <button class="copy-btn" onclick="copyCard(this)">Copiar</button>
+        </div>
+        <textarea class="field-textarea" data-field="s3_faq1_respuesta" rows="2"></textarea>
       </div>
       <div class="card">
-        <div class="label">FAQ — ¿Qué pasa si me atoro usándolo? <button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
-        <p data-copy>Me mandas captura o agendamos 5 min y te ayudo directo</p>
+        <div class="label">
+          <span class="faq-label-wrap">FAQ — <input type="text" class="faq-label-input" data-field="s3_faq2_pregunta"></span>
+          <button class="copy-btn" onclick="copyCard(this)">Copiar</button>
+        </div>
+        <textarea class="field-textarea" data-field="s3_faq2_respuesta" rows="2"></textarea>
       </div>
     </div>
   </section>
@@ -533,38 +592,38 @@
     </div>
     <div class="cards">
       <div class="card obj-card">
-        <div class="label">“No le entiendo” / “me perdí”</div>
+        <div class="label">Precio</div>
         <div class="versions">
-          <div class="v"><div class="vlabel">Respuesta ideal</div><p>Tranqui, es normal la primera vez. Mándame captura de dónde te quedaste, o si prefieres nos brincamos 5 min por videollamada ahorita y te lo destrabo yo misma</p><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
-          <div class="v"><div class="vlabel">Versión corta</div><p>Mándame screenshot de donde te trabaste y te ayudo al toque 📸</p><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+          <div class="v"><div class="vlabel">Respuesta ideal</div><textarea class="field-textarea" data-field="s4_obj_precio_ideal" rows="4"></textarea><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+          <div class="v"><div class="vlabel">Versión corta</div><textarea class="field-textarea" data-field="s4_obj_precio_corta" rows="2"></textarea><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
         </div>
       </div>
       <div class="card obj-card">
-        <div class="label">“Está caro”</div>
+        <div class="label">Tiempo — "lo tengo que consultar"</div>
         <div class="versions">
-          <div class="v"><div class="vlabel">Respuesta ideal</div><p>Te entiendo, pero compáralo: esto reemplaza lo que te costaría una agencia o un community manager, y aquí son $22 al mes con 30 días gratis para que veas si te funciona antes de gastar un peso</p><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
-          <div class="v"><div class="vlabel">Versión corta</div><p>Con $22/mes te ahorras contratar a alguien — y los primeros 30 días son gratis</p><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+          <div class="v"><div class="vlabel">Respuesta ideal</div><textarea class="field-textarea" data-field="s4_obj_tiempo_ideal" rows="4"></textarea><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+          <div class="v"><div class="vlabel">Versión corta</div><textarea class="field-textarea" data-field="s4_obj_tiempo_corta" rows="2"></textarea><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
         </div>
       </div>
       <div class="card obj-card">
-        <div class="label">“Ya uso ChatGPT / otra IA”</div>
+        <div class="label">Confianza — "¿esto es real / va a quedar bien?"</div>
         <div class="versions">
-          <div class="v"><div class="vlabel">Respuesta ideal</div><p>Esa es justo la diferencia: ChatGPT no conoce tu negocio, tienes que explicarle todo cada vez. JefesHub ya trae la estructura armada para que solo pongas la idea y te dé el contenido listo</p><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
-          <div class="v"><div class="vlabel">Versión corta</div><p>La diferencia es que aquí no le explicas tu negocio cada vez — ya está armado</p><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+          <div class="v"><div class="vlabel">Respuesta ideal</div><textarea class="field-textarea" data-field="s4_obj_confianza_ideal" rows="4"></textarea><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+          <div class="v"><div class="vlabel">Versión corta</div><textarea class="field-textarea" data-field="s4_obj_confianza_corta" rows="2"></textarea><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
         </div>
       </div>
       <div class="card obj-card">
         <div class="label">“Lo voy a pensar”</div>
         <div class="versions">
-          <div class="v"><div class="vlabel">Respuesta ideal</div><p>Va, tómate tu tiempo. Nomás para que no se te pase: el trial es gratis 30 días, o sea que pensarlo no te cuesta nada — regístrate y decides con calma mientras lo usas</p><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
-          <div class="v"><div class="vlabel">Versión corta</div><p>No hay bronca en pensarlo — el trial es gratis, así que puedes decidir usándolo</p><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+          <div class="v"><div class="vlabel">Respuesta ideal</div><textarea class="field-textarea" data-field="s4_obj_pensar_ideal" rows="4"></textarea><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+          <div class="v"><div class="vlabel">Versión corta</div><textarea class="field-textarea" data-field="s4_obj_pensar_corta" rows="2"></textarea><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
         </div>
       </div>
       <div class="card obj-card">
-        <div class="label">“No tengo tiempo”</div>
+        <div class="label">“Lo consulto” (con socio / jefe / contador)</div>
         <div class="versions">
-          <div class="v"><div class="vlabel">Respuesta ideal</div><p>Por eso mismo te sirve — es literal 2 minutos: pones tu idea y la IA te arma 10 conceptos listos. Menos tiempo que el que te toma pensar qué publicar hoy</p><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
-          <div class="v"><div class="vlabel">Versión corta</div><p>Toma 2 min: pones la idea y la IA arma el contenido</p><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+          <div class="v"><div class="vlabel">Respuesta ideal</div><textarea class="field-textarea" data-field="s4_obj_consulta_ideal" rows="4"></textarea><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+          <div class="v"><div class="vlabel">Versión corta</div><textarea class="field-textarea" data-field="s4_obj_consulta_corta" rows="2"></textarea><button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
         </div>
       </div>
     </div>
@@ -582,18 +641,24 @@
     <div class="cards">
       <div class="card">
         <div class="label">Mensaje de cierre <button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
-        <p data-copy>Va, entonces te dejo el link con tu código: [link + JEFE5]. Ojo: para activar el trial de 30 días te va a pedir tarjeta, pero no se te cobra nada hasta que termine el mes — y puedes cancelar cuando quieras antes de esa fecha. Regístrate ahorita y en cuanto entres me dices qué te pareció 🙌</p>
+        <textarea class="field-textarea" data-field="s5_mensaje_cierre" rows="4"></textarea>
+      </div>
+      <div class="card">
+        <div class="label">Checklist para pedir junto con el cierre <button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
+        <textarea class="field-textarea" data-field="s5_checklist_cierre" rows="6"></textarea>
       </div>
       <div class="card">
         <div class="label">Mensaje de confirmación <button class="copy-btn" onclick="copyCard(this)">Copiar</button></div>
-        <p data-copy>Yaaaa! Al fin llego el día, es el paso para activar y crecer las redes de tu negocio 🎉 El link directo a tu hub es: https://jefeshub.com/hub-jany.html
-
-Lo primero es llenar todos los datos de tu empresa — esto solo será una vez, y es importante llenarlo completo, porque es la base con la que hará su magia la IA.
-
-Cualquier duda mientras lo pruebas, mándame mensaje directo — no te dejo sola.</p>
+        <textarea class="field-textarea" data-field="s5_mensaje_confirmacion" rows="4"></textarea>
       </div>
     </div>
   </section>
+
+  <div class="tarjetas-save-row">
+    <span class="tarjetas-save-hint">Los cambios se guardan solos unos segundos después de dejar de escribir.</span>
+    <button class="ask-btn" onclick="guardarTarjetas()">💾 Guardar ahora</button>
+    <div id="tarjetasStatus" class="log-status"></div>
+  </div>
 
   <!-- SEGUIMIENTO -->
   <div class="extra-section">
@@ -619,19 +684,6 @@ Cualquier duda mientras lo pruebas, mándame mensaje directo — no te dejo sola
     </div>
     <div id="logStatus" class="log-status"></div>
     <div id="logList"></div>
-  </div>
-
-  <!-- NOTAS -- GUIONES EVERGREEN POR TEMPERATURA -->
-  <div class="extra-section">
-    <div class="extra-head"><h2>📝 Tus Guiones Evergreen por Temperatura</h2></div>
-    <div class="extra-desc">Esto lo llenas y guardas tú. El Jefe Evergreen lee estos guiones en vivo para mostrarlos en su sección "Guión de WhatsApp" — así no se repite información entre páginas.</div>
-    <div class="field"><label>Apertura — 1–2 Frío</label><textarea id="wa-apertura" placeholder="Primer mensaje para arrancar la conversación..."></textarea></div>
-    <div class="field"><label>Calificación — 3–4 Tibio</label><textarea id="wa-calificacion" placeholder="Preguntas para entender su negocio/necesidad..."></textarea></div>
-    <div class="field"><label>Oferta + precio — 5–6 Interés</label><textarea id="wa-oferta_precio" placeholder="Cómo presentas la oferta y el precio..."></textarea></div>
-    <div class="field"><label>Anti-objeción — 7–8 Objeciones</label><textarea id="wa-anti_objecion" placeholder="Respuestas a las objeciones más comunes..."></textarea></div>
-    <div class="field"><label>Cierre — 9–10</label><textarea id="wa-cierre" placeholder="Cómo confirmas y cierras la venta..."></textarea></div>
-    <button class="ask-btn" onclick="guardarGuionesEvergreen()">Guardar cambios</button>
-    <div id="wa-guiones-status" class="log-status"></div>
   </div>
 
   <!-- BANCO DE CONVERSACIONES -->
@@ -713,8 +765,10 @@ input.addEventListener('input', () => {
 // ---------- COPY ----------
 function copyCard(btn){
   const card = btn.closest('.card, .v');
+  const field = card.querySelector('textarea[data-field]');
+  if(field){ copyText(btn, field.value); return; }
   const p = card.querySelector('p');
-  copyText(btn, p.innerText);
+  copyText(btn, p ? p.innerText : '');
 }
 function copyText(btn, text){
   navigator.clipboard.writeText(text).then(() => {
@@ -769,6 +823,242 @@ async function askAgent(){
   } finally {
     btn.disabled = false;
     btn.innerText = "Preguntar al Agente →";
+  }
+}
+
+// ---------- TARJETAS POR TEMPERATURA (editable, auto-llenado por IA, mismo patrón de storage) ----------
+const TARJETAS_CAMPOS = [
+  's1_bienvenida', 's1_video_apertura',
+  's2_preguntas_calificacion', 's2_explicacion_producto',
+  's3_mensaje_precio', 's3_faq1_pregunta', 's3_faq1_respuesta', 's3_faq2_pregunta', 's3_faq2_respuesta',
+  's4_obj_precio_ideal', 's4_obj_precio_corta',
+  's4_obj_tiempo_ideal', 's4_obj_tiempo_corta',
+  's4_obj_confianza_ideal', 's4_obj_confianza_corta',
+  's4_obj_pensar_ideal', 's4_obj_pensar_corta',
+  's4_obj_consulta_ideal', 's4_obj_consulta_corta',
+  's5_mensaje_cierre', 's5_checklist_cierre', 's5_mensaje_confirmacion',
+];
+
+// Texto original (producción) — sirve de valor por default hasta que se genere con IA o se edite a mano.
+const DEFAULT_TARJETAS = {
+  s1_bienvenida: `Hola! Esto es JefesHub: tú pones la idea de tu negocio y la IA te arma contenido, guiones y hasta anuncios — sin que te sientas Community Manager de medio tiempo. ¿A qué te dedicas? Te digo si te sirve`,
+  s1_video_apertura: ``,
+  s2_preguntas_calificacion: `1. ¿A qué te dedicas / qué vendes?
+2. ¿Ahorita quién te hace tus redes o contenido — tú sola, alguien más, o ya usas alguna IA?
+3. ¿Qué es lo que más se te complica: crear contenido, tener ideas, o simplemente el tiempo?`,
+  s2_explicacion_producto: `Mira, JefesHub es básicamente tu equipo de marketing con IA metido en una plataforma: tú pones la idea de tu negocio y automático te da 10 conceptos de contenido con guion, caption y hasta el prompt para hacer el video en ChatGPT o Gemini. Nada de estarle rogando a un ChatGPT en blanco para que te entienda tu negocio 😅`,
+  s3_mensaje_precio: `Son $22 USD al mes — con 30 días gratis para que lo pruebes sin compromiso. Solo para que lo compares: una agencia te cobra como $5,000/mes y un community manager unos $8,000/mes. Esto te sale en pesos menos que una pizza 🍕 y usa el código JEFE5 para que además te quede con descuento.`,
+  s3_faq1_pregunta: `¿Tengo que dar tarjeta para el trial?`,
+  s3_faq1_respuesta: `Sí — se pide tarjeta para activar el trial de 30 días. Si no cancelas antes de que termine, se cobra automático el mes. Puedes cancelar cuando quieras desde tu cuenta.`,
+  s3_faq2_pregunta: `¿Qué pasa si me atoro usándolo?`,
+  s3_faq2_respuesta: `Me mandas captura o agendamos 5 min y te ayudo directo`,
+  s4_obj_precio_ideal: `Te entiendo, pero compáralo: esto reemplaza lo que te costaría una agencia o un community manager, y aquí son $22 al mes con 30 días gratis para que veas si te funciona antes de gastar un peso`,
+  s4_obj_precio_corta: `Con $22/mes te ahorras contratar a alguien — y los primeros 30 días son gratis`,
+  s4_obj_tiempo_ideal: `Sin bronca, tómate el tiempo que necesites — no hay ninguna prisa. Si quieres, te dejo el link para que lo revises con calma y me dices qué dudas te quedan.`,
+  s4_obj_tiempo_corta: `Tómate tu tiempo, aquí ando para cuando tengas dudas`,
+  s4_obj_confianza_ideal: `Total, aquí tienes el link para que lo veas tú misma con el trial gratis de 30 días — nada como probarlo para confirmar que sí funciona 🙌`,
+  s4_obj_confianza_corta: `Pruébalo tú misma con el trial gratis, así sales de dudas`,
+  s4_obj_pensar_ideal: `Va, tómate tu tiempo. Nomás para que no se te pase: el trial es gratis 30 días, o sea que pensarlo no te cuesta nada — regístrate y decides con calma mientras lo usas`,
+  s4_obj_pensar_corta: `No hay bronca en pensarlo — el trial es gratis, así que puedes decidir usándolo`,
+  s4_obj_consulta_ideal: `Perfecto, coméntalo con quien necesites — te dejo toda la info aquí lista para compartir, y cualquier duda que les surja, aquí ando.`,
+  s4_obj_consulta_corta: `Te dejo todo listo para que lo platiques con quien necesites`,
+  s5_mensaje_cierre: `Va, entonces te dejo el link con tu código: [link + JEFE5]. Ojo: para activar el trial de 30 días te va a pedir tarjeta, pero no se te cobra nada hasta que termine el mes — y puedes cancelar cuando quieras antes de esa fecha. Regístrate ahorita y en cuanto entres me dices qué te pareció 🙌`,
+  s5_checklist_cierre: `Solo necesitaría:
+• Que te registres con el link + código JEFE5
+• Tener a la mano la idea/nombre de tu negocio para llenar tu perfil
+
+(Se pide tarjeta para activar el trial, pero no se cobra nada hasta que termine el mes)`,
+  s5_mensaje_confirmacion: `Yaaaa! Al fin llego el día, es el paso para activar y crecer las redes de tu negocio 🎉 El link directo a tu hub es: https://jefeshub.com/hub-jany.html
+
+Lo primero es llenar todos los datos de tu empresa — esto solo será una vez, y es importante llenarlo completo, porque es la base con la que hará su magia la IA.
+
+Cualquier duda mientras lo pruebas, mándame mensaje directo — no te dejo sola.`,
+};
+
+function tarjetasKey(){ return CLIENTE_ID + ':whatsapp-estrategia-tarjetas'; }
+
+function pintarTarjetas(data){
+  TARJETAS_CAMPOS.forEach((campo) => {
+    const el = document.querySelector(`[data-field="${campo}"]`);
+    if(el) el.value = data[campo] != null ? data[campo] : '';
+  });
+}
+
+async function cargarTarjetas(){
+  const data = Object.assign({}, DEFAULT_TARJETAS);
+  try{
+    const r = await window.storage.get(tarjetasKey());
+    if(r && r.value){
+      const guardado = JSON.parse(r.value);
+      TARJETAS_CAMPOS.forEach((c) => { if(guardado[c] != null) data[c] = guardado[c]; });
+    }
+  }catch(e){}
+  pintarTarjetas(data);
+}
+
+function leerTarjetasDelDOM(){
+  const data = {};
+  TARJETAS_CAMPOS.forEach((campo) => {
+    const el = document.querySelector(`[data-field="${campo}"]`);
+    data[campo] = el ? el.value : '';
+  });
+  return data;
+}
+
+async function guardarTarjetas(){
+  const status = document.getElementById('tarjetasStatus');
+  const data = leerTarjetasDelDOM();
+  try{
+    await window.storage.set(tarjetasKey(), JSON.stringify(data));
+    await window.storage.set(waGuionesKey(), JSON.stringify(tarjetasAGuiones(data)));
+    if(status){ status.textContent = 'Guardado ✓'; setTimeout(() => { if(status.textContent === 'Guardado ✓') status.textContent = ''; }, 1800); }
+  }catch(e){
+    if(status) status.textContent = e.status === 401 ? 'Token incorrecto — vuelve a intentar guardar.' : 'No se pudo guardar, intenta de nuevo.';
+  }
+}
+
+let tarjetasSaveTimer = null;
+function scheduleGuardarTarjetas(){
+  clearTimeout(tarjetasSaveTimer);
+  tarjetasSaveTimer = setTimeout(guardarTarjetas, 700);
+}
+
+document.querySelectorAll('[data-field]').forEach((el) => {
+  el.addEventListener('input', scheduleGuardarTarjetas);
+});
+
+// ---------- GUIÓN DE WHATSAPP PARA EL JEFE EVERGREEN (derivado de las Tarjetas, no se llena a mano) ----------
+// El Jefe Evergreen lee esta misma llave para su sección "Guión de WhatsApp". Antes se llenaba a mano
+// en un modulo aparte (redundante con las Tarjetas de arriba); ahora se deriva automático de las
+// Tarjetas cada vez que se guardan, para que no haya que llenar lo mismo dos veces ni se desincronicen.
+function waGuionesKey(){ return CLIENTE_ID + ':brand-book.whatsapp-guiones'; }
+
+function unirNoVacios(...partes){
+  return partes.filter((p) => p && p.trim()).join('\n\n');
+}
+
+function tarjetasAGuiones(data){
+  return {
+    apertura: unirNoVacios(
+      data.s1_bienvenida,
+      data.s1_video_apertura ? 'Video de apertura:\n' + data.s1_video_apertura : ''
+    ),
+    calificacion: unirNoVacios(data.s2_preguntas_calificacion, data.s2_explicacion_producto),
+    oferta_precio: unirNoVacios(
+      data.s3_mensaje_precio,
+      data.s3_faq1_pregunta ? `FAQ — ${data.s3_faq1_pregunta}\n${data.s3_faq1_respuesta}` : '',
+      data.s3_faq2_pregunta ? `FAQ — ${data.s3_faq2_pregunta}\n${data.s3_faq2_respuesta}` : ''
+    ),
+    anti_objecion: unirNoVacios(
+      data.s4_obj_precio_ideal ? `Precio: ${data.s4_obj_precio_ideal}` : '',
+      data.s4_obj_tiempo_ideal ? `Tiempo — "lo tengo que consultar": ${data.s4_obj_tiempo_ideal}` : '',
+      data.s4_obj_confianza_ideal ? `Confianza — "¿esto es real?": ${data.s4_obj_confianza_ideal}` : '',
+      data.s4_obj_pensar_ideal ? `"Lo voy a pensar": ${data.s4_obj_pensar_ideal}` : '',
+      data.s4_obj_consulta_ideal ? `"Lo consulto": ${data.s4_obj_consulta_ideal}` : ''
+    ),
+    cierre: unirNoVacios(
+      data.s5_mensaje_cierre,
+      data.s5_checklist_cierre ? 'Checklist:\n' + data.s5_checklist_cierre : '',
+      data.s5_mensaje_confirmacion ? 'Confirmación:\n' + data.s5_mensaje_confirmacion : ''
+    ),
+  };
+}
+
+// ---------- GENERAR ESTRATEGIA DE WHATSAPP CON IA ----------
+let estImagenes = [];
+let estTxtConversacion = '';
+let estPreguntasPendientes = null;
+
+document.getElementById('estCapturas').addEventListener('change', async (e) => {
+  const files = Array.from(e.target.files || []).slice(0, 4);
+  estImagenes = [];
+  for(const file of files){
+    const data = await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.readAsDataURL(file);
+    });
+    estImagenes.push({ mediaType: file.type, data });
+  }
+  actualizarEstFilesName();
+});
+
+document.getElementById('estTxt').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => { estTxtConversacion = reader.result; actualizarEstFilesName(); };
+  reader.readAsText(file);
+});
+
+function actualizarEstFilesName(){
+  const partes = [];
+  if(estImagenes.length) partes.push(`📎 ${estImagenes.length} captura(s)`);
+  if(estTxtConversacion) partes.push('📄 conversación .txt');
+  document.getElementById('estFilesName').innerText = partes.join(' · ');
+}
+
+function renderEstPreguntas(preguntas){
+  const box = document.getElementById('estPreguntas');
+  if(!preguntas || preguntas.length === 0){ box.innerHTML = ''; return; }
+  box.innerHTML = '<div class="estrategia-preguntas">' + preguntas.map((p, i) => `
+    <div class="pq-item">
+      <label>${p}</label>
+      <input type="text" data-pq="${i}" placeholder="Tu respuesta...">
+    </div>
+  `).join('') + '</div>';
+}
+
+async function generarEstrategia(){
+  const btn = document.getElementById('estBtn');
+  const status = document.getElementById('estStatus');
+  const labelDefault = () => estPreguntasPendientes ? 'Generar estrategia con tus respuestas →' : '✨ Generar estrategia con IA';
+
+  let qa = null;
+  if(estPreguntasPendientes){
+    qa = estPreguntasPendientes.map((p, i) => {
+      const input = document.querySelector(`[data-pq="${i}"]`);
+      return { pregunta: p, respuesta: input ? input.value.trim() : '' };
+    });
+  }
+
+  btn.disabled = true;
+  btn.innerText = 'Generando...';
+  status.className = 'log-status';
+  status.innerText = 'Leyendo tu ADN y tu Agente Evergreen...';
+
+  try{
+    const response = await fetch('/api/agente-estrategia-whatsapp', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ cliente: CLIENTE_ID, imagenes: estImagenes, txtConversacion: estTxtConversacion, qa })
+    });
+    const data = await response.json();
+    if(!response.ok){
+      status.innerText = data.error || 'No se pudo generar. Intenta de nuevo.';
+      return;
+    }
+    if(data.preguntas && data.preguntas.length){
+      estPreguntasPendientes = data.preguntas;
+      renderEstPreguntas(data.preguntas);
+      status.innerText = 'Contesta estas preguntas y vuelve a darle "Generar estrategia".';
+      return;
+    }
+    if(data.tarjetas){
+      TARJETAS_CAMPOS.forEach((campo) => {
+        const el = document.querySelector(`[data-field="${campo}"]`);
+        if(el && data.tarjetas[campo] != null) el.value = data.tarjetas[campo];
+      });
+      await guardarTarjetas();
+      estPreguntasPendientes = null;
+      renderEstPreguntas(null);
+      status.innerText = '✅ Estrategia generada y guardada — revísala y ajusta lo que haga falta.';
+    }
+  }catch(e){
+    status.innerText = 'Error de conexión. Intenta de nuevo.';
+  }finally{
+    btn.disabled = false;
+    btn.innerText = labelDefault();
   }
 }
 
@@ -849,37 +1139,6 @@ document.getElementById('logInput').addEventListener('keydown', (e) => {
   if(e.key === 'Enter') saveQuestion();
 });
 
-// ---------- NOTAS -- GUIONES EVERGREEN POR TEMPERATURA ----------
-const WA_GUIONES_CAMPOS = ['apertura', 'calificacion', 'oferta_precio', 'anti_objecion', 'cierre'];
-function waGuionesKey(){ return CLIENTE_ID + ':brand-book.whatsapp-guiones'; }
-
-async function cargarGuionesEvergreen(){
-  try{
-    const r = await window.storage.get(waGuionesKey());
-    const data = r && r.value ? JSON.parse(r.value) : {};
-    WA_GUIONES_CAMPOS.forEach((campo) => {
-      const el = document.getElementById('wa-' + campo);
-      if(el && data[campo] !== undefined) el.value = data[campo];
-    });
-  }catch(e){}
-}
-
-async function guardarGuionesEvergreen(){
-  const status = document.getElementById('wa-guiones-status');
-  const data = {};
-  WA_GUIONES_CAMPOS.forEach((campo) => {
-    const el = document.getElementById('wa-' + campo);
-    data[campo] = el ? el.value.trim() : '';
-  });
-  try{
-    await window.storage.set(waGuionesKey(), JSON.stringify(data));
-    status.textContent = 'Guardado ✓';
-    setTimeout(() => { status.textContent = ''; }, 1800);
-  }catch(e){
-    status.textContent = e.status === 401 ? 'Token incorrecto — vuelve a intentar guardar.' : 'No se pudo guardar, intenta de nuevo.';
-  }
-}
-
 // ---------- BANCO DE CONVERSACIONES (compartido con Jefe Evergreen) ----------
 function waConvosKey(){ return CLIENTE_ID + ':whatsapp-convos'; }
 function waConvosKeyVieja(){ return CLIENTE_ID + ':evergreen-convos'; }
@@ -935,8 +1194,8 @@ async function saveConvo(){
 }
 
 loadQuestions();
-cargarGuionesEvergreen();
 loadConvos();
+cargarTarjetas();
 
 // ---------- THERMOMETER NAV ----------
 document.querySelectorAll('.thermo-track div').forEach(seg => {
