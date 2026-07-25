@@ -326,12 +326,6 @@
     padding:12px 14px;font-size:13px;color:#FCA5A5;
   }
 
-  /* NOTAS -- GUIONES EVERGREEN POR TEMPERATURA */
-  .field{margin-bottom:14px;}
-  .field label{display:block;font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em;font-family:'JetBrains Mono',monospace;margin-bottom:6px;}
-  .field textarea{width:100%;min-height:64px;background:var(--surface);border:1.5px solid var(--line);border-radius:9px;color:var(--text);padding:10px 12px;font-family:'Inter',sans-serif;font-size:13.5px;resize:vertical;}
-  .field textarea:focus{outline:none;border-color:var(--accent);}
-
   /* BANCO DE CONVERSACIONES */
   .convo-textarea{width:100%;background:var(--surface);border:1.5px solid var(--line);border-radius:12px;padding:14px;color:var(--text);font-family:'Inter',sans-serif;font-size:14px;min-height:100px;resize:vertical;transition:border-color .15s;}
   .convo-textarea:focus{outline:none;border-color:var(--accent);}
@@ -673,19 +667,6 @@
     <div id="logList"></div>
   </div>
 
-  <!-- NOTAS -- GUIONES EVERGREEN POR TEMPERATURA -->
-  <div class="extra-section">
-    <div class="extra-head"><h2>📝 Tus Guiones Evergreen por Temperatura</h2></div>
-    <div class="extra-desc">Esto lo llenas y guardas tú. El Jefe Evergreen lee estos guiones en vivo para mostrarlos en su sección "Guión de WhatsApp" — así no se repite información entre páginas.</div>
-    <div class="field"><label>Apertura — 1–2 Frío</label><textarea id="wa-apertura" placeholder="Primer mensaje para arrancar la conversación..."></textarea></div>
-    <div class="field"><label>Calificación — 3–4 Tibio</label><textarea id="wa-calificacion" placeholder="Preguntas para entender su negocio/necesidad..."></textarea></div>
-    <div class="field"><label>Oferta + precio — 5–6 Interés</label><textarea id="wa-oferta_precio" placeholder="Cómo presentas la oferta y el precio..."></textarea></div>
-    <div class="field"><label>Anti-objeción — 7–8 Objeciones</label><textarea id="wa-anti_objecion" placeholder="Respuestas a las objeciones más comunes..."></textarea></div>
-    <div class="field"><label>Cierre — 9–10</label><textarea id="wa-cierre" placeholder="Cómo confirmas y cierras la venta..."></textarea></div>
-    <button class="ask-btn" onclick="guardarGuionesEvergreen()">Guardar cambios</button>
-    <div id="wa-guiones-status" class="log-status"></div>
-  </div>
-
   <!-- BANCO DE CONVERSACIONES -->
   <div class="extra-section">
     <div class="extra-head"><h2>💬 Banco de Conversaciones</h2></div>
@@ -913,8 +894,10 @@ function leerTarjetasDelDOM(){
 
 async function guardarTarjetas(){
   const status = document.getElementById('tarjetasStatus');
+  const data = leerTarjetasDelDOM();
   try{
-    await window.storage.set(tarjetasKey(), JSON.stringify(leerTarjetasDelDOM()));
+    await window.storage.set(tarjetasKey(), JSON.stringify(data));
+    await window.storage.set(waGuionesKey(), JSON.stringify(tarjetasAGuiones(data)));
     if(status){ status.textContent = 'Guardado ✓'; setTimeout(() => { if(status.textContent === 'Guardado ✓') status.textContent = ''; }, 1800); }
   }catch(e){
     if(status) status.textContent = e.status === 401 ? 'Token incorrecto — vuelve a intentar guardar.' : 'No se pudo guardar, intenta de nuevo.';
@@ -1095,35 +1078,41 @@ document.getElementById('logInput').addEventListener('keydown', (e) => {
   if(e.key === 'Enter') saveQuestion();
 });
 
-// ---------- NOTAS -- GUIONES EVERGREEN POR TEMPERATURA ----------
-const WA_GUIONES_CAMPOS = ['apertura', 'calificacion', 'oferta_precio', 'anti_objecion', 'cierre'];
+// ---------- GUIÓN DE WHATSAPP PARA EL JEFE EVERGREEN (derivado de las Tarjetas, no se llena a mano) ----------
+// El Jefe Evergreen lee esta misma llave para su sección "Guión de WhatsApp". Antes se llenaba a mano
+// en un modulo aparte (redundante con las Tarjetas de arriba); ahora se deriva automático de las
+// Tarjetas cada vez que se guardan, para que no haya que llenar lo mismo dos veces ni se desincronicen.
 function waGuionesKey(){ return 'rancho-seco:brand-book.whatsapp-guiones'; }
 
-async function cargarGuionesEvergreen(){
-  try{
-    const r = await window.storage.get(waGuionesKey());
-    const data = r && r.value ? JSON.parse(r.value) : {};
-    WA_GUIONES_CAMPOS.forEach((campo) => {
-      const el = document.getElementById('wa-' + campo);
-      if(el && data[campo] !== undefined) el.value = data[campo];
-    });
-  }catch(e){}
+function unirNoVacios(...partes){
+  return partes.filter((p) => p && p.trim()).join('\n\n');
 }
 
-async function guardarGuionesEvergreen(){
-  const status = document.getElementById('wa-guiones-status');
-  const data = {};
-  WA_GUIONES_CAMPOS.forEach((campo) => {
-    const el = document.getElementById('wa-' + campo);
-    data[campo] = el ? el.value.trim() : '';
-  });
-  try{
-    await window.storage.set(waGuionesKey(), JSON.stringify(data));
-    status.textContent = 'Guardado ✓';
-    setTimeout(() => { status.textContent = ''; }, 1800);
-  }catch(e){
-    status.textContent = e.status === 401 ? 'Token incorrecto — vuelve a intentar guardar.' : 'No se pudo guardar, intenta de nuevo.';
-  }
+function tarjetasAGuiones(data){
+  return {
+    apertura: unirNoVacios(
+      data.s1_bienvenida,
+      data.s1_video_apertura ? 'Video de apertura:\n' + data.s1_video_apertura : ''
+    ),
+    calificacion: unirNoVacios(data.s2_preguntas_calificacion, data.s2_explicacion_producto),
+    oferta_precio: unirNoVacios(
+      data.s3_mensaje_precio,
+      data.s3_faq1_pregunta ? `FAQ — ${data.s3_faq1_pregunta}\n${data.s3_faq1_respuesta}` : '',
+      data.s3_faq2_pregunta ? `FAQ — ${data.s3_faq2_pregunta}\n${data.s3_faq2_respuesta}` : ''
+    ),
+    anti_objecion: unirNoVacios(
+      data.s4_obj_precio_ideal ? `Precio: ${data.s4_obj_precio_ideal}` : '',
+      data.s4_obj_tiempo_ideal ? `Tiempo — "lo tengo que consultar": ${data.s4_obj_tiempo_ideal}` : '',
+      data.s4_obj_confianza_ideal ? `Confianza — "¿esto es real?": ${data.s4_obj_confianza_ideal}` : '',
+      data.s4_obj_pensar_ideal ? `"Lo voy a pensar": ${data.s4_obj_pensar_ideal}` : '',
+      data.s4_obj_consulta_ideal ? `"Lo consulto": ${data.s4_obj_consulta_ideal}` : ''
+    ),
+    cierre: unirNoVacios(
+      data.s5_mensaje_cierre,
+      data.s5_checklist_cierre ? 'Checklist:\n' + data.s5_checklist_cierre : '',
+      data.s5_mensaje_confirmacion ? 'Confirmación:\n' + data.s5_mensaje_confirmacion : ''
+    ),
+  };
 }
 
 // ---------- BANCO DE CONVERSACIONES (compartido con Jefe Evergreen) ----------
@@ -1181,7 +1170,6 @@ async function saveConvo(){
 }
 
 loadQuestions();
-cargarGuionesEvergreen();
 loadConvos();
 cargarTarjetas();
 
