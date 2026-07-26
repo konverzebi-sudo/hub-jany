@@ -90,20 +90,28 @@
     .sim-table tr:last-child td { border-bottom: none; }
     .sim-scenario { font-weight: 700; }
 
-    /* ── AGENT BOX ── */
+    /* ── AGENT BOX (chat con memoria) ── */
     .agent-box { background: var(--surface-2); border: 1.5px solid var(--line); border-radius: 16px; padding: 18px 20px; transition: border-color 0.15s; }
     .agent-box:focus-within { border-color: var(--accent); }
     .agent-title { font-size: 14px; font-weight: 600; margin: 0 0 5px; }
-    .agent-sub { font-size: 12.5px; color: var(--text-dim); margin: 0 0 12px; }
-    .agent-input { width: 100%; background: transparent; border: none; outline: none; color: var(--text); font-family: Inter, sans-serif; font-size: 14.5px; resize: none; min-height: 56px; line-height: 1.5; }
-    .agent-input::placeholder { color: var(--text-dim); }
-    .agent-footer { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
-    .ask-btn { margin-left: auto; background: var(--accent); border: none; color: #0F0B16; font-weight: 700; font-size: 13.5px; padding: 10px 18px; border-radius: 9px; cursor: pointer; transition: 0.15s; }
+    .agent-sub { font-size: 12.5px; color: var(--text-dim); margin: 0 0 14px; line-height: 1.5; }
+    .agent-chat { display: flex; flex-direction: column; gap: 12px; max-height: 480px; overflow-y: auto; padding-right: 4px; margin-bottom: 12px; }
+    .agent-chat:empty { display: none; }
+    .bubble { max-width: 88%; padding: 12px 14px; border-radius: 12px; font-size: 14px; line-height: 1.55; white-space: pre-line; }
+    .bubble.user { align-self: flex-end; background: var(--accent); color: #0F0B16; font-weight: 500; border-bottom-right-radius: 3px; }
+    .bubble.assistant { align-self: flex-start; background: var(--surface); border: 1px solid var(--line); border-bottom-left-radius: 3px; }
+    .bubble.error { align-self: flex-start; background: #3B1B1B; border: 1px solid #EF4444; color: #FCA5A5; }
+    .agent-controls { display: flex; align-items: center; gap: 10px; }
+    .agent-input-line { flex: 1; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; color: var(--text); padding: 11px 14px; font-family: Inter, sans-serif; font-size: 14px; outline: none; }
+    .agent-input-line:focus { border-color: var(--accent); }
+    .ask-btn { background: var(--accent); border: none; color: #0F0B16; font-weight: 700; font-size: 13.5px; padding: 10px 18px; border-radius: 9px; cursor: pointer; transition: 0.15s; white-space: nowrap; }
     .ask-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
     .ask-btn:disabled { opacity: 0.5; cursor: wait; }
-    #agentAnswer { margin-top: 14px; }
-    .answer-card { background: var(--surface); border-left: 3px solid #22c55e; border-radius: 10px; padding: 14px 16px; font-size: 14px; line-height: 1.6; white-space: pre-line; }
-    .answer-label { font-family: "JetBrains Mono", monospace; font-size: 10.5px; color: #22c55e; text-transform: uppercase; margin-bottom: 8px; }
+    .agent-reset { background: transparent; border: 1px solid var(--line); color: var(--text-dim); font-size: 12px; padding: 8px 12px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+    .agent-reset:hover { border-color: #EF4444; color: #EF4444; }
+    .agent-suggestions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+    .agent-suggestion { font-family: "JetBrains Mono", monospace; font-size: 11.5px; padding: 6px 12px; border-radius: 20px; border: 1px solid var(--line); background: transparent; color: var(--text-dim); cursor: pointer; transition: 0.15s; }
+    .agent-suggestion:hover { border-color: var(--accent); color: var(--accent); }
     .copy-btn { background: var(--accent-soft); border: 1px solid var(--accent); color: var(--accent); font-family: Inter, sans-serif; font-size: 11.5px; font-weight: 600; padding: 5px 12px; border-radius: 7px; cursor: pointer; transition: 0.15s; }
     .copy-btn:hover { background: var(--accent); color: #0F0B16; }
     .copy-btn.copied { background: var(--accent); color: #0F0B16; }
@@ -356,15 +364,21 @@
     <div class="info-note">💡 Nota: este simulador no predice el futuro. Te ayuda a entender qué pasaría si tu CPA real sale mejor, igual o peor que tu CPA objetivo. Úsalo para decidir con más información, no para garantizar resultados.</div>
   </section>
 
-  <!-- ═══ CONSULTA EN VIVO ═══ -->
+  <!-- ═══ CONSULTA EN VIVO (chat con memoria) ═══ -->
   <div class="agent-box">
     <p class="agent-title">Consulta en vivo con el Jefe Finanzas</p>
-    <p class="agent-sub">Pregúntale al Agente sobre tus números — ya lee lo que llevas llenado en las 5 calculadoras de arriba.</p>
-    <textarea class="agent-input" id="agentQ" rows="2" placeholder='Ej: "¿Qué descuento máximo puedo dar?", "¿Puedo escalar mis ads?", "¿Por qué mi CPA objetivo seguro sale negativo?"'></textarea>
-    <div class="agent-footer">
-      <button class="ask-btn" id="askBtn" onclick="askAgent()">Preguntar al Agente →</button>
+    <p class="agent-sub">Chat con memoria: ya lee tu ADN y lo que llevas llenado en las 5 calculadoras. Pregúntale algo puntual, o dile "haz un diagnóstico" para que te guíe paso a paso y te diga qué llenar y en qué pestaña.</p>
+    <div class="agent-suggestions" id="agentSuggestions">
+      <button class="agent-suggestion" onclick="enviarSugerenciaAgente('Haz un diagnóstico completo y guíame paso a paso para llenar lo que me falte.')">🧭 Haz un diagnóstico y guíame</button>
+      <button class="agent-suggestion" onclick="enviarSugerenciaAgente('¿Cuánto puedo invertir en ads con mis números actuales?')">¿Cuánto puedo invertir?</button>
+      <button class="agent-suggestion" onclick="enviarSugerenciaAgente('¿Qué descuento máximo puedo dar sin perder?')">¿Descuento máximo?</button>
     </div>
-    <div id="agentAnswer"></div>
+    <div class="agent-chat" id="agentChat"></div>
+    <div class="agent-controls">
+      <input type="text" class="agent-input-line" id="agentInput" placeholder="Escribe tu pregunta o pide 'haz un diagnóstico'..." onkeydown="if(event.key==='Enter')enviarMensajeAgente()">
+      <button class="ask-btn" id="agentSendBtn" onclick="enviarMensajeAgente()">Enviar</button>
+      <button class="agent-reset" onclick="reiniciarAgente()">Reiniciar</button>
+    </div>
   </div>
 
 </main>
@@ -789,42 +803,96 @@ function copyText(btn, text) {
   });
 }
 
-async function askAgent() {
-  const q = document.getElementById('agentQ').value.trim();
-  const answerBox = document.getElementById('agentAnswer');
-  const btn = document.getElementById('askBtn');
-  if (!q) return;
+let agentMessages = [];
+let agentBusy = false;
+const AGENT_CONVERSACION_KEY = CLIENTE_ID + ':financiero-consulta-conversacion';
 
-  btn.disabled = true;
-  btn.innerText = 'Pensando...';
-  answerBox.innerHTML = '<div class="answer-card"><div class="answer-label">Jefe Finanzas</div>El Agente está armando tu respuesta...</div>';
+function renderAgentChat() {
+  const chat = document.getElementById('agentChat');
+  chat.innerHTML = agentMessages.map((m) => {
+    if (m.role === 'user') {
+      return `<div class="bubble user">${escaparHtmlFin(m.content)}</div>`;
+    }
+    return `<div class="bubble assistant">${escaparHtmlFin(m.content)}</div>
+      <button class="copy-btn" onclick="copyText(this, \`${m.content.replace(/`/g, "'")}\`)">Copiar</button>`;
+  }).join('');
+  chat.scrollTop = chat.scrollHeight;
+  document.getElementById('agentSuggestions').style.display = agentMessages.length ? 'none' : 'flex';
+}
 
+function persistirAgente() {
+  window.storage.set(AGENT_CONVERSACION_KEY, JSON.stringify(agentMessages)).catch(() => {});
+}
+
+async function llamarAgente() {
+  agentBusy = true;
+  document.getElementById('agentSendBtn').disabled = true;
+  document.getElementById('agentInput').disabled = true;
   try {
+    leerFormulario();
+    recalcularYRender();
     const response = await fetch('/api/consultor-financiero', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mensaje: q, cliente: CLIENTE_ID, datosCalculadora: { entradas: datos, resultados: ultimoCalculo } }),
+      body: JSON.stringify({ messages: agentMessages, cliente: CLIENTE_ID, datosCalculadora: { entradas: datos, resultados: ultimoCalculo } }),
     });
     const data = await response.json();
     if (!response.ok) {
-      answerBox.innerHTML = `<div class="answer-card" style="border-left-color:#EF4444"><div class="answer-label" style="color:#EF4444">Error</div>${escaparHtmlFin(data.error || 'No se pudo generar respuesta. Intenta de nuevo.')}</div>`;
-      return;
+      agentMessages.push({ role: 'assistant', content: '⚠️ ' + (data.error || 'No se pudo generar respuesta. Intenta de nuevo.') });
+    } else {
+      agentMessages.push({ role: 'assistant', content: data.text });
     }
-    const text = data.text;
-    answerBox.innerHTML = `<div class="answer-card"><div class="answer-label">Jefe Finanzas</div>${escaparHtmlFin(text)}</div>
-      <button class="copy-btn" style="margin-top:8px" onclick="copyText(this, \`${text.replace(/`/g, "'")}\`)">Copiar</button>`;
   } catch (err) {
-    answerBox.innerHTML = '<div class="answer-card" style="border-left-color:#EF4444"><div class="answer-label" style="color:#EF4444">Error</div>Hubo un error de conexión. Intenta de nuevo en un momento.</div>';
+    agentMessages.push({ role: 'assistant', content: '⚠️ Hubo un error de conexión. Intenta de nuevo en un momento.' });
   } finally {
-    btn.disabled = false;
-    btn.innerText = 'Preguntar al Agente →';
+    agentBusy = false;
+    document.getElementById('agentSendBtn').disabled = false;
+    document.getElementById('agentInput').disabled = false;
+    renderAgentChat();
+    persistirAgente();
   }
+}
+
+function enviarMensajeAgente() {
+  if (agentBusy) return;
+  const input = document.getElementById('agentInput');
+  const texto = input.value.trim();
+  if (!texto) return;
+  agentMessages.push({ role: 'user', content: texto });
+  input.value = '';
+  renderAgentChat();
+  llamarAgente();
+}
+
+function enviarSugerenciaAgente(texto) {
+  if (agentBusy) return;
+  agentMessages.push({ role: 'user', content: texto });
+  renderAgentChat();
+  llamarAgente();
+}
+
+function reiniciarAgente() {
+  agentMessages = [];
+  renderAgentChat();
+  window.storage.set(AGENT_CONVERSACION_KEY, JSON.stringify([])).catch(() => {});
+}
+
+async function cargarAgenteEnProgreso() {
+  try {
+    const r = await window.storage.get(AGENT_CONVERSACION_KEY);
+    const guardado = r && r.value ? JSON.parse(r.value) : [];
+    if (Array.isArray(guardado) && guardado.length > 0) {
+      agentMessages = guardado;
+      renderAgentChat();
+    }
+  } catch (e) {}
 }
 
 /* ─── INIT ─── */
 renderTabs();
 switchTab('situacion');
 cargarEstado();
+cargarAgenteEnProgreso();
 </script>
 </body>
 </html>
