@@ -1,7 +1,8 @@
-// Endpoint server-side para el "agente vivo" del Jefe Finanzas — pregunta suelta, sin memoria.
-// Mismo patron que api/consultor-evergreen.js, con un bloque de contexto extra: los datos que
-// el usuario ya tiene llenados en las 5 calculadoras de consultor-financiero.html (el frontend
-// los manda en `datosCalculadora` en cada pregunta, junto con el ADN).
+// Endpoint server-side para el "agente vivo" del Jefe Finanzas — chat CON memoria (recibe el
+// historial completo en `messages`, mismo patron que api/consultor-evergreen-builder.js, porque
+// la Messages API no guarda estado en servidor). Ademas del ADN, cada llamada manda un bloque de
+// contexto extra: los datos que el usuario ya tiene llenados en las 5 calculadoras de
+// consultor-financiero.html (`datosCalculadora`), recalculado en vivo en cada turno.
 //
 // Prompt fijo, generico, compartido por todas las marcas -- mismo patron que
 // api/agente-conversion.js y api/consultor-radar.js. El prompt original ya no tenia
@@ -19,6 +20,7 @@ const DEFAULT_CLIENTE = 'jefeshub';
 
 const CONTEXT_CHAR_LIMIT = 6000;
 const CALC_CHAR_LIMIT = 3000;
+const MAX_MESSAGES = 40;
 
 let fixedPromptCache = null;
 function cargarPromptFijo() {
@@ -27,9 +29,10 @@ function cargarPromptFijo() {
   return fixedPromptCache;
 }
 
-// Rate limit básico en memoria (por IP, best-effort entre invocaciones warm de la misma instancia).
-const WINDOW_MS = 5 * 60 * 1000;
-const MAX_REQUESTS = 12;
+// Rate limit en memoria (por IP). Mas permisivo que una pregunta suelta porque un diagnostico
+// guiado completo (Situacion Actual -> Simulador) toma varios turnos de conversacion.
+const WINDOW_MS = 10 * 60 * 1000;
+const MAX_REQUESTS = 40;
 const hits = new Map();
 
 function isRateLimited(ip) {
@@ -176,17 +179,26 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ error: 'Falta configurar ANTHROPIC_API_KEY en el servidor.' });
   }
 
-  const { mensaje, cliente, datosCalculadora } = req.body || {};
-  if (!mensaje || !mensaje.toString().trim()) {
-    return res.status(400).json({ error: 'Falta mensaje.' });
+  const body = req.body || {};
+  const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
+
+  const messages = Array.isArray(body.messages) ? body.messages : null;
+  if (!messages || messages.length === 0) {
+    return res.status(400).json({ error: 'Falta el historial de la conversación (messages).' });
+  }
+  const limpio = messages
+    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+    .slice(-MAX_MESSAGES)
+    .map((m) => ({ role: m.role, content: m.content }));
+  if (limpio.length === 0 || limpio[limpio.length - 1].role !== 'user') {
+    return res.status(400).json({ error: 'El último mensaje debe ser del usuario.' });
   }
 
-  const clienteId = (cliente || DEFAULT_CLIENTE).toString();
   const systemPrompt = cargarPromptFijo();
 
   try {
     const contexto = await construirContextoNegocio(clienteId);
-    const contextoCalculadora = formatearDatosCalculadora(datosCalculadora);
+    const contextoCalculadora = formatearDatosCalculadora(body.datosCalculadora);
     const system = [systemPrompt, contexto, contextoCalculadora].join('\n\n');
 
     const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
@@ -198,9 +210,9 @@ module.exports = async function handler(req, res) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 800,
+        max_tokens: 1300,
         system,
-        messages: [{ role: 'user', content: mensaje.toString() }],
+        messages: limpio,
       }),
     });
 
