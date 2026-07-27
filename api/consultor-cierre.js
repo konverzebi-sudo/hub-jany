@@ -32,6 +32,11 @@ const PROMPTS_POR_MODO = {
 const MODOS_CHAT = new Set(['audit-tienda', 'audit-evento-propio', 'audit-evento-referencia', 'manual-tienda', 'manual-evento']);
 const MODOS_DIAGNOSTICO = new Set(['diagnostico-tienda', 'diagnostico-evento', 'diagnostico-mensaje']);
 
+// Solo audit-tienda puede recibir un link de landing/tienda para leer -- web_fetch es una
+// herramienta server-side (Anthropic la ejecuta, no hay loop de tool-use que armar aqui) y
+// solo puede leer URLs que ya aparezcan en el mensaje del usuario.
+const WEB_FETCH_TOOL = { type: 'web_fetch_20260209', name: 'web_fetch', max_uses: 3, max_content_tokens: 8000 };
+
 const CONTEXT_CHAR_LIMIT = 5000;
 const MAX_MESSAGES = 40;
 
@@ -347,6 +352,15 @@ module.exports = async function handler(req, res) {
       }
 
       const system = [promptBase, promptModo, contextoNegocio].join('\n\n');
+      const bodyAnthropic = {
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1600,
+        system,
+        messages: limpio,
+      };
+      if (modo === 'audit-tienda') {
+        bodyAnthropic.tools = [WEB_FETCH_TOOL];
+      }
 
       const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -355,12 +369,7 @@ module.exports = async function handler(req, res) {
           'x-api-key': process.env.ANTHROPIC_API_KEY,
           'anthropic-version': '2023-06-01',
         },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 1600,
-          system,
-          messages: limpio,
-        }),
+        body: JSON.stringify(bodyAnthropic),
       });
 
       const data = await anthropicRes.json();
