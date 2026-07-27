@@ -25,11 +25,12 @@ const PROMPTS_POR_MODO = {
   'audit-evento-referencia': path.join(__dirname, '..', 'prompts', 'system-prompt-consultor-cierre-audit-evento-referencia.md'),
   'diagnostico-tienda': path.join(__dirname, '..', 'prompts', 'system-prompt-consultor-cierre-diagnostico.md'),
   'diagnostico-evento': path.join(__dirname, '..', 'prompts', 'system-prompt-consultor-cierre-diagnostico.md'),
+  'diagnostico-mensaje': path.join(__dirname, '..', 'prompts', 'system-prompt-consultor-cierre-diagnostico.md'),
   'manual-tienda': path.join(__dirname, '..', 'prompts', 'system-prompt-consultor-cierre-manual-tienda.md'),
   'manual-evento': path.join(__dirname, '..', 'prompts', 'system-prompt-consultor-cierre-manual-evento.md'),
 };
 const MODOS_CHAT = new Set(['audit-tienda', 'audit-evento-propio', 'audit-evento-referencia', 'manual-tienda', 'manual-evento']);
-const MODOS_DIAGNOSTICO = new Set(['diagnostico-tienda', 'diagnostico-evento']);
+const MODOS_DIAGNOSTICO = new Set(['diagnostico-tienda', 'diagnostico-evento', 'diagnostico-mensaje']);
 
 const CONTEXT_CHAR_LIMIT = 5000;
 const MAX_MESSAGES = 40;
@@ -218,6 +219,33 @@ function calcularTasasEvento(datos) {
   };
 }
 
+function calcularTasasMensaje(datos) {
+  const leadsRecibidos = numero(datos.leadsRecibidos);
+  const leadsRespondidos = numero(datos.leadsRespondidos);
+  const leadsCalificados = numero(datos.leadsCalificados);
+  const cotizacionesEnviadas = numero(datos.cotizacionesEnviadas);
+  const ventasCerradas = numero(datos.ventasCerradas);
+  const leadsSinSeguimiento = numero(datos.leadsSinSeguimiento);
+  const ticketPromedio = numero(datos.ticketPromedio);
+
+  const cotizacionesAbiertas = cotizacionesEnviadas != null && ventasCerradas != null ? Math.max(cotizacionesEnviadas - ventasCerradas, 0) : null;
+
+  return {
+    tasaRespuestaPct: pct(dividir(leadsRespondidos, leadsRecibidos)),
+    tasaCalificacionPct: pct(dividir(leadsCalificados, leadsRespondidos)),
+    tasaCierrePct: pct(dividir(ventasCerradas, leadsRecibidos)),
+    tasaCotizacionAVentaPct: pct(dividir(ventasCerradas, cotizacionesEnviadas)),
+    pctSinSeguimiento: pct(dividir(leadsSinSeguimiento, leadsRecibidos)),
+    ingresosPotencialesAbiertos: cotizacionesAbiertas != null && ticketPromedio != null ? Math.round(cotizacionesAbiertas * ticketPromedio) : null,
+  };
+}
+
+const NOMBRE_RUTA_DIAGNOSTICO = {
+  'diagnostico-tienda': 'tienda online',
+  'diagnostico-evento': 'evento',
+  'diagnostico-mensaje': 'mensaje / WhatsApp',
+};
+
 function formatearContextoDiagnostico(ruta, datos, tasas) {
   let bloque;
   try {
@@ -225,7 +253,7 @@ function formatearContextoDiagnostico(ruta, datos, tasas) {
   } catch (err) {
     bloque = '(no se pudo serializar)';
   }
-  return `CONTEXTO DEL DIAGNÓSTICO (ruta: ${ruta === 'diagnostico-tienda' ? 'tienda online' : 'evento'} — tasas ya calculadas por el sistema, no las recalcules):\n\n${bloque}`;
+  return `CONTEXTO DEL DIAGNÓSTICO (ruta: ${NOMBRE_RUTA_DIAGNOSTICO[ruta] || ruta} — tasas ya calculadas por el sistema, no las recalcules):\n\n${bloque}`;
 }
 
 // ---------- handler ----------
@@ -271,9 +299,10 @@ module.exports = async function handler(req, res) {
 
     if (MODOS_DIAGNOSTICO.has(modo)) {
       const datos = body.datos && typeof body.datos === 'object' ? body.datos : {};
-      const tasas = modo === 'diagnostico-tienda' ? calcularTasasTienda(datos) : calcularTasasEvento(datos);
+      const sufijoRuta = modo === 'diagnostico-tienda' ? 'tienda' : modo === 'diagnostico-evento' ? 'evento' : 'mensaje';
+      const tasas = modo === 'diagnostico-tienda' ? calcularTasasTienda(datos) : modo === 'diagnostico-evento' ? calcularTasasEvento(datos) : calcularTasasMensaje(datos);
 
-      await escribirJSON(`${clienteId}:conversion-cierre-diagnostico-${modo === 'diagnostico-tienda' ? 'tienda' : 'evento'}`, datos).catch(() => {});
+      await escribirJSON(`${clienteId}:conversion-cierre-diagnostico-${sufijoRuta}`, datos).catch(() => {});
 
       const contextoDatos = formatearContextoDiagnostico(modo, datos, tasas);
       const system = [promptBase, promptModo, contextoNegocio, contextoDatos].join('\n\n');
