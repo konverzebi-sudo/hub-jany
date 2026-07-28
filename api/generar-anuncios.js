@@ -1,25 +1,32 @@
-// Endpoint server-side para el Jefe de Anuncios y Campañas de Paga -- desarrolla el detalle
-// completo (guion de 6 partes, copy de publicación, prompt de imagen, prompt de video, caption de
-// WhatsApp) de un LOTE de ideas ya aprobadas por el usuario + un FORMATO elegido para ese lote.
-// Lee el mismo CONTEXTO DEL NEGOCIO que usa Jefe Evergreen + sus Notas de Comunicación Evergreen +
-// el Radar de Mercado. Multi-tenant, sin datos hardcoded de ninguna marca. Una sola llamada al
-// modelo por lote (no una por idea) para no multiplicar costo.
+// Endpoint server-side para el Jefe de Anuncios y Campañas de Paga -- consolida en UN solo
+// archivo (por el límite de 12 Serverless Functions del plan Hobby de Vercel) los 2 modos que
+// antes vivían en api/generar-ideas-anuncios.js y api/generar-detalle-anuncio.js. Cada modo
+// conserva exactamente su lógica y forma de respuesta original -- esto es solo reempaquetado,
+// no cambia comportamiento.
+//
+// body.modo === 'ideas'   -> genera 9 ideas LIGERAS (titulo+hook+porque) por etapa.
+// body.modo === 'detalle' -> desarrolla el detalle completo de un lote de ideas ya aprobadas.
+//
+// Multi-tenant, sin datos hardcoded de ninguna marca -- ver prompts/system-prompt-ideas-anuncios.md
+// y prompts/system-prompt-detalle-anuncio.md.
 
 const fs = require('fs');
 const path = require('path');
 const { sql } = require('@vercel/postgres');
 
 const DEFAULT_CLIENTE = 'jefeshub';
-const PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-detalle-anuncio.md');
+const PROMPT_PATH_IDEAS = path.join(__dirname, '..', 'prompts', 'system-prompt-ideas-anuncios.md');
+const PROMPT_PATH_DETALLE = path.join(__dirname, '..', 'prompts', 'system-prompt-detalle-anuncio.md');
 const CONTEXT_CHAR_LIMIT = 6000;
 const MAX_IDEAS_POR_LOTE = 9;
 const FORMATOS_VALIDOS = ['reel', 'imagen estática', 'carrusel'];
+const ETAPAS = ['adquisicion', 'consideracion', 'conversion'];
 
-let fixedPromptCache = null;
-function cargarPromptFijo() {
-  if (fixedPromptCache) return fixedPromptCache;
-  fixedPromptCache = fs.readFileSync(PROMPT_PATH, 'utf-8');
-  return fixedPromptCache;
+const promptCache = {};
+function cargarPrompt(rutaAbsoluta) {
+  if (promptCache[rutaAbsoluta]) return promptCache[rutaAbsoluta];
+  promptCache[rutaAbsoluta] = fs.readFileSync(rutaAbsoluta, 'utf-8');
+  return promptCache[rutaAbsoluta];
 }
 
 const WINDOW_MS = 10 * 60 * 1000;
@@ -61,7 +68,7 @@ function truncar(str, limite) {
   return str.length > limite ? str.slice(0, limite) + '\n[...recortado...]' : str;
 }
 
-// ---------- formateo del CONTEXTO DEL NEGOCIO (mismo patron que api/generar-guion-organico.js) ----------
+// ---------- formateo del CONTEXTO DEL NEGOCIO (compartido por ambos modos) ----------
 
 function formatearIdentidad(d) {
   if (!d) return null;
@@ -167,14 +174,14 @@ function formatearRadar(historial) {
   return `RADAR DE MERCADO (corrida más reciente${ultimo.date ? ', ' + ultimo.date : ''}):\n` + lineas.join('\n');
 }
 
-function formatearProducto(items, productoId) {
+function formatearProducto(items, productoId, etiqueta) {
   if (!productoId || !Array.isArray(items)) return null;
   const p = items.find((it) => it && it.id === productoId);
   if (!p) return null;
   const partes = [p.nombre];
   if (p.tipo) partes.push(p.tipo);
   if (p.notas) partes.push(`notas: ${p.notas}`);
-  return 'PRODUCTO ESPECÍFICO A ENFOCAR (el detalle debe girar en torno a este producto puntual):\n- ' + partes.join(' · ');
+  return `PRODUCTO ESPECÍFICO A ENFOCAR (${etiqueta}):\n- ` + partes.join(' · ');
 }
 
 async function construirContexto(clienteId, grupoId) {
@@ -212,6 +219,23 @@ async function construirContexto(clienteId, grupoId) {
   return { contexto: truncar(partes.join('\n\n---\n\n'), CONTEXT_CHAR_LIMIT), catalogo };
 }
 
+function extractJson(text) {
+  if (!text) return null;
+  const limpio = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+  try {
+    return JSON.parse(limpio);
+  } catch (err) {
+    // Fallback: busca el primer '{' al primer '}' que cierre balanceado.
+  }
+  const match = limpio.match(/\{[\s\S]*\}/);
+  if (!match) return null;
+  try {
+    return JSON.parse(match[0]);
+  } catch (err) {
+    return null;
+  }
+}
+
 function extractJsonArray(text) {
   if (!text) return null;
   const limpio = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
@@ -229,6 +253,135 @@ function extractJsonArray(text) {
   } catch (err) {
     return null;
   }
+}
+
+async function llamarClaude(system, userMessage, maxTokens) {
+  const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': process.env.ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: maxTokens,
+      system,
+      messages: [{ role: 'user', content: userMessage }],
+    }),
+  });
+  const data = await anthropicRes.json();
+  return { ok: anthropicRes.ok, status: anthropicRes.status, data };
+}
+
+// ---------- modo: ideas (ligero, 9 ideas) ----------
+
+async function manejarModoIdeas(body, res) {
+  const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
+  const grupoId = body.grupo_id ? body.grupo_id.toString() : '';
+  const productoId = body.producto_id ? body.producto_id.toString() : '';
+
+  const promptFijo = cargarPrompt(PROMPT_PATH_IDEAS);
+  const { contexto, catalogo } = await construirContexto(clienteId, grupoId);
+  const bloqueProducto = formatearProducto(catalogo, productoId, 'las 9 ideas deben girar en torno a este producto puntual, no al grupo completo');
+
+  const instruccion = 'INSTRUCCIÓN DE ESTA GENERACIÓN:\n' +
+    'Genera las 9 ideas (3 por etapa: adquisicion, consideracion, conversion) en el formato JSON indicado.' +
+    (bloqueProducto ? '\n\n' + bloqueProducto : '');
+
+  const system = [promptFijo, contexto, instruccion].join('\n\n');
+  const { ok, status, data } = await llamarClaude(
+    system,
+    'Genera las 9 ideas de anuncios pedidas, en el formato JSON indicado. Sé breve por campo -- son ideas de referencia para elegir, no el anuncio terminado.',
+    2500
+  );
+  if (!ok) {
+    return res.status(status).json({ error: data?.error?.message || 'Error al llamar a la API.' });
+  }
+
+  const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
+  const parsed = extractJson(text);
+  if (!parsed) {
+    return res.status(502).json({ error: data.stop_reason === 'max_tokens' ? 'La respuesta quedó incompleta (muy larga). Intenta de nuevo.' : 'No se pudo interpretar la respuesta del modelo.' });
+  }
+
+  const ideas = {};
+  ETAPAS.forEach((etapa) => {
+    ideas[etapa] = Array.isArray(parsed[etapa]) ? parsed[etapa] : [];
+  });
+
+  return res.status(200).json({ ideas, usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 } });
+}
+
+// ---------- modo: detalle (guion + copy + prompts de un lote aprobado) ----------
+
+async function manejarModoDetalle(body, res) {
+  const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
+  const grupoId = body.grupo_id ? body.grupo_id.toString() : '';
+  const productoId = body.producto_id ? body.producto_id.toString() : '';
+  const formato = FORMATOS_VALIDOS.includes(body.formato) ? body.formato : 'reel';
+  const ideasEntrada = Array.isArray(body.ideas) ? body.ideas : [];
+
+  if (ideasEntrada.length === 0) {
+    return res.status(400).json({ error: 'Falta el lote de ideas aprobadas.' });
+  }
+  if (ideasEntrada.length > MAX_IDEAS_POR_LOTE) {
+    return res.status(400).json({ error: `Máximo ${MAX_IDEAS_POR_LOTE} ideas por lote.` });
+  }
+
+  const ideas = ideasEntrada.map((it, i) => ({
+    id: (it && it.id) ? it.id.toString() : `idea${i + 1}`,
+    titulo: (it && it.titulo) ? it.titulo.toString() : '',
+    hook: (it && it.hook) ? it.hook.toString() : '',
+    etapa: (it && it.etapa) ? it.etapa.toString() : '',
+  }));
+
+  const promptFijo = cargarPrompt(PROMPT_PATH_DETALLE);
+  const { contexto, catalogo } = await construirContexto(clienteId, grupoId);
+  const bloqueProducto = formatearProducto(catalogo, productoId, 'el detalle debe girar en torno a este producto puntual');
+
+  const listaIdeas = ideas.map((idea, i) =>
+    `${i + 1}. id="${idea.id}" (etapa: ${idea.etapa || 'sin especificar'})\n   Título: ${idea.titulo}\n   Hook: ${idea.hook}`
+  ).join('\n');
+
+  const instruccion = 'INSTRUCCIÓN DE ESTA GENERACIÓN:\n' +
+    `FORMATO ELEGIDO PARA TODO EL LOTE: ${formato}\n\n` +
+    `IDEAS YA APROBADAS A DESARROLLAR (${ideas.length}):\n${listaIdeas}` +
+    (bloqueProducto ? '\n\n' + bloqueProducto : '');
+
+  const system = [promptFijo, contexto, instruccion].join('\n\n');
+  const { ok, status, data } = await llamarClaude(
+    system,
+    'Desarrolla el detalle completo de cada idea del lote, en el formato JSON (array) indicado, en el mismo orden y con el mismo "id" que recibiste.',
+    Math.min(8000, 800 + ideas.length * 1200)
+  );
+  if (!ok) {
+    return res.status(status).json({ error: data?.error?.message || 'Error al llamar a la API.' });
+  }
+
+  const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
+  const parsed = extractJsonArray(text);
+  if (!parsed || parsed.length === 0) {
+    return res.status(502).json({ error: data.stop_reason === 'max_tokens' ? 'La respuesta quedó incompleta (muy larga). Intenta con menos ideas por lote.' : 'No se pudo interpretar la respuesta del modelo.' });
+  }
+
+  const detalles = parsed.map((d, i) => ({
+    id: (d && d.id) ? d.id.toString() : (ideas[i] ? ideas[i].id : `idea${i + 1}`),
+    guion: (d && d.guion && typeof d.guion === 'object') ? {
+      hook: d.guion.hook || '',
+      problema: d.guion.problema || '',
+      solucion: d.guion.solucion || '',
+      prueba: d.guion.prueba || '',
+      costo_inaccion: d.guion.costo_inaccion || '',
+      cta: d.guion.cta || '',
+    } : { hook: '', problema: '', solucion: '', prueba: '', costo_inaccion: '', cta: '' },
+    copy_publicacion: (d && d.copy_publicacion) || '',
+    prompt_imagen: (d && d.prompt_imagen) || '',
+    prompt_video: (d && d.prompt_video) || '',
+    caption_whatsapp: (d && d.caption_whatsapp) || '',
+  }));
+
+  return res.status(200).json({ detalles, formato, usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 } });
 }
 
 module.exports = async function handler(req, res) {
@@ -252,85 +405,12 @@ module.exports = async function handler(req, res) {
   }
 
   const body = req.body || {};
-  const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
-  const grupoId = body.grupo_id ? body.grupo_id.toString() : '';
-  const productoId = body.producto_id ? body.producto_id.toString() : '';
-  const formato = FORMATOS_VALIDOS.includes(body.formato) ? body.formato : 'reel';
-  const ideasEntrada = Array.isArray(body.ideas) ? body.ideas : [];
-
-  if (ideasEntrada.length === 0) {
-    return res.status(400).json({ error: 'Falta el lote de ideas aprobadas.' });
-  }
-  if (ideasEntrada.length > MAX_IDEAS_POR_LOTE) {
-    return res.status(400).json({ error: `Máximo ${MAX_IDEAS_POR_LOTE} ideas por lote.` });
-  }
-
-  const ideas = ideasEntrada.map((it, i) => ({
-    id: (it && it.id) ? it.id.toString() : `idea${i + 1}`,
-    titulo: (it && it.titulo) ? it.titulo.toString() : '',
-    hook: (it && it.hook) ? it.hook.toString() : '',
-    etapa: (it && it.etapa) ? it.etapa.toString() : '',
-  }));
+  const modo = (body.modo || '').toString();
 
   try {
-    const promptFijo = cargarPromptFijo();
-    const { contexto, catalogo } = await construirContexto(clienteId, grupoId);
-    const bloqueProducto = formatearProducto(catalogo, productoId);
-
-    const listaIdeas = ideas.map((idea, i) =>
-      `${i + 1}. id="${idea.id}" (etapa: ${idea.etapa || 'sin especificar'})\n   Título: ${idea.titulo}\n   Hook: ${idea.hook}`
-    ).join('\n');
-
-    const instruccion = 'INSTRUCCIÓN DE ESTA GENERACIÓN:\n' +
-      `FORMATO ELEGIDO PARA TODO EL LOTE: ${formato}\n\n` +
-      `IDEAS YA APROBADAS A DESARROLLAR (${ideas.length}):\n${listaIdeas}` +
-      (bloqueProducto ? '\n\n' + bloqueProducto : '');
-
-    const system = [promptFijo, contexto, instruccion].join('\n\n');
-
-    const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: Math.min(8000, 800 + ideas.length * 1200),
-        system,
-        messages: [{ role: 'user', content: 'Desarrolla el detalle completo de cada idea del lote, en el formato JSON (array) indicado, en el mismo orden y con el mismo "id" que recibiste.' }],
-      }),
-    });
-
-    const data = await anthropicRes.json();
-    if (!anthropicRes.ok) {
-      return res.status(anthropicRes.status).json({ error: data?.error?.message || 'Error al llamar a la API.' });
-    }
-
-    const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
-    const parsed = extractJsonArray(text);
-    if (!parsed || parsed.length === 0) {
-      return res.status(502).json({ error: data.stop_reason === 'max_tokens' ? 'La respuesta quedó incompleta (muy larga). Intenta con menos ideas por lote.' : 'No se pudo interpretar la respuesta del modelo.' });
-    }
-
-    const detalles = parsed.map((d, i) => ({
-      id: (d && d.id) ? d.id.toString() : (ideas[i] ? ideas[i].id : `idea${i + 1}`),
-      guion: (d && d.guion && typeof d.guion === 'object') ? {
-        hook: d.guion.hook || '',
-        problema: d.guion.problema || '',
-        solucion: d.guion.solucion || '',
-        prueba: d.guion.prueba || '',
-        costo_inaccion: d.guion.costo_inaccion || '',
-        cta: d.guion.cta || '',
-      } : { hook: '', problema: '', solucion: '', prueba: '', costo_inaccion: '', cta: '' },
-      copy_publicacion: (d && d.copy_publicacion) || '',
-      prompt_imagen: (d && d.prompt_imagen) || '',
-      prompt_video: (d && d.prompt_video) || '',
-      caption_whatsapp: (d && d.caption_whatsapp) || '',
-    }));
-
-    return res.status(200).json({ detalles, formato, usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 } });
+    if (modo === 'ideas') return await manejarModoIdeas(body, res);
+    if (modo === 'detalle') return await manejarModoDetalle(body, res);
+    return res.status(400).json({ error: 'Falta o es inválido el campo "modo" (usa "ideas" o "detalle").' });
   } catch (err) {
     return res.status(500).json({ error: 'Error de conexión con el Agente.' });
   }
