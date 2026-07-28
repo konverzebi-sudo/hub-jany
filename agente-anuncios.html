@@ -417,7 +417,14 @@ async function generarDetalleSeleccionadas(){
         formato: data.formato || formato,
         titulo: it.titulo,
         hook: it.hook,
+        objetivo: det.objetivo || '',
+        angulo: det.angulo || '',
+        audiencia: det.audiencia || '',
         guion: det.guion,
+        version_15s: det.version_15s || '',
+        hooks_alternativos: Array.isArray(det.hooks_alternativos) ? det.hooks_alternativos : [],
+        visual_sugerido: det.visual_sugerido || '',
+        duracion_sugerida: det.duracion_sugerida || '',
         copy_publicacion: det.copy_publicacion,
         prompt_imagen: det.prompt_imagen,
         prompt_video: det.prompt_video,
@@ -472,6 +479,15 @@ function guionFieldsHtml(item){
   `).join('');
 }
 
+function textFieldHtml(item, field, label){
+  return `
+    <div class="detail-field">
+      <label>${label}</label>
+      <textarea data-id="${item.id}" data-field="${field}">${escHtml(getField(item, field))}</textarea>
+    </div>
+  `;
+}
+
 function promptFieldHtml(item, field, label){
   return `
     <div class="detail-field">
@@ -501,11 +517,18 @@ function buildAnuncioCard(item){
     <div class="badges-row">
       <span class="badge badge-${item.etapa}">${ETAPA_LABEL[item.etapa]||item.etapa}</span>
       <span class="badge badge-tipo">${escHtml(item.formato)}</span>
+      ${item.audiencia?`<span class="badge badge-tipo">Audiencia ${escHtml(item.audiencia)}</span>`:''}
+      ${item.angulo?`<span class="badge badge-tipo">${escHtml(item.angulo)}</span>`:''}
     </div>
     <details class="item-details">
       <summary>Ver detalles</summary>
       <div class="detail-grid">
+        ${textFieldHtml(item,'objetivo','Objetivo del anuncio')}
         ${guionFieldsHtml(item)}
+        ${textFieldHtml(item,'version_15s','Versión 15 segundos')}
+        ${textFieldHtml(item,'hooks_alternativos','3 hooks alternativos (uno por línea)')}
+        ${textFieldHtml(item,'visual_sugerido','Visual sugerido (qué mostrar)')}
+        ${textFieldHtml(item,'duracion_sugerida','Duración sugerida')}
         ${promptFieldHtml(item,'copy_publicacion','Copy para publicar')}
         ${promptFieldHtml(item,'prompt_imagen','Prompt de imagen (IA)')}
         ${promptFieldHtml(item,'prompt_video','Prompt de video (IA)')}
@@ -518,10 +541,12 @@ function buildAnuncioCard(item){
 
 function getField(item, field){
   if(field.indexOf('guion.')===0) return (item.guion||{})[field.slice(6)];
+  if(field==='hooks_alternativos') return (item.hooks_alternativos||[]).join('\n');
   return item[field];
 }
 function setField(item, field, value){
   if(field.indexOf('guion.')===0){ if(!item.guion) item.guion={}; item.guion[field.slice(6)]=value; return; }
+  if(field==='hooks_alternativos'){ item.hooks_alternativos = value.split('\n').map(s=>s.trim()).filter(Boolean); return; }
   item[field]=value;
 }
 
