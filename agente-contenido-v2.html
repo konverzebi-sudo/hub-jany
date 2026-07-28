@@ -810,6 +810,19 @@ function parseIdeaJSON(text){
   return null;
 }
 
+function anguloToNotas(item){
+  const partes=[];
+  if(item.problema) partes.push(`Problema: ${item.problema}`);
+  if(item.error) partes.push(`Error: ${item.error}`);
+  if(item.deseo) partes.push(`Deseo: ${item.deseo}`);
+  if(item.historia) partes.push(`Historia: ${item.historia}`);
+  if(item.descubrimiento) partes.push(`Descubrimiento: ${item.descubrimiento}`);
+  if(item.objecion) partes.push(`Objeción: ${item.objecion}`);
+  if(item.comparacion) partes.push(`Comparación: ${item.comparacion}`);
+  if(item.uso||item.uso_sugerido) partes.push(`Uso sugerido: ${item.uso||item.uso_sugerido}`);
+  return partes.join('\n');
+}
+
 function mkBancoIdea(obj, src){
   return {
     id:'bi'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
@@ -819,6 +832,8 @@ function mkBancoIdea(obj, src){
     deseo:obj.deseo||'',
     historia:obj.historia||'',
     descubrimiento:obj.descubrimiento||'',
+    objecion:obj.objecion||'',
+    comparacion:obj.comparacion||'',
     uso:obj.uso||'Orgánico',
     prioridad:obj.prioridad||'Media',
     source:src||'ai',
@@ -836,6 +851,8 @@ function ideaRowHTML(item){
     <td class="angle-cell">${escHtml(item.deseo)}</td>
     <td class="angle-cell">${escHtml(item.historia)}</td>
     <td class="angle-cell">${escHtml(item.descubrimiento)}</td>
+    <td class="angle-cell">${escHtml(item.objecion)}</td>
+    <td class="angle-cell">${escHtml(item.comparacion)}</td>
     <td class="uso-cell">${escHtml(item.uso)}</td>
     <td class="pri-cell"><span class="${priCls}">${escHtml(item.prioridad)}</span></td>
     <td><button class="row-del" data-bid="${item.id}" title="Eliminar">✕</button></td>
@@ -846,7 +863,7 @@ function renderBancoTable(){
   const tbody=document.getElementById('ideas-tbody');
   if(!tbody) return;
   if(!state.bancoIdeas.length){
-    tbody.innerHTML='<tr class="ideas-empty-row"><td colspan="10">Todavía no hay ideas. Escribe una arriba o usa <strong>Actualizar ideas</strong> para generar 10 nuevas.</td></tr>';
+    tbody.innerHTML='<tr class="ideas-empty-row"><td colspan="12">Todavía no hay ideas. Escribe una arriba o usa <strong>Actualizar ideas</strong> para generar 10 nuevas.</td></tr>';
     return;
   }
   tbody.innerHTML=state.bancoIdeas.map(ideaRowHTML).join('');
@@ -907,7 +924,7 @@ function renderBanco(){
           <tr>
             <th><input type="checkbox" id="select-all-check"></th>
             <th>Idea</th><th>Problema</th><th>Error</th><th>Deseo</th>
-            <th>Historia</th><th>Descubrimiento</th><th>Uso</th><th>Prioridad</th><th></th>
+            <th>Historia</th><th>Descubrimiento</th><th>Objeción</th><th>Comparación</th><th>Uso</th><th>Prioridad</th><th></th>
           </tr>
         </thead>
         <tbody id="ideas-tbody"></tbody>
@@ -932,7 +949,7 @@ function renderBanco(){
     if(!ideaText){ stEl.textContent='Escribe la idea primero.'; stEl.classList.add('error'); return; }
     const btn=document.getElementById('btn-gen-angulos');
     btn.disabled=true; btn.textContent='Pensando...';
-    const prompt=`${NEGOCIO_CONTEXT}\n\n${HALLAZGOS_JULIO}\n\nPara esta idea de contenido de JefesHub, genera los 7 ángulos estratégicos.\nIDEA: ${ideaText}\n\nResponde SOLO con JSON válido (sin markdown, sin texto extra):\n{\n  "idea": "título exacto o ligeramente mejorado de la idea",\n  "problema": "qué problema vive hoy el cliente relacionado con esta idea",\n  "error": "qué error comete o qué malentiende",\n  "deseo": "qué quiere lograr realmente",\n  "historia": "cómo comunicar desde una experiencia o caso real",\n  "descubrimiento": "nueva verdad o perspectiva que puede mostrar",\n  "uso": "Orgánico | Ads | Ambos",\n  "prioridad": "Alta | Media | Baja"\n}`;
+    const prompt=`${NEGOCIO_CONTEXT}\n\n${HALLAZGOS_JULIO}\n\nPara esta idea de contenido de JefesHub, genera los 7 ángulos estratégicos.\nIDEA: ${ideaText}\n\nResponde SOLO con JSON válido (sin markdown, sin texto extra):\n{\n  "idea": "título exacto o ligeramente mejorado de la idea",\n  "problema": "qué problema vive hoy el cliente relacionado con esta idea",\n  "error": "qué error comete o qué malentiende",\n  "deseo": "qué quiere lograr realmente",\n  "historia": "cómo comunicar desde una experiencia o caso real",\n  "descubrimiento": "nueva verdad o perspectiva que puede mostrar",\n  "objecion": "qué duda o resistencia puede resolver",\n  "comparacion": "qué contraste ayuda a entender mejor: antes/después, mito/realidad, opción A/B",\n  "uso": "Orgánico | Ads | Ambos",\n  "prioridad": "Alta | Media | Baja"\n}`;
     try{
       const res=await fetch('/api/sugerir-contenido',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idea:prompt})});
       const data=await res.json();
@@ -961,7 +978,7 @@ function renderBanco(){
     stEl.className='suggest-status'; stEl.textContent='';
     btn.disabled=true; btn.textContent='Generando 10 ideas...';
     const existentes=[...NOTION_IDEAS_EXISTENTES,...state.bancoIdeas.map(i=>i.idea)].slice(0,25);
-    const prompt=`${NEGOCIO_CONTEXT}\n\n${HALLAZGOS_JULIO}\n\nActúa como el Agente de Contenido y Creativos de JefesHub. Genera 10 ideas estratégicas de contenido Evergreen que sean completamente diferentes a estas ya existentes:\n${existentes.map((x,i)=>`${i+1}. ${x}`).join('\n')}\n\nResponde SOLO con un JSON array válido (sin markdown, sin texto extra, sin comentarios):\n[\n  {\n    "idea": "título concreto y específico",\n    "problema": "qué problema vive hoy el cliente",\n    "error": "qué error está cometiendo o qué malentiende",\n    "deseo": "qué quiere lograr realmente",\n    "historia": "cómo comunicar desde una experiencia o caso real",\n    "descubrimiento": "nueva verdad o perspectiva que puede mostrar",\n    "uso": "Orgánico | Ads | Ambos",\n    "prioridad": "Alta | Media | Baja"\n  }\n]\n\nReglas: específicas para JefesHub, que alimenten el Sistema Evergreen, que ayuden a vender no solo a entretener, todas diferentes entre sí, basadas en los hallazgos del Radar de Mercado.`;
+    const prompt=`${NEGOCIO_CONTEXT}\n\n${HALLAZGOS_JULIO}\n\nActúa como el Agente de Contenido y Creativos de JefesHub. Genera 10 ideas estratégicas de contenido Evergreen que sean completamente diferentes a estas ya existentes:\n${existentes.map((x,i)=>`${i+1}. ${x}`).join('\n')}\n\nResponde SOLO con un JSON array válido (sin markdown, sin texto extra, sin comentarios):\n[\n  {\n    "idea": "título concreto y específico",\n    "problema": "qué problema vive hoy el cliente",\n    "error": "qué error está cometiendo o qué malentiende",\n    "deseo": "qué quiere lograr realmente",\n    "historia": "cómo comunicar desde una experiencia o caso real",\n    "descubrimiento": "nueva verdad o perspectiva que puede mostrar",\n    "objecion": "qué duda o resistencia puede resolver",\n    "comparacion": "qué contraste ayuda a entender mejor: antes/después, mito/realidad, opción A/B",\n    "uso": "Orgánico | Ads | Ambos",\n    "prioridad": "Alta | Media | Baja"\n  }\n]\n\nReglas: específicas para JefesHub, que alimenten el Sistema Evergreen, que ayuden a vender no solo a entretener, todas diferentes entre sí, basadas en los hallazgos del Radar de Mercado.`;
     try{
       const res=await fetch('/api/sugerir-contenido',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idea:prompt})});
       const data=await res.json();
@@ -994,20 +1011,12 @@ function renderBanco(){
         orden:state[targetTab].length+1,
         fase:targetTab==='historias'?'Semana 1 · Atraer/Conexión':'Semana 1',
         gancho:item.idea,
-        descripcion:item.descubrimiento,
-        dolor:item.problema,
-        instrucciones:`Uso: ${item.uso}`,
-        recomendacion:'',
+        descripcion:item.descubrimiento||'',
+        ganchoIdea:'',
+        caption:'',
+        notas:anguloToNotas(item),
         linkRef:'',linkArchivo:'',
-        fecha:'',estado:'idea',
-        angulos:{
-          problema:item.problema,
-          error:item.error,
-          deseo:item.deseo,
-          historia:item.historia,
-          descubrimiento:item.descubrimiento,
-          objecion:'',comparacion:''
-        }
+        fecha:'',estado:'idea'
       });
     });
     document.getElementById(`count-${targetTab}`).textContent=state[targetTab].length;
@@ -1144,19 +1153,8 @@ const AGENTE_MODES = [
   {key:'ideas',  label:'💡 Ideas Evergreen',  desc:'Banco de ideas por categoría (viral, educativo, venta, entretenimiento, testimonio) listo para mandar a Historias/Contenido.',
    custom:'evergreen-ideas'
   },
-  {key:'guion-org',label:'📱 Guionista Orgánico',  desc:'Guión para reel, carrusel o historia — lee tu ADN, tu Sistema Evergreen y tu Radar de Mercado en vivo.',
-   fields:[
-     {id:'ag-idea-org',label:'Idea o tema',type:'textarea',placeholder:'Describe la idea principal del contenido... (o cópiala de tu Banco de ideas)'},
-     {id:'ag-objetivo-org',label:'Objetivo del contenido',type:'select',opts:['alcance','confianza','educacion','venta sutil','venta directa']},
-     {id:'ag-formato-org',label:'Formato',type:'select',opts:['reel','tiktok','historia','carrusel','post estático']},
-   ],
-   endpoint:'/api/generar-guion-organico',
-   buildBody: f=>({
-     cliente: CLIENTE_ID,
-     idea: f['ag-idea-org']||'',
-     objetivo: f['ag-objetivo-org']||'alcance',
-     formato: f['ag-formato-org']||'reel',
-   }),
+  {key:'guion-org',label:'📱 Guionista Orgánico',  desc:'Genera un banco de ideas con sus 7 ángulos, selecciona las mejores y crea caption+guion listos — lee tu ADN, tu Sistema Evergreen y tu Radar de Mercado en vivo.',
+   custom:'guion-organico',
   },
   {key:'auditoria-post',label:'🔍 Auditoría de Post',  desc:'Arma un prompt listo para pegar en la extensión de Claude junto con la captura real de tu post publicado.',
    instant:true,
@@ -1199,6 +1197,7 @@ VERSIÓN MEJORADA DEL COPY: …`
 let agenteMode='ideas';
 let agenteOutput='';
 let agenteStatus='';
+let agenteAngulos=null;
 
 function renderAgente(){
   controlsEl.style.display='none';
@@ -1215,7 +1214,7 @@ function renderAgente(){
     const btn=document.createElement('button');
     btn.className='mode-btn'+(m.key===agenteMode?' active':'');
     btn.textContent=m.label;
-    btn.addEventListener('click',()=>{ agenteMode=m.key; agenteOutput=''; agenteStatus=''; renderAgente(); });
+    btn.addEventListener('click',()=>{ agenteMode=m.key; agenteOutput=''; agenteStatus=''; agenteAngulos=null; renderAgente(); });
     modeSelDiv.appendChild(btn);
   });
   wrap.appendChild(modeSel);
@@ -1231,6 +1230,16 @@ function renderAgente(){
     host.innerHTML='<p class="status">Cargando...</p>';
     wrap.appendChild(host);
     ensureEvergreenLoaded().then(()=>pintarEvergreenIdeas(host));
+    return;
+  }
+
+  if(mode.custom==='guion-organico'){
+    contentEl.innerHTML='';
+    contentEl.appendChild(wrap);
+    const host=document.createElement('div');
+    host.id='agente-guionorg-host';
+    wrap.appendChild(host);
+    pintarGuionOrganico(host);
     return;
   }
 
@@ -1279,7 +1288,10 @@ function renderAgente(){
   function mostrarResultadoAgente(outputEl){
     statusEl2().textContent='✅ Listo';
     outputEl.innerHTML=escHtml(agenteOutput);
+    const previa=document.getElementById('agente-actrow');
+    if(previa) previa.remove();
     const actDiv=document.createElement('div');
+    actDiv.id='agente-actrow';
     actDiv.style.cssText='margin-top:8px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;';
     actDiv.innerHTML='<button class="mode-add-banco" id="agente-copiar">📋 Copiar</button><button class="mode-add-banco" id="agente-add-banco">+ Guardar en Banco de ideas</button>';
     outputEl.after(actDiv);
@@ -1290,7 +1302,8 @@ function renderAgente(){
       });
     });
     actDiv.querySelector('#agente-add-banco').addEventListener('click',()=>{
-      state.bancoIdeas.unshift(mkBancoIdea({ idea: agenteOutput.split('\n')[0].slice(0,140), descubrimiento: agenteOutput }, 'ai'));
+      const nuevo=agenteAngulos ? mkBancoIdea(agenteAngulos,'ai') : mkBancoIdea({ idea: agenteOutput.split('\n')[0].slice(0,140), descubrimiento: agenteOutput }, 'ai');
+      state.bancoIdeas.unshift(nuevo);
       document.getElementById('count-banco').textContent=state.bancoIdeas.length;
       scheduleSave();
       actDiv.innerHTML='<span style="color:var(--accent);font-size:12px;font-family:JetBrains Mono,monospace;">✅ Guardado en Banco de ideas</span>';
@@ -1327,6 +1340,237 @@ function renderAgente(){
     }finally{
       btn.disabled=false; btn.textContent='✨ Generar';
     }
+  });
+}
+
+// ─── GUIONISTA ORGÁNICO (banco de ideas + crear contenido) ─────────────────────
+const GUIONORG_OBJETIVOS = [
+  {v:'alcance', l:'Alcance / viralidad'},
+  {v:'educativo', l:'Educativo'},
+  {v:'confianza', l:'Confianza'},
+  {v:'historia', l:'Historia'},
+  {v:'opinion', l:'Opinión / comparación'},
+  {v:'venta_sutil', l:'Venta sutil'},
+  {v:'venta_directa', l:'Venta directa orgánica'},
+  {v:'tendencia', l:'🔥 Tendencia (busca en la web)'},
+];
+const GUIONORG_FORMATOS = ['reel','tiktok','historia','carrusel','post estático'];
+
+let guionOrgIdeas = [];
+let guionOrgObjetivo = 'alcance';
+let guionOrgFormato = 'reel';
+let guionOrgTema = '';
+let guionOrgStatus = '';
+
+function pintarGuionOrganico(container){
+  const wrap = document.createElement('div');
+  wrap.className='evergreen-panel';
+
+  const toolbar = document.createElement('div');
+  toolbar.className='evergreen-toolbar';
+  toolbar.innerHTML = `
+    <div class="mode-field" style="min-width:200px;">
+      <label>Objetivo</label>
+      <select id="go-objetivo">${GUIONORG_OBJETIVOS.map(o=>`<option value="${o.v}"${guionOrgObjetivo===o.v?' selected':''}>${o.l}</option>`).join('')}</select>
+    </div>
+    <div class="mode-field" style="min-width:150px;">
+      <label>Formato</label>
+      <select id="go-formato">${GUIONORG_FORMATOS.map(f=>`<option value="${f}"${guionOrgFormato===f?' selected':''}>${f.charAt(0).toUpperCase()+f.slice(1)}</option>`).join('')}</select>
+    </div>
+    <div class="mode-field" style="min-width:220px;flex:1;">
+      <label>Tema o contexto (opcional)</label>
+      <input type="text" id="go-tema" placeholder="ej. dudas frecuentes sobre el precio" value="${escHtml(guionOrgTema)}">
+    </div>
+    <button class="btn btn-solid" id="go-gen-btn">✨ Generar ideas</button>
+    <span class="mode-status" id="go-status">${escHtml(guionOrgStatus)}</span>
+  `;
+  wrap.appendChild(toolbar);
+
+  const linkBox = document.createElement('div');
+  linkBox.className='evergreen-toolbar';
+  linkBox.style.marginTop='10px';
+  linkBox.innerHTML = `
+    <div class="mode-field" style="min-width:260px;flex:1;">
+      <label>🔗 O analiza un video de referencia (cualquier industria)</label>
+      <input type="text" id="go-link" placeholder="Pega el link del video que te llamó la atención...">
+    </div>
+    <button class="btn btn-ghost" id="go-link-btn" type="button">📋 Armar prompt de análisis</button>
+  `;
+  wrap.appendChild(linkBox);
+  const linkOutputBox = document.createElement('div');
+  linkOutputBox.id='go-link-output-box';
+  linkOutputBox.style.display='none';
+  wrap.appendChild(linkOutputBox);
+
+  if(guionOrgIdeas.length){
+    const selBar = document.createElement('div');
+    selBar.className='evergreen-selection-bar';
+    selBar.innerHTML = `
+      <span id="go-sel-count" class="mode-status">0 idea(s) seleccionada(s)</span>
+      <button class="btn-outline to-historias" id="go-crear-historias" type="button">✨ Crear contenido → Historias</button>
+      <button class="btn-outline to-contenido" id="go-crear-contenido" type="button">✨ Crear contenido → Contenido</button>
+    `;
+    wrap.appendChild(selBar);
+
+    const tableWrap = document.createElement('div');
+    tableWrap.className='evergreen-table-wrap';
+    tableWrap.innerHTML = `
+      <table class="ideas-table">
+        <thead><tr>
+          <th></th><th>Idea</th><th>Problema</th><th>Error</th><th>Deseo</th><th>Historia</th>
+          <th>Descubrimiento</th><th>Objeción</th><th>Comparación</th><th>Uso</th><th>Prioridad</th><th></th>
+        </tr></thead>
+        <tbody id="go-tbody"></tbody>
+      </table>
+    `;
+    wrap.appendChild(tableWrap);
+  }
+
+  container.innerHTML='';
+  container.appendChild(wrap);
+
+  if(guionOrgIdeas.length) pintarGuionOrgTabla();
+  actualizarGuionOrgSelCount();
+
+  document.getElementById('go-objetivo').addEventListener('change', e=>{ guionOrgObjetivo=e.target.value; });
+  document.getElementById('go-formato').addEventListener('change', e=>{ guionOrgFormato=e.target.value; });
+  document.getElementById('go-tema').addEventListener('input', e=>{ guionOrgTema=e.target.value; });
+  document.getElementById('go-gen-btn').addEventListener('click', generarGuionOrgIdeas);
+  document.getElementById('go-link-btn').addEventListener('click', armarPromptLinkReferencia);
+  if(guionOrgIdeas.length){
+    document.getElementById('go-crear-historias').addEventListener('click', ()=>crearContenidoDesdeGuionOrg('historias'));
+    document.getElementById('go-crear-contenido').addEventListener('click', ()=>crearContenidoDesdeGuionOrg('contenido'));
+  }
+}
+
+function guionOrgRowHTML(item, i){
+  const priCls={alta:'pri-alta',media:'pri-media',baja:'pri-baja'}[(item.prioridad||'').toLowerCase()]||'pri-media';
+  return `<tr data-goi="${i}">
+    <td style="text-align:center;"><input type="checkbox" class="go-check" data-goi="${i}"${item.selected?' checked':''}></td>
+    <td class="idea-cell">${escHtml(item.idea)}</td>
+    <td class="angle-cell">${escHtml(item.problema)}</td>
+    <td class="angle-cell">${escHtml(item.error)}</td>
+    <td class="angle-cell">${escHtml(item.deseo)}</td>
+    <td class="angle-cell">${escHtml(item.historia)}</td>
+    <td class="angle-cell">${escHtml(item.descubrimiento)}</td>
+    <td class="angle-cell">${escHtml(item.objecion)}</td>
+    <td class="angle-cell">${escHtml(item.comparacion)}</td>
+    <td class="uso-cell">${escHtml(item.uso_sugerido)}</td>
+    <td class="pri-cell"><span class="${priCls}">${escHtml(item.prioridad)}</span></td>
+    <td><button class="row-del" data-goi="${i}" title="Eliminar">✕</button></td>
+  </tr>`;
+}
+
+function pintarGuionOrgTabla(){
+  const tbody=document.getElementById('go-tbody');
+  if(!tbody) return;
+  tbody.innerHTML = guionOrgIdeas.map(guionOrgRowHTML).join('');
+  tbody.querySelectorAll('.go-check').forEach(cb=>{
+    cb.addEventListener('change', e=>{
+      const i=+e.target.dataset.goi;
+      guionOrgIdeas[i].selected = e.target.checked;
+      actualizarGuionOrgSelCount();
+    });
+  });
+  tbody.querySelectorAll('.row-del').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const i=+btn.dataset.goi;
+      guionOrgIdeas.splice(i,1);
+      pintarGuionOrganico(document.getElementById('agente-guionorg-host'));
+    });
+  });
+}
+
+function actualizarGuionOrgSelCount(){
+  const el=document.getElementById('go-sel-count');
+  if(!el) return;
+  el.textContent = `${guionOrgIdeas.filter(i=>i.selected).length} idea(s) seleccionada(s)`;
+}
+
+async function generarGuionOrgIdeas(){
+  const btn=document.getElementById('go-gen-btn');
+  const stEl=document.getElementById('go-status');
+  btn.disabled=true; btn.textContent='Generando...';
+  stEl.className='mode-status'; stEl.textContent='⏳ Analizando ADN + Brandbook + IA + Estrategia para darte la mejor respuesta...';
+  try{
+    const res = await fetch('/api/generar-guion-organico', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ cliente: CLIENTE_ID, modo:'ideas', objetivo: guionOrgObjetivo, tema: guionOrgTema, cantidad: 6 })
+    });
+    const data = await res.json();
+    if(!res.ok){ stEl.textContent='Error: '+(data.error||'No se pudo generar.'); stEl.classList.add('error'); return; }
+    const nuevas = (data.ideas||[]).map(o=>({...o, selected:false}));
+    guionOrgIdeas = [...nuevas, ...guionOrgIdeas];
+    guionOrgStatus = `✅ ${nuevas.length} idea(s) generadas — revísalas y selecciona las que quieras convertir en contenido.`;
+    pintarGuionOrganico(document.getElementById('agente-guionorg-host'));
+  }catch(e){
+    stEl.textContent='Error de conexión.'; stEl.classList.add('error');
+  }finally{
+    btn.disabled=false; btn.textContent='✨ Generar ideas';
+  }
+}
+
+async function crearContenidoDesdeGuionOrg(targetTab){
+  const seleccionadas = guionOrgIdeas.filter(i=>i.selected);
+  const stEl=document.getElementById('go-status');
+  if(!seleccionadas.length){ stEl.className='mode-status error'; stEl.textContent='Selecciona al menos una idea primero.'; return; }
+  const btnH=document.getElementById('go-crear-historias');
+  const btnC=document.getElementById('go-crear-contenido');
+  if(btnH) btnH.disabled=true;
+  if(btnC) btnC.disabled=true;
+  let creadas=0;
+  for(let n=0;n<seleccionadas.length;n++){
+    const idea=seleccionadas[n];
+    stEl.className='mode-status';
+    stEl.textContent=`⏳ Creando contenido ${n+1}/${seleccionadas.length}...`;
+    try{
+      const res = await fetch('/api/generar-guion-organico', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ cliente: CLIENTE_ID, modo:'contenido', objetivo: guionOrgObjetivo, formato: guionOrgFormato, idea })
+      });
+      const data = await res.json();
+      if(!res.ok){ continue; }
+      const newId=(targetTab==='historias'?'h':'c')+'_go'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+      const notasPartes=[anguloToNotas(idea), '', 'GUION:', data.guion||''];
+      if(data.notas_grabacion) notasPartes.push(`\nNotas de grabación: ${data.notas_grabacion}`);
+      if(data.duracion_aproximada) notasPartes.push(`Duración aproximada: ${data.duracion_aproximada}`);
+      state[targetTab].push({
+        id:newId,
+        orden:state[targetTab].length+1,
+        fase:targetTab==='historias'?'Semana 1 · Atraer/Conexión':'Semana 1',
+        gancho:idea.idea,
+        descripcion:idea.descubrimiento||'',
+        ganchoIdea:'',
+        caption:data.caption||'',
+        notas:notasPartes.join('\n'),
+        linkRef:'',linkArchivo:'',
+        fecha:'',estado:'idea'
+      });
+      creadas++;
+    }catch(e){ /* sigue con la siguiente idea */ }
+  }
+  document.getElementById(`count-${targetTab}`).textContent=state[targetTab].length;
+  scheduleSave();
+  guionOrgIdeas.forEach(i=>{ i.selected=false; });
+  guionOrgStatus = `✅ ${creadas} de ${seleccionadas.length} idea(s) creadas en ${targetTab==='historias'?'Historias':'Contenido'}.`;
+  pintarGuionOrganico(document.getElementById('agente-guionorg-host'));
+}
+
+function armarPromptLinkReferencia(){
+  const link = document.getElementById('go-link').value.trim();
+  const box = document.getElementById('go-link-output-box');
+  if(!link){ box.style.display='none'; return; }
+  const prompt = `Abre este link y analiza el video o contenido que hay ahí: ${link}\n\nQuiero usarlo como REFERENCIA para crear contenido nuevo — no es mi contenido, es solo inspiración de formato (puede ser de cualquier industria). Ya conoces mi marca, mi cliente ideal, mi tono y mi Sistema Evergreen, no me los preguntes de nuevo.\n\nHaz esto:\n1. Mira o lee el contenido completo del link.\n2. Transcribe su estructura identificando: HOOK, CONTEXTO, DESARROLLO/ARGUMENTO, GIRO O CIERRE, CTA.\n3. Conviértela en una PLANTILLA reutilizable (con espacios en blanco tipo [problema], [beneficio], etc.) que yo pueda rellenar para cualquier idea futura.\n4. Dame un ejemplo de cómo se vería esa plantilla ya rellena con mi marca y mi oferta.\n\nEntrega en este orden: ESTRUCTURA IDENTIFICADA, PLANTILLA REUTILIZABLE, EJEMPLO CON MI MARCA.`;
+  box.style.display='block';
+  box.innerHTML = `<div class="mode-output" style="margin-top:10px;">${escHtml(prompt)}</div>
+    <div style="margin-top:8px;display:flex;gap:12px;">
+      <button class="mode-add-banco" id="go-link-copiar">📋 Copiar</button>
+    </div>`;
+  document.getElementById('go-link-copiar').addEventListener('click',(e)=>{
+    navigator.clipboard.writeText(prompt).then(()=>{
+      const b=e.currentTarget; const prev=b.textContent;
+      b.textContent='✅ Copiado'; setTimeout(()=>{b.textContent=prev;},1500);
+    });
   });
 }
 
