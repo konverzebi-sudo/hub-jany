@@ -146,6 +146,7 @@
 
   /* AGENTE TAB */
   .agente-wrap{display:flex;flex-direction:column;gap:16px;}
+  .evergreen-panel{display:flex;flex-direction:column;gap:16px;}
   .agente-header{font-family:'Sora',sans-serif;font-size:13px;font-weight:600;color:var(--text-dim);margin-bottom:4px;}
   .mode-selector{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px;}
   .mode-btn{padding:8px 14px;border-radius:100px;border:1px solid var(--line);background:var(--surface);color:var(--text-dim);font-size:12px;font-family:'JetBrains Mono',monospace;font-weight:700;cursor:pointer;letter-spacing:.02em;transition:.15s;}
@@ -169,6 +170,22 @@
   .evergreen-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 20px;}
   .evergreen-toolbar select{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:9px 12px;outline:none;}
   .evergreen-selection-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:10px;}
+  .cal-toolbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
+  .cal-nav{display:flex;align-items:center;gap:10px;}
+  .cal-nav button{background:var(--surface-2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:6px 12px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:12px;}
+  .cal-nav button:hover{border-color:var(--accent);color:var(--accent);}
+  .cal-month-label{font-family:'Sora',sans-serif;font-weight:700;font-size:16px;min-width:150px;text-align:center;}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
+  .cal-dow{font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;color:var(--text-dim);text-align:center;padding-bottom:4px;}
+  .cal-cell{background:var(--surface);border:1px solid var(--line);border-radius:10px;min-height:92px;padding:6px;display:flex;flex-direction:column;gap:4px;overflow:hidden;}
+  .cal-cell.cal-empty{background:transparent;border:none;}
+  .cal-cell.cal-today{border-color:var(--accent);}
+  .cal-daynum{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim);}
+  .cal-chip{font-size:10.5px;line-height:1.3;padding:3px 6px;border-radius:6px;background:var(--surface-2);border-left:3px solid var(--t1);cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .cal-chip:hover{background:var(--accent-soft);}
+  .cal-sinfecha{margin-top:18px;}
+  .cal-sinfecha-title{font-family:'Sora',sans-serif;font-weight:700;font-size:14px;margin-bottom:8px;}
+  .cal-sinfecha-list{display:flex;flex-wrap:wrap;gap:6px;}
   .evergreen-cat{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px 20px;margin-top:14px;}
   .evergreen-cat-title{font-family:'Sora',sans-serif;font-weight:700;font-size:15px;margin:0 0 4px;}
   .evergreen-cat-desc{color:var(--text-dim);font-size:12px;margin:0 0 12px;}
@@ -249,7 +266,7 @@
     <div class="tab" data-tab="contenido">Contenido <span class="count" id="count-contenido">10</span></div>
     <div class="tab" data-tab="banco">💭 Banco <span class="count" id="count-banco">0</span></div>
     <div class="tab tab-agente" data-tab="agente">✨ Agente <span class="count">IA</span></div>
-    <div class="tab tab-agente" data-tab="evergreen">🌱 Ideas Evergreen <span class="count">IA</span></div>
+    <div class="tab" data-tab="calendario">📅 Calendario</div>
   </div>
 
   <div id="stats-bar" class="stats-bar" style="display:none;"></div>
@@ -403,7 +420,7 @@ document.querySelectorAll('.tab').forEach(t=>{
     currentTab = t.dataset.tab;
     filterFase=''; searchTerm=''; searchEl.value='';
     filterEtapa=''; filterFaseEl.value=''; filterEtapaEl.value=''; filterTipoEl.value=''; filterTipo='';
-    const isTracker = currentTab!=='banco' && currentTab!=='agente' && currentTab!=='evergreen';
+    const isTracker = currentTab!=='banco' && currentTab!=='agente' && currentTab!=='calendario';
     controlsEl.style.display = isTracker ? 'block':'none';
     statsBarEl.style.display = isTracker ? 'flex':'none';
     if(isTracker){ buildFaseFilter(); renderStats(); }
@@ -482,7 +499,7 @@ function horizonColorVar(item){ return 'var(--t'+(horizonIndex(item)+1)+')'; }
 
 // ─── FILTER SETUP ────────────────────────────────────────────────────────────
 function buildFaseFilter(){
-  if(currentTab==='banco'||currentTab==='agente'||currentTab==='evergreen') return;
+  if(currentTab==='banco'||currentTab==='agente'||currentTab==='calendario') return;
   const list=state[currentTab];
   const fases=[...new Set(list.map(r=>r.fase))];
   filterFaseEl.innerHTML='<option value="">Todas las fases</option>'+fases.map(f=>`<option value="${escHtml(f)}">${escHtml(f)}</option>`).join('');
@@ -491,7 +508,7 @@ function buildFaseFilter(){
 
 // ─── STATS BAR ───────────────────────────────────────────────────────────────
 function renderStats(){
-  if(currentTab==='banco'||currentTab==='agente'||currentTab==='evergreen') return;
+  if(currentTab==='banco'||currentTab==='agente'||currentTab==='calendario') return;
   const list=state[currentTab];
   const counts={adquisicion:0,consideracion:0,conversion:0};
   list.forEach(item=>{
@@ -521,7 +538,7 @@ function escHtml(str){
 function render(){
   if(currentTab==='banco'){ renderBanco(); return; }
   if(currentTab==='agente'){ renderAgente(); return; }
-  if(currentTab==='evergreen'){ renderEvergreenIdeas(); return; }
+  if(currentTab==='calendario'){ renderCalendario(); return; }
 
   const list=state[currentTab];
   let rows=list.filter(r=>{
@@ -1005,139 +1022,177 @@ function renderBanco(){
   document.getElementById('btn-to-contenido').addEventListener('click',()=>addSelectedToTab('contenido'));
 }
 
+// ─── CALENDARIO ─────────────────────────────────────────────────────────────
+let calMonth = new Date().getMonth();
+let calYear = new Date().getFullYear();
+const MESES_LABEL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+function diaMesDeFecha(str){
+  const m=(str||'').trim().match(/^(\d{1,2})\/(\d{1,2})$/);
+  if(!m) return null;
+  const day=parseInt(m[1],10), month=parseInt(m[2],10);
+  if(month<1||month>12||day<1||day>31) return null;
+  return {day, month};
+}
+
+function renderCalendario(){
+  controlsEl.style.display='none';
+  statsBarEl.style.display='none';
+  contentEl.innerHTML='';
+
+  const wrap=document.createElement('div');
+  wrap.className='agente-wrap';
+
+  const toolbar=document.createElement('div');
+  toolbar.className='cal-toolbar';
+  toolbar.innerHTML=`
+    <div class="cal-nav">
+      <button type="button" id="cal-prev" title="Mes anterior">←</button>
+      <span class="cal-month-label">${MESES_LABEL[calMonth]} ${calYear}</span>
+      <button type="button" id="cal-next" title="Mes siguiente">→</button>
+      <button type="button" id="cal-hoy">Hoy</button>
+    </div>
+    <span class="mode-status">🎬 Historias · 📄 Contenido — click en una idea para abrirla</span>
+  `;
+  wrap.appendChild(toolbar);
+
+  const allItems=[
+    ...state.historias.map(r=>({...r,_tab:'historias',_icon:'🎬'})),
+    ...state.contenido.map(r=>({...r,_tab:'contenido',_icon:'📄'})),
+  ];
+
+  const porDia={};
+  const sinFecha=[];
+  allItems.forEach(item=>{
+    const dm=diaMesDeFecha(item.fecha);
+    if(!dm){ sinFecha.push(item); return; }
+    const key=dm.day+'-'+dm.month;
+    if(!porDia[key]) porDia[key]=[];
+    porDia[key].push(item);
+  });
+
+  const primerDiaSemana=(new Date(calYear,calMonth,1).getDay()+6)%7; // lunes=0
+  const diasEnMes=new Date(calYear,calMonth+1,0).getDate();
+  const hoy=new Date();
+  const esHoy=(d)=> hoy.getFullYear()===calYear && hoy.getMonth()===calMonth && hoy.getDate()===d;
+
+  function chipFor(item){
+    const chip=document.createElement('div');
+    chip.className='cal-chip';
+    chip.style.borderLeftColor=horizonColorVar(item);
+    chip.textContent=`${item._icon} ${item.gancho||'(sin título)'}`;
+    chip.title=item.gancho||'';
+    chip.addEventListener('click',()=>irACalendarioItem(item._tab,item.id,item.gancho));
+    return chip;
+  }
+
+  const grid=document.createElement('div');
+  grid.className='cal-grid';
+  ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].forEach(d=>{
+    const el=document.createElement('div'); el.className='cal-dow'; el.textContent=d; grid.appendChild(el);
+  });
+  for(let i=0;i<primerDiaSemana;i++){ const el=document.createElement('div'); el.className='cal-cell cal-empty'; grid.appendChild(el); }
+  for(let d=1; d<=diasEnMes; d++){
+    const cell=document.createElement('div');
+    cell.className='cal-cell'+(esHoy(d)?' cal-today':'');
+    const items=porDia[d+'-'+(calMonth+1)]||[];
+    const dayNum=document.createElement('div');
+    dayNum.className='cal-daynum';
+    dayNum.textContent=d;
+    cell.appendChild(dayNum);
+    items.forEach(item=>cell.appendChild(chipFor(item)));
+    grid.appendChild(cell);
+  }
+  wrap.appendChild(grid);
+
+  if(sinFecha.length){
+    const sf=document.createElement('div');
+    sf.className='cal-sinfecha';
+    sf.innerHTML=`<div class="cal-sinfecha-title">📌 Sin fecha (${sinFecha.length})</div>`;
+    const list=document.createElement('div');
+    list.className='cal-sinfecha-list';
+    sinFecha.forEach(item=>list.appendChild(chipFor(item)));
+    sf.appendChild(list);
+    wrap.appendChild(sf);
+  }
+
+  contentEl.appendChild(wrap);
+
+  document.getElementById('cal-prev').addEventListener('click',()=>{ calMonth--; if(calMonth<0){calMonth=11;calYear--;} renderCalendario(); });
+  document.getElementById('cal-next').addEventListener('click',()=>{ calMonth++; if(calMonth>11){calMonth=0;calYear++;} renderCalendario(); });
+  document.getElementById('cal-hoy').addEventListener('click',()=>{ const n=new Date(); calMonth=n.getMonth(); calYear=n.getFullYear(); renderCalendario(); });
+}
+
+function irACalendarioItem(tab,id,gancho){
+  const tabEl=document.querySelector(`.tab[data-tab="${tab}"]`);
+  if(tabEl) tabEl.click();
+  if(gancho){
+    searchTerm=gancho.toLowerCase();
+    if(searchEl) searchEl.value=gancho;
+    render();
+  }
+  const sel=[...document.querySelectorAll('select.estado-select')].find(s=>s.dataset.id===id);
+  if(!sel) return;
+  const card=sel.closest('.item-card');
+  const det=card.querySelector('.item-details');
+  if(det) det.open=true;
+  card.scrollIntoView({behavior:'smooth',block:'center'});
+}
+
 // ─── AGENTE TAB ───────────────────────────────────────────────────────────────
 const AGENTE_MODES = [
-  {key:'ideas',  label:'💡 Ideas Evergreen',  desc:'Genera un banco de ideas estratégicas que puedas usar durante meses.',
-   fields:[
-     {id:'ag-objetivo',label:'Objetivo del banco de ideas',type:'text',placeholder:'ej. atraer emprendedoras que ya usan IA genérica'},
-     {id:'ag-etapa-focus',label:'Etapa prioritaria',type:'select',opts:['mixto','adquisicion','consideracion','conversion']},
-     {id:'ag-cantidad',label:'Número de ideas',type:'select',opts:['10','20','30']},
-   ],
-   buildPrompt: f=>`${NEGOCIO_CONTEXT}
-
-Actúa como el Agente de Contenido y Creativos. Modo: Ideas Evergreen.
-OBJETIVO: ${f['ag-objetivo']||'banco general'}
-ETAPA: ${f['ag-etapa-focus']||'mixto'}
-CANTIDAD: ${f['ag-cantidad']||'20'} ideas
-
-Genera las ideas en tabla markdown con estas columnas:
-| Idea | Ángulo: Problema | Ángulo: Error | Ángulo: Deseo | Ángulo: Historia | Descubrimiento | Objeción | Uso (orgánico/ads/ambos) | Prioridad |
-
-Reglas: específicas, que alimenten el Sistema Evergreen, que ayuden a vender no solo a entretener, sin guiones todavía.
-Al final indica las 5 ideas de mayor potencial.`
+  {key:'ideas',  label:'💡 Ideas Evergreen',  desc:'Banco de ideas por categoría (viral, educativo, venta, entretenimiento, testimonio) listo para mandar a Historias/Contenido.',
+   custom:'evergreen-ideas'
   },
-  {key:'guion-ads',label:'🎯 Guionista Ads',  desc:'Guión completo para anuncio pagado con hook, estructura y CTA.',
+  {key:'guion-org',label:'📱 Guionista Orgánico',  desc:'Guión para reel, carrusel o historia — lee tu ADN, tu Sistema Evergreen y tu Radar de Mercado en vivo.',
    fields:[
-     {id:'ag-oferta',label:'Oferta o producto',type:'text',placeholder:'ej. JefesHub trial 30 días gratis'},
-     {id:'ag-audiencia-ads',label:'Audiencia',type:'select',opts:['fria','tibia','caliente']},
-     {id:'ag-etapa-ads',label:'Etapa del cliente',type:'select',opts:['adquisicion','consideracion','conversion']},
-     {id:'ag-angulo-ads',label:'Ángulo principal',type:'text',placeholder:'ej. dolor de tiempo, ChatGPT genérico, libertad'},
-     {id:'ag-objetivo-ads',label:'Objetivo del anuncio',type:'text',placeholder:'ej. registro trial, agenda consulta, venta directa'},
-   ],
-   buildPrompt: f=>`${NEGOCIO_CONTEXT}
-
-Actúa como Guionista Ads. Genera el guión completo de un anuncio de video.
-OFERTA: ${f['ag-oferta']||'JefesHub'}
-AUDIENCIA: ${f['ag-audiencia-ads']||'fria'}
-ETAPA: ${f['ag-etapa-ads']||'adquisicion'}
-ÁNGULO: ${f['ag-angulo-ads']||''}
-OBJETIVO: ${f['ag-objetivo-ads']||'registro trial'}
-
-Formato obligatorio:
-OBJETIVO DEL ANUNCIO: …
-AUDIENCIA: …
-ÁNGULO: …
-HOOK (0-5 seg): …
-PROBLEMA/ERROR DEL CLIENTE: …
-SOLUCIÓN/MÉTODO: …
-PRUEBA/CONFIANZA: …
-COSTO DE INACCIÓN + CTA: …
-GUIÓN COMPLETO (conversacional, máx. 30s):
----
-[guión aquí]
----
-VISUAL SUGERIDO: …
-CTA: …
-DURACIÓN: …
-VERSIÓN 15s: …
-3 HOOKS ALTERNATIVOS:
-1. …
-2. …
-3. …`
-  },
-  {key:'guion-org',label:'📱 Guionista Orgánico',  desc:'Guión para reel, carrusel o historia con intención estratégica.',
-   fields:[
+     {id:'ag-idea-org',label:'Idea o tema',type:'textarea',placeholder:'Describe la idea principal del contenido... (o cópiala de tu Banco de ideas)'},
      {id:'ag-objetivo-org',label:'Objetivo del contenido',type:'select',opts:['alcance','confianza','educacion','venta sutil','venta directa']},
-     {id:'ag-idea-org',label:'Idea o tema',type:'textarea',placeholder:'Describe la idea principal del contenido...'},
      {id:'ag-formato-org',label:'Formato',type:'select',opts:['reel','tiktok','historia','carrusel','post estático']},
    ],
-   buildPrompt: f=>`${NEGOCIO_CONTEXT}
-
-Actúa como Guionista de Contenido Orgánico.
-OBJETIVO: ${f['ag-objetivo-org']||'alcance'}
-IDEA: ${f['ag-idea-org']||''}
-FORMATO: ${f['ag-formato-org']||'reel'}
-
-Genera el guión completo. Incluye:
-HOOK (primeros 3 seg): …
-ESTRUCTURA: …
-GUIÓN LÍNEA A LÍNEA:
----
-[guión aquí, natural, que suene como Jany]
----
-CTA según objetivo: …
-NOTAS DE GRABACIÓN: …
-DURACIÓN APROXIMADA: …`
+   endpoint:'/api/generar-guion-organico',
+   buildBody: f=>({
+     cliente: CLIENTE_ID,
+     idea: f['ag-idea-org']||'',
+     objetivo: f['ag-objetivo-org']||'alcance',
+     formato: f['ag-formato-org']||'reel',
+   }),
   },
-  {key:'auditoria',label:'🔍 Auditoría de Guión',  desc:'Diagnóstico, calificación y versión corregida de tu guión.',
+  {key:'auditoria-post',label:'🔍 Auditoría de Post',  desc:'Arma un prompt listo para pegar en la extensión de Claude junto con la captura real de tu post publicado.',
+   instant:true,
    fields:[
-     {id:'ag-guion-audit',label:'Pega tu guión aquí',type:'textarea',placeholder:'Copia y pega el guión que quieres auditar...'},
-     {id:'ag-objetivo-audit',label:'¿Cuál era el objetivo?',type:'text',placeholder:'ej. adquisición de audiencia fría, conversión'},
+     {id:'ag-plataforma-audit',label:'Plataforma',type:'select',opts:['Instagram','TikTok','Facebook','WhatsApp']},
+     {id:'ag-tipo-audit',label:'Tipo de post',type:'select',opts:['reel','carrusel','post estático','historia']},
+     {id:'ag-objetivo-post-audit',label:'¿Cuál era el objetivo?',type:'text',placeholder:'ej. alcance, generar confianza, venta directa'},
+     {id:'ag-copy-audit',label:'Copy/caption que usaste',type:'textarea',placeholder:'Pega aquí el texto que publicaste con el post...'},
+     {id:'ag-likes-audit',label:'Likes',type:'text',placeholder:'ej. 340'},
+     {id:'ag-comentarios-audit',label:'Comentarios',type:'text',placeholder:'ej. 12'},
+     {id:'ag-guardados-audit',label:'Guardados / compartidos',type:'text',placeholder:'ej. 25'},
    ],
-   buildPrompt: f=>`${NEGOCIO_CONTEXT}
+   buildPrompt: f=>`Actúa como Auditor de Posts para redes sociales. Ya conoces mi marca, mi cliente ideal, mi tono y mi Sistema Evergreen — no me los vuelvas a preguntar.
 
-Actúa como Auditor de Guiones. Revisa con criterio honesto y útil.
-OBJETIVO DECLARADO: ${f['ag-objetivo-audit']||'no especificado'}
-GUIÓN A AUDITAR:
+Te voy a adjuntar la captura de pantalla real de un post que ya publiqué. Analiza directamente lo que ves en la imagen — eso manda sobre cualquier dato que te dé aquí abajo.
+
+CONTEXTO DEL POST:
+Plataforma: ${f['ag-plataforma-audit']||'Instagram'}
+Tipo de post: ${f['ag-tipo-audit']||'reel'}
+Objetivo cuando lo publiqué: ${f['ag-objetivo-post-audit']||'no especificado'}
+Copy/caption que usé:
 ---
-${f['ag-guion-audit']||'(sin guión)'}
+${f['ag-copy-audit']||'(sin copy)'}
 ---
+Métricas que yo vi (compáralas con lo que veas en la captura, la captura manda si no coinciden):
+Likes: ${f['ag-likes-audit']||'no anotados'}
+Comentarios: ${f['ag-comentarios-audit']||'no anotados'}
+Guardados/compartidos: ${f['ag-guardados-audit']||'no anotados'}
 
-Entrega en este orden exacto:
-DIAGNÓSTICO EN UNA FRASE: …
-CALIFICACIÓN: X/10
-QUÉ SÍ FUNCIONA: …
-QUÉ NO FUNCIONA: …
-VERSIÓN CORREGIDA:
----
-[guión mejorado aquí]
----
-3 HOOKS ALTERNATIVOS:
-1. …
-2. …
-3. …
-5 ACCIONES DE MEJORA: …`
-  },
-  {key:'calendario',label:'📅 Calendario',  desc:'Calendario semanal o mensual combinando evergreen y campaña.',
-   fields:[
-     {id:'ag-objetivo-cal',label:'Objetivo del período',type:'text',placeholder:'ej. más alcance, activar trial, crecer confianza'},
-     {id:'ag-fechas-cal',label:'Fechas o período',type:'text',placeholder:'ej. semana del 21-27 julio'},
-     {id:'ag-campana-cal',label:'¿Hay campaña activa?',type:'text',placeholder:'ej. promo trial gratis vence el 31 julio'},
-     {id:'ag-mix-cal',label:'Mix preferido',type:'select',opts:['40% valor · 30% viralidad · 30% venta','mayoría adquisición','mayoría conversión','equilibrado']},
-   ],
-   buildPrompt: f=>`${NEGOCIO_CONTEXT}
-
-Actúa como Estratega de Calendario de Contenido.
-OBJETIVO: ${f['ag-objetivo-cal']||''}
-PERÍODO: ${f['ag-fechas-cal']||'próxima semana'}
-CAMPAÑA: ${f['ag-campana-cal']||'sin campaña activa'}
-MIX: ${f['ag-mix-cal']||'40% valor · 30% viralidad · 30% venta'}
-
-Entrega el calendario en tabla markdown:
-| Fecha | Tipo | Etapa | Hook / Idea | Formato | Objetivo | CTA | Prioridad |
-
-Primero coloca fechas de campaña si aplica. Luego llena con evergreen.
-Al final dame 3 recomendaciones estratégicas para este período.`
+Dame tu análisis en este orden exacto:
+LECTURA DE LIKES / ENGAGEMENT: ¿el número es bueno, promedio o bajo para este tipo de contenido? ¿por qué?
+GANCHO: ¿la primera línea o el primer segundo detiene el scroll? ¿por qué sí o no?
+COMUNICACIÓN: ¿el mensaje se entiende rápido? ¿suena a mi marca?
+QUÉ SÍ FUNCIONÓ: …
+QUÉ MEJORAR (3 acciones concretas para el próximo post similar): …
+VERSIÓN MEJORADA DEL COPY: …`
   },
 ];
 
@@ -1167,6 +1222,18 @@ function renderAgente(){
 
   // Mode panel
   const mode=AGENTE_MODES.find(m=>m.key===agenteMode)||AGENTE_MODES[0];
+
+  if(mode.custom==='evergreen-ideas'){
+    contentEl.innerHTML='';
+    contentEl.appendChild(wrap);
+    const host=document.createElement('div');
+    host.id='agente-evergreen-host';
+    host.innerHTML='<p class="status">Cargando...</p>';
+    wrap.appendChild(host);
+    ensureEvergreenLoaded().then(()=>pintarEvergreenIdeas(host));
+    return;
+  }
+
   const panel=document.createElement('div');
   panel.className='mode-panel';
 
@@ -1198,53 +1265,65 @@ function renderAgente(){
     </div>
     ${fieldsHtml}
     <div class="mode-actions">
-      <button class="btn btn-solid" id="agente-gen-btn">✨ Generar</button>
+      <button class="btn btn-solid" id="agente-gen-btn">${mode.instant?'📋 Armar prompt':'✨ Generar'}</button>
       <span class="mode-status" id="agente-status">${escHtml(agenteStatus)}</span>
     </div>
     <div>
-      <div id="agente-output" class="mode-output">${agenteOutput?escHtml(agenteOutput):'<span class="mode-output-placeholder">El resultado aparecerá aquí...</span>'}</div>
-      ${agenteOutput?`<div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
-        <button class="mode-add-banco" id="agente-add-banco">+ Guardar en Banco de ideas</button>
-        <span style="font-size:11px;color:var(--text-dim);font-family:JetBrains Mono,monospace;">Ctrl+A para seleccionar todo el texto</span>
-      </div>`:''}
+      <div id="agente-output" class="mode-output">${agenteOutput?'':'<span class="mode-output-placeholder">El resultado aparecerá aquí...</span>'}</div>
     </div>`;
   wrap.appendChild(panel);
   contentEl.appendChild(wrap);
+  if(agenteOutput) mostrarResultadoAgente(document.getElementById('agente-output'));
 
   // Generate button
+  function mostrarResultadoAgente(outputEl){
+    statusEl2().textContent='✅ Listo';
+    outputEl.innerHTML=escHtml(agenteOutput);
+    const actDiv=document.createElement('div');
+    actDiv.style.cssText='margin-top:8px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;';
+    actDiv.innerHTML='<button class="mode-add-banco" id="agente-copiar">📋 Copiar</button><button class="mode-add-banco" id="agente-add-banco">+ Guardar en Banco de ideas</button>';
+    outputEl.after(actDiv);
+    actDiv.querySelector('#agente-copiar').addEventListener('click',(e)=>{
+      navigator.clipboard.writeText(agenteOutput).then(()=>{
+        const btn=e.currentTarget; const prev=btn.textContent;
+        btn.textContent='✅ Copiado'; setTimeout(()=>{btn.textContent=prev;},1500);
+      });
+    });
+    actDiv.querySelector('#agente-add-banco').addEventListener('click',()=>{
+      state.bancoIdeas.unshift(mkBancoIdea({ idea: agenteOutput.split('\n')[0].slice(0,140), descubrimiento: agenteOutput }, 'ai'));
+      document.getElementById('count-banco').textContent=state.bancoIdeas.length;
+      scheduleSave();
+      actDiv.innerHTML='<span style="color:var(--accent);font-size:12px;font-family:JetBrains Mono,monospace;">✅ Guardado en Banco de ideas</span>';
+    });
+  }
+  function statusEl2(){ return document.getElementById('agente-status'); }
+
   document.getElementById('agente-gen-btn').addEventListener('click',async()=>{
     const btn=document.getElementById('agente-gen-btn');
-    const statusEl2=document.getElementById('agente-status');
     const outputEl=document.getElementById('agente-output');
-    btn.disabled=true; btn.textContent='Generando...';
-    statusEl2.className='mode-status'; statusEl2.textContent='⏳ Consultando al agente...';
-
-    // Collect field values
     const fieldValues={};
     mode.fields.forEach(f=>{ const el=document.getElementById(f.id); if(el) fieldValues[f.id]=el.value; });
 
-    const prompt=mode.buildPrompt(fieldValues);
+    if(mode.instant){
+      agenteOutput=mode.buildPrompt(fieldValues);
+      statusEl2().className='mode-status'; statusEl2().textContent='';
+      mostrarResultadoAgente(outputEl);
+      return;
+    }
+
+    btn.disabled=true; btn.textContent='Generando...';
+    statusEl2().className='mode-status'; statusEl2().textContent='⏳ Consultando al agente...';
     try{
-      const res=await fetch('/api/sugerir-contenido',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idea:prompt})});
+      const url=mode.endpoint||'/api/sugerir-contenido';
+      const body=mode.endpoint ? mode.buildBody(fieldValues) : { idea: mode.buildPrompt(fieldValues) };
+      const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
       const data=await res.json();
-      if(!res.ok){ statusEl2.textContent='Error: '+(data.error||'No se pudo generar.'); statusEl2.classList.add('error'); return; }
+      if(!res.ok){ statusEl2().textContent='Error: '+(data.error||'No se pudo generar.'); statusEl2().classList.add('error'); return; }
       agenteOutput=data.respuesta||data.guion||(data.gancho?(data.gancho+(data.caption?'\n\n'+data.caption:'')):'');
       if(!agenteOutput) agenteOutput=JSON.stringify(data,null,2);
-      statusEl2.textContent='✅ Listo';
-      outputEl.innerHTML=escHtml(agenteOutput);
-      // add "save to bank" button
-      const actDiv=document.createElement('div');
-      actDiv.style.cssText='margin-top:8px;display:flex;gap:12px;align-items:center;';
-      actDiv.innerHTML='<button class="mode-add-banco" id="agente-add-banco">+ Guardar en Banco de ideas</button><span style="font-size:11px;color:var(--text-dim);font-family:JetBrains Mono,monospace;">Ctrl+A para seleccionar todo</span>';
-      outputEl.after(actDiv);
-      actDiv.querySelector('#agente-add-banco').addEventListener('click',()=>{
-        state.banco.unshift({id:'b'+Date.now().toString(36)+Math.random().toString(36).slice(2,8),texto:agenteOutput,gancho:'',caption:'',link:'',aprobada:false,fecha:new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'})});
-        document.getElementById('count-banco').textContent=state.banco.length;
-        scheduleSave();
-        actDiv.innerHTML='<span style="color:var(--accent);font-size:12px;font-family:JetBrains Mono,monospace;">✅ Guardado en Banco de ideas</span>';
-      });
+      mostrarResultadoAgente(outputEl);
     }catch(e){
-      statusEl2.textContent='Error de conexión.'; statusEl2.classList.add('error');
+      statusEl2().textContent='Error de conexión.'; statusEl2().classList.add('error');
     }finally{
       btn.disabled=false; btn.textContent='✨ Generar';
     }
@@ -1306,17 +1385,10 @@ function evergreenDatosActuales(){
   return evergreenIdeasStore[key];
 }
 
-function renderEvergreenIdeas(){
-  controlsEl.style.display='none';
-  statsBarEl.style.display='none';
-  contentEl.innerHTML='<p class="status">Cargando...</p>';
-  ensureEvergreenLoaded().then(pintarEvergreenIdeas);
-}
-
-function pintarEvergreenIdeas(){
+function pintarEvergreenIdeas(container){
   const datos = evergreenDatosActuales();
   const wrap = document.createElement('div');
-  wrap.className='agente-wrap';
+  wrap.className='evergreen-panel';
 
   const productosDisponibles = evergreenProductos.filter(p => p && p.nombre && (!evergreenGrupoId || p.grupo_id === evergreenGrupoId));
 
@@ -1381,14 +1453,14 @@ function pintarEvergreenIdeas(){
     wrap.appendChild(box);
   });
 
-  contentEl.innerHTML='';
-  contentEl.appendChild(wrap);
+  container.innerHTML='';
+  container.appendChild(wrap);
   updateEvergreenSelCount();
 
   document.getElementById('evergreen-grupo-sel').addEventListener('change', (e)=>{
     evergreenGrupoId = e.target.value;
     evergreenProductoId = '';
-    pintarEvergreenIdeas();
+    pintarEvergreenIdeas(container);
   });
   document.getElementById('evergreen-producto-sel').addEventListener('change', (e)=>{
     evergreenProductoId = e.target.value;
@@ -1409,14 +1481,14 @@ function pintarEvergreenIdeas(){
     btn.addEventListener('click', ()=>{
       const { cat, i } = btn.dataset;
       evergreenDatosActuales()[cat].splice(+i, 1);
-      pintarEvergreenIdeas();
+      pintarEvergreenIdeas(container);
       scheduleEvergreenSave();
     });
   });
   wrap.querySelectorAll('.evergreen-row-add').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       evergreenDatosActuales()[btn.dataset.cat].push({ idea:'', video:'', stories:'', selected:false });
-      pintarEvergreenIdeas();
+      pintarEvergreenIdeas(container);
       scheduleEvergreenSave();
     });
   });
@@ -1427,8 +1499,8 @@ function pintarEvergreenIdeas(){
       updateEvergreenSelCount();
     });
   });
-  document.getElementById('evergreen-to-historias').addEventListener('click', ()=>addEvergreenSelectedToTab('historias'));
-  document.getElementById('evergreen-to-contenido').addEventListener('click', ()=>addEvergreenSelectedToTab('contenido'));
+  document.getElementById('evergreen-to-historias').addEventListener('click', ()=>addEvergreenSelectedToTab('historias',container));
+  document.getElementById('evergreen-to-contenido').addEventListener('click', ()=>addEvergreenSelectedToTab('contenido',container));
 }
 
 function evergreenSelectedItems(){
@@ -1448,7 +1520,7 @@ function updateEvergreenSelCount(){
   el.textContent = `${evergreenSelectedItems().length} idea(s) seleccionada(s)`;
 }
 
-function addEvergreenSelectedToTab(targetTab){
+function addEvergreenSelectedToTab(targetTab,container){
   const statusEl = document.getElementById('evergreen-status');
   const selected = evergreenSelectedItems();
   if(!selected.length){
@@ -1479,7 +1551,7 @@ function addEvergreenSelectedToTab(targetTab){
   EVERGREEN_CATEGORIAS.forEach(cat=>{ (datos[cat.key]||[]).forEach(f=>{ f.selected=false; }); });
   scheduleEvergreenSave();
   evergreenStatus = `✅ ${selected.length} idea(s) añadida(s) a ${targetTab==='historias'?'Historias':'Contenido'}.`;
-  pintarEvergreenIdeas();
+  pintarEvergreenIdeas(container);
 }
 
 async function generarIdeasEvergreen(){
@@ -1497,7 +1569,7 @@ async function generarIdeasEvergreen(){
     if(!res.ok){ statusEl2.textContent = 'Error: ' + (data.error || 'No se pudo generar.'); statusEl2.classList.add('error'); return; }
     Object.assign(evergreenDatosActuales(), data.ideas);
     evergreenStatus = '✅ Ideas generadas — revísalas y ajústalas antes de usarlas.';
-    pintarEvergreenIdeas();
+    pintarEvergreenIdeas(document.getElementById('agente-evergreen-host'));
     scheduleEvergreenSave();
   }catch(e){
     statusEl2.textContent = 'Error de conexión.'; statusEl2.classList.add('error');
@@ -1554,7 +1626,8 @@ window.addEventListener('pagehide',()=>{ if(pendingSave) doSave({keepalive:true}
 
 loadStorage().then(()=>{
   if(location.hash==='#evergreen'){
-    const tabEl=document.querySelector('.tab[data-tab="evergreen"]');
+    agenteMode='ideas';
+    const tabEl=document.querySelector('.tab[data-tab="agente"]');
     if(tabEl) tabEl.click();
   }
 });

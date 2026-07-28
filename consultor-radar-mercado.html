@@ -1037,6 +1037,7 @@ function renderAnalisisCuentaDetail(targetEl, id, label, cache){
       ['Qué aprender', d.que_aprender],
       ['Qué NO copiar', d.que_no_copiar],
       ['Qué adaptar', d.que_adaptar],
+      ['Objeción o deseo del cliente', d.objecion_o_deseo],
     ];
     cuerpoHtml = buildKvCardHtml(filas, null);
   }
@@ -1189,6 +1190,22 @@ function renderSeccion4Result(){
 // ============================================================
 // SECCIÓN 5 — Insights y ideas accionables (derivado de Sección 4)
 // ============================================================
+// Texto limpio para el botón "Copiar" — pensado para pegarse en el futuro
+// Consultor de Contenido. Compatible con el shape viejo (string) por si hay
+// una corrida ya cacheada de antes de este cambio.
+function construirTextoIdeasParaCopiar(ideas){
+  if(typeof ideas === 'string') return ideas;
+  return ideas.map((idea, i) => {
+    const lineas = [`${i + 1}. ${idea.idea || ''}`];
+    if(idea.angulo) lineas.push(`   Ángulo: ${idea.angulo}`);
+    if(idea.hook) lineas.push(`   Hook: ${idea.hook}`);
+    if(idea.formato) lineas.push(`   Formato: ${idea.formato}`);
+    if(idea.uso) lineas.push(`   Uso: ${idea.uso}`);
+    if(idea.porque) lineas.push(`   Por qué: ${idea.porque}`);
+    return lineas.join('\n');
+  }).join('\n\n');
+}
+
 function renderSeccion5(){
   const el = document.getElementById('seccion5Result');
   if(!analisisGeneralActual){
@@ -1199,23 +1216,54 @@ function renderSeccion5(){
   const insights = analisisGeneralActual.insights;
   let insightsHtml;
   if(Array.isArray(insights) && insights.length){
-    insightsHtml = `<div class="insight-grid">${insights.map((ins, i) => `
-      <div class="insight-card"><div class="insight-card-title">Insight ${i + 1}</div><div class="insight-card-body">${escapeHtml(ins)}</div></div>
-    `).join('')}</div>`;
+    insightsHtml = `<div class="insight-grid">${insights.map((ins, i) => {
+      // Compatible con shape viejo (string) y nuevo ({insight,uso,prioridad}).
+      const esObjeto = ins && typeof ins === 'object';
+      const texto = esObjeto ? ins.insight : ins;
+      const etiquetas = esObjeto ? [ins.uso, ins.prioridad].filter(Boolean) : [];
+      return `
+        <div class="insight-card">
+          <div class="insight-card-title">Insight ${i + 1}</div>
+          <div class="insight-card-body">${escapeHtml(texto || '')}</div>
+          ${etiquetas.length ? `<div class="mini-chip-list" style="margin-top:8px;margin-bottom:0;">${etiquetas.map(t => `<span class="mini-chip">${escapeHtml(t)}</span>`).join('')}</div>` : ''}
+        </div>
+      `;
+    }).join('')}</div>`;
   } else {
     const raw = analisisGeneralActual.insightsRaw || analisisGeneralActual.insightsIdeas || '';
     insightsHtml = raw ? `<div class="answer-card">${escapeHtml(raw)}</div>` : '<div class="log-empty">Sin insights disponibles.</div>';
   }
 
-  const ideasHtml = analisisGeneralActual.ideas
-    ? `<div class="answer-card" style="margin-top:14px;"><div class="a-label">10 ideas de contenido accionables</div>${escapeHtml(analisisGeneralActual.ideas)}</div>
-       <button class="copy-btn" id="copyIdeasBtn">Copiar</button>`
-    : `<button class="run-btn" id="pedirIdeasBtn" style="margin-top:14px;">DAME 10 IDEAS DE CONTENIDO ACCIONABLES</button><div id="ideasLoadingArea"></div>`;
+  const ideas = analisisGeneralActual.ideas;
+  let ideasHtml;
+  if(Array.isArray(ideas) && ideas.length){
+    ideasHtml = `<div class="subsection-title" style="margin-top:16px;">10 ideas de contenido accionables</div><div class="insight-grid">${ideas.map((idea, i) => `
+      <div class="insight-card">
+        <div class="insight-card-title">Idea ${i + 1}${idea.angulo ? ' · ' + escapeHtml(idea.angulo) : ''}</div>
+        <div class="insight-card-body">
+          ${idea.idea ? `<p style="margin:0 0 6px;">${escapeHtml(idea.idea)}</p>` : ''}
+          ${idea.hook ? `<p style="margin:0 0 6px;"><b>Hook:</b> ${escapeHtml(idea.hook)}</p>` : ''}
+          ${idea.formato ? `<p style="margin:0 0 6px;"><b>Formato:</b> ${escapeHtml(idea.formato)}</p>` : ''}
+          ${idea.porque ? `<p style="margin:0;"><b>Por qué:</b> ${escapeHtml(idea.porque)}</p>` : ''}
+        </div>
+        ${idea.uso ? `<div class="mini-chip-list" style="margin-top:8px;margin-bottom:0;"><span class="mini-chip">${escapeHtml(idea.uso)}</span></div>` : ''}
+      </div>
+    `).join('')}</div>
+    <button class="copy-btn" id="copyIdeasBtn" style="margin-top:10px;">Copiar</button>`;
+  } else if(ideas){
+    // Shape viejo (string) de una corrida ya cacheada antes de este cambio, o
+    // parseo fallido — se muestra tal cual como respaldo.
+    const textoViejo = typeof ideas === 'string' ? ideas : (analisisGeneralActual.ideasRaw || '');
+    ideasHtml = `<div class="answer-card" style="margin-top:14px;"><div class="a-label">10 ideas de contenido accionables</div>${escapeHtml(textoViejo)}</div>
+       <button class="copy-btn" id="copyIdeasBtn">Copiar</button>`;
+  } else {
+    ideasHtml = `<button class="run-btn" id="pedirIdeasBtn" style="margin-top:14px;">DAME 10 IDEAS DE CONTENIDO ACCIONABLES</button><div id="ideasLoadingArea"></div>`;
+  }
 
   el.innerHTML = insightsHtml + ideasHtml;
 
-  if(analisisGeneralActual.ideas){
-    document.getElementById('copyIdeasBtn').addEventListener('click', (e) => copyText(e.target, analisisGeneralActual.ideas));
+  if(ideas){
+    document.getElementById('copyIdeasBtn').addEventListener('click', (e) => copyText(e.target, construirTextoIdeasParaCopiar(ideas)));
   } else {
     document.getElementById('pedirIdeasBtn').addEventListener('click', pedirIdeasAccionables);
   }
@@ -1241,6 +1289,7 @@ async function pedirIdeasAccionables(){
       return;
     }
     analisisGeneralActual.ideas = data.ideas;
+    analisisGeneralActual.ideasRaw = data.ideasRaw;
     renderSeccion5();
   } catch(err){
     loadingArea.innerHTML = '<div class="error-card">Hubo un error de conexión. Intenta de nuevo en un momento.</div>';

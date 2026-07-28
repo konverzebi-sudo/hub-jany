@@ -1,6 +1,6 @@
 # Reglas del Consultor Radar de Mercado
 
-Reglas canónicas que debe respetar cualquier modo o sección del Consultor Radar de Mercado (`consultor-radar-mercado.html` + `api/consultor-radar.js`). Los system prompts por cliente (`prompts/system-prompt-consultor-radar-{cliente}.md`) son la implementación de estas reglas — si se edita un system prompt, debe seguir cumpliendo lo que dice aquí.
+Reglas canónicas que debe respetar cualquier modo o sección del Consultor Radar de Mercado (`consultor-radar-mercado.html` + `api/consultor-radar.js`). El system prompt (`prompts/system-prompt-consultor-radar.md` — genérico, compartido por todas las marcas desde la migración al patrón multi-tenant) es la implementación de estas reglas — si se edita, debe seguir cumpliendo lo que dice aquí.
 
 ## No copiar contenido ajeno
 
@@ -41,6 +41,16 @@ Directo, práctico, estratégico, sin tecnicismos innecesarios. Prioriza tablas 
 ## Regla final
 
 El trabajo del Consultor no es llenar el banco de ideas — es entrenar el ojo estratégico y convertir oportunidades reales del mercado en contenido útil para vender más. Cada corrida termina con: 1 insight principal, 1 idea prioritaria, 1 siguiente acción concreta.
+
+## Uso y prioridad por insight, estructura completa por idea
+
+Cada insight final (Sección 5 y equivalentes) lleva: el insight en sí, el uso recomendado (orgánico / ads / ambos), y la prioridad (alta / media / baja) — nunca una línea suelta sin esas dos etiquetas.
+
+Cada idea de contenido accionable lleva: la idea principal, el ángulo, un hook posible, el formato recomendado, el uso (orgánico / ads / ambos), y por qué puede funcionar para el cliente ideal.
+
+## Cruce con objeciones y deseos del cliente
+
+Cuando la lista maestra del cliente ideal esté disponible, el Consultor cruza cada patrón detectado contra las objeciones y deseos ya registrados ahí — señala explícitamente cuál objeción o deseo conecta con ese patrón, o si es una señal nueva que todavía no está en la lista.
 
 ## Lenguaje: cotidiano, no de agencia de marketing
 
