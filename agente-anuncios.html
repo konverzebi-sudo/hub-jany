@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jefe de Anuncios y Campañas de Paga — JefesHub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0F0B16;
+    --surface:#181120;
+    --surface-2:#211829;
+    --line:#332A3D;
+    --text:#F3EEF9;
+    --text-dim:#B6A9C7;
+    --accent:#B8F725;
+    --accent-soft:#2E3610;
+    --adq:#6366F1;--adq-soft:#1E1B4B;
+    --con:#0EA5E9;--con-soft:#082F49;
+    --conv:#22C55E;--conv-soft:#052E16;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:radial-gradient(1200px 600px at 50% -10%,#241733 0%,var(--bg) 55%);color:var(--text);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;padding:28px 16px 80px;}
+  h1,.display{font-family:'Sora',sans-serif;}
+  .wrap{max-width:1400px;margin:0 auto;}
+  h1{font-size:clamp(24px,3.4vw,32px);font-weight:800;margin:0 0 6px;}
+  .sub{color:var(--text-dim);font-size:14px;margin:0 0 22px;line-height:1.5;max-width:680px;}
+
+  /* TABS */
+  .tabs{display:flex;gap:6px;margin-bottom:18px;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+  .tab{padding:10px 16px;cursor:pointer;font-size:14px;font-weight:600;color:var(--text-dim);border-bottom:2px solid transparent;user-select:none;font-family:'Sora',sans-serif;}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+  .tab .count{display:inline-block;margin-left:6px;background:var(--surface-2);color:var(--text-dim);border-radius:10px;padding:1px 8px;font-size:11px;font-family:'JetBrains Mono',monospace;}
+
+  /* BUTTONS / FIELDS (compartido con Jefe Contenido) */
+  .btn{font-family:'Inter',sans-serif;font-weight:700;font-size:13px;padding:10px 16px;border-radius:9px;cursor:pointer;border:none;transition:.15s;}
+  .btn-solid{background:var(--accent);color:#0F0B16;}
+  .btn-solid:hover{filter:brightness(1.08);}
+  .btn:disabled{opacity:.5;cursor:wait;}
+  .btn-outline{font-family:'Inter',sans-serif;font-weight:600;font-size:12px;padding:7px 12px;border-radius:8px;cursor:pointer;border:1px solid var(--line);background:transparent;color:var(--text-dim);transition:.15s;}
+  .btn-outline:hover{border-color:var(--accent);color:var(--accent);}
+  .btn-outline:disabled{opacity:.4;cursor:wait;}
+  .btn-guion{border:none;background:transparent;color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;cursor:pointer;padding:2px 0;letter-spacing:.03em;text-transform:uppercase;opacity:.8;}
+  .btn-guion:hover{opacity:1;}
+  .mode-field{display:flex;flex-direction:column;gap:4px;}
+  .mode-field label{font-size:10.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em;font-family:'JetBrains Mono',monospace;}
+  .mode-field select{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:9px 12px;outline:none;}
+  .mode-field select:focus{border-color:var(--accent);}
+  .mode-status{font-size:12px;font-family:'JetBrains Mono',monospace;color:var(--text-dim);}
+  .mode-status.error{color:#F87171;}
+
+  /* GENERADOR: toolbar + selección */
+  .anuncios-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 20px;margin-bottom:14px;}
+  .anuncios-selection-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 20px;margin-bottom:18px;}
+
+  /* CAJAS POR ETAPA + TABLA EDITABLE */
+  .etapa-box{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px 20px;margin-bottom:14px;}
+  .etapa-box.adquisicion{border-left:4px solid var(--adq);}
+  .etapa-box.consideracion{border-left:4px solid var(--con);}
+  .etapa-box.conversion{border-left:4px solid var(--conv);}
+  .etapa-title{font-family:'Sora',sans-serif;font-weight:700;font-size:15px;margin:0 0 4px;}
+  .etapa-desc{color:var(--text-dim);font-size:12px;margin:0 0 12px;}
+  .anuncios-table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;}
+  table.anuncios-table{width:100%;border-collapse:collapse;min-width:640px;}
+  table.anuncios-table th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);font-family:'JetBrains Mono',monospace;padding:9px 8px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--surface-2);}
+  table.anuncios-table td{padding:4px 6px;border-bottom:1px solid var(--line);vertical-align:top;}
+  table.anuncios-table tr:last-child td{border-bottom:none;}
+  table.anuncios-table textarea{width:100%;min-height:44px;background:transparent;border:1px solid transparent;border-radius:6px;color:var(--text);padding:7px 8px;font-family:Inter,sans-serif;font-size:12.5px;outline:none;resize:vertical;}
+  table.anuncios-table textarea:hover{border-color:var(--line);}
+  table.anuncios-table textarea:focus{border-color:var(--accent);background:var(--surface-2);}
+  .anuncios-row-del{background:transparent;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;padding:4px 8px;}
+  .anuncios-row-del:hover{color:#EF4444;}
+  .anuncios-row-add{background:transparent;border:1px dashed var(--line);color:var(--text-dim);font-family:Inter,sans-serif;font-size:12px;padding:7px 12px;border-radius:8px;cursor:pointer;}
+  .anuncios-row-add:hover{border-color:var(--accent);color:var(--accent);}
+  .gen-badge{display:inline-block;font-size:10px;font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:100px;padding:2px 7px;margin-left:6px;white-space:nowrap;}
+
+  /* CARDS (calcado de item-card de Jefe Contenido) */
+  .cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;}
+  .empty-row{padding:18px;text-align:center;color:var(--text-dim);font-size:13px;background:var(--surface);border:1px dashed var(--line);border-radius:12px;}
+  .item-card{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--horizon,var(--adq));border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:10px;}
+  .item-top{display:flex;align-items:center;gap:8px;justify-content:space-between;}
+  .item-top-right{display:flex;align-items:center;gap:6px;}
+  .item-del{border:none;background:transparent;color:var(--text-dim);cursor:pointer;font-size:14px;padding:5px 7px;border-radius:6px;opacity:.5;transition:.15s;}
+  .item-del:hover{color:#EF4444;opacity:1;background:rgba(239,68,68,.1);}
+  select.estado-select{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:5px 10px;border-radius:100px;border:1px solid transparent;cursor:pointer;}
+  select.estado-select.idea{background:#1B2142;color:#A8B4F0;border-color:#3A4380;}
+  select.estado-select.proceso{background:#332708;color:#F5C84C;border-color:#6B4F14;}
+  select.estado-select.publicado{background:#3A2013;color:#FF9466;border-color:#7A3A1E;}
+  .fecha-input{width:76px;text-align:right;background:transparent;border:1px solid var(--line);border-radius:8px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:11.5px;padding:5px 8px;outline:none;}
+  .fecha-input:focus{border-color:var(--accent);color:var(--text);}
+  textarea.gancho-input{width:100%;border:none;background:transparent;color:var(--text);font-family:'Sora',sans-serif;font-size:15.5px;font-weight:700;line-height:1.4;resize:none;padding:0;outline:none;min-height:24px;}
+  .badges-row{display:flex;gap:5px;flex-wrap:wrap;align-items:center;}
+  .badge{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-family:'JetBrains Mono',monospace;font-weight:700;padding:3px 8px;border-radius:100px;letter-spacing:.02em;border:1px solid transparent;}
+  .badge-adquisicion{background:var(--adq-soft);color:var(--adq);border-color:#312E81;}
+  .badge-consideracion{background:var(--con-soft);color:var(--con);border-color:#0C4A6E;}
+  .badge-conversion{background:var(--conv-soft);color:var(--conv);border-color:#14532D;}
+  .badge-tipo{background:var(--surface-2);color:var(--text-dim);border-color:var(--line);}
+  .item-details{border-top:1px solid var(--line);padding-top:8px;}
+  .item-details summary{cursor:pointer;font-size:12px;color:var(--horizon,var(--accent));font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.03em;list-style:none;display:flex;align-items:center;justify-content:space-between;}
+  .item-details summary::-webkit-details-marker{display:none;}
+  .detail-grid{display:flex;flex-direction:column;gap:10px;margin-top:10px;}
+  .detail-field{display:flex;flex-direction:column;gap:2px;}
+  .detail-field-head{display:flex;align-items:center;justify-content:space-between;}
+  .detail-field label{display:block;font-size:10.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em;font-family:'JetBrains Mono',monospace;margin-bottom:4px;}
+  .detail-field textarea{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:8px 10px;resize:vertical;outline:none;line-height:1.5;}
+  .detail-field textarea:focus{border-color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a id="back-hub" href="/" style="display:inline-flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#B6A9C7;text-decoration:none;margin-bottom:12px;padding:7px 14px;border:1px solid #332A3D;border-radius:100px;transition:.15s;" onmouseover="this.style.borderColor='#B8F725';this.style.color='#B8F725'" onmouseout="this.style.borderColor='#332A3D';this.style.color='#B6A9C7'">← Hub de Jefes</a>
+  <script>(function(){var p=location.pathname;var b=p.indexOf('/rancho-seco/')!==-1||p.endsWith('/rancho-seco')?'/rancho-seco':p.indexOf('/rim/')!==-1||p.endsWith('/rim')?'/rim':null;if(b)document.getElementById('back-hub').href=b;})();</script>
+  <div id="brand-bar" style="display:inline-flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:#B6A9C7;margin-bottom:14px;padding:5px 14px;border:1px solid #332A3D;border-radius:100px;background:rgba(255,255,255,.03);">
+    <span style="color:#B8F725;">JefesHub</span><span style="opacity:.4;">·</span>
+    <span>Jefe de Anuncios y Campañas de Paga</span><span style="opacity:.4;">·</span>
+    <span id="brand-marca-label">—</span>
+  </div>
+  <script src="/js/storage-client.js"></script>
+  <script>(async function(){
+    var BRANDS={'rancho-seco':{fallback:'Rancho Seco',color:'#F2C230'},'rim':{fallback:'RIM',color:'#F472B6'},'jefeshub':{fallback:'JefesHub',color:'#B8F725'}};
+    var p=location.pathname;
+    var key=/\/rancho-seco(\/|$)/.test(p)?'rancho-seco':/\/rim(\/|$)/.test(p)?'rim':'jefeshub';
+    var b=BRANDS[key];var el=document.getElementById('brand-marca-label');
+    el.textContent=b.fallback;el.style.color=b.color;
+    try{var r=await window.storage.get(key+':brand-book.identidad');if(r&&r.value){var d=JSON.parse(r.value);if(d.nombre)el.textContent=d.nombre;}}catch(e){}
+  })();</script>
+  <h1>Jefe de Anuncios y Campañas de Paga</h1>
+  <p class="sub">Genera ideas de anuncios evergreen a partir de tu ADN, tu Sistema Evergreen y el Radar de Mercado — elige las que te gusten, dales formato y arma el guion, el copy y los prompts de imagen/video completos.</p>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="generador">Generador</div>
+    <div class="tab" data-tab="guardadas">Campañas guardadas <span class="count" id="count-cards">0</span></div>
+  </div>
+
+  <div id="content"></div>
+</div>
+
+<script>
+// ─── CLIENTE ID (detectado por pathname — Vercel no expone ?cliente= al browser) ───
+function detectClienteId(){
+  var p=location.pathname;
+  if(/\/rancho-seco(\/|$)/.test(p)) return 'rancho-seco';
+  if(/\/rim(\/|$)/.test(p)) return 'rim';
+  return 'jefeshub';
+}
+const CLIENTE_ID = detectClienteId();
+const BORRADOR_KEY = CLIENTE_ID + ':anuncios-ideas-borrador';
+const CARDS_KEY = CLIENTE_ID + ':agente-anuncios';
+
+const ETAPAS = [
+  { key:'adquisicion', label:'📢 Adquisición', desc:'Para gente que no conoce la marca todavía — hook de scroll-stop, no vende directo.' },
+  { key:'consideracion', label:'🔵 Consideración', desc:'Para gente que ya vio la marca pero no decide — resuelve objeciones, muestra el método.' },
+  { key:'conversion', label:'🟢 Conversión', desc:'Para gente lista para comprar — oferta directa, urgencia, CTA fuerte.' },
+];
+const FORMATOS = ['reel', 'imagen estática', 'carrusel'];
+const ETAPA_LABEL = {}; ETAPAS.forEach(e=>{ ETAPA_LABEL[e.key]=e.label; });
+
+function escHtml(s){
+  return (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function autoGrow(el){ el.style.height='auto'; el.style.height=el.scrollHeight+'px'; }
+
+// ─── ESTADO ─────────────────────────────────────────────────────────────────
+let grupos = [];
+let productos = [];
+let grupoId = '';
+let productoId = '';
+let borradorStore = {};
+let cards = [];
+let formatoSel = FORMATOS[0];
+let genStatus = '';
+let cardsLoaded = false;
+let currentTab = 'generador';
+
+function grupoKey(){ return grupoId || 'general'; }
+function datosActuales(){
+  const key = grupoKey();
+  if(!borradorStore[key]) borradorStore[key] = {};
+  ETAPAS.forEach(e=>{ if(!Array.isArray(borradorStore[key][e.key])) borradorStore[key][e.key]=[]; });
+  return borradorStore[key];
+}
+function mkIdeaId(etapa){ return etapa+'_'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function mkCardId(){ return 'ac'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+
+async function cargarInicial(){
+  try{ const r=await window.storage.get(CLIENTE_ID+':grupos-negocio'); grupos = r&&r.value?JSON.parse(r.value):[]; }catch(e){ grupos=[]; }
+  try{ const r=await window.storage.get(CLIENTE_ID+':catalogo-productos'); productos = r&&r.value?JSON.parse(r.value):[]; }catch(e){ productos=[]; }
+  try{ const r=await window.storage.get(BORRADOR_KEY); borradorStore = r&&r.value?JSON.parse(r.value):{}; }catch(e){ borradorStore={}; }
+  try{
+    const r=await window.storage.get(CARDS_KEY);
+    cards = r&&r.value?JSON.parse(r.value):[];
+  }catch(e){ cards=[]; }
+  cardsLoaded = true;
+  document.getElementById('count-cards').textContent = cards.length;
+}
+
+// ─── GUARDADO (debounced, igual patrón que agente-contenido-v2.html) ────────
+let borradorSaveTimer=null;
+function scheduleBorradorSave(){ clearTimeout(borradorSaveTimer); borradorSaveTimer=setTimeout(guardarBorrador,600); }
+async function guardarBorrador(opts){ try{ await window.storage.set(BORRADOR_KEY, JSON.stringify(borradorStore), opts); }catch(e){} }
+
+let cardsSaveTimer=null, cardsPendingSave=false;
+function scheduleCardsSave(){ cardsPendingSave=true; clearTimeout(cardsSaveTimer); cardsSaveTimer=setTimeout(doSaveCards,500); }
+async function doSaveCards(opts){
+  clearTimeout(cardsSaveTimer); cardsSaveTimer=null; if(!cardsPendingSave) return;
+  try{ await window.storage.set(CARDS_KEY, JSON.stringify(cards), opts); cardsPendingSave=false; }catch(e){}
+}
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'){ if(cardsPendingSave) doSaveCards({keepalive:true}); guardarBorrador({keepalive:true}); } });
+window.addEventListener('pagehide',()=>{ if(cardsPendingSave) doSaveCards({keepalive:true}); guardarBorrador({keepalive:true}); });
+
+// ─── TABS ─────────────────────────────────────────────────────────────────
+function render(){
+  const contentEl = document.getElementById('content');
+  contentEl.innerHTML='';
+  if(currentTab==='generador') renderGenerador(contentEl);
+  else renderGuardadas(contentEl);
+}
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    currentTab = t.dataset.tab;
+    render();
+  });
+});
+
+// ─── GENERADOR ────────────────────────────────────────────────────────────
+function seleccionadas(){
+  const datos = datosActuales();
+  const items = [];
+  ETAPAS.forEach(e=>{ (datos[e.key]||[]).forEach(it=>{ if(it.selected) items.push(Object.assign({etapa:e.key}, it)); }); });
+  return items;
+}
+
+function renderGenerador(container){
+  const datos = datosActuales();
+  const productosDisponibles = productos.filter(p => p && p.nombre && (!grupoId || p.grupo_id === grupoId));
+
+  const wrap = document.createElement('div');
+
+  const toolbar = document.createElement('div');
+  toolbar.className='anuncios-toolbar';
+  toolbar.innerHTML = `
+    <div class="mode-field" style="min-width:220px;">
+      <label>Grupo de negocio</label>
+      <select id="anuncios-grupo-sel">
+        <option value="">General (sin grupo)</option>
+        ${grupos.map(g=>`<option value="${g.id}"${grupoId===g.id?' selected':''}>${escHtml(g.nombre)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="mode-field" style="min-width:220px;">
+      <label>Producto evergreen (opcional)</label>
+      <select id="anuncios-producto-sel">
+        <option value="">Todo el grupo</option>
+        ${productosDisponibles.map(p=>`<option value="${p.id}"${productoId===p.id?' selected':''}>${escHtml(p.nombre)}</option>`).join('')}
+      </select>
+    </div>
+    <button class="btn btn-solid" id="anuncios-gen-btn" type="button">✨ Generar 9 ideas</button>
+    <span class="mode-status" id="anuncios-gen-status">${escHtml(genStatus)}</span>
+  `;
+  wrap.appendChild(toolbar);
+
+  const selBar = document.createElement('div');
+  selBar.className='anuncios-selection-bar';
+  selBar.innerHTML = `
+    <span id="anuncios-sel-count" class="mode-status">0 idea(s) seleccionada(s)</span>
+    <div class="mode-field" style="min-width:180px;">
+      <label>Formato del lote</label>
+      <select id="anuncios-formato-sel">
+        ${FORMATOS.map(f=>`<option value="${f}"${formatoSel===f?' selected':''}>${f.charAt(0).toUpperCase()+f.slice(1)}</option>`).join('')}
+      </select>
+    </div>
+    <button class="btn btn-outline" id="anuncios-detalle-btn" type="button">→ Generar detalle de seleccionadas</button>
+    <span class="mode-status" id="anuncios-detalle-status"></span>
+  `;
+  wrap.appendChild(selBar);
+
+  ETAPAS.forEach(etapa=>{
+    const filas = datos[etapa.key];
+    const box = document.createElement('div');
+    box.className='etapa-box '+etapa.key;
+    box.innerHTML = `
+      <p class="etapa-title">${etapa.label}</p>
+      <p class="etapa-desc">${etapa.desc}</p>
+      <div class="anuncios-table-wrap">
+        <table class="anuncios-table">
+          <thead><tr><th></th><th>Título</th><th>Hook</th><th>Por qué</th><th></th></tr></thead>
+          <tbody>
+            ${filas.length ? filas.map((fila)=>`
+              <tr data-etapa="${etapa.key}" data-fid="${fila.id}">
+                <td style="text-align:center;"><input type="checkbox" class="anuncios-row-check" data-etapa="${etapa.key}" data-fid="${fila.id}"${fila.selected?' checked':''}></td>
+                <td><textarea data-etapa="${etapa.key}" data-fid="${fila.id}" data-key="titulo">${escHtml(fila.titulo)}</textarea></td>
+                <td><textarea data-etapa="${etapa.key}" data-fid="${fila.id}" data-key="hook">${escHtml(fila.hook)}</textarea></td>
+                <td><textarea data-etapa="${etapa.key}" data-fid="${fila.id}" data-key="porque">${escHtml(fila.porque)}</textarea></td>
+                <td>${fila.generado?`<span class="gen-badge">✓ generada ${fila.generado}x</span>`:''}<button type="button" class="anuncios-row-del" data-etapa="${etapa.key}" data-fid="${fila.id}">✕</button></td>
+              </tr>
+            `).join('') : `<tr><td colspan="5" class="mode-status">Todavía no hay ideas. Usa "Generar 9 ideas con IA" o agrega una fila a mano.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+      <button type="button" class="anuncios-row-add" data-etapa="${etapa.key}">+ Agregar fila</button>
+    `;
+    wrap.appendChild(box);
+  });
+
+  container.appendChild(wrap);
+  updateSelCount();
+
+  document.getElementById('anuncios-grupo-sel').addEventListener('change',(e)=>{ grupoId=e.target.value; productoId=''; render(); });
+  document.getElementById('anuncios-producto-sel').addEventListener('change',(e)=>{ productoId=e.target.value; });
+  document.getElementById('anuncios-formato-sel').addEventListener('change',(e)=>{ formatoSel=e.target.value; });
+  document.getElementById('anuncios-gen-btn').addEventListener('click', generarIdeas);
+  document.getElementById('anuncios-detalle-btn').addEventListener('click', generarDetalleSeleccionadas);
+
+  wrap.querySelectorAll('textarea[data-fid]').forEach(ta=>{
+    autoGrow(ta);
+    ta.addEventListener('input',(e)=>{
+      autoGrow(ta);
+      const { etapa, fid, key } = e.target.dataset;
+      const fila = (datosActuales()[etapa]||[]).find(f=>f.id===fid);
+      if(fila){ fila[key]=e.target.value; scheduleBorradorSave(); }
+    });
+  });
+  wrap.querySelectorAll('.anuncios-row-del').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const { etapa, fid } = btn.dataset;
+      const datos2 = datosActuales();
+      datos2[etapa] = (datos2[etapa]||[]).filter(f=>f.id!==fid);
+      scheduleBorradorSave();
+      render();
+    });
+  });
+  wrap.querySelectorAll('.anuncios-row-add').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const etapa = btn.dataset.etapa;
+      datosActuales()[etapa].push({ id:mkIdeaId(etapa), titulo:'', hook:'', porque:'', selected:false, generado:0 });
+      scheduleBorradorSave();
+      render();
+    });
+  });
+  wrap.querySelectorAll('.anuncios-row-check').forEach(cb=>{
+    cb.addEventListener('change',(e)=>{
+      const { etapa, fid } = e.target.dataset;
+      const fila = (datosActuales()[etapa]||[]).find(f=>f.id===fid);
+      if(fila){ fila.selected = e.target.checked; scheduleBorradorSave(); updateSelCount(); }
+    });
+  });
+}
+
+function updateSelCount(){
+  const el = document.getElementById('anuncios-sel-count');
+  if(el) el.textContent = `${seleccionadas().length} idea(s) seleccionada(s)`;
+}
+
+async function generarIdeas(){
+  const btn = document.getElementById('anuncios-gen-btn');
+  const statusEl = document.getElementById('anuncios-gen-status');
+  btn.disabled = true; btn.textContent = 'Generando...';
+  statusEl.className='mode-status'; statusEl.textContent='⏳ Leyendo ADN + Evergreen + Radar para armar 9 ideas...';
+  try{
+    const res = await fetch('/api/generar-ideas-anuncios', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ cliente: CLIENTE_ID, grupo_id: grupoId, producto_id: productoId }),
+    });
+    const data = await res.json();
+    if(!res.ok){ statusEl.textContent='Error: '+(data.error||'No se pudo generar.'); statusEl.classList.add('error'); return; }
+    const datos = datosActuales();
+    ETAPAS.forEach(e=>{
+      const nuevas = Array.isArray(data.ideas[e.key]) ? data.ideas[e.key] : [];
+      nuevas.forEach(it=>{
+        datos[e.key].push({ id:mkIdeaId(e.key), titulo: it.titulo||'', hook: it.hook||'', porque: it.porque||'', selected:false, generado:0 });
+      });
+    });
+    genStatus = '✅ 9 ideas generadas — revísalas, edítalas y marca las que quieras desarrollar.';
+    scheduleBorradorSave();
+    render();
+  }catch(e){
+    statusEl.textContent='Error de conexión.'; statusEl.classList.add('error');
+  }finally{
+    btn.disabled=false; btn.textContent='✨ Generar 9 ideas';
+  }
+}
+
+async function generarDetalleSeleccionadas(){
+  const statusEl = document.getElementById('anuncios-detalle-status');
+  const btn = document.getElementById('anuncios-detalle-btn');
+  const sel = seleccionadas();
+  if(!sel.length){
+    statusEl.className='mode-status error'; statusEl.textContent='Selecciona al menos una idea primero.';
+    return;
+  }
+  const formato = document.getElementById('anuncios-formato-sel').value;
+  btn.disabled = true;
+  statusEl.className='mode-status'; statusEl.textContent='⏳ Desarrollando guion, copy y prompts de '+sel.length+' idea(s)...';
+  try{
+    const res = await fetch('/api/generar-detalle-anuncio', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        cliente: CLIENTE_ID, grupo_id: grupoId, producto_id: productoId, formato,
+        ideas: sel.map(it=>({ id: it.id, titulo: it.titulo, hook: it.hook, etapa: it.etapa })),
+      }),
+    });
+    const data = await res.json();
+    if(!res.ok){ statusEl.textContent='Error: '+(data.error||'No se pudo generar.'); statusEl.classList.add('error'); return; }
+
+    const detallesPorId = {};
+    (data.detalles||[]).forEach(d=>{ detallesPorId[d.id]=d; });
+
+    let creadas = 0;
+    sel.forEach(it=>{
+      const det = detallesPorId[it.id];
+      if(!det) return;
+      cards.unshift({
+        id: mkCardId(),
+        etapa: it.etapa,
+        formato: data.formato || formato,
+        titulo: it.titulo,
+        hook: it.hook,
+        guion: det.guion,
+        copy_publicacion: det.copy_publicacion,
+        prompt_imagen: det.prompt_imagen,
+        prompt_video: det.prompt_video,
+        caption_whatsapp: det.caption_whatsapp,
+        estado: 'idea',
+        fecha: '',
+      });
+      creadas++;
+      const fila = (datosActuales()[it.etapa]||[]).find(f=>f.id===it.id);
+      if(fila){ fila.selected=false; fila.generado=(fila.generado||0)+1; }
+    });
+
+    document.getElementById('count-cards').textContent = cards.length;
+    scheduleCardsSave();
+    scheduleBorradorSave();
+    statusEl.textContent = `✅ ${creadas} campaña(s) creada(s) en "Campañas guardadas".`;
+    render();
+  }catch(e){
+    statusEl.textContent='Error de conexión.'; statusEl.classList.add('error');
+  }finally{
+    btn.disabled=false;
+  }
+}
+
+// ─── CAMPAÑAS GUARDADAS ───────────────────────────────────────────────────
+function renderGuardadas(container){
+  if(!cards.length){
+    container.innerHTML = '<div class="empty-row">Todavía no hay campañas guardadas. Aprueba ideas en el Generador y elige un formato para crearlas.</div>';
+    return;
+  }
+  const grid = document.createElement('div');
+  grid.className='cards-grid';
+  cards.forEach(item=>grid.appendChild(buildAnuncioCard(item)));
+  container.appendChild(grid);
+  bindCardEvents(container);
+}
+
+function guionFieldsHtml(item){
+  const campos = [
+    ['hook','Hook (primeros 3 seg)'],
+    ['problema','Problema o error'],
+    ['solucion','Solución / método'],
+    ['prueba','Prueba o testimonio'],
+    ['costo_inaccion','Costo de la inacción'],
+    ['cta','CTA'],
+  ];
+  return campos.map(([key,label])=>`
+    <div class="detail-field">
+      <label>${label}</label>
+      <textarea data-id="${item.id}" data-field="guion.${key}">${escHtml(item.guion && item.guion[key])}</textarea>
+    </div>
+  `).join('');
+}
+
+function promptFieldHtml(item, field, label){
+  return `
+    <div class="detail-field">
+      <div class="detail-field-head"><label>${label}</label><button type="button" class="btn-guion copy-field-btn" data-copy-target="${field}" data-id="${item.id}">📋 Copiar</button></div>
+      <textarea data-id="${item.id}" data-field="${field}">${escHtml(item[field])}</textarea>
+    </div>
+  `;
+}
+
+function buildAnuncioCard(item){
+  const card = document.createElement('div');
+  card.className='item-card';
+  card.style.setProperty('--horizon', 'var(--'+(item.etapa==='adquisicion'?'adq':item.etapa==='consideracion'?'con':'conv')+')');
+  card.innerHTML = `
+    <div class="item-top">
+      <select class="estado-select ${item.estado}" data-id="${item.id}" data-field="estado">
+        <option value="idea" ${item.estado==='idea'?'selected':''}>💡 Idea</option>
+        <option value="proceso" ${item.estado==='proceso'?'selected':''}>⚙️ En proceso</option>
+        <option value="publicado" ${item.estado==='publicado'?'selected':''}>🔥 Publicado</option>
+      </select>
+      <div class="item-top-right">
+        <input type="text" class="fecha-input" placeholder="dd/mm" value="${escHtml(item.fecha)}" data-id="${item.id}" data-field="fecha">
+        <button type="button" class="item-del" data-id="${item.id}" title="Eliminar campaña">✕</button>
+      </div>
+    </div>
+    <textarea class="gancho-input" data-id="${item.id}" data-field="titulo">${escHtml(item.titulo)}</textarea>
+    <div class="badges-row">
+      <span class="badge badge-${item.etapa}">${ETAPA_LABEL[item.etapa]||item.etapa}</span>
+      <span class="badge badge-tipo">${escHtml(item.formato)}</span>
+    </div>
+    <details class="item-details">
+      <summary>Ver detalles</summary>
+      <div class="detail-grid">
+        ${guionFieldsHtml(item)}
+        ${promptFieldHtml(item,'copy_publicacion','Copy para publicar')}
+        ${promptFieldHtml(item,'prompt_imagen','Prompt de imagen (IA)')}
+        ${promptFieldHtml(item,'prompt_video','Prompt de video (IA)')}
+        ${promptFieldHtml(item,'caption_whatsapp','Caption para WhatsApp')}
+      </div>
+    </details>
+  `;
+  return card;
+}
+
+function getField(item, field){
+  if(field.indexOf('guion.')===0) return (item.guion||{})[field.slice(6)];
+  return item[field];
+}
+function setField(item, field, value){
+  if(field.indexOf('guion.')===0){ if(!item.guion) item.guion={}; item.guion[field.slice(6)]=value; return; }
+  item[field]=value;
+}
+
+function bindCardEvents(container){
+  container.querySelectorAll('select.estado-select').forEach(sel=>{
+    sel.addEventListener('change',(e)=>{
+      const item = cards.find(c=>c.id===e.target.dataset.id);
+      if(!item) return;
+      item.estado = e.target.value;
+      scheduleCardsSave();
+      render();
+    });
+  });
+  container.querySelectorAll('.fecha-input,.gancho-input,.detail-field textarea').forEach(inp=>{
+    if(inp.tagName==='TEXTAREA') autoGrow(inp);
+    inp.addEventListener('input',(e)=>{
+      if(inp.tagName==='TEXTAREA') autoGrow(inp);
+      const item = cards.find(c=>c.id===e.target.dataset.id);
+      if(!item) return;
+      setField(item, e.target.dataset.field, e.target.value);
+      scheduleCardsSave();
+    });
+  });
+  container.querySelectorAll('.item-del').forEach(btn=>{
+    btn.addEventListener('click',(e)=>{
+      e.preventDefault();
+      if(!confirm('¿Eliminar esta campaña? No se puede deshacer.')) return;
+      cards = cards.filter(c=>c.id!==btn.dataset.id);
+      document.getElementById('count-cards').textContent = cards.length;
+      scheduleCardsSave();
+      render();
+    });
+  });
+  container.querySelectorAll('.copy-field-btn').forEach(btn=>{
+    btn.addEventListener('click',(e)=>{
+      e.preventDefault();
+      const item = cards.find(c=>c.id===btn.dataset.id);
+      if(!item) return;
+      const value = getField(item, btn.dataset.copyTarget) || '';
+      navigator.clipboard.writeText(value).then(()=>{
+        const prev = btn.textContent;
+        btn.textContent='✅ Copiado';
+        setTimeout(()=>{ btn.textContent=prev; },1500);
+      });
+    });
+  });
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────
+cargarInicial().then(render);
+</script>
+</body>
+</html>
