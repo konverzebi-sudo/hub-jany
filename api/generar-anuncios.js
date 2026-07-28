@@ -315,6 +315,10 @@ async function manejarModoIdeas(body, res) {
 
 // ---------- modo: detalle (guion + copy + prompts de un lote aprobado) ----------
 
+// Mapeo fijo etapa -> audiencia (frío/tibio/caliente), tal cual la tabla del documento maestro
+// del curso -- se calcula en código, no se le pide al modelo, para que sea siempre consistente.
+const AUDIENCIA_POR_ETAPA = { adquisicion: 'fría', consideracion: 'tibia', conversion: 'caliente' };
+
 async function manejarModoDetalle(body, res) {
   const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
   const grupoId = body.grupo_id ? body.grupo_id.toString() : '';
@@ -353,7 +357,7 @@ async function manejarModoDetalle(body, res) {
   const { ok, status, data } = await llamarClaude(
     system,
     'Desarrolla el detalle completo de cada idea del lote, en el formato JSON (array) indicado, en el mismo orden y con el mismo "id" que recibiste.',
-    Math.min(8000, 800 + ideas.length * 1200)
+    Math.min(8000, 1000 + ideas.length * 1800)
   );
   if (!ok) {
     return res.status(status).json({ error: data?.error?.message || 'Error al llamar a la API.' });
@@ -365,21 +369,33 @@ async function manejarModoDetalle(body, res) {
     return res.status(502).json({ error: data.stop_reason === 'max_tokens' ? 'La respuesta quedó incompleta (muy larga). Intenta con menos ideas por lote.' : 'No se pudo interpretar la respuesta del modelo.' });
   }
 
-  const detalles = parsed.map((d, i) => ({
-    id: (d && d.id) ? d.id.toString() : (ideas[i] ? ideas[i].id : `idea${i + 1}`),
-    guion: (d && d.guion && typeof d.guion === 'object') ? {
-      hook: d.guion.hook || '',
-      problema: d.guion.problema || '',
-      solucion: d.guion.solucion || '',
-      prueba: d.guion.prueba || '',
-      costo_inaccion: d.guion.costo_inaccion || '',
-      cta: d.guion.cta || '',
-    } : { hook: '', problema: '', solucion: '', prueba: '', costo_inaccion: '', cta: '' },
-    copy_publicacion: (d && d.copy_publicacion) || '',
-    prompt_imagen: (d && d.prompt_imagen) || '',
-    prompt_video: (d && d.prompt_video) || '',
-    caption_whatsapp: (d && d.caption_whatsapp) || '',
-  }));
+  const detalles = parsed.map((d, i) => {
+    const idea = ideas[i] || {};
+    const ideaId = (d && d.id) ? d.id.toString() : (idea.id || `idea${i + 1}`);
+    const etapaIdea = ideas.find((it) => it.id === ideaId)?.etapa || idea.etapa || '';
+    return {
+      id: ideaId,
+      objetivo: (d && d.objetivo) || '',
+      angulo: (d && d.angulo) || '',
+      audiencia: AUDIENCIA_POR_ETAPA[etapaIdea] || '',
+      guion: (d && d.guion && typeof d.guion === 'object') ? {
+        hook: d.guion.hook || '',
+        problema: d.guion.problema || '',
+        solucion: d.guion.solucion || '',
+        prueba: d.guion.prueba || '',
+        costo_inaccion: d.guion.costo_inaccion || '',
+        cta: d.guion.cta || '',
+      } : { hook: '', problema: '', solucion: '', prueba: '', costo_inaccion: '', cta: '' },
+      version_15s: (d && d.version_15s) || '',
+      hooks_alternativos: Array.isArray(d && d.hooks_alternativos) ? d.hooks_alternativos.filter(Boolean).map((h) => h.toString()) : [],
+      visual_sugerido: (d && d.visual_sugerido) || '',
+      duracion_sugerida: (d && d.duracion_sugerida) || '',
+      copy_publicacion: (d && d.copy_publicacion) || '',
+      prompt_imagen: (d && d.prompt_imagen) || '',
+      prompt_video: (d && d.prompt_video) || '',
+      caption_whatsapp: (d && d.caption_whatsapp) || '',
+    };
+  });
 
   return res.status(200).json({ detalles, formato, usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 } });
 }
