@@ -101,6 +101,10 @@
   .item-details summary::-webkit-details-marker{display:none;}
   .detail-grid{display:flex;flex-direction:column;gap:10px;margin-top:10px;}
   .detail-field label{display:block;font-size:10.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em;font-family:'JetBrains Mono',monospace;margin-bottom:4px;}
+  .detail-field-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;}
+  .detail-field-head label{margin-bottom:0;}
+  .copy-field-btn{background:transparent;border:none;color:var(--text-dim);cursor:pointer;font-size:12px;padding:2px 6px;border-radius:6px;line-height:1;}
+  .copy-field-btn:hover{color:var(--accent);background:var(--accent-soft);}
   .detail-field textarea,.detail-field input{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:8px 10px;resize:none;outline:none;line-height:1.5;}
   .detail-field textarea:focus,.detail-field input:focus{border-color:var(--accent);}
   .detail-field input.link-input{color:#7CB9E8;}
@@ -349,7 +353,9 @@ const NOTION_IDEAS_EXISTENTES = [
 ];
 
 // ─── STATE ──────────────────────────────────────────────────────────────────
-let state = JSON.parse(JSON.stringify(RAW_DATA));
+// RAW_DATA es el banco demo de JefesHub (historias de "pacas", etc.) — solo debe verse en
+// JefesHub. Cualquier otro cliente (Rancho Seco, RIM...) arranca vacío hasta que guarde lo suyo.
+let state = CLIENTE_ID==='jefeshub' ? JSON.parse(JSON.stringify(RAW_DATA)) : {historias:[],contenido:[],banco:[]};
 state.banco.forEach(b => { if(b.aprobada===undefined) b.aprobada=!!b.gancho; });
 if(!state.bancoIdeas) state.bancoIdeas = [];
 let currentTab = 'historias';
@@ -650,7 +656,10 @@ function buildCard(r){
         </div>
         <div class="detail-field"><label>Idea</label><textarea data-id="${r.id}" data-field="descripcion">${escHtml(r.descripcion)}</textarea></div>
         <div class="detail-field"><label>Gancho idea</label><textarea data-id="${r.id}" data-field="ganchoIdea">${escHtml(r.ganchoIdea)}</textarea></div>
-        <div class="detail-field"><label>Caption</label><textarea placeholder="Texto para redes: dinámico, con personalidad, potencial viral, emojis, CTA claro y breve — cierra con 5 hashtags." data-id="${r.id}" data-field="caption">${escHtml(r.caption)}</textarea></div>
+        <div class="detail-field">
+          <div class="detail-field-head"><label>Caption</label><button type="button" class="copy-field-btn" data-copy-id="cap-${r.id}" title="Copiar caption">📋 Copiar</button></div>
+          <textarea id="cap-${r.id}" placeholder="Texto para redes: dinámico, con personalidad, potencial viral, emojis, CTA claro y breve — cierra con 5 hashtags." data-id="${r.id}" data-field="caption">${escHtml(r.caption)}</textarea>
+        </div>
         <div class="detail-field"><label>Link de material</label><input type="text" class="link-input" placeholder="https://..." value="${escHtml(r.linkArchivo)}" data-id="${r.id}" data-field="linkArchivo"></div>
         <div class="detail-field"><label>Link de referencia</label><input type="text" class="link-input" placeholder="https://..." value="${escHtml(r.linkRef)}" data-id="${r.id}" data-field="linkRef"></div>
         <div class="detail-field"><label>Notas</label><textarea data-id="${r.id}" data-field="notas">${escHtml(notasValue)}</textarea></div>
@@ -669,6 +678,18 @@ function bindCardEvents(){
   });
   contentEl.querySelectorAll('.btn-guion').forEach(btn=>{
     btn.addEventListener('click',e=>{ e.preventDefault(); e.stopPropagation(); generateGuion(btn.dataset.id); });
+  });
+  contentEl.querySelectorAll('.copy-field-btn').forEach(btn=>{
+    btn.addEventListener('click',e=>{
+      e.preventDefault(); e.stopPropagation();
+      const target=document.getElementById(btn.dataset.copyId);
+      if(!target||!target.value) return;
+      navigator.clipboard.writeText(target.value).then(()=>{
+        const prev=btn.textContent;
+        btn.textContent='✅ Copiado';
+        setTimeout(()=>{btn.textContent=prev;},1500);
+      });
+    });
   });
   contentEl.querySelectorAll('.item-del').forEach(btn=>{
     btn.addEventListener('click',e=>{
