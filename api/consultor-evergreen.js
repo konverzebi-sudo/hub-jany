@@ -1,36 +1,17 @@
-// Endpoint server-side para el "agente vivo" del Jefe Evergreen — pregunta suelta, sin memoria.
-// Multi-tenant: lee `cliente` del body (default 'rancho-seco' para no romper la ruta actual que
-// no lo manda) y carga el CONTEXTO DEL NEGOCIO de esa marca en tiempo real, igual que
-// api/consultor-evergreen-builder.js.
+// Endpoint server-side del Jefe Evergreen -- consolida en UN solo archivo (por el límite de 12
+// Serverless Functions del plan Hobby de Vercel) los 2 endpoints que antes vivían separados:
+// - api/consultor-evergreen.js         ("agente vivo", pregunta suelta sin memoria: body.mensaje)
+// - api/consultor-evergreen-builder.js (chat guiado multi-turno: body.messages)
+// Se distinguen por la FORMA del body (ya eran distintas entre sí, así que no hace falta un campo
+// nuevo de "modo"): si viene `messages` es el chat guiado (builder); si viene `mensaje` es la
+// pregunta suelta. Cada rama conserva exactamente su lógica y forma de respuesta original -- esto
+// es solo reempaquetado, no cambia comportamiento.
 
 const fs = require('fs');
 const path = require('path');
 const { sql } = require('@vercel/postgres');
 
-const PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-consultor-evergreen-preguntas.md');
-const CONTEXT_CHAR_LIMIT = 6000;
-
-let fixedPromptCache = null;
-function cargarPromptFijo() {
-  if (fixedPromptCache) return fixedPromptCache;
-  fixedPromptCache = fs.readFileSync(PROMPT_PATH, 'utf-8');
-  return fixedPromptCache;
-}
-
-// Rate limit básico en memoria (por IP, best-effort entre invocaciones warm de la misma instancia).
-const WINDOW_MS = 5 * 60 * 1000;
-const MAX_REQUESTS = 12;
-const hits = new Map();
-
-function isRateLimited(ip) {
-  const now = Date.now();
-  const recent = (hits.get(ip) || []).filter((t) => now - t < WINDOW_MS);
-  recent.push(now);
-  hits.set(ip, recent);
-  return recent.length > MAX_REQUESTS;
-}
-
-// ---------- lectura de storage (mismo shape que api/storage/[key].js / window.storage) ----------
+const DEFAULT_CLIENTE = 'rancho-seco'; // no rompe la ruta actual, que todavia no manda `cliente`
 
 let tableEnsured = false;
 async function ensureTable() {
@@ -54,14 +35,62 @@ async function leerJSON(key) {
   }
 }
 
+async function escribirJSON(key, valor) {
+  await ensureTable();
+  const value = JSON.stringify(valor);
+  const json = JSON.stringify(value);
+  await sql`
+    INSERT INTO kv_store (key, value, updated_at)
+    VALUES (${key}, ${json}::jsonb, now())
+    ON CONFLICT (key) DO UPDATE SET value = ${json}::jsonb, updated_at = now()
+  `;
+}
+
 function truncar(str, limite) {
   if (!str) return str;
   return str.length > limite ? str.slice(0, limite) + '\n[...recortado...]' : str;
 }
 
-// ---------- formateo del CONTEXTO DEL NEGOCIO a partir del ADN (mismo formato que el builder) ----------
+async function llamarClaude(system, body) {
+  const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': process.env.ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await anthropicRes.json();
+  return { ok: anthropicRes.ok, status: anthropicRes.status, data };
+}
 
-function formatearIdentidad(d) {
+// =============================================================================================
+// RAMA "preguntas" (original api/consultor-evergreen.js) -- pregunta suelta, sin memoria.
+// =============================================================================================
+
+const PREGUNTAS_PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-consultor-evergreen-preguntas.md');
+const PREGUNTAS_CONTEXT_CHAR_LIMIT = 6000;
+
+let preguntasPromptCache = null;
+function cargarPromptPreguntas() {
+  if (preguntasPromptCache) return preguntasPromptCache;
+  preguntasPromptCache = fs.readFileSync(PREGUNTAS_PROMPT_PATH, 'utf-8');
+  return preguntasPromptCache;
+}
+
+const preguntasHits = new Map();
+const PREGUNTAS_WINDOW_MS = 5 * 60 * 1000;
+const PREGUNTAS_MAX_REQUESTS = 12;
+function preguntasRateLimited(ip) {
+  const now = Date.now();
+  const recent = (preguntasHits.get(ip) || []).filter((t) => now - t < PREGUNTAS_WINDOW_MS);
+  recent.push(now);
+  preguntasHits.set(ip, recent);
+  return recent.length > PREGUNTAS_MAX_REQUESTS;
+}
+
+function preguntasFormatearIdentidad(d) {
   if (!d) return null;
   const lineas = [];
   if (d.nombre) lineas.push(`Nombre: ${d.nombre}`);
@@ -71,7 +100,7 @@ function formatearIdentidad(d) {
   return 'IDENTIDAD DEL NEGOCIO:\n' + lineas.join('\n');
 }
 
-function formatearTono(d) {
+function preguntasFormatearTono(d) {
   if (!d) return null;
   const lineas = [];
   if (Array.isArray(d.tonos) && d.tonos.length) lineas.push(`Tonos: ${d.tonos.join(', ')}`);
@@ -80,7 +109,7 @@ function formatearTono(d) {
   return 'TONO DE MARCA:\n' + lineas.join('\n');
 }
 
-function formatearAudiencias(items) {
+function preguntasFormatearAudiencias(items) {
   if (!Array.isArray(items) || items.length === 0) return null;
   const bloques = items
     .filter((a) => a && (a.nombre || a.ocupacion))
@@ -89,14 +118,14 @@ function formatearAudiencias(items) {
   return 'CLIENTE IDEAL:\n' + bloques.join('\n');
 }
 
-function formatearCatalogo(items) {
+function preguntasFormatearCatalogo(items) {
   if (!Array.isArray(items) || items.length === 0) return null;
   const lineas = items.filter((p) => p && p.nombre).map((p) => `- ${p.nombre}${p.precio != null && p.precio !== '' ? ` (precio $${p.precio})` : ''}`);
   if (lineas.length === 0) return null;
   return 'CATÁLOGO DE PRODUCTOS:\n' + lineas.join('\n');
 }
 
-async function construirContextoNegocio(clienteId) {
+async function preguntasConstruirContextoNegocio(clienteId) {
   const [identidad, tono, audiencia, catalogo] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
@@ -104,30 +133,19 @@ async function construirContextoNegocio(clienteId) {
     leerJSON(`${clienteId}:catalogo-productos`).catch(() => null),
   ]);
 
-  const bloques = [formatearIdentidad(identidad), formatearTono(tono), formatearAudiencias(audiencia), formatearCatalogo(catalogo)].filter(Boolean);
+  const bloques = [preguntasFormatearIdentidad(identidad), preguntasFormatearTono(tono), preguntasFormatearAudiencias(audiencia), preguntasFormatearCatalogo(catalogo)].filter(Boolean);
 
   if (bloques.length === 0) {
     return 'CONTEXTO DEL NEGOCIO: todavía no hay datos guardados en el ADN de esta marca. Dilo con claridad en tu respuesta en vez de inventar.';
   }
-  return 'CONTEXTO DEL NEGOCIO (ya cargado del ADN):\n\n' + truncar(bloques.join('\n\n'), CONTEXT_CHAR_LIMIT);
+  return 'CONTEXTO DEL NEGOCIO (ya cargado del ADN):\n\n' + truncar(bloques.join('\n\n'), PREGUNTAS_CONTEXT_CHAR_LIMIT);
 }
 
-module.exports = async function handler(req, res) {
-  res.setHeader('Cache-Control', 'no-store, max-age=0');
-
-  if (req.method !== 'POST') {
-    res.setHeader('Allow', 'POST');
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  const ip = (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown')
-    .toString()
-    .split(',')[0]
-    .trim();
-  if (isRateLimited(ip)) {
+async function manejarPreguntaSuelta(req, res) {
+  const ip = (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown').toString().split(',')[0].trim();
+  if (preguntasRateLimited(ip)) {
     return res.status(429).json({ error: 'Demasiadas solicitudes, espera unos minutos.' });
   }
-
   if (!process.env.ANTHROPIC_API_KEY) {
     return res.status(500).json({ error: 'Falta configurar ANTHROPIC_API_KEY en el servidor.' });
   }
@@ -138,30 +156,20 @@ module.exports = async function handler(req, res) {
   }
 
   const clienteId = (cliente || 'rancho-seco').toString();
-  const promptFijo = cargarPromptFijo();
+  const promptFijo = cargarPromptPreguntas();
 
   try {
-    const contexto = await construirContextoNegocio(clienteId);
+    const contexto = await preguntasConstruirContextoNegocio(clienteId);
     const system = promptFijo + '\n\n' + contexto;
 
-    const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 800,
-        system,
-        messages: [{ role: 'user', content: mensaje }],
-      }),
+    const { ok, status, data } = await llamarClaude(system, {
+      model: 'claude-sonnet-4-6',
+      max_tokens: 800,
+      system,
+      messages: [{ role: 'user', content: mensaje }],
     });
-
-    const data = await anthropicRes.json();
-    if (!anthropicRes.ok) {
-      return res.status(anthropicRes.status).json({ error: data?.error?.message || 'Error al llamar a la API.' });
+    if (!ok) {
+      return res.status(status).json({ error: data?.error?.message || 'Error al llamar a la API.' });
     }
 
     const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
@@ -172,4 +180,313 @@ module.exports = async function handler(req, res) {
   } catch (err) {
     return res.status(500).json({ error: 'Error de conexión con el Agente.' });
   }
+}
+
+// =============================================================================================
+// RAMA "builder" (original api/consultor-evergreen-builder.js) -- chat guiado multi-turno.
+// =============================================================================================
+
+const BUILDER_PROMPTS_POR_MODO = {
+  normal: path.join(__dirname, '..', 'prompts', 'system-prompt-constructor-oferta-evergreen.md'),
+  'documento-maestro': path.join(__dirname, '..', 'prompts', 'system-prompt-documento-maestro.md'),
+};
+const BUILDER_CONTEXT_CHAR_LIMIT = 6000;
+const BUILDER_NOTAS_CHAR_LIMIT = 6000;
+const BUILDER_MAX_MESSAGES = 40;
+
+const builderPromptCache = new Map();
+function cargarPromptBuilder(modo) {
+  const ruta = BUILDER_PROMPTS_POR_MODO[modo] || BUILDER_PROMPTS_POR_MODO.normal;
+  if (builderPromptCache.has(ruta)) return builderPromptCache.get(ruta);
+  const contenido = fs.readFileSync(ruta, 'utf-8');
+  builderPromptCache.set(ruta, contenido);
+  return contenido;
+}
+
+const builderHits = new Map();
+const BUILDER_WINDOW_MS = 10 * 60 * 1000;
+const BUILDER_MAX_REQUESTS = 40;
+function builderRateLimited(ip) {
+  const now = Date.now();
+  const recent = (builderHits.get(ip) || []).filter((t) => now - t < BUILDER_WINDOW_MS);
+  recent.push(now);
+  builderHits.set(ip, recent);
+  return recent.length > BUILDER_MAX_REQUESTS;
+}
+
+async function registrarUsoBuilder(clienteId, usage) {
+  try {
+    const key = `${clienteId}:evergreen-builder-usage-log`;
+    const items = (await leerJSON(key)) || [];
+    items.push({
+      date: new Date().toISOString(),
+      inputTokens: usage?.input_tokens || 0,
+      outputTokens: usage?.output_tokens || 0,
+    });
+    await escribirJSON(key, items.slice(-300));
+  } catch (err) {
+    // No bloquear la respuesta al usuario si falla el registro de uso.
+  }
+}
+
+function builderFormatearIdentidad(d) {
+  if (!d) return null;
+  const lineas = [];
+  if (d.nombre) lineas.push(`Nombre: ${d.nombre}`);
+  if (d.giro_categoria || d.giro_texto) lineas.push(`Giro: ${d.giro_texto || d.giro_categoria}`);
+  if (d.producto_estrella) lineas.push(`Producto estrella: ${d.producto_estrella}`);
+  if (Array.isArray(d.objetivos) && d.objetivos.length) lineas.push(`Objetivos: ${d.objetivos.join(', ')}`);
+  if (d.objetivo_principal) lineas.push(`Objetivo principal: ${d.objetivo_principal}`);
+  if (d.historia) lineas.push(`Historia: ${d.historia}`);
+  if (d.mejora_deseada) lineas.push(`Qué quiere mejorar: ${d.mejora_deseada}`);
+  if (lineas.length === 0) return null;
+  return 'IDENTIDAD DEL NEGOCIO:\n' + lineas.join('\n');
+}
+
+function builderFormatearTono(d) {
+  if (!d) return null;
+  const lineas = [];
+  if (Array.isArray(d.tonos) && d.tonos.length) lineas.push(`Tonos: ${d.tonos.join(', ')}`);
+  if (d.persona) lineas.push(`Persona de marca: ${d.persona}`);
+  if (Array.isArray(d.palabras_si) && d.palabras_si.length) lineas.push(`Palabras que sí usa: ${d.palabras_si.join(', ')}`);
+  if (Array.isArray(d.palabras_no) && d.palabras_no.length) lineas.push(`Palabras que NO usa: ${d.palabras_no.join(', ')}`);
+  if (d.ejemplo_si) lineas.push(`Ejemplo de tono correcto: ${d.ejemplo_si}`);
+  if (d.ejemplo_no) lineas.push(`Ejemplo de tono incorrecto: ${d.ejemplo_no}`);
+  if (lineas.length === 0) return null;
+  return 'TONO DE MARCA:\n' + lineas.join('\n');
+}
+
+function builderFormatearAudiencias(items) {
+  if (!Array.isArray(items) || items.length === 0) return null;
+  const bloques = items
+    .filter((a) => a && (a.nombre || a.ocupacion))
+    .map((a, i) => {
+      const l = [];
+      l.push(`Audiencia ${i + 1}: ${a.nombre || '(sin nombre)'}`);
+      if (a.ocupacion) l.push(`  Ocupación: ${a.ocupacion}`);
+      if (a.miedo_deseo) l.push(`  Miedo/deseo: ${a.miedo_deseo}`);
+      if (a.quien_compra) l.push(`  Quién compra: ${a.quien_compra}`);
+      if (a.que_busca) l.push(`  Qué busca: ${a.que_busca}`);
+      if (a.objecion_comun) l.push(`  Objeción más común: ${a.objecion_comun}`);
+      if (a.por_que_si) l.push(`  Por qué SÍ compran: ${a.por_que_si}`);
+      if (a.por_que_no) l.push(`  Por qué NO compran: ${a.por_que_no}`);
+      if (a.dudas) l.push(`  Dudas frecuentes: ${a.dudas}`);
+      if (a.frases) l.push(`  Frases reales de clientes: ${a.frases}`);
+      return l.join('\n');
+    });
+  if (bloques.length === 0) return null;
+  return 'CLIENTE IDEAL (audiencias del ADN):\n' + bloques.join('\n\n');
+}
+
+function builderFormatearGrupos(grupos) {
+  if (!Array.isArray(grupos) || grupos.length === 0) return null;
+  return 'GRUPOS DE NEGOCIO YA DEFINIDOS (líneas de producto/servicio -- usa estos nombres tal cual, nunca inventes otros; si el usuario menciona una línea que no está aquí, dile que la agregue en el Catálogo del ADN):\n' +
+    grupos.map((g) => `- ${g.nombre}`).join('\n');
+}
+
+function builderFormatearCatalogo(items, grupos) {
+  if (!Array.isArray(items) || items.length === 0) return null;
+  const nombrePorGrupo = {};
+  (grupos || []).forEach((g) => { nombrePorGrupo[g.id] = g.nombre; });
+  const lineas = items
+    .filter((p) => p && p.nombre)
+    .map((p) => {
+      const partes = [p.nombre];
+      if (p.tipo) partes.push(p.tipo);
+      if (p.grupo_id && nombrePorGrupo[p.grupo_id]) partes.push(`grupo: ${nombrePorGrupo[p.grupo_id]}`);
+      if (p.precio != null && p.precio !== '') partes.push(`precio $${p.precio}`);
+      if (p.costo != null && p.costo !== '') partes.push(`costo $${p.costo}`);
+      if (p.que_tanto_se_vende) partes.push(`se vende: ${p.que_tanto_se_vende}`);
+      if (p.inventario) partes.push(`inventario: ${p.inventario}`);
+      if (p.notas) partes.push(`notas: ${p.notas}`);
+      return '- ' + partes.join(' · ');
+    });
+  if (lineas.length === 0) return null;
+  return 'CATÁLOGO DE PRODUCTOS:\n' + lineas.join('\n');
+}
+
+function builderFormatearJourney(d) {
+  if (!d) return null;
+  const lineas = [];
+  if (Array.isArray(d.pasos) && d.pasos.length) {
+    d.pasos.forEach((p, i) => {
+      if (p && (p.opciones?.length || p.otro)) {
+        lineas.push(`Paso ${i + 1}: ${(p.opciones || []).join(', ')}${p.otro ? ' — ' + p.otro : ''}`);
+      }
+    });
+  }
+  const diag = d.diagnostico || {};
+  const diagLineas = [];
+  if (diag.perdida) diagLineas.push(`Dónde se pierden ventas: ${diag.perdida}`);
+  if (diag.objecion) diagLineas.push(`Objeción más común en journey: ${diag.objecion}`);
+  if (diag.desorden) diagLineas.push(`Qué está desordenado: ${diag.desorden}`);
+  const todo = [...lineas, ...diagLineas];
+  if (todo.length === 0) return null;
+  return 'CUSTOMER JOURNEY ACTUAL:\n' + todo.join('\n');
+}
+
+function builderFormatearMetricasFinancieros(m, f) {
+  const lineas = [];
+  if (m) {
+    if (m.ticket_promedio) lineas.push(`Ticket promedio: $${m.ticket_promedio}`);
+    if (m.num_ventas_mes) lineas.push(`Ventas al mes: ${m.num_ventas_mes}`);
+    if (m.tasa_conversion_pct) lineas.push(`Tasa de conversión: ${m.tasa_conversion_pct}%`);
+  }
+  if (f) {
+    if (f.margen_bruto_pct) lineas.push(`Margen bruto: ${f.margen_bruto_pct}%`);
+    if (f.costo_variable_pct) lineas.push(`Costo variable: ${f.costo_variable_pct}%`);
+  }
+  if (lineas.length === 0) return null;
+  return 'MÉTRICAS Y FINANCIEROS:\n' + lineas.join('\n');
+}
+
+async function builderConstruirContextoNegocio(clienteId) {
+  const [identidad, tono, audiencia, catalogo, grupos, journey, metricas, financieros] = await Promise.all([
+    leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
+    leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
+    leerJSON(`${clienteId}:brand-book.audiencia`).catch(() => null),
+    leerJSON(`${clienteId}:catalogo-productos`).catch(() => null),
+    leerJSON(`${clienteId}:grupos-negocio`).catch(() => null),
+    leerJSON(`${clienteId}:brand-book.customer_journey`).catch(() => null),
+    leerJSON(`${clienteId}:brand-book.metricas`).catch(() => null),
+    leerJSON(`${clienteId}:brand-book.financieros`).catch(() => null),
+  ]);
+
+  const bloques = [
+    builderFormatearIdentidad(identidad),
+    builderFormatearTono(tono),
+    builderFormatearAudiencias(audiencia),
+    builderFormatearGrupos(grupos),
+    builderFormatearCatalogo(catalogo, grupos),
+    builderFormatearJourney(journey),
+    builderFormatearMetricasFinancieros(metricas, financieros),
+  ].filter(Boolean);
+
+  if (bloques.length === 0) {
+    return 'CONTEXTO DEL NEGOCIO: el ADN de esta marca todavía no tiene datos guardados. Avísale al usuario que antes de continuar sería ideal llenar el ADN, pero si quiere seguir de todas formas, hazle tú las preguntas mínimas necesarias antes del Paso 1.';
+  }
+  return 'CONTEXTO DEL NEGOCIO (ya cargado del ADN — no le pidas al usuario que lo repita):\n\n' + truncar(bloques.join('\n\n'), BUILDER_CONTEXT_CHAR_LIMIT);
+}
+
+function builderFormatearValorNota(valor) {
+  if (valor == null) return '';
+  if (Array.isArray(valor)) {
+    const filas = valor.filter((f) => f && Object.values(f).some((v) => (v || '').toString().trim()));
+    if (filas.length === 0) return '';
+    return filas
+      .map((f) => Object.entries(f).filter(([k, v]) => k !== '_marcada' && (v || '').toString().trim()).map(([k, v]) => `${k}: ${v}`).join(' | '))
+      .map((l) => '  - ' + l)
+      .join('\n');
+  }
+  if (typeof valor === 'object') {
+    const partes = Object.entries(valor).filter(([, v]) => (v || '').toString().trim()).map(([k, v]) => `  - ${k}: ${v}`);
+    return partes.join('\n');
+  }
+  return valor.toString().trim() ? '  ' + valor.toString().trim() : '';
+}
+
+const BUILDER_GRUPOS_NOTAS_EVERGREEN = [
+  { suffix: 'evergreen-producto', titulo: 'PRODUCTO EVERGREEN' },
+  { suffix: 'evergreen-perfil-cliente', titulo: 'PERFIL DE CLIENTE EVERGREEN' },
+  { suffix: 'evergreen-comunicacion', titulo: 'COMUNICACIÓN EVERGREEN' },
+  { suffix: 'evergreen-sistema', titulo: 'SISTEMA EVERGREEN' },
+];
+
+async function builderFormatearNotasGuardadas(clienteId) {
+  const datos = await Promise.all(
+    BUILDER_GRUPOS_NOTAS_EVERGREEN.map((g) => leerJSON(`${clienteId}:brand-book.${g.suffix}`).catch(() => null))
+  );
+  const bloques = BUILDER_GRUPOS_NOTAS_EVERGREEN.map((g, i) => {
+    const d = datos[i];
+    if (!d) return null;
+    const campos = Object.entries(d)
+      .map(([campo, valor]) => {
+        const formateado = builderFormatearValorNota(valor);
+        return formateado ? `${campo}:\n${formateado}` : null;
+      })
+      .filter(Boolean);
+    if (campos.length === 0) return null;
+    return g.titulo + ':\n' + campos.join('\n');
+  }).filter(Boolean);
+
+  if (bloques.length === 0) {
+    return 'NOTAS EVERGREEN YA GUARDADAS: todavía no hay nada guardado en ninguno de los 4 grupos de Notas.';
+  }
+  return 'NOTAS EVERGREEN YA GUARDADAS (esto es lo real, guardado por el usuario -- tu revisión se basa en esto, no en esta conversación):\n\n' + truncar(bloques.join('\n\n'), BUILDER_NOTAS_CHAR_LIMIT);
+}
+
+async function manejarChatGuiado(req, res) {
+  const ip = (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown').toString().split(',')[0].trim();
+  if (builderRateLimited(ip)) {
+    return res.status(429).json({ error: 'Demasiadas solicitudes, espera unos minutos.' });
+  }
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.status(500).json({ error: 'Falta configurar ANTHROPIC_API_KEY en el servidor.' });
+  }
+
+  const body = req.body || {};
+  const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
+  const modo = body.modo === 'documento-maestro' ? 'documento-maestro' : 'normal';
+  const messages = Array.isArray(body.messages) ? body.messages : null;
+  if (!messages || messages.length === 0) {
+    return res.status(400).json({ error: 'Falta el historial de la conversación (messages).' });
+  }
+  const limpio = messages
+    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+    .slice(-BUILDER_MAX_MESSAGES)
+    .map((m) => ({ role: m.role, content: m.content }));
+  if (limpio.length === 0 || limpio[limpio.length - 1].role !== 'user') {
+    return res.status(400).json({ error: 'El último mensaje debe ser del usuario.' });
+  }
+
+  try {
+    const promptFijo = cargarPromptBuilder(modo);
+    const contexto = await builderConstruirContextoNegocio(clienteId);
+    const partesSystem = [promptFijo, contexto];
+    if (modo === 'documento-maestro') {
+      partesSystem.push(await builderFormatearNotasGuardadas(clienteId));
+    }
+    const system = partesSystem.join('\n\n');
+
+    const { ok, status, data } = await llamarClaude(system, {
+      model: 'claude-sonnet-4-6',
+      max_tokens: modo === 'documento-maestro' ? 3000 : 1500,
+      system,
+      messages: limpio,
+    });
+    if (!ok) {
+      return res.status(status).json({ error: data?.error?.message || 'Error al llamar a la API.' });
+    }
+
+    const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
+    if (!text) {
+      return res.status(502).json({ error: 'Respuesta vacía del modelo.' });
+    }
+    await registrarUsoBuilder(clienteId, data.usage);
+    return res.status(200).json({
+      text,
+      usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 },
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error de conexión con el Agente.' });
+  }
+}
+
+// =============================================================================================
+// handler -- despacha por la FORMA del body (messages -> builder; mensaje -> preguntas)
+// =============================================================================================
+
+module.exports = async function handler(req, res) {
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
+
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST');
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const body = req.body || {};
+  if (Array.isArray(body.messages)) {
+    return manejarChatGuiado(req, res);
+  }
+  return manejarPreguntaSuelta(req, res);
 };
