@@ -252,9 +252,10 @@ function instruccionAnalisisCuentaJSON(identificadores, fuenteTexto) {
     `Si ningún bloque coincide claramente con esta cuenta específica, NO tomes otro bloque al azar ni inventes datos — responde con accesible:false.\n\n` +
     `TEXTO PEGADO:\n"""\n${fuenteTexto}\n"""\n\n` +
     `Detecta patrones (sin copiar) y responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional antes ni después, con este formato exacto:\n` +
-    `{"accesible": true, "tipo_de_contenido": "...", "frecuencia": "...", "temas": ["..."], "hooks": ["..."], "formatos": ["..."], "que_funciona": "...", "que_aprender": "...", "que_no_copiar": "...", "que_adaptar": "..."}\n` +
+    `{"accesible": true, "tipo_de_contenido": "...", "frecuencia": "...", "temas": ["..."], "hooks": ["..."], "formatos": ["..."], "que_funciona": "...", "que_aprender": "...", "que_no_copiar": "...", "que_adaptar": "...", "objecion_o_deseo": "..."}\n` +
+    `El campo "objecion_o_deseo" debe decir qué objeción o deseo del cliente ideal conecta con esta cuenta — usa la lista maestra del contexto de abajo si está disponible (di cuál objeción/deseo ya registrado coincide); si no hay coincidencia clara, describe la objeción o deseo que sí detectes, o deja "" si no aplica.\n` +
     `Si la cuenta no aparece en el texto o no hay suficiente información, responde exactamente:\n` +
-    `{"accesible": false, "tipo_de_contenido": "", "frecuencia": "", "temas": [], "hooks": [], "formatos": [], "que_funciona": "", "que_aprender": "", "que_no_copiar": "", "que_adaptar": ""}`
+    `{"accesible": false, "tipo_de_contenido": "", "frecuencia": "", "temas": [], "hooks": [], "formatos": [], "que_funciona": "", "que_aprender": "", "que_no_copiar": "", "que_adaptar": "", "objecion_o_deseo": ""}`
   );
 }
 
@@ -292,6 +293,9 @@ async function handleDiagnosticoGeneral(req, res, clienteId, systemPrompt) {
     'el conjunto completo — NO lo desgloses cuenta por cuenta todavía: temas que se repiten, hooks que funcionan, ' +
     'formatos usados, qué aprender, qué NO copiar (señala explícitamente cualquier práctica de presión falsa, ' +
     'manipulación o promesa exagerada que no se debe imitar), y qué adaptar a nuestro negocio.\n\n' +
+    'Si detectas objeciones o deseos del cliente que se repiten entre las cuentas, señálalos explícitamente y ' +
+    'cruza cada uno contra la lista maestra del cliente ideal (abajo, si está disponible) — di si confirman una ' +
+    'objeción/deseo ya registrado o si es una señal nueva.\n\n' +
     'Si el texto marca alguna cuenta como "🔒 no accesible", no la analices — solo continúa con las que sí ' +
     `tienen datos.\n\nTEXTO PEGADO:\n"""\n${textoPegado}\n"""`;
 
@@ -327,7 +331,7 @@ async function handleAnalisisCuentaGuardada(req, res, clienteId, systemPrompt) {
     return res.status(400).json({ error: 'Genera el diagnóstico general primero (Sección 2).' });
   }
 
-  const contexto = await construirContexto(clienteId, ['brand-book.identidad', 'brand-book.tono', 'brand-book.audiencia']).catch(() => '');
+  const contexto = await construirContexto(clienteId, ['brand-book.identidad', 'brand-book.tono', 'brand-book.audiencia', 'lista-maestra-cliente-ideal']).catch(() => '');
   const instruccion = instruccionAnalisisCuentaJSON({ label: accountLabel, handle: accountHandle, link: accountLink }, entry.textoPegado);
   const promptCompleto = [systemPrompt, contexto, instruccion].filter(Boolean).join('\n\n');
 
@@ -397,13 +401,14 @@ async function handleAnalisisGeneral(req, res, clienteId, systemPrompt) {
     'BLOQUE 1 — responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional antes ni después, con este formato exacto. ' +
     'TODOS los campos son arreglos de puntos clave CORTOS (máximo ~12 palabras cada uno) — nunca un párrafo largo de prosa, ni siquiera en "que_funciona":\n' +
     '{"que_funciona": ["...", "..."], "hooks_que_se_repiten": ["...", "..."], "formatos_que_usan": ["...", "..."], "temas_que_ganan_atencion": ["...", "..."], "ideas_adaptar_semana": ["...", "..."]}\n\n' +
-    'BLOQUE 2 — responde ÚNICAMENTE con un arreglo JSON de exactamente 5 strings (sin texto adicional antes ni después), ' +
-    'cada uno un insight principal breve y accionable, en el orden de prioridad. Formato exacto: ' +
-    '["insight 1", "insight 2", "insight 3", "insight 4", "insight 5"]\n\n' +
+    'BLOQUE 2 — responde ÚNICAMENTE con un arreglo JSON de exactamente 5 objetos (sin texto adicional antes ni después), ' +
+    'cada uno un insight principal breve y accionable, en orden de prioridad, con este formato exacto: ' +
+    '{"insight": "insight breve y accionable", "uso": "orgánico | ads | ambos", "prioridad": "alta | media | baja"}. ' +
+    'Arreglo completo: [{"insight": "...", "uso": "...", "prioridad": "..."}, ...] — exactamente 5 elementos.\n\n' +
     `DIAGNÓSTICO PREVIO:\n"""\n${diagEntry.diagnostico}\n"""`;
 
   const promptCompleto = [systemPrompt, contexto, instruccion].filter(Boolean).join('\n\n');
-  const r = await llamarClaude({ promptCompleto, webSearch: true, maxTokens: 2200 });
+  const r = await llamarClaude({ promptCompleto, webSearch: true, maxTokens: 2600 });
   if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
 
   const partes = r.text.split(SEPARADOR_INSIGHTS);
@@ -442,27 +447,36 @@ async function handleIdeasAccionables(req, res, clienteId, systemPrompt) {
     return res.status(400).json({ error: 'Genera el análisis general primero (Sección 4).' });
   }
   const entry = items[idx];
-  if (entry.ideas) {
-    return res.status(200).json({ ideas: entry.ideas });
+  // Array.isArray(entry.ideas) && length===0 significa que un intento anterior
+  // no logro parsear el JSON del modelo (ver mas abajo) — un arreglo vacio es
+  // "truthy" en JS, asi que sin este chequeo explicito nunca se reintentaria.
+  const yaCalculado = Array.isArray(entry.ideas) ? entry.ideas.length > 0 : !!entry.ideas;
+  if (yaCalculado) {
+    return res.status(200).json({ ideas: entry.ideas, ideasRaw: entry.ideasRaw });
   }
 
-  const contexto = await construirContexto(clienteId, ['brand-book.identidad', 'brand-book.tono', 'brand-book.audiencia']).catch(() => '');
+  const contexto = await construirContexto(clienteId, ['brand-book.identidad', 'brand-book.tono', 'brand-book.audiencia', 'lista-maestra-cliente-ideal']).catch(() => '');
   const instruccion =
-    'A partir del análisis general y los insights ya generados (abajo), da EXACTAMENTE 10 ideas de contenido ' +
-    'accionables, numeradas, en formato listo para copiar y pegar (sin explicaciones adicionales, sin JSON — texto plano numerado).\n\n' +
-    `ANÁLISIS GENERAL:\n"""\n${entry.analisisRaw || ''}\n"""\n\nINSIGHTS:\n"""\n${entry.insightsRaw || ''}\n"""`;
+    'A partir del análisis general y los insights ya generados (abajo), da EXACTAMENTE 10 ideas de contenido accionables. ' +
+    'Responde ÚNICAMENTE con un arreglo JSON de exactamente 10 objetos, sin texto adicional antes ni después, con este formato exacto:\n' +
+    '{"idea": "idea principal", "angulo": "ángulo", "hook": "hook posible", "formato": "formato recomendado", "uso": "orgánico | ads | ambos", "porque": "por qué funciona para el cliente ideal"}\n' +
+    'Arreglo completo: [{"idea": "...", "angulo": "...", "hook": "...", "formato": "...", "uso": "...", "porque": "..."}, ...] — exactamente 10 elementos.\n\n' +
+    `ANÁLISIS GENERAL:\n"""\n${entry.analisisRaw || ''}\n"""\n\nINSIGHTS:\n"""\n${JSON.stringify(entry.insights || [])}\n"""`;
   const promptCompleto = [systemPrompt, contexto, instruccion].filter(Boolean).join('\n\n');
-  const r = await llamarClaude({ promptCompleto, webSearch: false, maxTokens: 1500 });
+  const r = await llamarClaude({ promptCompleto, webSearch: false, maxTokens: 2200 });
   if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
 
+  const ideas = extractJsonArray(r.text) || [];
+
   try {
-    entry.ideas = r.text;
+    entry.ideas = ideas;
+    entry.ideasRaw = r.text;
     await escribirJSON(key, items);
   } catch (err) {
     // No bloquear la respuesta al usuario si falla el guardado del cache.
   }
 
-  return res.status(200).json({ ideas: r.text });
+  return res.status(200).json({ ideas, ideasRaw: r.text });
 }
 
 module.exports = async function handler(req, res) {
