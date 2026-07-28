@@ -1,7 +1,8 @@
-// Endpoint server-side para el Jefe Contenido -- Guionista Organico. Genera un guion de
-// contenido organico (reel/tiktok/historia/carrusel/post estatico) a partir de una idea puntual,
-// leyendo en vivo el mismo CONTEXTO DEL NEGOCIO que usa Jefe Evergreen + sus Notas de Comunicacion
-// Evergreen + el Radar de Mercado mas reciente. Multi-tenant, sin datos hardcoded de ninguna marca.
+// Endpoint server-side para el Jefe Contenido -- Guionista Organico. Dos modos:
+// 'ideas' genera un banco de ideas con sus 7 angulos estrategicos; 'contenido' toma UNA idea ya
+// elegida y genera caption + guion siguiendo la estructura del objetivo. Lee en vivo el mismo
+// CONTEXTO DEL NEGOCIO que usa Jefe Evergreen + sus Notas de Comunicacion Evergreen + el Radar de
+// Mercado mas reciente. Multi-tenant, sin datos hardcoded de ninguna marca.
 
 const fs = require('fs');
 const path = require('path');
@@ -206,6 +207,70 @@ async function construirContexto(clienteId, grupoId) {
   return { contexto: truncar(partes.join('\n\n---\n\n'), CONTEXT_CHAR_LIMIT), catalogo };
 }
 
+function extractJson(text) {
+  if (!text) return null;
+  const limpio = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+  try {
+    return JSON.parse(limpio);
+  } catch (err) {
+    // Fallback: busca el primer '{' al primer '}' que cierre balanceado.
+  }
+  const match = limpio.match(/\{[\s\S]*\}/);
+  if (!match) return null;
+  try {
+    return JSON.parse(match[0]);
+  } catch (err) {
+    return null;
+  }
+}
+
+const OBJETIVOS_VALIDOS = ['alcance', 'educativo', 'confianza', 'historia', 'opinion', 'venta_sutil', 'venta_directa', 'tendencia'];
+
+function formatearIdeaSeleccionada(idea) {
+  if (!idea || typeof idea !== 'object') return '';
+  const lineas = [`Idea: ${idea.idea || ''}`];
+  ['problema', 'error', 'deseo', 'historia', 'descubrimiento', 'objecion', 'comparacion'].forEach((k) => {
+    if (idea[k]) lineas.push(`${k.charAt(0).toUpperCase() + k.slice(1)}: ${idea[k]}`);
+  });
+  if (idea.uso_sugerido) lineas.push(`Uso sugerido: ${idea.uso_sugerido}`);
+  return lineas.join('\n');
+}
+
+async function llamarClaude({ system, mensaje, maxTokens, conBusqueda }) {
+  const requestBody = {
+    model: 'claude-sonnet-4-6',
+    max_tokens: maxTokens,
+    system,
+    messages: [{ role: 'user', content: mensaje }],
+  };
+  if (conBusqueda) {
+    requestBody.tools = [{ type: 'web_search_20260209', name: 'web_search', max_uses: 3 }];
+  }
+  const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': process.env.ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify(requestBody),
+  });
+  const data = await anthropicRes.json();
+  if (!anthropicRes.ok) {
+    const err = new Error(data?.error?.message || 'Error al llamar a la API.');
+    err.status = anthropicRes.status;
+    throw err;
+  }
+  const texto = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
+  const parsed = extractJson(texto);
+  if (!parsed) {
+    const err = new Error(data.stop_reason === 'max_tokens' ? 'La respuesta quedó incompleta (muy larga). Intenta de nuevo.' : 'No se pudo interpretar la respuesta del modelo.');
+    err.status = 502;
+    throw err;
+  }
+  return { parsed, usage: data.usage };
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
 
@@ -230,54 +295,74 @@ module.exports = async function handler(req, res) {
   const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
   const grupoId = body.grupo_id ? body.grupo_id.toString() : '';
   const productoId = body.producto_id ? body.producto_id.toString() : '';
-  const idea = (body.idea || '').toString().trim();
-  const objetivo = (body.objetivo || 'alcance').toString();
-  const formato = (body.formato || 'reel').toString();
-
-  if (!idea) {
-    return res.status(400).json({ error: 'Falta la idea o tema del contenido.' });
-  }
+  const modo = body.modo === 'contenido' ? 'contenido' : 'ideas';
+  const objetivo = OBJETIVOS_VALIDOS.includes(body.objetivo) ? body.objetivo : 'alcance';
+  const esTendencia = objetivo === 'tendencia';
 
   try {
     const promptFijo = cargarPromptFijo();
     const { contexto, catalogo } = await construirContexto(clienteId, grupoId);
     const bloqueProducto = formatearProducto(catalogo, productoId);
 
-    const instruccion = 'INSTRUCCIÓN DE ESTA GENERACIÓN:\n' +
-      `IDEA / TEMA: ${idea}\n` +
+    if (modo === 'ideas') {
+      const tema = (body.tema || '').toString().trim();
+      const cantidad = Math.min(Math.max(parseInt(body.cantidad, 10) || 6, 1), 10);
+
+      const instruccion = 'INSTRUCCIÓN DE ESTA GENERACIÓN — MODO "ideas":\n' +
+        `OBJETIVO: ${objetivo}\n` +
+        `CANTIDAD DE IDEAS: ${cantidad}` +
+        (tema ? `\nTEMA / CONTEXTO SEMILLA (opcional, úsalo como punto de partida): ${tema}` : '') +
+        (bloqueProducto ? '\n\n' + bloqueProducto : '') +
+        (esTendencia ? '\n\nEl objetivo es "tendencia": usa la herramienta de búsqueda web para encontrar qué está pasando AHORA antes de responder. Basa las ideas en hallazgos reales, no en suposiciones.' : '');
+
+      const system = [promptFijo, contexto, instruccion].join('\n\n');
+      const { parsed, usage } = await llamarClaude({
+        system,
+        mensaje: 'Genera las ideas de contenido orgánico pedidas, siguiendo el formato JSON obligatorio del MODO "ideas" al pie de la letra.',
+        maxTokens: esTendencia ? 4000 : 3000,
+        conBusqueda: esTendencia,
+      });
+
+      const ideas = Array.isArray(parsed.ideas) ? parsed.ideas : [];
+      if (!ideas.length) {
+        return res.status(502).json({ error: 'El modelo no devolvió ideas. Intenta de nuevo.' });
+      }
+      return res.status(200).json({ ideas, usage: { inputTokens: usage?.input_tokens || 0, outputTokens: usage?.output_tokens || 0 } });
+    }
+
+    // modo === 'contenido'
+    const formato = (body.formato || 'reel').toString();
+    const idea = body.idea;
+    if (!idea || !idea.idea) {
+      return res.status(400).json({ error: 'Falta la idea seleccionada.' });
+    }
+
+    const instruccion = 'INSTRUCCIÓN DE ESTA GENERACIÓN — MODO "contenido":\n' +
       `OBJETIVO: ${objetivo}\n` +
-      `FORMATO: ${formato}` +
-      (bloqueProducto ? '\n\n' + bloqueProducto : '');
+      `FORMATO: ${formato}\n` +
+      'IDEA ELEGIDA (con sus ángulos):\n' + formatearIdeaSeleccionada(idea) +
+      (bloqueProducto ? '\n\n' + bloqueProducto : '') +
+      (esTendencia ? '\n\nEl objetivo es "tendencia": si es útil, usa la herramienta de búsqueda web para confirmar el hallazgo antes de escribir el contenido.' : '');
 
     const system = [promptFijo, contexto, instruccion].join('\n\n');
-
-    const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 2000,
-        system,
-        messages: [{ role: 'user', content: 'Genera el guion de contenido orgánico pedido, siguiendo el formato de salida obligatorio al pie de la letra.' }],
-      }),
+    const { parsed, usage } = await llamarClaude({
+      system,
+      mensaje: 'Genera el caption y el guion pedidos para la idea elegida, siguiendo el formato JSON obligatorio del MODO "contenido" al pie de la letra.',
+      maxTokens: esTendencia ? 2500 : 2000,
+      conBusqueda: esTendencia,
     });
 
-    const data = await anthropicRes.json();
-    if (!anthropicRes.ok) {
-      return res.status(anthropicRes.status).json({ error: data?.error?.message || 'Error al llamar a la API.' });
+    if (!parsed.guion) {
+      return res.status(502).json({ error: 'El modelo no devolvió el contenido esperado. Intenta de nuevo.' });
     }
-
-    const guion = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
-    if (!guion) {
-      return res.status(502).json({ error: 'No se pudo interpretar la respuesta del modelo.' });
-    }
-
-    return res.status(200).json({ guion, usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 } });
+    return res.status(200).json({
+      caption: parsed.caption || '',
+      guion: parsed.guion || '',
+      notas_grabacion: parsed.notas_grabacion || '',
+      duracion_aproximada: parsed.duracion_aproximada || '',
+      usage: { inputTokens: usage?.input_tokens || 0, outputTokens: usage?.output_tokens || 0 },
+    });
   } catch (err) {
-    return res.status(500).json({ error: 'Error de conexión con el Agente.' });
+    return res.status(err.status || 500).json({ error: err.status ? err.message : 'Error de conexión con el Agente.' });
   }
 };
