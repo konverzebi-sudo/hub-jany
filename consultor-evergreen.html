@@ -831,13 +831,17 @@ document.getElementById('builderCapturas').addEventListener('change', async (e) 
 document.getElementById('builderTxt').addEventListener('change', async (e) => {
   const files = Array.from(e.target.files || []);
   if (!files.length) return;
+  const LIMITE_POR_ARCHIVO = 8000;
   const textos = [];
   for (const file of files) {
-    const texto = await new Promise((resolve) => {
+    let texto = await new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result);
       reader.readAsText(file);
     });
+    if (texto.length > LIMITE_POR_ARCHIVO) {
+      texto = texto.slice(0, LIMITE_POR_ARCHIVO) + '\n[...conversación recortada por longitud...]';
+    }
     textos.push(`--- ${file.name} ---\n${texto}`);
   }
   builderTxtConversacion = textos.join('\n\n');
