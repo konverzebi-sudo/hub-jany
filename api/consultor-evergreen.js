@@ -439,6 +439,19 @@ async function manejarChatGuiado(req, res) {
     return res.status(400).json({ error: 'El último mensaje debe ser del usuario.' });
   }
 
+  const imagenes = Array.isArray(body.imagenes) ? body.imagenes.filter((img) => img && img.mediaType && img.data).slice(0, 6) : [];
+  const txtConversacion = typeof body.txtConversacion === 'string' ? body.txtConversacion : '';
+  if (imagenes.length || txtConversacion.trim()) {
+    const ultimo = limpio[limpio.length - 1];
+    const partes = imagenes.map((img) => ({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.data } }));
+    let texto = ultimo.content;
+    if (txtConversacion.trim()) {
+      texto += '\n\n--- Conversación de WhatsApp adjunta por el usuario ---\n' + truncar(txtConversacion.trim(), 12000);
+    }
+    partes.push({ type: 'text', text: texto });
+    ultimo.content = partes;
+  }
+
   try {
     const promptFijo = cargarPromptBuilder(modo);
     const contexto = await builderConstruirContextoNegocio(clienteId);
