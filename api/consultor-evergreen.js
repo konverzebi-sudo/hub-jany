@@ -446,7 +446,7 @@ async function manejarChatGuiado(req, res) {
     const partes = imagenes.map((img) => ({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.data } }));
     let texto = ultimo.content;
     if (txtConversacion.trim()) {
-      texto += '\n\n--- Conversación de WhatsApp adjunta por el usuario ---\n' + truncar(txtConversacion.trim(), 12000);
+      texto += '\n\n--- Conversación(es) de WhatsApp adjuntas por el usuario ---\n' + truncar(txtConversacion.trim(), 20000);
     }
     partes.push({ type: 'text', text: texto });
     ultimo.content = partes;
