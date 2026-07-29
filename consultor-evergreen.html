@@ -325,7 +325,7 @@
           <input type="file" id="builderCapturas" accept="image/*" multiple hidden>
         </label>
         <label class="file-btn">📄 Subir .txt de conversación
-          <input type="file" id="builderTxt" accept=".txt" hidden>
+          <input type="file" id="builderTxt" accept=".txt" multiple hidden>
         </label>
         <span id="builderFilesName" class="file-name"></span>
       </div>
@@ -804,11 +804,12 @@ function actualizarTokensDisplay() {
 
 let builderImagenes = [];
 let builderTxtConversacion = '';
+let builderTxtCount = 0;
 
 function actualizarBuilderFilesName() {
   const partes = [];
   if (builderImagenes.length) partes.push(`📎 ${builderImagenes.length} captura(s)`);
-  if (builderTxtConversacion) partes.push('📄 conversación .txt');
+  if (builderTxtCount) partes.push(`📄 ${builderTxtCount} conversación(es) .txt`);
   document.getElementById('builderFilesName').innerText = partes.join(' · ');
 }
 
@@ -827,17 +828,27 @@ document.getElementById('builderCapturas').addEventListener('change', async (e) 
   actualizarBuilderFilesName();
 });
 
-document.getElementById('builderTxt').addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => { builderTxtConversacion = reader.result; actualizarBuilderFilesName(); };
-  reader.readAsText(file);
+document.getElementById('builderTxt').addEventListener('change', async (e) => {
+  const files = Array.from(e.target.files || []);
+  if (!files.length) return;
+  const textos = [];
+  for (const file of files) {
+    const texto = await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.readAsText(file);
+    });
+    textos.push(`--- ${file.name} ---\n${texto}`);
+  }
+  builderTxtConversacion = textos.join('\n\n');
+  builderTxtCount = files.length;
+  actualizarBuilderFilesName();
 });
 
 function limpiarBuilderAdjuntos() {
   builderImagenes = [];
   builderTxtConversacion = '';
+  builderTxtCount = 0;
   document.getElementById('builderCapturas').value = '';
   document.getElementById('builderTxt').value = '';
   actualizarBuilderFilesName();
