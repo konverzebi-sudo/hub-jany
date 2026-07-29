@@ -10,6 +10,14 @@
 // reuso tal cual como plantilla generica. Lo unico que cambia por cliente es el
 // CONTEXTO DEL NEGOCIO (construirContextoNegocio, mas abajo), cargado en tiempo real
 // desde el ADN de cada marca -- no hace falta un archivo .md por marca.
+//
+// FUSION con el Jefe de Producción de Video (por el límite de 12 Serverless Functions del
+// plan Hobby de Vercel, ya estábamos en 12/12 -- ver commit "Consolida endpoints..."). A
+// diferencia de la fusión de api/consultor-evergreen.js (que se distingue por la FORMA del
+// body), aquí ambos agentes reciben `messages`, así que se distinguen por un campo explícito
+// `agente` en el body: ausente o 'financiero' => Jefe Finanzas (rama original, sin tocar);
+// 'diseno' => Jefe de Producción de Video (rama nueva, prompt y contexto propios, ver
+// PROMPT_PATH_DISENO / construirContextoDiseno más abajo). Cada rama es independiente.
 
 const fs = require('fs');
 const path = require('path');
@@ -17,6 +25,10 @@ const { sql } = require('@vercel/postgres');
 
 const PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-consultor-financiero.md');
 const DEFAULT_CLIENTE = 'jefeshub';
+
+const PROMPT_PATH_DISENO = path.join(__dirname, '..', 'prompts', 'system-prompt-jefe-diseno.md');
+const DEFAULT_CLIENTE_DISENO = 'rancho-seco'; // unica marca donde se activa por ahora
+const MAX_MESSAGES_DISENO = 40;
 
 const CONTEXT_CHAR_LIMIT = 6000;
 const CALC_CHAR_LIMIT = 3000;
@@ -27,6 +39,13 @@ function cargarPromptFijo() {
   if (fixedPromptCache) return fixedPromptCache;
   fixedPromptCache = fs.readFileSync(PROMPT_PATH, 'utf-8');
   return fixedPromptCache;
+}
+
+let fixedPromptDisenoCache = null;
+function cargarPromptDiseno() {
+  if (fixedPromptDisenoCache) return fixedPromptDisenoCache;
+  fixedPromptDisenoCache = fs.readFileSync(PROMPT_PATH_DISENO, 'utf-8');
+  return fixedPromptDisenoCache;
 }
 
 // Rate limit en memoria (por IP). Mas permisivo que una pregunta suelta porque un diagnostico
@@ -159,6 +178,141 @@ function formatearDatosCalculadora(datos) {
   return 'CONTEXTO DE LA CALCULADORA (datos y resultados que el usuario ya tiene llenados ahora mismo en las 5 calculadoras -- úsalos, no los vuelvas a preguntar):\n\n' + truncar(json, CALC_CHAR_LIMIT);
 }
 
+// ---------- formateo del CONTEXTO DEL NEGOCIO para el Jefe de Producción de Video ----------
+// Campos propios (no reutiliza los formatters de arriba, que están atados a la forma de
+// datos financieros) -- mismo patron de lectura del ADN que api/agente-conversion.js.
+
+function formatearTonoDiseno(d) {
+  if (!d) return null;
+  const lineas = [];
+  if (Array.isArray(d.tonos) && d.tonos.length) lineas.push(`Tonos: ${d.tonos.join(', ')}`);
+  if (Array.isArray(d.palabras_si) && d.palabras_si.length) lineas.push(`Palabras que sí usa: ${d.palabras_si.join(', ')}`);
+  if (Array.isArray(d.palabras_no) && d.palabras_no.length) lineas.push(`Palabras que NO usa: ${d.palabras_no.join(', ')}`);
+  if (lineas.length === 0) return null;
+  return 'TONO DE MARCA:\n' + lineas.join('\n');
+}
+
+function formatearAudienciasDiseno(items) {
+  if (!Array.isArray(items) || items.length === 0) return null;
+  const bloques = items
+    .filter((a) => a && (a.nombre || a.ocupacion))
+    .map((a, i) => {
+      const l = [`Audiencia ${i + 1}: ${a.nombre || '(sin nombre)'}`];
+      if (a.miedo_deseo) l.push(`  Miedo/deseo: ${a.miedo_deseo}`);
+      if (a.objecion_comun) l.push(`  Objeción más común: ${a.objecion_comun}`);
+      return l.join('\n');
+    });
+  if (bloques.length === 0) return null;
+  return 'CLIENTE IDEAL (audiencias del ADN):\n' + bloques.join('\n\n');
+}
+
+function formatearCatalogoDiseno(items) {
+  if (!Array.isArray(items) || items.length === 0) return null;
+  const lineas = items
+    .filter((p) => p && p.nombre)
+    .map((p) => {
+      const partes = [p.nombre];
+      if (p.tipo) partes.push(p.tipo);
+      if (p.notas) partes.push(`notas: ${p.notas}`);
+      return '- ' + partes.join(' · ');
+    });
+  if (lineas.length === 0) return null;
+  return 'CATÁLOGO DE PRODUCTOS:\n' + lineas.join('\n');
+}
+
+async function construirContextoDiseno(clienteId) {
+  const [identidad, tono, audiencia, catalogo] = await Promise.all([
+    leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
+    leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
+    leerJSON(`${clienteId}:brand-book.audiencia`).catch(() => null),
+    leerJSON(`${clienteId}:catalogo-productos`).catch(() => null),
+  ]);
+
+  const bloques = [
+    formatearIdentidad(identidad),
+    formatearTonoDiseno(tono),
+    formatearAudienciasDiseno(audiencia),
+    formatearCatalogoDiseno(catalogo),
+  ].filter(Boolean);
+
+  if (bloques.length === 0) {
+    return 'CONTEXTO DEL NEGOCIO: el ADN de esta marca todavía no tiene datos guardados.';
+  }
+  return 'CONTEXTO DEL NEGOCIO (ya cargado del ADN):\n\n' + truncar(bloques.join('\n\n'), CONTEXT_CHAR_LIMIT);
+}
+
+async function llamarClaudeChat({ system, messages, maxTokens }) {
+  const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': process.env.ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: maxTokens,
+      system,
+      messages,
+    }),
+  });
+
+  const data = await anthropicRes.json();
+  if (!anthropicRes.ok) {
+    return { ok: false, status: anthropicRes.status, error: data?.error?.message || 'Error al llamar a la API.' };
+  }
+  const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
+  if (!text) return { ok: false, status: 502, error: 'Respuesta vacía del modelo.' };
+  return { ok: true, text };
+}
+
+function limpiarMessages(messages, max) {
+  const limpio = (Array.isArray(messages) ? messages : [])
+    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+    .slice(-max)
+    .map((m) => ({ role: m.role, content: m.content }));
+  return limpio;
+}
+
+// ---------- rama Jefe Finanzas (comportamiento original, sin cambios) ----------
+
+async function handleFinanciero(req, res, body) {
+  const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
+
+  const limpio = limpiarMessages(body.messages, MAX_MESSAGES);
+  if (limpio.length === 0 || limpio[limpio.length - 1].role !== 'user') {
+    return res.status(400).json({ error: 'El último mensaje debe ser del usuario.' });
+  }
+
+  const systemPrompt = cargarPromptFijo();
+  const contexto = await construirContextoNegocio(clienteId);
+  const contextoCalculadora = formatearDatosCalculadora(body.datosCalculadora);
+  const system = [systemPrompt, contexto, contextoCalculadora].join('\n\n');
+
+  const r = await llamarClaudeChat({ system, messages: limpio, maxTokens: 1300 });
+  if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
+  return res.status(200).json({ text: r.text });
+}
+
+// ---------- rama Jefe de Producción de Video ----------
+
+async function handleDiseno(req, res, body) {
+  const clienteId = (body.cliente || DEFAULT_CLIENTE_DISENO).toString();
+
+  const limpio = limpiarMessages(body.messages, MAX_MESSAGES_DISENO);
+  if (limpio.length === 0 || limpio[limpio.length - 1].role !== 'user') {
+    return res.status(400).json({ error: 'El último mensaje debe ser del usuario.' });
+  }
+
+  const systemPrompt = cargarPromptDiseno();
+  const contexto = await construirContextoDiseno(clienteId);
+  const system = [systemPrompt, contexto].join('\n\n');
+
+  const r = await llamarClaudeChat({ system, messages: limpio, maxTokens: 900 });
+  if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
+  return res.status(200).json({ text: r.text });
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
 
@@ -180,52 +334,15 @@ module.exports = async function handler(req, res) {
   }
 
   const body = req.body || {};
-  const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
-
-  const messages = Array.isArray(body.messages) ? body.messages : null;
-  if (!messages || messages.length === 0) {
+  if (!Array.isArray(body.messages) || body.messages.length === 0) {
     return res.status(400).json({ error: 'Falta el historial de la conversación (messages).' });
   }
-  const limpio = messages
-    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
-    .slice(-MAX_MESSAGES)
-    .map((m) => ({ role: m.role, content: m.content }));
-  if (limpio.length === 0 || limpio[limpio.length - 1].role !== 'user') {
-    return res.status(400).json({ error: 'El último mensaje debe ser del usuario.' });
-  }
 
-  const systemPrompt = cargarPromptFijo();
+  const agente = (body.agente || 'financiero').toString();
 
   try {
-    const contexto = await construirContextoNegocio(clienteId);
-    const contextoCalculadora = formatearDatosCalculadora(body.datosCalculadora);
-    const system = [systemPrompt, contexto, contextoCalculadora].join('\n\n');
-
-    const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 1300,
-        system,
-        messages: limpio,
-      }),
-    });
-
-    const data = await anthropicRes.json();
-    if (!anthropicRes.ok) {
-      return res.status(anthropicRes.status).json({ error: data?.error?.message || 'Error al llamar a la API.' });
-    }
-
-    const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
-    if (!text) {
-      return res.status(502).json({ error: 'Respuesta vacía del modelo.' });
-    }
-    return res.status(200).json({ text });
+    if (agente === 'diseno') return await handleDiseno(req, res, body);
+    return await handleFinanciero(req, res, body);
   } catch (err) {
     return res.status(500).json({ error: 'Error de conexión con el Agente.' });
   }
