@@ -85,6 +85,7 @@
     .builder-controls { display: flex; align-items: center; gap: 10px; }
     .builder-input { flex: 1; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; color: var(--text); padding: 11px 14px; font-family: Inter, sans-serif; font-size: 14px; outline: none; }
     .builder-input:focus { border-color: var(--accent); }
+    textarea.builder-input { resize: none; min-height: 42px; max-height: 160px; overflow-y: auto; line-height: 1.4; }
     .builder-reset { background: transparent; border: 1px solid var(--line); color: var(--text-dim); font-size: 12px; padding: 8px 12px; border-radius: 8px; cursor: pointer; }
     .builder-reset:hover { border-color: #EF4444; color: #EF4444; }
     #builderControls.builder-controls-wrap { flex-direction: column; gap: 0; }
@@ -330,7 +331,7 @@
         <span id="builderFilesName" class="file-name"></span>
       </div>
       <div class="builder-controls">
-        <input type="text" class="builder-input" id="builderInput" placeholder="Escribe tu respuesta..." onkeydown="if(event.key==='Enter')enviarMensajeConstructor()">
+        <textarea rows="1" class="builder-input" id="builderInput" placeholder="Escribe tu respuesta... (Shift+Enter para salto de línea)" onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();enviarMensajeConstructor();}" oninput="autoAlturaTextarea(this)"></textarea>
         <button class="ask-btn" id="builderSendBtn" onclick="enviarMensajeConstructor()">Enviar</button>
         <button class="builder-reset" onclick="reiniciarConstructor()">Reiniciar</button>
       </div>
@@ -359,7 +360,8 @@
         <div class="field"><label>Frases que debo enfatizar al vender</label><div id="ep-frases_enfatizar" class="tabla-notas-container"></div></div>
         <div class="field"><label>Frases que debo evitar al vender</label><div id="ep-frases_evitar" class="tabla-notas-container"></div></div>
         <div class="field"><label>Sistema de Productos Evergreen (gancho, upsell, downsell, recurrencia)</label><div id="ep-sistema_productos" class="tabla-notas-container"></div></div>
-        <button class="notas-save-btn" onclick="guardarNotasGrupo('evergreen-producto','ep',['que_vendemos','por_que_potencial','oferta_irresistible','pilar_deseo','pilar_confianza','pilar_facilidad','frases_enfatizar','frases_evitar','sistema_productos'],'ep-status')">Guardar cambios</button>
+        <div class="field"><label>Insight estratégico del producto</label><textarea id="ep-insight_estrategico"></textarea></div>
+        <button class="notas-save-btn" onclick="guardarNotasGrupo('evergreen-producto','ep',['que_vendemos','por_que_potencial','oferta_irresistible','pilar_deseo','pilar_confianza','pilar_facilidad','frases_enfatizar','frases_evitar','sistema_productos','insight_estrategico'],'ep-status')">Guardar cambios</button>
         <div id="ep-status" class="notas-status"></div>
       </div>
     </details>
@@ -486,7 +488,7 @@
       <button class="ask-btn" id="docMaestroStartBtn" onclick="iniciarDocMaestro()">📋 Generar Documento Maestro</button>
     </div>
     <div class="builder-controls" id="docMaestroControls" style="display:none">
-      <input type="text" class="builder-input" id="docMaestroInput" placeholder="Escribe tu respuesta..." onkeydown="if(event.key==='Enter')enviarMensajeDocMaestro()">
+      <textarea rows="1" class="builder-input" id="docMaestroInput" placeholder="Escribe tu respuesta... (Shift+Enter para salto de línea)" onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();enviarMensajeDocMaestro();}" oninput="autoAlturaTextarea(this)"></textarea>
       <button class="ask-btn" id="docMaestroSendBtn" onclick="enviarMensajeDocMaestro()">Enviar</button>
       <button class="builder-reset" onclick="reiniciarDocMaestro()">Reiniciar</button>
     </div>
@@ -930,6 +932,7 @@ function enviarMensajeConstructor() {
   if (!texto) return;
   builderMessages.push({ role: 'user', content: texto });
   input.value = '';
+  input.style.height = 'auto';
   renderBuilderChat();
   llamarConstructor();
 }
@@ -1038,6 +1041,7 @@ function enviarMensajeDocMaestro() {
   if (!texto) return;
   docMaestroMessages.push({ role: 'user', content: texto });
   input.value = '';
+  input.style.height = 'auto';
   renderDocMaestroChat();
   llamarDocMaestro();
 }
@@ -1126,7 +1130,7 @@ const TABLA_CONFIGS = {
     filasIniciales: [],
   },
   'ep-sistema_productos': {
-    columnas: [ { key: 'tipo', label: 'Tipo' }, { key: 'producto', label: 'Producto' }, { key: 'incluye', label: 'Qué incluye' }, { key: 'precio', label: 'Precio' }, { key: 'objetivo', label: 'Objetivo estratégico' } ],
+    columnas: [ { key: 'tipo', label: 'Tipo' }, { key: 'producto', label: 'Producto' }, { key: 'incluye', label: 'Qué incluye' }, { key: 'precio', label: 'Precio' }, { key: 'porque_funciona', label: 'Por qué funciona' }, { key: 'dato_estrategico', label: 'Dato estratégico' } ],
     filasIniciales: ['Gancho', 'Upsell', 'Downsell', 'Recurrencia', 'Paralelo'].map((tipo) => ({ tipo })),
   },
   // Perfil de Cliente Evergreen
