@@ -9,7 +9,7 @@ const { sql } = require('@vercel/postgres');
 
 const DEFAULT_CLIENTE = 'jefeshub';
 const PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-ideas-contenido-evergreen.md');
-const CONTEXT_CHAR_LIMIT = 6000;
+const CONTEXT_CHAR_LIMIT = 10000;
 
 let fixedPromptCache = null;
 function cargarPromptFijo() {
@@ -146,14 +146,28 @@ function formatearComunicacionEvergreen(d) {
   return finales.join('\n\n');
 }
 
+async function formatearConversacionEvergreenNoGuardada(clienteId) {
+  const mensajes = await leerJSON(`${clienteId}:evergreen-builder-conversacion`).catch(() => null);
+  if (!Array.isArray(mensajes) || mensajes.length === 0) return null;
+  const texto = mensajes
+    .filter((m) => m && m.role === 'assistant' && typeof m.content === 'string' && m.content.trim())
+    .map((m) => m.content.trim())
+    .join('\n\n');
+  if (!texto) return null;
+  const limite = 4000;
+  const recortado = texto.length > limite ? '[...conversación anterior omitida...]\n' + texto.slice(-limite) : texto;
+  return 'CONVERSACIÓN RECIENTE CON JEFE EVERGREEN (puede no estar copiada aún a Notas, pero es información real y reciente del negocio -- tómala en cuenta si aplica):\n\n' + recortado;
+}
+
 async function construirContexto(clienteId, grupoId) {
-  const [identidad, tono, audiencia, catalogo, grupos, comunicacion] = await Promise.all([
+  const [identidad, tono, audiencia, catalogo, grupos, comunicacion, conversacionReciente] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.audiencia`).catch(() => null),
     leerJSON(`${clienteId}:catalogo-productos`).catch(() => null),
     leerJSON(`${clienteId}:grupos-negocio`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.evergreen-comunicacion`).catch(() => null),
+    formatearConversacionEvergreenNoGuardada(clienteId).catch(() => null),
   ]);
 
   const bloquesNegocio = [
@@ -172,6 +186,7 @@ async function construirContexto(clienteId, grupoId) {
   partes.push(bloqueEvergreen
     ? 'CONTEXTO EVERGREEN (Notas de Comunicación Evergreen ya guardadas):\n\n' + bloqueEvergreen
     : 'CONTEXTO EVERGREEN: todavía no hay ángulos ni frases maestras guardadas en el Jefe Evergreen -- genera con lo que sí haya del ADN.');
+  if (conversacionReciente) partes.push(conversacionReciente);
 
   return truncar(partes.join('\n\n---\n\n'), CONTEXT_CHAR_LIMIT);
 }

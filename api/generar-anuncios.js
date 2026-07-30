@@ -17,7 +17,7 @@ const { sql } = require('@vercel/postgres');
 const DEFAULT_CLIENTE = 'jefeshub';
 const PROMPT_PATH_IDEAS = path.join(__dirname, '..', 'prompts', 'system-prompt-ideas-anuncios.md');
 const PROMPT_PATH_DETALLE = path.join(__dirname, '..', 'prompts', 'system-prompt-detalle-anuncio.md');
-const CONTEXT_CHAR_LIMIT = 6000;
+const CONTEXT_CHAR_LIMIT = 10000;
 const MAX_IDEAS_POR_LOTE = 9;
 const FORMATOS_VALIDOS = ['reel', 'imagen estática', 'carrusel'];
 const ETAPAS = ['adquisicion', 'consideracion', 'conversion'];
@@ -184,8 +184,21 @@ function formatearProducto(items, productoId, etiqueta) {
   return `PRODUCTO ESPECÍFICO A ENFOCAR (${etiqueta}):\n- ` + partes.join(' · ');
 }
 
+async function formatearConversacionEvergreenNoGuardada(clienteId) {
+  const mensajes = await leerJSON(`${clienteId}:evergreen-builder-conversacion`).catch(() => null);
+  if (!Array.isArray(mensajes) || mensajes.length === 0) return null;
+  const texto = mensajes
+    .filter((m) => m && m.role === 'assistant' && typeof m.content === 'string' && m.content.trim())
+    .map((m) => m.content.trim())
+    .join('\n\n');
+  if (!texto) return null;
+  const limite = 4000;
+  const recortado = texto.length > limite ? '[...conversación anterior omitida...]\n' + texto.slice(-limite) : texto;
+  return 'CONVERSACIÓN RECIENTE CON JEFE EVERGREEN (puede no estar copiada aún a Notas, pero es información real y reciente del negocio -- tómala en cuenta si aplica):\n\n' + recortado;
+}
+
 async function construirContexto(clienteId, grupoId) {
-  const [identidad, tono, audiencia, catalogo, grupos, comunicacion, radarHistorial] = await Promise.all([
+  const [identidad, tono, audiencia, catalogo, grupos, comunicacion, radarHistorial, conversacionReciente] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.audiencia`).catch(() => null),
@@ -193,6 +206,7 @@ async function construirContexto(clienteId, grupoId) {
     leerJSON(`${clienteId}:grupos-negocio`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.evergreen-comunicacion`).catch(() => null),
     leerJSON(`${clienteId}:radar-historial`).catch(() => null),
+    formatearConversacionEvergreenNoGuardada(clienteId).catch(() => null),
   ]);
 
   const bloquesNegocio = [
@@ -215,6 +229,7 @@ async function construirContexto(clienteId, grupoId) {
   partes.push(bloqueRadar
     ? bloqueRadar
     : 'RADAR DE MERCADO: todavía no hay corridas guardadas -- ignora esta sección.');
+  if (conversacionReciente) partes.push(conversacionReciente);
 
   return { contexto: truncar(partes.join('\n\n---\n\n'), CONTEXT_CHAR_LIMIT), catalogo };
 }
