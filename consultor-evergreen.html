@@ -39,6 +39,27 @@
 
     /* ── MAIN ── */
     main { max-width: 760px; margin: 0 auto; padding: 28px 20px 80px; display: flex; flex-direction: column; gap: 36px; }
+    .view-toggle-btn {
+      position: fixed; top: 14px; right: 18px; z-index: 50;
+      background: var(--surface); border: 1px solid var(--line); color: var(--text-dim);
+      font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 7px 14px; border-radius: 20px; cursor: pointer;
+    }
+    .view-toggle-btn:hover { border-color: var(--accent); color: var(--accent); }
+    @media (max-width: 999px) { .view-toggle-btn { display: none; } }
+    @media (min-width: 1000px) {
+      main#publicidad-content.split-view {
+        display: grid;
+        grid-template-columns: 420px 1fr;
+        align-items: start;
+        max-width: 1400px;
+      }
+      main#publicidad-content.split-view #jefeEvergreenChatBox {
+        position: sticky;
+        top: 20px;
+        max-height: calc(100vh - 40px);
+        overflow-y: auto;
+      }
+    }
 
     /* ── SECTION HEADER ── */
     .section-header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
@@ -293,6 +314,8 @@
   <div class="group-tabs" id="groupTabs"></div>
 </header>
 
+<button type="button" class="view-toggle-btn" id="viewToggleBtn" onclick="toggleVistaDividida()">🔀 Vista dividida</button>
+
 <!-- ═══════════════════════════════════════════════ -->
 <!-- PUBLICIDAD CONTENT                              -->
 <!-- ═══════════════════════════════════════════════ -->
@@ -310,7 +333,7 @@
   </div>
 
   <!-- ─── JEFE EVERGREEN (chat guiado) ─── -->
-  <div class="builder-box">
+  <div class="builder-box" id="jefeEvergreenChatBox">
     <p class="builder-title">🧬 Jefe Evergreen</p>
     <p class="builder-sub">Chat guiado paso a paso: el Agente ya conoce tu ADN (Cliente Ideal, catálogo, tono) y te va a ayudar a diseñar tu Oferta Irresistible Evergreen, elegir producto y público, y armar tu Documento Maestro — sin que repitas nada de lo que ya llenaste.</p>
     <p class="builder-sub" id="builderTokens" style="margin:-8px 0 4px"></p>
@@ -828,6 +851,22 @@ document.getElementById('builderCapturas').addEventListener('change', async (e) 
   if (!files.length) return;
   builderImagenes = [];
   for (const file of files) {
+    const data = await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.readAsDataURL(file);
+    });
+    builderImagenes.push({ mediaType: file.type, data });
+  }
+  actualizarBuilderFilesName();
+});
+
+document.getElementById('builderInput').addEventListener('paste', async (e) => {
+  const items = Array.from(e.clipboardData?.items || []).filter((i) => i.type.startsWith('image/'));
+  if (!items.length) return;
+  e.preventDefault();
+  for (const item of items) {
+    const file = item.getAsFile();
     const data = await new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result.split(',')[1]);
@@ -1391,6 +1430,34 @@ async function cargarGuionesWhatsApp() {
   });
 }
 
+/* ─── VISTA DIVIDIDA (chat + notas lado a lado, solo escritorio) ─── */
+function inicializarVistaDividida() {
+  const main = document.getElementById('publicidad-content');
+  const chatBox = document.getElementById('jefeEvergreenChatBox');
+  if (!main || !chatBox) return;
+  const wrapper = document.createElement('div');
+  wrapper.id = 'split-rest-col';
+  wrapper.style.display = 'flex';
+  wrapper.style.flexDirection = 'column';
+  wrapper.style.gap = '36px';
+  Array.from(main.children).forEach((child) => {
+    if (child !== chatBox) wrapper.appendChild(child);
+  });
+  main.appendChild(wrapper);
+
+  if (localStorage.getItem('evergreen-vista-dividida') === '1') {
+    main.classList.add('split-view');
+    document.getElementById('viewToggleBtn').textContent = '☰ Vista normal';
+  }
+}
+
+function toggleVistaDividida() {
+  const main = document.getElementById('publicidad-content');
+  const activo = main.classList.toggle('split-view');
+  localStorage.setItem('evergreen-vista-dividida', activo ? '1' : '0');
+  document.getElementById('viewToggleBtn').textContent = activo ? '☰ Vista normal' : '🔀 Vista dividida';
+}
+
 /* ─── INIT ─── */
 function aplicarClienteUI() {
   const RUTA_WHATSAPP = { 'rancho-seco': '/rancho-seco/consultor-whatsapp', rim: '/rim/consultor-whatsapp', jefeshub: '/consultor-whatsapp' };
@@ -1403,6 +1470,7 @@ function aplicarClienteUI() {
 }
 
 aplicarClienteUI();
+inicializarVistaDividida();
 cargarGruposNegocio();
 calcular();
 cargarGuionesWhatsApp();

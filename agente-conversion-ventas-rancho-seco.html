@@ -776,6 +776,19 @@ document.getElementById('liveImage').addEventListener('change', (e) => {
   reader.readAsDataURL(file);
 });
 
+document.getElementById('liveInput').addEventListener('paste', (e) => {
+  const item = Array.from(e.clipboardData?.items || []).find((i) => i.type.startsWith('image/'));
+  if(!item) return;
+  e.preventDefault();
+  const file = item.getAsFile();
+  const reader = new FileReader();
+  reader.onload = () => {
+    liveImageData = {mediaType: file.type, data: reader.result.split(',')[1]};
+    document.getElementById('liveImageName').innerText = "📎 captura pegada";
+  };
+  reader.readAsDataURL(file);
+});
+
 async function askAgent(){
   const input = document.getElementById('liveInput').value.trim();
   const answerBox = document.getElementById('liveAnswer');
@@ -947,6 +960,26 @@ function actualizarEstFilesName(){
   if(estTxtConversacion) partes.push('📄 conversación .txt');
   document.getElementById('estFilesName').innerText = partes.join(' · ');
 }
+
+// Pegar capturas con Ctrl+V en cualquier parte de la página que no sea el textarea
+// de "Consulta en vivo" (ese ya tiene su propio pegado con destino a liveImageData).
+document.addEventListener('paste', async (e) => {
+  if(document.activeElement && document.activeElement.id === 'liveInput') return;
+  const items = Array.from(e.clipboardData?.items || []).filter((i) => i.type.startsWith('image/'));
+  if(!items.length) return;
+  e.preventDefault();
+  for(const item of items){
+    if(estImagenes.length >= 4) break;
+    const file = item.getAsFile();
+    const data = await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.readAsDataURL(file);
+    });
+    estImagenes.push({ mediaType: file.type, data });
+  }
+  actualizarEstFilesName();
+});
 
 function renderEstPreguntas(preguntas){
   const box = document.getElementById('estPreguntas');
