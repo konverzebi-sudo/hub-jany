@@ -11,7 +11,7 @@ const { sql } = require('@vercel/postgres');
 
 const DEFAULT_CLIENTE = 'rancho-seco';
 const PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-agente-estrategia-whatsapp.md');
-const CONTEXT_CHAR_LIMIT = 6000;
+const CONTEXT_CHAR_LIMIT = 10000;
 const TXT_CONVERSACION_LIMIT = 6000;
 const MAX_IMAGENES = 4;
 
@@ -175,6 +175,19 @@ const GRUPOS_EVERGREEN = [
   { suffix: 'evergreen-sistema', titulo: 'SISTEMA EVERGREEN' },
 ];
 
+async function formatearConversacionEvergreenNoGuardada(clienteId) {
+  const mensajes = await leerJSON(`${clienteId}:evergreen-builder-conversacion`).catch(() => null);
+  if (!Array.isArray(mensajes) || mensajes.length === 0) return null;
+  const texto = mensajes
+    .filter((m) => m && m.role === 'assistant' && typeof m.content === 'string' && m.content.trim())
+    .map((m) => m.content.trim())
+    .join('\n\n');
+  if (!texto) return null;
+  const limite = 4000;
+  const recortado = texto.length > limite ? '[...conversación anterior omitida...]\n' + texto.slice(-limite) : texto;
+  return 'CONVERSACIÓN RECIENTE CON JEFE EVERGREEN (puede no estar copiada aún a Notas, pero es información real y reciente del negocio -- tómala en cuenta si aplica):\n\n' + recortado;
+}
+
 async function construirContextoEvergreen(clienteId) {
   const datos = await Promise.all(
     GRUPOS_EVERGREEN.map((g) => leerJSON(`${clienteId}:brand-book.${g.suffix}`).catch(() => null))
@@ -192,6 +205,9 @@ async function construirContextoEvergreen(clienteId) {
     if (campos.length === 0) return null;
     return g.titulo + ':\n' + campos.join('\n');
   }).filter(Boolean);
+
+  const conversacionReciente = await formatearConversacionEvergreenNoGuardada(clienteId).catch(() => null);
+  if (conversacionReciente) bloques.push(conversacionReciente);
 
   if (bloques.length === 0) {
     return 'CONTEXTO EVERGREEN: todavía no hay Comunicación ni Sistema Evergreen guardados para esta marca -- genera con lo que sí haya del ADN.';
