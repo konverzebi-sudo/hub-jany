@@ -205,11 +205,19 @@
     .notas-group summary:after { content: '+'; font-size: 18px; color: var(--accent); }
     .notas-group[open] summary:after { content: '–'; }
     .notas-group .notas-body { padding: 4px 18px 18px; }
-    .field { margin-bottom: 14px; }
+    .field { margin-bottom: 14px; position: relative; }
     .field:last-child { margin-bottom: 0; }
     .field label { display: block; font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .05em; font-family: "JetBrains Mono", monospace; margin-bottom: 6px; }
     .field textarea { width: 100%; min-height: 64px; background: var(--surface-2); border: 1.5px solid var(--line); border-radius: 9px; color: var(--text); padding: 10px 12px; font-family: Inter, sans-serif; font-size: 13.5px; resize: vertical; }
     .field textarea:focus { outline: none; border-color: var(--accent); }
+    .importante-toggle { position: absolute; top: 0; right: 0; background: transparent; border: none; cursor: pointer; font-size: 15px; color: var(--text-dim); padding: 2px 4px; line-height: 1; }
+    .importante-toggle:hover { color: #22C55E; }
+    .importante-toggle.activo { color: #22C55E; }
+    .field.field-importante > textarea { border-color: #22C55E; background: rgba(34, 197, 94, .08); }
+    table.tabla-notas tr.fila-importante td { background: rgba(34, 197, 94, .08); }
+    .fila-importante-toggle { background: transparent; border: none; cursor: pointer; font-size: 13px; color: var(--text-dim); padding: 4px 3px; }
+    .fila-importante-toggle:hover { color: #22C55E; }
+    .fila-importante-toggle.activo { color: #22C55E; }
     .notas-save-btn { background: var(--surface-2); border: 1.5px solid var(--line); color: var(--text); font-family: Inter, sans-serif; font-size: 13px; font-weight: 600; padding: 9px 18px; border-radius: 9px; cursor: pointer; transition: .15s; }
     .notas-save-btn:hover { border-color: var(--accent); color: var(--accent); }
     .notas-status { font-size: 12px; color: #22c55e; min-height: 16px; margin-top: 6px; }
@@ -1100,7 +1108,7 @@ async function saveEvergreenGrupo(suffix, data, statusId) {
 }
 
 const EVERGREEN_GRUPOS = [
-  { suffix: 'evergreen-producto', prefix: 'ep', campos: ['que_vendemos', 'por_que_potencial', 'oferta_irresistible', 'pilar_deseo', 'pilar_confianza', 'pilar_facilidad', 'frases_enfatizar', 'frases_evitar', 'sistema_productos'] },
+  { suffix: 'evergreen-producto', prefix: 'ep', campos: ['que_vendemos', 'por_que_potencial', 'oferta_irresistible', 'pilar_deseo', 'pilar_confianza', 'pilar_facilidad', 'frases_enfatizar', 'frases_evitar', 'sistema_productos', 'insight_estrategico'] },
   { suffix: 'evergreen-perfil-cliente', prefix: 'epc', campos: ['descripcion_breve', 'situacion_compra', 'problema_resuelve', 'emocion_impulsa', 'que_convenceria', 'caracteristicas', 'dolores', 'miedos', 'deseos', 'objeciones', 'frases_reales', 'insight_estrategico'] },
   { suffix: 'evergreen-comunicacion', prefix: 'ec', campos: ['posicionamiento', 'diferenciador', 'que_no_es', 'resultado_entender', 'por_que_elegirnos', 'tono_si', 'tono_no', 'voz_cliente', 'frases_maestras', 'frases_objeciones', 'frases_conexion', 'angulos_evergreen'] },
   { suffix: 'evergreen-sistema', prefix: 'es', campos: ['contexto_general', 'customer_journey', 'plan_implementacion', 'secuencia_seguimiento', 'oportunidades_iniciales', 'info_faltante', 'reglas_equipo_ia'] },
@@ -1203,14 +1211,16 @@ function renderTablaNotas(id) {
   const container = document.getElementById(id);
   if (!cfg || !container) return;
   if (!container._filas) container._filas = cfg.filasIniciales.map((f) => ({ ...f }));
+  if (!container._importantes) container._importantes = container._filas.map(() => false);
   const filas = container._filas;
+  const importantes = container._importantes;
   container.innerHTML = `
     <div class="tabla-notas-wrap">
       <table class="tabla-notas">
         <thead><tr>${cfg.columnas.map((c) => `<th>${c.label}</th>`).join('')}<th></th></tr></thead>
         <tbody>${filas.map((fila, i) => `
-          <tr>${cfg.columnas.map((c) => `<td><textarea rows="1" oninput="actualizarCeldaTabla('${id}',${i},'${c.key}',this.value);autoAlturaTextarea(this)">${escaparHtmlBuilder(fila[c.key] || '')}</textarea></td>`).join('')}
-          <td><button type="button" class="tabla-notas-del" onclick="borrarFilaTabla('${id}',${i})">✕</button></td></tr>
+          <tr class="${importantes[i] ? 'fila-importante' : ''}">${cfg.columnas.map((c) => `<td><textarea rows="1" oninput="actualizarCeldaTabla('${id}',${i},'${c.key}',this.value);autoAlturaTextarea(this)">${escaparHtmlBuilder(fila[c.key] || '')}</textarea></td>`).join('')}
+          <td><button type="button" class="fila-importante-toggle ${importantes[i] ? 'activo' : ''}" title="Marcar fila como importante" onclick="toggleImportanteFila('${id}',${i})">${importantes[i] ? '★' : '☆'}</button><button type="button" class="tabla-notas-del" onclick="borrarFilaTabla('${id}',${i})">✕</button></td></tr>
         `).join('')}</tbody>
       </table>
     </div>
@@ -1233,7 +1243,9 @@ function agregarFilaTabla(id) {
   const container = document.getElementById(id);
   if (!container) return;
   container._filas = container._filas || [];
+  container._importantes = container._importantes || [];
   container._filas.push({});
+  container._importantes.push(false);
   renderTablaNotas(id);
 }
 
@@ -1241,7 +1253,46 @@ function borrarFilaTabla(id, i) {
   const container = document.getElementById(id);
   if (!container || !container._filas) return;
   container._filas.splice(i, 1);
+  if (container._importantes) container._importantes.splice(i, 1);
   renderTablaNotas(id);
+}
+
+function toggleImportanteFila(id, i) {
+  const container = document.getElementById(id);
+  if (!container || !container._importantes) return;
+  container._importantes[i] = !container._importantes[i];
+  renderTablaNotas(id);
+}
+
+/* ─── MARCAR IMPORTANTE (campos de texto planos) ─── */
+function inicializarMarcadoImportante() {
+  document.querySelectorAll('.field > textarea[id]').forEach((ta) => {
+    const field = ta.parentElement;
+    if (field.querySelector('.importante-toggle')) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'importante-toggle';
+    btn.title = 'Marcar como importante';
+    btn.textContent = '☆';
+    btn.onclick = () => toggleImportanteCampo(field, btn);
+    field.appendChild(btn);
+  });
+}
+
+function toggleImportanteCampo(field, btn) {
+  const activo = field.classList.toggle('field-importante');
+  btn.classList.toggle('activo', activo);
+  btn.textContent = activo ? '★' : '☆';
+}
+
+function aplicarImportanteCampo(el, activo) {
+  const field = el.parentElement;
+  const btn = field.querySelector('.importante-toggle');
+  field.classList.toggle('field-importante', !!activo);
+  if (btn) {
+    btn.classList.toggle('activo', !!activo);
+    btn.textContent = activo ? '★' : '☆';
+  }
 }
 
 function leerCampoNotas(el) {
@@ -1273,21 +1324,36 @@ function escribirCampoNotas(el, valor) {
 
 async function cargarNotasEvergreen() {
   Object.keys(TABLA_CONFIGS).forEach((id) => renderTablaNotas(id));
+  inicializarMarcadoImportante();
   for (const g of EVERGREEN_GRUPOS) {
     const data = await loadEvergreenGrupo(g.suffix);
+    const importantes = data._importantes || {};
     g.campos.forEach((campo) => {
       const el = document.getElementById(g.prefix + '-' + campo);
-      if (el && data[campo] !== undefined) escribirCampoNotas(el, data[campo]);
+      if (!el) return;
+      if (el.classList.contains('tabla-notas-container') && Array.isArray(importantes[campo])) {
+        el._importantes = importantes[campo];
+      }
+      if (data[campo] !== undefined) escribirCampoNotas(el, data[campo]);
+      if (el.tagName === 'TEXTAREA' && importantes[campo]) aplicarImportanteCampo(el, true);
     });
   }
 }
 
 function guardarNotasGrupo(suffix, prefix, campos, statusId) {
   const data = {};
+  const importantes = {};
   campos.forEach((campo) => {
     const el = document.getElementById(prefix + '-' + campo);
     data[campo] = leerCampoNotas(el);
+    if (!el) return;
+    if (el.classList.contains('tabla-notas-container')) {
+      if (el._importantes && el._importantes.some(Boolean)) importantes[campo] = el._importantes;
+    } else if (el.tagName === 'TEXTAREA' && el.parentElement.classList.contains('field-importante')) {
+      importantes[campo] = true;
+    }
   });
+  data._importantes = importantes;
   saveEvergreenGrupo(suffix, data, statusId);
 }
 

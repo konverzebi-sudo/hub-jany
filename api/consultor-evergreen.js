@@ -400,6 +400,7 @@ async function builderFormatearNotasGuardadas(clienteId) {
     const d = datos[i];
     if (!d) return null;
     const campos = Object.entries(d)
+      .filter(([campo]) => !campo.startsWith('_'))
       .map(([campo, valor]) => {
         const formateado = builderFormatearValorNota(valor);
         return formateado ? `${campo}:\n${formateado}` : null;

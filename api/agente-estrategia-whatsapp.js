@@ -183,6 +183,7 @@ async function construirContextoEvergreen(clienteId) {
     const d = datos[i];
     if (!d) return null;
     const campos = Object.entries(d)
+      .filter(([campo]) => !campo.startsWith('_'))
       .map(([campo, valor]) => {
         const formateado = formatearValorNota(valor);
         return formateado ? `${campo}:\n${formateado}` : null;
