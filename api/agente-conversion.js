@@ -10,7 +10,7 @@ const { sql } = require('@vercel/postgres');
 
 const DEFAULT_CLIENTE = 'jefeshub';
 const PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-agente-conversion.md');
-const CONTEXT_CHAR_LIMIT = 5000;
+const CONTEXT_CHAR_LIMIT = 12000;
 
 let fixedPromptCache = null;
 function cargarPromptFijo() {
@@ -173,6 +173,72 @@ async function construirContextoNegocio(clienteId) {
   return 'CONTEXTO DEL NEGOCIO (ya cargado del ADN — no le pidas al usuario que lo repita):\n\n' + truncar(bloques.join('\n\n'), CONTEXT_CHAR_LIMIT);
 }
 
+// ---------- CONTEXTO EVERGREEN (dolores, deseos, miedos, objeciones, ángulos, frases, sistema) ----------
+
+function formatearValorNota(valor) {
+  if (valor == null) return '';
+  if (Array.isArray(valor)) {
+    const filas = valor.filter((f) => f && Object.values(f).some((v) => (v || '').toString().trim()));
+    if (filas.length === 0) return '';
+    return filas
+      .map((f) => Object.entries(f).filter(([k, v]) => k !== '_marcada' && (v || '').toString().trim()).map(([k, v]) => `${k}: ${v}`).join(' | '))
+      .map((l) => '  - ' + l)
+      .join('\n');
+  }
+  if (typeof valor === 'object') {
+    const partes = Object.entries(valor).filter(([, v]) => (v || '').toString().trim()).map(([k, v]) => `  - ${k}: ${v}`);
+    return partes.join('\n');
+  }
+  return valor.toString().trim() ? '  ' + valor.toString().trim() : '';
+}
+
+const GRUPOS_EVERGREEN = [
+  { suffix: 'evergreen-producto', titulo: 'PRODUCTO EVERGREEN' },
+  { suffix: 'evergreen-perfil-cliente', titulo: 'PERFIL DE CLIENTE EVERGREEN (dolores, deseos, miedos, objeciones)' },
+  { suffix: 'evergreen-comunicacion', titulo: 'COMUNICACIÓN EVERGREEN (incluye ángulos y frases maestras)' },
+  { suffix: 'evergreen-sistema', titulo: 'SISTEMA EVERGREEN' },
+];
+
+async function formatearConversacionEvergreenNoGuardada(clienteId) {
+  const mensajes = await leerJSON(`${clienteId}:evergreen-builder-conversacion`).catch(() => null);
+  if (!Array.isArray(mensajes) || mensajes.length === 0) return null;
+  const texto = mensajes
+    .filter((m) => m && m.role === 'assistant' && typeof m.content === 'string' && m.content.trim())
+    .map((m) => m.content.trim())
+    .join('\n\n');
+  if (!texto) return null;
+  const limite = 4000;
+  const recortado = texto.length > limite ? '[...conversación anterior omitida...]\n' + texto.slice(-limite) : texto;
+  return 'CONVERSACIÓN RECIENTE CON JEFE EVERGREEN (puede no estar copiada aún a Notas, pero es información real y reciente del negocio -- tómala en cuenta si aplica):\n\n' + recortado;
+}
+
+async function construirContextoEvergreen(clienteId) {
+  const datos = await Promise.all(
+    GRUPOS_EVERGREEN.map((g) => leerJSON(`${clienteId}:brand-book.${g.suffix}`).catch(() => null))
+  );
+  const bloques = GRUPOS_EVERGREEN.map((g, i) => {
+    const d = datos[i];
+    if (!d) return null;
+    const campos = Object.entries(d)
+      .filter(([campo]) => !campo.startsWith('_'))
+      .map(([campo, valor]) => {
+        const formateado = formatearValorNota(valor);
+        return formateado ? `${campo}:\n${formateado}` : null;
+      })
+      .filter(Boolean);
+    if (campos.length === 0) return null;
+    return g.titulo + ':\n' + campos.join('\n');
+  }).filter(Boolean);
+
+  const conversacionReciente = await formatearConversacionEvergreenNoGuardada(clienteId).catch(() => null);
+  if (conversacionReciente) bloques.push(conversacionReciente);
+
+  if (bloques.length === 0) {
+    return 'CONTEXTO EVERGREEN: todavía no hay nada guardado en el Jefe Evergreen para esta marca -- usa lo que sí haya del ADN.';
+  }
+  return 'CONTEXTO EVERGREEN (Jefe Evergreen ya guardado — dolores, deseos, miedos y objeciones reales del cliente, úsalos para responder mejor):\n\n' + truncar(bloques.join('\n\n'), CONTEXT_CHAR_LIMIT);
+}
+
 // ---------- handler ----------
 
 module.exports = async function handler(req, res) {
@@ -204,8 +270,11 @@ module.exports = async function handler(req, res) {
 
   try {
     const promptFijo = cargarPromptFijo();
-    const contexto = await construirContextoNegocio(clienteId);
-    const system = promptFijo + '\n\n' + contexto;
+    const [contexto, contextoEvergreen] = await Promise.all([
+      construirContextoNegocio(clienteId),
+      construirContextoEvergreen(clienteId),
+    ]);
+    const system = [promptFijo, contexto, contextoEvergreen].join('\n\n');
 
     const content = [];
     if (imagen && imagen.mediaType && imagen.data) {
