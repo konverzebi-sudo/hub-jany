@@ -11,7 +11,7 @@ const { sql } = require('@vercel/postgres');
 
 const DEFAULT_CLIENTE = 'rancho-seco';
 const PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-agente-estrategia-whatsapp.md');
-const CONTEXT_CHAR_LIMIT = 10000;
+const CONTEXT_CHAR_LIMIT = 14000;
 const TXT_CONVERSACION_LIMIT = 6000;
 const MAX_IMAGENES = 4;
 
@@ -193,6 +193,8 @@ function formatearValorNota(valor) {
 }
 
 const GRUPOS_EVERGREEN = [
+  { suffix: 'evergreen-producto', titulo: 'PRODUCTO EVERGREEN' },
+  { suffix: 'evergreen-perfil-cliente', titulo: 'PERFIL DE CLIENTE EVERGREEN (dolores, deseos, miedos, objeciones)' },
   { suffix: 'evergreen-comunicacion', titulo: 'COMUNICACIÓN EVERGREEN (incluye ángulos y frases maestras)' },
   { suffix: 'evergreen-sistema', titulo: 'SISTEMA EVERGREEN' },
 ];
