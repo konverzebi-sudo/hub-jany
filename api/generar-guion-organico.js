@@ -53,6 +53,28 @@ async function leerJSON(key) {
   }
 }
 
+async function escribirJSON(key, valor) {
+  await ensureTable();
+  const value = JSON.stringify(valor);
+  const json = JSON.stringify(value);
+  await sql`
+    INSERT INTO kv_store (key, value, updated_at)
+    VALUES (${key}, ${json}::jsonb, now())
+    ON CONFLICT (key) DO UPDATE SET value = ${json}::jsonb, updated_at = now()
+  `;
+}
+
+async function registrarUsoTokens(clienteId, endpoint, usage) {
+  try {
+    const key = `${clienteId}:uso-tokens-log`;
+    const items = (await leerJSON(key)) || [];
+    items.push({ date: new Date().toISOString(), endpoint, inputTokens: usage?.input_tokens || 0, outputTokens: usage?.output_tokens || 0 });
+    await escribirJSON(key, items.slice(-500));
+  } catch (err) {
+    // No bloquear la respuesta al usuario si falla el registro de uso.
+  }
+}
+
 function truncar(str, limite) {
   if (!str) return str;
   return str.length > limite ? str.slice(0, limite) + '\n[...recortado...]' : str;
@@ -342,6 +364,7 @@ module.exports = async function handler(req, res) {
       if (!ideas.length) {
         return res.status(502).json({ error: 'El modelo no devolvió ideas. Intenta de nuevo.' });
       }
+      await registrarUsoTokens(clienteId, 'generar-guion-organico-ideas', usage);
       return res.status(200).json({ ideas, usage: { inputTokens: usage?.input_tokens || 0, outputTokens: usage?.output_tokens || 0 } });
     }
 
@@ -370,6 +393,7 @@ module.exports = async function handler(req, res) {
     if (!parsed.guion) {
       return res.status(502).json({ error: 'El modelo no devolvió el contenido esperado. Intenta de nuevo.' });
     }
+    await registrarUsoTokens(clienteId, 'generar-guion-organico-contenido', usage);
     return res.status(200).json({
       caption: parsed.caption || '',
       guion: parsed.guion || '',

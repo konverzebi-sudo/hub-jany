@@ -176,6 +176,7 @@ async function manejarPreguntaSuelta(req, res) {
     if (!text) {
       return res.status(502).json({ error: 'Respuesta vacía del modelo.' });
     }
+    await registrarUsoTokens(clienteId, 'consultor-evergreen-preguntas', data.usage);
     return res.status(200).json({ text });
   } catch (err) {
     return res.status(500).json({ error: 'Error de conexión con el Agente.' });
@@ -214,16 +215,17 @@ function builderRateLimited(ip) {
   return recent.length > BUILDER_MAX_REQUESTS;
 }
 
-async function registrarUsoBuilder(clienteId, usage) {
+async function registrarUsoTokens(clienteId, endpoint, usage) {
   try {
-    const key = `${clienteId}:evergreen-builder-usage-log`;
+    const key = `${clienteId}:uso-tokens-log`;
     const items = (await leerJSON(key)) || [];
     items.push({
       date: new Date().toISOString(),
+      endpoint,
       inputTokens: usage?.input_tokens || 0,
       outputTokens: usage?.output_tokens || 0,
     });
-    await escribirJSON(key, items.slice(-300));
+    await escribirJSON(key, items.slice(-500));
   } catch (err) {
     // No bloquear la respuesta al usuario si falla el registro de uso.
   }
@@ -476,7 +478,7 @@ async function manejarChatGuiado(req, res) {
     if (!text) {
       return res.status(502).json({ error: 'Respuesta vacía del modelo.' });
     }
-    await registrarUsoBuilder(clienteId, data.usage);
+    await registrarUsoTokens(clienteId, 'consultor-evergreen-builder', data.usage);
     return res.status(200).json({
       text,
       usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 },

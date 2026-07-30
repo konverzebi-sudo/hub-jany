@@ -84,6 +84,17 @@ async function escribirJSON(key, valor) {
   `;
 }
 
+async function registrarUsoTokens(clienteId, endpoint, usage) {
+  try {
+    const key = `${clienteId}:uso-tokens-log`;
+    const items = (await leerJSON(key)) || [];
+    items.push({ date: new Date().toISOString(), endpoint, inputTokens: usage?.input_tokens || 0, outputTokens: usage?.output_tokens || 0 });
+    await escribirJSON(key, items.slice(-500));
+  } catch (err) {
+    // No bloquear la respuesta al usuario si falla el registro de uso.
+  }
+}
+
 function fechaHoy() {
   return new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
 }
@@ -230,7 +241,7 @@ async function llamarClaude({ promptCompleto, webSearch, maxTokens }) {
 
   const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
   if (!text) return { ok: false, status: 502, error: 'Respuesta vacía del modelo.' };
-  return { ok: true, text };
+  return { ok: true, text, usage: data.usage };
 }
 
 // identificadores: { label, handle, link } — un label genérico como
@@ -302,6 +313,7 @@ async function handleDiagnosticoGeneral(req, res, clienteId, systemPrompt) {
   const promptCompleto = [systemPrompt, contexto, instruccion].filter(Boolean).join('\n\n');
   const r = await llamarClaude({ promptCompleto, webSearch: false });
   if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
+  await registrarUsoTokens(clienteId, 'consultor-radar-diagnostico-general', r.usage);
 
   try {
     await guardarHistorialEntry(clienteId, {
@@ -337,6 +349,7 @@ async function handleAnalisisCuentaGuardada(req, res, clienteId, systemPrompt) {
 
   const r = await llamarClaude({ promptCompleto, webSearch: false });
   if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
+  await registrarUsoTokens(clienteId, 'consultor-radar-analisis-cuenta', r.usage);
 
   const parsed = extractJson(r.text);
   const resultado = { data: parsed, raw: r.text, date: fechaHoy() };
@@ -368,6 +381,7 @@ async function handleAnalisisContenido(req, res, clienteId, systemPrompt) {
 
   const r = await llamarClaude({ promptCompleto, webSearch: false });
   if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
+  await registrarUsoTokens(clienteId, 'consultor-radar-analisis-contenido', r.usage);
 
   const parsed = extractJson(r.text);
   return res.status(200).json({ data: parsed, raw: r.text });
@@ -410,6 +424,7 @@ async function handleAnalisisGeneral(req, res, clienteId, systemPrompt) {
   const promptCompleto = [systemPrompt, contexto, instruccion].filter(Boolean).join('\n\n');
   const r = await llamarClaude({ promptCompleto, webSearch: true, maxTokens: 2600 });
   if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
+  await registrarUsoTokens(clienteId, 'consultor-radar-analisis-general', r.usage);
 
   const partes = r.text.split(SEPARADOR_INSIGHTS);
   const analisisRaw = (partes[0] || '').trim();
@@ -465,6 +480,7 @@ async function handleIdeasAccionables(req, res, clienteId, systemPrompt) {
   const promptCompleto = [systemPrompt, contexto, instruccion].filter(Boolean).join('\n\n');
   const r = await llamarClaude({ promptCompleto, webSearch: false, maxTokens: 2200 });
   if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
+  await registrarUsoTokens(clienteId, 'consultor-radar-ideas-accionables', r.usage);
 
   const ideas = extractJsonArray(r.text) || [];
 
