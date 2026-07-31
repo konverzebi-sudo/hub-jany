@@ -159,12 +159,10 @@
     border:1px solid var(--card-edge);
     border-radius:3px;
     box-shadow:0 3px 10px var(--shadow);
-    cursor:grab;
     user-select:none;
-    transition:box-shadow .15s;
+    transition:box-shadow .15s, left .25s ease, top .25s ease;
   }
   .person:hover{ box-shadow:0 6px 18px var(--shadow); }
-  .person.dragging{ cursor:grabbing; z-index:50; box-shadow:0 10px 26px var(--shadow); }
   .person.linking{ outline:2px solid var(--teal); outline-offset:2px; }
   .person.link-target-hover{ outline:2px solid var(--accent); outline-offset:2px; }
   .person.gender-m{ border-top:3px solid var(--male); }
@@ -378,6 +376,21 @@
 
   input[type=file]{ display:none; }
 
+  .attend-badge{
+    display:inline-block;
+    margin-top:.35rem;
+    font-size:.66rem;
+    padding:.15rem .5rem;
+    border-radius:20px;
+    line-height:1.4;
+  }
+  .attend-badge.si{ background:rgba(63,107,99,.15); color:var(--teal); border:1px solid var(--teal); }
+  .attend-badge.no{ background:var(--paper-deep); color:var(--ink-soft); border:1px solid var(--card-edge); }
+
+  @media (prefers-reduced-motion: reduce){
+    .person{ transition:box-shadow .15s; }
+  }
+
   @media print{
     #toolbar, #hint, #legend, .person-actions, #toast{ display:none !important; }
     body{ overflow:visible; height:auto; background:#fff; }
@@ -412,7 +425,7 @@
     <svg id="linesSvg"></svg>
   </div>
   <div id="hint">
-    <b>Cómo usarlo:</b> arrastra a cada persona donde quieras — arriba los padres, a los lados los hermanos, abajo los hijos. Usa <b>🔗 Conectar</b> para dibujar el parentesco entre dos tarjetas. Todo se guarda solo en este navegador.
+    <b>Cómo usarlo:</b> pulsa el <b>+</b> de cualquier tarjeta para agregar papá, mamá, hijo/a, hermano/a, medio hermano/a o pareja — el árbol se acomoda solo (papás arriba, hermanos en fila). Usa <b>🔗 Conectar</b> solo para casos especiales. Todo se guarda en este navegador.
     <br><button id="hintClose">Entendido, ocultar</button>
   </div>
   <div id="legend">
@@ -441,7 +454,7 @@
       </div>
       <div class="field">
         <label>Nombre(s)</label>
-        <input type="text" id="fName" placeholder="Ej. María Elena">
+        <input type="text" id="fName" list="nombresList" placeholder="Ej. María Elena">
       </div>
       <div class="field-row">
         <div class="field">
@@ -453,6 +466,7 @@
           <input type="text" id="fApellido2" list="apellidosList" placeholder="Ej. Dávila">
         </div>
       </div>
+      <datalist id="nombresList"></datalist>
       <datalist id="apellidosList"></datalist>
       <div class="field-row">
         <div class="field">
@@ -511,6 +525,14 @@
         <input type="text" id="fSocialOther" placeholder="Link o número">
       </div>
       <div class="field">
+        <label>¿Asistió a La Davilada?</label>
+        <select id="fAsistio">
+          <option value="">Sin confirmar</option>
+          <option value="si">Sí asistió</option>
+          <option value="no">No asistió</option>
+        </select>
+      </div>
+      <div class="field">
         <label>Notas / historia familiar</label>
         <textarea id="fNotes" placeholder="Anécdotas, nacionalidad, procedencia, historia..."></textarea>
       </div>
@@ -538,15 +560,10 @@
 <div class="modal-backdrop hidden" id="quickAddBackdrop">
   <div class="modal" style="max-width:320px;">
     <div class="modal-header">
-      <h2>Agregar familiar</h2>
+      <h2 id="quickAddTitle">Agregar familiar</h2>
       <button class="modal-close" id="quickAddClose">&times;</button>
     </div>
-    <div class="modal-body">
-      <button type="button" class="rel-option" id="qaPapa">+ Papá</button>
-      <button type="button" class="rel-option" id="qaMama">+ Mamá</button>
-      <button type="button" class="rel-option" id="qaHijo">+ Hijo/a</button>
-      <button type="button" class="rel-option" id="qaHermano">+ Hermano/a</button>
-    </div>
+    <div class="modal-body" id="quickAddBody"></div>
   </div>
 </div>
 
@@ -559,7 +576,6 @@
   var state = { people: [], relations: [] };
   var zoom = 1;
   var linking = null; // person id currently selected as source for a relation
-  var dragCtx = null;
 
   var canvas = document.getElementById("canvas");
   var canvasWrapper = document.getElementById("canvasWrapper");
@@ -622,10 +638,13 @@
   function relatedChildren(personId){
     return state.relations.filter(function(r){ return r.type==="parent" && r.from===personId; }).map(function(r){ return r.to; });
   }
-  function spouseOf(personId){
-    var r = state.relations.filter(function(r){ return r.type==="spouse" && (r.from===personId || r.to===personId); })[0];
-    if(!r) return null;
-    return r.from===personId ? r.to : r.from;
+  function spousesOf(personId){
+    return state.relations.filter(function(r){ return r.type==="spouse" && (r.from===personId || r.to===personId); })
+      .map(function(r){ return r.from===personId ? r.to : r.from; });
+  }
+  function primarySpouseFor(personId){
+    var sp = spousesOf(personId);
+    return sp.length===1 ? sp[0] : null; // si hay 2+ parejas, no adivinamos cuál es la segunda madre/padre
   }
   function addRelationSilent(type, from, to){
     var dup = state.relations.some(function(r){
@@ -635,53 +654,121 @@
     state.relations.push({ id: uid(), type: type, from: from, to: to });
   }
 
-  function placeAndLinkQuickAdd(newP, sourceId, kind){
-    var source = personById(sourceId);
+  // Solo crea las relaciones; autoLayout() (llamado desde render) recalcula x/y de todo el árbol.
+  function linkQuickAdd(newP, sourceId, kind, extra){
     if(kind==="papa" || kind==="mama"){
-      var existingParents = relatedParents(sourceId).map(personById).filter(Boolean);
-      var targetY = existingParents.length ? existingParents[0].y : source.y - GAP_Y;
-      if(targetY < 20){
-        var shift = 20 - targetY;
-        state.people.forEach(function(pp){ pp.y += shift; });
-        source = personById(sourceId);
-        existingParents = relatedParents(sourceId).map(personById).filter(Boolean);
-        targetY += shift;
-      }
-      newP.x = existingParents.length
-        ? Math.max.apply(null, existingParents.map(function(pp){ return pp.x; })) + CARD_W + GAP_X
-        : source.x;
-      newP.y = targetY;
       addRelationSilent("parent", newP.id, sourceId);
     } else if(kind==="hijo"){
-      var spouseId = spouseOf(sourceId);
-      var spousePerson = spouseId ? personById(spouseId) : null;
-      var anchorX = spousePerson ? (source.x + spousePerson.x)/2 : source.x;
-      var anchorY = spousePerson ? Math.max(source.y, spousePerson.y) : source.y;
-      var childIds = relatedChildren(sourceId).slice();
-      if(spouseId){
-        relatedChildren(spouseId).forEach(function(id){ if(childIds.indexOf(id)===-1) childIds.push(id); });
-      }
-      var childPeople = childIds.map(personById).filter(Boolean);
-      newP.x = childPeople.length
-        ? Math.max.apply(null, childPeople.map(function(c){ return c.x; })) + CARD_W + GAP_X
-        : anchorX - CARD_W/2;
-      newP.y = anchorY + GAP_Y;
+      var spouseId = primarySpouseFor(sourceId);
       addRelationSilent("parent", sourceId, newP.id);
       if(spouseId) addRelationSilent("parent", spouseId, newP.id);
     } else if(kind==="hermano"){
       var parents = relatedParents(sourceId);
-      var siblingIds = parents.length ? relatedChildren(parents[0]) : [sourceId];
-      var siblingPeople = siblingIds.map(personById).filter(Boolean);
-      newP.x = (siblingPeople.length ? Math.max.apply(null, siblingPeople.map(function(s){ return s.x; })) : source.x) + CARD_W + GAP_X;
-      newP.y = source.y;
       if(parents.length){
         parents.forEach(function(pid){ addRelationSilent("parent", pid, newP.id); });
       } else {
         addRelationSilent("sibling", sourceId, newP.id);
       }
+    } else if(kind==="mediohermano"){
+      if(extra && extra.sharedParentId){
+        addRelationSilent("parent", extra.sharedParentId, newP.id);
+      } else {
+        var onlyParents = relatedParents(sourceId);
+        if(onlyParents.length){ addRelationSilent("parent", onlyParents[0], newP.id); }
+        else { addRelationSilent("sibling", sourceId, newP.id); }
+      }
+    } else if(kind==="conyuge"){
+      addRelationSilent("spouse", sourceId, newP.id);
     }
-    newP.x = Math.max(20, newP.x);
-    newP.y = Math.max(20, newP.y);
+  }
+
+  // Genera x/y de todas las personas a partir del árbol de relaciones:
+  // generación por generación, papás centrados arriba de sus hijos, hermanos en fila.
+  function autoLayout(){
+    if(!state.people.length) return;
+    var gen = {};
+    state.people.forEach(function(p){ gen[p.id] = 0; });
+    for(var iter=0; iter<state.people.length+5; iter++){
+      var changed = false;
+      state.relations.forEach(function(r){
+        if(r.type==="parent"){
+          if(gen[r.to] < gen[r.from]+1){ gen[r.to] = gen[r.from]+1; changed = true; }
+        } else if(r.type==="spouse"){
+          var g = Math.max(gen[r.from], gen[r.to]);
+          if(gen[r.from]!==g){ gen[r.from]=g; changed=true; }
+          if(gen[r.to]!==g){ gen[r.to]=g; changed=true; }
+        }
+      });
+      if(!changed) break;
+    }
+    var minGen = Math.min.apply(null, state.people.map(function(p){ return gen[p.id]; }));
+    state.people.forEach(function(p){ gen[p.id] -= minGen; });
+
+    var byGen = {};
+    state.people.forEach(function(p){ (byGen[gen[p.id]] = byGen[gen[p.id]] || []).push(p.id); });
+    var maxGen = Math.max.apply(null, Object.keys(byGen).map(Number));
+
+    function childrenOfUnit(parentIds){
+      var seen = {};
+      parentIds.forEach(function(pid){
+        relatedChildren(pid).forEach(function(cid){ seen[cid] = true; });
+      });
+      return Object.keys(seen).filter(function(cid){
+        var cp = relatedParents(cid);
+        return cp.length > 0 && cp.every(function(pid){ return parentIds.indexOf(pid) !== -1; });
+      });
+    }
+
+    var xPos = {}, placed = {};
+
+    var gen0 = (byGen[0] || []).slice().sort(function(a,b){ return (personById(a).x||0) - (personById(b).x||0); });
+    var ordered0 = [], seen0 = {};
+    gen0.forEach(function(id){
+      if(seen0[id]) return;
+      ordered0.push(id); seen0[id] = true;
+      spousesOf(id).forEach(function(sp){
+        if(gen[sp]===0 && !seen0[sp]){ ordered0.push(sp); seen0[sp] = true; }
+      });
+    });
+    var cx = 20;
+    ordered0.forEach(function(id){ xPos[id] = cx; cx += CARD_W + GAP_X; placed[id] = true; });
+
+    for(var g=1; g<=maxGen; g++){
+      var genMinus1 = (byGen[g-1] || []).slice();
+      var unitSeen = {}, groups = [];
+      genMinus1.forEach(function(pid){
+        var spouses = spousesOf(pid).filter(function(sp){ return gen[sp]===g-1; });
+        var units = spouses.length ? spouses.map(function(sp){ return [pid, sp].sort(); }) : [[pid]];
+        units.forEach(function(unit){
+          var key = unit.join(",");
+          if(unitSeen[key]) return;
+          unitSeen[key] = true;
+          var kids = childrenOfUnit(unit).filter(function(cid){ return !placed[cid]; });
+          if(kids.length) groups.push({ unit: unit, kids: kids });
+        });
+      });
+      groups.sort(function(A,B){
+        function avgX(u){ return u.reduce(function(s,id){ return s+(xPos[id]||0); },0)/u.length; }
+        return avgX(A.unit) - avgX(B.unit);
+      });
+      var cursorX = 20;
+      groups.forEach(function(grp){
+        grp.kids.sort(function(a,b){ return (personById(a).x||0) - (personById(b).x||0); });
+        var totalW = grp.kids.length*(CARD_W+GAP_X) - GAP_X;
+        var unitAvgX = grp.unit.reduce(function(s,id){ return s+(xPos[id]||0); },0)/grp.unit.length;
+        var startX = Math.max(cursorX, unitAvgX - totalW/2);
+        grp.kids.forEach(function(cid,i){ xPos[cid] = startX + i*(CARD_W+GAP_X); placed[cid] = true; });
+        cursorX = startX + totalW + (CARD_W+GAP_X);
+      });
+      (byGen[g] || []).forEach(function(id){
+        if(!placed[id]){ xPos[id] = cursorX; cursorX += CARD_W+GAP_X; placed[id] = true; }
+      });
+    }
+
+    state.people.forEach(function(p){
+      p.x = xPos[p.id] != null ? xPos[p.id] : 20;
+      p.y = 20 + gen[p.id]*GAP_Y;
+    });
   }
 
   function fullName(p){
@@ -692,20 +779,24 @@
     return p.name || ""; // datos antiguos guardados antes de separar apellidos
   }
 
-  function refreshApellidosDatalist(){
-    var set = {};
+  function refreshDatalists(){
+    var apSet = {}, nameSet = {};
     state.people.forEach(function(p){
-      if(p.apellido1) set[p.apellido1] = 1;
-      if(p.apellido2) set[p.apellido2] = 1;
+      if(p.apellido1) apSet[p.apellido1] = 1;
+      if(p.apellido2) apSet[p.apellido2] = 1;
+      if(p.givenName) nameSet[p.givenName] = 1;
     });
-    var dl = document.getElementById("apellidosList");
-    dl.innerHTML = Object.keys(set).sort().map(function(a){
+    document.getElementById("apellidosList").innerHTML = Object.keys(apSet).sort().map(function(a){
+      return '<option value="'+escapeHtml(a)+'"></option>';
+    }).join("");
+    document.getElementById("nombresList").innerHTML = Object.keys(nameSet).sort().map(function(a){
       return '<option value="'+escapeHtml(a)+'"></option>';
     }).join("");
   }
 
   /* ---------- Rendering ---------- */
   function render(){
+    autoLayout();
     var frag = document.createDocumentFragment();
     // remove existing person nodes (keep svg)
     Array.prototype.slice.call(canvas.querySelectorAll(".person")).forEach(function(n){ n.remove(); });
@@ -769,6 +860,13 @@
     sub.innerHTML = lines.map(function(l){ return escapeHtml(l); }).join("<br>");
     body.appendChild(sub);
 
+    if(p.asistio==="si" || p.asistio==="no"){
+      var attend = document.createElement("div");
+      attend.className = "attend-badge " + p.asistio;
+      attend.textContent = p.asistio==="si" ? "✓ Asistió a La Davilada" : "✕ No asistió";
+      body.appendChild(attend);
+    }
+
     var socialLinks = socialUrls(p);
     if(socialLinks.length){
       var socRow = document.createElement("div");
@@ -804,12 +902,11 @@
     var quickBtn = document.createElement("button");
     quickBtn.type = "button";
     quickBtn.className = "quick-add-badge";
-    quickBtn.title = "Agregar papá, mamá, hijo/a o hermano/a";
+    quickBtn.title = "Agregar papá, mamá, hijo/a, hermano/a o pareja";
     quickBtn.textContent = "+";
     quickBtn.addEventListener("click", function(ev){ ev.stopPropagation(); openQuickAddMenu(p.id); });
     el.appendChild(quickBtn);
 
-    el.addEventListener("pointerdown", function(ev){ startDrag(ev, p.id, el); });
     el.addEventListener("click", function(){
       if(linking && linking !== p.id) completeLink(p.id, el);
     });
@@ -852,42 +949,6 @@
     return String(s).replace(/[&<>"']/g, function(c){
       return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
     });
-  }
-
-  /* ---------- Drag ---------- */
-  function startDrag(ev, id, el){
-    if(ev.target.closest(".pbtn")) return;
-    if(linking){ return; } // clicking while linking selects target, not drag
-    ev.preventDefault();
-    var rect = canvas.getBoundingClientRect();
-    var p = personById(id);
-    dragCtx = {
-      id: id, el: el,
-      offX: (ev.clientX - rect.left)/zoom - p.x,
-      offY: (ev.clientY - rect.top)/zoom - p.y
-    };
-    el.classList.add("dragging");
-    el.setPointerCapture && el.setPointerCapture(ev.pointerId);
-    window.addEventListener("pointermove", onDragMove);
-    window.addEventListener("pointerup", onDragEnd);
-  }
-  function onDragMove(ev){
-    if(!dragCtx) return;
-    var rect = canvas.getBoundingClientRect();
-    var x = Math.max(0, (ev.clientX - rect.left)/zoom - dragCtx.offX);
-    var y = Math.max(0, (ev.clientY - rect.top)/zoom - dragCtx.offY);
-    var p = personById(dragCtx.id);
-    p.x = x; p.y = y;
-    dragCtx.el.style.left = x + "px";
-    dragCtx.el.style.top = y + "px";
-    ensureCanvasSize(x, y);
-    updateLines();
-  }
-  function onDragEnd(){
-    if(dragCtx){ dragCtx.el.classList.remove("dragging"); save(); }
-    dragCtx = null;
-    window.removeEventListener("pointermove", onDragMove);
-    window.removeEventListener("pointerup", onDragEnd);
   }
 
   /* ---------- Linking ---------- */
@@ -1020,29 +1081,83 @@
   /* ---------- Add / Edit / Delete ---------- */
   var editingId = null;
   var pendingPhoto = undefined; // undefined = unchanged, null = removed, string = new
-  var pendingQuickAdd = null; // { type: 'papa'|'mama'|'hijo'|'hermano', sourceId }
+  var pendingQuickAdd = null; // { type, sourceId, sharedParentId? }
   var quickAddSourceId = null;
+
+  var QUICK_ADD_OPTIONS = [
+    { kind:"papa", label:"+ Papá" },
+    { kind:"mama", label:"+ Mamá" },
+    { kind:"hijo", label:"+ Hijo/a" },
+    { kind:"hermano", label:"+ Hermano/a" },
+    { kind:"mediohermano", label:"+ Medio hermano/a" },
+    { kind:"conyuge", label:"+ Cónyuge / 2do matrimonio" }
+  ];
 
   function openQuickAddMenu(personId){
     quickAddSourceId = personId;
+    document.getElementById("quickAddTitle").textContent = "Agregar familiar";
+    renderQuickAddMenu();
     document.getElementById("quickAddBackdrop").classList.remove("hidden");
+  }
+  function renderQuickAddMenu(){
+    var box = document.getElementById("quickAddBody");
+    box.innerHTML = "";
+    QUICK_ADD_OPTIONS.forEach(function(opt){
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "rel-option";
+      btn.textContent = opt.label;
+      btn.addEventListener("click", function(){ startQuickAdd(opt.kind); });
+      box.appendChild(btn);
+    });
   }
   function closeQuickAddMenu(){
     document.getElementById("quickAddBackdrop").classList.add("hidden");
   }
   function startQuickAdd(kind){
+    if(kind==="mediohermano"){
+      var parents = relatedParents(quickAddSourceId);
+      if(parents.length >= 2){
+        showMedioHermanoChoice(parents);
+        return;
+      }
+    }
     pendingQuickAdd = { type: kind, sourceId: quickAddSourceId };
     closeQuickAddMenu();
     openEdit(null);
     if(kind==="papa") document.getElementById("fGender").value = "M";
     if(kind==="mama") document.getElementById("fGender").value = "F";
   }
+  function showMedioHermanoChoice(parentIds){
+    document.getElementById("quickAddTitle").textContent = "¿Con cuál comparte?";
+    var box = document.getElementById("quickAddBody");
+    box.innerHTML = "";
+    parentIds.forEach(function(pid){
+      var pp = personById(pid);
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "rel-option";
+      btn.innerHTML = "Comparte a <b>"+escapeHtml(fullName(pp)||"este familiar")+"</b>";
+      btn.addEventListener("click", function(){
+        pendingQuickAdd = { type:"mediohermano", sourceId: quickAddSourceId, sharedParentId: pid };
+        closeQuickAddMenu();
+        openEdit(null);
+      });
+      box.appendChild(btn);
+    });
+    var back = document.createElement("button");
+    back.type = "button";
+    back.className = "tbtn";
+    back.style.marginTop = ".3rem";
+    back.textContent = "← Volver";
+    back.addEventListener("click", function(){
+      document.getElementById("quickAddTitle").textContent = "Agregar familiar";
+      renderQuickAddMenu();
+    });
+    box.appendChild(back);
+  }
   document.getElementById("quickAddClose").addEventListener("click", closeQuickAddMenu);
   document.getElementById("quickAddBackdrop").addEventListener("click", function(ev){ if(ev.target===this) closeQuickAddMenu(); });
-  document.getElementById("qaPapa").addEventListener("click", function(){ startQuickAdd("papa"); });
-  document.getElementById("qaMama").addEventListener("click", function(){ startQuickAdd("mama"); });
-  document.getElementById("qaHijo").addEventListener("click", function(){ startQuickAdd("hijo"); });
-  document.getElementById("qaHermano").addEventListener("click", function(){ startQuickAdd("hermano"); });
 
   function openEdit(id){
     editingId = id;
@@ -1050,7 +1165,7 @@
     var p = id ? personById(id) : null;
     document.getElementById("editTitle").textContent = p ? "Editar persona" : "Nueva persona";
     document.getElementById("editDelete").style.display = p ? "inline-flex" : "none";
-    refreshApellidosDatalist();
+    refreshDatalists();
     document.getElementById("fName").value = p ? (p.givenName != null ? p.givenName : (p.name||"")) : "";
     document.getElementById("fApellido1").value = p ? p.apellido1||"" : "";
     document.getElementById("fApellido2").value = p ? p.apellido2||"" : "";
@@ -1065,6 +1180,7 @@
     document.getElementById("fInstagram").value = p ? p.instagram||"" : "";
     document.getElementById("fFacebook").value = p ? p.facebook||"" : "";
     document.getElementById("fSocialOther").value = p ? p.socialOther||"" : "";
+    document.getElementById("fAsistio").value = p ? p.asistio||"" : "";
     document.getElementById("fNotes").value = p ? p.notes||"" : "";
     document.getElementById("deathFields").style.display = (p && p.deceased) ? "flex" : "none";
     renderPhotoPreview(p ? p.photo : null);
@@ -1141,12 +1257,12 @@
     p.instagram = document.getElementById("fInstagram").value.trim();
     p.facebook = document.getElementById("fFacebook").value.trim();
     p.socialOther = document.getElementById("fSocialOther").value.trim();
+    p.asistio = document.getElementById("fAsistio").value;
     p.notes = document.getElementById("fNotes").value.trim();
     if(pendingPhoto !== undefined) p.photo = pendingPhoto;
 
-    var wasQuickAdd = isNew && pendingQuickAdd;
-    if(wasQuickAdd){
-      placeAndLinkQuickAdd(p, pendingQuickAdd.sourceId, pendingQuickAdd.type);
+    if(isNew && pendingQuickAdd){
+      linkQuickAdd(p, pendingQuickAdd.sourceId, pendingQuickAdd.type, pendingQuickAdd);
     }
     pendingQuickAdd = null;
 
