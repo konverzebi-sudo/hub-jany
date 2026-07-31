@@ -285,6 +285,7 @@ module.exports = async function handler(req, res) {
   const imagenes = Array.isArray(body.imagenes) ? body.imagenes.slice(0, MAX_IMAGENES) : [];
   const txtConversacion = typeof body.txtConversacion === 'string' ? truncar(body.txtConversacion, TXT_CONVERSACION_LIMIT) : '';
   const qa = Array.isArray(body.qa) ? body.qa.filter((x) => x && x.pregunta) : null;
+  const tarjetasActuales = body.tarjetasActuales && typeof body.tarjetasActuales === 'object' ? body.tarjetasActuales : null;
 
   try {
     const promptFijo = cargarPromptFijo();
@@ -302,6 +303,17 @@ module.exports = async function handler(req, res) {
     });
 
     const partesUsuario = [];
+    if (tarjetasActuales) {
+      const llenas = TARJETAS_CAMPOS
+        .filter((campo) => tarjetasActuales[campo] && tarjetasActuales[campo].toString().trim())
+        .map((campo) => `- ${campo}: ${tarjetasActuales[campo].toString().trim()}`);
+      if (llenas.length) {
+        partesUsuario.push(
+          'CONTENIDO ACTUAL DE LAS TARJETAS (ya editado o generado antes por el usuario) -- úsalo como base: conserva lo que sigue siendo bueno, complétalo o mejóralo con la información nueva que tengas, no lo descartes ni lo reescribas sin razón. Los campos que no aparezcan aquí están vacíos, genéralos desde cero:\n' +
+          llenas.join('\n')
+        );
+      }
+    }
     if (qa && qa.length) {
       partesUsuario.push(
         'El usuario ya contestó tus preguntas de una ronda anterior. NO vuelvas a preguntar bajo ninguna circunstancia -- genera las tarjetas ahora con lo mejor disponible:\n' +
