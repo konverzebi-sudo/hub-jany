@@ -145,8 +145,6 @@ function formatearComunicacionEvergreen(d) {
   const textoLineas = [];
   if (d.posicionamiento) textoLineas.push(`Posicionamiento: ${d.posicionamiento}`);
   if (d.diferenciador) textoLineas.push(`Diferenciador: ${d.diferenciador}`);
-  if (d.tono_si) textoLineas.push(`Tono que sí: ${d.tono_si}`);
-  if (d.tono_no) textoLineas.push(`Tono que no: ${d.tono_no}`);
   if (textoLineas.length) bloques.push('ESTRATEGIA DE COMUNICACIÓN EVERGREEN:\n' + textoLineas.join('\n'));
 
   bloques.push(formatearTabla(
