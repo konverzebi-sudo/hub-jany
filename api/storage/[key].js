@@ -11,11 +11,24 @@ async function ensureTable() {
   )`;
 }
 
+// Llaves de escritura pública: no piden el token compartido porque su
+// dueño (una sola herramienta, sin datos de negocio) quiere que cualquiera
+// con el link pueda editar sin fricción. Mantener esta lista corta.
+const PUBLIC_WRITE_KEYS = ['davilada-arbol-familiar'];
+
 module.exports = async function handler(req, res) {
   // Los datos cambian por dispositivo en cualquier momento: nunca cachear
   // esta respuesta (ni en el browser ni en el edge de Vercel), o un refresh
   // puede mostrar una copia vieja y dar la impresión de que se perdió lo guardado.
   res.setHeader('Cache-Control', 'no-store, max-age=0');
+  // jefeshub.com (GitHub Pages) vive en otro origen que agentes.jefeshub.com
+  // (Vercel) — sin esto el navegador bloquea el fetch desde /davilada.
+  res.setHeader('Access-Control-Allow-Origin', 'https://jefeshub.com');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Storage-Token');
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
 
   const { key } = req.query;
   if (!key || Array.isArray(key) || !/^[a-zA-Z0-9_-]+$/.test(key)) {
@@ -41,14 +54,16 @@ module.exports = async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
-    // trim: un espacio o salto de linea de mas al copiar/pegar el token (ya sea
-    // al escribirlo en el prompt o al pegarlo en las env vars de Vercel) rompe
-    // la comparacion exacta y hace que el cliente borre el token guardado y
-    // vuelva a pedirlo en cada guardado.
-    const token = (req.headers['x-storage-token'] || '').toString().trim();
-    const expected = (process.env.STORAGE_WRITE_TOKEN || '').trim();
-    if (!token || !expected || token !== expected) {
-      return res.status(401).json({ error: 'No autorizado.' });
+    if (!PUBLIC_WRITE_KEYS.includes(key)) {
+      // trim: un espacio o salto de linea de mas al copiar/pegar el token (ya sea
+      // al escribirlo en el prompt o al pegarlo en las env vars de Vercel) rompe
+      // la comparacion exacta y hace que el cliente borre el token guardado y
+      // vuelva a pedirlo en cada guardado.
+      const token = (req.headers['x-storage-token'] || '').toString().trim();
+      const expected = (process.env.STORAGE_WRITE_TOKEN || '').trim();
+      if (!token || !expected || token !== expected) {
+        return res.status(401).json({ error: 'No autorizado.' });
+      }
     }
     const body = req.body || {};
     if (body.value === undefined) {
