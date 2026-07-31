@@ -20,6 +20,8 @@
     --line:#a89686;
     --shadow:rgba(30,20,14,0.22);
     --focus:#7c332b;
+    --male:#3f5e73;
+    --female:#96435c;
   }
   /* Paleta oficial fija (blush + negro) — se mantiene clara aunque el sistema use modo oscuro */
   :root[data-theme="dark"],
@@ -28,6 +30,7 @@
     --card:#f8f2ec; --card-edge:#d9c6b8; --accent:#7c332b; --accent-soft:#a5564a;
     --teal:#3f6b63; --teal-soft:#5c8b82; --rust:#7c332b; --line:#a89686;
     --shadow:rgba(30,20,14,0.22); --focus:#7c332b;
+    --male:#3f5e73; --female:#96435c;
   }
 
   *{box-sizing:border-box;}
@@ -164,6 +167,25 @@
   .person.dragging{ cursor:grabbing; z-index:50; box-shadow:0 10px 26px var(--shadow); }
   .person.linking{ outline:2px solid var(--teal); outline-offset:2px; }
   .person.link-target-hover{ outline:2px solid var(--accent); outline-offset:2px; }
+  .person.gender-m{ border-top:3px solid var(--male); }
+  .person.gender-f{ border-top:3px solid var(--female); }
+  .quick-add-badge{
+    position:absolute;
+    bottom:-11px; right:10px;
+    width:24px; height:24px;
+    border-radius:50%;
+    background:var(--accent);
+    color:#fbf5ee;
+    border:2px solid var(--paper);
+    font-size:15px;
+    line-height:1;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    box-shadow:0 2px 6px var(--shadow);
+    z-index:6;
+    padding:0;
+  }
+  .quick-add-badge:hover{ background:var(--accent-soft); }
   .person::before,.person::after,
   .person .corner-l,.person .corner-r{
     content:"";
@@ -513,6 +535,21 @@
   </div>
 </div>
 
+<div class="modal-backdrop hidden" id="quickAddBackdrop">
+  <div class="modal" style="max-width:320px;">
+    <div class="modal-header">
+      <h2>Agregar familiar</h2>
+      <button class="modal-close" id="quickAddClose">&times;</button>
+    </div>
+    <div class="modal-body">
+      <button type="button" class="rel-option" id="qaPapa">+ Papá</button>
+      <button type="button" class="rel-option" id="qaMama">+ Mamá</button>
+      <button type="button" class="rel-option" id="qaHijo">+ Hijo/a</button>
+      <button type="button" class="rel-option" id="qaHermano">+ Hermano/a</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -577,6 +614,76 @@
     return null;
   }
 
+  var CARD_W = 172, GAP_X = 40, GAP_Y = 210;
+
+  function relatedParents(personId){
+    return state.relations.filter(function(r){ return r.type==="parent" && r.to===personId; }).map(function(r){ return r.from; });
+  }
+  function relatedChildren(personId){
+    return state.relations.filter(function(r){ return r.type==="parent" && r.from===personId; }).map(function(r){ return r.to; });
+  }
+  function spouseOf(personId){
+    var r = state.relations.filter(function(r){ return r.type==="spouse" && (r.from===personId || r.to===personId); })[0];
+    if(!r) return null;
+    return r.from===personId ? r.to : r.from;
+  }
+  function addRelationSilent(type, from, to){
+    var dup = state.relations.some(function(r){
+      return r.type===type && ((r.from===from&&r.to===to)||(type!=="parent"&&r.from===to&&r.to===from));
+    });
+    if(dup) return;
+    state.relations.push({ id: uid(), type: type, from: from, to: to });
+  }
+
+  function placeAndLinkQuickAdd(newP, sourceId, kind){
+    var source = personById(sourceId);
+    if(kind==="papa" || kind==="mama"){
+      var existingParents = relatedParents(sourceId).map(personById).filter(Boolean);
+      var targetY = existingParents.length ? existingParents[0].y : source.y - GAP_Y;
+      if(targetY < 20){
+        var shift = 20 - targetY;
+        state.people.forEach(function(pp){ pp.y += shift; });
+        source = personById(sourceId);
+        existingParents = relatedParents(sourceId).map(personById).filter(Boolean);
+        targetY += shift;
+      }
+      newP.x = existingParents.length
+        ? Math.max.apply(null, existingParents.map(function(pp){ return pp.x; })) + CARD_W + GAP_X
+        : source.x;
+      newP.y = targetY;
+      addRelationSilent("parent", newP.id, sourceId);
+    } else if(kind==="hijo"){
+      var spouseId = spouseOf(sourceId);
+      var spousePerson = spouseId ? personById(spouseId) : null;
+      var anchorX = spousePerson ? (source.x + spousePerson.x)/2 : source.x;
+      var anchorY = spousePerson ? Math.max(source.y, spousePerson.y) : source.y;
+      var childIds = relatedChildren(sourceId).slice();
+      if(spouseId){
+        relatedChildren(spouseId).forEach(function(id){ if(childIds.indexOf(id)===-1) childIds.push(id); });
+      }
+      var childPeople = childIds.map(personById).filter(Boolean);
+      newP.x = childPeople.length
+        ? Math.max.apply(null, childPeople.map(function(c){ return c.x; })) + CARD_W + GAP_X
+        : anchorX - CARD_W/2;
+      newP.y = anchorY + GAP_Y;
+      addRelationSilent("parent", sourceId, newP.id);
+      if(spouseId) addRelationSilent("parent", spouseId, newP.id);
+    } else if(kind==="hermano"){
+      var parents = relatedParents(sourceId);
+      var siblingIds = parents.length ? relatedChildren(parents[0]) : [sourceId];
+      var siblingPeople = siblingIds.map(personById).filter(Boolean);
+      newP.x = (siblingPeople.length ? Math.max.apply(null, siblingPeople.map(function(s){ return s.x; })) : source.x) + CARD_W + GAP_X;
+      newP.y = source.y;
+      if(parents.length){
+        parents.forEach(function(pid){ addRelationSilent("parent", pid, newP.id); });
+      } else {
+        addRelationSilent("sibling", sourceId, newP.id);
+      }
+    }
+    newP.x = Math.max(20, newP.x);
+    newP.y = Math.max(20, newP.y);
+  }
+
   function fullName(p){
     if(!p) return "";
     if(p.givenName || p.apellido1 || p.apellido2){
@@ -617,6 +724,8 @@
   function buildPersonEl(p){
     var el = document.createElement("div");
     el.className = "person";
+    if(p.gender==="M") el.classList.add("gender-m");
+    else if(p.gender==="F") el.classList.add("gender-f");
     el.dataset.id = p.id;
     el.style.left = p.x + "px";
     el.style.top = p.y + "px";
@@ -691,6 +800,14 @@
     body.appendChild(actions);
 
     el.appendChild(body);
+
+    var quickBtn = document.createElement("button");
+    quickBtn.type = "button";
+    quickBtn.className = "quick-add-badge";
+    quickBtn.title = "Agregar papá, mamá, hijo/a o hermano/a";
+    quickBtn.textContent = "+";
+    quickBtn.addEventListener("click", function(ev){ ev.stopPropagation(); openQuickAddMenu(p.id); });
+    el.appendChild(quickBtn);
 
     el.addEventListener("pointerdown", function(ev){ startDrag(ev, p.id, el); });
     el.addEventListener("click", function(){
@@ -903,6 +1020,29 @@
   /* ---------- Add / Edit / Delete ---------- */
   var editingId = null;
   var pendingPhoto = undefined; // undefined = unchanged, null = removed, string = new
+  var pendingQuickAdd = null; // { type: 'papa'|'mama'|'hijo'|'hermano', sourceId }
+  var quickAddSourceId = null;
+
+  function openQuickAddMenu(personId){
+    quickAddSourceId = personId;
+    document.getElementById("quickAddBackdrop").classList.remove("hidden");
+  }
+  function closeQuickAddMenu(){
+    document.getElementById("quickAddBackdrop").classList.add("hidden");
+  }
+  function startQuickAdd(kind){
+    pendingQuickAdd = { type: kind, sourceId: quickAddSourceId };
+    closeQuickAddMenu();
+    openEdit(null);
+    if(kind==="papa") document.getElementById("fGender").value = "M";
+    if(kind==="mama") document.getElementById("fGender").value = "F";
+  }
+  document.getElementById("quickAddClose").addEventListener("click", closeQuickAddMenu);
+  document.getElementById("quickAddBackdrop").addEventListener("click", function(ev){ if(ev.target===this) closeQuickAddMenu(); });
+  document.getElementById("qaPapa").addEventListener("click", function(){ startQuickAdd("papa"); });
+  document.getElementById("qaMama").addEventListener("click", function(){ startQuickAdd("mama"); });
+  document.getElementById("qaHijo").addEventListener("click", function(){ startQuickAdd("hijo"); });
+  document.getElementById("qaHermano").addEventListener("click", function(){ startQuickAdd("hermano"); });
 
   function openEdit(id){
     editingId = id;
@@ -945,6 +1085,7 @@
   function closeEdit(){
     document.getElementById("editBackdrop").classList.add("hidden");
     editingId = null;
+    pendingQuickAdd = null;
   }
   document.getElementById("editClose").addEventListener("click", closeEdit);
   document.getElementById("editCancel").addEventListener("click", closeEdit);
@@ -1002,10 +1143,21 @@
     p.socialOther = document.getElementById("fSocialOther").value.trim();
     p.notes = document.getElementById("fNotes").value.trim();
     if(pendingPhoto !== undefined) p.photo = pendingPhoto;
+
+    var wasQuickAdd = isNew && pendingQuickAdd;
+    if(wasQuickAdd){
+      placeAndLinkQuickAdd(p, pendingQuickAdd.sourceId, pendingQuickAdd.type);
+    }
+    pendingQuickAdd = null;
+
     save();
     render();
     closeEdit();
     toast(isNew ? "Persona agregada." : "Cambios guardados.");
+    if(isNew){
+      var newEl = canvas.querySelector('.person[data-id="'+p.id+'"]');
+      if(newEl) newEl.scrollIntoView({ block:"center", inline:"center", behavior:"smooth" });
+    }
   });
 
   function deletePerson(id){
@@ -1096,7 +1248,7 @@
   /* ---------- Init ---------- */
   load();
   if(!state.people.length){
-    state.people.push({ id: uid(), name:"", x: 980, y: 620, photo:null });
+    state.people.push({ id: uid(), name:"", x: 60, y: 60, photo:null });
   }
   render();
   setTimeout(function(){
