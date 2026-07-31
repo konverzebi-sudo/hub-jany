@@ -418,9 +418,20 @@
         </div>
       </div>
       <div class="field">
-        <label>Nombre completo</label>
-        <input type="text" id="fName" placeholder="Ej. María Elena Torres">
+        <label>Nombre(s)</label>
+        <input type="text" id="fName" placeholder="Ej. María Elena">
       </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Apellido 1 (paterno)</label>
+          <input type="text" id="fApellido1" list="apellidosList" placeholder="Ej. Torres">
+        </div>
+        <div class="field">
+          <label>Apellido 2 (materno)</label>
+          <input type="text" id="fApellido2" list="apellidosList" placeholder="Ej. Dávila">
+        </div>
+      </div>
+      <datalist id="apellidosList"></datalist>
       <div class="field-row">
         <div class="field">
           <label>Apodo</label>
@@ -566,6 +577,26 @@
     return null;
   }
 
+  function fullName(p){
+    if(!p) return "";
+    if(p.givenName || p.apellido1 || p.apellido2){
+      return [p.givenName, p.apellido1, p.apellido2].filter(Boolean).join(" ");
+    }
+    return p.name || ""; // datos antiguos guardados antes de separar apellidos
+  }
+
+  function refreshApellidosDatalist(){
+    var set = {};
+    state.people.forEach(function(p){
+      if(p.apellido1) set[p.apellido1] = 1;
+      if(p.apellido2) set[p.apellido2] = 1;
+    });
+    var dl = document.getElementById("apellidosList");
+    dl.innerHTML = Object.keys(set).sort().map(function(a){
+      return '<option value="'+escapeHtml(a)+'"></option>';
+    }).join("");
+  }
+
   /* ---------- Rendering ---------- */
   function render(){
     var frag = document.createDocumentFragment();
@@ -592,15 +623,16 @@
 
     var photoWrap = document.createElement("div");
     photoWrap.className = "photo-wrap";
+    var pName = fullName(p);
     if(p.photo){
       var img = document.createElement("img");
       img.src = p.photo;
-      img.alt = p.name || "Foto";
+      img.alt = pName || "Foto";
       photoWrap.appendChild(img);
     } else {
       var ph = document.createElement("div");
       ph.className = "no-photo";
-      ph.textContent = (p.name||"?").trim().charAt(0).toUpperCase() || "?";
+      ph.textContent = (pName||"?").trim().charAt(0).toUpperCase() || "?";
       photoWrap.appendChild(ph);
     }
     if(p.deceased){
@@ -616,7 +648,7 @@
 
     var name = document.createElement("div");
     name.className = "person-name";
-    name.textContent = p.name || "(Sin nombre)";
+    name.textContent = pName || "(Sin nombre)";
     body.appendChild(name);
 
     var sub = document.createElement("div");
@@ -772,11 +804,12 @@
 
   function openRelChooser(aId, bId){
     var a = personById(aId), b = personById(bId);
+    var aName = fullName(a), bName = fullName(b);
     var box = document.getElementById("relOptions");
     box.innerHTML = "";
     var options = [
-      { label: "<b>"+escapeHtml(a.name||"A")+"</b> es padre/madre de <b>"+escapeHtml(b.name||"B")+"</b>", type:"parent", from:aId, to:bId },
-      { label: "<b>"+escapeHtml(b.name||"B")+"</b> es padre/madre de <b>"+escapeHtml(a.name||"A")+"</b>", type:"parent", from:bId, to:aId },
+      { label: "<b>"+escapeHtml(aName||"A")+"</b> es padre/madre de <b>"+escapeHtml(bName||"B")+"</b>", type:"parent", from:aId, to:bId },
+      { label: "<b>"+escapeHtml(bName||"B")+"</b> es padre/madre de <b>"+escapeHtml(aName||"A")+"</b>", type:"parent", from:bId, to:aId },
       { label: "Son <b>cónyuges / pareja</b>", type:"spouse", from:aId, to:bId },
       { label: "Son <b>hermanos/as</b>", type:"sibling", from:aId, to:bId }
     ];
@@ -877,7 +910,10 @@
     var p = id ? personById(id) : null;
     document.getElementById("editTitle").textContent = p ? "Editar persona" : "Nueva persona";
     document.getElementById("editDelete").style.display = p ? "inline-flex" : "none";
-    document.getElementById("fName").value = p ? p.name||"" : "";
+    refreshApellidosDatalist();
+    document.getElementById("fName").value = p ? (p.givenName != null ? p.givenName : (p.name||"")) : "";
+    document.getElementById("fApellido1").value = p ? p.apellido1||"" : "";
+    document.getElementById("fApellido2").value = p ? p.apellido2||"" : "";
     document.getElementById("fNick").value = p ? p.nickname||"" : "";
     document.getElementById("fGender").value = p ? p.gender||"" : "";
     document.getElementById("fBirthDate").value = p ? p.birthDate||"" : "";
@@ -935,15 +971,24 @@
   });
 
   document.getElementById("editSave").addEventListener("click", function(){
-    var name = document.getElementById("fName").value.trim();
-    if(!name){ toast("Escribe al menos el nombre."); document.getElementById("fName").focus(); return; }
+    var givenName = document.getElementById("fName").value.trim();
+    var apellido1 = document.getElementById("fApellido1").value.trim();
+    var apellido2 = document.getElementById("fApellido2").value.trim();
+    if(!givenName && !apellido1 && !apellido2){
+      toast("Escribe al menos el nombre o un apellido.");
+      document.getElementById("fName").focus();
+      return;
+    }
     var p = editingId ? personById(editingId) : null;
     var isNew = !p;
     if(isNew){
       p = { id: uid(), x: 40 + (state.people.length%6)*40, y: 40 + Math.floor(state.people.length/6)*40, photo:null };
       state.people.push(p);
     }
-    p.name = name;
+    p.givenName = givenName;
+    p.apellido1 = apellido1;
+    p.apellido2 = apellido2;
+    delete p.name;
     p.nickname = document.getElementById("fNick").value.trim();
     p.gender = document.getElementById("fGender").value;
     p.birthDate = document.getElementById("fBirthDate").value;
@@ -965,7 +1010,7 @@
 
   function deletePerson(id){
     var p = personById(id);
-    if(!confirm('¿Eliminar a "'+(p.name||"esta persona")+'" y sus relaciones?')) return;
+    if(!confirm('¿Eliminar a "'+(fullName(p)||"esta persona")+'" y sus relaciones?')) return;
     state.people = state.people.filter(function(x){ return x.id !== id; });
     state.relations = state.relations.filter(function(r){ return r.from!==id && r.to!==id; });
     save();
@@ -990,7 +1035,15 @@
 
   /* ---------- Backup export / import ---------- */
   document.getElementById("btnExport").addEventListener("click", function(){
-    var blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+    var ordered = {
+      people: state.people.slice().sort(function(x,y){
+        var kx = [x.apellido1||"", x.apellido2||"", x.givenName||x.name||""].join(" ").toLowerCase();
+        var ky = [y.apellido1||"", y.apellido2||"", y.givenName||y.name||""].join(" ").toLowerCase();
+        return kx.localeCompare(ky, "es");
+      }),
+      relations: state.relations
+    };
+    var blob = new Blob([JSON.stringify(ordered, null, 2)], { type: "application/json" });
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
     var stamp = new Date().toISOString().slice(0,10);
