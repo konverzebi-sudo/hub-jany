@@ -680,7 +680,7 @@
     return null;
   }
 
-  var CARD_W = 172, GAP_X = 40, GAP_Y = 210;
+  var CARD_W = 172, GAP_X = 40;
 
   function relatedParents(personId){
     return state.relations.filter(function(r){ return r.type==="parent" && r.to===personId; }).map(function(r){ return r.from; });
@@ -819,8 +819,8 @@
 
     state.people.forEach(function(p){
       p.x = xPos[p.id] != null ? xPos[p.id] : 20;
-      p.y = 20 + gen[p.id]*GAP_Y;
     });
+    return gen;
   }
 
   function fullName(p){
@@ -848,7 +848,7 @@
 
   /* ---------- Rendering ---------- */
   function render(){
-    autoLayout();
+    var gen = autoLayout();
     var frag = document.createDocumentFragment();
     // remove existing person nodes (keep svg)
     Array.prototype.slice.call(canvas.querySelectorAll(".person")).forEach(function(n){ n.remove(); });
@@ -856,9 +856,35 @@
     state.people.forEach(function(p){
       var el = buildPersonEl(p);
       frag.appendChild(el);
-      ensureCanvasSize(p.x, p.y);
     });
     canvas.appendChild(frag);
+
+    // El alto de cada tarjeta varía según cuántos datos tenga la persona
+    // (foto, notas, redes, insignia de asistencia...) — se mide el alto real
+    // de cada fila ya en el DOM para que ninguna generación se encime con
+    // la siguiente, en vez de asumir una altura fija.
+    var ROW_GAP = 50;
+    var maxGenNum = 0;
+    var rowHeight = {};
+    state.people.forEach(function(p){
+      var g = gen[p.id] || 0;
+      maxGenNum = Math.max(maxGenNum, g);
+      var el = canvas.querySelector('.person[data-id="'+p.id+'"]');
+      var h = el ? el.offsetHeight : 240;
+      rowHeight[g] = Math.max(rowHeight[g] || 0, h);
+    });
+    var rowTop = {}, cursorY = 20;
+    for(var g=0; g<=maxGenNum; g++){
+      rowTop[g] = cursorY;
+      cursorY += (rowHeight[g] || 240) + ROW_GAP;
+    }
+    state.people.forEach(function(p){
+      p.y = rowTop[gen[p.id] || 0];
+      var el = canvas.querySelector('.person[data-id="'+p.id+'"]');
+      if(el) el.style.top = p.y + "px";
+      ensureCanvasSize(p.x, p.y);
+    });
+
     document.getElementById("peopleCount").textContent =
       state.people.length ? (state.people.length + (state.people.length===1 ? " persona" : " personas") + " · " + state.relations.length + " relaciones") : "";
     updateLines();
