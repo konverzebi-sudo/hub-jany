@@ -131,6 +131,15 @@
   #linesSvg path{ pointer-events:stroke; cursor:pointer; }
   #linesSvg path:hover{ filter:brightness(1.3); }
 
+  #loadingOverlay{
+    position:absolute; inset:0;
+    background:var(--paper);
+    display:flex; align-items:center; justify-content:center;
+    font-size:.9rem; color:var(--ink-soft);
+    z-index:40;
+  }
+  #loadingOverlay.hidden{ display:none; }
+
   #hint{
     position:absolute;
     top:1.5rem; left:1.5rem;
@@ -412,6 +421,7 @@
     <input type="file" id="importInput" accept="application/json" />
   </label>
   <button class="tbtn" id="btnPrint">🖶 Imprimir / PDF</button>
+  <button class="tbtn" id="btnRefresh" title="Traer los últimos cambios guardados por otros">🔄 Actualizar</button>
   <span id="peopleCount"></span>
   <div id="zoomGroup">
     <button class="tbtn" id="zoomOut">–</button>
@@ -424,8 +434,9 @@
   <div id="canvas">
     <svg id="linesSvg"></svg>
   </div>
+  <div id="loadingOverlay" class="hidden">Cargando el árbol…</div>
   <div id="hint">
-    <b>Cómo usarlo:</b> pulsa el <b>+</b> de cualquier tarjeta para agregar papá, mamá, hijo/a, hermano/a, medio hermano/a o pareja — el árbol se acomoda solo (papás arriba, hermanos en fila). Usa <b>🔗 Conectar</b> solo para casos especiales. Todo se guarda en este navegador.
+    <b>Cómo usarlo:</b> pulsa el <b>+</b> de cualquier tarjeta para agregar papá, mamá, hijo/a, hermano/a, medio hermano/a o pareja — el árbol se acomoda solo (papás arriba, hermanos en fila). Usa <b>🔗 Conectar</b> solo para casos especiales. Se guarda en línea automáticamente — cualquiera con este link ve y edita el mismo árbol. Pulsa <b>🔄 Actualizar</b> para traer lo que hayan agregado otros.
     <br><button id="hintClose">Entendido, ocultar</button>
   </div>
   <div id="legend">
@@ -572,7 +583,9 @@
 <script>
 (function(){
   "use strict";
-  var STORAGE_KEY = "laDavilada.arbolFamiliar.v1";
+  var API_BASE = "https://agentes.jefeshub.com/api/storage/";
+  var SERVER_KEY = "davilada-arbol-familiar";
+  var LOCAL_CACHE_KEY = "laDavilada.arbolFamiliar.cache";
   var state = { people: [], relations: [] };
   var zoom = 1;
   var linking = null; // person id currently selected as source for a relation
@@ -583,18 +596,53 @@
 
   function uid(){ return "p" + Math.random().toString(36).slice(2,10) + Date.now().toString(36); }
 
-  function load(){
-    try{
-      var raw = localStorage.getItem(STORAGE_KEY);
-      if(raw){
-        var parsed = JSON.parse(raw);
-        if(parsed && Array.isArray(parsed.people)) state = parsed;
-      }
-    }catch(e){ console.warn("No se pudo cargar el backup local", e); }
+  function showLoading(on){
+    document.getElementById("loadingOverlay").classList.toggle("hidden", !on);
   }
+
+  // El árbol vive en el servidor (compartido entre todos) — el navegador
+  // solo guarda una copia local de respaldo por si falla la conexión.
+  function loadFromServer(){
+    return fetch(API_BASE + SERVER_KEY, { cache: "no-store" })
+      .then(function(res){
+        if(!res.ok) throw new Error("status " + res.status);
+        return res.json();
+      })
+      .then(function(data){
+        if(data && data.value && Array.isArray(data.value.people)){
+          state = data.value;
+          try{ localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(state)); }catch(e){}
+        }
+      })
+      .catch(function(e){
+        console.warn("No se pudo cargar desde el servidor, usando copia local si existe.", e);
+        try{
+          var raw = localStorage.getItem(LOCAL_CACHE_KEY);
+          if(raw){
+            var parsed = JSON.parse(raw);
+            if(parsed && Array.isArray(parsed.people)) state = parsed;
+          }
+        }catch(e2){}
+        toast("No se pudo conectar al servidor. Mostrando la última copia disponible en este dispositivo.");
+      });
+  }
+
+  var saveTimer = null;
   function save(){
-    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
-    catch(e){ toast("No se pudo guardar automáticamente (memoria del navegador llena). Descarga un backup."); }
+    try{ localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(state)); }catch(e){}
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function(){
+      fetch(API_BASE + SERVER_KEY, {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: state })
+      }).then(function(res){
+        if(!res.ok) throw new Error("status " + res.status);
+      }).catch(function(e){
+        toast("No se pudo guardar en línea (revisa tu conexión). Quedó una copia local en este dispositivo.");
+      });
+    }, 400);
   }
 
   function toast(msg){
@@ -1211,16 +1259,41 @@
     document.getElementById("deathFields").style.display = this.checked ? "flex" : "none";
   });
 
+  // El árbol completo (todas las personas) se guarda como un solo bloque en el
+  // servidor con límite de 2MB — cada foto se reduce a ~360px y se recomprime
+  // como JPEG para que quepan muchas personas con foto sin acercarse al límite.
+  function compressPhoto(file, maxDim, quality){
+    return new Promise(function(resolve, reject){
+      var reader = new FileReader();
+      reader.onload = function(){
+        var img = new Image();
+        img.onload = function(){
+          var scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+          var w = Math.max(1, Math.round(img.width * scale));
+          var h = Math.max(1, Math.round(img.height * scale));
+          var canvasEl = document.createElement("canvas");
+          canvasEl.width = w; canvasEl.height = h;
+          canvasEl.getContext("2d").drawImage(img, 0, 0, w, h);
+          resolve(canvasEl.toDataURL("image/jpeg", quality));
+        };
+        img.onerror = reject;
+        img.src = reader.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
   document.getElementById("photoInput").addEventListener("change", function(ev){
     var file = ev.target.files && ev.target.files[0];
     if(!file) return;
-    if(file.size > 6*1024*1024){ toast("La imagen es muy grande (máx. 6MB)."); return; }
-    var reader = new FileReader();
-    reader.onload = function(){
-      pendingPhoto = reader.result;
+    if(file.size > 12*1024*1024){ toast("La imagen es muy grande (máx. 12MB)."); return; }
+    compressPhoto(file, 360, 0.75).then(function(dataUrl){
+      pendingPhoto = dataUrl;
       renderPhotoPreview(pendingPhoto);
-    };
-    reader.readAsDataURL(file);
+    }).catch(function(){
+      toast("No se pudo procesar esa foto. Intenta con otra.");
+    });
   });
   document.getElementById("photoRemove").addEventListener("click", function(){
     pendingPhoto = null;
@@ -1361,15 +1434,27 @@
 
   window.addEventListener("resize", updateLines);
 
+  document.getElementById("btnRefresh").addEventListener("click", function(){
+    showLoading(true);
+    loadFromServer().then(function(){
+      showLoading(false);
+      render();
+      toast("Actualizado con los últimos cambios.");
+    });
+  });
+
   /* ---------- Init ---------- */
-  load();
-  if(!state.people.length){
-    state.people.push({ id: uid(), name:"", x: 60, y: 60, photo:null });
-  }
-  render();
-  setTimeout(function(){
-    if(state.people.length===1 && !state.people[0].name){ openEdit(state.people[0].id); }
-  }, 200);
+  showLoading(true);
+  loadFromServer().then(function(){
+    showLoading(false);
+    if(!state.people.length){
+      state.people.push({ id: uid(), name:"", x: 60, y: 60, photo:null });
+    }
+    render();
+    setTimeout(function(){
+      if(state.people.length===1 && !state.people[0].name){ openEdit(state.people[0].id); }
+    }, 200);
+  });
 })();
 </script>
 </body>
