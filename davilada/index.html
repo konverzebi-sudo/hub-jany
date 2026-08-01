@@ -114,6 +114,8 @@
       radial-gradient(circle at 1px 1px, var(--card-edge) 1px, transparent 1px);
     background-size:26px 26px;
     background-color:var(--paper);
+    /* deja el pan de un dedo al navegador; el pellizco de dos dedos lo maneja setZoom() */
+    touch-action:pan-x pan-y;
   }
   #canvas{
     position:relative;
@@ -1373,6 +1375,29 @@
   }
   document.getElementById("zoomIn").addEventListener("click", function(){ setZoom(zoom+0.1); });
   document.getElementById("zoomOut").addEventListener("click", function(){ setZoom(zoom-0.1); });
+
+  // Zoom con gesto de pellizco (dos dedos) en celular/tablet, como al ver una foto.
+  function touchDist(touches){
+    var dx = touches[0].clientX - touches[1].clientX;
+    var dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx*dx + dy*dy);
+  }
+  var pinchStartDist = null, pinchStartZoom = 1;
+  canvasWrapper.addEventListener("touchstart", function(ev){
+    if(ev.touches.length === 2){
+      pinchStartDist = touchDist(ev.touches);
+      pinchStartZoom = zoom;
+    }
+  }, { passive: true });
+  canvasWrapper.addEventListener("touchmove", function(ev){
+    if(ev.touches.length === 2 && pinchStartDist){
+      ev.preventDefault();
+      setZoom(pinchStartZoom * (touchDist(ev.touches) / pinchStartDist));
+    }
+  }, { passive: false });
+  canvasWrapper.addEventListener("touchend", function(ev){
+    if(ev.touches.length < 2) pinchStartDist = null;
+  });
 
   /* ---------- Backup export / import ---------- */
   document.getElementById("btnExport").addEventListener("click", function(){
