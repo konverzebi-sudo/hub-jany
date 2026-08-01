@@ -760,61 +760,112 @@
     state.people.forEach(function(p){ (byGen[gen[p.id]] = byGen[gen[p.id]] || []).push(p.id); });
     var maxGen = Math.max.apply(null, Object.keys(byGen).map(Number));
 
-    function childrenOfUnit(parentIds){
-      var seen = {};
-      parentIds.forEach(function(pid){
-        relatedChildren(pid).forEach(function(cid){ seen[cid] = true; });
+    var xPos = {};
+
+    // Agrupa ids en "unidades" (persona sola, o pareja si su cónyuge está en
+    // la misma lista) y las coloca de izquierda a derecha centrada cada una
+    // en idealX[id] (si existe) — sin encimarse con la unidad anterior.
+    function layoutUnits(ids, idealX){
+      var unitsOrder = [], seenU = {};
+      ids.forEach(function(id){
+        if(seenU[id]) return;
+        var sp = spousesOf(id).filter(function(s){ return ids.indexOf(s) !== -1 && !seenU[s]; })[0];
+        if(sp){ unitsOrder.push([id, sp]); seenU[id] = true; seenU[sp] = true; }
+        else { unitsOrder.push([id]); seenU[id] = true; }
       });
-      return Object.keys(seen).filter(function(cid){
-        var cp = relatedParents(cid);
-        return cp.length > 0 && cp.every(function(pid){ return parentIds.indexOf(pid) !== -1; });
+      var unitIdeal = unitsOrder.map(function(unit){
+        var vals = unit.map(function(id){ return idealX[id]; }).filter(function(v){ return v != null; });
+        return vals.length ? vals.reduce(function(s,v){ return s+v; },0)/vals.length : null;
+      });
+      var cursorX = 20;
+      unitsOrder.forEach(function(unit, i){
+        var w = unit.length*(CARD_W+GAP_X) - GAP_X;
+        var center = unitIdeal[i] != null ? unitIdeal[i] : cursorX + w/2;
+        var start = Math.max(cursorX, center - w/2);
+        unit.forEach(function(id, j){ xPos[id] = start + j*(CARD_W+GAP_X); });
+        cursorX = start + w + (CARD_W+GAP_X);
       });
     }
 
-    var xPos = {}, placed = {};
-
-    var gen0 = (byGen[0] || []).slice().sort(function(a,b){ return (personById(a).x||0) - (personById(b).x||0); });
-    var ordered0 = [], seen0 = {};
-    gen0.forEach(function(id){
-      if(seen0[id]) return;
-      ordered0.push(id); seen0[id] = true;
-      spousesOf(id).forEach(function(sp){
-        if(gen[sp]===0 && !seen0[sp]){ ordered0.push(sp); seen0[sp] = true; }
+    // De la generación más profunda hacia la 0: los nietos/hijos se colocan
+    // primero en fila simple, y cada generación de arriba toma el promedio
+    // de sus propios hijos ya posicionados — así padres e hijos quedan
+    // centrados entre sí sin importar cuántos hijos tenga cada quien.
+    for(var g=maxGen; g>=0; g--){
+      var ids = (byGen[g] || []).slice().sort(function(a,b){ return (personById(a).x||0) - (personById(b).x||0); });
+      var idealX = {};
+      ids.forEach(function(id){
+        var kids = relatedChildren(id).filter(function(cid){ return xPos[cid] != null; });
+        if(kids.length){
+          idealX[id] = kids.reduce(function(s,cid){ return s+xPos[cid]; },0)/kids.length;
+        }
       });
-    });
-    var cx = 20;
-    ordered0.forEach(function(id){ xPos[id] = cx; cx += CARD_W + GAP_X; placed[id] = true; });
+      layoutUnits(ids, idealX);
+    }
 
-    for(var g=1; g<=maxGen; g++){
-      var genMinus1 = (byGen[g-1] || []).slice();
-      var unitSeen = {}, groups = [];
-      genMinus1.forEach(function(pid){
-        var spouses = spousesOf(pid).filter(function(sp){ return gen[sp]===g-1; });
-        var units = spouses.length ? spouses.map(function(sp){ return [pid, sp].sort(); }) : [[pid]];
-        units.forEach(function(unit){
-          var key = unit.join(",");
-          if(unitSeen[key]) return;
-          unitSeen[key] = true;
-          var kids = childrenOfUnit(unit).filter(function(cid){ return !placed[cid]; });
-          if(kids.length) groups.push({ unit: unit, kids: kids });
+    // Ajuste de arriba hacia abajo: el paso anterior deja a los hijos
+    // alineados bajo el promedio de sus padres, pero con un solo hijo eso
+    // lo deja bajo uno de los dos en vez de exactamente entre ambos. Aquí
+    // se centra cada bloque de hijos en medio de su propia pareja de
+    // padres, arrastrando también a nietos/bisnietos con ellos, y se
+    // resuelven los encimes que eso genere entre grupos vecinos.
+    function descendantsOf(ids){
+      var result = {}, queue = ids.slice();
+      while(queue.length){
+        var id = queue.shift();
+        relatedChildren(id).forEach(function(cid){
+          if(!result[cid]){ result[cid] = true; queue.push(cid); }
         });
+      }
+      return Object.keys(result);
+    }
+    for(var gp=0; gp<maxGen; gp++){
+      var parentIds = (byGen[gp] || []).slice();
+      var seenU2 = {}, units2 = [];
+      parentIds.forEach(function(id){
+        if(seenU2[id]) return;
+        var sp = spousesOf(id).filter(function(s){ return parentIds.indexOf(s) !== -1 && !seenU2[s]; })[0];
+        if(sp){ units2.push([id, sp]); seenU2[id] = true; seenU2[sp] = true; }
+        else { units2.push([id]); seenU2[id] = true; }
       });
-      groups.sort(function(A,B){
-        function avgX(u){ return u.reduce(function(s,id){ return s+(xPos[id]||0); },0)/u.length; }
-        return avgX(A.unit) - avgX(B.unit);
+
+      var blocks = [];
+      units2.forEach(function(unit){
+        var kidIds = (byGen[gp+1] || []).filter(function(cid){
+          var cp = relatedParents(cid);
+          return cp.length > 0 && cp.every(function(pid){ return unit.indexOf(pid) !== -1; });
+        });
+        if(!kidIds.length) return;
+        var unitCenter = unit.reduce(function(s,id){ return s+xPos[id]+CARD_W/2; },0)/unit.length;
+        var xs = kidIds.map(function(id){ return xPos[id]; });
+        var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs) + CARD_W;
+        blocks.push({ kidIds: kidIds, unitCenter: unitCenter, minX: minX, maxX: maxX, center: (minX+maxX)/2 });
       });
-      var cursorX = 20;
-      groups.forEach(function(grp){
-        grp.kids.sort(function(a,b){ return (personById(a).x||0) - (personById(b).x||0); });
-        var totalW = grp.kids.length*(CARD_W+GAP_X) - GAP_X;
-        var unitAvgX = grp.unit.reduce(function(s,id){ return s+(xPos[id]||0); },0)/grp.unit.length;
-        var startX = Math.max(cursorX, unitAvgX - totalW/2);
-        grp.kids.forEach(function(cid,i){ xPos[cid] = startX + i*(CARD_W+GAP_X); placed[cid] = true; });
-        cursorX = startX + totalW + (CARD_W+GAP_X);
+      blocks.sort(function(a,b){ return a.minX - b.minX; });
+
+      var prevMax = null;
+      blocks.forEach(function(b){
+        var delta = b.unitCenter - b.center;
+        var newMin = b.minX + delta;
+        if(prevMax != null && newMin < prevMax + GAP_X){
+          delta += (prevMax + GAP_X) - newMin;
+        }
+        if(delta){
+          var affected = b.kidIds.concat(descendantsOf(b.kidIds));
+          affected.forEach(function(id){ xPos[id] += delta; });
+        }
+        prevMax = b.maxX + delta;
       });
-      (byGen[g] || []).forEach(function(id){
-        if(!placed[id]){ xPos[id] = cursorX; cursorX += CARD_W+GAP_X; placed[id] = true; }
-      });
+    }
+
+    // El centrado pudo haber recorrido todo el árbol hacia la izquierda del
+    // borde del lienzo (x negativa) — se recorre todo en bloque hacia la
+    // derecha lo necesario para que nada quede fuera de vista.
+    var allX = state.people.map(function(p){ return xPos[p.id] != null ? xPos[p.id] : 20; });
+    var minX = Math.min.apply(null, allX.concat([20]));
+    if(minX < 20){
+      var shift = 20 - minX;
+      Object.keys(xPos).forEach(function(id){ xPos[id] += shift; });
     }
 
     state.people.forEach(function(p){
@@ -1089,6 +1140,25 @@
   });
 
   function addRelation(type, from, to){
+    if(type==="sibling"){
+      // Si alguno de los dos ya tiene papá/mamá registrados, es mejor
+      // vincular al otro con esos mismos papás (así el árbol los centra
+      // juntos) en vez de guardar solo un lazo "hermanos" sin papás.
+      var parentsFrom = relatedParents(from), parentsTo = relatedParents(to);
+      if(parentsFrom.length || parentsTo.length){
+        var parents = parentsFrom.length ? parentsFrom : parentsTo;
+        var target = parentsFrom.length ? to : from;
+        var already = parents.every(function(pid){
+          return state.relations.some(function(r){ return r.type==="parent" && r.from===pid && r.to===target; });
+        });
+        if(already){ toast("Esa relación ya existe."); return; }
+        parents.forEach(function(pid){ addRelationSilent("parent", pid, target); });
+        save();
+        render();
+        toast("Relación creada.");
+        return;
+      }
+    }
     var dup = state.relations.some(function(r){
       return r.type===type && ((r.from===from&&r.to===to)||(type!=="parent"&&r.from===to&&r.to===from));
     });
