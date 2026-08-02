@@ -809,50 +809,65 @@
     // se centra cada bloque de hijos en medio de su propia pareja de
     // padres, arrastrando también a nietos/bisnietos con ellos, y se
     // resuelven los encimes que eso genere entre grupos vecinos.
+    // Al mover un bloque, se arrastran sus descendientes Y la pareja de cada
+    // uno (para no separar a alguien casado hacia dentro de la familia,
+    // como Cristina al lado de José Alberto, de su lado del árbol).
     function descendantsOf(ids){
       var result = {}, queue = ids.slice();
+      ids.forEach(function(id){ result[id] = true; });
       while(queue.length){
         var id = queue.shift();
         relatedChildren(id).forEach(function(cid){
           if(!result[cid]){ result[cid] = true; queue.push(cid); }
         });
       }
+      Object.keys(result).forEach(function(id){
+        spousesOf(id).forEach(function(sp){ result[sp] = true; });
+      });
       return Object.keys(result);
     }
     for(var gp=0; gp<maxGen; gp++){
       var parentIds = (byGen[gp] || []).slice();
-      var seenU2 = {}, units2 = [];
-      parentIds.forEach(function(id){
-        if(seenU2[id]) return;
-        var sp = spousesOf(id).filter(function(s){ return parentIds.indexOf(s) !== -1 && !seenU2[s]; })[0];
-        if(sp){ units2.push([id, sp]); seenU2[id] = true; seenU2[sp] = true; }
-        else { units2.push([id]); seenU2[id] = true; }
+
+      // Agrupa a los hijos de esta generación por su combinación REAL de
+      // padres (no por parejas "visuales") — así alguien con 2 matrimonios
+      // (ej. dos esposas) no deja a los hijos del segundo sin centrar.
+      var parentGroups = {};
+      (byGen[gp+1] || []).forEach(function(cid){
+        var cp = relatedParents(cid).filter(function(pid){ return parentIds.indexOf(pid) !== -1; });
+        if(!cp.length) return;
+        var key = cp.slice().sort().join(",");
+        if(!parentGroups[key]) parentGroups[key] = { parentIds: cp, kidIds: [] };
+        parentGroups[key].kidIds.push(cid);
       });
 
-      var blocks = [];
-      units2.forEach(function(unit){
-        var kidIds = (byGen[gp+1] || []).filter(function(cid){
-          var cp = relatedParents(cid);
-          return cp.length > 0 && cp.every(function(pid){ return unit.indexOf(pid) !== -1; });
-        });
-        if(!kidIds.length) return;
-        var unitCenter = unit.reduce(function(s,id){ return s+xPos[id]+CARD_W/2; },0)/unit.length;
-        var xs = kidIds.map(function(id){ return xPos[id]; });
+      var blocks = Object.keys(parentGroups).map(function(key){
+        var grp = parentGroups[key];
+        var unitCenter = grp.parentIds.reduce(function(s,id){ return s+xPos[id]+CARD_W/2; },0)/grp.parentIds.length;
+        // El "hueco" real del bloque incluye también a las parejas que se
+        // arrastran con él (ej. la esposa de un nieto) — si solo se mide el
+        // ancho de los hijos de sangre, el siguiente grupo no deja suficiente
+        // espacio y se encima con ese acompañante.
+        var affected = descendantsOf(grp.kidIds);
+        var xs = affected.map(function(id){ return xPos[id]; });
         var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs) + CARD_W;
-        blocks.push({ kidIds: kidIds, unitCenter: unitCenter, minX: minX, maxX: maxX, center: (minX+maxX)/2 });
+        var kidXs = grp.kidIds.map(function(id){ return xPos[id]; });
+        var kidMinX = Math.min.apply(null, kidXs), kidMaxX = Math.max.apply(null, kidXs) + CARD_W;
+        return { affected: affected, unitCenter: unitCenter, minX: minX, maxX: maxX, kidCenter: (kidMinX+kidMaxX)/2 };
       });
       blocks.sort(function(a,b){ return a.minX - b.minX; });
 
       var prevMax = null;
       blocks.forEach(function(b){
-        var delta = b.unitCenter - b.center;
+        // Se centra según los hijos de sangre (kidCenter), pero se resuelven
+        // encimes según el ancho total ya incluyendo a las parejas arrastradas.
+        var delta = b.unitCenter - b.kidCenter;
         var newMin = b.minX + delta;
         if(prevMax != null && newMin < prevMax + GAP_X){
           delta += (prevMax + GAP_X) - newMin;
         }
         if(delta){
-          var affected = b.kidIds.concat(descendantsOf(b.kidIds));
-          affected.forEach(function(id){ xPos[id] += delta; });
+          b.affected.forEach(function(id){ xPos[id] += delta; });
         }
         prevMax = b.maxX + delta;
       });
@@ -880,6 +895,15 @@
       return [p.givenName, p.apellido1, p.apellido2].filter(Boolean).join(" ");
     }
     return p.name || ""; // datos antiguos guardados antes de separar apellidos
+  }
+
+  // Para mostrar en pantalla: si tiene apodo, se usa en vez del nombre de
+  // pila (útil cuando hay varios familiares con el mismo nombre, ej. dos
+  // "Marco") — pero conservando los apellidos para no perder el contexto.
+  function displayName(p){
+    if(!p) return "";
+    if(p.nickname) return [p.nickname, p.apellido1, p.apellido2].filter(Boolean).join(" ");
+    return fullName(p);
   }
 
   function refreshDatalists(){
@@ -952,7 +976,7 @@
 
     var photoWrap = document.createElement("div");
     photoWrap.className = "photo-wrap";
-    var pName = fullName(p);
+    var pName = displayName(p);
     if(p.photo){
       var img = document.createElement("img");
       img.src = p.photo;
@@ -1111,7 +1135,7 @@
 
   function openRelChooser(aId, bId){
     var a = personById(aId), b = personById(bId);
-    var aName = fullName(a), bName = fullName(b);
+    var aName = displayName(a), bName = displayName(b);
     var box = document.getElementById("relOptions");
     box.innerHTML = "";
     var options = [
@@ -1285,7 +1309,7 @@
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className = "rel-option";
-      btn.innerHTML = "Comparte a <b>"+escapeHtml(fullName(pp)||"este familiar")+"</b>";
+      btn.innerHTML = "Comparte a <b>"+escapeHtml(displayName(pp)||"este familiar")+"</b>";
       btn.addEventListener("click", function(){
         pendingQuickAdd = { type:"mediohermano", sourceId: quickAddSourceId, sharedParentId: pid };
         closeQuickAddMenu();
@@ -1451,7 +1475,7 @@
 
   function deletePerson(id){
     var p = personById(id);
-    if(!confirm('¿Eliminar a "'+(fullName(p)||"esta persona")+'" y sus relaciones?')) return;
+    if(!confirm('¿Eliminar a "'+(displayName(p)||"esta persona")+'" y sus relaciones?')) return;
     state.people = state.people.filter(function(x){ return x.id !== id; });
     state.relations = state.relations.filter(function(r){ return r.from!==id && r.to!==id; });
     save();
