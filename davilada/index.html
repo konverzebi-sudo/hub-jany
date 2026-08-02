@@ -761,6 +761,10 @@
     var maxGen = Math.max.apply(null, Object.keys(byGen).map(Number));
 
     var xPos = {};
+    // Posición actual de alguien mientras se recalcula el acomodo: usa lo ya
+    // resuelto en esta pasada (o una pasada de relajación anterior) y solo
+    // cae al valor guardado la primerísima vez que se coloca a esa persona.
+    function curX(id){ return xPos[id] != null ? xPos[id] : (personById(id).x || 0); }
 
     // Agrupa ids en "unidades" (persona sola, o pareja si su cónyuge está en
     // la misma lista) y las coloca de izquierda a derecha centrada cada una
@@ -781,12 +785,12 @@
         byParentKey[key].push(id);
       });
       Object.keys(byParentKey).forEach(function(key){
-        byParentKey[key].sort(function(a,b){ return (personById(a).x||0) - (personById(b).x||0); });
+        byParentKey[key].sort(function(a,b){ return curX(a) - curX(b); });
       });
       keyOrder.sort(function(ka, kb){
         function avgOldX(key){
           var members = byParentKey[key];
-          return members.reduce(function(s,id){ return s+(personById(id).x||0); },0)/members.length;
+          return members.reduce(function(s,id){ return s+curX(id); },0)/members.length;
         }
         return avgOldX(ka) - avgOldX(kb);
       });
@@ -814,12 +818,21 @@
       });
     }
 
+    // Todo el acomodo (de abajo hacia arriba + el ajuste de centrado) se
+    // repite varias veces: la primera pasada puede empujar a un grupo de
+    // hijos hacia un lado para no encimarse con la familia vecina, dejando
+    // al papá (ya fijado en una pasada anterior) sin recentrar sobre ellos
+    // — cada repetición usa el resultado de la anterior como punto de
+    // partida, así los papás se van recentrando sobre sus hijos ya
+    // corridos hasta que el árbol se asienta.
+    for(var relax=0; relax<3; relax++){
+
     // De la generación más profunda hacia la 0: los nietos/hijos se colocan
     // primero en fila simple, y cada generación de arriba toma el promedio
     // de sus propios hijos ya posicionados — así padres e hijos quedan
     // centrados entre sí sin importar cuántos hijos tenga cada quien.
     for(var g=maxGen; g>=0; g--){
-      var ids = (byGen[g] || []).slice().sort(function(a,b){ return (personById(a).x||0) - (personById(b).x||0); });
+      var ids = (byGen[g] || []).slice().sort(function(a,b){ return curX(a) - curX(b); });
       var idealX = {};
       ids.forEach(function(id){
         var kids = relatedChildren(id).filter(function(cid){ return xPos[cid] != null; });
@@ -905,6 +918,8 @@
         prevMax = b.maxX + delta;
       });
     }
+
+    } // fin de la relajación (for relax)
 
     // El centrado pudo haber recorrido todo el árbol hacia la izquierda del
     // borde del lienzo (x negativa) — se recorre todo en bloque hacia la
