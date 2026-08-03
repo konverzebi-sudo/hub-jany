@@ -25,6 +25,22 @@ const TARJETAS_CAMPOS = [
   's4_obj_pensar_ideal', 's4_obj_pensar_corta',
   's4_obj_consulta_ideal', 's4_obj_consulta_corta',
   's5_mensaje_cierre', 's5_checklist_cierre', 's5_mensaje_confirmacion',
+  // Seguimiento (leads activos que se quedaron a medias) -- 7 casos x 3 versiones
+  'sg_preguntoinfo_calido', 'sg_preguntoinfo_directo', 'sg_preguntoinfo_corto',
+  'sg_recibioprecio_calido', 'sg_recibioprecio_directo', 'sg_recibioprecio_corto',
+  'sg_pensarlo_calido', 'sg_pensarlo_directo', 'sg_pensarlo_corto',
+  'sg_caro_calido', 'sg_caro_directo', 'sg_caro_corto',
+  'sg_interesasinpago_calido', 'sg_interesasinpago_directo', 'sg_interesasinpago_corto',
+  'sg_disponibilidad_calido', 'sg_disponibilidad_directo', 'sg_disponibilidad_corto',
+  'sg_ultimo_calido', 'sg_ultimo_directo', 'sg_ultimo_corto',
+  // Reactivación (leads enfriados o clientas que podrían volver) -- 7 segmentos x 2 versiones
+  'rx_nuncacompro_principal', 'rx_nuncacompro_corto',
+  'rx_preciodesaparecio_principal', 'rx_preciodesaparecio_corto',
+  'rx_pensarnovolvio_principal', 'rx_pensarnovolvio_corto',
+  'rx_sinrespuesta_principal', 'rx_sinrespuesta_corto',
+  'rx_comprouna_principal', 'rx_comprouna_corto',
+  'rx_antigua_principal', 'rx_antigua_corto',
+  'rx_vip_principal', 'rx_vip_corto',
 ];
 
 let fixedPromptCache = null;
@@ -340,7 +356,7 @@ module.exports = async function handler(req, res) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 4000,
+        max_tokens: 7000,
         system,
         messages: [{ role: 'user', content }],
       }),
