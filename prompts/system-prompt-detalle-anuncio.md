@@ -23,6 +23,9 @@ específica.
 - Usa los ÁNGULOS EVERGREEN del CONTEXTO EVERGREEN como base real del enfoque de cada idea.
 - Si hay RADAR DE MERCADO, aprovecha sus insights para afinar el problema o la prueba social.
 - Respeta el TONO DE MARCA (qué sí y qué no decir).
+- Si hay RETROALIMENTACIÓN PREVIA DEL USUARIO, es la señal más importante de todas: son
+  correcciones puntuales que el usuario ya dejó escritas sobre campañas anteriores. Revísalas antes
+  de escribir y no repitas el mismo error en las ideas nuevas.
 - Si falta información clave, desarrolla igual con lo que sí haya pero mantente genérico en vez
   de inventar datos específicos (precios, cifras) que no vengan en el contexto.
 

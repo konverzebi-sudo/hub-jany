@@ -242,6 +242,24 @@ function formatearProducto(items, productoId, etiqueta) {
   return `PRODUCTO ESPECÍFICO A ENFOCAR (${etiqueta}):\n- ` + partes.join(' · ');
 }
 
+// Retroalimentación que el usuario dejó escrita en tarjetas ya guardadas (campo "retroalimentacion"
+// en {cliente}:agente-anuncios) -- son correcciones puntuales sobre piezas concretas (no datos de
+// marca permanentes, esos van en el ADN/Evergreen), así que se inyectan como señales a corregir en
+// las próximas generaciones. Se toman las más recientes primero (las tarjetas se guardan con
+// unshift) y se limita la cantidad para no inflar el contexto sin control.
+const MAX_RETROALIMENTACION = 12;
+
+async function formatearRetroalimentacion(clienteId) {
+  const cards = await leerJSON(`${clienteId}:agente-anuncios`).catch(() => null);
+  if (!Array.isArray(cards) || cards.length === 0) return null;
+  const conNota = cards
+    .filter((c) => c && c.retroalimentacion && c.retroalimentacion.toString().trim())
+    .slice(0, MAX_RETROALIMENTACION);
+  if (conNota.length === 0) return null;
+  const lineas = conNota.map((c) => `- Sobre "${c.titulo || '(sin título)'}": ${c.retroalimentacion.toString().trim()}`);
+  return 'RETROALIMENTACIÓN PREVIA DEL USUARIO (correcciones puntuales sobre campañas ya generadas -- aplícalas en esta generación, no repitas el mismo error):\n' + lineas.join('\n');
+}
+
 async function formatearConversacionEvergreenNoGuardada(clienteId) {
   const mensajes = await leerJSON(`${clienteId}:evergreen-builder-conversacion`).catch(() => null);
   if (!Array.isArray(mensajes) || mensajes.length === 0) return null;
@@ -256,7 +274,7 @@ async function formatearConversacionEvergreenNoGuardada(clienteId) {
 }
 
 async function construirContexto(clienteId, grupoId) {
-  const [identidad, tono, audiencia, catalogo, grupos, bloqueEvergreen, radarHistorial, conversacionReciente] = await Promise.all([
+  const [identidad, tono, audiencia, catalogo, grupos, bloqueEvergreen, radarHistorial, conversacionReciente, bloqueRetroalimentacion] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.audiencia`).catch(() => null),
@@ -265,6 +283,7 @@ async function construirContexto(clienteId, grupoId) {
     construirContextoEvergreenNotas(clienteId).catch(() => null),
     leerJSON(`${clienteId}:radar-historial`).catch(() => null),
     formatearConversacionEvergreenNoGuardada(clienteId).catch(() => null),
+    formatearRetroalimentacion(clienteId).catch(() => null),
   ]);
 
   const bloquesNegocio = [
@@ -287,6 +306,7 @@ async function construirContexto(clienteId, grupoId) {
     ? bloqueRadar
     : 'RADAR DE MERCADO: todavía no hay corridas guardadas -- ignora esta sección.');
   if (conversacionReciente) partes.push(conversacionReciente);
+  if (bloqueRetroalimentacion) partes.push(bloqueRetroalimentacion);
 
   return { contexto: truncar(partes.join('\n\n---\n\n'), CONTEXT_CHAR_LIMIT), catalogo };
 }

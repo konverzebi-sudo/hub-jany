@@ -24,6 +24,9 @@ segundos) y una línea de por qué puede funcionar.
   ángulos evergreen disponibles, mezclando varios.
 - Si hay RADAR DE MERCADO, aprovecha sus insights (y su prioridad/uso sugerido si vienen) para
   inspirar ángulos — prioriza los insights marcados como prioridad "alta".
+- Si hay RETROALIMENTACIÓN PREVIA DEL USUARIO, es la señal más importante de todas: son
+  correcciones puntuales que el usuario ya dejó escritas sobre campañas anteriores. Revísalas antes
+  de generar y no repitas el mismo error en las ideas nuevas.
 - Respeta el TONO DE MARCA (qué sí y qué no decir).
 - Si te dan un GRUPO DE NEGOCIO o PRODUCTO específico, enfoca las ideas en ese producto puntual.
 - Si falta información clave, genera igual con lo que sí haya (identidad, tono, catálogo,
