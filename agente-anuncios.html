@@ -54,6 +54,21 @@
   .anuncios-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 20px;margin-bottom:14px;}
   .anuncios-selection-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 20px;margin-bottom:18px;}
 
+  /* VISTA PREVIA POR ÁNGULO (caja colapsable) */
+  .preview-box{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 20px;margin-bottom:14px;}
+  .preview-box summary{cursor:pointer;font-family:'Sora',sans-serif;font-weight:700;font-size:14px;color:var(--text);list-style:none;display:flex;align-items:center;gap:8px;}
+  .preview-box summary::-webkit-details-marker{display:none;}
+  .preview-box summary::before{content:'▶';font-size:11px;color:var(--accent);transition:.15s;}
+  .preview-box[open] summary::before{content:'▼';}
+  .preview-box-desc{color:var(--text-dim);font-size:12.5px;margin:8px 0 14px;line-height:1.5;}
+  .preview-inputs{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:14px;}
+  .preview-etapa{margin-top:16px;}
+  .preview-etapa-label{font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);margin-bottom:8px;}
+  .preview-idea-card{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px;}
+  .preview-idea-card .titulo{font-weight:700;font-size:13.5px;margin-bottom:4px;font-family:'Sora',sans-serif;}
+  .preview-idea-card .hook{font-size:12.5px;color:var(--text-dim);margin-bottom:8px;font-style:italic;}
+  .preview-idea-card .ejemplo{font-size:13px;line-height:1.55;white-space:pre-line;margin-bottom:8px;}
+
   /* CAJAS POR ETAPA + TABLA EDITABLE */
   .etapa-box{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px 20px;margin-bottom:14px;}
   .etapa-box.adquisicion{border-left:4px solid var(--adq);}
@@ -164,6 +179,7 @@ function autoGrow(el){ el.style.height='auto'; el.style.height=el.scrollHeight+'
 // ─── ESTADO ─────────────────────────────────────────────────────────────────
 let grupos = [];
 let productos = [];
+let angulosEvergreen = [];
 let grupoId = '';
 let productoId = '';
 let borradorStore = {};
@@ -186,6 +202,11 @@ function mkCardId(){ return 'ac'+Date.now().toString(36)+Math.random().toString(
 async function cargarInicial(){
   try{ const r=await window.storage.get(CLIENTE_ID+':grupos-negocio'); grupos = r&&r.value?JSON.parse(r.value):[]; }catch(e){ grupos=[]; }
   try{ const r=await window.storage.get(CLIENTE_ID+':catalogo-productos'); productos = r&&r.value?JSON.parse(r.value):[]; }catch(e){ productos=[]; }
+  try{
+    const r=await window.storage.get(CLIENTE_ID+':brand-book.evergreen-comunicacion');
+    const d = r&&r.value?JSON.parse(r.value):{};
+    angulosEvergreen = Array.isArray(d.angulos_evergreen) ? d.angulos_evergreen.filter(f=>f&&f.angulo&&f.angulo.trim()) : [];
+  }catch(e){ angulosEvergreen=[]; }
   try{ const r=await window.storage.get(BORRADOR_KEY); borradorStore = r&&r.value?JSON.parse(r.value):{}; }catch(e){ borradorStore={}; }
   try{
     const r=await window.storage.get(CARDS_KEY);
@@ -261,6 +282,47 @@ function renderGenerador(container){
   `;
   wrap.appendChild(toolbar);
 
+  const previewBox = document.createElement('details');
+  previewBox.className='preview-box';
+  previewBox.id='anuncios-preview-box';
+  previewBox.innerHTML = `
+    <summary>🔎 Vista previa por ángulo — ejemplo rápido de mensaje</summary>
+    <p class="preview-box-desc">Elige un ángulo ya guardado en tu Comunicación Evergreen, un producto y el formato — te doy un ejemplo real de mensaje para cada etapa. No genera las 9 ideas de arriba, es para explorar un ángulo puntual.</p>
+    <div class="preview-inputs">
+      <div class="mode-field">
+        <label>Ángulo</label>
+        <select id="preview-angulo-sel">
+          ${angulosEvergreen.length ? angulosEvergreen.map((f,i)=>`<option value="${i}">${escHtml(f.angulo)}</option>`).join('') : '<option value="">Todavía no hay ángulos guardados en Evergreen</option>'}
+        </select>
+      </div>
+      <div class="mode-field">
+        <label>Producto</label>
+        <select id="preview-producto-sel">
+          <option value="">General (sin producto puntual)</option>
+          ${productos.filter(p=>p&&p.nombre).map(p=>`<option value="${p.id}">${escHtml(p.nombre)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="mode-field">
+        <label>Tipo de contenido</label>
+        <select id="preview-formato-sel">
+          ${FORMATOS.map(f=>`<option value="${f}">${f.charAt(0).toUpperCase()+f.slice(1)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="mode-field">
+        <label>Cuántas por etapa</label>
+        <select id="preview-cantidad-sel">
+          <option value="1">1 (3 en total)</option>
+          <option value="2">2 (6 en total)</option>
+          <option value="3">3 (9 en total)</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn btn-solid" id="preview-gen-btn" type="button">🔄 Generar vista previa</button>
+    <span class="mode-status" id="preview-status"></span>
+    <div id="preview-resultados"></div>
+  `;
+  wrap.appendChild(previewBox);
+
   const selBar = document.createElement('div');
   selBar.className='anuncios-selection-bar';
   selBar.innerHTML = `
@@ -312,6 +374,7 @@ function renderGenerador(container){
   document.getElementById('anuncios-formato-sel').addEventListener('change',(e)=>{ formatoSel=e.target.value; });
   document.getElementById('anuncios-gen-btn').addEventListener('click', generarIdeas);
   document.getElementById('anuncios-detalle-btn').addEventListener('click', generarDetalleSeleccionadas);
+  document.getElementById('preview-gen-btn').addEventListener('click', generarVistaPreviaAnuncio);
 
   wrap.querySelectorAll('textarea[data-fid]').forEach(ta=>{
     autoGrow(ta);
@@ -446,6 +509,63 @@ async function generarDetalleSeleccionadas(){
     statusEl.textContent='Error de conexión.'; statusEl.classList.add('error');
   }finally{
     btn.disabled=false;
+  }
+}
+
+// ─── VISTA PREVIA POR ÁNGULO (lee la tabla de Ángulos Evergreen, no la modifica) ─────
+async function generarVistaPreviaAnuncio(){
+  const idx = document.getElementById('preview-angulo-sel').value;
+  const fila = angulosEvergreen[idx];
+  const status = document.getElementById('preview-status');
+  const resultados = document.getElementById('preview-resultados');
+  if(!fila){
+    status.className='mode-status error'; status.textContent='Primero guarda al menos un ángulo en tu Comunicación Evergreen.';
+    return;
+  }
+  const anguloTexto = [fila.angulo, fila.accion, fila.emocion, fila.conecta].filter(Boolean).join(' — ');
+  const productoIdSel = document.getElementById('preview-producto-sel').value;
+  const formato = document.getElementById('preview-formato-sel').value;
+  const cantidadPorEtapa = document.getElementById('preview-cantidad-sel').value;
+
+  const btn = document.getElementById('preview-gen-btn');
+  btn.disabled = true; btn.textContent = 'Generando...';
+  status.className='mode-status'; status.textContent='';
+  resultados.innerHTML='';
+
+  try{
+    const res = await fetch('/api/generar-anuncios', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ modo:'preview', cliente:CLIENTE_ID, angulo_texto:anguloTexto, producto_id:productoIdSel, formato, cantidad_por_etapa:cantidadPorEtapa }),
+    });
+    const data = await res.json();
+    if(!res.ok){ status.className='mode-status error'; status.textContent=data.error||'No se pudo generar. Intenta de nuevo.'; return; }
+
+    const partes = [];
+    ETAPAS.forEach(e=>{
+      const ideas = (data.ideas && data.ideas[e.key]) || [];
+      if(!ideas.length) return;
+      const cardsHtml = ideas.map(idea=>`
+        <div class="preview-idea-card">
+          <div class="titulo">${escHtml(idea.titulo||'')}</div>
+          <div class="hook">${escHtml(idea.hook||'')}</div>
+          <div class="ejemplo">${escHtml(idea.ejemplo_mensaje||'')}</div>
+          <button type="button" class="btn-guion preview-copy-btn" data-text="${escHtml(idea.ejemplo_mensaje||'')}">📋 Copiar</button>
+        </div>
+      `).join('');
+      partes.push(`<div class="preview-etapa"><div class="preview-etapa-label">${e.label}</div>${cardsHtml}</div>`);
+    });
+    resultados.innerHTML = partes.join('') || '<p class="mode-status">Sin resultados.</p>';
+    resultados.querySelectorAll('.preview-copy-btn').forEach(b=>{
+      b.addEventListener('click',()=>{
+        navigator.clipboard.writeText(b.dataset.text).then(()=>{
+          const prev=b.textContent; b.textContent='✅ Copiado'; setTimeout(()=>{ b.textContent=prev; },1500);
+        });
+      });
+    });
+  }catch(e){
+    status.className='mode-status error'; status.textContent='Error de conexión. Intenta de nuevo.';
+  }finally{
+    btn.disabled=false; btn.textContent='🔄 Generar vista previa';
   }
 }
 
