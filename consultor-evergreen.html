@@ -204,6 +204,16 @@
     .result-note { font-size: 10.5px; color: var(--text-dim); margin-top: 4px; line-height: 1.4; }
     .calc-status-bar { margin-top: 12px; padding: 10px 14px; border-radius: 9px; font-size: 13px; line-height: 1.5; }
 
+    /* ── VISTA PREVIA DE ANUNCIOS POR ÁNGULO ── */
+    .preview-inputs { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+    select.calc-input { font-weight: 500; font-size: 13.5px; cursor: pointer; }
+    .preview-etapa { margin-top: 18px; }
+    .preview-etapa-label { font-family: "JetBrains Mono", monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); margin-bottom: 8px; }
+    .preview-idea-card { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+    .preview-idea-card .titulo { font-weight: 700; font-size: 13.5px; margin-bottom: 4px; }
+    .preview-idea-card .hook { font-size: 12.5px; color: var(--text-dim); margin-bottom: 8px; font-style: italic; }
+    .preview-idea-card .ejemplo { font-size: 13px; line-height: 1.55; white-space: pre-line; }
+
     /* ── WHATSAPP ── */
     .wa-main-script { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
     .wa-script-text { font-size: 13.5px; line-height: 1.65; white-space: pre-line; color: var(--text-dim); }
@@ -549,6 +559,48 @@
     <div class="ideas-cta">
       <p>No copies nada a mano: cada vez que generes ideas allá, el Jefe de Anuncios vuelve a leer tu Comunicación Evergreen más reciente.</p>
       <a id="anunciosLink" href="/consultor-anuncios">→ Ir a Ideas de Anuncios</a>
+    </div>
+  </section>
+
+  <!-- ─── 2c. VISTA PREVIA DE ANUNCIOS POR ÁNGULO ─── -->
+  <section>
+    <div class="section-header">
+      <div class="section-dot">🔎</div>
+      <div>
+        <p class="section-title">Vista previa: ejemplo de mensaje por ángulo</p>
+        <p class="section-sub">Elige un ángulo (de tu tabla "Ángulos evergreen" de arriba), un producto y el formato — te doy un ejemplo real de mensaje para cada etapa (fría, tibia, caliente). No modifica tu tabla de Ángulos, solo la lee.</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="preview-inputs">
+        <div class="calc-group">
+          <label class="calc-label">Ángulo</label>
+          <select class="calc-input" id="prevAngulo"></select>
+        </div>
+        <div class="calc-group">
+          <label class="calc-label">Producto</label>
+          <select class="calc-input" id="prevProducto"><option value="">General (sin producto puntual)</option></select>
+        </div>
+        <div class="calc-group">
+          <label class="calc-label">Tipo de contenido</label>
+          <select class="calc-input" id="prevFormato">
+            <option value="reel">Reel / video corto</option>
+            <option value="imagen estática">Imagen estática</option>
+            <option value="carrusel">Carrusel</option>
+          </select>
+        </div>
+        <div class="calc-group">
+          <label class="calc-label">Cuántas por etapa</label>
+          <select class="calc-input" id="prevCantidad">
+            <option value="1">1 (3 en total)</option>
+            <option value="2">2 (6 en total)</option>
+            <option value="3">3 (9 en total)</option>
+          </select>
+        </div>
+      </div>
+      <button class="ask-btn" id="prevBtn" onclick="generarVistaPreviaAnuncio()" style="margin-top:14px">🔄 Generar vista previa</button>
+      <div id="prevStatus" class="notas-status"></div>
+      <div id="prevResultados"></div>
     </div>
   </section>
 
@@ -1363,6 +1415,91 @@ async function cargarNotasEvergreen() {
   }
 }
 
+/* ─── VISTA PREVIA DE ANUNCIOS POR ÁNGULO (no modifica la tabla de Ángulos, solo la lee) ─── */
+function poblarSelectAngulos() {
+  const container = document.getElementById('ec-angulos_evergreen');
+  const sel = document.getElementById('prevAngulo');
+  if (!container || !sel) return;
+  const filas = (container._filas || []).filter((f) => f && f.angulo && f.angulo.trim());
+  if (filas.length === 0) {
+    sel.innerHTML = '<option value="">Todavía no hay ángulos guardados</option>';
+    return;
+  }
+  sel.innerHTML = filas.map((f, i) => `<option value="${i}">${escaparHtmlBuilder(f.angulo)}</option>`).join('');
+}
+
+async function poblarSelectProductosPreview() {
+  const sel = document.getElementById('prevProducto');
+  if (!sel) return;
+  try {
+    const r = await window.storage.get(CLIENTE_ID + ':catalogo-productos');
+    const items = r && r.value ? JSON.parse(r.value) : [];
+    items.filter((p) => p && p.id && p.nombre).forEach((p) => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.nombre;
+      sel.appendChild(opt);
+    });
+  } catch (e) {}
+}
+
+async function generarVistaPreviaAnuncio() {
+  const container = document.getElementById('ec-angulos_evergreen');
+  const filas = (container && container._filas) || [];
+  const idx = document.getElementById('prevAngulo').value;
+  const fila = filas[idx];
+  const status = document.getElementById('prevStatus');
+  if (!fila || !fila.angulo || !fila.angulo.trim()) {
+    status.textContent = 'Primero guarda al menos un ángulo en la tabla "Ángulos evergreen" de arriba.';
+    return;
+  }
+  const anguloTexto = [fila.angulo, fila.accion, fila.emocion, fila.conecta].filter(Boolean).join(' — ');
+  const productoId = document.getElementById('prevProducto').value;
+  const formato = document.getElementById('prevFormato').value;
+  const cantidadPorEtapa = document.getElementById('prevCantidad').value;
+
+  const btn = document.getElementById('prevBtn');
+  const resultados = document.getElementById('prevResultados');
+  btn.disabled = true;
+  btn.textContent = 'Generando...';
+  status.textContent = '';
+  resultados.innerHTML = '';
+
+  try {
+    const response = await fetch('/api/generar-anuncios', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ modo: 'preview', cliente: CLIENTE_ID, angulo_texto: anguloTexto, producto_id: productoId, formato, cantidad_por_etapa: cantidadPorEtapa }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      status.textContent = data.error || 'No se pudo generar. Intenta de nuevo.';
+      return;
+    }
+    const ETIQUETAS_ETAPA = { adquisicion: '🧊 Fría — adquisición', consideracion: '🌤️ Tibia — consideración', conversion: '🔥 Caliente — conversión' };
+    const partes = [];
+    ['adquisicion', 'consideracion', 'conversion'].forEach((etapa) => {
+      const ideas = (data.ideas && data.ideas[etapa]) || [];
+      if (ideas.length === 0) return;
+      const cards = ideas.map((idea) => `
+        <div class="preview-idea-card">
+          <div class="titulo">${escaparHtmlBuilder(idea.titulo || '')}</div>
+          <div class="hook">${escaparHtmlBuilder(idea.hook || '')}</div>
+          <div class="ejemplo">${escaparHtmlBuilder(idea.ejemplo_mensaje || '')}</div>
+          <button type="button" class="copy-btn" onclick="copyText(this, \`${(idea.ejemplo_mensaje || '').replace(/`/g, "'")}\`)">Copiar</button>
+        </div>
+      `).join('');
+      partes.push(`<div class="preview-etapa"><div class="preview-etapa-label">${ETIQUETAS_ETAPA[etapa]}</div>${cards}</div>`);
+    });
+    resultados.innerHTML = partes.join('') || '<p class="notas-status" style="color:var(--text-dim)">Sin resultados.</p>';
+  } catch (e) {
+    status.textContent = 'Error de conexión. Intenta de nuevo.';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔄 Generar vista previa';
+  }
+}
+
 function guardarNotasGrupo(suffix, prefix, campos, statusId) {
   const data = {};
   const importantes = {};
@@ -1424,7 +1561,8 @@ aplicarClienteUI();
 inicializarVistaDividida();
 cargarGruposNegocio();
 calcular();
-cargarNotasEvergreen();
+cargarNotasEvergreen().then(poblarSelectAngulos);
+poblarSelectProductosPreview();
 cargarConversacionEnProgreso();
 cargarDocMaestroEnProgreso();
 cargarPrecioTokens();
