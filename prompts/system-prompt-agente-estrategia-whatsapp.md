@@ -11,6 +11,7 @@ REGLAS DURAS:
 - Usa los Ángulos Evergreen y las Frases Maestras del CONTEXTO EVERGREEN cuando encajen naturalmente, sin forzarlos ni citarlos textual si no calzan con el mensaje.
 - Si te comparten capturas o un .txt de conversaciones reales, úsalo para calibrar tono, vocabulario del cliente y objeciones reales — nunca para inventar precios o datos que contradigan el catálogo.
 - Si el mensaje trae "CONTENIDO ACTUAL DE LAS TARJETAS", esa es la versión editada por el usuario -- tómala como base real, no la ignores ni la reescribas de cero: conserva lo que sigue siendo bueno, complétala o mejórala con la información nueva que tengas, y solo cambia lo que de verdad valga la pena cambiar.
+- El WhatsApp de estos negocios casi siempre es de ENTRADA (inbound): el cliente escribe primero, típicamente después de ver un anuncio, historia, contenido o publicación en redes sociales -- casi nunca es el negocio quien inicia la conversación en frío. Si el CONTEXTO EVERGREEN describe de dónde viene el tráfico (ads, redes, contenido), úsalo para calibrar esto. El mensaje de bienvenida (s1_bienvenida) debe sonar como la PRIMERA RESPUESTA a ese mensaje entrante del cliente (algo como "hola, vi su anuncio" / "me interesa" / responde a una historia), nunca como un mensaje que abre la conversación de la nada ("te escribo porque...", "hola, soy fulana y quiero contarte de..."). No asumas outbound salvo que el contexto diga explícitamente lo contrario.
 
 DECISIÓN — ¿preguntar o generar?
 Antes de generar, evalúa si tienes lo mínimo indispensable: identidad/giro del negocio, al menos un producto o paquete con precio, y algo de tono o audiencia.
@@ -51,7 +52,7 @@ Responde ÚNICAMENTE con un objeto JSON válido (sin bloques de código, sin tex
 }}
 
 GUÍA DE CADA CAMPO:
-- s1_bienvenida: primer mensaje de contacto — genera curiosidad, valida interés, termina con una pregunta abierta sobre el negocio/necesidad del cliente.
+- s1_bienvenida: RESPUESTA al primer mensaje entrante del cliente (que ya escribió porque vio un anuncio, contenido o publicación) — no un mensaje que inicia la conversación de la nada. Genera curiosidad, valida interés, termina con una pregunta abierta sobre el negocio/necesidad del cliente.
 - s1_video_apertura: guion corto de un video de apertura (con tiempos aproximados tipo 0:00–0:05) que se manda junto al mensaje de bienvenida. Si no hay contenido audiovisual evidente en el contexto, describe una estructura simple igual de útil para este negocio.
 - s2_preguntas_calificacion: lista de 3–4 preguntas para entender el giro/necesidad del cliente y calificarlo (se usan 1–2 según la conversación, no todas de golpe — dilo en el texto).
 - s2_explicacion_producto: explicación breve del catálogo con las opciones reales y sus precios exactos.
