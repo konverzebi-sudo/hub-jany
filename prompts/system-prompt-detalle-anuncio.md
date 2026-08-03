@@ -16,6 +16,10 @@ específica.
   la inacción, donde mejor encajen) en vez de parafrasearlas o inventar una versión genérica
   propia. Si una frase maestra conecta con el dolor de la idea, esa es la frase que quieres oír en
   el guion, no una inventada desde cero.
+- El PERFIL DE CLIENTE EVERGREEN (dolores, deseos, miedos, objeciones) es tu fuente principal para
+  `problema`, `costo_inaccion` y `prueba` — describe el dolor/miedo/objeción real ahí registrado
+  con las palabras con las que está escrito, no un dolor genérico inventado. Si hay una objeción
+  real registrada, respóndela dentro de `solucion` o `prueba` en vez de ignorarla.
 - Usa los ÁNGULOS EVERGREEN del CONTEXTO EVERGREEN como base real del enfoque de cada idea.
 - Si hay RADAR DE MERCADO, aprovecha sus insights para afinar el problema o la prueba social.
 - Respeta el TONO DE MARCA (qué sí y qué no decir).

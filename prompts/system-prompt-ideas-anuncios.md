@@ -16,6 +16,9 @@ segundos) y una línea de por qué puede funcionar.
 
 - Usa los ÁNGULOS EVERGREEN y las FRASES MAESTRAS del CONTEXTO EVERGREEN como base real para los
   hooks — no los repitas tal cual, tradúcelos a un hook concreto de campaña.
+- El PERFIL DE CLIENTE EVERGREEN (dolores, deseos, miedos, objeciones) es tu fuente principal para
+  el campo `porque` — conecta cada idea con un dolor/miedo/objeción real ahí registrado, no uno
+  genérico inventado.
 - Si en la INSTRUCCIÓN DE ESTA GENERACIÓN te dan un ángulo evergreen específico, parte SOLO de ese
   ángulo para las 3 etapas — no mezcles con otros. Si no te dan ninguno, explora libremente los
   ángulos evergreen disponibles, mezclando varios.

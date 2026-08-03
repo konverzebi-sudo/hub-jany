@@ -119,8 +119,15 @@ function formatearAudiencias(items) {
     .filter((a) => a && (a.nombre || a.ocupacion))
     .map((a, i) => {
       const l = [`Audiencia ${i + 1}: ${a.nombre || '(sin nombre)'}`];
+      if (a.ocupacion) l.push(`  Ocupación: ${a.ocupacion}`);
       if (a.miedo_deseo) l.push(`  Miedo/deseo: ${a.miedo_deseo}`);
+      if (a.quien_compra) l.push(`  Quién compra: ${a.quien_compra}`);
       if (a.que_busca) l.push(`  Qué busca: ${a.que_busca}`);
+      if (a.objecion_comun) l.push(`  Objeción más común: ${a.objecion_comun}`);
+      if (a.por_que_si) l.push(`  Por qué SÍ compran: ${a.por_que_si}`);
+      if (a.por_que_no) l.push(`  Por qué NO compran: ${a.por_que_no}`);
+      if (a.dudas) l.push(`  Dudas frecuentes: ${a.dudas}`);
+      if (a.frases) l.push(`  Frases reales de clientes: ${a.frases}`);
       return l.join('\n');
     });
   if (bloques.length === 0) return null;
@@ -152,28 +159,58 @@ function formatearTabla(filas, columnas, titulo) {
   return titulo + ':\n' + lineas.map((l) => '- ' + l).join('\n');
 }
 
-function formatearComunicacionEvergreen(d) {
-  if (!d) return null;
-  const bloques = [];
-  const textoLineas = [];
-  if (d.posicionamiento) textoLineas.push(`Posicionamiento: ${d.posicionamiento}`);
-  if (d.diferenciador) textoLineas.push(`Diferenciador: ${d.diferenciador}`);
-  if (textoLineas.length) bloques.push('ESTRATEGIA DE COMUNICACIÓN EVERGREEN:\n' + textoLineas.join('\n'));
+// ---------- CONTEXTO EVERGREEN: las 4 Notas guardadas por el Jefe Evergreen, no solo Comunicación ----------
+// Mismo patrón genérico que api/agente-estrategia-whatsapp.js (formatearValorNota/GRUPOS_EVERGREEN):
+// aplana cualquier campo (texto, tabla, objeto) sin necesitar conocer su forma exacta. Antes este
+// endpoint solo leía "evergreen-comunicacion" (ángulos + frases) -- se le escapaba por completo
+// "evergreen-perfil-cliente" (dolores, deseos, miedos, objeciones), que es la nota con el análisis
+// psicológico más profundo del cliente ideal, clave para que el copy de los anuncios suene a la
+// marca y no genérico.
 
-  bloques.push(formatearTabla(
-    d.angulos_evergreen,
-    [{ key: 'angulo', label: 'Ángulo' }, { key: 'accion', label: 'Acción' }, { key: 'emocion', label: 'Emoción' }, { key: 'ejemplo', label: 'Ejemplo de mensaje' }],
-    'ÁNGULOS EVERGREEN YA DEFINIDOS'
-  ));
-  bloques.push(formatearTabla(
-    d.frases_maestras,
-    [{ key: 'frase', label: 'Frase' }, { key: 'activa', label: 'Qué activa' }, { key: 'donde', label: 'Dónde usarla' }],
-    'FRASES MAESTRAS YA DEFINIDAS'
-  ));
+function formatearValorNota(valor) {
+  if (valor == null) return '';
+  if (Array.isArray(valor)) {
+    const filas = valor.filter((f) => f && Object.values(f).some((v) => (v || '').toString().trim()));
+    if (filas.length === 0) return '';
+    return filas
+      .map((f) => Object.entries(f).filter(([k, v]) => k !== '_marcada' && (v || '').toString().trim()).map(([k, v]) => `${k}: ${v}`).join(' | '))
+      .map((l) => '  - ' + l)
+      .join('\n');
+  }
+  if (typeof valor === 'object') {
+    const partes = Object.entries(valor).filter(([, v]) => (v || '').toString().trim()).map(([k, v]) => `  - ${k}: ${v}`);
+    return partes.join('\n');
+  }
+  return valor.toString().trim() ? '  ' + valor.toString().trim() : '';
+}
 
-  const finales = bloques.filter(Boolean);
-  if (finales.length === 0) return null;
-  return finales.join('\n\n');
+const GRUPOS_EVERGREEN = [
+  { suffix: 'evergreen-producto', titulo: 'PRODUCTO EVERGREEN' },
+  { suffix: 'evergreen-perfil-cliente', titulo: 'PERFIL DE CLIENTE EVERGREEN (dolores, deseos, miedos, objeciones)' },
+  { suffix: 'evergreen-comunicacion', titulo: 'COMUNICACIÓN EVERGREEN (incluye ángulos y frases maestras)' },
+  { suffix: 'evergreen-sistema', titulo: 'SISTEMA EVERGREEN' },
+];
+
+async function construirContextoEvergreenNotas(clienteId) {
+  const datos = await Promise.all(
+    GRUPOS_EVERGREEN.map((g) => leerJSON(`${clienteId}:brand-book.${g.suffix}`).catch(() => null))
+  );
+  const bloques = GRUPOS_EVERGREEN.map((g, i) => {
+    const d = datos[i];
+    if (!d) return null;
+    const campos = Object.entries(d)
+      .filter(([campo]) => !campo.startsWith('_'))
+      .map(([campo, valor]) => {
+        const formateado = formatearValorNota(valor);
+        return formateado ? `${campo}:\n${formateado}` : null;
+      })
+      .filter(Boolean);
+    if (campos.length === 0) return null;
+    return g.titulo + ':\n' + campos.join('\n');
+  }).filter(Boolean);
+
+  if (bloques.length === 0) return null;
+  return bloques.join('\n\n');
 }
 
 function formatearRadar(historial) {
@@ -219,13 +256,13 @@ async function formatearConversacionEvergreenNoGuardada(clienteId) {
 }
 
 async function construirContexto(clienteId, grupoId) {
-  const [identidad, tono, audiencia, catalogo, grupos, comunicacion, radarHistorial, conversacionReciente] = await Promise.all([
+  const [identidad, tono, audiencia, catalogo, grupos, bloqueEvergreen, radarHistorial, conversacionReciente] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.audiencia`).catch(() => null),
     leerJSON(`${clienteId}:catalogo-productos`).catch(() => null),
     leerJSON(`${clienteId}:grupos-negocio`).catch(() => null),
-    leerJSON(`${clienteId}:brand-book.evergreen-comunicacion`).catch(() => null),
+    construirContextoEvergreenNotas(clienteId).catch(() => null),
     leerJSON(`${clienteId}:radar-historial`).catch(() => null),
     formatearConversacionEvergreenNoGuardada(clienteId).catch(() => null),
   ]);
@@ -237,7 +274,6 @@ async function construirContexto(clienteId, grupoId) {
     formatearCatalogo(catalogo, grupos, grupoId),
   ].filter(Boolean);
 
-  const bloqueEvergreen = formatearComunicacionEvergreen(comunicacion);
   const bloqueRadar = formatearRadar(radarHistorial);
 
   const partes = [];
@@ -245,8 +281,8 @@ async function construirContexto(clienteId, grupoId) {
     ? 'CONTEXTO DEL NEGOCIO:\n\n' + bloquesNegocio.join('\n\n')
     : 'CONTEXTO DEL NEGOCIO: todavía no hay datos guardados en el ADN de esta marca.');
   partes.push(bloqueEvergreen
-    ? 'CONTEXTO EVERGREEN (Notas de Comunicación Evergreen ya guardadas):\n\n' + bloqueEvergreen
-    : 'CONTEXTO EVERGREEN: todavía no hay ángulos ni frases maestras guardadas en el Jefe Evergreen -- usa lo que sí haya del ADN.');
+    ? 'CONTEXTO EVERGREEN (las 4 Notas ya guardadas por el Jefe Evergreen — Producto, Perfil de Cliente, Comunicación y Sistema; úsalas para ángulos, frases, dolores/deseos y tono, no las repitas tal cual):\n\n' + bloqueEvergreen
+    : 'CONTEXTO EVERGREEN: todavía no hay Notas Evergreen guardadas para esta marca -- usa lo que sí haya del ADN.');
   partes.push(bloqueRadar
     ? bloqueRadar
     : 'RADAR DE MERCADO: todavía no hay corridas guardadas -- ignora esta sección.');
