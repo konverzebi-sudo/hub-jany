@@ -503,9 +503,14 @@
         </div>
         <div class="field">
           <label>Lugar de nacimiento</label>
-          <input type="text" id="fBirthPlace" placeholder="Ciudad, país">
+          <input type="text" id="fBirthPlace" list="ciudadesList" placeholder="Ciudad, país">
         </div>
       </div>
+      <div class="field">
+        <label>Dónde vive actualmente</label>
+        <input type="text" id="fCurrentPlace" list="ciudadesList" placeholder="Ciudad, país">
+      </div>
+      <datalist id="ciudadesList"></datalist>
       <div class="field">
         <label class="checkline"><input type="checkbox" id="fDeceased"> Falleció</label>
       </div>
@@ -516,7 +521,7 @@
         </div>
         <div class="field">
           <label>Lugar de fallecimiento</label>
-          <input type="text" id="fDeathPlace" placeholder="Ciudad, país">
+          <input type="text" id="fDeathPlace" list="ciudadesList" placeholder="Ciudad, país">
         </div>
       </div>
       <div class="field">
@@ -765,6 +770,20 @@
     // resuelto en esta pasada (o una pasada de relajación anterior) y solo
     // cae al valor guardado la primerísima vez que se coloca a esa persona.
     function curX(id){ return xPos[id] != null ? xPos[id] : (personById(id).x || 0); }
+    function birthTime(id){
+      var d = personById(id).birthDate;
+      return d ? new Date(d).getTime() : null;
+    }
+    // Hermanos de mayor a menor (izquierda a derecha) según su fecha de
+    // nacimiento; quien no tenga fecha capturada se acomoda al final del
+    // grupo, en su orden anterior, para no des-ordenar al resto.
+    function bySiblingAge(a, b){
+      var ta = birthTime(a), tb = birthTime(b);
+      if(ta != null && tb != null) return ta - tb;
+      if(ta != null) return -1;
+      if(tb != null) return 1;
+      return curX(a) - curX(b);
+    }
 
     // Agrupa ids en "unidades" (persona sola, o pareja si su cónyuge está en
     // la misma lista) y las coloca de izquierda a derecha centrada cada una
@@ -785,7 +804,7 @@
         byParentKey[key].push(id);
       });
       Object.keys(byParentKey).forEach(function(key){
-        byParentKey[key].sort(function(a,b){ return curX(a) - curX(b); });
+        byParentKey[key].sort(bySiblingAge);
       });
       keyOrder.sort(function(ka, kb){
         function avgOldX(key){
@@ -954,17 +973,41 @@
     return fullName(p);
   }
 
+  // Ciudades más comunes de la región (Saltillo y alrededores) + destinos
+  // frecuentes de migración — punto de partida para las sugerencias; se le
+  // suman las ciudades que ya se hayan capturado en el árbol.
+  var CIUDADES_BASE = [
+    "Saltillo, Coahuila", "Ramos Arizpe, Coahuila", "Arteaga, Coahuila",
+    "Monclova, Coahuila", "Torreón, Coahuila", "Piedras Negras, Coahuila",
+    "Ciudad Acuña, Coahuila", "Sabinas, Coahuila", "Múzquiz, Coahuila",
+    "Parras de la Fuente, Coahuila", "Monterrey, Nuevo León",
+    "San Pedro Garza García, Nuevo León", "San Luis Potosí, San Luis Potosí",
+    "Ciudad de México", "Guadalajara, Jalisco", "Puebla, Puebla",
+    "Querétaro, Querétaro", "Chihuahua, Chihuahua", "Tijuana, Baja California",
+    "Mérida, Yucatán", "León, Guanajuato",
+    "San Antonio, Texas", "Houston, Texas", "Dallas, Texas", "Austin, Texas",
+    "El Paso, Texas", "Laredo, Texas", "Chicago, Illinois",
+    "Los Ángeles, California"
+  ];
+
   function refreshDatalists(){
-    var apSet = {}, nameSet = {};
+    var apSet = {}, nameSet = {}, citySet = {};
+    CIUDADES_BASE.forEach(function(c){ citySet[c] = 1; });
     state.people.forEach(function(p){
       if(p.apellido1) apSet[p.apellido1] = 1;
       if(p.apellido2) apSet[p.apellido2] = 1;
       if(p.givenName) nameSet[p.givenName] = 1;
+      if(p.birthPlace) citySet[p.birthPlace] = 1;
+      if(p.deathPlace) citySet[p.deathPlace] = 1;
+      if(p.currentPlace) citySet[p.currentPlace] = 1;
     });
     document.getElementById("apellidosList").innerHTML = Object.keys(apSet).sort().map(function(a){
       return '<option value="'+escapeHtml(a)+'"></option>';
     }).join("");
     document.getElementById("nombresList").innerHTML = Object.keys(nameSet).sort().map(function(a){
+      return '<option value="'+escapeHtml(a)+'"></option>';
+    }).join("");
+    document.getElementById("ciudadesList").innerHTML = Object.keys(citySet).sort().map(function(a){
       return '<option value="'+escapeHtml(a)+'"></option>';
     }).join("");
   }
@@ -1057,6 +1100,7 @@
     var lines = [];
     if(p.birthDate || p.birthPlace) lines.push("🎂 " + [fmtDate(p.birthDate), p.birthPlace].filter(Boolean).join(" · "));
     if(p.deceased && (p.deathDate || p.deathPlace)) lines.push("✝ " + [fmtDate(p.deathDate), p.deathPlace].filter(Boolean).join(" · "));
+    if(!p.deceased && p.currentPlace) lines.push("📍 " + p.currentPlace);
     if(p.occupation) lines.push(p.occupation);
     sub.innerHTML = lines.map(function(l){ return escapeHtml(l); }).join("<br>");
     body.appendChild(sub);
@@ -1393,6 +1437,7 @@
     document.getElementById("fGender").value = p ? p.gender||"" : "";
     document.getElementById("fBirthDate").value = p ? p.birthDate||"" : "";
     document.getElementById("fBirthPlace").value = p ? p.birthPlace||"" : "";
+    document.getElementById("fCurrentPlace").value = p ? p.currentPlace||"" : "";
     document.getElementById("fDeceased").checked = p ? !!p.deceased : false;
     document.getElementById("fDeathDate").value = p ? p.deathDate||"" : "";
     document.getElementById("fDeathPlace").value = p ? p.deathPlace||"" : "";
@@ -1495,6 +1540,7 @@
     p.gender = document.getElementById("fGender").value;
     p.birthDate = document.getElementById("fBirthDate").value;
     p.birthPlace = document.getElementById("fBirthPlace").value.trim();
+    p.currentPlace = document.getElementById("fCurrentPlace").value.trim();
     p.deceased = document.getElementById("fDeceased").checked;
     p.deathDate = document.getElementById("fDeathDate").value;
     p.deathPlace = document.getElementById("fDeathPlace").value.trim();
