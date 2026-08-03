@@ -714,9 +714,15 @@
     if(kind==="papa" || kind==="mama"){
       addRelationSilent("parent", newP.id, sourceId);
     } else if(kind==="hijo"){
-      var spouseId = primarySpouseFor(sourceId);
-      addRelationSilent("parent", sourceId, newP.id);
-      if(spouseId) addRelationSilent("parent", spouseId, newP.id);
+      if(extra && extra.parentA){
+        // El usuario confirmó (o corrigió) a los papás en la pantalla previa.
+        addRelationSilent("parent", extra.parentA, newP.id);
+        if(extra.parentB) addRelationSilent("parent", extra.parentB, newP.id);
+      } else {
+        var spouseId = primarySpouseFor(sourceId);
+        addRelationSilent("parent", sourceId, newP.id);
+        if(spouseId) addRelationSilent("parent", spouseId, newP.id);
+      }
     } else if(kind==="hermano"){
       var parents = relatedParents(sourceId);
       if(parents.length){
@@ -796,8 +802,30 @@
     function layoutUnits(ids, idealX){
       var idSet = {};
       ids.forEach(function(id){ idSet[id] = true; });
+      // Determina UNA sola vez quién queda emparejado con quién (dando
+      // prioridad a que una persona de sangre reclame a su cónyuge sin
+      // papás propios) y se reutiliza tanto para decidir quién no lleva
+      // llave/turno independiente como para armar las parejas más abajo —
+      // si estos dos pasos usaran lógicas distintas podían desincronizarse
+      // (alguien quedaba excluido de su propia llave sin que nadie más lo
+      // reclamara de verdad, dejándolo sin lugar).
+      var pairOf = {}, pairedAway = {};
+      ids.forEach(function(id){
+        if(!relatedParents(id).length || pairOf[id]) return;
+        var sp = spousesOf(id).find(function(s){ return idSet[s] && !relatedParents(s).length && !pairOf[s]; });
+        if(sp){ pairOf[id] = sp; pairOf[sp] = id; pairedAway[sp] = true; }
+      });
+      // parejas restantes (ej. ambos con papás propios, caso raro) para no
+      // dejar a nadie sin intentar emparejar.
+      ids.forEach(function(id){
+        if(pairOf[id]) return;
+        var sp = spousesOf(id).find(function(s){ return idSet[s] && s !== id && !pairOf[s]; });
+        if(sp){ pairOf[id] = sp; pairOf[sp] = id; }
+      });
+
       var byParentKey = {}, keyOrder = [];
       ids.forEach(function(id){
+        if(pairedAway[id]) return;
         var cp = relatedParents(id);
         var key = cp.length ? cp.slice().sort().join(",") : ("_solo_"+id);
         if(!byParentKey[key]){ byParentKey[key] = []; keyOrder.push(key); }
@@ -818,8 +846,8 @@
       keyOrder.forEach(function(key){
         byParentKey[key].forEach(function(id){
           if(seenU[id]) return;
-          var sp = spousesOf(id).filter(function(s){ return idSet[s] && !seenU[s]; })[0];
-          if(sp){ unitsOrder.push([id, sp]); seenU[id] = true; seenU[sp] = true; }
+          var sp = pairOf[id];
+          if(sp && idSet[sp] && !seenU[sp]){ unitsOrder.push([id, sp]); seenU[id] = true; seenU[sp] = true; }
           else { unitsOrder.push([id]); seenU[id] = true; }
         });
       });
@@ -1386,11 +1414,82 @@
         return;
       }
     }
+    if(kind==="hijo"){
+      showHijoParentConfirm(quickAddSourceId);
+      return;
+    }
     pendingQuickAdd = { type: kind, sourceId: quickAddSourceId };
     closeQuickAddMenu();
     openEdit(null);
     if(kind==="papa") document.getElementById("fGender").value = "M";
     if(kind==="mama") document.getElementById("fGender").value = "F";
+  }
+  // Antes de crear al hijo, se confirman (y se pueden corregir) sus papás:
+  // evita el error de tocar la tarjeta de alguien con el mismo nombre por
+  // accidente (ej. un tío en vez del papá real) y que quede mal enlazado.
+  function showHijoParentConfirm(sourceId){
+    document.getElementById("quickAddTitle").textContent = "¿Quiénes son los papás?";
+    var box = document.getElementById("quickAddBody");
+    box.innerHTML = "";
+
+    var note = document.createElement("p");
+    note.style.cssText = "font-size:.78rem;color:var(--ink-soft);margin:0 0 .7rem;";
+    note.textContent = "Revisa que sean las personas correctas — si hay dos familiares con el mismo nombre, aquí puedes elegir la que sí es.";
+    box.appendChild(note);
+
+    var sortedPeople = state.people.slice().sort(function(a,b){
+      return displayName(a).localeCompare(displayName(b), "es");
+    });
+    function buildSelect(id, defaultId, labelText){
+      var wrap = document.createElement("div");
+      wrap.className = "field";
+      wrap.style.marginBottom = ".7rem";
+      var lab = document.createElement("label");
+      lab.textContent = labelText;
+      wrap.appendChild(lab);
+      var sel = document.createElement("select");
+      sel.id = id;
+      var noneOpt = document.createElement("option");
+      noneOpt.value = "";
+      noneOpt.textContent = "— Ninguno —";
+      sel.appendChild(noneOpt);
+      sortedPeople.forEach(function(pp){
+        var opt = document.createElement("option");
+        opt.value = pp.id;
+        opt.textContent = displayName(pp) || "(sin nombre)";
+        sel.appendChild(opt);
+      });
+      sel.value = defaultId || "";
+      wrap.appendChild(sel);
+      box.appendChild(wrap);
+    }
+    buildSelect("hijoParentA", sourceId, "Papá / mamá 1");
+    buildSelect("hijoParentB", primarySpouseFor(sourceId), "Papá / mamá 2 (si aplica)");
+
+    var continueBtn = document.createElement("button");
+    continueBtn.type = "button";
+    continueBtn.className = "tbtn primary";
+    continueBtn.textContent = "Continuar";
+    continueBtn.addEventListener("click", function(){
+      var a = document.getElementById("hijoParentA").value;
+      var b = document.getElementById("hijoParentB").value;
+      if(!a){ toast("Elige al menos un papá o mamá."); return; }
+      pendingQuickAdd = { type: "hijo", parentA: a, parentB: b || null };
+      closeQuickAddMenu();
+      openEdit(null);
+    });
+    box.appendChild(continueBtn);
+
+    var back = document.createElement("button");
+    back.type = "button";
+    back.className = "tbtn";
+    back.style.marginTop = ".4rem";
+    back.textContent = "← Volver";
+    back.addEventListener("click", function(){
+      document.getElementById("quickAddTitle").textContent = "Agregar familiar";
+      renderQuickAddMenu();
+    });
+    box.appendChild(back);
   }
   function showMedioHermanoChoice(parentIds){
     document.getElementById("quickAddTitle").textContent = "¿Con cuál comparte?";
