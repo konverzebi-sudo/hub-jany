@@ -184,8 +184,11 @@
   .cal-cell{background:var(--surface);border:1px solid var(--line);border-radius:10px;min-height:92px;padding:6px;display:flex;flex-direction:column;gap:4px;overflow:hidden;}
   .cal-cell.cal-empty{background:transparent;border:none;}
   .cal-cell.cal-today{border-color:var(--accent);}
+  .cal-cell.cal-dragover{border-color:var(--accent);background:var(--accent-soft);}
   .cal-daynum{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim);}
-  .cal-chip{font-size:10.5px;line-height:1.3;padding:3px 6px;border-radius:6px;background:var(--surface-2);border-left:3px solid var(--t1);cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .cal-chip{font-size:10.5px;line-height:1.3;padding:3px 6px;border-radius:6px;background:var(--surface-2);border-left:3px solid var(--t1);cursor:grab;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .cal-chip:active{cursor:grabbing;}
+  .cal-chip.cal-chip-dragging{opacity:.4;}
   .cal-chip:hover{background:var(--accent-soft);}
   .cal-sinfecha{margin-top:18px;}
   .cal-sinfecha-title{font-family:'Sora',sans-serif;font-weight:700;font-size:14px;margin-bottom:8px;}
@@ -1065,6 +1068,19 @@ function diaMesDeFecha(str){
   return {day, month};
 }
 
+function fechaDDMM(dia, mes){
+  return String(dia).padStart(2,'0')+'/'+String(mes).padStart(2,'0');
+}
+
+function moverItemACalendarioFecha(tab, id, dia, mes){
+  const item=(state[tab]||[]).find(r=>r.id===id);
+  if(!item) return;
+  item.fecha=fechaDDMM(dia, mes);
+  if(item.estado!=='publicado') item.estado='proceso';
+  scheduleSave();
+  renderCalendario();
+}
+
 function renderCalendario(){
   controlsEl.style.display='none';
   statsBarEl.style.display='none';
@@ -1082,7 +1098,7 @@ function renderCalendario(){
       <button type="button" id="cal-next" title="Mes siguiente">→</button>
       <button type="button" id="cal-hoy">Hoy</button>
     </div>
-    <span class="mode-status">🎬 Historias · 📄 Contenido — click en una idea para abrirla</span>
+    <span class="mode-status">🎬 Historias · 📄 Contenido — click para abrirla, arrastra una idea a un día para programarla</span>
   `;
   wrap.appendChild(toolbar);
 
@@ -1112,7 +1128,14 @@ function renderCalendario(){
     chip.style.borderLeftColor=horizonColorVar(item);
     chip.textContent=`${item._icon} ${item.gancho||'(sin título)'}`;
     chip.title=item.gancho||'';
+    chip.draggable=true;
     chip.addEventListener('click',()=>irACalendarioItem(item._tab,item.id,item.gancho));
+    chip.addEventListener('dragstart',(e)=>{
+      e.dataTransfer.effectAllowed='move';
+      e.dataTransfer.setData('text/plain', JSON.stringify({tab:item._tab, id:item.id}));
+      chip.classList.add('cal-chip-dragging');
+    });
+    chip.addEventListener('dragend',()=>chip.classList.remove('cal-chip-dragging'));
     return chip;
   }
 
@@ -1125,6 +1148,16 @@ function renderCalendario(){
   for(let d=1; d<=diasEnMes; d++){
     const cell=document.createElement('div');
     cell.className='cal-cell'+(esHoy(d)?' cal-today':'');
+    cell.addEventListener('dragover',(e)=>{ e.preventDefault(); e.dataTransfer.dropEffect='move'; cell.classList.add('cal-dragover'); });
+    cell.addEventListener('dragleave',()=>cell.classList.remove('cal-dragover'));
+    cell.addEventListener('drop',(e)=>{
+      e.preventDefault();
+      cell.classList.remove('cal-dragover');
+      let data;
+      try{ data=JSON.parse(e.dataTransfer.getData('text/plain')); }catch(err){ return; }
+      if(!data||!data.tab||!data.id) return;
+      moverItemACalendarioFecha(data.tab, data.id, d, calMonth+1);
+    });
     const items=porDia[d+'-'+(calMonth+1)]||[];
     const dayNum=document.createElement('div');
     dayNum.className='cal-daynum';
@@ -1171,47 +1204,31 @@ function irACalendarioItem(tab,id,gancho){
 
 // ─── AGENTE TAB ───────────────────────────────────────────────────────────────
 const AGENTE_MODES = [
-  {key:'ideas',  label:'💡 Ideas Evergreen',  desc:'Banco de ideas por categoría (viral, educativo, venta, entretenimiento, testimonio) listo para mandar a Historias/Contenido.',
+  {key:'ideas',  label:'💡 Evergreen IA',  desc:'Banco de ideas por categoría (viral, educativo, venta, entretenimiento, testimonio) listo para mandar a Historias/Contenido.',
    custom:'evergreen-ideas'
   },
-  {key:'guion-org',label:'📱 Guionista Orgánico',  desc:'Genera un banco de ideas con sus 7 ángulos, selecciona las mejores y crea caption+guion listos — lee tu ADN, tu Sistema Evergreen y tu Radar de Mercado en vivo.',
+  {key:'guion-org',label:'📱 Post IA',  desc:'Genera un banco de ideas con sus 7 ángulos, selecciona las mejores y crea caption+guion listos — lee tu ADN, tu Sistema Evergreen y tu Radar de Mercado en vivo.',
    custom:'guion-organico',
   },
-  {key:'auditoria-post',label:'🔍 Auditoría de Post',  desc:'Arma un prompt listo para pegar en la extensión de Claude junto con la captura real de tu post publicado.',
+  {key:'auditoria-post',label:'🔍 Auditoría de Post IA',  desc:'Pega el link del post, tu objetivo y lo que quieras que considere — arma un prompt para que la extensión de Claude investigue el post real y te dé el diagnóstico.',
    instant:true,
    fields:[
-     {id:'ag-plataforma-audit',label:'Plataforma',type:'select',opts:['Instagram','TikTok','Facebook','WhatsApp']},
-     {id:'ag-tipo-audit',label:'Tipo de post',type:'select',opts:['reel','carrusel','post estático','historia']},
-     {id:'ag-objetivo-post-audit',label:'¿Cuál era el objetivo?',type:'text',placeholder:'ej. alcance, generar confianza, venta directa'},
-     {id:'ag-copy-audit',label:'Copy/caption que usaste',type:'textarea',placeholder:'Pega aquí el texto que publicaste con el post...'},
-     {id:'ag-likes-audit',label:'Likes',type:'text',placeholder:'ej. 340'},
-     {id:'ag-comentarios-audit',label:'Comentarios',type:'text',placeholder:'ej. 12'},
-     {id:'ag-guardados-audit',label:'Guardados / compartidos',type:'text',placeholder:'ej. 25'},
+     {id:'ag-link-audit',label:'Link del post',type:'text',placeholder:'https://www.instagram.com/p/...'},
+     {id:'ag-objetivo-post-audit',label:'¿Cuál era tu objetivo con este post?',type:'text',placeholder:'ej. alcance, generar confianza, venta directa'},
+     {id:'ag-notas-audit',label:'Notas importantes a considerar (opcional)',type:'textarea',placeholder:'Algo de contexto que la IA no pueda ver solo con el link... (ej. fue parte de una serie, se promocionó con ads, etc.)'},
    ],
    buildPrompt: f=>`Actúa como Auditor de Posts para redes sociales. Ya conoces mi marca, mi cliente ideal, mi tono y mi Sistema Evergreen — no me los vuelvas a preguntar.
 
-Te voy a adjuntar la captura de pantalla real de un post que ya publiqué. Analiza directamente lo que ves en la imagen — eso manda sobre cualquier dato que te dé aquí abajo.
+Abre este link y analiza el post real directamente ahí — plataforma, tipo de contenido, copy, gancho y métricas reales (likes, comentarios, guardados/compartidos). No me preguntes estos datos, investígalos tú mismo en el link:
+${f['ag-link-audit']||'(sin link)'}
 
-CONTEXTO DEL POST:
-Plataforma: ${f['ag-plataforma-audit']||'Instagram'}
-Tipo de post: ${f['ag-tipo-audit']||'reel'}
-Objetivo cuando lo publiqué: ${f['ag-objetivo-post-audit']||'no especificado'}
-Copy/caption que usé:
----
-${f['ag-copy-audit']||'(sin copy)'}
----
-Métricas que yo vi (compáralas con lo que veas en la captura, la captura manda si no coinciden):
-Likes: ${f['ag-likes-audit']||'no anotados'}
-Comentarios: ${f['ag-comentarios-audit']||'no anotados'}
-Guardados/compartidos: ${f['ag-guardados-audit']||'no anotados'}
+Mi objetivo con este post era: ${f['ag-objetivo-post-audit']||'no especificado'}
+${f['ag-notas-audit']?`Notas importantes a considerar: ${f['ag-notas-audit']}`:''}
 
 Dame tu análisis en este orden exacto:
-LECTURA DE LIKES / ENGAGEMENT: ¿el número es bueno, promedio o bajo para este tipo de contenido? ¿por qué?
-GANCHO: ¿la primera línea o el primer segundo detiene el scroll? ¿por qué sí o no?
-COMUNICACIÓN: ¿el mensaje se entiende rápido? ¿suena a mi marca?
-QUÉ SÍ FUNCIONÓ: …
-QUÉ MEJORAR (3 acciones concretas para el próximo post similar): …
-VERSIÓN MEJORADA DEL COPY: …`
+SITUACIÓN ACTUAL: qué encontraste (plataforma, tipo, gancho, copy, métricas) y cómo se lee ese desempeño contra el objetivo que te di.
+MEJORAS: qué no funcionó o se puede afinar (gancho, comunicación, CTA, formato).
+ACCIONES A TOMAR: 3 pasos concretos para el próximo post similar, incluyendo una versión mejorada del copy.`
   },
 ];
 
