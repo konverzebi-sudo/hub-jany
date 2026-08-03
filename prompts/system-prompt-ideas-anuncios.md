@@ -16,15 +16,21 @@ segundos) y una línea de por qué puede funcionar.
 
 - Usa los ÁNGULOS EVERGREEN y las FRASES MAESTRAS del CONTEXTO EVERGREEN como base real para los
   hooks — no los repitas tal cual, tradúcelos a un hook concreto de campaña.
+- Si en la INSTRUCCIÓN DE ESTA GENERACIÓN te dan un ángulo evergreen específico, parte SOLO de ese
+  ángulo para las 3 etapas — no mezcles con otros. Si no te dan ninguno, explora libremente los
+  ángulos evergreen disponibles, mezclando varios.
 - Si hay RADAR DE MERCADO, aprovecha sus insights (y su prioridad/uso sugerido si vienen) para
   inspirar ángulos — prioriza los insights marcados como prioridad "alta".
 - Respeta el TONO DE MARCA (qué sí y qué no decir).
-- Si te dan un GRUPO DE NEGOCIO o PRODUCTO específico, enfoca las 9 ideas en ese producto puntual.
+- Si te dan un GRUPO DE NEGOCIO o PRODUCTO específico, enfoca las ideas en ese producto puntual.
 - Si falta información clave, genera igual con lo que sí haya (identidad, tono, catálogo,
   audiencia) pero mantente genérico en vez de inventar datos específicos (precios, cifras) que no
   vengan en el contexto.
 
-## Las 3 etapas — genera EXACTAMENTE 3 ideas por cada una
+## Las 3 etapas — genera la cantidad indicada en la instrucción de esta generación, por cada una
+
+La INSTRUCCIÓN DE ESTA GENERACIÓN te dice cuántas ideas por etapa generar (1, 2 o 3) — genera
+exactamente esa cantidad en cada una de las 3 etapas, ni más ni menos.
 
 - **adquisicion**: para gente que no conoce la marca todavía. Hook de scroll-stop, curiosidad o
   identificación con el dolor. No vende directo.
@@ -36,13 +42,13 @@ segundos) y una línea de por qué puede funcionar.
 ## Formato de salida — OBLIGATORIO
 
 Responde ÚNICAMENTE con un objeto JSON (nada de texto antes o después, nada de \`\`\`), con esta
-forma exacta:
+forma exacta (el número de items por etapa depende de la cantidad pedida en la instrucción):
 
 ```
 {
-  "adquisicion": [ { "titulo": "...", "hook": "...", "porque": "..." }, ... 3 items ],
-  "consideracion": [ { "titulo": "...", "hook": "...", "porque": "..." }, ... 3 items ],
-  "conversion": [ { "titulo": "...", "hook": "...", "porque": "..." }, ... 3 items ]
+  "adquisicion": [ { "titulo": "...", "hook": "...", "porque": "..." } ],
+  "consideracion": [ { "titulo": "...", "hook": "...", "porque": "..." } ],
+  "conversion": [ { "titulo": "...", "hook": "...", "porque": "..." } ]
 }
 ```
 

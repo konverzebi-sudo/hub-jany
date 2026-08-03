@@ -4,7 +4,8 @@
 // conserva exactamente su lógica y forma de respuesta original -- esto es solo reempaquetado,
 // no cambia comportamiento.
 //
-// body.modo === 'ideas'   -> genera 9 ideas LIGERAS (titulo+hook+porque) por etapa.
+// body.modo === 'ideas'   -> genera ideas LIGERAS (titulo+hook+porque) por etapa -- cantidad por
+//                            etapa configurable (1-3) y opcionalmente scoped a un solo ángulo.
 // body.modo === 'detalle' -> desarrolla el detalle completo de un lote de ideas ya aprobadas.
 //
 // Multi-tenant, sin datos hardcoded de ninguna marca -- ver prompts/system-prompt-ideas-anuncios.md
@@ -17,7 +18,6 @@ const { sql } = require('@vercel/postgres');
 const DEFAULT_CLIENTE = 'jefeshub';
 const PROMPT_PATH_IDEAS = path.join(__dirname, '..', 'prompts', 'system-prompt-ideas-anuncios.md');
 const PROMPT_PATH_DETALLE = path.join(__dirname, '..', 'prompts', 'system-prompt-detalle-anuncio.md');
-const PROMPT_PATH_PREVIEW = path.join(__dirname, '..', 'prompts', 'system-prompt-preview-angulo-anuncio.md');
 const CONTEXT_CHAR_LIMIT = 10000;
 const MAX_IDEAS_POR_LOTE = 9;
 const FORMATOS_VALIDOS = ['reel', 'imagen estática', 'carrusel'];
@@ -316,19 +316,25 @@ async function manejarModoIdeas(body, res) {
   const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
   const grupoId = body.grupo_id ? body.grupo_id.toString() : '';
   const productoId = body.producto_id ? body.producto_id.toString() : '';
+  const anguloTexto = (body.angulo_texto || '').toString().trim();
+  const cantidadPorEtapaCruda = parseInt(body.cantidad_por_etapa, 10);
+  const cantidadPorEtapa = [1, 2, 3].includes(cantidadPorEtapaCruda) ? cantidadPorEtapaCruda : 3;
 
   const promptFijo = cargarPrompt(PROMPT_PATH_IDEAS);
   const { contexto, catalogo } = await construirContexto(clienteId, grupoId);
-  const bloqueProducto = formatearProducto(catalogo, productoId, 'las 9 ideas deben girar en torno a este producto puntual, no al grupo completo');
+  const bloqueProducto = formatearProducto(catalogo, productoId, 'las ideas deben girar en torno a este producto puntual, no al grupo completo');
 
   const instruccion = 'INSTRUCCIÓN DE ESTA GENERACIÓN:\n' +
-    'Genera las 9 ideas (3 por etapa: adquisicion, consideracion, conversion) en el formato JSON indicado.' +
+    (anguloTexto
+      ? `Ángulo evergreen elegido (enfócate SOLO en este, no mezcles con otros ángulos): ${anguloTexto}\n`
+      : 'No se eligió un ángulo específico -- explora libremente los ángulos evergreen disponibles, mezclando varios si aplica.\n') +
+    `Genera ${cantidadPorEtapa} idea(s) por cada una de las 3 etapas (adquisicion, consideracion, conversion) = ${cantidadPorEtapa * 3} en total, en el formato JSON indicado.` +
     (bloqueProducto ? '\n\n' + bloqueProducto : '');
 
   const system = [promptFijo, contexto, instruccion].join('\n\n');
   const { ok, status, data } = await llamarClaude(
     system,
-    'Genera las 9 ideas de anuncios pedidas, en el formato JSON indicado. Sé breve por campo -- son ideas de referencia para elegir, no el anuncio terminado.',
+    `Genera las ${cantidadPorEtapa * 3} ideas de anuncios pedidas, en el formato JSON indicado. Sé breve por campo -- son ideas de referencia para elegir, no el anuncio terminado.`,
     2500
   );
   if (!ok) {
@@ -343,62 +349,11 @@ async function manejarModoIdeas(body, res) {
 
   const ideas = {};
   ETAPAS.forEach((etapa) => {
-    ideas[etapa] = Array.isArray(parsed[etapa]) ? parsed[etapa] : [];
+    ideas[etapa] = Array.isArray(parsed[etapa]) ? parsed[etapa].slice(0, cantidadPorEtapa) : [];
   });
 
   await registrarUsoTokens(clienteId, 'generar-anuncios-ideas', data.usage);
   return res.status(200).json({ ideas, usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 } });
-}
-
-// ---------- modo: preview (un solo ángulo evergreen ya elegido, con ejemplo de mensaje) ----------
-// Vista previa rápida desde el Jefe Evergreen: no toca la tabla "Ángulos evergreen" de Notas (esa
-// se sigue editando a mano como siempre) -- solo genera ejemplos de mensaje a partir de un ángulo
-// ya guardado, sin pasar por el flujo completo de ideas -> aprobar lote -> detalle.
-
-async function manejarModoPreview(body, res) {
-  const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
-  const anguloTexto = (body.angulo_texto || '').toString().trim();
-  if (!anguloTexto) {
-    return res.status(400).json({ error: 'Falta el ángulo seleccionado.' });
-  }
-  const productoId = body.producto_id ? body.producto_id.toString() : '';
-  const formato = FORMATOS_VALIDOS.includes(body.formato) ? body.formato : 'reel';
-  const cantidadPorEtapaCruda = parseInt(body.cantidad_por_etapa, 10);
-  const cantidadPorEtapa = [1, 2, 3].includes(cantidadPorEtapaCruda) ? cantidadPorEtapaCruda : 1;
-
-  const promptFijo = cargarPrompt(PROMPT_PATH_PREVIEW);
-  const { contexto, catalogo } = await construirContexto(clienteId, '');
-  const bloqueProducto = formatearProducto(catalogo, productoId, 'el ejemplo debe girar en torno a este producto puntual');
-
-  const instruccion = 'INSTRUCCIÓN DE ESTA GENERACIÓN:\n' +
-    `Ángulo evergreen elegido (enfócate SOLO en este, no uses otros): ${anguloTexto}\n` +
-    `Formato de contenido: ${formato}\n` +
-    `Genera ${cantidadPorEtapa} idea(s) por etapa (adquisición, consideración, conversión) = ${cantidadPorEtapa * 3} en total, en el formato JSON indicado.` +
-    (bloqueProducto ? '\n\n' + bloqueProducto : '');
-
-  const system = [promptFijo, contexto, instruccion].join('\n\n');
-  const { ok, status, data } = await llamarClaude(
-    system,
-    `Genera las ${cantidadPorEtapa * 3} ideas con su ejemplo de mensaje, en el formato JSON indicado.`,
-    2200
-  );
-  if (!ok) {
-    return res.status(status).json({ error: data?.error?.message || 'Error al llamar a la API.' });
-  }
-
-  const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
-  const parsed = extractJson(text);
-  if (!parsed) {
-    return res.status(502).json({ error: data.stop_reason === 'max_tokens' ? 'La respuesta quedó incompleta. Intenta con menos ideas por etapa.' : 'No se pudo interpretar la respuesta del modelo.' });
-  }
-
-  const ideas = {};
-  ETAPAS.forEach((etapa) => {
-    ideas[etapa] = Array.isArray(parsed[etapa]) ? parsed[etapa].slice(0, cantidadPorEtapa) : [];
-  });
-
-  await registrarUsoTokens(clienteId, 'generar-anuncios-preview', data.usage);
-  return res.status(200).json({ ideas, formato, usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 } });
 }
 
 // ---------- modo: detalle (guion + copy + prompts de un lote aprobado) ----------
@@ -515,8 +470,7 @@ module.exports = async function handler(req, res) {
   try {
     if (modo === 'ideas') return await manejarModoIdeas(body, res);
     if (modo === 'detalle') return await manejarModoDetalle(body, res);
-    if (modo === 'preview') return await manejarModoPreview(body, res);
-    return res.status(400).json({ error: 'Falta o es inválido el campo "modo" (usa "ideas", "detalle" o "preview").' });
+    return res.status(400).json({ error: 'Falta o es inválido el campo "modo" (usa "ideas" o "detalle").' });
   } catch (err) {
     return res.status(500).json({ error: 'Error de conexión con el Agente.' });
   }

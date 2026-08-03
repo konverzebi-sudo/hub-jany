@@ -40,7 +40,13 @@ UGC casual · Oferta directa · Autoridad educativa · Reactivación
    - `prueba`: prueba o testimonio que respalda la solución (genérico si no hay uno real en el
      contexto — nunca inventes cifras o nombres).
    - `costo_inaccion`: qué pierde el cliente si no actúa ahora.
-   - `cta`: llamada a la acción clara.
+   - `cta`: llamada a la acción clara que pide DIRECTAMENTE la acción de conversión real definida
+     en `objetivo` (ej. si el objetivo es "generar mensajes por WhatsApp", el CTA dice literalmente
+     que escriban por WhatsApp; si es "agendar cita", dice cómo agendar). Esto es un anuncio
+     PAGADO, nunca contenido orgánico: JAMÁS uses tácticas de enganche para comentarios/alcance
+     gratis como "coméntame la palabra X", "te cuento en los comentarios", "escribe SECRETO abajo"
+     — esas tácticas sirven para crecer alcance orgánico, no para convertir en un anuncio de paga,
+     donde cada clic/mensaje cuesta dinero y debe llevar a la acción real, no a un comentario.
 4. **version_15s** — el mismo guion pero recortado a una versión de 15 segundos: solo hook +
    problema/solución condensados + CTA, sin perder claridad.
 5. **hooks_alternativos** — un array de EXACTAMENTE 3 hooks alternativos al de la idea original,
@@ -52,7 +58,8 @@ UGC casual · Oferta directa · Autoridad educativa · Reactivación
    "estático, sin duración" para imagen estática).
 8. **copy_publicacion** — el texto para publicar el anuncio (no el guion hablado): con emojis,
    mismo esqueleto Hook→Problema→Solución→Prueba→Costo de la inacción→CTA pero redactado como
-   copy de post/anuncio, listo para pegar.
+   copy de post/anuncio, listo para pegar. El cierre debe usar el MISMO CTA de conversión directa
+   que `guion.cta` — nunca un CTA de comentarios/engagement orgánico.
 9. **prompt_imagen** — un prompt para un generador de imágenes IA, adaptado al FORMATO:
    - Si el FORMATO es "carrusel": describe cada slide por separado (numeradas).
    - Si el FORMATO es "imagen estática": describe la pieza única completa.
@@ -68,7 +75,8 @@ UGC casual · Oferta directa · Autoridad educativa · Reactivación
 - ¿El cliente se identifica con el problema?
 - ¿El producto aparece como solución natural?
 - ¿Hay un beneficio claro?
-- ¿El CTA es claro?
+- ¿El CTA pide directamente la acción de conversión real (WhatsApp, agendar, comprar, etc.), sin
+  técnicas de comentarios/engagement orgánico?
 - ¿Los 3 hooks alternativos son realmente distintos entre sí, no variaciones de la misma frase?
 
 Si una idea no cumple alguno de estos puntos, ajústala antes de responder.
