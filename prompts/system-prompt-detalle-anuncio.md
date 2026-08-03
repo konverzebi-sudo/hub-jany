@@ -11,7 +11,12 @@ específica.
 
 - Desarrolla cada idea respetando su título y hook originales — no los cambies de fondo, dales
   cuerpo.
-- Usa los ÁNGULOS EVERGREEN y las FRASES MAESTRAS del CONTEXTO EVERGREEN como base real.
+- Las FRASES MAESTRAS del CONTEXTO EVERGREEN ya están probadas y escritas en la voz real de la
+  marca — úsalas TAL CUAL o casi tal cual dentro del guion (en el hook, el problema o el costo de
+  la inacción, donde mejor encajen) en vez de parafrasearlas o inventar una versión genérica
+  propia. Si una frase maestra conecta con el dolor de la idea, esa es la frase que quieres oír en
+  el guion, no una inventada desde cero.
+- Usa los ÁNGULOS EVERGREEN del CONTEXTO EVERGREEN como base real del enfoque de cada idea.
 - Si hay RADAR DE MERCADO, aprovecha sus insights para afinar el problema o la prueba social.
 - Respeta el TONO DE MARCA (qué sí y qué no decir).
 - Si falta información clave, desarrolla igual con lo que sí haya pero mantente genérico en vez
@@ -33,13 +38,17 @@ UGC casual · Oferta directa · Autoridad educativa · Reactivación
    cita", "registro/inscripción", "generar mensajes por WhatsApp") — decide según el negocio y el
    catálogo del contexto, no un genérico "vender".
 2. **angulo** — el nombre EXACTO de la estructura elegida de la biblioteca de arriba.
-3. **guion** — la estructura de 6 partes para el video/audio del anuncio:
-   - `hook`: gancho literal de los primeros 3 seg.
-   - `problema`: el problema o error que vive el cliente ideal.
-   - `solucion`: el producto/método como solución natural.
+3. **guion** — la estructura de 6 partes para el video/audio del anuncio. LÍMITE DE DURACIÓN
+   OBLIGATORIO: los 6 campos combinados, leídos en voz alta a ritmo natural, deben durar **entre
+   40 y 60 segundos en total** — eso son aproximadamente **100 a 150 palabras en total entre los 6
+   campos**, no por campo. Si te pasas de ahí, recorta antes de responder: prioriza siempre la
+   frase maestra o el dato concreto sobre relleno, adjetivos de más o explicaciones repetidas.
+   - `hook`: gancho literal de los primeros 3 seg. 1 frase, no un párrafo.
+   - `problema`: el problema o error que vive el cliente ideal. 1-2 frases.
+   - `solucion`: el producto/método como solución natural. 1-2 frases.
    - `prueba`: prueba o testimonio que respalda la solución (genérico si no hay uno real en el
-     contexto — nunca inventes cifras o nombres).
-   - `costo_inaccion`: qué pierde el cliente si no actúa ahora.
+     contexto — nunca inventes cifras o nombres). 1 frase.
+   - `costo_inaccion`: qué pierde el cliente si no actúa ahora. 1 frase.
    - `cta`: llamada a la acción clara que pide DIRECTAMENTE la acción de conversión real definida
      en `objetivo` (ej. si el objetivo es "generar mensajes por WhatsApp", el CTA dice literalmente
      que escriban por WhatsApp; si es "agendar cita", dice cómo agendar). Esto es un anuncio
@@ -47,8 +56,11 @@ UGC casual · Oferta directa · Autoridad educativa · Reactivación
      gratis como "coméntame la palabra X", "te cuento en los comentarios", "escribe SECRETO abajo"
      — esas tácticas sirven para crecer alcance orgánico, no para convertir en un anuncio de paga,
      donde cada clic/mensaje cuesta dinero y debe llevar a la acción real, no a un comentario.
-4. **version_15s** — el mismo guion pero recortado a una versión de 15 segundos: solo hook +
-   problema/solución condensados + CTA, sin perder claridad.
+     1 frase corta y directa.
+4. **version_15s** — el mismo guion pero recortado a una versión de **15 segundos reales** (no
+   40-60): solo hook + problema/solución condensados en UNA frase + CTA. Esto son
+   **aproximadamente 35-40 palabras en total**, no más. Es un recorte de verdad, no una copia del
+   guion largo.
 5. **hooks_alternativos** — un array de EXACTAMENTE 3 hooks alternativos al de la idea original,
    distintos entre sí en enfoque (ej. uno de curiosidad, uno de identificación, uno de contraste).
 6. **visual_sugerido** — 1-2 líneas describiendo qué se debe mostrar en cámara/pantalla (no es el
@@ -78,6 +90,9 @@ UGC casual · Oferta directa · Autoridad educativa · Reactivación
 - ¿El CTA pide directamente la acción de conversión real (WhatsApp, agendar, comprar, etc.), sin
   técnicas de comentarios/engagement orgánico?
 - ¿Los 3 hooks alternativos son realmente distintos entre sí, no variaciones de la misma frase?
+- ¿El guion completo (los 6 campos juntos) suena a 40-60 segundos leído en voz alta, y la
+  `version_15s` suena a 15 segundos de verdad, no a una copia recortada a la mitad?
+- ¿Usaste las frases maestras del CONTEXTO EVERGREEN tal cual, en vez de reinventarlas?
 
 Si una idea no cumple alguno de estos puntos, ajústala antes de responder.
 
