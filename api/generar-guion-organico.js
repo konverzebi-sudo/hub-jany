@@ -10,6 +10,7 @@ const { sql } = require('@vercel/postgres');
 
 const DEFAULT_CLIENTE = 'jefeshub';
 const PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-guion-organico.md');
+const PREGUNTAS_PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-post-ia-preguntas.md');
 const CONTEXT_CHAR_LIMIT = 10000;
 
 let fixedPromptCache = null;
@@ -17,6 +18,13 @@ function cargarPromptFijo() {
   if (fixedPromptCache) return fixedPromptCache;
   fixedPromptCache = fs.readFileSync(PROMPT_PATH, 'utf-8');
   return fixedPromptCache;
+}
+
+let preguntasPromptCache = null;
+function cargarPromptPreguntas() {
+  if (preguntasPromptCache) return preguntasPromptCache;
+  preguntasPromptCache = fs.readFileSync(PREGUNTAS_PROMPT_PATH, 'utf-8');
+  return preguntasPromptCache;
 }
 
 const WINDOW_MS = 10 * 60 * 1000;
@@ -306,6 +314,31 @@ async function llamarClaude({ system, mensaje, maxTokens, conBusqueda }) {
   return { parsed, usage: data.usage };
 }
 
+async function llamarClaudeTexto({ system, mensaje, maxTokens }) {
+  const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': process.env.ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: maxTokens,
+      system,
+      messages: [{ role: 'user', content: mensaje }],
+    }),
+  });
+  const data = await anthropicRes.json();
+  if (!anthropicRes.ok) {
+    const err = new Error(data?.error?.message || 'Error al llamar a la API.');
+    err.status = anthropicRes.status;
+    throw err;
+  }
+  const texto = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
+  return { texto, usage: data.usage };
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
 
@@ -330,11 +363,27 @@ module.exports = async function handler(req, res) {
   const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
   const grupoId = body.grupo_id ? body.grupo_id.toString() : '';
   const productoId = body.producto_id ? body.producto_id.toString() : '';
-  const modo = body.modo === 'contenido' ? 'contenido' : 'ideas';
+  const modo = body.modo === 'contenido' ? 'contenido' : body.modo === 'pregunta' ? 'pregunta' : 'ideas';
   const objetivo = OBJETIVOS_VALIDOS.includes(body.objetivo) ? body.objetivo : 'alcance';
   const esTendencia = objetivo === 'tendencia';
 
   try {
+    if (modo === 'pregunta') {
+      const mensaje = (body.mensaje || '').toString().trim();
+      if (!mensaje) return res.status(400).json({ error: 'Falta la pregunta.' });
+
+      const promptPreguntas = cargarPromptPreguntas();
+      const { contexto } = await construirContexto(clienteId, grupoId);
+      const system = promptPreguntas + '\n\n' + contexto;
+
+      const { texto, usage } = await llamarClaudeTexto({ system, mensaje, maxTokens: 800 });
+      if (!texto) {
+        return res.status(502).json({ error: 'El Agente no devolvió respuesta. Intenta de nuevo.' });
+      }
+      await registrarUsoTokens(clienteId, 'generar-guion-organico-pregunta', usage);
+      return res.status(200).json({ text: texto });
+    }
+
     const promptFijo = cargarPromptFijo();
     const { contexto, catalogo } = await construirContexto(clienteId, grupoId);
     const bloqueProducto = formatearProducto(catalogo, productoId);

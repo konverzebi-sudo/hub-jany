@@ -1399,6 +1399,9 @@ let guionOrgObjetivo = 'alcance';
 let guionOrgFormato = 'reel';
 let guionOrgTema = '';
 let guionOrgStatus = '';
+let guionOrgPregunta = '';
+let guionOrgRespuesta = '';
+let guionOrgPreguntaStatus = '';
 
 function pintarGuionOrganico(container){
   const wrap = document.createElement('div');
@@ -1440,6 +1443,22 @@ function pintarGuionOrganico(container){
   linkOutputBox.style.display='none';
   wrap.appendChild(linkOutputBox);
 
+  const chatBox = document.createElement('div');
+  chatBox.className='evergreen-panel';
+  chatBox.style.marginTop='14px';
+  chatBox.innerHTML = `
+    <div class="mode-field">
+      <label>💬 Consulta en vivo con el Agente (respuesta directa, lista para usar)</label>
+      <textarea id="go-pregunta" rows="2" placeholder="ej. dame 5 frases de poder para un post donde salgo yo con el buscador del hub...">${escHtml(guionOrgPregunta)}</textarea>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;margin-top:8px;flex-wrap:wrap;">
+      <button class="btn btn-solid" id="go-pregunta-btn" type="button">Preguntar al Agente →</button>
+      <span class="mode-status" id="go-pregunta-status">${escHtml(guionOrgPreguntaStatus)}</span>
+    </div>
+    <div id="go-pregunta-output" class="mode-output">${guionOrgRespuesta?'':'<span class="mode-output-placeholder">La respuesta aparecerá aquí...</span>'}</div>
+  `;
+  wrap.appendChild(chatBox);
+
   if(guionOrgIdeas.length){
     const selBar = document.createElement('div');
     selBar.className='evergreen-selection-bar';
@@ -1469,16 +1488,64 @@ function pintarGuionOrganico(container){
 
   if(guionOrgIdeas.length) pintarGuionOrgTabla();
   actualizarGuionOrgSelCount();
+  if(guionOrgRespuesta) mostrarRespuestaGuionOrgPregunta(document.getElementById('go-pregunta-output'));
 
   document.getElementById('go-objetivo').addEventListener('change', e=>{ guionOrgObjetivo=e.target.value; });
   document.getElementById('go-formato').addEventListener('change', e=>{ guionOrgFormato=e.target.value; });
   document.getElementById('go-tema').addEventListener('input', e=>{ guionOrgTema=e.target.value; });
   document.getElementById('go-gen-btn').addEventListener('click', generarGuionOrgIdeas);
   document.getElementById('go-link-btn').addEventListener('click', armarPromptLinkReferencia);
+  document.getElementById('go-pregunta').addEventListener('input', e=>{ guionOrgPregunta=e.target.value; });
+  document.getElementById('go-pregunta-btn').addEventListener('click', preguntarAgentePostIA);
   if(guionOrgIdeas.length){
     document.getElementById('go-crear-historias').addEventListener('click', ()=>crearContenidoDesdeGuionOrg('historias'));
     document.getElementById('go-crear-contenido').addEventListener('click', ()=>crearContenidoDesdeGuionOrg('contenido'));
   }
+}
+
+async function preguntarAgentePostIA(){
+  const pregunta = (guionOrgPregunta||'').trim();
+  const btn = document.getElementById('go-pregunta-btn');
+  const statusEl = document.getElementById('go-pregunta-status');
+  const outputEl = document.getElementById('go-pregunta-output');
+  if(!pregunta){ statusEl.textContent='⚠️ Escribe tu pregunta primero.'; return; }
+  btn.disabled = true;
+  statusEl.textContent = '⏳ Consultando ADN + Evergreen + Radar para responderte...';
+  outputEl.innerHTML = '<span class="mode-output-placeholder">Pensando...</span>';
+  try{
+    const resp = await fetch('/api/generar-guion-organico', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ cliente: CLIENTE_ID, modo:'pregunta', mensaje: pregunta }),
+    });
+    const data = await resp.json();
+    if(!resp.ok) throw new Error(data.error || 'Error al consultar al Agente.');
+    guionOrgRespuesta = data.text || '';
+    guionOrgPreguntaStatus = '✅ Listo';
+    mostrarRespuestaGuionOrgPregunta(outputEl);
+  }catch(err){
+    guionOrgPreguntaStatus = '❌ ' + (err.message || 'Error al consultar al Agente.');
+    outputEl.innerHTML = '<span class="mode-output-placeholder">No se pudo obtener respuesta. Intenta de nuevo.</span>';
+  }
+  statusEl.textContent = guionOrgPreguntaStatus;
+  btn.disabled = false;
+}
+
+function mostrarRespuestaGuionOrgPregunta(outputEl){
+  outputEl.innerHTML = escHtml(guionOrgRespuesta);
+  const previa = document.getElementById('go-pregunta-copiar');
+  if(previa) previa.remove();
+  const copiarBtn = document.createElement('button');
+  copiarBtn.id = 'go-pregunta-copiar';
+  copiarBtn.className = 'mode-add-banco';
+  copiarBtn.style.marginTop = '8px';
+  copiarBtn.textContent = '📋 Copiar';
+  copiarBtn.addEventListener('click', ()=>{
+    navigator.clipboard.writeText(guionOrgRespuesta).then(()=>{
+      copiarBtn.textContent = '✅ Copiado';
+      setTimeout(()=>{ copiarBtn.textContent = '📋 Copiar'; }, 1500);
+    });
+  });
+  outputEl.after(copiarBtn);
 }
 
 function guionOrgRowHTML(item, i){
