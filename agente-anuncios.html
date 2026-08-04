@@ -133,6 +133,12 @@
   .anuncios-nota-box{background:var(--accent-soft);border:1px dashed var(--accent);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;}
   .anuncios-nota-box p{margin:0;font-size:12px;color:var(--text-dim);line-height:1.5;}
   .anuncios-nota-box p b{color:var(--accent);}
+  .anuncios-link-list{display:flex;flex-direction:column;gap:4px;max-height:180px;overflow-y:auto;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;}
+  .anuncio-link-row{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:3px 0;cursor:pointer;}
+  .anuncio-link-row input{flex-shrink:0;}
+  .anuncio-link-row .badge{flex-shrink:0;}
+  .anuncio-link-titulo{color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;}
+  .anuncio-link-titulo:hover{color:var(--accent);text-decoration:underline;}
 </style>
 </head>
 <body>
@@ -238,7 +244,7 @@ function mkCardId(){ return 'ac'+Date.now().toString(36)+Math.random().toString(
 function mkCampanaId(){ return 'camp'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 function mkConjuntoId(){ return 'conj'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 function mkCampana(){ return { id:mkCampanaId(), objetivo:'', tipo:'', grupo_id:'', producto_id:'', resultado_esperado:'', conjuntos:[] }; }
-function mkConjunto(){ return { id:mkConjuntoId(), ubicacion:'', edad:'', genero:'Todos', intereses:'', presupuesto_diario:'', duracion:'', tipo_contenido:'' }; }
+function mkConjunto(){ return { id:mkConjuntoId(), ubicacion:'', edad:'', genero:'Todos', intereses:'', presupuesto_diario:'', duracion:'', tipo_contenido:'', anuncios_ids:[] }; }
 
 async function cargarInicial(){
   try{ const r=await window.storage.get(CLIENTE_ID+':grupos-negocio'); grupos = r&&r.value?JSON.parse(r.value):[]; }catch(e){ grupos=[]; }
@@ -562,6 +568,19 @@ async function generarDetalleSeleccionadas(){
   }
 }
 
+// Cambia a "Campañas guardadas" y abre + hace scroll a una tarjeta puntual -- usado desde el
+// checklist de anuncios vinculados en cada Conjunto de la pestaña Estructura de Ads.
+function irAEditarCard(cardId){
+  currentTab = 'guardadas';
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active', x.dataset.tab==='guardadas'));
+  render();
+  const cardEl = document.querySelector(`.item-card[data-id="${cardId}"]`);
+  if(!cardEl) return;
+  const details = cardEl.querySelector('.item-details');
+  if(details) details.open = true;
+  cardEl.scrollIntoView({ behavior:'smooth', block:'center' });
+}
+
 // ─── CAMPAÑAS GUARDADAS ───────────────────────────────────────────────────
 function renderGuardadas(container){
   if(!cards.length){
@@ -700,7 +719,7 @@ function buildConjuntoCard(campana, conjunto){
   card.className = 'conjunto-card';
   card.innerHTML = `
     <div class="conjunto-top">
-      <span class="conjunto-top-title">🎯 Conjunto de anuncios</span>
+      <span class="conjunto-top-title">🎯 Conjunto de anuncios${conjunto.anuncios_ids && conjunto.anuncios_ids.length ? ` · ${conjunto.anuncios_ids.length} anuncio(s) vinculado(s)` : ''}</span>
       <button type="button" class="item-del" data-conjunto="${conjunto.id}" title="Eliminar conjunto">✕</button>
     </div>
     <div class="conjunto-fields-grid">
@@ -737,7 +756,16 @@ function buildConjuntoCard(campana, conjunto){
     </div>
     <div class="anuncios-nota-box">
       <p><b>📌 No olvides utilizar formatos:</b> UGC · Testimonio · Demostración · Ángulos...</p>
-      <button type="button" class="btn-outline" data-ir-guardadas="1">→ Ir a Campañas guardadas</button>
+      <div class="anuncios-link-list">
+        ${cards.length ? cards.map(c=>`
+          <label class="anuncio-link-row">
+            <input type="checkbox" data-conjunto-anuncio="${conjunto.id}" data-card="${c.id}"${(conjunto.anuncios_ids||[]).includes(c.id)?' checked':''}>
+            <span class="badge badge-${c.etapa}">${ETAPA_LABEL[c.etapa]||c.etapa}</span>
+            <span class="anuncio-link-titulo" data-editar-card="${c.id}" title="Abrir y editar esta campaña">${escHtml(c.titulo)} ✎</span>
+          </label>
+        `).join('') : '<p class="mode-status" style="margin:0;">Todavía no hay campañas guardadas para vincular.</p>'}
+      </div>
+      <button type="button" class="btn-outline" data-ir-guardadas="1">→ Crear más anuncios en Campañas guardadas</button>
     </div>
   `;
 
@@ -761,6 +789,23 @@ function buildConjuntoCard(campana, conjunto){
     currentTab = 'guardadas';
     document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active', x.dataset.tab==='guardadas'));
     render();
+  });
+  card.querySelectorAll('[data-editar-card]').forEach(el=>{
+    el.addEventListener('click', ()=>irAEditarCard(el.dataset.editarCard));
+  });
+  card.querySelectorAll('input[data-conjunto-anuncio]').forEach(cb=>{
+    cb.addEventListener('change',(e)=>{
+      const cardId = e.target.dataset.card;
+      if(!Array.isArray(conjunto.anuncios_ids)) conjunto.anuncios_ids=[];
+      if(e.target.checked){
+        if(!conjunto.anuncios_ids.includes(cardId)) conjunto.anuncios_ids.push(cardId);
+      } else {
+        conjunto.anuncios_ids = conjunto.anuncios_ids.filter(id=>id!==cardId);
+      }
+      scheduleEstructuraSave();
+      const titleEl = card.querySelector('.conjunto-top-title');
+      if(titleEl) titleEl.textContent = `🎯 Conjunto de anuncios${conjunto.anuncios_ids.length ? ` · ${conjunto.anuncios_ids.length} anuncio(s) vinculado(s)` : ''}`;
+    });
   });
   card.querySelector('[data-sugerir-targeting]').addEventListener('click', async (e)=>{
     const btn = e.target;
@@ -823,6 +868,7 @@ function promptFieldHtml(item, field, label){
 function buildAnuncioCard(item){
   const card = document.createElement('div');
   card.className='item-card';
+  card.dataset.id = item.id;
   card.style.setProperty('--horizon', 'var(--'+(item.etapa==='adquisicion'?'adq':item.etapa==='consideracion'?'con':'conv')+')');
   card.innerHTML = `
     <div class="item-top">
