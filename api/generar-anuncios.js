@@ -18,6 +18,7 @@ const { sql } = require('@vercel/postgres');
 const DEFAULT_CLIENTE = 'jefeshub';
 const PROMPT_PATH_IDEAS = path.join(__dirname, '..', 'prompts', 'system-prompt-ideas-anuncios.md');
 const PROMPT_PATH_DETALLE = path.join(__dirname, '..', 'prompts', 'system-prompt-detalle-anuncio.md');
+const PROMPT_PATH_TARGETING = path.join(__dirname, '..', 'prompts', 'system-prompt-targeting-anuncios.md');
 const CONTEXT_CHAR_LIMIT = 10000;
 const MAX_IDEAS_POR_LOTE = 9;
 const FORMATOS_VALIDOS = ['reel', 'imagen estática', 'carrusel'];
@@ -500,6 +501,48 @@ async function manejarModoDetalle(body, res) {
   return res.status(200).json({ detalles, formato, usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 } });
 }
 
+// ---------- modo: targeting (perfil de segmentación sugerido para un Conjunto de Anuncios) ----------
+
+async function manejarModoTargeting(body, res) {
+  const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
+  const grupoId = body.grupo_id ? body.grupo_id.toString() : '';
+  const productoId = body.producto_id ? body.producto_id.toString() : '';
+
+  const promptFijo = cargarPrompt(PROMPT_PATH_TARGETING);
+  const { contexto, catalogo } = await construirContexto(clienteId, grupoId);
+  const bloqueProducto = formatearProducto(catalogo, productoId, 'el perfil de targeting debe pensarse para este producto puntual');
+
+  const instruccion = 'INSTRUCCIÓN DE ESTA GENERACIÓN:\n' +
+    'Sugiere el perfil de targeting (ubicación, edad, género, intereses) para un Conjunto de Anuncios de Meta Ads, en el formato JSON indicado.' +
+    (bloqueProducto ? '\n\n' + bloqueProducto : '');
+
+  const system = [promptFijo, contexto, instruccion].join('\n\n');
+  const { ok, status, data } = await llamarClaude(
+    system,
+    'Sugiere el perfil de targeting pedido, en el formato JSON indicado. Sé breve y concreto en cada campo.',
+    600
+  );
+  if (!ok) {
+    return res.status(status).json({ error: data?.error?.message || 'Error al llamar a la API.' });
+  }
+
+  const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
+  const parsed = extractJson(text);
+  if (!parsed) {
+    return res.status(502).json({ error: 'No se pudo interpretar la respuesta del modelo.' });
+  }
+
+  const perfil = {
+    ubicacion: (parsed.ubicacion || '').toString(),
+    edad: (parsed.edad || '').toString(),
+    genero: (parsed.genero || '').toString(),
+    intereses: (parsed.intereses || '').toString(),
+  };
+
+  await registrarUsoTokens(clienteId, 'generar-anuncios-targeting', data.usage);
+  return res.status(200).json({ perfil, usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 } });
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
 
@@ -526,7 +569,8 @@ module.exports = async function handler(req, res) {
   try {
     if (modo === 'ideas') return await manejarModoIdeas(body, res);
     if (modo === 'detalle') return await manejarModoDetalle(body, res);
-    return res.status(400).json({ error: 'Falta o es inválido el campo "modo" (usa "ideas" o "detalle").' });
+    if (modo === 'targeting') return await manejarModoTargeting(body, res);
+    return res.status(400).json({ error: 'Falta o es inválido el campo "modo" (usa "ideas", "detalle" o "targeting").' });
   } catch (err) {
     return res.status(500).json({ error: 'Error de conexión con el Agente.' });
   }
