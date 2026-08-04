@@ -269,11 +269,11 @@
   <p class="sub">Gestiona tus ideas, cambia estados y usa el agente IA para generar guiones, ideas evergreen, creativos y calendarios alineados a tu sistema de ventas.</p>
 
   <div class="tabs">
+    <div class="tab tab-agente" data-tab="agente">✨ Agente <span class="count">IA</span></div>
+    <div class="tab" data-tab="calendario">📅 Calendario</div>
     <div class="tab active" data-tab="historias">Historias <span class="count" id="count-historias">50</span></div>
     <div class="tab" data-tab="contenido">Contenido <span class="count" id="count-contenido">10</span></div>
     <div class="tab" data-tab="banco">💭 Banco <span class="count" id="count-banco">0</span></div>
-    <div class="tab tab-agente" data-tab="agente">✨ Agente <span class="count">IA</span></div>
-    <div class="tab" data-tab="calendario">📅 Calendario</div>
   </div>
 
   <div id="stats-bar" class="stats-bar" style="display:none;"></div>
@@ -1204,11 +1204,11 @@ function irACalendarioItem(tab,id,gancho){
 
 // ─── AGENTE TAB ───────────────────────────────────────────────────────────────
 const AGENTE_MODES = [
-  {key:'ideas',  label:'💡 Evergreen IA',  desc:'Banco de ideas por categoría (viral, educativo, venta, entretenimiento, testimonio) listo para mandar a Historias/Contenido.',
-   custom:'evergreen-ideas'
-  },
   {key:'guion-org',label:'📱 Post IA',  desc:'Genera un banco de ideas con sus 7 ángulos, selecciona las mejores y crea caption+guion listos — lee tu ADN, tu Sistema Evergreen y tu Radar de Mercado en vivo.',
    custom:'guion-organico',
+  },
+  {key:'ideas',  label:'💡 Evergreen IA',  desc:'Banco de ideas por categoría (viral, educativo, venta, entretenimiento, testimonio) listo para mandar a Historias/Contenido.',
+   custom:'evergreen-ideas'
   },
   {key:'auditoria-post',label:'🔍 Auditoría de Post IA',  desc:'Pega el link del post, tu objetivo y lo que quieras que considere — arma un prompt para que la extensión de Claude investigue el post real y te dé el diagnóstico.',
    instant:true,
@@ -1232,7 +1232,7 @@ ACCIONES A TOMAR: 3 pasos concretos para el próximo post similar, incluyendo un
   },
 ];
 
-let agenteMode='ideas';
+let agenteMode='guion-org';
 let agenteOutput='';
 let agenteStatus='';
 let agenteAngulos=null;
@@ -1382,16 +1382,6 @@ function renderAgente(){
 }
 
 // ─── GUIONISTA ORGÁNICO (banco de ideas + crear contenido) ─────────────────────
-const GUIONORG_OBJETIVOS = [
-  {v:'alcance', l:'Alcance / viralidad'},
-  {v:'educativo', l:'Educativo'},
-  {v:'confianza', l:'Confianza'},
-  {v:'historia', l:'Historia'},
-  {v:'opinion', l:'Opinión / comparación'},
-  {v:'venta_sutil', l:'Venta sutil'},
-  {v:'venta_directa', l:'Venta directa orgánica'},
-  {v:'tendencia', l:'🔥 Tendencia (busca en la web)'},
-];
 const GUIONORG_FORMATOS = ['reel','tiktok','historia','carrusel','post estático'];
 
 let guionOrgIdeas = [];
@@ -1407,29 +1397,24 @@ function pintarGuionOrganico(container){
   const wrap = document.createElement('div');
   wrap.className='evergreen-panel';
 
-  const toolbar = document.createElement('div');
-  toolbar.className='evergreen-toolbar';
-  toolbar.innerHTML = `
-    <div class="mode-field" style="min-width:200px;">
-      <label>Objetivo</label>
-      <select id="go-objetivo">${GUIONORG_OBJETIVOS.map(o=>`<option value="${o.v}"${guionOrgObjetivo===o.v?' selected':''}>${o.l}</option>`).join('')}</select>
+  const chatBox = document.createElement('div');
+  chatBox.className='evergreen-panel';
+  chatBox.innerHTML = `
+    <div class="mode-field">
+      <label>💬 Consulta en vivo con el Agente (respuesta directa, lista para usar)</label>
+      <textarea id="go-pregunta" rows="2" placeholder="ej. dame 5 frases de poder para un post donde salgo yo con el buscador del hub...">${escHtml(guionOrgPregunta)}</textarea>
     </div>
-    <div class="mode-field" style="min-width:150px;">
-      <label>Formato</label>
-      <select id="go-formato">${GUIONORG_FORMATOS.map(f=>`<option value="${f}"${guionOrgFormato===f?' selected':''}>${f.charAt(0).toUpperCase()+f.slice(1)}</option>`).join('')}</select>
+    <div style="display:flex;align-items:center;gap:12px;margin-top:8px;flex-wrap:wrap;">
+      <button class="btn btn-solid" id="go-pregunta-btn" type="button">Preguntar al Agente →</button>
+      <span class="mode-status" id="go-pregunta-status">${escHtml(guionOrgPreguntaStatus)}</span>
     </div>
-    <div class="mode-field" style="min-width:220px;flex:1;">
-      <label>Tema o contexto (opcional)</label>
-      <input type="text" id="go-tema" placeholder="ej. dudas frecuentes sobre el precio" value="${escHtml(guionOrgTema)}">
-    </div>
-    <button class="btn btn-solid" id="go-gen-btn">✨ Generar ideas</button>
-    <span class="mode-status" id="go-status">${escHtml(guionOrgStatus)}</span>
+    <div id="go-pregunta-output" class="mode-output">${guionOrgRespuesta?'':'<span class="mode-output-placeholder">La respuesta aparecerá aquí...</span>'}</div>
   `;
-  wrap.appendChild(toolbar);
+  wrap.appendChild(chatBox);
 
   const linkBox = document.createElement('div');
   linkBox.className='evergreen-toolbar';
-  linkBox.style.marginTop='10px';
+  linkBox.style.marginTop='14px';
   linkBox.innerHTML = `
     <div class="mode-field" style="min-width:260px;flex:1;">
       <label>🔗 O analiza un video de referencia (cualquier industria)</label>
@@ -1443,21 +1428,22 @@ function pintarGuionOrganico(container){
   linkOutputBox.style.display='none';
   wrap.appendChild(linkOutputBox);
 
-  const chatBox = document.createElement('div');
-  chatBox.className='evergreen-panel';
-  chatBox.style.marginTop='14px';
-  chatBox.innerHTML = `
-    <div class="mode-field">
-      <label>💬 Consulta en vivo con el Agente (respuesta directa, lista para usar)</label>
-      <textarea id="go-pregunta" rows="2" placeholder="ej. dame 5 frases de poder para un post donde salgo yo con el buscador del hub...">${escHtml(guionOrgPregunta)}</textarea>
+  const toolbar = document.createElement('div');
+  toolbar.className='evergreen-toolbar';
+  toolbar.style.marginTop='14px';
+  toolbar.innerHTML = `
+    <div class="mode-field" style="min-width:150px;">
+      <label>Formato</label>
+      <select id="go-formato">${GUIONORG_FORMATOS.map(f=>`<option value="${f}"${guionOrgFormato===f?' selected':''}>${f.charAt(0).toUpperCase()+f.slice(1)}</option>`).join('')}</select>
     </div>
-    <div style="display:flex;align-items:center;gap:12px;margin-top:8px;flex-wrap:wrap;">
-      <button class="btn btn-solid" id="go-pregunta-btn" type="button">Preguntar al Agente →</button>
-      <span class="mode-status" id="go-pregunta-status">${escHtml(guionOrgPreguntaStatus)}</span>
+    <div class="mode-field" style="min-width:220px;flex:1;">
+      <label>Tema o contexto (opcional)</label>
+      <input type="text" id="go-tema" placeholder="ej. dudas frecuentes sobre el precio" value="${escHtml(guionOrgTema)}">
     </div>
-    <div id="go-pregunta-output" class="mode-output">${guionOrgRespuesta?'':'<span class="mode-output-placeholder">La respuesta aparecerá aquí...</span>'}</div>
+    <button class="btn btn-solid" id="go-gen-btn">✨ Generar ideas</button>
+    <span class="mode-status" id="go-status">${escHtml(guionOrgStatus)}</span>
   `;
-  wrap.appendChild(chatBox);
+  wrap.appendChild(toolbar);
 
   if(guionOrgIdeas.length){
     const selBar = document.createElement('div');
@@ -1490,7 +1476,6 @@ function pintarGuionOrganico(container){
   actualizarGuionOrgSelCount();
   if(guionOrgRespuesta) mostrarRespuestaGuionOrgPregunta(document.getElementById('go-pregunta-output'));
 
-  document.getElementById('go-objetivo').addEventListener('change', e=>{ guionOrgObjetivo=e.target.value; });
   document.getElementById('go-formato').addEventListener('change', e=>{ guionOrgFormato=e.target.value; });
   document.getElementById('go-tema').addEventListener('input', e=>{ guionOrgTema=e.target.value; });
   document.getElementById('go-gen-btn').addEventListener('click', generarGuionOrgIdeas);
