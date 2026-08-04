@@ -333,6 +333,12 @@
   .field textarea{ min-height:64px; resize:vertical; }
   .field-row{ display:flex; gap:.7rem; }
   .field-row .field{ flex:1; }
+  .birthdate-row{ display:flex; gap:.4rem; }
+  .birthdate-row input{ min-width:0; text-align:center; }
+  .birthdate-row input#fBirthDay, .birthdate-row input#fBirthMonth{ flex:0 0 26%; }
+  .birthdate-row input#fBirthYear{ flex:1; }
+  .weekday-hint{ font-size:.72rem; color:var(--teal); margin-top:.3rem; min-height:1em; }
+  .weekday-hint.invalid{ color:var(--rust); }
   .checkline{ display:flex; align-items:center; gap:.5rem; font-size:.85rem; }
   .photo-picker{ display:flex; gap:.8rem; align-items:center; }
   .photo-preview{
@@ -499,7 +505,12 @@
       <div class="field-row">
         <div class="field">
           <label>Fecha de nacimiento</label>
-          <input type="date" id="fBirthDate">
+          <div class="birthdate-row">
+            <input type="number" id="fBirthDay" placeholder="Día" min="1" max="31" inputmode="numeric">
+            <input type="number" id="fBirthMonth" placeholder="Mes" min="1" max="12" inputmode="numeric">
+            <input type="number" id="fBirthYear" placeholder="Año" min="1900" max="2100" inputmode="numeric">
+          </div>
+          <div id="fBirthWeekday" class="weekday-hint"></div>
         </div>
         <div class="field">
           <label>Lugar de nacimiento</label>
@@ -585,6 +596,40 @@
   </div>
 </div>
 
+<div class="modal-backdrop hidden" id="relEditBackdrop">
+  <div class="modal" style="max-width:360px;">
+    <div class="modal-header">
+      <h2>Estado de la relación</h2>
+      <button class="modal-close" id="relEditClose">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Estado</label>
+        <select id="relEstado">
+          <option value="union_libre">Unión libre / pareja</option>
+          <option value="casado">Casados</option>
+          <option value="divorciado">Divorciados</option>
+        </select>
+      </div>
+      <div class="field">
+        <label id="relDate1Label">Fecha</label>
+        <input type="date" id="relDate1">
+      </div>
+      <div class="field" id="relDate2Field" style="display:none;">
+        <label>Fecha de divorcio</label>
+        <input type="date" id="relDate2">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="tbtn danger" id="relEditDelete">Eliminar relación</button>
+      <div class="right">
+        <button class="tbtn" id="relEditCancel">Cancelar</button>
+        <button class="tbtn primary" id="relEditSave">Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -666,6 +711,39 @@
     if(parts.length !== 3) return d;
     return parts[2] + "/" + parts[1] + "/" + parts[0];
   }
+
+  var DIAS_SEMANA = ["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
+  // Día/mes/año en campos de número (en vez del <input type=date> nativo,
+  // cuyo selector de calendario es muy lento en celular para llegar a
+  // años viejos) — arma la fecha "YYYY-MM-DD" y de paso muestra el día de
+  // la semana en automático.
+  function birthDateFromFields(){
+    var y = document.getElementById("fBirthYear").value.trim();
+    var m = document.getElementById("fBirthMonth").value.trim();
+    var d = document.getElementById("fBirthDay").value.trim();
+    if(!y && !m && !d) return "";
+    if(!y || !m || !d) return "";
+    var mm = ("0"+m).slice(-2), dd = ("0"+d).slice(-2);
+    return y + "-" + mm + "-" + dd;
+  }
+  function updateBirthWeekday(){
+    var hint = document.getElementById("fBirthWeekday");
+    var y = parseInt(document.getElementById("fBirthYear").value, 10);
+    var m = parseInt(document.getElementById("fBirthMonth").value, 10);
+    var d = parseInt(document.getElementById("fBirthDay").value, 10);
+    if(!y || !m || !d){ hint.textContent = ""; hint.classList.remove("invalid"); return; }
+    var dt = new Date(y, m-1, d);
+    if(dt.getFullYear()!==y || dt.getMonth()!==m-1 || dt.getDate()!==d){
+      hint.textContent = "Esa fecha no existe — revisa el día/mes.";
+      hint.classList.add("invalid");
+      return;
+    }
+    hint.classList.remove("invalid");
+    hint.textContent = "Fue un " + DIAS_SEMANA[dt.getDay()] + ".";
+  }
+  ["fBirthYear","fBirthMonth","fBirthDay"].forEach(function(id){
+    document.getElementById(id).addEventListener("input", updateBirthWeekday);
+  });
 
   function ensureCanvasSize(x, y){
     var w = parseInt(canvas.style.width || canvas.offsetWidth, 10);
@@ -1346,9 +1424,20 @@
         var ay = (a.top+a.bottom)/2, by = (b.top+b.bottom)/2;
         d = "M "+a.right+" "+ay+" L "+b.left+" "+by;
         if(a.cx > b.cx) d = "M "+a.left+" "+ay+" L "+b.right+" "+by;
-        path.setAttribute("stroke", "var(--accent)");
+        // El estilo de la línea refleja el estado: unión libre (punteado
+        // fino, por defecto si no se ha capturado nada), casados (guiones),
+        // divorciados (gris apagado).
+        if(r.status === "divorciado"){
+          path.setAttribute("stroke", "var(--line)");
+          path.setAttribute("stroke-dasharray", "6,4");
+        } else if(r.status === "casado"){
+          path.setAttribute("stroke", "var(--accent)");
+          path.setAttribute("stroke-dasharray", "5,3");
+        } else {
+          path.setAttribute("stroke", "var(--accent)");
+          path.setAttribute("stroke-dasharray", "1.5,3");
+        }
         path.setAttribute("stroke-width", "2.2");
-        path.setAttribute("stroke-dasharray", "5,3");
         path.setAttribute("fill", "none");
       } else {
         var ay2=(a.top+a.bottom)/2, by2=(b.top+b.bottom)/2;
@@ -1361,6 +1450,10 @@
       path.setAttribute("d", d);
       path.dataset.relId = r.id;
       path.addEventListener("click", function(){
+        if(r.type === "spouse"){
+          openRelationEdit(r.id);
+          return;
+        }
         if(confirm("¿Eliminar esta relación?")){
           state.relations = state.relations.filter(function(x){ return x.id !== r.id; });
           save(); render();
@@ -1369,6 +1462,54 @@
       svg.appendChild(path);
     });
   }
+
+  /* ---------- Editar relación (estado de pareja) ---------- */
+  var editingRelId = null;
+  function updateRelDateFields(){
+    var estado = document.getElementById("relEstado").value;
+    var label1 = document.getElementById("relDate1Label");
+    var field2 = document.getElementById("relDate2Field");
+    if(estado === "union_libre"){ label1.textContent = "Fecha desde que son pareja"; }
+    else { label1.textContent = "Fecha de matrimonio"; }
+    field2.style.display = (estado === "divorciado") ? "block" : "none";
+  }
+  document.getElementById("relEstado").addEventListener("change", updateRelDateFields);
+  function openRelationEdit(relId){
+    var r = state.relations.find(function(x){ return x.id === relId; });
+    if(!r) return;
+    editingRelId = relId;
+    document.getElementById("relEstado").value = r.status || "union_libre";
+    document.getElementById("relDate1").value = r.date1 || "";
+    document.getElementById("relDate2").value = r.date2 || "";
+    updateRelDateFields();
+    document.getElementById("relEditBackdrop").classList.remove("hidden");
+  }
+  function closeRelationEdit(){
+    document.getElementById("relEditBackdrop").classList.add("hidden");
+    editingRelId = null;
+  }
+  document.getElementById("relEditClose").addEventListener("click", closeRelationEdit);
+  document.getElementById("relEditCancel").addEventListener("click", closeRelationEdit);
+  document.getElementById("relEditBackdrop").addEventListener("click", function(ev){ if(ev.target===this) closeRelationEdit(); });
+  document.getElementById("relEditSave").addEventListener("click", function(){
+    var r = state.relations.find(function(x){ return x.id === editingRelId; });
+    if(!r) return;
+    r.status = document.getElementById("relEstado").value;
+    r.date1 = document.getElementById("relDate1").value;
+    r.date2 = document.getElementById("relEstado").value === "divorciado" ? document.getElementById("relDate2").value : "";
+    save();
+    render();
+    closeRelationEdit();
+    toast("Relación actualizada.");
+  });
+  document.getElementById("relEditDelete").addEventListener("click", function(){
+    if(!confirm("¿Eliminar esta relación?")) return;
+    state.relations = state.relations.filter(function(x){ return x.id !== editingRelId; });
+    save();
+    render();
+    closeRelationEdit();
+    toast("Relación eliminada.");
+  });
 
   /* ---------- Add / Edit / Delete ---------- */
   var editingId = null;
@@ -1423,6 +1564,29 @@
     openEdit(null);
     if(kind==="papa") document.getElementById("fGender").value = "M";
     if(kind==="mama") document.getElementById("fGender").value = "F";
+    if(kind==="hermano"){
+      // Los hermanos completos normalmente comparten los 2 apellidos —
+      // se precargan (editable) para no tener que volver a escribirlos.
+      var src = personById(quickAddSourceId);
+      document.getElementById("fApellido1").value = src.apellido1 || "";
+      document.getElementById("fApellido2").value = src.apellido2 || "";
+    }
+    if(kind==="mediohermano"){
+      // Aquí solo se llega cuando hay 0 o 1 papá conocido (con 2+ ya se
+      // preguntó con cuál comparte). Si hay uno, se precarga su apellido.
+      var onlyParents = relatedParents(quickAddSourceId);
+      if(onlyParents.length===1) prefillApellidoFromParent(personById(onlyParents[0]));
+    }
+  }
+  // Pone el apellido del papá/mamá compartido en el campo que le
+  // corresponde (1º si es hombre, 2º si es mujer) — editable después.
+  function prefillApellidoFromParent(parent){
+    if(!parent) return;
+    if(parent.gender==="F"){
+      document.getElementById("fApellido2").value = parent.apellido1 || "";
+    } else {
+      document.getElementById("fApellido1").value = parent.apellido1 || "";
+    }
   }
   // Antes de crear al hijo, se confirman (y se pueden corregir) sus papás:
   // evita el error de tocar la tarjeta de alguien con el mismo nombre por
@@ -1477,6 +1641,17 @@
       pendingQuickAdd = { type: "hijo", parentA: a, parentB: b || null };
       closeQuickAddMenu();
       openEdit(null);
+      // Apellido 1 = del papá (paterno), apellido 2 = de la mamá (su
+      // propio primer apellido) — según quién tenga género registrado
+      // como hombre/mujer; si no hay género, usa el orden en que se
+      // eligieron.
+      var pa = personById(a), pb = b ? personById(b) : null;
+      var father = (pa && pa.gender==="M") ? pa : (pb && pb.gender==="M") ? pb : null;
+      var mother = (pa && pa.gender==="F") ? pa : (pb && pb.gender==="F") ? pb : null;
+      if(!father && !mother){ father = pa; mother = pb; }
+      else { if(!father) father = (pa===mother) ? pb : pa; if(!mother) mother = (pb===father) ? pa : pb; }
+      document.getElementById("fApellido1").value = father ? (father.apellido1||"") : "";
+      document.getElementById("fApellido2").value = mother ? (mother.apellido1||"") : "";
     });
     box.appendChild(continueBtn);
 
@@ -1505,6 +1680,7 @@
         pendingQuickAdd = { type:"mediohermano", sourceId: quickAddSourceId, sharedParentId: pid };
         closeQuickAddMenu();
         openEdit(null);
+        prefillApellidoFromParent(pp);
       });
       box.appendChild(btn);
     });
@@ -1534,7 +1710,11 @@
     document.getElementById("fApellido2").value = p ? p.apellido2||"" : "";
     document.getElementById("fNick").value = p ? p.nickname||"" : "";
     document.getElementById("fGender").value = p ? p.gender||"" : "";
-    document.getElementById("fBirthDate").value = p ? p.birthDate||"" : "";
+    var bParts = (p && p.birthDate) ? p.birthDate.split("-") : ["","",""];
+    document.getElementById("fBirthYear").value = bParts[0] || "";
+    document.getElementById("fBirthMonth").value = bParts[1] ? String(Number(bParts[1])) : "";
+    document.getElementById("fBirthDay").value = bParts[2] ? String(Number(bParts[2])) : "";
+    updateBirthWeekday();
     document.getElementById("fBirthPlace").value = p ? p.birthPlace||"" : "";
     document.getElementById("fCurrentPlace").value = p ? p.currentPlace||"" : "";
     document.getElementById("fDeceased").checked = p ? !!p.deceased : false;
@@ -1637,7 +1817,7 @@
     delete p.name;
     p.nickname = document.getElementById("fNick").value.trim();
     p.gender = document.getElementById("fGender").value;
-    p.birthDate = document.getElementById("fBirthDate").value;
+    p.birthDate = birthDateFromFields();
     p.birthPlace = document.getElementById("fBirthPlace").value.trim();
     p.currentPlace = document.getElementById("fCurrentPlace").value.trim();
     p.deceased = document.getElementById("fDeceased").checked;
@@ -1683,7 +1863,7 @@
 
   /* ---------- Zoom ---------- */
   function setZoom(z){
-    zoom = Math.min(1.6, Math.max(0.4, z));
+    zoom = Math.min(1.6, Math.max(0.1, z));
     canvas.style.transform = "scale("+zoom+")";
     document.getElementById("zoomLabel").textContent = Math.round(zoom*100)+"%";
     updateLines();
