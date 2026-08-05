@@ -116,10 +116,18 @@
   .detail-field{display:flex;flex-direction:column;gap:2px;}
   .detail-field-head{display:flex;align-items:center;justify-content:space-between;}
   .detail-field label{display:block;font-size:10.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em;font-family:'JetBrains Mono',monospace;margin-bottom:4px;}
-  .detail-field textarea{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:8px 10px;resize:vertical;outline:none;line-height:1.5;}
-  .detail-field textarea:focus{border-color:var(--accent);}
+  .detail-field textarea,.detail-field input[type=text]{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:8px 10px;resize:vertical;outline:none;line-height:1.5;}
+  .detail-field textarea:focus,.detail-field input[type=text]:focus{border-color:var(--accent);}
+  .detail-field input[type=text]::placeholder,.detail-field textarea::placeholder{color:var(--text-dim);opacity:.7;}
   .retro-field textarea{background:var(--accent-soft);border-color:var(--accent);min-height:44px;}
   .retro-field label{color:var(--accent);}
+  .link-field .link-input{color:#7CB9E8;border-color:#2A4A63;}
+  .link-field label{color:#7CB9E8;}
+  .carpeta-box{background:var(--surface);border:1px solid #2A4A63;border-radius:14px;padding:14px 18px;margin-bottom:16px;display:flex;flex-direction:column;gap:8px;}
+  .carpeta-box label{font-size:10.5px;color:#7CB9E8;text-transform:uppercase;letter-spacing:.04em;font-family:'JetBrains Mono',monospace;}
+  .carpeta-box input[type=text]{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;color:#7CB9E8;font-family:'Inter',sans-serif;font-size:13px;padding:9px 12px;outline:none;}
+  .carpeta-box input[type=text]:focus{border-color:#7CB9E8;}
+  .carpeta-box input[type=text]::placeholder{color:var(--text-dim);opacity:.7;}
 
   /* ESTRUCTURA DE ADS: Campaña > Conjunto de Anuncios > (nota + link a Anuncios) */
   .campana-card{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:14px;padding:18px 20px;margin-bottom:16px;display:flex;flex-direction:column;gap:14px;}
@@ -191,6 +199,7 @@ const CLIENTE_ID = detectClienteId();
 const BORRADOR_KEY = CLIENTE_ID + ':anuncios-ideas-borrador';
 const CARDS_KEY = CLIENTE_ID + ':agente-anuncios';
 const ESTRUCTURA_KEY = CLIENTE_ID + ':anuncios-estructura';
+const CARPETA_KEY = CLIENTE_ID + ':anuncios-carpeta-link';
 
 const ETAPAS = [
   { key:'adquisicion', label:'📢 Adquisición', desc:'Para gente que no conoce la marca todavía — hook de scroll-stop, no vende directo.' },
@@ -236,6 +245,7 @@ let borradorStore = {};
 let cards = [];
 let draggedCardId = null;
 let estructuras = [];
+let linkCarpeta = '';
 let formatoSel = FORMATOS[0];
 let genStatus = '';
 let cardsLoaded = false;
@@ -276,6 +286,10 @@ async function cargarInicial(){
     const r=await window.storage.get(ESTRUCTURA_KEY);
     estructuras = r&&r.value?JSON.parse(r.value):[];
   }catch(e){ estructuras=[]; }
+  try{
+    const r=await window.storage.get(CARPETA_KEY);
+    linkCarpeta = r&&r.value?JSON.parse(r.value):'';
+  }catch(e){ linkCarpeta=''; }
   cardsLoaded = true;
   document.getElementById('count-cards').textContent = cards.length;
 }
@@ -295,8 +309,12 @@ let estructuraSaveTimer=null;
 function scheduleEstructuraSave(){ clearTimeout(estructuraSaveTimer); estructuraSaveTimer=setTimeout(guardarEstructura,600); }
 async function guardarEstructura(opts){ try{ await window.storage.set(ESTRUCTURA_KEY, JSON.stringify(estructuras), opts); }catch(e){} }
 
-document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'){ if(cardsPendingSave) doSaveCards({keepalive:true}); guardarBorrador({keepalive:true}); guardarEstructura({keepalive:true}); } });
-window.addEventListener('pagehide',()=>{ if(cardsPendingSave) doSaveCards({keepalive:true}); guardarBorrador({keepalive:true}); guardarEstructura({keepalive:true}); });
+let carpetaSaveTimer=null;
+function scheduleCarpetaSave(){ clearTimeout(carpetaSaveTimer); carpetaSaveTimer=setTimeout(guardarCarpeta,600); }
+async function guardarCarpeta(opts){ try{ await window.storage.set(CARPETA_KEY, JSON.stringify(linkCarpeta), opts); }catch(e){} }
+
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'){ if(cardsPendingSave) doSaveCards({keepalive:true}); guardarBorrador({keepalive:true}); guardarEstructura({keepalive:true}); guardarCarpeta({keepalive:true}); } });
+window.addEventListener('pagehide',()=>{ if(cardsPendingSave) doSaveCards({keepalive:true}); guardarBorrador({keepalive:true}); guardarEstructura({keepalive:true}); guardarCarpeta({keepalive:true}); });
 
 // ─── TABS ─────────────────────────────────────────────────────────────────
 function render(){
@@ -563,6 +581,7 @@ async function generarDetalleSeleccionadas(){
         estado: 'idea',
         fecha: '',
         retroalimentacion: '',
+        link_archivo_final: '',
       });
       creadas++;
       const fila = (datosActuales()[it.etapa]||[]).find(f=>f.id===it.id);
@@ -596,8 +615,25 @@ function irAEditarCard(cardId){
 
 // ─── CAMPAÑAS GUARDADAS ───────────────────────────────────────────────────
 function renderGuardadas(container){
+  const carpetaBox = document.createElement('div');
+  carpetaBox.className = 'carpeta-box';
+  carpetaBox.innerHTML = `
+    <div class="detail-field-head"><label>📁 Carpeta de campaña (Drive u otro) — videos y material terminado</label>${linkCarpeta?`<a class="btn-guion" href="${escHtml(linkCarpeta)}" target="_blank" rel="noopener">Abrir ↗</a>`:''}</div>
+    <input type="text" id="carpeta-link-input" placeholder="https://drive.google.com/..." value="${escHtml(linkCarpeta)}">
+  `;
+  container.appendChild(carpetaBox);
+  document.getElementById('carpeta-link-input').addEventListener('input',(e)=>{
+    linkCarpeta = e.target.value;
+    scheduleCarpetaSave();
+    const link = carpetaBox.querySelector('.btn-guion');
+    if(link) link.href = linkCarpeta;
+  });
+
   if(!cards.length){
-    container.innerHTML = '<div class="empty-row">Todavía no hay campañas guardadas. Aprueba ideas en el Generador y elige un formato para crearlas.</div>';
+    const empty = document.createElement('div');
+    empty.className = 'empty-row';
+    empty.textContent = 'Todavía no hay campañas guardadas. Aprueba ideas en el Generador y elige un formato para crearlas.';
+    container.appendChild(empty);
     return;
   }
   const grid = document.createElement('div');
@@ -920,6 +956,10 @@ function buildAnuncioCard(item){
       <label>💬 Retroalimentación (se usa en las próximas generaciones)</label>
       <textarea data-id="${item.id}" data-field="retroalimentacion" placeholder="Ej: falta mencionar que son 10 agentes de IA trabajando para el negocio...">${escHtml(item.retroalimentacion)}</textarea>
     </div>
+    <div class="detail-field link-field">
+      <div class="detail-field-head"><label>🔗 Link del anuncio final (Drive, Canva, etc.)</label>${item.link_archivo_final?`<a class="btn-guion" href="${escHtml(item.link_archivo_final)}" target="_blank" rel="noopener">Abrir ↗</a>`:''}</div>
+      <input type="text" class="link-input" data-id="${item.id}" data-field="link_archivo_final" placeholder="https://..." value="${escHtml(item.link_archivo_final)}">
+    </div>
     <details class="item-details">
       <summary>Ver detalles</summary>
       <div class="detail-grid">
@@ -960,7 +1000,7 @@ function bindCardEvents(container){
       render();
     });
   });
-  container.querySelectorAll('.fecha-input,.gancho-input,.detail-field textarea').forEach(inp=>{
+  container.querySelectorAll('.fecha-input,.gancho-input,.detail-field textarea,.detail-field input[type=text]').forEach(inp=>{
     if(inp.tagName==='TEXTAREA') autoGrow(inp);
     inp.addEventListener('input',(e)=>{
       if(inp.tagName==='TEXTAREA') autoGrow(inp);
