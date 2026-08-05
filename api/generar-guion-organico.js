@@ -314,7 +314,10 @@ async function llamarClaude({ system, mensaje, maxTokens, conBusqueda }) {
   return { parsed, usage: data.usage };
 }
 
-async function llamarClaudeTexto({ system, mensaje, maxTokens }) {
+const PREGUNTA_MAX_MESSAGES = 40;
+
+async function llamarClaudeTexto({ system, mensaje, messages, maxTokens }) {
+  const msgs = Array.isArray(messages) && messages.length ? messages : [{ role: 'user', content: mensaje }];
   const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -326,7 +329,7 @@ async function llamarClaudeTexto({ system, mensaje, maxTokens }) {
       model: 'claude-sonnet-4-6',
       max_tokens: maxTokens,
       system,
-      messages: [{ role: 'user', content: mensaje }],
+      messages: msgs,
     }),
   });
   const data = await anthropicRes.json();
@@ -369,14 +372,25 @@ module.exports = async function handler(req, res) {
 
   try {
     if (modo === 'pregunta') {
-      const mensaje = (body.mensaje || '').toString().trim();
-      if (!mensaje) return res.status(400).json({ error: 'Falta la pregunta.' });
+      const mensajeSuelto = (body.mensaje || '').toString().trim();
+      const messagesRaw = Array.isArray(body.messages) ? body.messages : null;
+      const historial = messagesRaw
+        ? messagesRaw
+            .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+            .slice(-PREGUNTA_MAX_MESSAGES)
+            .map((m) => ({ role: m.role, content: m.content }))
+        : mensajeSuelto
+        ? [{ role: 'user', content: mensajeSuelto }]
+        : [];
+      if (!historial.length || historial[historial.length - 1].role !== 'user') {
+        return res.status(400).json({ error: 'Falta la pregunta.' });
+      }
 
       const promptPreguntas = cargarPromptPreguntas();
       const { contexto } = await construirContexto(clienteId, grupoId);
       const system = promptPreguntas + '\n\n' + contexto;
 
-      const { texto, usage } = await llamarClaudeTexto({ system, mensaje, maxTokens: 800 });
+      const { texto, usage } = await llamarClaudeTexto({ system, messages: historial, maxTokens: 800 });
       if (!texto) {
         return res.status(502).json({ error: 'El Agente no devolvió respuesta. Intenta de nuevo.' });
       }
