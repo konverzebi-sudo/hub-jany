@@ -43,6 +43,16 @@
     .how-export { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-size: 12.5px; color: var(--text-dim); line-height: 1.6; }
     .how-export b { color: var(--accent); }
 
+    /* ── HISTORIAL ── */
+    .hist-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+    .hist-info { min-width: 0; }
+    .hist-file { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .hist-date { font-size: 11.5px; color: var(--text-dim); margin-top: 2px; }
+    .hist-actions { display: flex; gap: 6px; flex-shrink: 0; }
+    .hist-actions button { background: transparent; border: 1px solid var(--line); color: var(--text-dim); font-size: 12.5px; padding: 7px 12px; border-radius: 8px; cursor: pointer; }
+    .hist-actions button:hover { border-color: var(--accent); color: var(--accent); }
+    .hist-actions button.hist-borrar:hover { border-color: #EF4444; color: #EF4444; }
+
     .analyze-btn { width: 100%; background: var(--accent); border: none; color: #0F0B16; font-weight: 700; font-size: 15px; padding: 14px 18px; border-radius: 10px; cursor: pointer; transition: 0.15s; }
     .analyze-btn:hover:not(:disabled) { filter: brightness(1.1); transform: translateY(-1px); }
     .analyze-btn:disabled { opacity: 0.35; cursor: not-allowed; }
@@ -124,6 +134,12 @@
 </header>
 
 <main>
+
+  <!-- ═══ HISTORIAL ═══ -->
+  <section class="card" id="historialSection" style="display:none;">
+    <div class="card-label">🕘 Historial de análisis</div>
+    <div id="historialList" style="display:flex;flex-direction:column;gap:8px;"></div>
+  </section>
 
   <!-- ═══ SUBIR REPORTE ═══ -->
   <section class="card" id="upload-section">
@@ -244,11 +260,85 @@
 
   var ultimoDashboardHtml = '';
 
+  // ── HISTORIAL DE ANÁLISIS (guardado en storage, por marca) ──
+  var HISTORIAL_KEY = CLIENTE_ID + ':optimizacion-historial';
+  var MAX_HISTORIAL = 8;
+  var historial = [];
+
+  function formatearFechaHistorial(iso){
+    try {
+      var d = new Date(iso);
+      return d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }) + ' · ' + d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+    } catch (e) { return iso; }
+  }
+
+  function renderHistorial(){
+    var section = document.getElementById('historialSection');
+    var list = document.getElementById('historialList');
+    if (!historial.length) { section.style.display = 'none'; return; }
+    section.style.display = 'block';
+    list.innerHTML = historial.map(function(h){
+      return '<div class="hist-item">'
+        + '<div class="hist-info"><div class="hist-file">' + escaparHtmlOpt(h.archivo || 'Reporte') + '</div>'
+        + '<div class="hist-date">' + formatearFechaHistorial(h.fecha) + '</div></div>'
+        + '<div class="hist-actions">'
+        + '<button type="button" class="hist-ver" data-id="' + h.id + '">Ver</button>'
+        + '<button type="button" class="hist-borrar" data-id="' + h.id + '" title="Borrar">🗑️</button>'
+        + '</div></div>';
+    }).join('');
+    Array.prototype.forEach.call(list.querySelectorAll('.hist-ver'), function(btn){
+      btn.addEventListener('click', function(){ verAnalisisGuardado(btn.getAttribute('data-id')); });
+    });
+    Array.prototype.forEach.call(list.querySelectorAll('.hist-borrar'), function(btn){
+      btn.addEventListener('click', function(){ borrarAnalisisGuardado(btn.getAttribute('data-id')); });
+    });
+  }
+
+  async function cargarHistorial(){
+    try {
+      var r = await window.storage.get(HISTORIAL_KEY);
+      if (r && r.value) historial = JSON.parse(r.value) || [];
+    } catch (e) { historial = []; }
+    renderHistorial();
+  }
+
+  async function persistirHistorial(){
+    try { await window.storage.set(HISTORIAL_KEY, JSON.stringify(historial)); } catch (e) {}
+  }
+
+  function guardarEnHistorial(archivo, html){
+    historial.unshift({ id: Date.now().toString(), fecha: new Date().toISOString(), archivo: archivo, html: html });
+    historial = historial.slice(0, MAX_HISTORIAL);
+    renderHistorial();
+    persistirHistorial();
+  }
+
+  function verAnalisisGuardado(id){
+    var entry = historial.find(function(h){ return h.id === id; });
+    if (!entry) return;
+    ultimoDashboardHtml = entry.html;
+    csvFileName = entry.archivo;
+    csvText = null; // solo se guardo el HTML resultante, no el CSV original -- sin chat de seguimiento aqui
+    document.getElementById('upload-section').style.display = 'none';
+    document.getElementById('historialSection').style.display = 'none';
+    mostrarDashboard(entry.html);
+    document.getElementById('agentBox').style.display = 'none';
+  }
+
+  function borrarAnalisisGuardado(id){
+    historial = historial.filter(function(h){ return h.id !== id; });
+    renderHistorial();
+    persistirHistorial();
+  }
+
+  cargarHistorial();
+
   analyzeBtn.addEventListener('click', function(){ analizarReporte(); });
 
   async function analizarReporte(){
     if (!csvText) return;
     document.getElementById('upload-section').style.display = 'none';
+    document.getElementById('historialSection').style.display = 'none';
     document.getElementById('loadingBlock').style.display = 'flex';
     document.getElementById('resultBlock').style.display = 'none';
     iniciarLoadingSteps();
@@ -269,15 +359,18 @@
       document.getElementById('loadingBlock').style.display = 'none';
       if (!response.ok) {
         document.getElementById('upload-section').style.display = 'block';
+        renderHistorial();
         showUploadError(data.error || 'No se pudo generar el análisis. Intenta de nuevo.');
         return;
       }
       ultimoDashboardHtml = data.text;
+      guardarEnHistorial(csvFileName, ultimoDashboardHtml);
       mostrarDashboard(ultimoDashboardHtml);
     } catch (err) {
       detenerLoadingSteps();
       document.getElementById('loadingBlock').style.display = 'none';
       document.getElementById('upload-section').style.display = 'block';
+      renderHistorial();
       showUploadError('Hubo un error de conexión. Intenta de nuevo en un momento.');
     }
   }
@@ -303,6 +396,7 @@
     document.getElementById('resultBlock').style.display = 'none';
     document.getElementById('agentBox').style.display = 'none';
     document.getElementById('upload-section').style.display = 'block';
+    renderHistorial();
     agentMessages = [];
     renderAgentChat();
   });
