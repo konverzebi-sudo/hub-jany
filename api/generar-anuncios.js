@@ -19,10 +19,19 @@ const DEFAULT_CLIENTE = 'jefeshub';
 const PROMPT_PATH_IDEAS = path.join(__dirname, '..', 'prompts', 'system-prompt-ideas-anuncios.md');
 const PROMPT_PATH_DETALLE = path.join(__dirname, '..', 'prompts', 'system-prompt-detalle-anuncio.md');
 const PROMPT_PATH_TARGETING = path.join(__dirname, '..', 'prompts', 'system-prompt-targeting-anuncios.md');
+const PROMPT_PATH_CAMPOS_META = path.join(__dirname, '..', 'prompts', 'system-prompt-campos-meta.md');
 const CONTEXT_CHAR_LIMIT = 10000;
 const MAX_IDEAS_POR_LOTE = 9;
+const MAX_CAMPOS_META_POR_LOTE = 12;
 const FORMATOS_VALIDOS = ['reel', 'imagen estática', 'carrusel'];
 const ETAPAS = ['adquisicion', 'consideracion', 'conversion'];
+// Lista fija de botones de CTA que existen de verdad en Meta Ads Manager -- nunca se le pide al
+// modelo que invente uno nuevo, solo que elija de esta lista.
+const CTA_OPTIONS = ['Enviar mensaje', 'Más información', 'Comprar ahora', 'Reservar', 'Solicitar hora', 'Registrarte', 'Contactarnos', 'Llamar ahora', 'Obtener oferta', 'Suscribirse'];
+function validarCta(valor) {
+  const encontrado = CTA_OPTIONS.find((c) => c.toLowerCase() === (valor || '').toString().trim().toLowerCase());
+  return encontrado || '';
+}
 
 const promptCache = {};
 function cargarPrompt(rutaAbsoluta) {
@@ -494,6 +503,9 @@ async function manejarModoDetalle(body, res) {
       prompt_imagen: (d && d.prompt_imagen) || '',
       prompt_video: (d && d.prompt_video) || '',
       caption_whatsapp: (d && d.caption_whatsapp) || '',
+      titulo_anuncio: (d && d.titulo_anuncio) || '',
+      descripcion_anuncio: (d && d.descripcion_anuncio) || '',
+      cta_boton: validarCta(d && d.cta_boton) || 'Más información',
     };
   });
 
@@ -543,6 +555,68 @@ async function manejarModoTargeting(body, res) {
   return res.status(200).json({ perfil, usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 } });
 }
 
+// ---------- modo: completar_meta (rellena Título/Descripción/CTA de anuncios ya desarrollados) ----------
+// Backfill de una sola vez para tarjetas creadas antes de que existieran estos 3 campos -- los
+// anuncios nuevos ya salen con esto desde el modo "detalle", este modo es solo para ponerse al día.
+
+async function manejarModoCompletarMeta(body, res) {
+  const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
+  const grupoId = body.grupo_id ? body.grupo_id.toString() : '';
+  const cardsEntrada = Array.isArray(body.cards) ? body.cards : [];
+
+  if (cardsEntrada.length === 0) {
+    return res.status(400).json({ error: 'Falta el lote de anuncios a completar.' });
+  }
+  if (cardsEntrada.length > MAX_CAMPOS_META_POR_LOTE) {
+    return res.status(400).json({ error: `Máximo ${MAX_CAMPOS_META_POR_LOTE} anuncios por lote.` });
+  }
+
+  const tarjetas = cardsEntrada.map((c, i) => ({
+    id: (c && c.id) ? c.id.toString() : `card${i + 1}`,
+    titulo: (c && c.titulo) ? c.titulo.toString() : '',
+    hook: (c && c.hook) ? c.hook.toString() : '',
+    objetivo: (c && c.objetivo) ? c.objetivo.toString() : '',
+    cta: (c && c.guion && c.guion.cta) ? c.guion.cta.toString() : '',
+    copy_publicacion: (c && c.copy_publicacion) ? c.copy_publicacion.toString() : '',
+  }));
+
+  const promptFijo = cargarPrompt(PROMPT_PATH_CAMPOS_META);
+  const { contexto } = await construirContexto(clienteId, grupoId);
+
+  const listaAnuncios = tarjetas.map((t, i) =>
+    `${i + 1}. id="${t.id}"\n   Título: ${t.titulo}\n   Hook: ${t.hook}\n   Objetivo: ${t.objetivo || 'sin especificar'}\n   CTA del guion: ${t.cta || 'sin especificar'}\n   Copy: ${t.copy_publicacion || '(sin copy)'}`
+  ).join('\n');
+
+  const instruccion = 'INSTRUCCIÓN DE ESTA GENERACIÓN:\n' +
+    `ANUNCIOS YA DESARROLLADOS A COMPLETAR (${tarjetas.length}):\n${listaAnuncios}`;
+
+  const system = [promptFijo, contexto, instruccion].join('\n\n');
+  const { ok, status, data } = await llamarClaude(
+    system,
+    'Completa titulo_anuncio, descripcion_anuncio y cta_boton de cada anuncio del lote, en el formato JSON (array) indicado, en el mismo orden y con el mismo "id" que recibiste.',
+    Math.min(4000, 300 + tarjetas.length * 250)
+  );
+  if (!ok) {
+    return res.status(status).json({ error: data?.error?.message || 'Error al llamar a la API.' });
+  }
+
+  const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
+  const parsed = extractJsonArray(text);
+  if (!parsed || parsed.length === 0) {
+    return res.status(502).json({ error: data.stop_reason === 'max_tokens' ? 'La respuesta quedó incompleta. Intenta con menos anuncios por lote.' : 'No se pudo interpretar la respuesta del modelo.' });
+  }
+
+  const campos = parsed.map((d, i) => ({
+    id: (d && d.id) ? d.id.toString() : (tarjetas[i] ? tarjetas[i].id : `card${i + 1}`),
+    titulo_anuncio: (d && d.titulo_anuncio) || '',
+    descripcion_anuncio: (d && d.descripcion_anuncio) || '',
+    cta_boton: validarCta(d && d.cta_boton) || 'Más información',
+  }));
+
+  await registrarUsoTokens(clienteId, 'generar-anuncios-completar-meta', data.usage);
+  return res.status(200).json({ campos, usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 } });
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
 
@@ -570,7 +644,8 @@ module.exports = async function handler(req, res) {
     if (modo === 'ideas') return await manejarModoIdeas(body, res);
     if (modo === 'detalle') return await manejarModoDetalle(body, res);
     if (modo === 'targeting') return await manejarModoTargeting(body, res);
-    return res.status(400).json({ error: 'Falta o es inválido el campo "modo" (usa "ideas", "detalle" o "targeting").' });
+    if (modo === 'completar_meta') return await manejarModoCompletarMeta(body, res);
+    return res.status(400).json({ error: 'Falta o es inválido el campo "modo" (usa "ideas", "detalle", "targeting" o "completar_meta").' });
   } catch (err) {
     return res.status(500).json({ error: 'Error de conexión con el Agente.' });
   }

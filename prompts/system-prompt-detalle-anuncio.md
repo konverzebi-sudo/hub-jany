@@ -88,6 +88,23 @@ UGC casual · Oferta directa · Autoridad educativa · Reactivación
 11. **caption_whatsapp** — un mensaje corto (2-4 líneas) para recompartir esta idea en un status o
     grupo de WhatsApp, tono cercano, con CTA.
 
+### Campos del formulario de Meta Ads Manager (Contenido → Texto)
+
+Meta pide estos 3 campos por separado del texto principal (que ya es `copy_publicacion`) — sin
+ellos el anuncio no se puede publicar. Complétalos siempre:
+
+12. **titulo_anuncio** — el "Título" de Meta: un titular corto y directo, **máximo 40 caracteres**,
+    que remate el mensaje del `copy_publicacion` (ej. "Agenda tu cita hoy", "Chatea con nosotros",
+    "3 sesiones, resultados reales"). Nunca repitas el hook completo, es un remate corto.
+13. **descripcion_anuncio** — la "Descripción" de Meta: 1 línea corta opcional que amplía el
+    título (máximo 30 caracteres aprox., ej. "Cupo limitado esta semana"). Si no aporta nada
+    nuevo, déjalo como cadena vacía `""` en vez de rellenar con algo forzado.
+14. **cta_boton** — el botón de "Llamada a la acción" de Meta. Elige EXACTAMENTE una opción de
+    esta lista fija (nunca inventes un texto de botón que no esté aquí), la que mejor corresponda
+    al `objetivo` de esta idea:
+    `Enviar mensaje` · `Más información` · `Comprar ahora` · `Reservar` · `Solicitar hora` ·
+    `Registrarte` · `Contactarnos` · `Llamar ahora` · `Obtener oferta` · `Suscribirse`
+
 ## Checklist de un buen guion — revisa antes de entregar cada idea
 
 - ¿El hook detiene el scroll?
@@ -121,6 +138,9 @@ MISMO ORDEN en que recibiste las ideas, con esta forma exacta por elemento:
   "copy_publicacion": "...",
   "prompt_imagen": "...",
   "prompt_video": "...",
-  "caption_whatsapp": "..."
+  "caption_whatsapp": "...",
+  "titulo_anuncio": "...",
+  "descripcion_anuncio": "...",
+  "cta_boton": "..."
 }
 ```

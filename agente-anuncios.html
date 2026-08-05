@@ -116,9 +116,12 @@
   .detail-field{display:flex;flex-direction:column;gap:2px;}
   .detail-field-head{display:flex;align-items:center;justify-content:space-between;}
   .detail-field label{display:block;font-size:10.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em;font-family:'JetBrains Mono',monospace;margin-bottom:4px;}
-  .detail-field textarea,.detail-field input[type=text]{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:8px 10px;resize:vertical;outline:none;line-height:1.5;}
-  .detail-field textarea:focus,.detail-field input[type=text]:focus{border-color:var(--accent);}
+  .detail-field textarea,.detail-field input[type=text],.detail-field select{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:8px 10px;resize:vertical;outline:none;line-height:1.5;}
+  .detail-field textarea:focus,.detail-field input[type=text]:focus,.detail-field select:focus{border-color:var(--accent);}
   .detail-field input[type=text]::placeholder,.detail-field textarea::placeholder{color:var(--text-dim);opacity:.7;}
+  .meta-fields-box{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:10px;}
+  .meta-fields-title{margin:0;font-family:'JetBrains Mono',monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);}
+  .meta-fields-box .detail-field textarea,.meta-fields-box .detail-field input[type=text],.meta-fields-box .detail-field select{background:var(--surface);}
   .retro-field textarea{background:var(--accent-soft);border-color:var(--accent);min-height:44px;}
   .retro-field label{color:var(--accent);}
   .link-field .link-input{color:#7CB9E8;border-color:#2A4A63;}
@@ -208,6 +211,9 @@ const ETAPAS = [
   { key:'conversion', label:'🟢 Conversión', desc:'Para gente lista para comprar — oferta directa, urgencia, CTA fuerte.' },
 ];
 const FORMATOS = ['reel', 'imagen estática', 'carrusel'];
+// Misma lista fija que api/generar-anuncios.js (CTA_OPTIONS) -- botones reales de Meta Ads Manager.
+const CTA_OPTIONS = ['Enviar mensaje', 'Más información', 'Comprar ahora', 'Reservar', 'Solicitar hora', 'Registrarte', 'Contactarnos', 'Llamar ahora', 'Obtener oferta', 'Suscribirse'];
+const MAX_CAMPOS_META_POR_LOTE = 12;
 const ETAPA_LABEL = {}; ETAPAS.forEach(e=>{ ETAPA_LABEL[e.key]=e.label; });
 
 // ─── ESTRUCTURA DE ADS: taxonomía real de objetivos de Meta Ads (ODAX) ──────
@@ -588,6 +594,9 @@ async function generarDetalleSeleccionadas(){
         prompt_imagen: det.prompt_imagen,
         prompt_video: det.prompt_video,
         caption_whatsapp: det.caption_whatsapp,
+        titulo_anuncio: det.titulo_anuncio || '',
+        descripcion_anuncio: det.descripcion_anuncio || '',
+        cta_boton: det.cta_boton || '',
         estado: 'idea',
         fecha: '',
         retroalimentacion: '',
@@ -653,6 +662,20 @@ function renderGuardadas(container){
     if(link) link.href = linkBM;
   });
 
+  if(cards.length){
+    const faltantes = cards.filter(c=>!c.titulo_anuncio || !c.cta_boton);
+    const completarBar = document.createElement('div');
+    completarBar.className = 'carpeta-box';
+    completarBar.style.cssText = 'flex-direction:row;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;';
+    completarBar.innerHTML = `
+      <span class="mode-status" id="completar-meta-status">${faltantes.length ? `${faltantes.length} campaña(s) sin Título/CTA de Meta Ads Manager.` : '✅ Todas las campañas tienen sus campos de Meta completos.'}</span>
+      <button class="btn btn-outline" id="completar-meta-btn" type="button"${faltantes.length?'':' disabled'}>✨ Completar campos de Meta Ads</button>
+    `;
+    container.appendChild(completarBar);
+    const completarBtn = document.getElementById('completar-meta-btn');
+    if(completarBtn) completarBtn.addEventListener('click', completarCamposMeta);
+  }
+
   if(!cards.length){
     const empty = document.createElement('div');
     empty.className = 'empty-row';
@@ -665,6 +688,49 @@ function renderGuardadas(container){
   cards.forEach(item=>grid.appendChild(buildAnuncioCard(item)));
   container.appendChild(grid);
   bindCardEvents(container);
+}
+
+// Backfill de una sola vez: completa Título/Descripción/CTA de Meta Ads Manager en las tarjetas
+// que se crearon antes de que existieran estos 3 campos. Las tarjetas nuevas ya salen completas
+// desde generarDetalleSeleccionadas() -- este botón es solo para ponerse al día con las viejas.
+async function completarCamposMeta(){
+  const statusEl = document.getElementById('completar-meta-status');
+  const btn = document.getElementById('completar-meta-btn');
+  const faltantes = cards.filter(c=>!c.titulo_anuncio || !c.cta_boton);
+  if(!faltantes.length) return;
+  btn.disabled = true;
+  let hechos = 0;
+  for(let i=0;i<faltantes.length;i+=MAX_CAMPOS_META_POR_LOTE){
+    const lote = faltantes.slice(i, i+MAX_CAMPOS_META_POR_LOTE);
+    statusEl.className = 'mode-status';
+    statusEl.textContent = `⏳ Completando ${hechos+1}-${Math.min(hechos+lote.length, faltantes.length)} de ${faltantes.length}...`;
+    try{
+      const res = await fetch('/api/generar-anuncios', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          modo:'completar_meta', cliente: CLIENTE_ID,
+          cards: lote.map(c=>({ id:c.id, titulo:c.titulo, hook:c.hook, objetivo:c.objetivo, guion:c.guion, copy_publicacion:c.copy_publicacion })),
+        }),
+      });
+      const data = await res.json();
+      if(!res.ok || !data.campos){ statusEl.textContent='Error: '+(data.error||'No se pudo completar.'); statusEl.classList.add('error'); btn.disabled=false; return; }
+      const porId = {};
+      data.campos.forEach(c=>{ porId[c.id]=c; });
+      lote.forEach(c=>{
+        const campos = porId[c.id];
+        if(!campos) return;
+        c.titulo_anuncio = campos.titulo_anuncio || c.titulo_anuncio;
+        c.descripcion_anuncio = campos.descripcion_anuncio || c.descripcion_anuncio;
+        c.cta_boton = campos.cta_boton || c.cta_boton;
+        hechos++;
+      });
+      scheduleCardsSave();
+    }catch(err){
+      statusEl.textContent = 'Error de conexión.'; statusEl.classList.add('error'); btn.disabled=false; return;
+    }
+  }
+  statusEl.textContent = `✅ ${hechos} campaña(s) completadas con Título/Descripción/CTA de Meta.`;
+  render();
 }
 
 // ─── ESTRUCTURA DE ADS ────────────────────────────────────────────────────
@@ -941,6 +1007,29 @@ function textFieldHtml(item, field, label){
   `;
 }
 
+function metaFieldsHtml(item){
+  return `
+    <div class="meta-fields-box">
+      <p class="meta-fields-title">🅕 Campos de Meta Ads Manager (Contenido → Texto)</p>
+      <div class="detail-field">
+        <label>Título (máx. 40 caracteres)</label>
+        <input type="text" maxlength="40" data-id="${item.id}" data-field="titulo_anuncio" placeholder="Ej: Agenda tu cita hoy" value="${escHtml(item.titulo_anuncio)}">
+      </div>
+      <div class="detail-field">
+        <label>Descripción (opcional)</label>
+        <input type="text" maxlength="30" data-id="${item.id}" data-field="descripcion_anuncio" placeholder="Ej: Cupo limitado esta semana" value="${escHtml(item.descripcion_anuncio)}">
+      </div>
+      <div class="detail-field">
+        <label>Llamada a la acción</label>
+        <select data-id="${item.id}" data-field="cta_boton">
+          <option value="">— Selecciona —</option>
+          ${CTA_OPTIONS.map(c=>`<option value="${c}"${item.cta_boton===c?' selected':''}>${c}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+  `;
+}
+
 function promptFieldHtml(item, field, label){
   return `
     <div class="detail-field">
@@ -994,6 +1083,7 @@ function buildAnuncioCard(item){
         ${textFieldHtml(item,'visual_sugerido','Visual sugerido (qué mostrar)')}
         ${textFieldHtml(item,'duracion_sugerida','Duración sugerida')}
         ${promptFieldHtml(item,'copy_publicacion','Copy para publicar')}
+        ${metaFieldsHtml(item)}
         ${promptFieldHtml(item,'prompt_imagen','Prompt de imagen (IA)')}
         ${promptFieldHtml(item,'prompt_video','Prompt de video (IA)')}
         ${promptFieldHtml(item,'caption_whatsapp','Caption para WhatsApp')}
@@ -1024,7 +1114,7 @@ function bindCardEvents(container){
       render();
     });
   });
-  container.querySelectorAll('.fecha-input,.gancho-input,.detail-field textarea,.detail-field input[type=text]').forEach(inp=>{
+  container.querySelectorAll('.fecha-input,.gancho-input,.detail-field textarea,.detail-field input[type=text],.detail-field select').forEach(inp=>{
     if(inp.tagName==='TEXTAREA') autoGrow(inp);
     inp.addEventListener('input',(e)=>{
       if(inp.tagName==='TEXTAREA') autoGrow(inp);
