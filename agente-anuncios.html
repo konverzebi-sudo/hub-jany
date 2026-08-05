@@ -245,7 +245,11 @@ function mkCardId(){ return 'ac'+Date.now().toString(36)+Math.random().toString(
 function mkCampanaId(){ return 'camp'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 function mkConjuntoId(){ return 'conj'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 function mkCampana(){ return { id:mkCampanaId(), objetivo:'', tipo:'', grupo_id:'', producto_id:'', resultado_esperado:'', conjuntos:[] }; }
-function mkConjunto(){ return { id:mkConjuntoId(), ubicacion:'', edad:'', genero:'Todos', intereses:'', presupuesto_diario:'', duracion:'', tipo_contenido:'', anuncios_ids:[] }; }
+// Presupuesto mínimo recomendado y duración por defecto -- regla fija del negocio, no depende
+// del contexto de marca, así que se aplica siempre igual (no se le pide a la IA que la decida).
+const PRESUPUESTO_DIARIO_MINIMO = '$100 MXN (mínimo recomendado)';
+const DURACION_DEFAULT = 'Indefinido';
+function mkConjunto(){ return { id:mkConjuntoId(), ubicacion:'', edad:'', genero:'Todos', intereses:'', presupuesto_diario:PRESUPUESTO_DIARIO_MINIMO, duracion:DURACION_DEFAULT, tipo_contenido:'', anuncios_ids:[] }; }
 
 async function cargarInicial(){
   try{ const r=await window.storage.get(CLIENTE_ID+':grupos-negocio'); grupos = r&&r.value?JSON.parse(r.value):[]; }catch(e){ grupos=[]; }
@@ -819,6 +823,8 @@ function buildConjuntoCard(campana, conjunto){
       const data = await res.json();
       if(!res.ok || !data.perfil){ alert('Error: '+(data.error||'No se pudo sugerir el perfil.')); return; }
       Object.assign(conjunto, data.perfil);
+      if(!conjunto.duracion.trim()) conjunto.duracion = DURACION_DEFAULT;
+      if(!conjunto.presupuesto_diario.trim()) conjunto.presupuesto_diario = PRESUPUESTO_DIARIO_MINIMO;
       scheduleEstructuraSave();
       render();
     }catch(err){
