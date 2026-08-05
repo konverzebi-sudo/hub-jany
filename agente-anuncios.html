@@ -200,6 +200,7 @@ const BORRADOR_KEY = CLIENTE_ID + ':anuncios-ideas-borrador';
 const CARDS_KEY = CLIENTE_ID + ':agente-anuncios';
 const ESTRUCTURA_KEY = CLIENTE_ID + ':anuncios-estructura';
 const CARPETA_KEY = CLIENTE_ID + ':anuncios-carpeta-link';
+const BM_KEY = CLIENTE_ID + ':anuncios-bm-link';
 
 const ETAPAS = [
   { key:'adquisicion', label:'📢 Adquisición', desc:'Para gente que no conoce la marca todavía — hook de scroll-stop, no vende directo.' },
@@ -246,6 +247,7 @@ let cards = [];
 let draggedCardId = null;
 let estructuras = [];
 let linkCarpeta = '';
+let linkBM = '';
 let formatoSel = FORMATOS[0];
 let genStatus = '';
 let cardsLoaded = false;
@@ -290,6 +292,10 @@ async function cargarInicial(){
     const r=await window.storage.get(CARPETA_KEY);
     linkCarpeta = r&&r.value?JSON.parse(r.value):'';
   }catch(e){ linkCarpeta=''; }
+  try{
+    const r=await window.storage.get(BM_KEY);
+    linkBM = r&&r.value?JSON.parse(r.value):'';
+  }catch(e){ linkBM=''; }
   cardsLoaded = true;
   document.getElementById('count-cards').textContent = cards.length;
 }
@@ -313,8 +319,12 @@ let carpetaSaveTimer=null;
 function scheduleCarpetaSave(){ clearTimeout(carpetaSaveTimer); carpetaSaveTimer=setTimeout(guardarCarpeta,600); }
 async function guardarCarpeta(opts){ try{ await window.storage.set(CARPETA_KEY, JSON.stringify(linkCarpeta), opts); }catch(e){} }
 
-document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'){ if(cardsPendingSave) doSaveCards({keepalive:true}); guardarBorrador({keepalive:true}); guardarEstructura({keepalive:true}); guardarCarpeta({keepalive:true}); } });
-window.addEventListener('pagehide',()=>{ if(cardsPendingSave) doSaveCards({keepalive:true}); guardarBorrador({keepalive:true}); guardarEstructura({keepalive:true}); guardarCarpeta({keepalive:true}); });
+let bmSaveTimer=null;
+function scheduleBMSave(){ clearTimeout(bmSaveTimer); bmSaveTimer=setTimeout(guardarBM,600); }
+async function guardarBM(opts){ try{ await window.storage.set(BM_KEY, JSON.stringify(linkBM), opts); }catch(e){} }
+
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'){ if(cardsPendingSave) doSaveCards({keepalive:true}); guardarBorrador({keepalive:true}); guardarEstructura({keepalive:true}); guardarCarpeta({keepalive:true}); guardarBM({keepalive:true}); } });
+window.addEventListener('pagehide',()=>{ if(cardsPendingSave) doSaveCards({keepalive:true}); guardarBorrador({keepalive:true}); guardarEstructura({keepalive:true}); guardarCarpeta({keepalive:true}); guardarBM({keepalive:true}); });
 
 // ─── TABS ─────────────────────────────────────────────────────────────────
 function render(){
@@ -627,6 +637,20 @@ function renderGuardadas(container){
     scheduleCarpetaSave();
     const link = carpetaBox.querySelector('.btn-guion');
     if(link) link.href = linkCarpeta;
+  });
+
+  const bmBox = document.createElement('div');
+  bmBox.className = 'carpeta-box';
+  bmBox.innerHTML = `
+    <div class="detail-field-head"><label>🏢 Business Manager (Meta Ads)</label>${linkBM?`<a class="btn-guion" href="${escHtml(linkBM)}" target="_blank" rel="noopener">Abrir ↗</a>`:''}</div>
+    <input type="text" id="bm-link-input" placeholder="https://business.facebook.com/..." value="${escHtml(linkBM)}">
+  `;
+  container.appendChild(bmBox);
+  document.getElementById('bm-link-input').addEventListener('input',(e)=>{
+    linkBM = e.target.value;
+    scheduleBMSave();
+    const link = bmBox.querySelector('.btn-guion');
+    if(link) link.href = linkBM;
   });
 
   if(!cards.length){
