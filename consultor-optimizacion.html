@@ -39,11 +39,6 @@
     .dropzone-sub { font-size: 12px; color: var(--text-dim); letter-spacing: 0.02em; }
     .dropzone-sub b { color: var(--accent); }
     .file-ready { display: none; align-items: center; gap: 8px; font-size: 13.5px; margin-top: 12px; color: var(--accent); font-weight: 600; }
-    .paste-toggle { display: inline-block; margin-top: 12px; font-size: 12px; color: var(--text-dim); text-decoration: underline; cursor: pointer; background: none; border: none; padding: 0; font-family: inherit; }
-    .paste-toggle:hover { color: var(--accent); }
-    .paste-area { display: none; margin-top: 12px; }
-    .paste-area textarea { width: 100%; min-height: 140px; background: var(--surface); border: 1.5px solid var(--line); border-radius: 10px; color: var(--text); padding: 12px; font-family: "JetBrains Mono", monospace; font-size: 12px; resize: vertical; }
-    .paste-area textarea:focus { outline: none; border-color: var(--accent); }
 
     .how-export { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-size: 12.5px; color: var(--text-dim); line-height: 1.6; }
     .how-export b { color: var(--accent); }
@@ -141,11 +136,6 @@
     </div>
     <div class="file-ready" id="fileReady"><span>✅</span><span id="fileName"></span></div>
 
-    <button type="button" class="paste-toggle" id="pasteToggle">¿No tienes el archivo a mano? Pega el CSV como texto</button>
-    <div class="paste-area" id="pasteArea">
-      <textarea id="pasteInput" placeholder="Pega aquí el contenido del CSV exportado de Meta Ads Manager..."></textarea>
-    </div>
-
     <div class="how-export" style="margin-top:14px;">
       <b>¿Cómo exportar tu CSV?</b><br>
       Meta Ads Manager → Nivel Anuncio → Sin desglose → Exportar → CSV (.csv)
@@ -201,9 +191,6 @@
   var dropzone = document.getElementById('dropzone');
   var fileInput = document.getElementById('fileInput');
   var analyzeBtn = document.getElementById('analyzeBtn');
-  var pasteToggle = document.getElementById('pasteToggle');
-  var pasteArea = document.getElementById('pasteArea');
-  var pasteInput = document.getElementById('pasteInput');
 
   dropzone.addEventListener('click', function(){ fileInput.click(); });
   dropzone.addEventListener('dragover', function(e){ e.preventDefault(); dropzone.classList.add('dragover'); });
@@ -223,7 +210,6 @@
     reader.onload = function(){
       csvText = reader.result;
       csvFileName = file.name;
-      pasteInput.value = '';
       document.getElementById('fileName').textContent = file.name;
       document.getElementById('fileReady').style.display = 'flex';
       analyzeBtn.disabled = false;
@@ -232,23 +218,6 @@
     reader.onerror = function(){ showUploadError('No se pudo leer el archivo. Intenta de nuevo.'); };
     reader.readAsText(file, 'utf-8');
   }
-
-  pasteToggle.addEventListener('click', function(){
-    pasteArea.style.display = pasteArea.style.display === 'block' ? 'none' : 'block';
-  });
-  pasteInput.addEventListener('input', function(){
-    var val = pasteInput.value.trim();
-    if (val) {
-      csvText = pasteInput.value;
-      csvFileName = 'pegado.csv';
-      document.getElementById('fileReady').style.display = 'none';
-      analyzeBtn.disabled = false;
-      clearUploadError();
-    } else if (!csvFileName || csvFileName === 'pegado.csv') {
-      csvText = null;
-      analyzeBtn.disabled = true;
-    }
-  });
 
   function showUploadError(msg){
     var box = document.getElementById('uploadError');
@@ -329,7 +298,6 @@
     csvText = null;
     csvFileName = '';
     fileInput.value = '';
-    pasteInput.value = '';
     document.getElementById('fileReady').style.display = 'none';
     analyzeBtn.disabled = true;
     document.getElementById('resultBlock').style.display = 'none';
