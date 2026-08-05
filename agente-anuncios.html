@@ -87,9 +87,13 @@
   /* CARDS (calcado de item-card de Jefe Contenido) */
   .cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;}
   .empty-row{padding:18px;text-align:center;color:var(--text-dim);font-size:13px;background:var(--surface);border:1px dashed var(--line);border-radius:12px;}
-  .item-card{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--horizon,var(--adq));border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:10px;}
+  .item-card{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--horizon,var(--adq));border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:10px;transition:transform .12s,box-shadow .12s;}
+  .item-card.dragging{opacity:.4;}
+  .item-card.drag-over{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft);}
   .item-top{display:flex;align-items:center;gap:8px;justify-content:space-between;}
   .item-top-right{display:flex;align-items:center;gap:6px;}
+  .drag-handle{cursor:grab;color:var(--text-dim);font-size:15px;line-height:1;user-select:none;flex-shrink:0;}
+  .drag-handle:active{cursor:grabbing;}
   .item-del{border:none;background:transparent;color:var(--text-dim);cursor:pointer;font-size:14px;padding:5px 7px;border-radius:6px;opacity:.5;transition:.15s;}
   .item-del:hover{color:#EF4444;opacity:1;background:rgba(239,68,68,.1);}
   select.estado-select{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:5px 10px;border-radius:100px;border:1px solid transparent;cursor:pointer;}
@@ -230,6 +234,7 @@ let anguloIdx = '';
 let cantidadPorEtapa = 3;
 let borradorStore = {};
 let cards = [];
+let draggedCardId = null;
 let estructuras = [];
 let formatoSel = FORMATOS[0];
 let genStatus = '';
@@ -889,9 +894,11 @@ function buildAnuncioCard(item){
   const card = document.createElement('div');
   card.className='item-card';
   card.dataset.id = item.id;
+  card.draggable = true;
   card.style.setProperty('--horizon', 'var(--'+(item.etapa==='adquisicion'?'adq':item.etapa==='consideracion'?'con':'conv')+')');
   card.innerHTML = `
     <div class="item-top">
+      <span class="drag-handle" title="Arrastra para reordenar">⠿</span>
       <select class="estado-select ${item.estado}" data-id="${item.id}" data-field="estado">
         <option value="idea" ${item.estado==='idea'?'selected':''}>💡 Idea</option>
         <option value="proceso" ${item.estado==='proceso'?'selected':''}>⚙️ En proceso</option>
@@ -984,6 +991,46 @@ function bindCardEvents(container){
         btn.textContent='✅ Copiado';
         setTimeout(()=>{ btn.textContent=prev; },1500);
       });
+    });
+  });
+
+  // Arrastrar y soltar para reordenar manualmente -- reordena el array `cards` (fuente de verdad
+  // del orden guardado) y persiste con el mismo ciclo debounced de siempre.
+  container.querySelectorAll('.item-card[draggable="true"]').forEach(cardEl=>{
+    cardEl.addEventListener('dragstart',(e)=>{
+      draggedCardId = cardEl.dataset.id;
+      cardEl.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      try{ e.dataTransfer.setData('text/plain', cardEl.dataset.id); }catch(err){}
+    });
+    cardEl.addEventListener('dragend',()=>{
+      draggedCardId = null;
+      container.querySelectorAll('.item-card').forEach(c=>{ c.classList.remove('dragging'); c.classList.remove('drag-over'); });
+    });
+    cardEl.addEventListener('dragover',(e)=>{
+      if(!draggedCardId || draggedCardId===cardEl.dataset.id) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      cardEl.classList.add('drag-over');
+    });
+    cardEl.addEventListener('dragleave',()=>{
+      cardEl.classList.remove('drag-over');
+    });
+    cardEl.addEventListener('drop',(e)=>{
+      e.preventDefault();
+      cardEl.classList.remove('drag-over');
+      const targetId = cardEl.dataset.id;
+      if(!draggedCardId || draggedCardId===targetId) return;
+      const fromIdx = cards.findIndex(c=>c.id===draggedCardId);
+      if(fromIdx===-1) return;
+      const [moved] = cards.splice(fromIdx,1);
+      // Recalcula el índice del target DESPUÉS de quitar el arrastrado, para que "soltar sobre X"
+      // siempre signifique "justo antes de X", sin importar si arrastras hacia arriba o abajo.
+      const toIdx = cards.findIndex(c=>c.id===targetId);
+      cards.splice(toIdx===-1?fromIdx:toIdx, 0, moved);
+      draggedCardId = null;
+      scheduleCardsSave();
+      render();
     });
   });
 }
