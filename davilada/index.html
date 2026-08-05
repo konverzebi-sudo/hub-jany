@@ -1046,6 +1046,27 @@
 
     } // fin de la relajación (for relax)
 
+    // Cierra huecos horizontales sobrantes: dos ramas que nunca se solapan
+    // en ninguna generación (ej. una rama antigua que ya estaba muy a la
+    // derecha y una rama de ancestros agregada después, con coordenadas
+    // chicas) pueden quedar con kilómetros de espacio vacío entre sí porque
+    // el acomodo de arriba solo centra y evita encimes, nunca junta. Se
+    // recorre a TODOS los ids ordenados por x (sin importar su generación)
+    // y, si el espacio libre entre uno y el siguiente supera unas pocas
+    // tarjetas de ancho, se recorta el sobrante desplazando en bloque a ese
+    // id y a todos los que están más a la derecha — como el desplazamiento
+    // es uniforme para ese "resto", no puede generar un nuevo encime.
+    var sortedByX = Object.keys(xPos).sort(function(a,b){ return xPos[a]-xPos[b]; });
+    var MAX_GAP = (CARD_W+GAP_X) * 3;
+    for(var ci=1; ci<sortedByX.length; ci++){
+      var prevRight = xPos[sortedByX[ci-1]] + CARD_W;
+      var gap = xPos[sortedByX[ci]] - prevRight;
+      if(gap > MAX_GAP){
+        var shiftGap = gap - MAX_GAP;
+        for(var cj=ci; cj<sortedByX.length; cj++){ xPos[sortedByX[cj]] -= shiftGap; }
+      }
+    }
+
     // El centrado pudo haber recorrido todo el árbol hacia la izquierda del
     // borde del lienzo (x negativa) — se recorre todo en bloque hacia la
     // derecha lo necesario para que nada quede fuera de vista.
