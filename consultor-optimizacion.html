@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jefe de Optimización — JefesHub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0F0B16;
+      --surface: #181120;
+      --surface-2: #211829;
+      --line: #332A3D;
+      --text: #F3EEF9;
+      --text-dim: #B6A9C7;
+      --accent: #B8F725;
+      --accent-soft: #2E3610;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: radial-gradient(1200px 600px at 50% -10%, #241733 0%, var(--bg) 55%); color: var(--text); font-family: Inter, sans-serif; -webkit-font-smoothing: antialiased; min-height: 100vh; }
+    h1, h2, h3 { font-family: Sora, sans-serif; }
+
+    header { padding: 38px 20px 20px; text-align: center; max-width: 820px; margin: 0 auto; }
+    .back-link { font-family: "JetBrains Mono", monospace; font-size: 12px; color: var(--text-dim); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; margin-bottom: 20px; }
+    .back-link:hover { color: var(--accent); }
+    header h1 { font-size: clamp(26px, 4vw, 38px); font-weight: 800; margin: 0 0 8px; line-height: 1.15; }
+    header p { color: var(--text-dim); font-size: 15px; margin: 0 0 20px; }
+
+    main { max-width: 820px; margin: 0 auto; padding: 8px 20px 80px; display: flex; flex-direction: column; gap: 22px; }
+
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
+    .card-label { font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); margin-bottom: 12px; }
+
+    /* ── DROPZONE ── */
+    .dropzone { border: 2px dashed var(--line); border-radius: 14px; padding: 34px 20px; text-align: center; cursor: pointer; transition: 0.15s; background: var(--surface-2); }
+    .dropzone:hover, .dropzone.dragover { border-color: var(--accent); background: var(--accent-soft); }
+    .dropzone-title { font-family: Sora, sans-serif; font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+    .dropzone-sub { font-size: 12px; color: var(--text-dim); letter-spacing: 0.02em; }
+    .dropzone-sub b { color: var(--accent); }
+    .file-ready { display: none; align-items: center; gap: 8px; font-size: 13.5px; margin-top: 12px; color: var(--accent); font-weight: 600; }
+
+    .how-export { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-size: 12.5px; color: var(--text-dim); line-height: 1.6; }
+    .how-export b { color: var(--accent); }
+
+    .analyze-btn { width: 100%; background: var(--accent); border: none; color: #0F0B16; font-weight: 700; font-size: 15px; padding: 14px 18px; border-radius: 10px; cursor: pointer; transition: 0.15s; }
+    .analyze-btn:hover:not(:disabled) { filter: brightness(1.1); transform: translateY(-1px); }
+    .analyze-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    /* ── LOADING ── */
+    .loading-block { display: none; flex-direction: column; gap: 10px; align-items: center; padding: 30px 10px; text-align: center; }
+    .spinner { width: 34px; height: 34px; border: 3px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.9s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-step-text { font-size: 13.5px; color: var(--text-dim); min-height: 20px; }
+    .loading-hint { font-size: 11.5px; color: var(--text-dim); opacity: 0.7; max-width: 380px; }
+
+    /* ── RESULTADO ── */
+    .result-block { display: none; flex-direction: column; gap: 14px; }
+    .result-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .result-actions .sec-btn { background: transparent; border: 1px solid var(--line); color: var(--text-dim); font-size: 13px; padding: 9px 16px; border-radius: 9px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+    .result-actions .sec-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .dashboard-frame-wrap { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: #0f1117; }
+    .dashboard-frame-wrap iframe { width: 100%; height: 78vh; border: none; display: block; }
+
+    .error-box { background: #3B1B1B; border: 1px solid #EF4444; color: #FCA5A5; border-radius: 10px; padding: 12px 14px; font-size: 13.5px; line-height: 1.5; display: none; }
+
+    /* ── CHAT DE SEGUIMIENTO ── */
+    .agent-box { background: var(--surface-2); border: 1.5px solid var(--line); border-radius: 16px; padding: 18px 20px; transition: border-color 0.15s; display: none; }
+    .agent-box:focus-within { border-color: var(--accent); }
+    .agent-title { font-size: 14px; font-weight: 600; margin: 0 0 5px; }
+    .agent-sub { font-size: 12.5px; color: var(--text-dim); margin: 0 0 14px; line-height: 1.5; }
+    .agent-chat { display: flex; flex-direction: column; gap: 12px; max-height: 380px; overflow-y: auto; padding-right: 4px; margin-bottom: 12px; }
+    .agent-chat:empty { display: none; }
+    .bubble { max-width: 88%; padding: 12px 14px; border-radius: 12px; font-size: 14px; line-height: 1.55; white-space: pre-line; }
+    .bubble.user { align-self: flex-end; background: var(--accent); color: #0F0B16; font-weight: 500; border-bottom-right-radius: 3px; }
+    .bubble.assistant { align-self: flex-start; background: var(--surface); border: 1px solid var(--line); border-bottom-left-radius: 3px; }
+    .bubble.error { align-self: flex-start; background: #3B1B1B; border: 1px solid #EF4444; color: #FCA5A5; }
+    .agent-controls { display: flex; align-items: center; gap: 10px; }
+    .agent-input-line { flex: 1; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; color: var(--text); padding: 11px 14px; font-family: Inter, sans-serif; font-size: 14px; outline: none; resize: none; min-height: 42px; max-height: 160px; }
+    .agent-input-line:focus { border-color: var(--accent); }
+    .ask-btn { background: var(--accent); border: none; color: #0F0B16; font-weight: 700; font-size: 13.5px; padding: 10px 18px; border-radius: 9px; cursor: pointer; transition: 0.15s; white-space: nowrap; }
+    .ask-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .ask-btn:disabled { opacity: 0.5; cursor: wait; }
+    .agent-suggestions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+    .agent-suggestion { font-family: "JetBrains Mono", monospace; font-size: 11.5px; padding: 6px 12px; border-radius: 20px; border: 1px solid var(--line); background: transparent; color: var(--text-dim); cursor: pointer; transition: 0.15s; }
+    .agent-suggestion:hover { border-color: var(--accent); color: var(--accent); }
+
+    footer { text-align: center; padding: 24px 20px; font-size: 12px; color: var(--text-dim); font-family: "JetBrains Mono", monospace; border-top: 1px solid var(--line); margin-top: 20px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <a id="opt-back-hub" href="/" class="back-link">← Hub de Jefes</a>
+  <div id="brand-bar" style="display:inline-flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:#B8F725;margin-bottom:14px;padding:5px 14px;border:1px solid rgba(184,247,37,0.3);border-radius:100px;background:rgba(255,255,255,.03);">
+    <span>JefesHub</span><span style="opacity:.4;">·</span>
+    <span>Jefe de Optimización</span><span style="opacity:.4;">·</span>
+    <span id="brand-marca-label">—</span>
+  </div>
+  <script src="/js/storage-client.js"></script>
+  <script>
+    function detectClienteId(){
+      var p=location.pathname;
+      if(/\/rancho-seco(\/|$)/.test(p)) return 'rancho-seco';
+      if(/\/rim(\/|$)/.test(p)) return 'rim';
+      return 'jefeshub';
+    }
+    var CLIENTE_ID = detectClienteId();
+    var HUB_POR_CLIENTE = { 'rancho-seco': '/rancho-seco', rim: '/rim', jefeshub: '/' };
+    document.getElementById('opt-back-hub').href = HUB_POR_CLIENTE[CLIENTE_ID];
+  </script>
+  <script>(async function(){
+    var BRANDS={'rancho-seco':{fallback:'Rancho Seco',color:'#F2C230'},'rim':{fallback:'RIM',color:'#F472B6'},'jefeshub':{fallback:'JefesHub',color:'#B8F725'}};
+    var b=BRANDS[CLIENTE_ID];
+    var bar=document.getElementById('brand-bar');
+    bar.style.color=b.color;
+    bar.style.borderColor=b.color.replace('#','rgba(').slice(0,-1)+',0.3)';
+    var el=document.getElementById('brand-marca-label');
+    el.textContent=b.fallback;
+    try{var r=await window.storage.get(CLIENTE_ID+':brand-book.identidad');if(r&&r.value){var d=JSON.parse(r.value);if(d.nombre)el.textContent=d.nombre;}}catch(e){}
+  })();</script>
+  <h1>👁️ Jefe de Optimización</h1>
+  <p>Sube el reporte de Meta Ads Manager y recibe el Dashboard Ejecutivo: qué anuncio escalar, cuál apagar y qué producir la próxima semana.</p>
+</header>
+
+<main>
+
+  <!-- ═══ SUBIR REPORTE ═══ -->
+  <section class="card" id="upload-section">
+    <div class="card-label">📄 Reporte de Meta Ads</div>
+
+    <div class="dropzone" id="dropzone">
+      <div class="dropzone-title">Arrastra tu CSV aquí</div>
+      <div class="dropzone-sub">o haz clic para elegir el archivo · <b>reporte a nivel anuncio</b></div>
+      <input type="file" id="fileInput" accept=".csv" hidden>
+    </div>
+    <div class="file-ready" id="fileReady"><span>✅</span><span id="fileName"></span></div>
+
+    <div class="how-export" style="margin-top:14px;">
+      <b>¿Cómo exportar tu CSV?</b><br>
+      Meta Ads Manager → Nivel Anuncio → Sin desglose → Exportar → CSV (.csv)
+    </div>
+
+    <button type="button" class="analyze-btn" id="analyzeBtn" style="margin-top:16px;" disabled>Analizar reporte completo</button>
+    <div class="error-box" id="uploadError"></div>
+  </section>
+
+  <!-- ═══ CARGANDO ═══ -->
+  <section class="loading-block" id="loadingBlock">
+    <div class="spinner"></div>
+    <div class="loading-step-text" id="loadingStepText">Leyendo tu reporte...</div>
+    <div class="loading-hint">Un análisis completo puede tardar hasta un minuto — el agente revisa cada anuncio, calcula el MPS y arma el dashboard.</div>
+  </section>
+
+  <!-- ═══ RESULTADO ═══ -->
+  <section class="result-block" id="resultBlock">
+    <div class="result-actions">
+      <a href="#" class="sec-btn" id="downloadBtn">⬇️ Descargar dashboard (.html)</a>
+      <button type="button" class="sec-btn" id="newAnalysisBtn">🔄 Analizar otro reporte</button>
+      <button type="button" class="sec-btn" id="openTabBtn">↗️ Abrir en pestaña nueva</button>
+    </div>
+    <div class="dashboard-frame-wrap">
+      <iframe id="dashboardFrame" title="Dashboard Ejecutivo"></iframe>
+    </div>
+  </section>
+
+  <!-- ═══ CHAT DE SEGUIMIENTO ═══ -->
+  <section class="agent-box" id="agentBox">
+    <div class="agent-title">💬 Pregúntale al Jefe de Optimización</div>
+    <div class="agent-sub">Sobre el mismo reporte que ya subiste: compara anuncios, pide el resumen exprés, un plan de escalamiento o un diagnóstico puntual.</div>
+    <div class="agent-suggestions" id="agentSuggestions">
+      <button type="button" class="agent-suggestion" onclick="preguntaSugerida('Dame solo el resumen exprés.')">Resumen exprés</button>
+      <button type="button" class="agent-suggestion" onclick="preguntaSugerida('Gasté y no me llegaron resultados, ¿qué está pasando?')">Gasté y no vendí</button>
+      <button type="button" class="agent-suggestion" onclick="preguntaSugerida('Ya tengo ganadores, ¿cómo los escalo?')">Plan de escalamiento</button>
+    </div>
+    <div class="agent-chat" id="agentChat"></div>
+    <div class="agent-controls">
+      <textarea class="agent-input-line" id="agentInput" rows="1" placeholder="Escribe tu pregunta..." oninput="autoAlturaAgentInput(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviarMensajeAgente();}"></textarea>
+      <button type="button" class="ask-btn" id="agentSendBtn" onclick="enviarMensajeAgente()">Enviar</button>
+    </div>
+  </section>
+
+</main>
+
+<footer>Jefe de Optimización · JefesHub</footer>
+
+<script>
+  var csvText = null;
+  var csvFileName = '';
+
+  var dropzone = document.getElementById('dropzone');
+  var fileInput = document.getElementById('fileInput');
+  var analyzeBtn = document.getElementById('analyzeBtn');
+
+  dropzone.addEventListener('click', function(){ fileInput.click(); });
+  dropzone.addEventListener('dragover', function(e){ e.preventDefault(); dropzone.classList.add('dragover'); });
+  dropzone.addEventListener('dragleave', function(){ dropzone.classList.remove('dragover'); });
+  dropzone.addEventListener('drop', function(e){
+    e.preventDefault();
+    dropzone.classList.remove('dragover');
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) handleCsvFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', function(e){
+    if (e.target.files && e.target.files[0]) handleCsvFile(e.target.files[0]);
+  });
+
+  function handleCsvFile(file){
+    if (!file.name.toLowerCase().endsWith('.csv')) { showUploadError('Sube un archivo .csv válido.'); return; }
+    var reader = new FileReader();
+    reader.onload = function(){
+      csvText = reader.result;
+      csvFileName = file.name;
+      document.getElementById('fileName').textContent = file.name;
+      document.getElementById('fileReady').style.display = 'flex';
+      analyzeBtn.disabled = false;
+      clearUploadError();
+    };
+    reader.onerror = function(){ showUploadError('No se pudo leer el archivo. Intenta de nuevo.'); };
+    reader.readAsText(file, 'utf-8');
+  }
+
+  function showUploadError(msg){
+    var box = document.getElementById('uploadError');
+    box.textContent = '⚠️ ' + msg;
+    box.style.display = 'block';
+  }
+  function clearUploadError(){
+    document.getElementById('uploadError').style.display = 'none';
+  }
+
+  var LOADING_STEPS = ['Leyendo tu reporte...', 'Identificando el tipo de campaña...', 'Calculando el MPS de cada anuncio...', 'Detectando fugas y patrones...', 'Armando tu Dashboard Ejecutivo...'];
+  var loadingTimer = null;
+  function iniciarLoadingSteps(){
+    var i = 0;
+    document.getElementById('loadingStepText').textContent = LOADING_STEPS[0];
+    loadingTimer = setInterval(function(){
+      i = (i + 1) % LOADING_STEPS.length;
+      document.getElementById('loadingStepText').textContent = LOADING_STEPS[i];
+    }, 4500);
+  }
+  function detenerLoadingSteps(){
+    if (loadingTimer) { clearInterval(loadingTimer); loadingTimer = null; }
+  }
+
+  var ultimoDashboardHtml = '';
+
+  analyzeBtn.addEventListener('click', function(){ analizarReporte(); });
+
+  async function analizarReporte(){
+    if (!csvText) return;
+    document.getElementById('upload-section').style.display = 'none';
+    document.getElementById('loadingBlock').style.display = 'flex';
+    document.getElementById('resultBlock').style.display = 'none';
+    iniciarLoadingSteps();
+
+    try {
+      const response = await fetch('/api/consultor-financiero', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agente: 'metaads',
+          cliente: CLIENTE_ID,
+          reporteCsv: csvText,
+          messages: [{ role: 'user', content: 'Analiza este reporte completo y dame el Dashboard Ejecutivo (Modo 1).' }],
+        }),
+      });
+      const data = await response.json();
+      detenerLoadingSteps();
+      document.getElementById('loadingBlock').style.display = 'none';
+      if (!response.ok) {
+        document.getElementById('upload-section').style.display = 'block';
+        showUploadError(data.error || 'No se pudo generar el análisis. Intenta de nuevo.');
+        return;
+      }
+      ultimoDashboardHtml = data.text;
+      mostrarDashboard(ultimoDashboardHtml);
+    } catch (err) {
+      detenerLoadingSteps();
+      document.getElementById('loadingBlock').style.display = 'none';
+      document.getElementById('upload-section').style.display = 'block';
+      showUploadError('Hubo un error de conexión. Intenta de nuevo en un momento.');
+    }
+  }
+
+  function mostrarDashboard(html){
+    document.getElementById('dashboardFrame').srcdoc = html;
+    document.getElementById('resultBlock').style.display = 'flex';
+    document.getElementById('agentBox').style.display = 'block';
+    var blob = new Blob([html], { type: 'text/html' });
+    var url = URL.createObjectURL(blob);
+    var dlBtn = document.getElementById('downloadBtn');
+    dlBtn.href = url;
+    dlBtn.download = 'dashboard-optimizacion-' + CLIENTE_ID + '-' + new Date().toISOString().slice(0,10) + '.html';
+    document.getElementById('openTabBtn').onclick = function(){ window.open(url, '_blank'); };
+  }
+
+  document.getElementById('newAnalysisBtn').addEventListener('click', function(){
+    csvText = null;
+    csvFileName = '';
+    fileInput.value = '';
+    document.getElementById('fileReady').style.display = 'none';
+    analyzeBtn.disabled = true;
+    document.getElementById('resultBlock').style.display = 'none';
+    document.getElementById('agentBox').style.display = 'none';
+    document.getElementById('upload-section').style.display = 'block';
+    agentMessages = [];
+    renderAgentChat();
+  });
+
+  // ── CHAT DE SEGUIMIENTO (mismo reporte, otras preguntas / modos) ──
+  var agentMessages = [];
+  var agentBusy = false;
+
+  function escaparHtmlOpt(str){
+    var d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  function renderAgentChat(){
+    var chat = document.getElementById('agentChat');
+    chat.innerHTML = agentMessages.map(function(m){
+      if (m.role === 'user') return '<div class="bubble user">' + escaparHtmlOpt(m.content) + '</div>';
+      return '<div class="bubble assistant">' + escaparHtmlOpt(m.content) + '</div>';
+    }).join('');
+    chat.scrollTop = chat.scrollHeight;
+    document.getElementById('agentSuggestions').style.display = agentMessages.length ? 'none' : 'flex';
+  }
+
+  function preguntaSugerida(texto){
+    document.getElementById('agentInput').value = texto;
+    enviarMensajeAgente();
+  }
+
+  function autoAlturaAgentInput(ta){
+    ta.style.height = 'auto';
+    ta.style.height = (ta.scrollHeight + 2) + 'px';
+  }
+
+  function enviarMensajeAgente(){
+    if (agentBusy) return;
+    var input = document.getElementById('agentInput');
+    var texto = input.value.trim();
+    if (!texto) return;
+    agentMessages.push({ role: 'user', content: texto });
+    input.value = '';
+    input.style.height = 'auto';
+    renderAgentChat();
+    llamarAgente();
+  }
+
+  async function llamarAgente(){
+    agentBusy = true;
+    document.getElementById('agentSendBtn').disabled = true;
+    document.getElementById('agentInput').disabled = true;
+    try {
+      const response = await fetch('/api/consultor-financiero', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agente: 'metaads', cliente: CLIENTE_ID, reporteCsv: csvText, messages: agentMessages }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        agentMessages.push({ role: 'assistant', content: '⚠️ ' + (data.error || 'No se pudo generar respuesta. Intenta de nuevo.') });
+      } else {
+        agentMessages.push({ role: 'assistant', content: data.text });
+      }
+    } catch (err) {
+      agentMessages.push({ role: 'assistant', content: '⚠️ Hubo un error de conexión. Intenta de nuevo en un momento.' });
+    } finally {
+      agentBusy = false;
+      document.getElementById('agentSendBtn').disabled = false;
+      document.getElementById('agentInput').disabled = false;
+      renderAgentChat();
+    }
+  }
+</script>
+
+</body>
+</html>

@@ -18,6 +18,14 @@
 // `agente` en el body: ausente o 'financiero' => Jefe Finanzas (rama original, sin tocar);
 // 'diseno' => Jefe de Producción de Video (rama nueva, prompt y contexto propios, ver
 // PROMPT_PATH_DISENO / construirContextoDiseno más abajo). Cada rama es independiente.
+//
+// Segunda fusión: 'metaads' => Agente Analista de Meta Ads (Card 9 "Jefe de Optimización").
+// Mismo patron de discriminador. A diferencia de financiero/diseno, este agente no vive de
+// datos del ADN sino del reporte CSV que el usuario sube/pega en la página -- se manda fresco
+// en cada llamada como `reporteCsv` (mismo patron que `datosCalculadora` de Jefe Finanzas, NO
+// se acumula en `messages` para no inflar el historial). Necesita maxTokens mucho mas alto
+// porque el entregable por defecto (Modo 1) es un dashboard HTML completo -- ver maxDuration:60
+// agregado a esta funcion en vercel.json.
 
 const fs = require('fs');
 const path = require('path');
@@ -29,6 +37,11 @@ const DEFAULT_CLIENTE = 'jefeshub';
 const PROMPT_PATH_DISENO = path.join(__dirname, '..', 'prompts', 'system-prompt-jefe-diseno.md');
 const DEFAULT_CLIENTE_DISENO = 'rancho-seco'; // unica marca donde se activa por ahora
 const MAX_MESSAGES_DISENO = 40;
+
+const PROMPT_PATH_METAADS = path.join(__dirname, '..', 'prompts', 'system-prompt-analista-metaads.md');
+const DEFAULT_CLIENTE_METAADS = 'rancho-seco'; // unica marca donde se activa por ahora
+const MAX_MESSAGES_METAADS = 12; // conversacion corta -- el reporte va aparte en reporteCsv, no aqui
+const REPORT_CHAR_LIMIT = 140000; // reportes CSV reales caben comodos; solo protege contra abuso
 
 const CONTEXT_CHAR_LIMIT = 6000;
 const CALC_CHAR_LIMIT = 3000;
@@ -46,6 +59,13 @@ function cargarPromptDiseno() {
   if (fixedPromptDisenoCache) return fixedPromptDisenoCache;
   fixedPromptDisenoCache = fs.readFileSync(PROMPT_PATH_DISENO, 'utf-8');
   return fixedPromptDisenoCache;
+}
+
+let fixedPromptMetaAdsCache = null;
+function cargarPromptMetaAds() {
+  if (fixedPromptMetaAdsCache) return fixedPromptMetaAdsCache;
+  fixedPromptMetaAdsCache = fs.readFileSync(PROMPT_PATH_METAADS, 'utf-8');
+  return fixedPromptMetaAdsCache;
 }
 
 // Rate limit en memoria (por IP). Mas permisivo que una pregunta suelta porque un diagnostico
@@ -263,6 +283,38 @@ async function construirContextoDiseno(clienteId) {
   return 'CONTEXTO DEL NEGOCIO (ya cargado del ADN):\n\n' + truncar(bloques.join('\n\n'), CONTEXT_CHAR_LIMIT);
 }
 
+// ---------- formateo del CONTEXTO DEL NEGOCIO para el Agente Analista de Meta Ads ----------
+// Solo lo minimo que pide el Documento Maestro (seccion 2): cliente ideal, oferta, ticket,
+// objetivo -- para que el agente no lo vuelva a preguntar si ya esta en el ADN. A diferencia
+// de financiero/diseno, este agente vive del CSV, no del ADN, asi que este bloque es opcional.
+
+function formatearNegocioMetaAds(identidad, metricas) {
+  const lineas = [];
+  if (identidad?.nombre) lineas.push(`Nombre: ${identidad.nombre}`);
+  if (identidad?.giro_texto || identidad?.giro_categoria) lineas.push(`Giro: ${identidad.giro_texto || identidad.giro_categoria}`);
+  if (identidad?.producto_estrella) lineas.push(`Producto estrella: ${identidad.producto_estrella}`);
+  if (metricas?.ticket_promedio) lineas.push(`Ticket promedio: $${metricas.ticket_promedio}`);
+  if (lineas.length === 0) {
+    return 'CONTEXTO DEL NEGOCIO: el ADN de esta marca todavía no tiene datos guardados. Analiza el reporte sin asumir nada del negocio que no esté en el CSV.';
+  }
+  return 'CONTEXTO DEL NEGOCIO (ya cargado del ADN -- no lo vuelvas a preguntar):\n\n' + lineas.join('\n');
+}
+
+async function construirContextoMetaAds(clienteId) {
+  const [identidad, metricas] = await Promise.all([
+    leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
+    leerJSON(`${clienteId}:brand-book.metricas`).catch(() => null),
+  ]);
+  return formatearNegocioMetaAds(identidad, metricas);
+}
+
+function formatearReporteCsv(reporteCsv) {
+  if (!reporteCsv || typeof reporteCsv !== 'string' || !reporteCsv.trim()) {
+    return 'REPORTE DE META ADS: el usuario todavía no ha subido ningún CSV. Pídeselo antes de analizar nada.';
+  }
+  return 'REPORTE DE META ADS (CSV exportado de Meta Ads Manager, tal cual lo subió el usuario):\n\n' + truncar(reporteCsv, REPORT_CHAR_LIMIT);
+}
+
 async function llamarClaudeChat({ system, messages, maxTokens }) {
   const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -337,6 +389,27 @@ async function handleDiseno(req, res, body) {
   return res.status(200).json({ text: r.text });
 }
 
+// ---------- rama Agente Analista de Meta Ads ----------
+
+async function handleMetaAds(req, res, body) {
+  const clienteId = (body.cliente || DEFAULT_CLIENTE_METAADS).toString();
+
+  const limpio = limpiarMessages(body.messages, MAX_MESSAGES_METAADS);
+  if (limpio.length === 0 || limpio[limpio.length - 1].role !== 'user') {
+    return res.status(400).json({ error: 'El último mensaje debe ser del usuario.' });
+  }
+
+  const systemPrompt = cargarPromptMetaAds();
+  const contextoNegocio = await construirContextoMetaAds(clienteId);
+  const contextoReporte = formatearReporteCsv(body.reporteCsv);
+  const system = [systemPrompt, contextoNegocio, contextoReporte].join('\n\n');
+
+  const r = await llamarClaudeChat({ system, messages: limpio, maxTokens: 8000 });
+  if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
+  await registrarUsoTokens(clienteId, 'consultor-optimizacion', r.usage);
+  return res.status(200).json({ text: r.text });
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
 
@@ -366,6 +439,7 @@ module.exports = async function handler(req, res) {
 
   try {
     if (agente === 'diseno') return await handleDiseno(req, res, body);
+    if (agente === 'metaads') return await handleMetaAds(req, res, body);
     return await handleFinanciero(req, res, body);
   } catch (err) {
     return res.status(500).json({ error: 'Error de conexión con el Agente.' });
