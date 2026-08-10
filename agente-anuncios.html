@@ -132,6 +132,20 @@
   .carpeta-box input[type=text]:focus{border-color:#7CB9E8;}
   .carpeta-box input[type=text]::placeholder{color:var(--text-dim);opacity:.7;}
 
+  /* CHAT — Consulta en vivo (calcado de agente-contenido-v2.html) */
+  .chat-thread{display:flex;flex-direction:column;gap:10px;max-height:520px;overflow-y:auto;}
+  .chat-msg{border-radius:12px;padding:12px 14px;font-size:13.5px;line-height:1.7;white-space:pre-wrap;font-family:'Inter',sans-serif;max-width:92%;}
+  .chat-msg-user{background:var(--accent-soft);border:1px solid var(--accent);color:var(--text);align-self:flex-end;}
+  .chat-msg-assistant{background:var(--surface-2);border:1px solid var(--line);color:var(--text);align-self:flex-start;}
+  .chat-msg-actions{display:flex;gap:14px;margin-top:8px;}
+  .chat-msg-actions button{border:none;background:transparent;color:var(--accent);font-size:11px;font-family:'JetBrains Mono',monospace;cursor:pointer;padding:0;font-weight:700;text-transform:uppercase;letter-spacing:.03em;}
+  .chat-msg-actions button:hover{text-decoration:underline;}
+  .chat-msg-actions button.done{color:#4ADE80;pointer-events:none;}
+  .chat-empty{color:var(--text-dim);font-style:italic;font-size:13px;}
+  .chat-box{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px 20px;display:flex;flex-direction:column;gap:12px;}
+  .chat-box textarea{width:100%;min-height:64px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;color:var(--text);padding:10px 12px;font-family:'Inter',sans-serif;font-size:14px;resize:vertical;outline:none;}
+  .chat-box textarea:focus{border-color:var(--accent);}
+
   /* ESTRUCTURA DE ADS: Campaña > Conjunto de Anuncios > (nota + link a Anuncios) */
   .campana-card{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:14px;padding:18px 20px;margin-bottom:16px;display:flex;flex-direction:column;gap:14px;}
   .campana-top{display:flex;align-items:center;justify-content:space-between;gap:10px;}
@@ -185,6 +199,7 @@
     <div class="tab active" data-tab="generador">✨ Generador con AI</div>
     <div class="tab" data-tab="guardadas">Campañas guardadas <span class="count" id="count-cards">0</span></div>
     <div class="tab" data-tab="estructura">🏗️ Estructura de Ads</div>
+    <div class="tab" data-tab="chat">💬 Consulta en vivo</div>
   </div>
 
   <div id="content"></div>
@@ -254,6 +269,9 @@ let draggedCardId = null;
 let estructuras = [];
 let linkCarpeta = '';
 let linkBM = '';
+let chatMessages = []; // {role:'user'|'assistant', content, usada?:boolean} -- efímero, no se guarda (mismo patrón que Jefe Contenido)
+let chatDraft = '';
+let chatStatus = '';
 let formatoSel = FORMATOS[0];
 let genStatus = '';
 let cardsLoaded = false;
@@ -338,6 +356,7 @@ function render(){
   contentEl.innerHTML='';
   if(currentTab==='generador') renderGenerador(contentEl);
   else if(currentTab==='estructura') renderEstructura(contentEl);
+  else if(currentTab==='chat') renderChat(contentEl);
   else renderGuardadas(contentEl);
 }
 document.querySelectorAll('.tab').forEach(t=>{
@@ -979,6 +998,125 @@ function buildConjuntoCard(campana, conjunto){
   });
 
   return card;
+}
+
+// ─── CONSULTA EN VIVO (chat multi-turno) ───────────────────────────────────
+// Mismo patrón que "Consulta en vivo" de Jefe Contenido (agente-contenido-v2.html): la Messages
+// API no guarda estado, así que se manda TODO el historial en cada turno -- pero el contexto real
+// (ADN, las 4 Notas Evergreen, Radar, retroalimentación) lo vuelve a leer el servidor en cada
+// llamada via construirContexto(), así que el chat "conoce" el Evergreen desde el primer mensaje,
+// no solo lo que se escribe dentro del chat. Conversación efímera, no se guarda en storage.
+
+function renderChat(container){
+  const wrap = document.createElement('div');
+  wrap.className = 'chat-box';
+  wrap.innerHTML = `
+    <p class="etapa-desc" style="margin:0;">Desarrolla un anuncio conversando con el Jefe -- ya conoce tu ADN, tus ángulos y frases maestras, el Perfil de Cliente y el Radar de Mercado, y te va a dar retroalimentación estratégica conforme avanzan, no solo respuestas sueltas.</p>
+    <div id="chat-thread" class="chat-thread"></div>
+    <textarea id="chat-input" rows="2" placeholder="ej. quiero un anuncio para gente que ya conoce la marca pero no se decide, dame 3 hooks...">${escHtml(chatDraft)}</textarea>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <button class="btn btn-solid" id="chat-send-btn" type="button">${chatMessages.length?'Seguir la conversación →':'Preguntar al Jefe →'}</button>
+      <span class="mode-status" id="chat-status">${escHtml(chatStatus)}</span>
+      ${chatMessages.length?'<button class="mode-add-banco" id="chat-reset-btn" type="button" style="margin-left:auto;">🔄 Nueva conversación</button>':''}
+    </div>
+  `;
+  container.appendChild(wrap);
+  pintarChatThread();
+
+  document.getElementById('chat-input').addEventListener('input',(e)=>{ chatDraft = e.target.value; });
+  document.getElementById('chat-send-btn').addEventListener('click', enviarMensajeChat);
+  const resetBtn = document.getElementById('chat-reset-btn');
+  if(resetBtn) resetBtn.addEventListener('click', ()=>{
+    chatMessages = []; chatDraft = ''; chatStatus = '';
+    render();
+  });
+}
+
+function pintarChatThread(){
+  const box = document.getElementById('chat-thread');
+  if(!box) return;
+  if(!chatMessages.length){
+    box.innerHTML = '<span class="chat-empty">La conversación aparecerá aquí -- pregunta, propón un hook o pide el guion completo de una idea.</span>';
+    return;
+  }
+  box.innerHTML = chatMessages.map((m,i)=>{
+    if(m.role==='user'){
+      return `<div class="chat-msg chat-msg-user">${escHtml(m.content)}</div>`;
+    }
+    return `<div class="chat-msg chat-msg-assistant">${escHtml(m.content)}
+      <div class="chat-msg-actions">
+        <button type="button" data-copy-idx="${i}">📋 Copiar</button>
+        <button type="button" data-usar-idx="${i}" class="${m.usada?'done':''}">${m.usada?'✅ Agregado a Campañas guardadas':'✅ Guardar como campaña'}</button>
+      </div>
+    </div>`;
+  }).join('');
+  box.scrollTop = box.scrollHeight;
+  box.querySelectorAll('[data-copy-idx]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      navigator.clipboard.writeText(chatMessages[+btn.dataset.copyIdx].content).then(()=>{
+        const prev=btn.textContent; btn.textContent='✅ Copiado';
+        setTimeout(()=>{ btn.textContent=prev; },1500);
+      });
+    });
+  });
+  box.querySelectorAll('[data-usar-idx]').forEach(btn=>{
+    btn.addEventListener('click',()=>usarRespuestaChatComoCampana(+btn.dataset.usarIdx));
+  });
+}
+
+async function enviarMensajeChat(){
+  const mensaje = (chatDraft||'').trim();
+  const statusEl = document.getElementById('chat-status');
+  if(!mensaje){ if(statusEl) statusEl.textContent='⚠️ Escribe tu mensaje primero.'; return; }
+  const btn = document.getElementById('chat-send-btn');
+  if(btn) btn.disabled = true;
+  if(statusEl){ statusEl.className='mode-status'; statusEl.textContent='⏳ Leyendo ADN + Evergreen + Radar para responderte...'; }
+  chatMessages.push({role:'user', content:mensaje});
+  chatDraft = '';
+  pintarChatThread();
+  try{
+    const res = await fetch('/api/generar-anuncios', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ modo:'chat', cliente: CLIENTE_ID, grupo_id: grupoId, producto_id: productoId, messages: chatMessages.map(m=>({role:m.role, content:m.content})) }),
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error || 'Error al consultar al Jefe.');
+    chatMessages.push({role:'assistant', content:data.text||''});
+    chatStatus = '✅ Listo';
+  }catch(err){
+    chatMessages.pop();
+    chatDraft = mensaje;
+    chatStatus = '❌ ' + (err.message || 'Error al consultar al Jefe.');
+  }
+  render();
+}
+
+function usarRespuestaChatComoCampana(idx){
+  const msg = chatMessages[idx];
+  if(!msg || msg.role!=='assistant' || msg.usada) return;
+  const preguntaPrevia = (chatMessages[idx-1] && chatMessages[idx-1].role==='user') ? chatMessages[idx-1].content : '';
+  const primeraLinea = (msg.content.split('\n').find(l=>l.trim())||'').slice(0,140);
+  cards.unshift({
+    id: mkCardId(),
+    etapa: 'consideracion',
+    formato: 'reel',
+    titulo: primeraLinea || 'Idea desde Consulta en vivo',
+    hook: primeraLinea,
+    objetivo: '', angulo: '', audiencia: '',
+    guion: { hook:'', problema:'', solucion:'', prueba:'', costo_inaccion:'', cta:'' },
+    version_15s: '', hooks_alternativos: [], visual_sugerido: '', duracion_sugerida: '',
+    copy_publicacion: msg.content,
+    prompt_imagen: '', prompt_video: '', caption_whatsapp: '',
+    titulo_anuncio: '', descripcion_anuncio: '', cta_boton: '',
+    estado: 'idea', fecha: '',
+    retroalimentacion: preguntaPrevia ? `Pregunta original en el chat: ${preguntaPrevia}` : '',
+    link_archivo_final: '',
+  });
+  msg.usada = true;
+  document.getElementById('count-cards').textContent = cards.length;
+  scheduleCardsSave();
+  chatStatus = '✅ Se guardó como campaña -- revísala y complétala en "Campañas guardadas".';
+  render();
 }
 
 function guionFieldsHtml(item){

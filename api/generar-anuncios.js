@@ -20,6 +20,8 @@ const PROMPT_PATH_IDEAS = path.join(__dirname, '..', 'prompts', 'system-prompt-i
 const PROMPT_PATH_DETALLE = path.join(__dirname, '..', 'prompts', 'system-prompt-detalle-anuncio.md');
 const PROMPT_PATH_TARGETING = path.join(__dirname, '..', 'prompts', 'system-prompt-targeting-anuncios.md');
 const PROMPT_PATH_CAMPOS_META = path.join(__dirname, '..', 'prompts', 'system-prompt-campos-meta.md');
+const PROMPT_PATH_CHAT = path.join(__dirname, '..', 'prompts', 'system-prompt-chat-anuncios.md');
+const CHAT_MAX_MESSAGES = 40;
 const CONTEXT_CHAR_LIMIT = 10000;
 const MAX_IDEAS_POR_LOTE = 9;
 const MAX_CAMPOS_META_POR_LOTE = 12;
@@ -376,6 +378,25 @@ async function llamarClaude(system, userMessage, maxTokens) {
   return { ok: anthropicRes.ok, status: anthropicRes.status, data };
 }
 
+async function llamarClaudeConHistorial(system, messages, maxTokens) {
+  const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': process.env.ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: maxTokens,
+      system,
+      messages,
+    }),
+  });
+  const data = await anthropicRes.json();
+  return { ok: anthropicRes.ok, status: anthropicRes.status, data };
+}
+
 // ---------- modo: ideas (ligero, 9 ideas) ----------
 
 async function manejarModoIdeas(body, res) {
@@ -617,6 +638,47 @@ async function manejarModoCompletarMeta(body, res) {
   return res.status(200).json({ campos, usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 } });
 }
 
+// ---------- modo: chat (Consulta en vivo, multi-turno -- desarrolla anuncios conversando) ----------
+// Mismo patrón que el modo "pregunta" de api/generar-guion-organico.js: la Messages API no
+// guarda estado, así que se manda el historial completo en cada turno. construirContexto() ya
+// trae TODO (ADN, las 4 Notas Evergreen completas, Radar, retroalimentación previa) -- por eso el
+// chat "va conociendo" el Evergreen desde el primer mensaje, no solo lo que se escribe en el chat.
+
+const cargarPromptChat = () => cargarPrompt(PROMPT_PATH_CHAT);
+
+async function manejarModoChat(body, res) {
+  const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
+  const grupoId = body.grupo_id ? body.grupo_id.toString() : '';
+  const productoId = body.producto_id ? body.producto_id.toString() : '';
+  const messagesRaw = Array.isArray(body.messages) ? body.messages : [];
+  const historial = messagesRaw
+    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+    .slice(-CHAT_MAX_MESSAGES)
+    .map((m) => ({ role: m.role, content: m.content }));
+
+  if (!historial.length || historial[historial.length - 1].role !== 'user') {
+    return res.status(400).json({ error: 'Falta el mensaje del usuario.' });
+  }
+
+  const promptFijo = cargarPromptChat();
+  const { contexto, catalogo } = await construirContexto(clienteId, grupoId);
+  const bloqueProducto = formatearProducto(catalogo, productoId, 'si aplica al anuncio que se está desarrollando en esta conversación');
+  const system = [promptFijo, contexto, bloqueProducto].filter(Boolean).join('\n\n');
+
+  const { ok, status, data } = await llamarClaudeConHistorial(system, historial, 1500);
+  if (!ok) {
+    return res.status(status).json({ error: data?.error?.message || 'Error al llamar a la API.' });
+  }
+
+  const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
+  if (!text) {
+    return res.status(502).json({ error: 'El Agente no devolvió respuesta. Intenta de nuevo.' });
+  }
+
+  await registrarUsoTokens(clienteId, 'generar-anuncios-chat', data.usage);
+  return res.status(200).json({ text, usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 } });
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
 
@@ -645,7 +707,8 @@ module.exports = async function handler(req, res) {
     if (modo === 'detalle') return await manejarModoDetalle(body, res);
     if (modo === 'targeting') return await manejarModoTargeting(body, res);
     if (modo === 'completar_meta') return await manejarModoCompletarMeta(body, res);
-    return res.status(400).json({ error: 'Falta o es inválido el campo "modo" (usa "ideas", "detalle", "targeting" o "completar_meta").' });
+    if (modo === 'chat') return await manejarModoChat(body, res);
+    return res.status(400).json({ error: 'Falta o es inválido el campo "modo" (usa "ideas", "detalle", "targeting", "completar_meta" o "chat").' });
   } catch (err) {
     return res.status(500).json({ error: 'Error de conexión con el Agente.' });
   }
