@@ -6,6 +6,7 @@
 <title>JefesHub — Central de Agentes</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<script src="https://d3js.org/d3.v7.min.js"></script>
 <style>
   :root{
     --bg: #0D1008;
@@ -107,7 +108,83 @@
   .tokens-bar-label{ font-family:'Oswald',sans-serif;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--chalk-dim); }
   .tokens-bar-value{ font-size:13px;color:var(--chalk);margin-left:auto;text-align:right; }
 
-  /* Grid */
+  /* Grafo de Jefes */
+  .graph-wrap{
+    margin-top: 48px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: radial-gradient(ellipse 90% 70% at 50% 40%, rgba(184,247,37,0.05) 0%, transparent 70%), var(--surface);
+    overflow: hidden;
+    position: relative;
+  }
+  .graph-hint{
+    position: absolute;
+    top: 14px; left: 18px;
+    font-family:'JetBrains Mono',monospace;
+    font-size: 10px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--chalk-dim);
+    opacity: .7;
+    pointer-events: none;
+    z-index: 2;
+  }
+  #hub-graph{ display:block; width:100%; height:640px; cursor: grab; }
+  #hub-graph:active{ cursor: grabbing; }
+  .graph-link{ stroke: var(--line); stroke-width: 1.2; opacity: .55; }
+  .graph-node{ cursor: pointer; }
+  .graph-node.locked{ cursor: not-allowed; }
+  .graph-node circle{
+    stroke-width: 1.5;
+    transition: filter .15s ease;
+  }
+  .graph-node.active circle{
+    fill: var(--surface-2);
+    stroke: var(--accent);
+    filter: drop-shadow(0 0 8px rgba(184,247,37,0.35));
+  }
+  .graph-node.active:hover circle{ filter: drop-shadow(0 0 16px rgba(184,247,37,0.65)); }
+  .graph-node.locked circle{
+    fill: var(--surface);
+    stroke: var(--line);
+    opacity: .55;
+  }
+  .graph-node .node-emoji{
+    font-size: 22px;
+    text-anchor: middle;
+    dominant-baseline: central;
+    pointer-events: none;
+    user-select: none;
+  }
+  .graph-node .node-lock{
+    font-size: 16px;
+    text-anchor: middle;
+    dominant-baseline: central;
+    pointer-events: none;
+    opacity: .6;
+  }
+  .graph-node .node-label{
+    font-family:'JetBrains Mono',monospace;
+    font-size: 11px;
+    letter-spacing: .02em;
+    text-anchor: middle;
+    fill: var(--chalk-dim);
+    pointer-events: none;
+    user-select: none;
+  }
+  .graph-node.active .node-label{ fill: var(--chalk); }
+  .graph-node .node-num{
+    font-family:'JetBrains Mono',monospace;
+    font-size: 9px;
+    letter-spacing: .1em;
+    text-anchor: middle;
+    fill: var(--chalk-dim);
+    opacity: .8;
+    pointer-events: none;
+  }
+  @media (max-width: 640px){ #hub-graph{ height: 520px; } }
+
+  /* Grid (fallback, sin usar mientras el grafo esta activo) */
   .grid{
     margin-top: 48px;
     display: grid;
@@ -242,96 +319,9 @@
     <span class="tokens-bar-value" id="tokens-bar-value">Cargando…</span>
   </div>
 
-  <div class="grid">
-
-    <!-- Card 1: Evergreen — ACTIVO -->
-    <div class="card active">
-      <div class="num">01</div>
-      <h3>🌱 Jefe Evergreen</h3>
-      <p>Diseña el sistema base de ventas recurrentes: entrada, cierre, seguimiento y fidelización.</p>
-      <div class="tag"><span class="live-dot"></span> Activo ahora</div>
-      <a class="cta" href="/consultor-evergreen">Entrar al agente →</a>
-    </div>
-
-    <!-- Card 2: Financiero — ACTIVO -->
-    <div class="card active">
-      <div class="num">02</div>
-      <h3>💰 Jefe Finanzas</h3>
-      <p>Calcula CPA máximo, presupuesto y punto de equilibrio antes de invertir en campañas.</p>
-      <div class="tag"><span class="live-dot"></span> Activo ahora</div>
-      <a class="cta" href="/consultor-financiero">Entrar al agente →</a>
-    </div>
-
-    <!-- Card 3: Jefe de Conversión — ACTIVO -->
-    <div class="card active">
-      <div class="num">03</div>
-      <h3>🚦 Jefe de Conversión</h3>
-      <p>Audita tu tienda online o tu cita/llamada/evento, mide tus tasas reales y construye el manual para mejorar tu cierre.</p>
-      <div class="tag"><span class="live-dot"></span> Activo ahora</div>
-      <a class="cta" href="/consultor-cierre">Entrar al agente →</a>
-    </div>
-
-    <!-- Card 4: WhatsApp — ACTIVO -->
-    <div class="card active">
-      <div class="num">04</div>
-      <h3>📳 Jefe WhatsApp y Ventas</h3>
-      <p>Termómetro de conversación, banco de objeciones, seguimiento y reactivación — respuestas listas para copiar y pegar.</p>
-      <div class="tag"><span class="live-dot"></span> Activo ahora</div>
-      <a class="cta" href="/consultor-whatsapp">Entrar al agente →</a>
-    </div>
-
-    <!-- Card 5: Radar — ACTIVO -->
-    <div class="card active">
-      <div class="num">05</div>
-      <h3>☢️ Radar de Tendencias &amp; Investigación</h3>
-      <p>Observa cuentas de referencia, detecta patrones de contenido y los convierte en insights accionables sin perder tu voz.</p>
-      <div class="tag"><span class="live-dot"></span> Activo ahora</div>
-      <a class="cta" href="/consultor-radar">Entrar al agente →</a>
-    </div>
-
-    <!-- Card 6: Contenido — ACTIVO -->
-    <div class="card active">
-      <div class="num">06</div>
-      <h3>🗓️ Jefe Contenido</h3>
-      <p>Planeador de historias con banco de ideas, guiones, creativos y calendarios alineados a tu sistema de ventas.</p>
-      <div class="tag"><span class="live-dot"></span> Activo ahora</div>
-      <a class="cta" href="/consultor-contenido">Entrar al agente →</a>
-    </div>
-
-    <!-- Card 7: Ads — ACTIVO -->
-    <div class="card active">
-      <div class="num">07</div>
-      <h3>📣 Jefe de Anuncios y Campañas de Paga</h3>
-      <p>Banco de anuncios evergreen: hooks, testimonios y remarketing para Meta Ads.</p>
-      <div class="tag"><span class="live-dot"></span> Activo ahora</div>
-      <a class="cta" href="/consultor-anuncios">Entrar al agente →</a>
-    </div>
-
-    <!-- Card 8: Activos IA -->
-    <div class="card locked">
-      <div class="num">08</div>
-      <h3>🎨 Productor de Activos IA</h3>
-      <p>Convierte guiones e ideas en videos, textos y visuales listos para producir.</p>
-      <div class="tag">🔒 Próximamente</div>
-    </div>
-
-    <!-- Card 9: Optimización — ACTIVO -->
-    <div class="card active">
-      <div class="num">09</div>
-      <h3>👁️ Optimización</h3>
-      <p>Lee métricas, detecta fugas y arma el plan de mejora semanal.</p>
-      <div class="tag"><span class="live-dot"></span> Activo ahora</div>
-      <a class="cta" href="/consultor-optimizacion">Entrar al agente →</a>
-    </div>
-
-    <!-- Card 10: Temporada -->
-    <div class="card locked">
-      <div class="num">10</div>
-      <h3>🕐 Campañas de Temporada</h3>
-      <p>Precampaña, campaña activa y postcampaña para fechas y promociones clave.</p>
-      <div class="tag">🔒 Próximamente</div>
-    </div>
-
+  <div class="graph-wrap">
+    <span class="graph-hint">Arrastra los nodos · Click para entrar</span>
+    <svg id="hub-graph"></svg>
   </div>
 
   <footer>
@@ -347,6 +337,101 @@
   Editar ADN del negocio
 </a>
 
+<script>
+(function initHubGraph(){
+  const nodesData = [
+    {id:0, num:'01', emoji:'🌱', nombre:'Jefe Evergreen', activo:true, href:'/consultor-evergreen'},
+    {id:1, num:'02', emoji:'💰', nombre:'Jefe Finanzas', activo:true, href:'/consultor-financiero'},
+    {id:2, num:'03', emoji:'🚦', nombre:'Jefe de Conversión', activo:true, href:'/consultor-cierre'},
+    {id:3, num:'04', emoji:'📳', nombre:'WhatsApp y Ventas', activo:true, href:'/consultor-whatsapp'},
+    {id:4, num:'05', emoji:'☢️', nombre:'Radar de Tendencias', activo:true, href:'/consultor-radar'},
+    {id:5, num:'06', emoji:'🗓️', nombre:'Jefe Contenido', activo:true, href:'/consultor-contenido'},
+    {id:6, num:'07', emoji:'📣', nombre:'Anuncios y Campañas', activo:true, href:'/consultor-anuncios'},
+    {id:7, num:'08', emoji:'🎨', nombre:'Activos IA', activo:false, href:null},
+    {id:8, num:'09', emoji:'👁️', nombre:'Optimización', activo:true, href:'/consultor-optimizacion'},
+    {id:9, num:'10', emoji:'🕐', nombre:'Campañas de Temporada', activo:false, href:null},
+  ];
+  // Conexiones decorativas (anillo + algunas diagonales) -- no representan
+  // relaciones reales de datos entre Jefes, solo dan la textura de red.
+  const linksData = [
+    {source:0,target:1},{source:1,target:2},{source:2,target:3},{source:3,target:4},
+    {source:4,target:5},{source:5,target:6},{source:6,target:7},{source:7,target:8},
+    {source:8,target:9},{source:9,target:0},
+    {source:0,target:5},{source:1,target:6},{source:2,target:7},{source:3,target:8},
+  ];
+
+  const svg = d3.select('#hub-graph');
+  const container = document.querySelector('.graph-wrap');
+  const height = 640;
+  let width = container.clientWidth;
+  svg.attr('viewBox', [0,0,width,height]);
+
+  // Posiciones iniciales en circulo -- la simulacion converge mas rapido y
+  // ordenado que si todos los nodos arrancan amontonados en el centro.
+  const r0 = Math.min(width,height)/2 - 80;
+  nodesData.forEach((d,i)=>{
+    const angle = (i/nodesData.length)*2*Math.PI;
+    d.x = width/2 + r0*Math.cos(angle);
+    d.y = height/2 + r0*Math.sin(angle);
+  });
+
+  const simulation = d3.forceSimulation(nodesData)
+    .force('link', d3.forceLink(linksData).id(d=>d.id).distance(150).strength(0.35))
+    .force('charge', d3.forceManyBody().strength(-320))
+    .force('center', d3.forceCenter(width/2, height/2))
+    .force('collide', d3.forceCollide(d => (d.activo?46:36)+14));
+
+  const link = svg.append('g').selectAll('line')
+    .data(linksData).join('line').attr('class','graph-link');
+
+  const node = svg.append('g').selectAll('g')
+    .data(nodesData).join('g')
+    .attr('class', d => 'graph-node ' + (d.activo ? 'active' : 'locked'))
+    .call(d3.drag().on('start', dragstarted).on('drag', dragged).on('end', dragended));
+
+  node.append('circle').attr('r', d => d.activo ? 46 : 36);
+  node.append('text').attr('class','node-num').attr('y', d=>d.activo?-26:-22).text(d=>d.num);
+  node.append('text').attr('class','node-emoji').attr('y', d=>d.activo?-4:-2).text(d=>d.emoji);
+  node.filter(d=>!d.activo).append('text').attr('class','node-lock').attr('y',18).text('🔒');
+  node.append('text').attr('class','node-label').attr('y', d=>(d.activo?46:36)+18).text(d=>d.nombre);
+  node.append('title').text(d => d.activo ? d.nombre : d.nombre + ' — Próximamente');
+
+  // Distingue click de arrastre: si el puntero se movio poco, cuenta como click.
+  let dragDistance = 0;
+  node.on('click', (event, d) => {
+    if (dragDistance > 6) return;
+    if (d.activo && d.href) window.location.href = d.href;
+  });
+
+  simulation.on('tick', () => {
+    link
+      .attr('x1', d=>d.source.x).attr('y1', d=>d.source.y)
+      .attr('x2', d=>d.target.x).attr('y2', d=>d.target.y);
+    node.attr('transform', d => `translate(${d.x},${d.y})`);
+  });
+
+  function dragstarted(event, d){
+    dragDistance = 0;
+    if (!event.active) simulation.alphaTarget(0.25).restart();
+    d.fx = d.x; d.fy = d.y;
+  }
+  function dragged(event, d){
+    dragDistance += Math.abs(event.dx) + Math.abs(event.dy);
+    d.fx = event.x; d.fy = event.y;
+  }
+  function dragended(event, d){
+    if (!event.active) simulation.alphaTarget(0);
+    d.fx = null; d.fy = null;
+  }
+
+  window.addEventListener('resize', () => {
+    width = container.clientWidth;
+    svg.attr('viewBox', [0,0,width,height]);
+    simulation.force('center', d3.forceCenter(width/2, height/2));
+    simulation.alpha(0.3).restart();
+  });
+})();
+</script>
 <script src="/js/storage-client.js"></script>
 <script>
 (async function checkADN(){
