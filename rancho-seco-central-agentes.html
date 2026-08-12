@@ -39,6 +39,10 @@
   #hub-graph:active{ cursor: grabbing; }
   .star{ fill: var(--chalk); animation: twinkle 3.6s ease-in-out infinite; }
   @keyframes twinkle{ 0%,100%{ opacity:.12; } 50%{ opacity:.65; } }
+  .stars-layer{ transform-box: view-box; transform-origin: center; animation: girar-fondo 220s linear infinite; }
+  @keyframes girar-fondo{ from{ transform: rotate(0deg); } to{ transform: rotate(360deg); } }
+  @keyframes respirar{ 0%,100%{ transform: scale(1); } 50%{ transform: scale(1.07); } }
+  .graph-node.active circle, .graph-node.locked circle{ transform-box: fill-box; transform-origin: center; animation: respirar 4.4s ease-in-out infinite; }
   .graph-link{ stroke: var(--chalk-dim); stroke-width: 1.2; opacity: .38; }
   .graph-link.satellite-link{ stroke: var(--chalk); stroke-width: .7; opacity: .14; }
   .graph-node{ cursor: pointer; }
@@ -174,9 +178,12 @@
   // textura de "constelacion" densa (inspirado en la vista de grafo de
   // Obsidian) -- no representan informacion real.
   function agregarSatelites(parent, cantidad){
+    const radioPadre = parent.esADN ? 60 : (parent.activo?46:36);
     for(let i=0;i<cantidad;i++){
       const id = 'sat-' + parent.id + '-' + i;
-      nodesData.push({id, esSatelite:true});
+      const orbitRadius = radioPadre + 16 + Math.random()*30;
+      const orbitSpeed = (Math.random()<0.5 ? -1 : 1) * (0.006 + Math.random()*0.016);
+      nodesData.push({id, esSatelite:true, parentRef:parent, orbitRadius, orbitSpeed, orbitAngle: Math.random()*Math.PI*2});
       linksData.push({source:parent.id, target:id, esSatelite:true});
     }
   }
@@ -188,6 +195,7 @@
   svg.attr('viewBox', [0,0,width,height]);
 
   const starsLayer = svg.append('g').attr('class','stars-layer');
+  const graphGroup = svg.append('g').attr('class','graph-depth');
   function pintarEstrellas(){
     const cantidad = 90;
     const estrellas = Array.from({length: cantidad}, () => ({
@@ -220,10 +228,9 @@
   const ALPHA_VIDA = 0.045;
   function fuerzaVida(alpha){
     for (const d of nodesData){
-      if (d.esADN) continue;
-      const intensidad = d.esSatelite ? 0.5 : 0.18;
-      d.vx += (Math.random()-0.5) * intensidad * alpha;
-      d.vy += (Math.random()-0.5) * intensidad * alpha;
+      if (d.esADN || d.esSatelite) continue;
+      d.vx += (Math.random()-0.5) * 0.34 * alpha;
+      d.vy += (Math.random()-0.5) * 0.34 * alpha;
     }
   }
 
@@ -237,16 +244,17 @@
     .force('vida', fuerzaVida)
     .alphaTarget(ALPHA_VIDA);
 
-  const link = svg.append('g').selectAll('line')
+  const link = graphGroup.append('g').selectAll('line')
     .data(linksData).join('line')
     .attr('class', d => 'graph-link' + (d.esSatelite ? ' satellite-link' : ''));
 
-  const node = svg.append('g').selectAll('g')
+  const node = graphGroup.append('g').selectAll('g')
     .data(nodesData).join('g')
     .attr('class', d => d.esADN ? 'graph-node adn-node' : d.esSatelite ? 'graph-node satellite' : 'graph-node ' + (d.activo ? 'active' : 'locked'))
     .call(d3.drag().on('start', dragstarted).on('drag', dragged).on('end', dragended));
 
-  node.append('circle').attr('r', radioDe);
+  node.append('circle').attr('r', radioDe)
+    .style('animation-delay', () => (Math.random()*4.4) + 's');
   const nodePrincipal = node.filter(d=>!d.esADN && !d.esSatelite);
   nodePrincipal.append('text').attr('class','node-num').attr('y', d=>d.activo?-26:-22).text(d=>d.num);
   nodePrincipal.append('text').attr('class','node-emoji').attr('y', d=>d.activo?-4:-2).text(d=>d.emoji);
@@ -268,8 +276,24 @@
   });
 
   simulation.on('tick', () => {
+    for (const d of nodesData){
+      if (d.esSatelite && d.parentRef){
+        d.orbitAngle += d.orbitSpeed;
+        d.x = d.parentRef.x + d.orbitRadius * Math.cos(d.orbitAngle);
+        d.y = d.parentRef.y + d.orbitRadius * Math.sin(d.orbitAngle);
+      }
+    }
     link.attr('x1', d=>d.source.x).attr('y1', d=>d.source.y).attr('x2', d=>d.target.x).attr('y2', d=>d.target.y);
     node.attr('transform', d => `translate(${d.x},${d.y})`);
+  });
+
+  // Paralaje suave con el mouse: sensacion de profundidad barata moviendo
+  // el grafo y el fondo de estrellas a velocidades distintas.
+  document.querySelector('.graph-full').addEventListener('mousemove', (e) => {
+    const relX = (e.clientX - width/2) / width;
+    const relY = (e.clientY - height/2) / height;
+    graphGroup.style('transform', `translate(${relX*22}px,${relY*22}px)`);
+    starsLayer.style('transform', `translate(${relX*-8}px,${relY*-8}px)`);
   });
 
   function dragstarted(event, d){
