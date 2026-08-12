@@ -35,7 +35,7 @@
     background: radial-gradient(circle, var(--accent-soft) 0%, transparent 70%);
     filter: blur(24px); pointer-events: none;
   }
-  #hub-graph{ display:block; width:100%; height:100%; cursor: grab; position: relative; }
+  #hub-graph{ display:block; width:100%; height:100%; cursor: grab; position: relative; touch-action: none; }
   #hub-graph:active{ cursor: grabbing; }
   .star{ fill: var(--chalk); animation: twinkle 3.6s ease-in-out infinite; }
   @keyframes twinkle{ 0%,100%{ opacity:.12; } 50%{ opacity:.65; } }
@@ -198,8 +198,15 @@
   let width = window.innerWidth, height = window.innerHeight;
   svg.attr('viewBox', [0,0,width,height]);
 
-  const starsLayer = svg.append('g').attr('class','stars-layer');
-  const graphGroup = svg.append('g').attr('class','graph-depth');
+  // Todo lo visual vive dentro de zoomRoot para poder hacer pinch-zoom
+  // (o rueda/ctrl+scroll en escritorio) sin pelearse con el drag de
+  // cada nodo, que sigue funcionando igual.
+  const zoomRoot = svg.append('g').attr('class','zoom-root');
+  const starsLayer = zoomRoot.append('g').attr('class','stars-layer');
+  const graphGroup = zoomRoot.append('g').attr('class','graph-depth');
+  svg.call(d3.zoom().scaleExtent([0.4, 3.2]).on('zoom', (event) => {
+    zoomRoot.attr('transform', event.transform);
+  }));
   function pintarEstrellas(){
     const cantidad = 90;
     const estrellas = Array.from({length: cantidad}, () => ({
