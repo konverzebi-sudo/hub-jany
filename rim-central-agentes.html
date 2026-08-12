@@ -29,11 +29,22 @@
 
   /* Grafo a pantalla completa */
   .graph-full{ position: fixed; inset: 0; }
-  #hub-graph{ display:block; width:100%; height:100%; cursor: grab; }
+  .center-aura{
+    position: fixed; top: 50%; left: 50%; width: 900px; height: 900px;
+    transform: translate(-50%,-50%);
+    background: radial-gradient(circle, var(--accent-soft) 0%, transparent 70%);
+    filter: blur(24px); pointer-events: none;
+  }
+  #hub-graph{ display:block; width:100%; height:100%; cursor: grab; position: relative; }
   #hub-graph:active{ cursor: grabbing; }
-  .graph-link{ stroke: var(--line); stroke-width: 1.2; opacity: .5; }
+  .star{ fill: var(--chalk); animation: twinkle 3.6s ease-in-out infinite; }
+  @keyframes twinkle{ 0%,100%{ opacity:.12; } 50%{ opacity:.65; } }
+  .graph-link{ stroke: var(--chalk-dim); stroke-width: 1.2; opacity: .38; }
+  .graph-link.satellite-link{ stroke: var(--chalk); stroke-width: .7; opacity: .14; }
   .graph-node{ cursor: pointer; }
   .graph-node.locked{ cursor: not-allowed; }
+  .graph-node.satellite{ pointer-events: none; }
+  .graph-node.satellite circle{ fill: var(--chalk); opacity: .4; }
   .graph-node circle{ stroke-width: 1.5; transition: filter .15s ease; }
   .graph-node.active circle{
     fill: var(--surface-2);
@@ -115,6 +126,7 @@
 <body>
 
 <div class="graph-full">
+  <div class="center-aura"></div>
   <svg id="hub-graph"></svg>
 </div>
 
@@ -158,9 +170,36 @@
   const nodesData = [adnNode, ...jefes];
   const linksData = jefes.map(j => ({source:'adn', target:j.id}));
 
+  // Nodos satelite: puntos decorativos sin datos ni click, solo dan la
+  // textura de "constelacion" densa (inspirado en la vista de grafo de
+  // Obsidian) -- no representan informacion real.
+  function agregarSatelites(parent, cantidad){
+    for(let i=0;i<cantidad;i++){
+      const id = 'sat-' + parent.id + '-' + i;
+      nodesData.push({id, esSatelite:true});
+      linksData.push({source:parent.id, target:id, esSatelite:true});
+    }
+  }
+  agregarSatelites(adnNode, 14);
+  jefes.forEach(j => agregarSatelites(j, j.activo ? 5 : 2));
+
   const svg = d3.select('#hub-graph');
   let width = window.innerWidth, height = window.innerHeight;
   svg.attr('viewBox', [0,0,width,height]);
+
+  const starsLayer = svg.append('g').attr('class','stars-layer');
+  function pintarEstrellas(){
+    const cantidad = 90;
+    const estrellas = Array.from({length: cantidad}, () => ({
+      cx: Math.random()*width, cy: Math.random()*height,
+      r: Math.random()*1.3 + 0.4, delay: Math.random()*3.6
+    }));
+    starsLayer.selectAll('circle').data(estrellas).join('circle')
+      .attr('class','star')
+      .attr('cx', d=>d.cx).attr('cy', d=>d.cy).attr('r', d=>d.r)
+      .style('animation-delay', d => d.delay + 's');
+  }
+  pintarEstrellas();
 
   adnNode.x = width/2; adnNode.y = height/2;
   adnNode.fx = width/2; adnNode.fy = height/2; // fijo en el centro siempre
@@ -172,28 +211,32 @@
     d.y = height/2 + r0*Math.sin(angle);
   });
 
-  function radioDe(d){ return d.esADN ? 60 : (d.activo?46:36); }
+  function radioDe(d){ return d.esADN ? 60 : d.esSatelite ? 2.4 : (d.activo?46:36); }
 
   const simulation = d3.forceSimulation(nodesData)
-    .force('link', d3.forceLink(linksData).id(d=>d.id).distance(190).strength(0.5))
-    .force('charge', d3.forceManyBody().strength(-340))
+    .force('link', d3.forceLink(linksData).id(d=>d.id)
+      .distance(d => d.esSatelite ? 26 + Math.random()*22 : 190)
+      .strength(d => d.esSatelite ? 0.7 : 0.5))
+    .force('charge', d3.forceManyBody().strength(d => d.esSatelite ? -6 : -340))
     .force('center', d3.forceCenter(width/2, height/2))
-    .force('collide', d3.forceCollide(d => radioDe(d)+16));
+    .force('collide', d3.forceCollide(d => d.esSatelite ? 5 : radioDe(d)+16));
 
   const link = svg.append('g').selectAll('line')
-    .data(linksData).join('line').attr('class','graph-link');
+    .data(linksData).join('line')
+    .attr('class', d => 'graph-link' + (d.esSatelite ? ' satellite-link' : ''));
 
   const node = svg.append('g').selectAll('g')
     .data(nodesData).join('g')
-    .attr('class', d => d.esADN ? 'graph-node adn-node' : 'graph-node ' + (d.activo ? 'active' : 'locked'))
+    .attr('class', d => d.esADN ? 'graph-node adn-node' : d.esSatelite ? 'graph-node satellite' : 'graph-node ' + (d.activo ? 'active' : 'locked'))
     .call(d3.drag().on('start', dragstarted).on('drag', dragged).on('end', dragended));
 
   node.append('circle').attr('r', radioDe);
-  node.filter(d=>!d.esADN).append('text').attr('class','node-num').attr('y', d=>d.activo?-26:-22).text(d=>d.num);
-  node.filter(d=>!d.esADN).append('text').attr('class','node-emoji').attr('y', d=>d.activo?-4:-2).text(d=>d.emoji);
-  node.filter(d=>!d.esADN && !d.activo).append('text').attr('class','node-lock').attr('y',18).text('🔒');
-  node.filter(d=>!d.esADN).append('text').attr('class','node-label').attr('y', d=>radioDe(d)+18).text(d=>d.nombre);
-  node.filter(d=>!d.esADN).append('title').text(d => d.activo ? d.nombre : d.nombre + ' — Próximamente');
+  const nodePrincipal = node.filter(d=>!d.esADN && !d.esSatelite);
+  nodePrincipal.append('text').attr('class','node-num').attr('y', d=>d.activo?-26:-22).text(d=>d.num);
+  nodePrincipal.append('text').attr('class','node-emoji').attr('y', d=>d.activo?-4:-2).text(d=>d.emoji);
+  nodePrincipal.filter(d=>!d.activo).append('text').attr('class','node-lock').attr('y',18).text('🔒');
+  nodePrincipal.append('text').attr('class','node-label').attr('y', d=>radioDe(d)+18).text(d=>d.nombre);
+  nodePrincipal.append('title').text(d => d.activo ? d.nombre : d.nombre + ' — Próximamente');
 
   // Nodo ADN: emoji, nombre del negocio (o "ADN pendiente"), y estado.
   node.filter(d=>d.esADN).append('text').attr('class','node-emoji').attr('y', -8).text('🧬');
@@ -236,6 +279,7 @@
     adnNode.fx = width/2; adnNode.fy = height/2;
     simulation.force('center', d3.forceCenter(width/2, height/2));
     simulation.alpha(0.3).restart();
+    pintarEstrellas();
   });
 
   // ---------- ADN + tokens (misma logica de siempre, ahora actualiza el grafo) ----------
