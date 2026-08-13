@@ -61,7 +61,8 @@
   .graph-node .node-lock{ font-size: 16px; text-anchor: middle; dominant-baseline: central; pointer-events: none; opacity: .6; }
   .graph-node .node-label{ font-family:'JetBrains Mono',monospace; font-size: 11px; letter-spacing: .02em; text-anchor: middle; fill: var(--chalk-dim); pointer-events: none; user-select: none; }
   .graph-node.active .node-label{ fill: var(--chalk); }
-  .graph-node .node-num{ font-family:'JetBrains Mono',monospace; font-size: 9px; letter-spacing: .1em; text-anchor: middle; fill: var(--chalk-dim); opacity: .8; pointer-events: none; }
+  .graph-node .node-num{ font-family:'JetBrains Mono',monospace; font-size: 9px; letter-spacing: .1em; text-anchor: middle; fill: var(--chalk-dim); opacity: .9; pointer-events: none; paint-order: stroke; stroke: rgba(0,0,0,.6); stroke-width: 3px; stroke-linejoin: round; }
+  .graph-node .node-icon{ pointer-events: none; }
 
   /* Nodo central: ADN del negocio */
   .graph-node.adn-node circle{
@@ -160,16 +161,16 @@
   const CLIENTE_ID = 'rim';
 
   const jefes = [
-    {id:0, num:'01', emoji:'🌱', nombre:'Jefe Evergreen', activo:true, href:'/rim/consultor-evergreen'},
-    {id:1, num:'02', emoji:'💰', nombre:'Jefe Finanzas', activo:true, href:'/rim/consultor-financiero'},
-    {id:2, num:'03', emoji:'🚦', nombre:'Jefe de Conversión', activo:true, href:'/rim/consultor-cierre'},
-    {id:3, num:'04', emoji:'📳', nombre:'WhatsApp y Ventas', activo:true, href:'/rim/consultor-whatsapp'},
-    {id:4, num:'05', emoji:'☢️', nombre:'Radar de Tendencias', activo:true, href:'/rim/consultor-radar'},
-    {id:5, num:'06', emoji:'🗓️', nombre:'Jefe Contenido', activo:true, href:'/rim/consultor-contenido'},
-    {id:6, num:'07', emoji:'📣', nombre:'Anuncios y Campañas', activo:true, href:'/rim/consultor-anuncios'},
+    {id:0, num:'01', icono:'jefe-evergreen', nombre:'Jefe Evergreen', activo:true, href:'/rim/consultor-evergreen'},
+    {id:1, num:'02', icono:'jefe-finanzas', nombre:'Jefe Finanzas', activo:true, href:'/rim/consultor-financiero'},
+    {id:2, num:'03', icono:'jefe-conversion', nombre:'Jefe de Conversión', activo:true, href:'/rim/consultor-cierre'},
+    {id:3, num:'04', icono:'jefe-whatsapp', nombre:'WhatsApp y Ventas', activo:true, href:'/rim/consultor-whatsapp'},
+    {id:4, num:'05', icono:'jefe-radar', nombre:'Radar de Tendencias', activo:true, href:'/rim/consultor-radar'},
+    {id:5, num:'06', icono:'jefe-contenido', nombre:'Jefe Contenido', activo:true, href:'/rim/consultor-contenido'},
+    {id:6, num:'07', icono:'jefe-anuncios', nombre:'Anuncios y Campañas', activo:true, href:'/rim/consultor-anuncios'},
     {id:7, num:'08', emoji:'🎨', nombre:'Activos IA', activo:false, href:null},
-    {id:8, num:'09', emoji:'👁️', nombre:'Optimización', activo:false, href:null},
-    {id:9, num:'10', emoji:'🕐', nombre:'Campañas de Temporada', activo:false, href:null},
+    {id:8, num:'09', icono:'jefe-optimizacion', nombre:'Optimización', activo:false, href:null},
+    {id:9, num:'10', icono:'jefe-temporada', nombre:'Campañas de Temporada', activo:false, href:null},
   ];
   // Nodo central: el ADN del negocio. Todos los Jefes conectan hacia el
   // (hub-and-spoke) -- la conexion es decorativa/tematica, no representa
@@ -267,8 +268,12 @@
   node.append('circle').attr('r', radioDe)
     .style('animation-delay', () => (Math.random()*4.4) + 's');
   const nodePrincipal = node.filter(d=>!d.esADN && !d.esSatelite);
+  nodePrincipal.filter(d=>d.icono).append('image').attr('class','node-icon')
+    .attr('href', d => '/img/' + d.icono + '.webp')
+    .attr('width', d => radioDe(d)*1.15).attr('height', d => radioDe(d)*1.15)
+    .attr('x', d => -radioDe(d)*1.15/2).attr('y', d => -radioDe(d)*1.15/2);
+  nodePrincipal.filter(d=>!d.icono).append('text').attr('class','node-emoji').attr('y', d=>d.activo?-4:-2).text(d=>d.emoji);
   nodePrincipal.append('text').attr('class','node-num').attr('y', d=>d.activo?-26:-22).text(d=>d.num);
-  nodePrincipal.append('text').attr('class','node-emoji').attr('y', d=>d.activo?-4:-2).text(d=>d.emoji);
   nodePrincipal.filter(d=>!d.activo).append('text').attr('class','node-lock').attr('y',18).text('🔒');
   nodePrincipal.append('text').attr('class','node-label').attr('y', d=>radioDe(d)+18).text(d=>d.nombre);
   nodePrincipal.append('title').text(d => d.activo ? d.nombre : d.nombre + ' — Próximamente');
