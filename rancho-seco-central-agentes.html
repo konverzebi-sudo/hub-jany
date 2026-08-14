@@ -42,21 +42,23 @@
   .stars-layer{ transform-box: view-box; transform-origin: center; animation: girar-fondo 220s linear infinite; }
   @keyframes girar-fondo{ from{ transform: rotate(0deg); } to{ transform: rotate(360deg); } }
   @keyframes respirar{ 0%,100%{ transform: scale(1); } 50%{ transform: scale(1.07); } }
-  .graph-node.active circle, .graph-node.locked circle{ transform-box: fill-box; transform-origin: center; animation: respirar 4.4s ease-in-out infinite; }
+  .graph-node.active .node-icon, .graph-node.active .node-emoji,
+  .graph-node.locked .node-icon, .graph-node.locked .node-emoji{ transform-box: fill-box; transform-origin: center; animation: respirar 4.4s ease-in-out infinite; }
   .graph-link{ stroke: var(--chalk-dim); stroke-width: 1.2; opacity: .38; }
   .graph-link.satellite-link{ stroke: var(--chalk); stroke-width: .7; opacity: .14; }
   .graph-node{ cursor: pointer; }
   .graph-node.locked{ cursor: not-allowed; }
   .graph-node.satellite{ pointer-events: none; }
   .graph-node.satellite circle{ fill: var(--chalk); opacity: .4; }
-  .graph-node circle{ stroke-width: 1.5; transition: filter .15s ease; }
-  .graph-node.active circle{
-    fill: var(--surface-2);
-    stroke: var(--accent);
-    filter: drop-shadow(0 0 8px rgba(242,194,48,0.35));
+  .graph-node circle{ stroke-width: 1.5; transition: filter .15s ease; pointer-events: all; }
+  /* Sin circulo alrededor del icono -- solo queda como area de click/arrastre invisible */
+  .graph-node.active circle, .graph-node.locked circle{ fill: none; stroke: none; }
+  .graph-node.active .node-icon, .graph-node.active .node-emoji{
+    filter: drop-shadow(0 0 8px rgba(242,194,48,0.4));
+    transition: filter .15s ease;
   }
-  .graph-node.active:hover circle{ filter: drop-shadow(0 0 16px rgba(242,194,48,0.65)); }
-  .graph-node.locked circle{ fill: var(--surface); stroke: var(--line); opacity: .55; }
+  .graph-node.active:hover .node-icon, .graph-node.active:hover .node-emoji{ filter: drop-shadow(0 0 16px rgba(242,194,48,0.7)); }
+  .graph-node.locked .node-icon, .graph-node.locked .node-emoji{ filter: grayscale(1); opacity: .45; }
   .graph-node .node-emoji{ font-size: 22px; text-anchor: middle; dominant-baseline: central; pointer-events: none; user-select: none; }
   .graph-node .node-lock{ font-size: 16px; text-anchor: middle; dominant-baseline: central; pointer-events: none; opacity: .6; }
   .graph-node .node-label{ font-family:'Oswald',sans-serif; font-size: 11px; letter-spacing: .04em; text-anchor: middle; fill: var(--chalk-dim); pointer-events: none; user-select: none; }
@@ -171,7 +173,7 @@
     {id:7, num:'08', icono:'jefe-produccion-video', nombre:'Producción de Video', activo:true, href:'/rancho-seco/consultor-produccion-video'},
     {id:8, num:'09', icono:'jefe-optimizacion', nombre:'Optimización', activo:true, href:'/rancho-seco/consultor-optimizacion'},
     {id:9, num:'10', icono:'jefe-temporada', nombre:'Campañas de Temporada', activo:false, href:null},
-    {id:10, num:'11', emoji:'📅', nombre:'Jefe de Agenda', activo:false, href:null},
+    {id:10, num:'11', icono:'jefe-agenda', nombre:'Jefe de Agenda', activo:false, href:null},
   ];
   // Nodo central: el ADN del negocio. Todos los Jefes conectan hacia el
   // (hub-and-spoke) -- la conexion es decorativa/tematica, no representa
@@ -266,13 +268,13 @@
     .attr('class', d => d.esADN ? 'graph-node adn-node' : d.esSatelite ? 'graph-node satellite' : 'graph-node ' + (d.activo ? 'active' : 'locked'))
     .call(d3.drag().on('start', dragstarted).on('drag', dragged).on('end', dragended));
 
-  node.append('circle').attr('r', radioDe)
-    .style('animation-delay', () => (Math.random()*4.4) + 's');
+  node.append('circle').attr('r', radioDe);
   const nodePrincipal = node.filter(d=>!d.esADN && !d.esSatelite);
   nodePrincipal.append('image').attr('class','node-icon')
     .attr('href', d => '/img/' + d.icono + '.webp')
     .attr('width', d => radioDe(d)*1.15).attr('height', d => radioDe(d)*1.15)
-    .attr('x', d => -radioDe(d)*1.15/2).attr('y', d => -radioDe(d)*1.15/2);
+    .attr('x', d => -radioDe(d)*1.15/2).attr('y', d => -radioDe(d)*1.15/2)
+    .style('animation-delay', () => (Math.random()*4.4) + 's');
   nodePrincipal.append('text').attr('class','node-num').attr('y', d=>d.activo?-26:-22).text(d=>d.num);
   nodePrincipal.filter(d=>!d.activo).append('text').attr('class','node-lock').attr('y',18).text('🔒');
   nodePrincipal.append('text').attr('class','node-label').attr('y', d=>radioDe(d)+18).text(d=>d.nombre);
