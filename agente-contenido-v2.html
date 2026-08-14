@@ -78,6 +78,9 @@
   select.estado-select.publicado{background:#3A2013;color:#FF9466;border-color:#7A3A1E;}
   .fecha-input{width:76px;text-align:right;background:transparent;border:1px solid var(--line);border-radius:8px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:11.5px;padding:5px 8px;outline:none;}
   .fecha-input:focus{border-color:var(--accent);color:var(--text);}
+  .fecha-input.invalida{border-color:#E05A5A;}
+  .fecha-confirm{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.04em;color:var(--text-dim);white-space:nowrap;}
+  .fecha-confirm.ok{color:var(--accent);}
   textarea.gancho-input{width:100%;border:none;background:transparent;color:var(--text);font-family:'Sora',sans-serif;font-size:15.5px;font-weight:700;line-height:1.4;resize:none;padding:0;outline:none;min-height:24px;}
   .item-fase{font-size:11.5px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;}
 
@@ -502,6 +505,19 @@ function parseFechaDDMM(str){
   if((now-d)/86400000>30) d=new Date(now.getFullYear()+1,month,day);
   return d;
 }
+// Confirmacion visual + fechaISO confiable para lectura externa (ej. un
+// futuro calendario que une fechas de varios Jefes) -- reusa parseFechaDDMM
+// de arriba, que ya resuelve el año (si la fecha ya paso hace mas de 30
+// dias, asume que es del año que viene).
+function fechaConfirmInfo(str){
+  const d=parseFechaDDMM(str);
+  if(d){
+    const iso=d.toISOString().slice(0,10);
+    const texto=d.toLocaleDateString('es-MX',{day:'numeric',month:'short'});
+    return {ok:true, iso, texto:'✓ '+texto};
+  }
+  return {ok:false, iso:null, texto: str ? '⚠ usa dd/mm' : ''};
+}
 function fechaHorizonIndex(fechaStr){
   const d=parseFechaDDMM(fechaStr);
   if(!d) return null;
@@ -646,7 +662,8 @@ function buildCard(r){
         <option value="publicado" ${r.estado==='publicado'?'selected':''}>🔥 Publicado</option>
       </select>
       <div class="item-top-right">
-        <input type="text" class="fecha-input" placeholder="dd/mm" value="${escHtml(r.fecha)}" data-id="${r.id}" data-field="fecha">
+        <span class="fecha-confirm ${fechaConfirmInfo(r.fecha).ok?'ok':''}" data-confirm-id="${r.id}">${fechaConfirmInfo(r.fecha).texto}</span>
+        <input type="text" class="fecha-input ${!fechaConfirmInfo(r.fecha).ok && r.fecha ? 'invalida':''}" placeholder="dd/mm" value="${escHtml(r.fecha)}" data-id="${r.id}" data-field="fecha">
         <button type="button" class="item-del" data-id="${r.id}" title="Eliminar idea">✕</button>
       </div>
     </div>
@@ -762,6 +779,9 @@ function onFieldChange(e){
     row.fase = suffix ? `Semana ${e.target.value} · ${suffix}` : `Semana ${e.target.value}`;
   } else {
     row[field]=e.target.value;
+  }
+  if(field==='fecha'){
+    row.fechaISO=fechaConfirmInfo(e.target.value).iso;
   }
   if(field==='estado'||field==='fecha'){
     render();
@@ -2047,6 +2067,8 @@ async function loadStorage(){
       const saved=JSON.parse(result.value);
       if(saved.historias) state.historias=saved.historias;
       if(saved.contenido) state.contenido=saved.contenido;
+      // Auto-completa fechaISO en tarjetas guardadas antes de este cambio.
+      [state.historias,state.contenido].forEach(list=>list.forEach(r=>{ if(r.fecha && !r.fechaISO) r.fechaISO=fechaConfirmInfo(r.fecha).iso; }));
       if(saved.banco){ saved.banco.forEach(b=>{if(b.aprobada===undefined)b.aprobada=!!b.gancho;}); state.banco=saved.banco; }
       if(saved.bancoIdeas){ saved.bancoIdeas.forEach(b=>{if(b.selected===undefined)b.selected=false;}); state.bancoIdeas=saved.bancoIdeas; }
       const when=result.updatedAt?new Date(result.updatedAt).toLocaleString('es-MX',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';

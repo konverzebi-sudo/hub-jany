@@ -102,6 +102,9 @@
   select.estado-select.publicado{background:#3A2013;color:#FF9466;border-color:#7A3A1E;}
   .fecha-input{width:76px;text-align:right;background:transparent;border:1px solid var(--line);border-radius:8px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:11.5px;padding:5px 8px;outline:none;}
   .fecha-input:focus{border-color:var(--accent);color:var(--text);}
+  .fecha-input.invalida{border-color:#E05A5A;}
+  .fecha-confirm{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.04em;color:var(--text-dim);white-space:nowrap;}
+  .fecha-confirm.ok{color:var(--accent);}
   textarea.gancho-input{width:100%;border:none;background:transparent;color:var(--text);font-family:'Sora',sans-serif;font-size:15.5px;font-weight:700;line-height:1.4;resize:none;padding:0;outline:none;min-height:24px;}
   .badges-row{display:flex;gap:5px;flex-wrap:wrap;align-items:center;}
   .badge{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-family:'JetBrains Mono',monospace;font-weight:700;padding:3px 8px;border-radius:100px;letter-spacing:.02em;border:1px solid transparent;}
@@ -307,6 +310,8 @@ async function cargarInicial(){
   try{
     const r=await window.storage.get(CARDS_KEY);
     cards = r&&r.value?JSON.parse(r.value):[];
+    // Auto-completa fechaISO en tarjetas guardadas antes de este cambio.
+    cards.forEach(c=>{ if(c.fecha && !c.fechaISO) c.fechaISO=fechaDDMMaISO(c.fecha); });
   }catch(e){ cards=[]; }
   try{
     const r=await window.storage.get(ESTRUCTURA_KEY);
@@ -1177,6 +1182,30 @@ function promptFieldHtml(item, field, label){
   `;
 }
 
+// ─── FECHA: valida dd/mm, infiere el año y expone un ISO confiable ─────────
+// (mismo criterio que usa Jefe Contenido: si esa fecha ya paso hace mas de
+// 30 dias, se asume que es del año que viene, no del pasado)
+function fechaDDMMaISO(str){
+  if(!str) return null;
+  const m=str.trim().match(/^(\d{1,2})\/(\d{1,2})$/);
+  if(!m) return null;
+  const day=parseInt(m[1],10), month=parseInt(m[2],10)-1;
+  if(month<0||month>11||day<1||day>31) return null;
+  const now=new Date();
+  let d=new Date(now.getFullYear(),month,day);
+  if((now-d)/86400000>30) d=new Date(now.getFullYear()+1,month,day);
+  return d.toISOString().slice(0,10);
+}
+function fechaConfirmInfo(str){
+  const iso=fechaDDMMaISO(str);
+  if(iso){
+    const d=new Date(iso+'T00:00:00');
+    const texto=d.toLocaleDateString('es-MX',{day:'numeric',month:'short'});
+    return {ok:true, iso, texto:'✓ '+texto};
+  }
+  return {ok:false, iso:null, texto: str ? '⚠ usa dd/mm' : ''};
+}
+
 function buildAnuncioCard(item){
   const card = document.createElement('div');
   card.className='item-card';
@@ -1192,6 +1221,7 @@ function buildAnuncioCard(item){
         <option value="publicado" ${item.estado==='publicado'?'selected':''}>🔥 Publicado</option>
       </select>
       <div class="item-top-right">
+        <span class="fecha-confirm ${fechaConfirmInfo(item.fecha).ok?'ok':''}" data-confirm-id="${item.id}">${fechaConfirmInfo(item.fecha).texto}</span>
         <input type="text" class="fecha-input" placeholder="dd/mm" value="${escHtml(item.fecha)}" data-id="${item.id}" data-field="fecha">
         <button type="button" class="item-del" data-id="${item.id}" title="Eliminar campaña">✕</button>
       </div>
@@ -1259,6 +1289,13 @@ function bindCardEvents(container){
       const item = cards.find(c=>c.id===e.target.dataset.id);
       if(!item) return;
       setField(item, e.target.dataset.field, e.target.value);
+      if(e.target.dataset.field==='fecha'){
+        const info=fechaConfirmInfo(e.target.value);
+        item.fechaISO=info.iso;
+        e.target.classList.toggle('invalida', !info.ok && !!e.target.value);
+        const chip=container.querySelector(`.fecha-confirm[data-confirm-id="${item.id}"]`);
+        if(chip){ chip.textContent=info.texto; chip.classList.toggle('ok', info.ok); }
+      }
       scheduleCardsSave();
     });
   });
