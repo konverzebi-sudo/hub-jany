@@ -100,7 +100,7 @@
   select.estado-select.idea{background:#1B2142;color:#A8B4F0;border-color:#3A4380;}
   select.estado-select.proceso{background:#332708;color:#F5C84C;border-color:#6B4F14;}
   select.estado-select.publicado{background:#3A2013;color:#FF9466;border-color:#7A3A1E;}
-  .fecha-input{width:76px;text-align:right;background:transparent;border:1px solid var(--line);border-radius:8px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:11.5px;padding:5px 8px;outline:none;}
+  .fecha-input{width:128px;background:transparent;border:1px solid var(--line);border-radius:8px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:11.5px;padding:5px 8px;outline:none;color-scheme:dark;}
   .fecha-input:focus{border-color:var(--accent);color:var(--text);}
   textarea.gancho-input{width:100%;border:none;background:transparent;color:var(--text);font-family:'Sora',sans-serif;font-size:15.5px;font-weight:700;line-height:1.4;resize:none;padding:0;outline:none;min-height:24px;}
   .badges-row{display:flex;gap:5px;flex-wrap:wrap;align-items:center;}
@@ -216,6 +216,7 @@ function detectClienteId(){
 const CLIENTE_ID = detectClienteId();
 const BORRADOR_KEY = CLIENTE_ID + ':anuncios-ideas-borrador';
 const CARDS_KEY = CLIENTE_ID + ':agente-anuncios';
+const AGENDA_KEY = CLIENTE_ID + ':agenda-eventos';
 const ESTRUCTURA_KEY = CLIENTE_ID + ':anuncios-estructura';
 const CARPETA_KEY = CLIENTE_ID + ':anuncios-carpeta-link';
 const BM_KEY = CLIENTE_ID + ':anuncios-bm-link';
@@ -308,6 +309,8 @@ async function cargarInicial(){
     const r=await window.storage.get(CARDS_KEY);
     cards = r&&r.value?JSON.parse(r.value):[];
   }catch(e){ cards=[]; }
+  if(migrarFechasLegacyCards()){ scheduleCardsSave(); }
+  scheduleAgendaSync();
   try{
     const r=await window.storage.get(ESTRUCTURA_KEY);
     estructuras = r&&r.value?JSON.parse(r.value):[];
@@ -333,7 +336,50 @@ let cardsSaveTimer=null, cardsPendingSave=false;
 function scheduleCardsSave(){ cardsPendingSave=true; clearTimeout(cardsSaveTimer); cardsSaveTimer=setTimeout(doSaveCards,500); }
 async function doSaveCards(opts){
   clearTimeout(cardsSaveTimer); cardsSaveTimer=null; if(!cardsPendingSave) return;
-  try{ await window.storage.set(CARDS_KEY, JSON.stringify(cards), opts); cardsPendingSave=false; }catch(e){}
+  try{ await window.storage.set(CARDS_KEY, JSON.stringify(cards), opts); cardsPendingSave=false; scheduleAgendaSync(); }catch(e){}
+}
+
+// Migra fecha "dd/mm" (sin año, formato viejo) a ISO "YYYY-MM-DD" asumiendo
+// el año actual — el usuario corrige a mano con el picker si el año no aplica.
+function migrarFechasLegacyCards(){
+  let cambio=false;
+  const anio=new Date().getFullYear();
+  cards.forEach(item=>{
+    const m=(item.fecha||'').trim().match(/^(\d{1,2})\/(\d{1,2})$/);
+    if(!m) return;
+    const day=parseInt(m[1],10), month=parseInt(m[2],10);
+    if(month<1||month>12||day<1||day>31) return;
+    item.fecha=anio+'-'+String(month).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+    cambio=true;
+  });
+  return cambio;
+}
+
+// ─── SYNC CON EL JEFE DE AGENDA ─────────────────────────────────────────────
+// Espeja las campañas con fecha al calendario cruzado de Jefes
+// ({cliente}:agenda-eventos), sin tocar los eventos de otros Jefes (ej.
+// Contenido) ni las temporadas creadas manualmente en la Agenda.
+let agendaSyncTimer=null, agendaSyncPending=false;
+function scheduleAgendaSync(){ agendaSyncPending=true; clearTimeout(agendaSyncTimer); agendaSyncTimer=setTimeout(syncAgendaEventos,1500); }
+async function syncAgendaEventos(opts){
+  clearTimeout(agendaSyncTimer); agendaSyncTimer=null; if(!agendaSyncPending) return;
+  try{
+    const result=await window.storage.get(AGENDA_KEY);
+    const data=(result&&result.value)?JSON.parse(result.value):{eventos:[],temporadas:[]};
+    const otros=(data.eventos||[]).filter(e=>e.origen!=='anuncios');
+    const propios=[];
+    cards.forEach(item=>{
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(item.fecha||'')) return;
+      propios.push({
+        id:'anuncios-'+item.id,
+        origen:'anuncios', origenId:item.id,
+        fecha:item.fecha, titulo:item.titulo||item.hook||'(sin título)', estado:item.estado||'idea',
+      });
+    });
+    data.eventos=[...otros, ...propios];
+    await window.storage.set(AGENDA_KEY, JSON.stringify(data), opts);
+    agendaSyncPending=false;
+  }catch(e){}
 }
 let estructuraSaveTimer=null;
 function scheduleEstructuraSave(){ clearTimeout(estructuraSaveTimer); estructuraSaveTimer=setTimeout(guardarEstructura,600); }
@@ -347,8 +393,8 @@ let bmSaveTimer=null;
 function scheduleBMSave(){ clearTimeout(bmSaveTimer); bmSaveTimer=setTimeout(guardarBM,600); }
 async function guardarBM(opts){ try{ await window.storage.set(BM_KEY, JSON.stringify(linkBM), opts); }catch(e){} }
 
-document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'){ if(cardsPendingSave) doSaveCards({keepalive:true}); guardarBorrador({keepalive:true}); guardarEstructura({keepalive:true}); guardarCarpeta({keepalive:true}); guardarBM({keepalive:true}); } });
-window.addEventListener('pagehide',()=>{ if(cardsPendingSave) doSaveCards({keepalive:true}); guardarBorrador({keepalive:true}); guardarEstructura({keepalive:true}); guardarCarpeta({keepalive:true}); guardarBM({keepalive:true}); });
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'){ if(cardsPendingSave) doSaveCards({keepalive:true}); guardarBorrador({keepalive:true}); guardarEstructura({keepalive:true}); guardarCarpeta({keepalive:true}); guardarBM({keepalive:true}); if(agendaSyncPending) syncAgendaEventos({keepalive:true}); } });
+window.addEventListener('pagehide',()=>{ if(cardsPendingSave) doSaveCards({keepalive:true}); guardarBorrador({keepalive:true}); guardarEstructura({keepalive:true}); guardarCarpeta({keepalive:true}); guardarBM({keepalive:true}); if(agendaSyncPending) syncAgendaEventos({keepalive:true}); });
 
 // ─── TABS ─────────────────────────────────────────────────────────────────
 function render(){
@@ -1192,7 +1238,7 @@ function buildAnuncioCard(item){
         <option value="publicado" ${item.estado==='publicado'?'selected':''}>🔥 Publicado</option>
       </select>
       <div class="item-top-right">
-        <input type="text" class="fecha-input" placeholder="dd/mm" value="${escHtml(item.fecha)}" data-id="${item.id}" data-field="fecha">
+        <input type="date" class="fecha-input" value="${item.fecha||''}" data-id="${item.id}" data-field="fecha">
         <button type="button" class="item-del" data-id="${item.id}" title="Eliminar campaña">✕</button>
       </div>
     </div>

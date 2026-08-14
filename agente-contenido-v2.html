@@ -76,7 +76,7 @@
   select.estado-select.idea{background:#1B2142;color:#A8B4F0;border-color:#3A4380;}
   select.estado-select.proceso{background:#332708;color:#F5C84C;border-color:#6B4F14;}
   select.estado-select.publicado{background:#3A2013;color:#FF9466;border-color:#7A3A1E;}
-  .fecha-input{width:76px;text-align:right;background:transparent;border:1px solid var(--line);border-radius:8px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:11.5px;padding:5px 8px;outline:none;}
+  .fecha-input{width:128px;background:transparent;border:1px solid var(--line);border-radius:8px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:11.5px;padding:5px 8px;outline:none;color-scheme:dark;}
   .fecha-input:focus{border-color:var(--accent);color:var(--text);}
   textarea.gancho-input{width:100%;border:none;background:transparent;color:var(--text);font-family:'Sora',sans-serif;font-size:15.5px;font-weight:700;line-height:1.4;resize:none;padding:0;outline:none;min-height:24px;}
   .item-fase{font-size:11.5px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;}
@@ -337,6 +337,7 @@ function detectClienteId(){
 }
 const CLIENTE_ID = detectClienteId();
 const STORAGE_KEY = CLIENTE_ID + ':agente-contenido';
+const AGENDA_KEY = CLIENTE_ID + ':agenda-eventos';
 const CARPETA_KEY = CLIENTE_ID + ':contenido-carpeta-link';
 
 // ─── RAW DATA ───────────────────────────────────────────────────────────────
@@ -646,7 +647,7 @@ function buildCard(r){
         <option value="publicado" ${r.estado==='publicado'?'selected':''}>🔥 Publicado</option>
       </select>
       <div class="item-top-right">
-        <input type="text" class="fecha-input" placeholder="dd/mm" value="${escHtml(r.fecha)}" data-id="${r.id}" data-field="fecha">
+        <input type="date" class="fecha-input" value="${r.fecha||''}" data-id="${r.id}" data-field="fecha">
         <button type="button" class="item-del" data-id="${r.id}" title="Eliminar idea">✕</button>
       </div>
     </div>
@@ -760,6 +761,8 @@ function onFieldChange(e){
   if(field==='semana'){
     const suffix = currentTab==='historias' ? FASE_SUFFIJOS[+e.target.value]||'' : '';
     row.fase = suffix ? `Semana ${e.target.value} · ${suffix}` : `Semana ${e.target.value}`;
+  } else if(field==='fecha'){
+    row.fecha = e.target.value;
   } else {
     row[field]=e.target.value;
   }
@@ -1099,21 +1102,21 @@ let calYear = new Date().getFullYear();
 const MESES_LABEL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
 function diaMesDeFecha(str){
-  const m=(str||'').trim().match(/^(\d{1,2})\/(\d{1,2})$/);
+  const m=(str||'').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if(!m) return null;
-  const day=parseInt(m[1],10), month=parseInt(m[2],10);
+  const year=parseInt(m[1],10), month=parseInt(m[2],10), day=parseInt(m[3],10);
   if(month<1||month>12||day<1||day>31) return null;
-  return {day, month};
+  return {year, month, day};
 }
 
-function fechaDDMM(dia, mes){
-  return String(dia).padStart(2,'0')+'/'+String(mes).padStart(2,'0');
+function fechaISO(anio, mes, dia){
+  return anio+'-'+String(mes).padStart(2,'0')+'-'+String(dia).padStart(2,'0');
 }
 
-function moverItemACalendarioFecha(tab, id, dia, mes){
+function moverItemACalendarioFecha(tab, id, dia, mes, anio){
   const item=(state[tab]||[]).find(r=>r.id===id);
   if(!item) return;
-  item.fecha=fechaDDMM(dia, mes);
+  item.fecha=fechaISO(anio, mes, dia);
   if(item.estado!=='publicado') item.estado='proceso';
   scheduleSave();
   renderCalendario();
@@ -1150,7 +1153,7 @@ function renderCalendario(){
   allItems.forEach(item=>{
     const dm=diaMesDeFecha(item.fecha);
     if(!dm){ sinFecha.push(item); return; }
-    const key=dm.day+'-'+dm.month;
+    const key=dm.year+'-'+dm.month+'-'+dm.day;
     if(!porDia[key]) porDia[key]=[];
     porDia[key].push(item);
   });
@@ -1194,9 +1197,9 @@ function renderCalendario(){
       let data;
       try{ data=JSON.parse(e.dataTransfer.getData('text/plain')); }catch(err){ return; }
       if(!data||!data.tab||!data.id) return;
-      moverItemACalendarioFecha(data.tab, data.id, d, calMonth+1);
+      moverItemACalendarioFecha(data.tab, data.id, d, calMonth+1, calYear);
     });
-    const items=porDia[d+'-'+(calMonth+1)]||[];
+    const items=porDia[calYear+'-'+(calMonth+1)+'-'+d]||[];
     const dayNum=document.createElement('div');
     dayNum.className='cal-daynum';
     dayNum.textContent=d;
@@ -2055,6 +2058,8 @@ async function loadStorage(){
   }catch(e){
     statusEl.textContent='Nueva sesión (sin datos guardados aún).';
   }
+  if(migrarFechasLegacy()){ scheduleSave(); }
+  scheduleAgendaSync();
   try{
     const r=await window.storage.get(CARPETA_KEY);
     linkCarpeta = r&&r.value?JSON.parse(r.value):'';
@@ -2066,6 +2071,22 @@ async function loadStorage(){
   render();
 }
 
+// Migra fechas "dd/mm" (sin año, formato viejo) a ISO "YYYY-MM-DD" asumiendo
+// el año actual — el usuario corrige a mano con el picker si el año no aplica.
+function migrarFechasLegacy(){
+  let cambio=false;
+  const anio=new Date().getFullYear();
+  [...state.historias, ...state.contenido].forEach(item=>{
+    const m=(item.fecha||'').trim().match(/^(\d{1,2})\/(\d{1,2})$/);
+    if(!m) return;
+    const day=parseInt(m[1],10), month=parseInt(m[2],10);
+    if(month<1||month>12||day<1||day>31) return;
+    item.fecha=fechaISO(anio, month, day);
+    cambio=true;
+  });
+  return cambio;
+}
+
 let saveTimer=null,pendingSave=false;
 function scheduleSave(){ pendingSave=true; statusEl.textContent='Guardando...'; clearTimeout(saveTimer); saveTimer=setTimeout(()=>doSave(),500); }
 async function doSave(opts){
@@ -2073,12 +2094,42 @@ async function doSave(opts){
   try{
     await window.storage.set(STORAGE_KEY,JSON.stringify({historias:state.historias,contenido:state.contenido,banco:state.banco,bancoIdeas:state.bancoIdeas}),opts);
     pendingSave=false; statusEl.textContent='Guardado.';
+    scheduleAgendaSync();
   }catch(e){
     statusEl.textContent=e.status===401?'Token incorrecto.':'No se pudo guardar.';
   }
 }
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'){ if(pendingSave) doSave({keepalive:true}); guardarCarpeta({keepalive:true}); } });
 window.addEventListener('pagehide',()=>{ if(pendingSave) doSave({keepalive:true}); guardarCarpeta({keepalive:true}); });
+
+// ─── SYNC CON EL JEFE DE AGENDA ─────────────────────────────────────────────
+// Espeja las historias/contenido con fecha al calendario cruzado de Jefes
+// ({cliente}:agenda-eventos), sin tocar los eventos que vienen de otros
+// Jefes (ej. Anuncios) ni las temporadas creadas manualmente en la Agenda.
+let agendaSyncTimer=null,agendaSyncPending=false;
+function scheduleAgendaSync(){ agendaSyncPending=true; clearTimeout(agendaSyncTimer); agendaSyncTimer=setTimeout(syncAgendaEventos,1500); }
+async function syncAgendaEventos(opts){
+  clearTimeout(agendaSyncTimer); agendaSyncTimer=null; if(!agendaSyncPending) return;
+  try{
+    const result=await window.storage.get(AGENDA_KEY);
+    const data=(result&&result.value)?JSON.parse(result.value):{eventos:[],temporadas:[]};
+    const otros=(data.eventos||[]).filter(e=>e.origen!=='contenido');
+    const propios=[];
+    [...state.historias.map(r=>({...r,_tab:'historias'})), ...state.contenido.map(r=>({...r,_tab:'contenido'}))].forEach(item=>{
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(item.fecha||'')) return;
+      propios.push({
+        id:'contenido-'+item._tab+'-'+item.id,
+        origen:'contenido', origenTab:item._tab, origenId:item.id,
+        fecha:item.fecha, titulo:item.gancho||'(sin título)', estado:item.estado||'idea',
+      });
+    });
+    data.eventos=[...otros, ...propios];
+    await window.storage.set(AGENDA_KEY, JSON.stringify(data), opts);
+    agendaSyncPending=false;
+  }catch(e){}
+}
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'&&agendaSyncPending) syncAgendaEventos({keepalive:true}); });
+window.addEventListener('pagehide',()=>{ if(agendaSyncPending) syncAgendaEventos({keepalive:true}); });
 
 loadStorage().then(()=>{
   if(location.hash==='#evergreen'){
