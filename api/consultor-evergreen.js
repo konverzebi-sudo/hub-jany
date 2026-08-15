@@ -196,12 +196,22 @@ const BUILDER_PROMPTS_POR_MODO = {
 // archivo por el mismo límite de 12 Serverless Functions: reutiliza el contexto de negocio y
 // las Notas Evergreen ya construidas aquí (builderConstruirContextoNegocio /
 // builderFormatearNotasGuardadas) en vez de duplicarlas.
-const TEMPORADA_PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-temporada.md');
-let temporadaPromptCache = null;
-function cargarPromptTemporada() {
-  if (temporadaPromptCache) return temporadaPromptCache;
-  temporadaPromptCache = fs.readFileSync(TEMPORADA_PROMPT_PATH, 'utf-8');
-  return temporadaPromptCache;
+// "plan" es el chat guiado general (Definición + Metas..Calendario); los otros 3 son los
+// mini-chats dedicados de cada módulo profundo (más detallados que el flujo general, calcados
+// de las sub-páginas del Notion "Día 6 — Campaña de Temporada").
+const TEMPORADA_PROMPTS_POR_MODULO = {
+  plan: path.join(__dirname, '..', 'prompts', 'system-prompt-temporada.md'),
+  producto: path.join(__dirname, '..', 'prompts', 'system-prompt-temporada-producto.md'),
+  'perfil-cliente': path.join(__dirname, '..', 'prompts', 'system-prompt-temporada-perfil-cliente.md'),
+  comunicacion: path.join(__dirname, '..', 'prompts', 'system-prompt-temporada-comunicacion.md'),
+};
+const temporadaPromptCache = new Map();
+function cargarPromptTemporada(modulo) {
+  const ruta = TEMPORADA_PROMPTS_POR_MODULO[modulo] || TEMPORADA_PROMPTS_POR_MODULO.plan;
+  if (temporadaPromptCache.has(ruta)) return temporadaPromptCache.get(ruta);
+  const contenido = fs.readFileSync(ruta, 'utf-8');
+  temporadaPromptCache.set(ruta, contenido);
+  return contenido;
 }
 const BUILDER_CONTEXT_CHAR_LIMIT = 6000;
 const BUILDER_NOTAS_CHAR_LIMIT = 6000;
@@ -508,6 +518,13 @@ async function manejarChatGuiado(req, res) {
 
 const TEMPORADA_CAMPO_LABEL = {
   temporada: 'Temporada o evento', objetivo_principal: 'Objetivo principal', incentivo: 'Incentivo o urgencia real',
+  prod_por_que: 'Por qué este producto hace sentido para esta temporada', prod_incentivos: 'Incentivos de producto',
+  cliente_que_pasa: '¿Qué está pasando en su vida en este momento?', cliente_diferencias: 'Diferencias clave',
+  cliente_que_haria_hoy: '¿Qué haría que compre hoy?', cliente_que_cambio: '¿Qué cambió vs el cliente recurrente?',
+  com_mensajes_opciones: 'Opciones de mensaje principal', com_mensaje_elegido: 'Mensaje elegido',
+  com_razon_ahora: 'Razón para comprar ahora', com_mensajes_clave: 'Mensajes clave',
+  com_frases_maestras: 'Frases maestras de campaña', com_objeciones: 'Objeciones de campaña',
+  com_angulos: 'Ángulos de venta de campaña', com_ctas: 'CTAs de campaña',
   dm_cliente_ideal_temporada: 'Cliente ideal de temporada', dm_que_cambia: 'Qué cambia en este cliente por la temporada',
   dm_dolor: 'Dolor principal de temporada', dm_deseo: 'Deseo principal de temporada', dm_objeciones: 'Objeciones específicas de temporada',
   dm_oferta: 'Oferta principal', dm_incentivo: 'Incentivo', dm_urgencia: 'Urgencia real', dm_mensaje_principal: 'Mensaje principal',
@@ -518,15 +535,28 @@ const TEMPORADA_CAMPO_LABEL = {
   pre_incentivo_registro: 'Incentivo de registro', pre_duracion: 'Duración de precampaña', pre_calentamiento: 'Plan de calentamiento',
   activa_fases: 'Fases de campaña activa', bd_segmentos: 'Segmentos de base de datos', post_acciones: 'Acciones de postcampaña',
   ads_objetivo: 'Objetivo de campaña de ads', ads_tipo_campana: 'Tipo de campaña', ads_producto: 'Producto o servicio a vender',
-  ads_publico: 'Público objetivo', ads_oferta: 'Oferta principal (ads)', ads_presupuesto_diario: 'Presupuesto diario sugerido',
-  ads_duracion: 'Duración de campaña (ads)', ads_metrica: 'Métrica principal', ads_creativos: 'Creativos de ads',
-  calendario: 'Calendario final de ejecución',
+  ads_resultado_esperado: 'Resultado esperado (ads)', ads_publico: 'Público objetivo', ads_oferta: 'Oferta principal (ads)',
+  ads_tipo_contenido: 'Tipo de contenido (ads)', ads_presupuesto_diario: 'Presupuesto diario sugerido',
+  ads_duracion: 'Duración de campaña (ads)', ads_metrica: 'Métrica principal',
+  ads_ubicacion: 'Ubicación (targeting)', ads_edad: 'Edad (targeting)', ads_genero: 'Género (targeting)', ads_intereses: 'Intereses (targeting)',
+  ads_creativos: 'Creativos de ads', calendario: 'Calendario final de ejecución',
 };
 
 function temporadaFormatearProducto(camp) {
   if (camp.producto_origen === 'nuevo' && camp.producto_nuevo) return `Producto/oferta NUEVO de esta temporada (no está en Evergreen): ${camp.producto_nuevo}`;
   if (camp.producto_origen === 'evergreen' && camp.producto_nombre) return `Producto evergreen elegido como base: ${camp.producto_nombre}`;
   return null;
+}
+
+// Solo lo usa el módulo "perfil-cliente" -- ahí el prompt pide explícitamente no recrear al
+// cliente recurrente desde cero, así que se le manda el Perfil de Cliente Evergreen ya guardado.
+async function temporadaFormatearClienteRecurrente(clienteId) {
+  const d = await leerJSON(`${clienteId}:brand-book.evergreen-perfil-cliente`).catch(() => null);
+  if (!d) return 'CLIENTE RECURRENTE (Perfil de Cliente Evergreen): todavía no está guardado -- pregúntale al usuario lo mínimo indispensable antes de seguir.';
+  const campos = { descripcion_breve: 'Descripción breve', situacion_compra: 'Situación de compra', problema_resuelve: 'Qué problema resuelve', emocion_impulsa: 'Qué emoción lo impulsa', que_convenceria: 'Qué lo convencería' };
+  const lineas = Object.keys(campos).map((k) => (d[k] ? `${campos[k]}: ${d[k]}` : null)).filter(Boolean);
+  if (lineas.length === 0) return 'CLIENTE RECURRENTE (Perfil de Cliente Evergreen): todavía no está guardado -- pregúntale al usuario lo mínimo indispensable antes de seguir.';
+  return 'CLIENTE RECURRENTE (Perfil de Cliente Evergreen ya construido -- nunca lo recrees desde cero):\n' + lineas.join('\n');
 }
 
 function temporadaFormatearCampana(camp) {
@@ -566,20 +596,26 @@ async function manejarChatTemporada(req, res) {
     return res.status(400).json({ error: 'El último mensaje debe ser del usuario.' });
   }
 
+  const modulo = TEMPORADA_PROMPTS_POR_MODULO[body.modulo] ? body.modulo.toString() : 'plan';
+
   try {
     const campanas = (await leerJSON(`${clienteId}:temporada-campanas`).catch(() => null)) || [];
     const campanaId = (body.campanaId || '').toString();
     const campana = campanaId ? campanas.find((c) => c && c.id === campanaId) : null;
 
-    const [contextoNegocio, notasEvergreen] = await Promise.all([
+    const [contextoNegocio, notasEvergreen, clienteRecurrente] = await Promise.all([
       builderConstruirContextoNegocio(clienteId),
       builderFormatearNotasGuardadas(clienteId),
+      modulo === 'perfil-cliente' ? temporadaFormatearClienteRecurrente(clienteId) : Promise.resolve(null),
     ]);
-    const system = [cargarPromptTemporada(), contextoNegocio, notasEvergreen, temporadaFormatearCampana(campana)].join('\n\n');
+    const partesSystem = [cargarPromptTemporada(modulo), contextoNegocio, notasEvergreen];
+    if (clienteRecurrente) partesSystem.push(clienteRecurrente);
+    partesSystem.push(temporadaFormatearCampana(campana));
+    const system = partesSystem.join('\n\n');
 
     const { ok, status, data } = await llamarClaude(system, {
       model: 'claude-sonnet-4-6',
-      max_tokens: 1500,
+      max_tokens: modulo === 'plan' ? 1500 : 2200,
       system,
       messages: limpio,
     });
@@ -591,7 +627,7 @@ async function manejarChatTemporada(req, res) {
     if (!text) {
       return res.status(502).json({ error: 'Respuesta vacía del modelo.' });
     }
-    await registrarUsoTokens(clienteId, 'consultor-temporada-chat', data.usage);
+    await registrarUsoTokens(clienteId, 'consultor-temporada-chat-' + modulo, data.usage);
     return res.status(200).json({
       text,
       usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 },
