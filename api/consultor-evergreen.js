@@ -191,6 +191,18 @@ const BUILDER_PROMPTS_POR_MODO = {
   normal: path.join(__dirname, '..', 'prompts', 'system-prompt-constructor-oferta-evergreen.md'),
   'documento-maestro': path.join(__dirname, '..', 'prompts', 'system-prompt-documento-maestro.md'),
 };
+
+// RAMA "temporada" (nuevo -- Jefe de Temporada) se agrega más abajo, reempacada en este mismo
+// archivo por el mismo límite de 12 Serverless Functions: reutiliza el contexto de negocio y
+// las Notas Evergreen ya construidas aquí (builderConstruirContextoNegocio /
+// builderFormatearNotasGuardadas) en vez de duplicarlas.
+const TEMPORADA_PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-temporada.md');
+let temporadaPromptCache = null;
+function cargarPromptTemporada() {
+  if (temporadaPromptCache) return temporadaPromptCache;
+  temporadaPromptCache = fs.readFileSync(TEMPORADA_PROMPT_PATH, 'utf-8');
+  return temporadaPromptCache;
+}
 const BUILDER_CONTEXT_CHAR_LIMIT = 6000;
 const BUILDER_NOTAS_CHAR_LIMIT = 6000;
 const BUILDER_MAX_MESSAGES = 40;
@@ -489,7 +501,108 @@ async function manejarChatGuiado(req, res) {
 }
 
 // =============================================================================================
-// handler -- despacha por la FORMA del body (messages -> builder; mensaje -> preguntas)
+// RAMA "temporada" (Jefe de Temporada) -- chat guiado multi-turno, igual forma que el builder
+// (body.messages) pero con su propio prompt y su propio contexto: la campaña de temporada en
+// curso, además del contexto de negocio y las Notas Evergreen que ya construye este archivo.
+// =============================================================================================
+
+const TEMPORADA_CAMPO_LABEL = {
+  temporada: 'Temporada o evento', objetivo_principal: 'Objetivo principal', incentivo: 'Incentivo o urgencia real',
+  dm_cliente_ideal_temporada: 'Cliente ideal de temporada', dm_que_cambia: 'Qué cambia en este cliente por la temporada',
+  dm_dolor: 'Dolor principal de temporada', dm_deseo: 'Deseo principal de temporada', dm_objeciones: 'Objeciones específicas de temporada',
+  dm_oferta: 'Oferta principal', dm_incentivo: 'Incentivo', dm_urgencia: 'Urgencia real', dm_mensaje_principal: 'Mensaje principal',
+  dm_frases_clave: 'Frases clave de comunicación', dm_canal_conversion: 'Canal principal de conversión', dm_accion_cliente: 'Acción que queremos que tome el cliente',
+  meta_ventas: 'Meta de ventas', ticket_promedio: 'Ticket promedio', conversion_pct: 'Conversión estimada %',
+  presupuesto_ads: 'Presupuesto de ads', base_datos_disponible: 'Base de datos disponible',
+  pre_objetivo: 'Objetivo de precampaña', pre_captacion: 'Cómo vamos a captar contactos', pre_donde_quedan: 'Dónde se quedan los contactos',
+  pre_incentivo_registro: 'Incentivo de registro', pre_duracion: 'Duración de precampaña', pre_calentamiento: 'Plan de calentamiento',
+  activa_fases: 'Fases de campaña activa', bd_segmentos: 'Segmentos de base de datos', post_acciones: 'Acciones de postcampaña',
+  ads_objetivo: 'Objetivo de campaña de ads', ads_tipo_campana: 'Tipo de campaña', ads_producto: 'Producto o servicio a vender',
+  ads_publico: 'Público objetivo', ads_oferta: 'Oferta principal (ads)', ads_presupuesto_diario: 'Presupuesto diario sugerido',
+  ads_duracion: 'Duración de campaña (ads)', ads_metrica: 'Métrica principal', ads_creativos: 'Creativos de ads',
+  calendario: 'Calendario final de ejecución',
+};
+
+function temporadaFormatearProducto(camp) {
+  if (camp.producto_origen === 'nuevo' && camp.producto_nuevo) return `Producto/oferta NUEVO de esta temporada (no está en Evergreen): ${camp.producto_nuevo}`;
+  if (camp.producto_origen === 'evergreen' && camp.producto_nombre) return `Producto evergreen elegido como base: ${camp.producto_nombre}`;
+  return null;
+}
+
+function temporadaFormatearCampana(camp) {
+  if (!camp) return 'CAMPAÑA DE TEMPORADA EN CURSO: todavía no hay campaña seleccionada -- si el usuario no ha dicho qué campaña quiere trabajar, pregúntaselo primero.';
+  const lineas = [`Nombre de campaña: ${camp.nombre || '(sin nombre todavía)'}`, `Estado: ${camp.estado || 'borrador'}`];
+  const prod = temporadaFormatearProducto(camp);
+  if (prod) lineas.push(prod);
+  if (camp.fecha_inicio_activa || camp.fecha_fin_activa) lineas.push(`Fecha de campaña activa: ${camp.fecha_inicio_activa || '?'} a ${camp.fecha_fin_activa || '?'}`);
+  Object.keys(TEMPORADA_CAMPO_LABEL).forEach((campo) => {
+    const valor = camp[campo];
+    const formateado = builderFormatearValorNota(valor);
+    if (formateado) lineas.push(`${TEMPORADA_CAMPO_LABEL[campo]}:\n${formateado}`);
+  });
+  return 'CAMPAÑA DE TEMPORADA EN CURSO (esto es lo real, ya guardado por el usuario en el Documento de esta campaña -- tu trabajo es completar lo que falte, no repetir lo que ya está):\n\n' + truncar(lineas.join('\n'), BUILDER_NOTAS_CHAR_LIMIT);
+}
+
+async function manejarChatTemporada(req, res) {
+  const ip = (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown').toString().split(',')[0].trim();
+  if (builderRateLimited(ip)) {
+    return res.status(429).json({ error: 'Demasiadas solicitudes, espera unos minutos.' });
+  }
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.status(500).json({ error: 'Falta configurar ANTHROPIC_API_KEY en el servidor.' });
+  }
+
+  const body = req.body || {};
+  const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
+  const messages = Array.isArray(body.messages) ? body.messages : null;
+  if (!messages || messages.length === 0) {
+    return res.status(400).json({ error: 'Falta el historial de la conversación (messages).' });
+  }
+  const limpio = messages
+    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+    .slice(-BUILDER_MAX_MESSAGES)
+    .map((m) => ({ role: m.role, content: m.content }));
+  if (limpio.length === 0 || limpio[limpio.length - 1].role !== 'user') {
+    return res.status(400).json({ error: 'El último mensaje debe ser del usuario.' });
+  }
+
+  try {
+    const campanas = (await leerJSON(`${clienteId}:temporada-campanas`).catch(() => null)) || [];
+    const campanaId = (body.campanaId || '').toString();
+    const campana = campanaId ? campanas.find((c) => c && c.id === campanaId) : null;
+
+    const [contextoNegocio, notasEvergreen] = await Promise.all([
+      builderConstruirContextoNegocio(clienteId),
+      builderFormatearNotasGuardadas(clienteId),
+    ]);
+    const system = [cargarPromptTemporada(), contextoNegocio, notasEvergreen, temporadaFormatearCampana(campana)].join('\n\n');
+
+    const { ok, status, data } = await llamarClaude(system, {
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1500,
+      system,
+      messages: limpio,
+    });
+    if (!ok) {
+      return res.status(status).json({ error: data?.error?.message || 'Error al llamar a la API.' });
+    }
+
+    const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
+    if (!text) {
+      return res.status(502).json({ error: 'Respuesta vacía del modelo.' });
+    }
+    await registrarUsoTokens(clienteId, 'consultor-temporada-chat', data.usage);
+    return res.status(200).json({
+      text,
+      usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 },
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error de conexión con el Agente.' });
+  }
+}
+
+// =============================================================================================
+// handler -- despacha por la FORMA del body (messages -> builder o temporada; mensaje -> preguntas)
 // =============================================================================================
 
 module.exports = async function handler(req, res) {
@@ -502,6 +615,7 @@ module.exports = async function handler(req, res) {
 
   const body = req.body || {};
   if (Array.isArray(body.messages)) {
+    if (body.agente === 'temporada') return manejarChatTemporada(req, res);
     return manejarChatGuiado(req, res);
   }
   return manejarPreguntaSuelta(req, res);
