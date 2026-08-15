@@ -289,9 +289,9 @@
   <div id="carpeta-box-host"></div>
 
   <div class="tabs">
-    <div class="tab tab-agente" data-tab="agente">✨ Agente <span class="count">IA</span></div>
+    <div class="tab tab-agente active" data-tab="agente">✨ Agente <span class="count">IA</span></div>
     <div class="tab" data-tab="calendario">📅 Calendario</div>
-    <div class="tab active" data-tab="historias">Historias <span class="count" id="count-historias">50</span></div>
+    <div class="tab" data-tab="historias">Historias <span class="count" id="count-historias">50</span></div>
     <div class="tab" data-tab="contenido">Contenido <span class="count" id="count-contenido">10</span></div>
     <div class="tab" data-tab="banco">💭 Banco <span class="count" id="count-banco">0</span></div>
   </div>
@@ -383,7 +383,7 @@ const NOTION_IDEAS_EXISTENTES = [
 let state = CLIENTE_ID==='jefeshub' ? JSON.parse(JSON.stringify(RAW_DATA)) : {historias:[],contenido:[],banco:[]};
 state.banco.forEach(b => { if(b.aprobada===undefined) b.aprobada=!!b.gancho; });
 if(!state.bancoIdeas) state.bancoIdeas = [];
-let currentTab = 'historias';
+let currentTab = 'agente';
 let linkCarpeta = '';
 let searchTerm = '';
 let filterFase = '';
@@ -1430,9 +1430,10 @@ let guionOrgObjetivo = 'alcance';
 let guionOrgFormato = 'reel';
 let guionOrgTema = '';
 let guionOrgStatus = '';
-let guionOrgChat = []; // {role:'user'|'assistant', content, usada?:boolean}
+let guionOrgChat = []; // {role:'user'|'assistant', content, imagenes?:string[] (dataURLs, solo para mostrar), usada?:boolean}
 let guionOrgPreguntaDraft = '';
 let guionOrgPreguntaStatus = '';
+let guionOrgImagenesAdjuntas = []; // {mediaType, data (base64 sin prefijo), previewUrl}
 
 function pintarGuionOrganico(container){
   const wrap = document.createElement('div');
@@ -1447,6 +1448,11 @@ function pintarGuionOrganico(container){
     <div id="go-chat-thread" class="chat-thread"></div>
     <div class="mode-field" style="margin-top:4px;">
       <textarea id="go-pregunta" rows="2" placeholder="ej. dame 5 frases de poder para un post donde salgo yo con el buscador del hub...">${escHtml(guionOrgPreguntaDraft)}</textarea>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:2px;">
+      <label class="mode-add-banco" for="go-pregunta-img" style="cursor:pointer;">📎 Adjuntar imagen de referencia</label>
+      <input type="file" id="go-pregunta-img" accept="image/*" multiple style="display:none;">
+      <div id="go-pregunta-img-preview" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
     </div>
     <div style="display:flex;align-items:center;gap:12px;margin-top:8px;flex-wrap:wrap;">
       <button class="btn btn-solid" id="go-pregunta-btn" type="button">${guionOrgChat.length?'Seguir la conversación →':'Preguntar al Agente →'}</button>
@@ -1519,16 +1525,19 @@ function pintarGuionOrganico(container){
   if(guionOrgIdeas.length) pintarGuionOrgTabla();
   actualizarGuionOrgSelCount();
   pintarGuionOrgChat();
+  pintarGuionOrgImgPreview();
 
   document.getElementById('go-formato').addEventListener('change', e=>{ guionOrgFormato=e.target.value; });
   document.getElementById('go-tema').addEventListener('input', e=>{ guionOrgTema=e.target.value; });
   document.getElementById('go-gen-btn').addEventListener('click', generarGuionOrgIdeas);
   document.getElementById('go-link-btn').addEventListener('click', armarPromptLinkReferencia);
   document.getElementById('go-pregunta').addEventListener('input', e=>{ guionOrgPreguntaDraft=e.target.value; });
+  document.getElementById('go-pregunta').addEventListener('paste', agregarImagenesPegadasPostIA);
+  document.getElementById('go-pregunta-img').addEventListener('change', agregarImagenesAdjuntasPostIA);
   document.getElementById('go-pregunta-btn').addEventListener('click', preguntarAgentePostIA);
   const chatResetBtn=document.getElementById('go-chat-reset-btn');
   if(chatResetBtn) chatResetBtn.addEventListener('click', ()=>{
-    guionOrgChat=[]; guionOrgPreguntaStatus=''; guionOrgPreguntaDraft='';
+    guionOrgChat=[]; guionOrgPreguntaStatus=''; guionOrgPreguntaDraft=''; guionOrgImagenesAdjuntas=[];
     pintarGuionOrganico(document.getElementById('agente-guionorg-host'));
   });
   if(guionOrgIdeas.length){
@@ -1546,7 +1555,8 @@ function pintarGuionOrgChat(){
   }
   box.innerHTML = guionOrgChat.map((m,i)=>{
     if(m.role==='user'){
-      return `<div class="chat-msg chat-msg-user">${escHtml(m.content)}</div>`;
+      const thumbs = (m.imagenes&&m.imagenes.length) ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">${m.imagenes.map(src=>`<img src="${src}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--line);">`).join('')}</div>` : '';
+      return `<div class="chat-msg chat-msg-user">${thumbs}${escHtml(m.content)}</div>`;
     }
     return `<div class="chat-msg chat-msg-assistant">${escHtml(m.content)}
       <div class="chat-msg-actions">
@@ -1570,20 +1580,77 @@ function pintarGuionOrgChat(){
   });
 }
 
+function pintarGuionOrgImgPreview(){
+  const box = document.getElementById('go-pregunta-img-preview');
+  if(!box) return;
+  box.innerHTML = guionOrgImagenesAdjuntas.map((img,i)=>`
+    <span style="position:relative;display:inline-block;">
+      <img src="${img.previewUrl}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid var(--line);">
+      <button type="button" data-rm-img="${i}" title="Quitar" style="position:absolute;top:-6px;right:-6px;width:16px;height:16px;border-radius:50%;background:#EF4444;color:#fff;border:none;font-size:10px;line-height:1;cursor:pointer;padding:0;">✕</button>
+    </span>
+  `).join('');
+  box.querySelectorAll('[data-rm-img]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      guionOrgImagenesAdjuntas.splice(+btn.dataset.rmImg,1);
+      pintarGuionOrgImgPreview();
+    });
+  });
+}
+
+async function leerImagenComoDataURL(file){
+  return new Promise((resolve)=>{
+    const reader=new FileReader();
+    reader.onload=()=>resolve(reader.result);
+    reader.readAsDataURL(file);
+  });
+}
+
+async function agregarImagenesAdjuntasPostIA(e){
+  const files = Array.from(e.target.files||[]);
+  if(!files.length) return;
+  for(const file of files){
+    const dataUrl = await leerImagenComoDataURL(file);
+    guionOrgImagenesAdjuntas.push({ mediaType:file.type, data:dataUrl.split(',')[1], previewUrl:dataUrl });
+  }
+  e.target.value='';
+  pintarGuionOrgImgPreview();
+}
+
+async function agregarImagenesPegadasPostIA(e){
+  const items = Array.from(e.clipboardData?.items||[]).filter(i=>i.type.startsWith('image/'));
+  if(!items.length) return;
+  e.preventDefault();
+  for(const item of items){
+    const file = item.getAsFile();
+    if(!file) continue;
+    const dataUrl = await leerImagenComoDataURL(file);
+    guionOrgImagenesAdjuntas.push({ mediaType:file.type, data:dataUrl.split(',')[1], previewUrl:dataUrl });
+  }
+  pintarGuionOrgImgPreview();
+}
+
 async function preguntarAgentePostIA(){
   const pregunta = (guionOrgPreguntaDraft||'').trim();
   const statusEl = document.getElementById('go-pregunta-status');
-  if(!pregunta){ if(statusEl) statusEl.textContent='⚠️ Escribe tu mensaje primero.'; return; }
+  if(!pregunta && !guionOrgImagenesAdjuntas.length){ if(statusEl) statusEl.textContent='⚠️ Escribe tu mensaje o adjunta una imagen.'; return; }
   const btn = document.getElementById('go-pregunta-btn');
   if(btn) btn.disabled = true;
   if(statusEl) statusEl.textContent = '⏳ Consultando ADN + Evergreen + Radar para responderte...';
-  guionOrgChat.push({role:'user', content:pregunta});
+  const imagenesParaEnviar = guionOrgImagenesAdjuntas.map(img=>({mediaType:img.mediaType, data:img.data}));
+  const previewsParaMostrar = guionOrgImagenesAdjuntas.map(img=>img.previewUrl);
+  guionOrgChat.push({role:'user', content: pregunta || '(revisa la imagen adjunta)', imagenes: previewsParaMostrar});
   guionOrgPreguntaDraft = '';
+  guionOrgImagenesAdjuntas = [];
   pintarGuionOrgChat();
+  pintarGuionOrgImgPreview();
   try{
     const resp = await fetch('/api/generar-guion-organico', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ cliente: CLIENTE_ID, modo:'pregunta', messages: guionOrgChat.map(m=>({role:m.role, content:m.content})) }),
+      body: JSON.stringify({
+        cliente: CLIENTE_ID, modo:'pregunta',
+        messages: guionOrgChat.map(m=>({role:m.role, content:m.content})),
+        imagenes: imagenesParaEnviar,
+      }),
     });
     const data = await resp.json();
     if(!resp.ok) throw new Error(data.error || 'Error al consultar al Agente.');
@@ -1592,6 +1659,7 @@ async function preguntarAgentePostIA(){
   }catch(err){
     guionOrgChat.pop();
     guionOrgPreguntaDraft = pregunta;
+    guionOrgImagenesAdjuntas = imagenesParaEnviar.map((img,i)=>({...img, previewUrl:previewsParaMostrar[i]}));
     guionOrgPreguntaStatus = '❌ ' + (err.message || 'Error al consultar al Agente.');
   }
   pintarGuionOrganico(document.getElementById('agente-guionorg-host'));

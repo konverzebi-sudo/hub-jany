@@ -386,6 +386,16 @@ module.exports = async function handler(req, res) {
         return res.status(400).json({ error: 'Falta la pregunta.' });
       }
 
+      const imagenes = Array.isArray(body.imagenes)
+        ? body.imagenes.filter((img) => img && img.mediaType && img.data).slice(0, 4)
+        : [];
+      if (imagenes.length) {
+        const ultimo = historial[historial.length - 1];
+        const partes = imagenes.map((img) => ({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.data } }));
+        partes.push({ type: 'text', text: ultimo.content || 'Revisa esta imagen de referencia y ayúdame con ideas de post.' });
+        ultimo.content = partes;
+      }
+
       const promptPreguntas = cargarPromptPreguntas();
       const { contexto } = await construirContexto(clienteId, grupoId);
       const system = promptPreguntas + '\n\n' + contexto;
