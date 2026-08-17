@@ -298,8 +298,10 @@
 
   /* Encabezado exclusivo para impresión/PDF */
   .print-header{display:none;}
+  .print-header .ph-logo{max-height:44px;margin-bottom:10px;display:block;}
   .print-header .ph-title{font-size:22px;font-weight:800;}
   .print-header .ph-meta{font-size:13px;color:var(--texto-tenue);margin-top:4px;}
+  .brand-logo{height:22px;width:auto;border-radius:4px;}
 
   /* ============================================================
      IMPRESIÓN / DESCARGA DE PDF (vía window.print())
@@ -337,7 +339,7 @@
 <div class="app-shell">
 
   <div class="topbar">
-    <div class="brand"><span class="dot"></span> Diagnóstico Exprés &middot; <span id="presentadoraNombre"></span></div>
+    <div class="brand"><img id="brandLogo" class="brand-logo" alt="" style="display:none;"><span class="dot"></span> Diagnóstico Exprés &middot; <span id="presentadoraNombre"></span></div>
     <button class="btn-reset" onclick="reiniciarApp()"><i data-lucide="rotate-ccw"></i> Reiniciar</button>
   </div>
 
@@ -537,6 +539,13 @@ document.documentElement.style.setProperty('--color-acento', COLOR_ACENTO);
 document.getElementById('presentadoraNombre').textContent = NOMBRE_PRESENTADORA;
 document.getElementById('firmaPresentadora').textContent = "— " + NOMBRE_PRESENTADORA;
 
+// Si se configuró un logo, se muestra en la barra superior
+if(LOGO_URL){
+  const brandLogo = document.getElementById('brandLogo');
+  brandLogo.src = LOGO_URL;
+  brandLogo.style.display = 'inline-block';
+}
+
 /* ============================================================
    ESTADO GLOBAL
    ============================================================ */
@@ -712,7 +721,7 @@ Analiza estas 6 etapas del recorrido que sigue un cliente con este negocio. Para
 ÁREA: [nombre de la etapa]
 Estado: 🔴 Crítico / 🟡 Mejorable / 🟢 Bien encaminado
 Qué tiene hoy: [1 línea específica]
-Qué le falta: [1 línea específica]
+Qué le recomendamos: [1 línea específica, la recomendación concreta para esta etapa]
 Oportunidad con IA: [1 línea concreta para este negocio]
 
 Etapas: Descubre (dónde el cliente se entera de que existe), Pide Info (el primer contacto o consulta), Decide (dónde se cierra la conversación de venta), Paga (método y canal de pago), Recibe (cómo recibe el producto o servicio), Post-Compra (seguimiento, recompra y fidelización).
@@ -901,12 +910,12 @@ function parseClaudeResponse(texto, tieneCompetidor){
   // --- ÁREAS (Paso 2) ---
   const seccionAreas = extraerSeccion(texto, ['PASO\\s*2'], ['PASO\\s*3']);
   const fuenteAreas = seccionAreas || texto;
-  const bloquesArea = extraerBloques(fuenteAreas, 'ÁREA', ['Estado', 'Qué tiene hoy', 'Qué le falta', 'Oportunidad con IA']);
+  const bloquesArea = extraerBloques(fuenteAreas, 'ÁREA', ['Estado', 'Qué tiene hoy', 'Qué le recomendamos', 'Oportunidad con IA']);
   resultado.areas = bloquesArea.map(b => ({
     nombre: b.nombre,
     estado: detectarEstado(b.campos['Estado']),
     tieneHoy: b.campos['Qué tiene hoy'],
-    leFalta: b.campos['Qué le falta'],
+    recomendacion: b.campos['Qué le recomendamos'],
     oportunidad: b.campos['Oportunidad con IA'],
     raw: b.raw
   }));
@@ -1060,7 +1069,7 @@ function renderAreas(){
     card.className = 'area-card';
     card.style.animationDelay = (i * 0.07) + 's';
 
-    const camposCompletos = area.tieneHoy && area.leFalta && area.oportunidad;
+    const camposCompletos = area.tieneHoy && area.recomendacion && area.oportunidad;
 
     card.innerHTML = `
       <div class="area-head">
@@ -1070,7 +1079,7 @@ function renderAreas(){
       <div class="semaforo ${area.estado.clase}">${area.estado.texto}</div>
       ${camposCompletos ? `
         <div class="linea"><b>Qué tiene hoy</b>${escapeHtml(area.tieneHoy)}</div>
-        <div class="linea"><b>Qué le falta</b>${escapeHtml(area.leFalta)}</div>
+        <div class="linea"><b>Qué le recomendamos</b>${escapeHtml(area.recomendacion)}</div>
         <div class="oportunidad"><b style="color:var(--color-acento);display:block;margin-bottom:4px;">Oportunidad con IA</b>${escapeHtml(area.oportunidad)}</div>
       ` : `<div class="linea">${escapeHtml(area.raw)}</div><p class="fallback-note">Formato parcial detectado.</p>`}
     `;
@@ -1201,9 +1210,11 @@ function renderIdeas(){
    ============================================================ */
 function descargarPDF(){
   const fecha = new Date().toLocaleDateString('es-MX', {year:'numeric', month:'long', day:'numeric'});
+  const logoHtml = LOGO_URL ? `<img class="ph-logo" src="${escapeHtml(LOGO_URL)}" alt="${escapeHtml(NOMBRE_PRESENTADORA)}">` : '';
   document.getElementById('printHeader').innerHTML = `
+    ${logoHtml}
     <div class="ph-title">Diagnóstico Exprés — ${escapeHtml(clienteData.nombreEmpresario || 'Reporte de negocio')}</div>
-    <div class="ph-meta">Generado el ${fecha} · ${escapeHtml(NOMBRE_PRESENTADORA)}</div>
+    <div class="ph-meta">Generado el ${fecha} · Hub de Jefes × ${escapeHtml(NOMBRE_PRESENTADORA)}</div>
   `;
   window.print();
 }
