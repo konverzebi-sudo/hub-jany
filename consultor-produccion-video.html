@@ -69,6 +69,19 @@
     .app-links a { font-family: "JetBrains Mono", monospace; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; padding: 5px 10px; border-radius: 20px; border: 1px solid var(--line); color: var(--text-dim); text-decoration: none; transition: 0.15s; }
     .app-links a:hover { border-color: var(--accent); color: var(--accent); }
 
+    /* generador de imagenes */
+    .imggen-box { display: flex; flex-direction: column; gap: 10px; }
+    .imggen-controls { display: flex; align-items: center; gap: 12px; }
+    .imggen-counter { font-family: "JetBrains Mono", monospace; font-size: 11.5px; color: var(--text-dim); }
+    .imggen-error { background: #3B1B1B; border: 1px solid #EF4444; color: #FCA5A5; border-radius: 10px; padding: 10px 14px; font-size: 13px; }
+    .imggen-result { display: flex; flex-wrap: wrap; gap: 12px; }
+    .imggen-result:empty { display: none; }
+    .imggen-card { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 8px; width: 260px; }
+    .imggen-card img { width: 100%; border-radius: 7px; display: block; }
+    .imggen-download { align-self: flex-start; font-family: "JetBrains Mono", monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); text-decoration: none; border: 1px solid var(--accent); border-radius: 20px; padding: 5px 12px; }
+    .imggen-download:hover { background: var(--accent); color: #0F0B16; }
+    .imggen-spinner { font-size: 12.5px; color: var(--text-dim); }
+
     /* recomendaciones de edicion */
     .edicion-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 6px; }
     .edicion-step { display: flex; align-items: center; gap: 10px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-size: 13.5px; color: var(--text); }
@@ -142,6 +155,23 @@
 </header>
 
 <main>
+
+  <!-- ═══ CONSULTA EN VIVO (chat con memoria) ═══ -->
+  <div class="agent-box">
+    <p class="agent-title">Consulta en vivo con el Jefe de Producción de Video</p>
+    <p class="agent-sub">Chat con memoria: ya lee tu ADN (identidad, tono, audiencia). Pídele la guía antes de grabar, o pega un guion o la descripción de un video ya grabado/editado para que te dé feedback.</p>
+    <div class="agent-suggestions" id="agentSuggestions">
+      <button class="agent-suggestion" onclick="enviarSugerenciaAgente('Voy a grabar un video, guíame con el checklist antes de grabar.')">🎥 Guíame antes de grabar</button>
+      <button class="agent-suggestion" onclick="enviarSugerenciaAgente('¿Qué tipo de grabación me conviene según lo que quiero lograr?')">¿Qué formato me conviene?</button>
+      <button class="agent-suggestion" onclick="enviarSugerenciaAgente('Te voy a pegar un guion para que me des feedback.')">📝 Revisa mi guion o video</button>
+    </div>
+    <div class="agent-chat" id="agentChat"></div>
+    <div class="agent-controls">
+      <textarea rows="1" class="agent-input-line" id="agentInput" placeholder="Escribe tu pregunta, o pega tu guion / describe tu video... (Shift+Enter para salto de línea)" onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();enviarMensajeAgente();}" oninput="autoAlturaAgentInput(this)"></textarea>
+      <button class="ask-btn" id="agentSendBtn" onclick="enviarMensajeAgente()">Enviar</button>
+      <button class="agent-reset" onclick="reiniciarAgente()">Reiniciar</button>
+    </div>
+  </div>
 
   <div class="ref-section">
     <h2>📋 Checklist antes de grabar</h2>
@@ -224,6 +254,21 @@
     </div>
   </div>
 
+  <!-- ═══ GENERADOR DE IMÁGENES ═══ -->
+  <div class="ref-section">
+    <h2>🖼️ Generador de Imágenes</h2>
+    <p class="ref-explain">Describe la imagen que necesitas (para un post, un anuncio, una miniatura) y la IA la genera. Límite de <span id="imggenLimite">15</span> imágenes al día por marca.</p>
+    <div class="imggen-box">
+      <textarea rows="2" class="agent-input-line" id="imggenInput" placeholder="Ej: foto de producto sobre fondo neutro, luz natural, estilo minimalista..." oninput="autoAlturaAgentInput(this)"></textarea>
+      <div class="imggen-controls">
+        <button class="ask-btn" id="imggenBtn" onclick="generarImagen()">Generar imagen</button>
+        <span class="imggen-counter" id="imggenCounter"></span>
+      </div>
+      <div id="imggenError" class="imggen-error" style="display:none;"></div>
+      <div id="imggenResult" class="imggen-result"></div>
+    </div>
+  </div>
+
   <div class="ref-section">
     <h2>🎥 Tipos de grabación que mejor funcionan</h2>
     <p class="ref-explain">Elige el formato según lo que quieras lograr con el video.</p>
@@ -264,23 +309,6 @@
       <div class="edicion-step"><span class="edicion-num">2️⃣</span> Agregar subtítulos</div>
       <div class="edicion-step"><span class="edicion-num">3️⃣</span> Zoom ligero en partes importantes</div>
       <div class="edicion-step"><span class="edicion-num">4️⃣</span> Música suave (opcional)</div>
-    </div>
-  </div>
-
-  <!-- ═══ CONSULTA EN VIVO (chat con memoria) ═══ -->
-  <div class="agent-box">
-    <p class="agent-title">Consulta en vivo con el Jefe de Producción de Video</p>
-    <p class="agent-sub">Chat con memoria: ya lee tu ADN (identidad, tono, audiencia). Pídele la guía antes de grabar, o pega un guion o la descripción de un video ya grabado/editado para que te dé feedback.</p>
-    <div class="agent-suggestions" id="agentSuggestions">
-      <button class="agent-suggestion" onclick="enviarSugerenciaAgente('Voy a grabar un video, guíame con el checklist antes de grabar.')">🎥 Guíame antes de grabar</button>
-      <button class="agent-suggestion" onclick="enviarSugerenciaAgente('¿Qué tipo de grabación me conviene según lo que quiero lograr?')">¿Qué formato me conviene?</button>
-      <button class="agent-suggestion" onclick="enviarSugerenciaAgente('Te voy a pegar un guion para que me des feedback.')">📝 Revisa mi guion o video</button>
-    </div>
-    <div class="agent-chat" id="agentChat"></div>
-    <div class="agent-controls">
-      <textarea rows="1" class="agent-input-line" id="agentInput" placeholder="Escribe tu pregunta, o pega tu guion / describe tu video... (Shift+Enter para salto de línea)" onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();enviarMensajeAgente();}" oninput="autoAlturaAgentInput(this)"></textarea>
-      <button class="ask-btn" id="agentSendBtn" onclick="enviarMensajeAgente()">Enviar</button>
-      <button class="agent-reset" onclick="reiniciarAgente()">Reiniciar</button>
     </div>
   </div>
 
@@ -380,6 +408,54 @@ function reiniciarAgente() {
   agentMessages = [];
   renderAgentChat();
   window.storage.set(AGENT_CONVERSACION_KEY, JSON.stringify([])).catch(() => {});
+}
+
+let imggenBusy = false;
+
+async function generarImagen() {
+  if (imggenBusy) return;
+  const input = document.getElementById('imggenInput');
+  const prompt = input.value.trim();
+  const errorBox = document.getElementById('imggenError');
+  const resultBox = document.getElementById('imggenResult');
+  errorBox.style.display = 'none';
+  if (!prompt) return;
+
+  imggenBusy = true;
+  document.getElementById('imggenBtn').disabled = true;
+  const spinnerId = 'imggen-spin-' + Date.now();
+  resultBox.insertAdjacentHTML('afterbegin', `<div class="imggen-spinner" id="${spinnerId}">Generando imagen...</div>`);
+
+  try {
+    const response = await fetch('/api/consultor-financiero', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agente: 'diseno-imagen', prompt, cliente: CLIENTE_ID }),
+    });
+    const data = await response.json();
+    document.getElementById(spinnerId)?.remove();
+    if (!response.ok) {
+      errorBox.textContent = '⚠️ ' + (data.error || 'No se pudo generar la imagen. Intenta de nuevo.');
+      errorBox.style.display = 'block';
+    } else {
+      const card = document.createElement('div');
+      card.className = 'imggen-card';
+      card.innerHTML = `<img src="${data.image}" alt="${escaparHtmlPV(prompt)}">
+        <a class="imggen-download" href="${data.image}" download="imagen-${Date.now()}.png">Descargar</a>`;
+      resultBox.insertAdjacentElement('afterbegin', card);
+      if (typeof data.usadasHoy === 'number') {
+        document.getElementById('imggenCounter').textContent = `${data.usadasHoy}/${data.limiteDiario} usadas hoy`;
+        document.getElementById('imggenLimite').textContent = data.limiteDiario;
+      }
+    }
+  } catch (err) {
+    document.getElementById(spinnerId)?.remove();
+    errorBox.textContent = '⚠️ Hubo un error de conexión. Intenta de nuevo en un momento.';
+    errorBox.style.display = 'block';
+  } finally {
+    imggenBusy = false;
+    document.getElementById('imggenBtn').disabled = false;
+  }
 }
 
 async function cargarAgenteEnProgreso() {
