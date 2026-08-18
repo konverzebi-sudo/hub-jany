@@ -200,6 +200,7 @@
 
   const svg = d3.select('#hub-graph');
   let width = window.innerWidth, height = window.innerHeight;
+  let margenArriba = Math.min(140, height * 0.22); // deja espacio para el breadcrumb + instrucciones de arriba
   svg.attr('viewBox', [0,0,width,height]);
 
   // Todo lo visual vive dentro de zoomRoot para poder hacer pinch-zoom
@@ -246,6 +247,10 @@
       if (d.esADN || d.esSatelite) continue;
       d.vx += (Math.random()-0.5) * 0.34 * alpha;
       d.vy += (Math.random()-0.5) * 0.34 * alpha;
+      // Empuje suave (no una pared dura) para que no invadan el area del
+      // breadcrumb/instrucciones -- entre mas se metan ahi, mas fuerte los
+      // regresa, pero sin pegarlos todos exactamente a la misma altura.
+      if (d.y < margenArriba) d.vy += (margenArriba - d.y) * 0.06;
     }
   }
 
@@ -298,12 +303,11 @@
     // Manten los Jefes dentro del viewport (con espacio para su etiqueta
     // debajo) -- sin esto, en pantallas angostas (celular) un nodo puede
     // terminar empujado al borde y quedar con el icono/texto cortado.
-    const margenArriba = Math.min(140, height * 0.22); // deja espacio para el breadcrumb + instrucciones de arriba
     for (const d of nodesData){
       if (d.esADN || d.esSatelite) continue;
       const r = radioDe(d) + 58;
       d.x = Math.max(r, Math.min(width - r, d.x));
-      d.y = Math.max(margenArriba, Math.min(height - r, d.y));
+      d.y = Math.max(r, Math.min(height - r, d.y)); // pared dura solo pegado al borde real -- el margen del breadcrumb ya lo maneja el empuje suave de arriba
     }
     for (const d of nodesData){
       if (d.esSatelite && d.parentRef){
@@ -344,6 +348,7 @@
 
   window.addEventListener('resize', () => {
     width = window.innerWidth; height = window.innerHeight;
+    margenArriba = Math.min(140, height * 0.22);
     svg.attr('viewBox', [0,0,width,height]);
     adnNode.fx = width/2; adnNode.fy = height/2;
     simulation.force('center', d3.forceCenter(width/2, height/2));
