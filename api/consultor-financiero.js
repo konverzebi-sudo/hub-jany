@@ -26,6 +26,14 @@
 // se acumula en `messages` para no inflar el historial). Necesita maxTokens mucho mas alto
 // porque el entregable por defecto (Modo 1) es un dashboard HTML completo -- ver maxDuration:60
 // agregado a esta funcion en vercel.json.
+//
+// Tercera fusión: 'diseno-imagen' => Generador de Imágenes del Jefe de Producción de Video.
+// No es chat (no manda `messages`, manda `prompt` suelto) y no usa Anthropic sino la API de
+// imágenes de OpenAI (OPENAI_API_KEY, variable de entorno propia -- ver .env.example). Por eso
+// se despacha ANTES de los checks de ANTHROPIC_API_KEY/`messages` en el handler, que solo
+// aplican a las 3 ramas de chat. Tope duro diario por marca (IMGGEN_DAILY_CAP) para controlar
+// costo -- se cuenta en kv_store con una key fechada, mismo patron de storage que el resto del
+// archivo, sin tabla nueva.
 
 const fs = require('fs');
 const path = require('path');
@@ -42,6 +50,12 @@ const PROMPT_PATH_METAADS = path.join(__dirname, '..', 'prompts', 'system-prompt
 const DEFAULT_CLIENTE_METAADS = 'rancho-seco'; // unica marca donde se activa por ahora
 const MAX_MESSAGES_METAADS = 12; // conversacion corta -- el reporte va aparte en reporteCsv, no aqui
 const REPORT_CHAR_LIMIT = 140000; // reportes CSV reales caben comodos; solo protege contra abuso
+
+const DEFAULT_CLIENTE_IMGGEN = 'rancho-seco'; // unica marca donde se activa por ahora
+const IMGGEN_DAILY_CAP = 15; // tope duro por marca por dia -- ajustable segun costo real observado
+const IMGGEN_MODEL = 'gpt-image-1';
+const IMGGEN_SIZE = '1024x1024';
+const IMGGEN_QUALITY = 'medium';
 
 const CONTEXT_CHAR_LIMIT = 6000;
 const CALC_CHAR_LIMIT = 3000;
@@ -410,6 +424,64 @@ async function handleMetaAds(req, res, body) {
   return res.status(200).json({ text: r.text });
 }
 
+// ---------- rama Generador de Imágenes (Jefe de Producción de Video) ----------
+
+function fechaKeyHoyUtc() {
+  return new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC) -- suficiente para un tope diario aproximado
+}
+
+async function handleDisenoImagen(req, res, body) {
+  if (!process.env.OPENAI_API_KEY) {
+    return res.status(500).json({ error: 'Falta configurar OPENAI_API_KEY en el servidor.' });
+  }
+
+  const clienteId = (body.cliente || DEFAULT_CLIENTE_IMGGEN).toString();
+  const prompt = (body.prompt || '').toString().trim();
+  if (!prompt) return res.status(400).json({ error: 'Falta describir la imagen que quieres generar.' });
+
+  const capKey = `${clienteId}:jefe-diseno-imagenes-${fechaKeyHoyUtc()}`;
+  const usadasHoy = (await leerJSON(capKey).catch(() => null)) || 0;
+  if (usadasHoy >= IMGGEN_DAILY_CAP) {
+    return res.status(429).json({ error: `Ya se alcanzó el límite de ${IMGGEN_DAILY_CAP} imágenes de hoy para esta marca. Vuelve mañana.` });
+  }
+
+  let openaiRes;
+  try {
+    openaiRes = await fetch('https://api.openai.com/v1/images/generations', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: IMGGEN_MODEL,
+        prompt: `Genera una imagen de alta calidad, lista para usar en redes sociales o anuncios. Sin texto en la imagen salvo que se pida explícitamente.\n\n${prompt}`,
+        size: IMGGEN_SIZE,
+        quality: IMGGEN_QUALITY,
+        n: 1,
+      }),
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error de conexión con el generador de imágenes.' });
+  }
+
+  const data = await openaiRes.json();
+  if (!openaiRes.ok) {
+    return res.status(openaiRes.status).json({ error: data?.error?.message || 'Error al generar la imagen.' });
+  }
+  const b64 = data?.data?.[0]?.b64_json;
+  if (!b64) return res.status(502).json({ error: 'El generador no devolvió ninguna imagen.' });
+
+  const nuevoConteo = usadasHoy + 1;
+  try {
+    await escribirJSON(capKey, nuevoConteo);
+  } catch (err) {
+    // No bloquear la respuesta al usuario si falla el conteo del tope diario.
+  }
+
+  return res.status(200).json({ image: `data:image/png;base64,${b64}`, usadasHoy: nuevoConteo, limiteDiario: IMGGEN_DAILY_CAP });
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
 
@@ -426,18 +498,19 @@ module.exports = async function handler(req, res) {
     return res.status(429).json({ error: 'Demasiadas solicitudes, espera unos minutos.' });
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return res.status(500).json({ error: 'Falta configurar ANTHROPIC_API_KEY en el servidor.' });
-  }
-
   const body = req.body || {};
-  if (!Array.isArray(body.messages) || body.messages.length === 0) {
-    return res.status(400).json({ error: 'Falta el historial de la conversación (messages).' });
-  }
-
   const agente = (body.agente || 'financiero').toString();
 
   try {
+    if (agente === 'diseno-imagen') return await handleDisenoImagen(req, res, body);
+
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return res.status(500).json({ error: 'Falta configurar ANTHROPIC_API_KEY en el servidor.' });
+    }
+    if (!Array.isArray(body.messages) || body.messages.length === 0) {
+      return res.status(400).json({ error: 'Falta el historial de la conversación (messages).' });
+    }
+
     if (agente === 'diseno') return await handleDiseno(req, res, body);
     if (agente === 'metaads') return await handleMetaAds(req, res, body);
     return await handleFinanciero(req, res, body);
