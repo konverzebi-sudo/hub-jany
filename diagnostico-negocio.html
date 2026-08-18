@@ -362,6 +362,11 @@
           <input type="text" id="nombreEmpresario" required placeholder="Ej. María Torres">
         </div>
         <div class="field">
+          <label for="whatsappProspecto">WhatsApp del prospecto <span class="opt">(opcional, para enviarle el PDF)</span></label>
+          <input type="tel" id="whatsappProspecto" placeholder="521XXXXXXXXXX (con código de país)">
+        </div>
+
+        <div class="field">
           <label for="ventasMes">Ventas aproximadas al mes</label>
           <select id="ventasMes" required>
             <option value="" disabled selected>Selecciona un rango</option>
@@ -521,7 +526,9 @@
 
     <div class="cta-final-wrap">
       <button class="btn-secondary" onclick="descargarPDF()"><i data-lucide="download"></i> Descargar PDF</button>
+      <button class="btn-secondary" onclick="enviarPorWhatsapp()"><i data-lucide="send"></i> Enviar por WhatsApp</button>
     </div>
+    <p class="fallback-note" style="text-align:center;margin-top:10px;">1. Descarga el PDF &nbsp;→&nbsp; 2. Envíalo por WhatsApp y adjúntalo desde tus Descargas (WhatsApp no permite adjuntarlo solo)</p>
   </section>
 
 </div>
@@ -605,6 +612,7 @@ function restaurarDesdeStorage(){
     if(!raw) return;
     const data = JSON.parse(raw);
     document.getElementById('nombreEmpresario').value = data.nombreEmpresario || '';
+    document.getElementById('whatsappProspecto').value = data.whatsappProspecto || '';
     document.getElementById('queVende').value = data.queVende || '';
     document.getElementById('aQuienVende').value = data.aQuienVende || '';
     document.getElementById('linkCanal1').value = data.linkCanal1 || '';
@@ -634,6 +642,7 @@ document.getElementById('formCliente').addEventListener('submit', function(e){
 
   clienteData = {
     nombreEmpresario: document.getElementById('nombreEmpresario').value.trim(),
+    whatsappProspecto: document.getElementById('whatsappProspecto').value.trim(),
     giro: giro,
     giroSeleccion: giroSeleccion,
     giroOtro: giroOtro,
@@ -1217,6 +1226,19 @@ function descargarPDF(){
     <div class="ph-meta">Generado el ${fecha} · Hub de Jefes × ${escapeHtml(NOMBRE_PRESENTADORA)}</div>
   `;
   window.print();
+}
+
+// Abre WhatsApp ya con el chat del prospecto y un mensaje listo.
+// El PDF NO se adjunta solo — WhatsApp no lo permite desde un link — hay que adjuntarlo a mano.
+function enviarPorWhatsapp(){
+  const numero = (clienteData.whatsappProspecto || '').replace(/[^\d]/g, '');
+  if(!numero){
+    alert('No hay un número de WhatsApp del prospecto. Regresa a la Pantalla 1 y llénalo antes de enviar.');
+    return;
+  }
+  const nombre = clienteData.nombreEmpresario ? `Hola ${clienteData.nombreEmpresario}, ` : 'Hola, ';
+  const mensaje = encodeURIComponent(`${nombre}aquí tienes tu diagnóstico completo. Te adjunto el PDF 👇`);
+  window.open(`https://wa.me/${numero}?text=${mensaje}`, '_blank', 'noopener');
 }
 
 /* ============================================================
