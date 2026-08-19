@@ -6,6 +6,7 @@
 <title>RIM — Hub de Jefes</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<script src="https://d3js.org/d3.v7.min.js"></script>
 <style>
   :root{
     --bg: #0F0B16;
@@ -16,377 +17,391 @@
     --chalk: #F3EEF9;
     --chalk-dim: #B6A9C7;
     --line: #332A3D;
-    --locked: var(--surface);
   }
   *{box-sizing:border-box; margin:0; padding:0;}
+  html, body{ height:100%; }
   body{
     background: radial-gradient(ellipse 120% 60% at 50% -10%, #2A1020 0%, var(--bg) 55%);
     color: var(--chalk);
     font-family: 'Inter', sans-serif;
-    min-height:100vh;
-    padding: 56px 24px 80px;
-  }
-  .wrap{ max-width: 1120px; margin: 0 auto; }
-
-  /* Header */
-  .eyebrow{
-    font-family:'JetBrains Mono', monospace;
-    text-transform: uppercase;
-    letter-spacing: 0.18em;
-    font-size: 11px;
-    color: var(--accent);
-    display:flex; align-items:center; gap:10px;
-    margin-bottom: 18px;
-  }
-  .eyebrow::before{
-    content:"";
-    width:7px; height:7px; border-radius:50%;
-    background: var(--accent);
-    box-shadow: 0 0 10px 2px var(--accent);
-  }
-  h1{
-    font-family:'Sora', sans-serif;
-    font-weight: 800;
-    font-size: clamp(32px, 5vw, 54px);
-    line-height: 1.05;
-    letter-spacing: -0.01em;
-    color: var(--chalk);
-  }
-  h1 span{ color: var(--accent); }
-  .sub{
-    max-width: 560px;
-    margin-top: 16px;
-    color: var(--chalk-dim);
-    font-size: 15px;
-    line-height: 1.6;
-  }
-
-  /* Scoreboard */
-  .scoreboard{
-    margin-top: 40px;
-    display:flex; gap: 28px; flex-wrap: wrap;
-    padding: 18px 22px;
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    background: rgba(244,242,234,0.02);
-  }
-  .stat{ font-family:'Sora',sans-serif; }
-  .stat b{ font-size: 26px; color: var(--chalk); display:block; font-weight:800; }
-  .stat span{ font-size: 11px; text-transform:uppercase; letter-spacing:0.12em; color: var(--chalk-dim); font-family:'JetBrains Mono',monospace; }
-
-  /* ADN Bar */
-  .adn-bar{
-    display:flex; align-items:center; gap:12px;
-    background: var(--surface);
-    border:1px solid var(--line); border-radius:14px;
-    padding:13px 18px; margin-top:24px;
-    text-decoration:none; color:inherit; transition:border-color .15s;
-  }
-  .adn-bar:hover{ border-color:var(--accent); }
-  .adn-dot{ width:8px;height:8px;border-radius:50%;background:#888;flex-shrink:0;transition:background .3s; }
-  .adn-dot.ok{ background:var(--accent); box-shadow:0 0 8px 2px var(--accent); }
-  .adn-info{ flex:1; }
-  .adn-sublabel{ font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--chalk-dim);margin-bottom:2px; }
-  .adn-title{ font-size:14px;font-weight:500;color:var(--chalk); }
-  .adn-pill{
-    font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
-    padding:3px 12px;border-radius:20px;
-    background:rgba(136,136,136,.1);color:#888;border:1px solid rgba(136,136,136,.2);
-    white-space:nowrap;flex-shrink:0;transition:all .3s;
-  }
-  .adn-pill.ok{ background:rgba(244,114,182,.12);color:var(--accent);border-color:rgba(244,114,182,.25); }
-  .adn-arrow{ color:var(--chalk-dim);font-size:20px;line-height:1; }
-
-  /* Tokens del Hub */
-  .tokens-bar{
-    display:flex; align-items:center; gap:12px;
-    background: var(--surface);
-    border:1px solid var(--line); border-radius:14px;
-    padding:11px 18px; margin-top:10px;
-  }
-  .tokens-bar-label{ font-family:'Oswald',sans-serif;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--chalk-dim); }
-  .tokens-bar-value{ font-size:13px;color:var(--chalk);margin-left:auto;text-align:right; }
-
-  /* Grid */
-  .grid{
-    margin-top: 48px;
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 16px;
-  }
-  @media (max-width: 880px){ .grid{ grid-template-columns: repeat(2, 1fr); } }
-  @media (max-width: 560px){ .grid{ grid-template-columns: 1fr; } }
-
-  .card{
-    position: relative;
-    border-radius: 12px;
-    padding: 22px 20px 20px;
-    border: 1px solid var(--line);
-    background: var(--locked);
     overflow: hidden;
-    transition: transform .25s ease, border-color .25s ease;
-  }
-  .card .num{
-    font-family:'JetBrains Mono',monospace;
-    font-size: 10px;
-    letter-spacing: 0.12em;
-    color: var(--chalk-dim);
-    text-transform: uppercase;
-  }
-  .card h3{
-    font-family:'Sora',sans-serif;
-    font-size: 17px;
-    margin-top: 10px;
-    font-weight: 700;
-    color: var(--chalk-dim);
-  }
-  .card p{
-    margin-top: 8px;
-    font-size: 13px;
-    line-height: 1.5;
-    color: rgba(182,169,199,0.65);
-  }
-  .tag{
-    display:inline-flex; align-items:center; gap:6px;
-    margin-top: 16px;
-    font-family:'JetBrains Mono',monospace;
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.14em;
-    color: var(--chalk-dim);
   }
 
-  /* Locked state */
-  .card.locked::after{
-    content:"";
-    position:absolute; inset:0;
-    background: repeating-linear-gradient(135deg, rgba(0,0,0,0.15) 0 2px, transparent 2px 14px);
-    pointer-events:none;
+  /* Grafo a pantalla completa */
+  .graph-full{ position: fixed; inset: 0; }
+  .center-aura{
+    position: fixed; top: 50%; left: 50%; width: 900px; height: 900px;
+    transform: translate(-50%,-50%);
+    background: radial-gradient(circle, var(--accent-soft) 0%, transparent 70%);
+    filter: blur(24px); pointer-events: none;
   }
-
-  /* Active card */
-  .card.active{
-    background: linear-gradient(165deg, var(--surface-2) 0%, var(--surface) 100%);
-    border-color: var(--accent);
-    box-shadow: 0 0 0 1px rgba(244,114,182,0.25), 0 20px 40px -20px rgba(244,114,182,0.35);
+  #hub-graph{ display:block; width:100%; height:100%; cursor: grab; position: relative; touch-action: none; }
+  #hub-graph:active{ cursor: grabbing; }
+  .star{ fill: var(--chalk); animation: twinkle 3.6s ease-in-out infinite; }
+  @keyframes twinkle{ 0%,100%{ opacity:.12; } 50%{ opacity:.65; } }
+  .stars-layer{ transform-box: view-box; transform-origin: center; animation: girar-fondo 220s linear infinite; }
+  @keyframes girar-fondo{ from{ transform: rotate(0deg); } to{ transform: rotate(360deg); } }
+  @keyframes respirar{ 0%,100%{ transform: scale(1); } 50%{ transform: scale(1.07); } }
+  .graph-node.active .node-icon, .graph-node.active .node-emoji,
+  .graph-node.locked .node-icon, .graph-node.locked .node-emoji{ transform-box: fill-box; transform-origin: center; animation: respirar 4.4s ease-in-out infinite; }
+  .graph-link{ stroke: var(--chalk-dim); stroke-width: 1.2; opacity: .38; }
+  .graph-link.satellite-link{ stroke: var(--chalk); stroke-width: .7; opacity: .14; }
+  .graph-node{ cursor: pointer; }
+  .graph-node.locked{ cursor: not-allowed; }
+  .graph-node.satellite{ pointer-events: none; }
+  .graph-node.satellite circle{ fill: var(--chalk); opacity: .4; }
+  .graph-node circle{ stroke-width: 1.5; transition: filter .15s ease; pointer-events: all; }
+  /* Sin circulo alrededor del icono -- solo queda como area de click/arrastre invisible */
+  .graph-node.active circle, .graph-node.locked circle{ fill: none; stroke: none; }
+  .graph-node.active .node-icon, .graph-node.active .node-emoji{
+    filter: drop-shadow(0 0 8px rgba(244,114,182,0.4));
+    transition: filter .15s ease;
   }
-  .card.active .num{ color: var(--accent); }
-  .card.active h3{ color: var(--chalk); }
-  .card.active p{ color: var(--chalk-dim); }
-  .card.active .tag{ color: var(--accent); }
-  .card.active:hover{ transform: translateY(-3px); }
+  .graph-node.active:hover .node-icon, .graph-node.active:hover .node-emoji{ filter: drop-shadow(0 0 16px rgba(244,114,182,0.7)); }
+  .graph-node.locked .node-icon, .graph-node.locked .node-emoji{ filter: grayscale(1); opacity: .45; }
+  .graph-node .node-emoji{ font-size: 22px; text-anchor: middle; dominant-baseline: central; pointer-events: none; user-select: none; }
+  .graph-node .node-lock{ font-size: 16px; text-anchor: middle; dominant-baseline: central; pointer-events: none; opacity: .6; }
+  .graph-node .node-label{ font-family:'JetBrains Mono',monospace; font-size: 11px; letter-spacing: .02em; text-anchor: middle; fill: var(--chalk-dim); pointer-events: none; user-select: none; }
+  .graph-node.active .node-label{ fill: var(--chalk); }
+  .graph-node .node-num{ font-family:'JetBrains Mono',monospace; font-size: 9px; letter-spacing: .1em; text-anchor: middle; fill: var(--chalk-dim); opacity: .9; pointer-events: none; paint-order: stroke; stroke: rgba(0,0,0,.6); stroke-width: 3px; stroke-linejoin: round; }
+  .graph-node .node-icon{ pointer-events: none; }
 
-  .live-dot{
-    width:8px; height:8px; border-radius:50%;
-    background: var(--accent);
-    box-shadow: 0 0 8px 2px var(--accent);
-    display:inline-block;
-    animation: pulse 1.8s ease-in-out infinite;
+  /* Nodo central: ADN del negocio */
+  .graph-node.adn-node circle{
+    fill: var(--surface-2);
+    stroke: #555;
+    stroke-width: 2;
+    filter: drop-shadow(0 0 10px rgba(255,255,255,0.08));
   }
-  @keyframes pulse{ 0%,100%{ opacity:1; } 50%{ opacity:0.35; } }
+  .graph-node.adn-node.connected circle{
+    stroke: var(--accent);
+    filter: drop-shadow(0 0 18px rgba(244,114,182,0.5));
+    animation: adn-pulse 2.2s ease-in-out infinite;
+  }
+  @keyframes adn-pulse{ 0%,100%{ filter: drop-shadow(0 0 14px rgba(244,114,182,0.4)); } 50%{ filter: drop-shadow(0 0 26px rgba(244,114,182,0.75)); } }
+  .graph-node.adn-node .node-emoji{ font-size: 30px; }
+  .graph-node.adn-node .node-label{ font-size: 12px; fill: var(--chalk); }
+  .graph-node.adn-node .node-status{ font-family:'JetBrains Mono',monospace; font-size: 9px; letter-spacing: .12em; text-transform:uppercase; text-anchor: middle; fill: #888; pointer-events: none; }
+  .graph-node.adn-node.connected .node-status{ fill: var(--accent); }
 
-  .cta{
-    margin-top: 18px;
+  /* Overlay superior: breadcrumb de marca */
+  .top-overlay{
+    position: fixed; top: 20px; left: 24px; z-index: 10;
     display:inline-flex; align-items:center; gap:8px;
-    font-family:'JetBrains Mono',monospace;
-    text-transform:uppercase; letter-spacing:0.1em; font-size:12px;
-    color: #0F0B16;
-    background: var(--accent);
-    padding: 10px 16px;
-    border-radius: 7px;
-    text-decoration:none;
-    transition: filter .2s ease;
-  }
-  .cta:hover{ filter: brightness(1.1); }
-
-  footer{
-    margin-top: 56px;
-    padding-top: 24px;
-    border-top: 1px solid var(--line);
-    font-size: 12px;
+    font-family:'JetBrains Mono',monospace; font-size: 11px; letter-spacing:.13em; text-transform:uppercase;
     color: var(--chalk-dim);
-    display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px;
+    padding: 7px 16px; border: 1px solid var(--line); border-radius: 100px;
+    background: rgba(15,11,22,0.65); backdrop-filter: blur(6px);
+  }
+  .graph-hint{
+    position: fixed; top: 20px; right: 24px; z-index: 10;
+    font-family:'JetBrains Mono',monospace; font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--chalk-dim); opacity: .7;
+  }
+
+  /* Pastilla de tokens, abajo al centro */
+  .tokens-pill{
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 10;
+    font-size: 12px; color: var(--chalk-dim);
+    background: rgba(24,17,32,0.75); backdrop-filter: blur(6px);
+    border: 1px solid var(--line); border-radius: 100px;
+    padding: 8px 18px; white-space: nowrap;
+  }
+
+  /* FAB: Editar ADN */
+  .fab-adn{
+    position:fixed; bottom:24px; right:24px; z-index: 20;
+    display:flex; align-items:center; gap:9px;
+    background:#211829; border:1px solid var(--line); border-radius:40px;
+    padding:11px 18px; font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.07em; text-transform:uppercase;
+    color: var(--chalk-dim); text-decoration:none; transition:.15s;
+  }
+  .fab-adn:hover{ border-color: var(--accent); color: var(--accent); }
+
+  .footer-overlay{
+    position: fixed; bottom: 24px; left: 24px; z-index: 10;
+    font-size: 11px; color: var(--chalk-dim); opacity: .6;
+    max-width: 260px; line-height: 1.5;
+  }
+  .footer-overlay a{ color: var(--accent); text-decoration:none; }
+  @media (max-width: 720px){
+    .footer-overlay{ display:none; }
+    .tokens-pill{ font-size: 10px; max-width: 82vw; overflow:hidden; text-overflow:ellipsis; }
+  }
+  @media (max-width: 480px){
+    .graph-node .node-label{ font-size: 9px; }
+    .graph-node .node-emoji{ font-size: 18px; }
   }
 </style>
 </head>
 <body>
-<div class="wrap">
 
-  <div style="display:inline-flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:#B6A9C7;margin-bottom:14px;padding:5px 14px;border:1px solid #332A3D;border-radius:100px;background:rgba(255,255,255,.03);">
-    <span style="color:#B8F725;">JefesHub</span><span style="opacity:.4;">·</span>
-    <span>Centro de Control</span><span style="opacity:.4;">·</span>
-    <span id="brand-marca-label" style="color:#F472B6;">RIM</span>
-  </div>
-  <div class="eyebrow">Centro de mando · Red Impulso Mujer</div>
-  <h1>Hub de <span>Jefes</span></h1>
-  <p class="sub">Tu equipo de marketing con inteligencia artificial. Cada agente resuelve una función específica del sistema de ventas — hoy Contenido, WhatsApp y Radar ya están en cancha.</p>
-
-  <a class="adn-bar" href="/rim/adn">
-    <span class="adn-dot" id="adn-dot"></span>
-    <div class="adn-info">
-      <div class="adn-sublabel">El primer paso es conocernos...</div>
-      <div class="adn-title" id="adn-title">LLENA AQUÍ EL ADN DE TU NEGOCIO</div>
-    </div>
-    <span class="adn-pill" id="adn-pill">Pendiente</span>
-    <span class="adn-arrow">›</span>
-  </a>
-
-  <div class="grid">
-
-    <!-- Card 1: Evergreen — ACTIVO -->
-    <div class="card active">
-      <div class="num">01</div>
-      <h3>🌱 Jefe 366</h3>
-      <p>Diseña el sistema base de ventas recurrentes: entrada, cierre, seguimiento y fidelización.</p>
-      <div class="tag"><span class="live-dot"></span> Activo ahora</div>
-      <a class="cta" href="/rim/consultor-evergreen">Entrar al agente →</a>
-    </div>
-
-    <!-- Card 2: Financiero — ACTIVO -->
-    <div class="card active">
-      <div class="num">02</div>
-      <h3>💰 Jefe de Finanzas</h3>
-      <p>Calcula CPA máximo, presupuesto y punto de equilibrio antes de invertir en campañas.</p>
-      <div class="tag"><span class="live-dot"></span> Activo ahora</div>
-      <a class="cta" href="/rim/consultor-financiero">Entrar al agente →</a>
-    </div>
-
-    <!-- Card 3: Jefe de Conversión — ACTIVO -->
-    <div class="card active">
-      <div class="num">03</div>
-      <h3>🚦 Jefe de Conversión</h3>
-      <p>Audita tu tienda online o tu cita/llamada/evento, mide tus tasas reales y construye el manual para mejorar tu cierre.</p>
-      <div class="tag"><span class="live-dot"></span> Activo ahora</div>
-      <a class="cta" href="/rim/consultor-cierre">Entrar al agente →</a>
-    </div>
-
-    <!-- Card 4: WhatsApp — ACTIVO -->
-    <div class="card active">
-      <div class="num">04</div>
-      <h3>📳 Jefe WhatsApp y Ventas</h3>
-      <p>Termómetro de conversación, banco de objeciones, seguimiento y reactivación — respuestas listas para copiar y pegar.</p>
-      <div class="tag"><span class="live-dot"></span> Activo ahora</div>
-      <a class="cta" href="/rim/consultor-whatsapp">Entrar al agente →</a>
-    </div>
-
-    <!-- Card 5: Radar — ACTIVO -->
-    <div class="card active">
-      <div class="num">05</div>
-      <h3>☢️ Jefe del Faro — Tendencias &amp; Investigación</h3>
-      <p>Observa cuentas de referencia, detecta patrones de contenido y los convierte en insights accionables sin perder tu voz.</p>
-      <div class="tag"><span class="live-dot"></span> Activo ahora</div>
-      <a class="cta" href="/rim/consultor-radar">Entrar al agente →</a>
-    </div>
-
-    <!-- Card 6: Contenido — ACTIVO -->
-    <div class="card active">
-      <div class="num">06</div>
-      <h3>🗓️ Jefe de Contenido</h3>
-      <p>Planeador de historias con banco de ideas, guiones, creativos y calendarios alineados a tu sistema de ventas.</p>
-      <div class="tag"><span class="live-dot"></span> Activo ahora</div>
-      <a class="cta" href="/rim/consultor-contenido">Entrar al agente →</a>
-    </div>
-
-    <!-- Card 7: Ads — ACTIVO -->
-    <div class="card active">
-      <div class="num">07</div>
-      <h3>📣 Jefe de Anuncios — Campañas de Paga</h3>
-      <p>Banco de anuncios evergreen: hooks, testimonios y remarketing para Meta Ads.</p>
-      <div class="tag"><span class="live-dot"></span> Activo ahora</div>
-      <a class="cta" href="/rim/consultor-anuncios">Entrar al agente →</a>
-    </div>
-
-    <!-- Card 8: Producción de Video — ACTIVO -->
-    <div class="card active">
-      <div class="num">08</div>
-      <h3>🎬 Jefe Productor IA</h3>
-      <p>Checklist antes de grabar, formato de grabación ideal y feedback sobre tu guion o video.</p>
-      <div class="tag"><span class="live-dot"></span> Activo ahora</div>
-      <a class="cta" href="/rim/consultor-produccion-video">Entrar al agente →</a>
-    </div>
-
-    <!-- Card 9: Optimización -->
-    <div class="card locked">
-      <div class="num">09</div>
-      <h3>👁️ Jefe de Mejora Constante</h3>
-      <p>Lee métricas, detecta fugas y arma el plan de mejora semanal.</p>
-      <div class="tag">🔒 Próximamente</div>
-    </div>
-
-    <!-- Card 10: Temporada — ACTIVO -->
-    <div class="card active">
-      <div class="num">10</div>
-      <h3>🕐 Campañas de Temporada</h3>
-      <p>Precampaña, campaña activa y postcampaña para fechas y promociones clave.</p>
-      <div class="tag"><span class="live-dot"></span> Activo ahora</div>
-      <a class="cta" href="/rim/consultor-temporada">Entrar al agente →</a>
-    </div>
-
-    <!-- Card 11: Jefe de Agenda — ACTIVO -->
-    <div class="card active">
-      <div class="num">11</div>
-      <h3>📅 Jefe de Agenda</h3>
-      <p>Une en un solo calendario todo lo que ya tiene fecha en los demás Jefes.</p>
-      <div class="tag"><span class="live-dot"></span> Activo ahora</div>
-      <a class="cta" href="/rim/consultor-agenda">Entrar al agente →</a>
-    </div>
-
-  </div>
-
-  <div class="tokens-bar">
-    <span class="tokens-bar-label">🔢 Tokens usados en este Hub</span>
-    <span class="tokens-bar-value" id="tokens-bar-value">Cargando…</span>
-  </div>
-
-  <footer>
-    <span>Red Impulso Mujer</span>
-    <span>Equipo de Marketing IA por <a href="https://jefeshub.com" style="color:var(--accent); text-decoration:none;">JefesHub</a></span>
-  </footer>
-
+<div class="graph-full">
+  <div class="center-aura"></div>
+  <svg id="hub-graph"></svg>
 </div>
 
-<!-- FAB: Editar ADN -->
-<a href="/rim/adn" style="position:fixed;bottom:24px;right:24px;display:flex;align-items:center;gap:9px;background:#211829;border:1px solid #332A3D;border-radius:40px;padding:11px 18px;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:#B6A9C7;text-decoration:none;z-index:100;transition:.15s;" onmouseover="this.style.borderColor='#F472B6';this.style.color='#F472B6'" onmouseout="this.style.borderColor='#332A3D';this.style.color='#B6A9C7'">
-  <span id="fab-dot" style="width:7px;height:7px;border-radius:50%;background:#888;flex-shrink:0;transition:background .3s;"></span>
-  Editar ADN del negocio
-</a>
+<div class="top-overlay">
+  <span style="color:#B8F725;">JefesHub</span><span style="opacity:.4;">·</span>
+  <span>Centro de Control</span><span style="opacity:.4;">·</span>
+  <span id="brand-marca-label" style="color:#F472B6;">RIM</span>
+</div>
+<span class="graph-hint">Arrastra los nodos · Click para entrar</span>
+
+<div class="tokens-pill" id="tokens-pill">🔢 Cargando tokens…</div>
+
+<a class="fab-adn" href="/rim/adn">✦ Editar ADN del negocio</a>
+
+<div class="footer-overlay">
+  Red Impulso Mujer<br>
+  Equipo de Marketing IA por <a href="https://jefeshub.com">JefesHub</a>
+</div>
 
 <script src="/js/storage-client.js"></script>
 <script>
-(async function checkADN(){
+(function initHubGraph(){
   const CLIENTE_ID = 'rim';
-  // Actualiza banda de marca con nombre del ADN
-  try{
-    const ri=await window.storage.get(CLIENTE_ID+':brand-book.identidad');
-    if(ri&&ri.value){const d=JSON.parse(ri.value);if(d.nombre){const el=document.getElementById('brand-marca-label');if(el)el.textContent=d.nombre;}}
-  }catch(e){}
-  try{
-    const result = await window.storage.get(CLIENTE_ID + ':brand-book.identidad');
-    if(result && result.value){
-      const data = JSON.parse(result.value);
-      const nombre = data.nombre || '';
-      if(nombre){
-        document.getElementById('adn-dot').classList.add('ok');
-        document.getElementById('fab-dot').style.background = '#F472B6';
-        document.getElementById('adn-pill').textContent = 'Conectado';
-        document.getElementById('adn-pill').classList.add('ok');
-        document.getElementById('adn-title').textContent = nombre;
+
+  const jefes = [
+    {id:0, num:'01', icono:'jefe-evergreen', nombre:'Jefe 366', activo:true, href:'/rim/consultor-evergreen'},
+    {id:5, num:'02', icono:'jefe-contenido', nombre:'Jefe de Contenido', activo:true, href:'/rim/consultor-contenido'},
+    {id:3, num:'03', icono:'jefe-whatsapp', nombre:'WhatsApp y Ventas', activo:true, href:'/rim/consultor-whatsapp'},
+    {id:1, num:'04', icono:'jefe-finanzas', nombre:'Jefe de Finanzas', activo:true, href:'/rim/consultor-financiero'},
+    {id:4, num:'05', icono:'jefe-radar', nombre:'Jefe del Faro', activo:true, href:'/rim/consultor-radar'},
+    {id:6, num:'06', icono:'jefe-anuncios', nombre:'Jefe de Anuncios', activo:true, href:'/rim/consultor-anuncios'},
+    {id:7, num:'07', icono:'jefe-produccion-video', nombre:'Jefe Productor IA', activo:true, href:'/rim/consultor-produccion-video'},
+    {id:2, num:'08', icono:'jefe-conversion', nombre:'Jefe de Conversión', activo:true, href:'/rim/consultor-cierre'},
+    {id:8, num:'09', icono:'jefe-optimizacion', nombre:'Jefe de Mejora Constante', activo:false, href:null},
+    {id:9, num:'10', icono:'jefe-temporada', nombre:'Campañas de Temporada', activo:true, href:'/rim/consultor-temporada'},
+    {id:10, num:'11', icono:'jefe-agenda', nombre:'Jefe de Agenda', activo:true, href:'/rim/consultor-agenda'},
+  ];
+  // Nodo central: el ADN del negocio. Todos los Jefes conectan hacia el
+  // (hub-and-spoke) -- la conexion es decorativa/tematica, no representa
+  // paso de datos real entre Jefes.
+  const adnNode = {id:'adn', esADN:true, nombre:'ADN pendiente', href:'/rim/adn'};
+  const nodesData = [adnNode, ...jefes];
+  const linksData = jefes.map(j => ({source:'adn', target:j.id}));
+
+  // Nodos satelite: puntos decorativos sin datos ni click, solo dan la
+  // textura de "constelacion" densa (inspirado en la vista de grafo de
+  // Obsidian) -- no representan informacion real.
+  function agregarSatelites(parent, cantidad){
+    const radioPadre = parent.esADN ? 60 : (parent.activo?46:36);
+    for(let i=0;i<cantidad;i++){
+      const id = 'sat-' + parent.id + '-' + i;
+      const orbitRadius = radioPadre + 16 + Math.random()*30;
+      const orbitSpeed = (Math.random()<0.5 ? -1 : 1) * (0.006 + Math.random()*0.016);
+      nodesData.push({id, esSatelite:true, parentRef:parent, orbitRadius, orbitSpeed, orbitAngle: Math.random()*Math.PI*2});
+      linksData.push({source:parent.id, target:id, esSatelite:true});
+    }
+  }
+  agregarSatelites(adnNode, 14);
+  jefes.forEach(j => agregarSatelites(j, j.activo ? 5 : 2));
+
+  const svg = d3.select('#hub-graph');
+  let width = window.innerWidth, height = window.innerHeight;
+  let margenArriba = Math.min(140, height * 0.22); // deja espacio para el breadcrumb + instrucciones de arriba
+  svg.attr('viewBox', [0,0,width,height]);
+
+  // Todo lo visual vive dentro de zoomRoot para poder hacer pinch-zoom
+  // (o rueda/ctrl+scroll en escritorio) sin pelearse con el drag de
+  // cada nodo, que sigue funcionando igual.
+  const zoomRoot = svg.append('g').attr('class','zoom-root');
+  const starsLayer = zoomRoot.append('g').attr('class','stars-layer');
+  const graphGroup = zoomRoot.append('g').attr('class','graph-depth');
+  svg.call(d3.zoom().scaleExtent([0.4, 3.2]).on('zoom', (event) => {
+    zoomRoot.attr('transform', event.transform);
+  }));
+  function pintarEstrellas(){
+    const cantidad = 90;
+    const estrellas = Array.from({length: cantidad}, () => ({
+      cx: Math.random()*width, cy: Math.random()*height,
+      r: Math.random()*1.3 + 0.4, delay: Math.random()*3.6
+    }));
+    starsLayer.selectAll('circle').data(estrellas).join('circle')
+      .attr('class','star')
+      .attr('cx', d=>d.cx).attr('cy', d=>d.cy).attr('r', d=>d.r)
+      .style('animation-delay', d => d.delay + 's');
+  }
+  pintarEstrellas();
+
+  adnNode.x = width/2; adnNode.y = height/2;
+  adnNode.fx = width/2; adnNode.fy = height/2; // fijo en el centro siempre
+
+  const r0 = Math.min(width,height)/2 - 90;
+  jefes.forEach((d,i)=>{
+    const angle = (i/jefes.length)*2*Math.PI;
+    d.x = width/2 + r0*Math.cos(angle);
+    d.y = height/2 + r0*Math.sin(angle);
+  });
+
+  function radioDe(d){ return d.esADN ? 60 : d.esSatelite ? 2.4 : (d.activo?46:36); }
+
+  // El simulador de D3 se "enfria" y se detiene solo tras ~5s por diseño.
+  // Un alphaTarget permanente arriba de alphaMin lo mantiene vivo para
+  // siempre, y esta fuerza de "vida" le da un temblor organico continuo
+  // (si no, el grafo se congela por completo una vez que se acomoda).
+  const ALPHA_VIDA = 0.045;
+  function fuerzaVida(alpha){
+    for (const d of nodesData){
+      if (d.esADN || d.esSatelite) continue;
+      d.vx += (Math.random()-0.5) * 0.34 * alpha;
+      d.vy += (Math.random()-0.5) * 0.34 * alpha;
+      // Empuje suave (no una pared dura) para que no invadan el area del
+      // breadcrumb/instrucciones -- entre mas se metan ahi, mas fuerte los
+      // regresa, pero sin pegarlos todos exactamente a la misma altura.
+      if (d.y < margenArriba) d.vy += (margenArriba - d.y) * 0.06;
+    }
+  }
+
+  const simulation = d3.forceSimulation(nodesData)
+    .force('link', d3.forceLink(linksData).id(d=>d.id)
+      .distance(d => d.esSatelite ? 26 + Math.random()*22 : 190)
+      .strength(d => d.esSatelite ? 0.7 : 0.5))
+    .force('charge', d3.forceManyBody().strength(d => d.esSatelite ? -6 : -340))
+    .force('center', d3.forceCenter(width/2, height/2))
+    .force('collide', d3.forceCollide(d => d.esSatelite ? 5 : radioDe(d)+16))
+    .force('vida', fuerzaVida)
+    .alphaTarget(ALPHA_VIDA);
+
+  const link = graphGroup.append('g').selectAll('line')
+    .data(linksData).join('line')
+    .attr('class', d => 'graph-link' + (d.esSatelite ? ' satellite-link' : ''));
+
+  const node = graphGroup.append('g').selectAll('g')
+    .data(nodesData).join('g')
+    .attr('class', d => d.esADN ? 'graph-node adn-node' : d.esSatelite ? 'graph-node satellite' : 'graph-node ' + (d.activo ? 'active' : 'locked'))
+    .call(d3.drag().on('start', dragstarted).on('drag', dragged).on('end', dragended));
+
+  node.append('circle').attr('r', radioDe);
+  const nodePrincipal = node.filter(d=>!d.esADN && !d.esSatelite);
+  nodePrincipal.filter(d=>d.icono).append('image').attr('class','node-icon')
+    .attr('href', d => '/img/' + d.icono + '.webp')
+    .attr('width', d => radioDe(d)*1.15).attr('height', d => radioDe(d)*1.15)
+    .attr('x', d => -radioDe(d)*1.15/2).attr('y', d => -radioDe(d)*1.15/2)
+    .style('animation-delay', () => (Math.random()*4.4) + 's');
+  nodePrincipal.filter(d=>!d.icono).append('text').attr('class','node-emoji').attr('y', d=>d.activo?-4:-2).text(d=>d.emoji)
+    .style('animation-delay', () => (Math.random()*4.4) + 's');
+  nodePrincipal.append('text').attr('class','node-num').attr('y', d=>d.activo?-26:-22).text(d=>d.num);
+  nodePrincipal.filter(d=>!d.activo).append('text').attr('class','node-lock').attr('y',18).text('🔒');
+  nodePrincipal.append('text').attr('class','node-label').attr('y', d=>radioDe(d)+18).text(d=>d.nombre);
+  nodePrincipal.append('title').text(d => d.activo ? d.nombre : d.nombre + ' — Próximamente');
+
+  // Nodo ADN: emoji, nombre del negocio (o "ADN pendiente"), y estado.
+  // El nombre del negocio no tiene largo fijo -- si no encoge la letra,
+  // un nombre largo se desborda del circulo.
+  function ajustarTextoADN(el, texto){
+    if(!el) return;
+    el.textContent = texto;
+    const maxWidth = 104, base = 12;
+    let largo;
+    try{ largo = el.getComputedTextLength(); }
+    catch(e){ largo = texto.length * base * 0.55; }
+    el.style.fontSize = (largo > maxWidth ? Math.max(8, base * maxWidth / largo) : base) + 'px';
+  }
+  node.filter(d=>d.esADN).append('text').attr('class','node-label').attr('id','adn-node-label').attr('y', 2);
+  ajustarTextoADN(document.getElementById('adn-node-label'), adnNode.nombre);
+  node.filter(d=>d.esADN).append('text').attr('class','node-status').attr('id','adn-node-status').attr('y', 20).text('Pendiente');
+  node.filter(d=>d.esADN).append('title').attr('id','adn-node-title').text('Editar ADN del negocio');
+
+  let dragDistance = 0;
+  node.on('click', (event, d) => {
+    if (dragDistance > 6) return;
+    if (d.esADN && d.href) { window.location.href = d.href; return; }
+    if (d.activo && d.href) window.location.href = d.href;
+  });
+
+  simulation.on('tick', () => {
+    // Manten los Jefes dentro del viewport (con espacio para su etiqueta
+    // debajo) -- sin esto, en pantallas angostas (celular) un nodo puede
+    // terminar empujado al borde y quedar con el icono/texto cortado.
+    for (const d of nodesData){
+      if (d.esADN || d.esSatelite) continue;
+      const r = radioDe(d) + 58;
+      d.x = Math.max(r, Math.min(width - r, d.x));
+      d.y = Math.max(r, Math.min(height - r, d.y)); // pared dura solo pegado al borde real -- el margen del breadcrumb ya lo maneja el empuje suave de arriba
+    }
+    for (const d of nodesData){
+      if (d.esSatelite && d.parentRef){
+        d.orbitAngle += d.orbitSpeed;
+        d.x = d.parentRef.x + d.orbitRadius * Math.cos(d.orbitAngle);
+        d.y = d.parentRef.y + d.orbitRadius * Math.sin(d.orbitAngle);
       }
     }
-  }catch(e){}
+    link.attr('x1', d=>d.source.x).attr('y1', d=>d.source.y).attr('x2', d=>d.target.x).attr('y2', d=>d.target.y);
+    node.attr('transform', d => `translate(${d.x},${d.y})`);
+  });
 
-  try{
-    const r = await window.storage.get(CLIENTE_ID + ':uso-tokens-log');
-    const items = r && r.value ? JSON.parse(r.value) : [];
-    const inputT = items.reduce((s, it) => s + (it.inputTokens || 0), 0);
-    const outputT = items.reduce((s, it) => s + (it.outputTokens || 0), 0);
-    const total = inputT + outputT;
-    document.getElementById('tokens-bar-value').textContent = total > 0
-      ? `${total.toLocaleString('es-MX')} (entrada: ${inputT.toLocaleString('es-MX')} · salida: ${outputT.toLocaleString('es-MX')})`
-      : 'Todavía no hay uso registrado';
-  }catch(e){
-    document.getElementById('tokens-bar-value').textContent = 'No se pudo cargar';
+  // Paralaje suave con el mouse: sensacion de profundidad barata moviendo
+  // el grafo y el fondo de estrellas a velocidades distintas.
+  document.querySelector('.graph-full').addEventListener('mousemove', (e) => {
+    const relX = (e.clientX - width/2) / width;
+    const relY = (e.clientY - height/2) / height;
+    graphGroup.style('transform', `translate(${relX*22}px,${relY*22}px)`);
+    starsLayer.style('transform', `translate(${relX*-8}px,${relY*-8}px)`);
+  });
+
+  function dragstarted(event, d){
+    dragDistance = 0;
+    if (!event.active) simulation.alphaTarget(0.25).restart();
+    if (d.esADN) return; // el nodo ADN se queda fijo en el centro
+    d.fx = d.x; d.fy = d.y;
   }
+  function dragged(event, d){
+    dragDistance += Math.abs(event.dx) + Math.abs(event.dy);
+    if (d.esADN) return;
+    d.fx = event.x; d.fy = event.y;
+  }
+  function dragended(event, d){
+    if (!event.active) simulation.alphaTarget(ALPHA_VIDA);
+    if (d.esADN) return;
+    d.fx = null; d.fy = null;
+  }
+
+  window.addEventListener('resize', () => {
+    width = window.innerWidth; height = window.innerHeight;
+    margenArriba = Math.min(140, height * 0.22);
+    svg.attr('viewBox', [0,0,width,height]);
+    adnNode.fx = width/2; adnNode.fy = height/2;
+    simulation.force('center', d3.forceCenter(width/2, height/2));
+    simulation.alpha(0.3).restart();
+    pintarEstrellas();
+  });
+
+  // ---------- ADN + tokens (misma logica de siempre, ahora actualiza el grafo) ----------
+  (async function checkADN(){
+    try{
+      const result = await window.storage.get(CLIENTE_ID + ':brand-book.identidad');
+      if(result && result.value){
+        const data = JSON.parse(result.value);
+        const nombre = data.nombre || '';
+        if(nombre){
+          const marcaLabel = document.getElementById('brand-marca-label');
+          if(marcaLabel) marcaLabel.textContent = nombre;
+          const adnG = document.querySelector('.graph-node.adn-node');
+          if(adnG) adnG.classList.add('connected');
+          ajustarTextoADN(document.getElementById('adn-node-label'), nombre);
+          const status = document.getElementById('adn-node-status');
+          if(status) status.textContent = 'Tu ADN';
+          const title = document.getElementById('adn-node-title');
+          if(title) title.textContent = nombre + ' — Editar ADN';
+        }
+      }
+    }catch(e){}
+
+    try{
+      const r = await window.storage.get(CLIENTE_ID + ':uso-tokens-log');
+      const items = r && r.value ? JSON.parse(r.value) : [];
+      const inputT = items.reduce((s, it) => s + (it.inputTokens || 0), 0);
+      const outputT = items.reduce((s, it) => s + (it.outputTokens || 0), 0);
+      const total = inputT + outputT;
+      document.getElementById('tokens-pill').textContent = total > 0
+        ? `🔢 ${total.toLocaleString('es-MX')} tokens (entrada: ${inputT.toLocaleString('es-MX')} · salida: ${outputT.toLocaleString('es-MX')})`
+        : '🔢 Todavía no hay uso registrado';
+    }catch(e){
+      document.getElementById('tokens-pill').textContent = '🔢 No se pudo cargar el uso';
+    }
+  })();
 })();
 </script>
 </body>
