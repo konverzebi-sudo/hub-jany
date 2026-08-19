@@ -2011,6 +2011,34 @@ function updateEvergreenSelCount(){
   el.textContent = `${evergreenSelectedItems().length} idea(s) seleccionada(s)`;
 }
 
+const EVERGREEN_CAPTION_ESTILO = {
+  viral:{ emoji:'🔥✨', tags:['viral','tendencia'] },
+  educativo:{ emoji:'📚💡', tags:['tips','aprendeconmigo'] },
+  venta:{ emoji:'💰🚀', tags:['oferta','promocion'] },
+  entretenimiento:{ emoji:'🎭😄', tags:['humor','contenido'] },
+  testimonio:{ emoji:'⭐🙌', tags:['testimonios','resultadosreales'] },
+};
+const EVERGREEN_TAGS_RELLENO = ['contenido','redessociales','marketingdigital','negocio','emprendedores'];
+
+function hashtagDesdeTexto(texto){
+  const stop = new Set(['de','la','el','en','y','a','que','para','con','tu','tus','un','una','los','las','se','como','por']);
+  const palabras = (texto||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9\s]/g,'').split(/\s+/);
+  return palabras.find(w=>w.length>3 && !stop.has(w)) || '';
+}
+
+function construirCaptionEvergreen(fila, cat){
+  const estilo = EVERGREEN_CAPTION_ESTILO[cat] || { emoji:'✨', tags:['contenido','redessociales'] };
+  const cuerpo = fila.video || fila.stories || '';
+  const pool = [...estilo.tags, hashtagDesdeTexto(fila.idea), ...EVERGREEN_TAGS_RELLENO]
+    .filter(Boolean)
+    .filter((t,i,arr)=>arr.indexOf(t)===i);
+  const tags = pool.slice(0,5).map(t=>'#'+t);
+  const partes = [`${fila.idea||''} ${estilo.emoji}`.trim()];
+  if(cuerpo) partes.push(cuerpo);
+  partes.push(tags.join(' '));
+  return partes.join('\n\n');
+}
+
 function addEvergreenSelectedToTab(targetTab,container){
   const statusEl = document.getElementById('evergreen-status');
   const selected = evergreenSelectedItems();
@@ -2031,6 +2059,7 @@ function addEvergreenSelectedToTab(targetTab,container){
       tipo:EVERGREEN_TIPO_MAP[cat]||'',
       instrucciones:fila.stories?`Stories: ${fila.stories}`:'',
       recomendacion:`Categoría evergreen: ${catLabel}`,
+      caption:construirCaptionEvergreen(fila,cat),
       linkRef:'',linkArchivo:'',
       fecha:'',estado:'idea',
       angulos:{ problema:'',error:'',deseo:'',historia:'',descubrimiento:'',objecion:'',comparacion:'' }
