@@ -49,7 +49,7 @@ Hazme máximo 5 preguntas para confirmar (omite las que ya conteste el CONTEXTO 
 Espera las respuestas antes de continuar.
 
 PASO 2 — POSIBLES SUBPERFILES
-Con base en el diagnóstico y las respuestas, genera 5 posibles subperfiles de cliente evergreen. Cada subperfil debe incluir: quién es, qué está viviendo, qué problema quiere resolver, qué deseo tiene, qué emoción activa su compra, por qué podría comprar de forma recurrente, qué tan buen cliente sería para el negocio. Después recomienda cuál subperfil tiene más potencial y explica por qué. Pregunta: "¿Cuál perfil elegimos o quieres ajustar algo?". No avances hasta que confirme.
+Con base en el diagnóstico y las respuestas, genera 5 posibles subperfiles de cliente evergreen — esto es SOLO para elegir uno, el análisis profundo va después (Paso 3), así que sé breve: por cada subperfil da un nombre corto (2-4 palabras, ej. "La emprendedora saturada") y máximo 2 líneas con quién es y su dolor o deseo principal. Nada de listas de varios puntos por subperfil ni de repetir aquí lo que se analiza en el Paso 3 — es una vista rápida para decidir, no el perfil final. Después recomienda en 1 línea cuál subperfil tiene más potencial y por qué. Pregunta: "¿Cuál perfil elegimos o quieres ajustar algo?". No avances hasta que confirme.
 
 PASO 3 — ANÁLISIS PROFUNDO DEL CLIENTE
 Cuando se elija el perfil, analiza profundamente a ese cliente. Entrega:
