@@ -288,7 +288,19 @@
   nodePrincipal.append('title').text(d => d.activo ? d.nombre : d.nombre + ' — Próximamente');
 
   // Nodo ADN: emoji, nombre del negocio (o "ADN pendiente"), y estado.
-  node.filter(d=>d.esADN).append('text').attr('class','node-label').attr('id','adn-node-label').attr('y', 2).text(d=>d.nombre);
+  // El nombre del negocio no tiene largo fijo -- si no encoge la letra,
+  // un nombre largo se desborda del circulo.
+  function ajustarTextoADN(el, texto){
+    if(!el) return;
+    el.textContent = texto;
+    const maxWidth = 104, base = 12;
+    let largo;
+    try{ largo = el.getComputedTextLength(); }
+    catch(e){ largo = texto.length * base * 0.55; }
+    el.style.fontSize = (largo > maxWidth ? Math.max(8, base * maxWidth / largo) : base) + 'px';
+  }
+  node.filter(d=>d.esADN).append('text').attr('class','node-label').attr('id','adn-node-label').attr('y', 2);
+  ajustarTextoADN(document.getElementById('adn-node-label'), adnNode.nombre);
   node.filter(d=>d.esADN).append('text').attr('class','node-status').attr('id','adn-node-status').attr('y', 20).text('Pendiente');
   node.filter(d=>d.esADN).append('title').attr('id','adn-node-title').text('Editar ADN del negocio');
 
@@ -368,8 +380,7 @@
           if(marcaLabel) marcaLabel.textContent = nombre;
           const adnG = document.querySelector('.graph-node.adn-node');
           if(adnG) adnG.classList.add('connected');
-          const lbl = document.getElementById('adn-node-label');
-          if(lbl) lbl.textContent = nombre;
+          ajustarTextoADN(document.getElementById('adn-node-label'), nombre);
           const status = document.getElementById('adn-node-status');
           if(status) status.textContent = 'Tu ADN';
           const title = document.getElementById('adn-node-title');
