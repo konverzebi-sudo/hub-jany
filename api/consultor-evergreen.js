@@ -51,6 +51,23 @@ function truncar(str, limite) {
   return str.length > limite ? str.slice(0, limite) + '\n[...recortado...]' : str;
 }
 
+// Banco de Conversaciones reales de WhatsApp -- se guarda desde Jefe WhatsApp y Ventas
+// ({cliente}:whatsapp-convos) y se lee aquí como contexto extra, misma memoria compartida, sin
+// duplicarla.
+async function formatearBancoConversacionesWhatsApp(clienteId) {
+  const items = await leerJSON(`${clienteId}:whatsapp-convos`).catch(() => null);
+  if (!Array.isArray(items) || items.length === 0) return null;
+  const texto = items
+    .slice(-10)
+    .map((c) => (c && c.text ? c.text.toString().trim() : ''))
+    .filter(Boolean)
+    .join('\n\n---\n\n');
+  if (!texto) return null;
+  const limite = 4000;
+  const recortado = texto.length > limite ? '[...conversaciones más antiguas omitidas...]\n' + texto.slice(-limite) : texto;
+  return 'BANCO DE CONVERSACIONES REALES DE WHATSAPP (guardadas por el usuario en Jefe WhatsApp y Ventas -- son transcripciones reales de clientes, úsalas para frases reales, objeciones y tono; no las inventes ni las repitas tal cual, tradúcelas a lo que estés construyendo):\n\n' + recortado;
+}
+
 async function llamarClaude(system, body) {
   const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -160,7 +177,8 @@ async function manejarPreguntaSuelta(req, res) {
 
   try {
     const contexto = await preguntasConstruirContextoNegocio(clienteId);
-    const system = promptFijo + '\n\n' + contexto;
+    const bancoConversaciones = await formatearBancoConversacionesWhatsApp(clienteId).catch(() => null);
+    const system = [promptFijo, contexto, bancoConversaciones].filter(Boolean).join('\n\n');
 
     const { ok, status, data } = await llamarClaude(system, {
       model: 'claude-sonnet-4-6',
@@ -481,6 +499,8 @@ async function manejarChatGuiado(req, res) {
     const promptFijo = cargarPromptBuilder(modo);
     const contexto = await builderConstruirContextoNegocio(clienteId);
     const partesSystem = [promptFijo, contexto];
+    const bancoConversaciones = await formatearBancoConversacionesWhatsApp(clienteId).catch(() => null);
+    if (bancoConversaciones) partesSystem.push(bancoConversaciones);
     if (modo === 'documento-maestro') {
       partesSystem.push(await builderFormatearNotasGuardadas(clienteId));
     }
