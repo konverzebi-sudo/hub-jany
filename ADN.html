@@ -163,9 +163,18 @@
   .upload-box:hover{border-color:var(--accent);}
   .upload-box img{max-width:140px;max-height:140px;border-radius:8px;display:block;margin:0 auto 10px;object-fit:contain;}
   .upload-hint{font-size:12.5px;color:var(--text-dim);}
-  .swatches{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;}
+  .swatches{display:flex;gap:10px;margin-top:6px;flex-wrap:wrap;align-items:flex-start;}
   .swatch{width:38px;height:38px;border-radius:10px;border:2px solid var(--line);cursor:pointer;padding:0;}
   .swatch.selected{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft);}
+  .swatch-item{display:flex;flex-direction:column;align-items:center;gap:5px;}
+  .swatch-hex{font-size:10px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;}
+  .swatch-actions{display:flex;gap:3px;}
+  .swatch-mini-btn{width:21px;height:21px;border-radius:6px;border:1px solid var(--line);background:var(--surface-2);color:var(--text-dim);cursor:pointer;font-size:11px;line-height:1;padding:0;display:flex;align-items:center;justify-content:center;}
+  .swatch-mini-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .swatch-add{width:38px;height:38px;border-radius:10px;border:2px dashed var(--line);cursor:pointer;background:transparent;font-size:20px;color:var(--text-dim);line-height:1;}
+  .swatch-add:hover{border-color:var(--accent);color:var(--accent);}
+  .swatch-manual-hex{display:flex;gap:8px;align-items:center;margin-top:10px;}
+  .swatch-manual-hex input[type=text]{width:110px;font-family:'JetBrains Mono',monospace;text-transform:uppercase;}
   .presets{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}
   .preset{display:flex;gap:3px;padding:6px;border:1px solid var(--line);border-radius:10px;cursor:pointer;background:var(--surface-2);}
   .preset.selected{border-color:var(--accent);}
@@ -350,8 +359,10 @@ Al terminar, dame un resumen con etiqueta y respuesta de cada campo, en el mismo
         <input type="file" id="logo-input" accept="image/*" hidden>
       </div>
       <div class="field">
-        <label>Paleta detectada del logo</label>
+        <label>Paleta de colores de marca</label>
+        <div class="field-hint" style="margin-top:0;margin-bottom:8px;">Detectada automática del logo — no siempre es exacta. Ajusta cada color con el cuentagotas 💧 o escribiendo el código, o quítalo con ✕.</div>
         <div class="swatches" id="paleta-swatches"></div>
+        <input type="color" id="swatch-color-input" style="position:absolute;width:0;height:0;opacity:0;pointer-events:none;">
       </div>
       <div class="field">
         <label>O elige un preset de colores</label>
@@ -1046,13 +1057,63 @@ async function loadVisual(){
 
 function renderSwatches(){
   const el = document.getElementById('paleta-swatches');
-  if(!visualState.paleta || !visualState.paleta.length){
-    el.innerHTML = '<div class="upload-hint">Sube un logo para detectar colores automáticamente.</div>';
-    return;
-  }
-  el.innerHTML = visualState.paleta.map(c =>
-    `<button type="button" class="swatch selected" style="background:${escapeHtml(c)}" title="${escapeHtml(c)}"></button>`
-  ).join('');
+  const paleta = visualState.paleta || [];
+  const hasEyedropper = 'EyeDropper' in window;
+  const items = paleta.map((c,i) => `
+    <div class="swatch-item" data-i="${i}">
+      <button type="button" class="swatch selected" style="background:${escapeHtml(c)}" title="Clic para elegir el color — ${escapeHtml(c)}" data-action="edit" data-i="${i}"></button>
+      <div class="swatch-hex">${escapeHtml(c.toUpperCase())}</div>
+      <div class="swatch-actions">
+        ${hasEyedropper ? `<button type="button" class="swatch-mini-btn" data-action="eyedrop" data-i="${i}" title="Cuentagotas: toma el color de cualquier parte de la pantalla">💧</button>` : ''}
+        <button type="button" class="swatch-mini-btn" data-action="remove" data-i="${i}" title="Quitar color">✕</button>
+      </div>
+    </div>
+  `).join('');
+  el.innerHTML = items + `<button type="button" class="swatch-add" id="swatch-add-btn" title="Agregar color manual">+</button>`;
+
+  el.querySelectorAll('[data-action="edit"]').forEach(btn => {
+    btn.addEventListener('click', () => openColorInput(parseInt(btn.dataset.i,10)));
+  });
+  el.querySelectorAll('[data-action="eyedrop"]').forEach(btn => {
+    btn.addEventListener('click', e => { e.stopPropagation(); pickWithEyedropper(parseInt(btn.dataset.i,10)); });
+  });
+  el.querySelectorAll('[data-action="remove"]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      visualState.paleta.splice(parseInt(btn.dataset.i,10),1);
+      renderSwatches();
+    });
+  });
+  document.getElementById('swatch-add-btn').addEventListener('click', () => {
+    if(!visualState.paleta) visualState.paleta = [];
+    const i = visualState.paleta.length;
+    visualState.paleta.push('#CCCCCC');
+    renderSwatches();
+    openColorInput(i);
+  });
+}
+
+function openColorInput(i){
+  const input = document.getElementById('swatch-color-input');
+  input.value = /^#[0-9a-f]{6}$/i.test(visualState.paleta[i]) ? visualState.paleta[i] : '#000000';
+  input.dataset.i = i;
+  input.click();
+}
+
+document.getElementById('swatch-color-input').addEventListener('input', e => {
+  const i = parseInt(e.target.dataset.i,10);
+  if(isNaN(i) || !visualState.paleta) return;
+  visualState.paleta[i] = e.target.value.toUpperCase();
+  renderSwatches();
+});
+
+async function pickWithEyedropper(i){
+  if(!('EyeDropper' in window)) return;
+  try{
+    const result = await new EyeDropper().open();
+    visualState.paleta[i] = result.sRGBHex.toUpperCase();
+    renderSwatches();
+  }catch(err){ /* usuario canceló el cuentagotas */ }
 }
 
 function renderPresets(){
