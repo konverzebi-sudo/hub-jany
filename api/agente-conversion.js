@@ -212,6 +212,22 @@ async function formatearConversacionEvergreenNoGuardada(clienteId) {
   return 'CONVERSACIÓN RECIENTE CON JEFE EVERGREEN (puede no estar copiada aún a Notas, pero es información real y reciente del negocio -- tómala en cuenta si aplica):\n\n' + recortado;
 }
 
+// Banco de Conversaciones reales de WhatsApp -- se guarda desde Jefe WhatsApp y Ventas
+// ({cliente}:whatsapp-convos) y se lee aquí como contexto extra, misma memoria compartida.
+async function formatearBancoConversacionesWhatsApp(clienteId) {
+  const items = await leerJSON(`${clienteId}:whatsapp-convos`).catch(() => null);
+  if (!Array.isArray(items) || items.length === 0) return null;
+  const texto = items
+    .slice(-10)
+    .map((c) => (c && c.text ? c.text.toString().trim() : ''))
+    .filter(Boolean)
+    .join('\n\n---\n\n');
+  if (!texto) return null;
+  const limite = 4000;
+  const recortado = texto.length > limite ? '[...conversaciones más antiguas omitidas...]\n' + texto.slice(-limite) : texto;
+  return 'BANCO DE CONVERSACIONES REALES DE WHATSAPP (guardadas por el usuario en Jefe WhatsApp y Ventas -- son transcripciones reales de clientes, úsalas para frases reales, objeciones y tono; no las inventes ni las repitas tal cual):\n\n' + recortado;
+}
+
 async function construirContextoEvergreen(clienteId) {
   const datos = await Promise.all(
     GRUPOS_EVERGREEN.map((g) => leerJSON(`${clienteId}:brand-book.${g.suffix}`).catch(() => null))
@@ -232,6 +248,9 @@ async function construirContextoEvergreen(clienteId) {
 
   const conversacionReciente = await formatearConversacionEvergreenNoGuardada(clienteId).catch(() => null);
   if (conversacionReciente) bloques.push(conversacionReciente);
+
+  const bancoConversaciones = await formatearBancoConversacionesWhatsApp(clienteId).catch(() => null);
+  if (bancoConversaciones) bloques.push(bancoConversaciones);
 
   if (bloques.length === 0) {
     return 'CONTEXTO EVERGREEN: todavía no hay nada guardado en el Jefe Evergreen para esta marca -- usa lo que sí haya del ADN.';
