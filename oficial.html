@@ -179,39 +179,24 @@
     .nicho-anti{ font-family:'Inter',sans-serif; font-size:13px; color:var(--text-body); margin-top:28px; }
     .nicho-anti a{ color:var(--neon2); text-decoration:none; border-bottom:1px dotted rgba(184,247,37,.5); }
 
-    /* ═══ grafo (mismo lenguaje visual que el producto real) ═══ */
+    /* ═══ grafo real (D3 — misma física que el producto: fuerzas, colisión, satélites) ═══ */
     .graph-wrap{ position:relative; width:100%; max-width:560px; aspect-ratio:1; margin:0 auto 28px; }
-    .graph-lines{ position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
-    .graph-lines line{ stroke:var(--text-body); stroke-width:.3; opacity:.35; }
-    .graph-center{
-      position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
-      width:23%; aspect-ratio:1; border-radius:50%;
-      background:var(--card); border:1.5px solid rgba(184,247,37,.55);
-      box-shadow:0 0 30px rgba(184,247,37,.22), inset 0 0 18px rgba(184,247,37,.08);
-      display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
-      text-align:center; padding:6%;
-      animation:adnPulse 2.6s ease-in-out infinite;
-    }
-    @keyframes adnPulse{ 0%,100%{ box-shadow:0 0 30px rgba(184,247,37,.22), inset 0 0 18px rgba(184,247,37,.08); } 50%{ box-shadow:0 0 44px rgba(184,247,37,.38), inset 0 0 24px rgba(184,247,37,.14); } }
-    .graph-center-label{ font-family:'Geist',sans-serif; font-weight:700; font-size:clamp(10px,2.3vw,13px); color:#fff; line-height:1.15; }
-    .graph-center-sub{ font-family:'Inter',sans-serif; font-size:clamp(7.5px,1.5vw,10px); color:var(--neon2); letter-spacing:.04em; text-transform:uppercase; }
-
-    .graph-node{
-      position:absolute; left:calc(50% + var(--dx)); top:calc(50% + var(--dy));
-      display:flex; flex-direction:column; align-items:center; gap:4px;
-      background:none; border:none; cursor:pointer; padding:4px; width:80px;
-      animation:nodeFloat var(--fdur,7s) ease-in-out infinite;
-      animation-delay:var(--fd,0s);
-    }
-    @keyframes nodeFloat{
-      0%,100%{ transform:translate(-50%,-50%) translate(0,0); }
-      50%{ transform:translate(-50%,-50%) translate(var(--fx,5px), var(--fy,-5px)); }
-    }
-    .graph-node-icon{ width:44px; height:44px; border-radius:11px; object-fit:cover; filter:drop-shadow(0 0 6px rgba(184,247,37,.22)); transition:filter .2s ease, transform .2s ease; }
-    .graph-node:hover .graph-node-icon, .graph-node.active .graph-node-icon, .graph-node:focus-visible .graph-node-icon{ filter:drop-shadow(0 0 16px rgba(184,247,37,.65)); transform:scale(1.1); }
-    .graph-node-name{ font-family:'Inter',sans-serif; font-size:9.5px; color:#ccc; text-align:center; line-height:1.25; }
-    .graph-node:focus-visible{ outline:2px solid var(--neon2); outline-offset:4px; border-radius:8px; }
-    @media(max-width:560px){ .graph-node{ width:60px; } .graph-node-icon{ width:34px; height:34px; } .graph-node-name{ font-size:8px; } }
+    .graph-wrap svg{ display:block; width:100%; height:100%; cursor:grab; touch-action:none; }
+    .graph-wrap svg:active{ cursor:grabbing; }
+    .graph-svg-link{ stroke:var(--text-body); stroke-width:1; opacity:.3; }
+    .graph-svg-link.satellite{ stroke:#fff; stroke-width:.6; opacity:.12; }
+    .graph-svg-node{ cursor:pointer; }
+    .graph-svg-node.satellite{ pointer-events:none; }
+    .graph-svg-node.satellite circle{ fill:#fff; opacity:.35; }
+    .graph-svg-node .node-icon{ pointer-events:none; filter:drop-shadow(0 0 6px rgba(184,247,37,.22)); transition:filter .2s ease; }
+    .graph-svg-node.active .node-icon{ filter:drop-shadow(0 0 16px rgba(184,247,37,.65)); }
+    .graph-svg-node circle{ fill:transparent; }
+    .graph-svg-node .node-label{ font-family:'Inter',sans-serif; font-size:9.5px; fill:#ccc; text-anchor:middle; pointer-events:none; }
+    .graph-svg-node.active .node-label{ fill:#fff; }
+    .graph-adn circle{ fill:var(--card); stroke:rgba(184,247,37,.55); stroke-width:1.5; filter:drop-shadow(0 0 16px rgba(184,247,37,.18)); }
+    .graph-adn .node-label{ fill:#fff; font-weight:700; font-family:'Geist',sans-serif; font-size:11px; }
+    .graph-adn .node-sub{ font-family:'Inter',sans-serif; font-size:7.5px; fill:var(--neon2); letter-spacing:.06em; text-anchor:middle; pointer-events:none; }
+    @media(max-width:560px){ .graph-svg-node .node-label{ font-size:8px; } }
 
     .graph-info{
       max-width:520px; margin:0 auto; min-height:60px;
@@ -412,62 +397,11 @@
     <p class="nicho-sub">Pasa el cursor o toca cada Jefe para ver en qué te ayuda.</p>
 
     <div class="graph-wrap" id="jefes-graph">
-      <svg class="graph-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-        <line x1="50" y1="50" x2="92" y2="50"></line>
-        <line x1="50" y1="50" x2="85.3" y2="72.7"></line>
-        <line x1="50" y1="50" x2="67.4" y2="88.2"></line>
-        <line x1="50" y1="50" x2="44" y2="91.6"></line>
-        <line x1="50" y1="50" x2="22.5" y2="81.7"></line>
-        <line x1="50" y1="50" x2="9.7" y2="61.8"></line>
-        <line x1="50" y1="50" x2="9.7" y2="38.2"></line>
-        <line x1="50" y1="50" x2="22.5" y2="18.3"></line>
-        <line x1="50" y1="50" x2="44" y2="8.4"></line>
-        <line x1="50" y1="50" x2="67.4" y2="11.8"></line>
-        <line x1="50" y1="50" x2="85.3" y2="27.3"></line>
-      </svg>
-
-      <div class="graph-center">
-        <span class="graph-center-label">TU ADN</span>
-        <span class="graph-center-sub">1 vez</span>
-      </div>
-
-      <button type="button" class="graph-node" style="--dx:42%;--dy:0%;--fx:6px;--fy:-4px;--fd:0s;--fdur:6.6s" data-name="Jefe 366" data-desc="Tu sistema de ventas recurrentes: entrada, cierre, seguimiento y fidelización.">
-        <img class="graph-node-icon" src="img/jefe-evergreen.webp" alt="" loading="lazy"><span class="graph-node-name">Jefe 366</span>
-      </button>
-      <button type="button" class="graph-node" style="--dx:35.3%;--dy:22.7%;--fx:-5px;--fy:6px;--fd:.6s;--fdur:7.4s" data-name="Jefe de Finanzas" data-desc="CPA máximo, presupuesto y punto de equilibrio antes de invertir.">
-        <img class="graph-node-icon" src="img/jefe-finanzas.webp" alt="" loading="lazy"><span class="graph-node-name">Jefe de Finanzas</span>
-      </button>
-      <button type="button" class="graph-node" style="--dx:17.4%;--dy:38.2%;--fx:5px;--fy:5px;--fd:1.2s;--fdur:6.9s" data-name="Jefe de Conversión" data-desc="Audita tu tienda, citas o llamadas y arma tu manual de cierre.">
-        <img class="graph-node-icon" src="img/jefe-conversion.webp" alt="" loading="lazy"><span class="graph-node-name">Jefe de Conversión</span>
-      </button>
-      <button type="button" class="graph-node" style="--dx:-6%;--dy:41.6%;--fx:-6px;--fy:-5px;--fd:1.8s;--fdur:7.1s" data-name="Jefe WhatsApp y Ventas" data-desc="Termómetro de conversación, banco de objeciones, seguimiento.">
-        <img class="graph-node-icon" src="img/jefe-whatsapp.webp" alt="" loading="lazy"><span class="graph-node-name">Jefe WhatsApp y Ventas</span>
-      </button>
-      <button type="button" class="graph-node" style="--dx:-27.5%;--dy:31.7%;--fx:6px;--fy:6px;--fd:2.4s;--fdur:6.4s" data-name="Jefe del Faro" data-desc="Detecta tendencias y referencias antes que tu competencia.">
-        <img class="graph-node-icon" src="img/jefe-radar.webp" alt="" loading="lazy"><span class="graph-node-name">Jefe del Faro</span>
-      </button>
-      <button type="button" class="graph-node" style="--dx:-40.3%;--dy:11.8%;--fx:-5px;--fy:-6px;--fd:3s;--fdur:7.6s" data-name="Jefe de Contenido" data-desc="Banco de ideas, guiones, creativos y calendario listo.">
-        <img class="graph-node-icon" src="img/jefe-contenido.webp" alt="" loading="lazy"><span class="graph-node-name">Jefe de Contenido</span>
-      </button>
-      <button type="button" class="graph-node" style="--dx:-40.3%;--dy:-11.8%;--fx:6px;--fy:-5px;--fd:3.6s;--fdur:6.8s" data-name="Jefe de Anuncios" data-desc="Banco de anuncios evergreen para Meta Ads.">
-        <img class="graph-node-icon" src="img/jefe-anuncios.webp" alt="" loading="lazy"><span class="graph-node-name">Jefe de Anuncios</span>
-      </button>
-      <button type="button" class="graph-node" style="--dx:-27.5%;--dy:-31.7%;--fx:-6px;--fy:6px;--fd:4.2s;--fdur:7.2s" data-name="Jefe Productor IA" data-desc="Convierte guiones e ideas en video, texto y visuales.">
-        <img class="graph-node-icon" src="img/jefe-produccion-video.webp" alt="" loading="lazy"><span class="graph-node-name">Jefe Productor IA</span>
-      </button>
-      <button type="button" class="graph-node" style="--dx:-6%;--dy:-41.6%;--fx:5px;--fy:-5px;--fd:4.8s;--fdur:6.5s" data-name="Jefe de Mejora Constante" data-desc="Lee tus métricas y arma tu plan de mejora semanal.">
-        <img class="graph-node-icon" src="img/jefe-optimizacion.webp" alt="" loading="lazy"><span class="graph-node-name">Jefe de Mejora Constante</span>
-      </button>
-      <button type="button" class="graph-node" style="--dx:17.4%;--dy:-38.2%;--fx:-5px;--fy:5px;--fd:5.4s;--fdur:7.3s" data-name="Jefe de Temporada" data-desc="Precampaña, campaña y postcampaña para tus fechas clave.">
-        <img class="graph-node-icon" src="img/jefe-temporada.webp" alt="" loading="lazy"><span class="graph-node-name">Jefe de Temporada</span>
-      </button>
-      <button type="button" class="graph-node" style="--dx:35.3%;--dy:-22.7%;--fx:6px;--fy:4px;--fd:6s;--fdur:6.7s" data-name="Jefe de Agenda" data-desc="Un solo calendario con todo lo que ya tiene fecha, sin captura manual.">
-        <img class="graph-node-icon" src="img/jefe-agenda.webp" alt="" loading="lazy"><span class="graph-node-name">Jefe de Agenda</span>
-      </button>
+      <svg id="jefes-graph-svg" role="img" aria-label="Grafo de los 11 Jefes conectados al ADN de tu negocio"></svg>
     </div>
 
     <div class="graph-info" id="graph-info">
-      <p>Pasa el cursor o toca un Jefe para ver en qué te ayuda.</p>
+      <p>Pasa el cursor, toca o arrastra un Jefe para ver en qué te ayuda.</p>
     </div>
 
     <p class="nicho-anti">¿Ya tienes tu Hub y solo buscas continuar? <a href="#precios">Ve directo a precios →</a></p>
@@ -648,6 +582,8 @@
     <p class="footer-copy">© 2026 JefesHub · Konverze</p>
   </footer>
 
+  <script id="d3-lib" src="https://d3js.org/d3.v7.min.js" defer></script>
+
   <script defer>
     const painItems = document.querySelectorAll('#pain-list .pain-item');
     const painHit = document.getElementById('pain-hit');
@@ -663,20 +599,184 @@
     painItems.forEach(el => painObserver.observe(el));
     painObserver.observe(painHit);
 
-    const graphInfo = document.getElementById('graph-info');
-    const graphNodes = document.querySelectorAll('.graph-node');
-    let jefeTracked = false;
-    function showJefe(btn){
-      graphNodes.forEach(n => n.classList.remove('active'));
-      btn.classList.add('active');
-      graphInfo.innerHTML = `<p><strong>${btn.dataset.name}</strong> — ${btn.dataset.desc}</p>`;
-      if (!jefeTracked) { gtag('event', 'interact_jefe_graph'); jefeTracked = true; }
-    }
-    graphNodes.forEach(btn => {
-      btn.addEventListener('mouseenter', () => showJefe(btn));
-      btn.addEventListener('focus', () => showJefe(btn));
-      btn.addEventListener('click', (e) => { e.preventDefault(); showJefe(btn); });
-    });
+    (function initJefesGraph(){
+      const wrap = document.getElementById('jefes-graph');
+      if (!wrap) return;
+      // D3 tambien carga con defer, pero un CDN externo puede tardar mas que
+      // este script inline aunque ambos sean defer -- si todavia no llega,
+      // espera su 'load' en vez de rendirse.
+      if (typeof d3 === 'undefined'){
+        const d3lib = document.getElementById('d3-lib');
+        if (d3lib) d3lib.addEventListener('load', initJefesGraph, {once:true});
+        else setTimeout(initJefesGraph, 200);
+        return;
+      }
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      const jefes = [
+        {id:0, icono:'jefe-evergreen', nombre:'Jefe 366', desc:'Tu sistema de ventas recurrentes: entrada, cierre, seguimiento y fidelización.'},
+        {id:1, icono:'jefe-contenido', nombre:'Jefe de Contenido', desc:'Banco de ideas, guiones, creativos y calendario listo.'},
+        {id:2, icono:'jefe-whatsapp', nombre:'WhatsApp y Ventas', desc:'Termómetro de conversación, banco de objeciones, seguimiento.'},
+        {id:3, icono:'jefe-finanzas', nombre:'Jefe de Finanzas', desc:'CPA máximo, presupuesto y punto de equilibrio antes de invertir.'},
+        {id:4, icono:'jefe-radar', nombre:'Jefe del Faro', desc:'Detecta tendencias y referencias antes que tu competencia.'},
+        {id:5, icono:'jefe-anuncios', nombre:'Jefe de Anuncios', desc:'Banco de anuncios evergreen para Meta Ads.'},
+        {id:6, icono:'jefe-produccion-video', nombre:'Jefe Productor IA', desc:'Convierte guiones e ideas en video, texto y visuales.'},
+        {id:7, icono:'jefe-conversion', nombre:'Jefe de Conversión', desc:'Audita tu tienda, citas o llamadas y arma tu manual de cierre.'},
+        {id:8, icono:'jefe-optimizacion', nombre:'Jefe de Mejora Constante', desc:'Lee tus métricas y arma tu plan de mejora semanal.'},
+        {id:9, icono:'jefe-temporada', nombre:'Campañas de Temporada', desc:'Precampaña, campaña y postcampaña para tus fechas clave.'},
+        {id:10, icono:'jefe-agenda', nombre:'Jefe de Agenda', desc:'Un solo calendario con todo lo que ya tiene fecha, sin captura manual.'},
+      ];
+      const adnNode = {id:'adn', esADN:true};
+      const nodesData = [adnNode, ...jefes];
+      const linksData = jefes.map(j => ({source:'adn', target:j.id}));
+
+      function agregarSatelites(parent, cantidad){
+        const radioPadre = parent.esADN ? 34 : 24;
+        for (let i=0; i<cantidad; i++){
+          const id = 'sat-' + parent.id + '-' + i;
+          const orbitRadius = radioPadre + 10 + Math.random()*18;
+          const orbitSpeed = (Math.random()<0.5 ? -1 : 1) * (0.01 + Math.random()*0.02);
+          nodesData.push({id, esSatelite:true, parentRef:parent, orbitRadius, orbitSpeed, orbitAngle: Math.random()*Math.PI*2});
+          linksData.push({source:parent.id, target:id, esSatelite:true});
+        }
+      }
+      agregarSatelites(adnNode, 8);
+      jefes.forEach(j => agregarSatelites(j, 3));
+
+      function radioDe(d){ return d.esADN ? 34 : d.esSatelite ? 1.8 : 24; }
+      const ALPHA_VIDA = reduceMotion ? 0 : 0.05;
+      function fuerzaVida(alpha){
+        if (reduceMotion) return;
+        for (const d of nodesData){
+          if (d.esADN || d.esSatelite) continue;
+          d.vx += (Math.random()-0.5) * 0.3 * alpha;
+          d.vy += (Math.random()-0.5) * 0.3 * alpha;
+        }
+      }
+
+      const svg = d3.select('#jefes-graph-svg');
+      const graphGroup = svg.append('g');
+      let width = 0, height = 0, simulation = null, booted = false;
+
+      function boot(){
+        adnNode.x = width/2; adnNode.y = height/2; adnNode.fx = width/2; adnNode.fy = height/2;
+        const r0 = Math.min(width,height)/2 - 40;
+        jefes.forEach((d,i) => {
+          const angle = (i/jefes.length)*2*Math.PI;
+          d.x = width/2 + r0*Math.cos(angle);
+          d.y = height/2 + r0*Math.sin(angle);
+        });
+
+        simulation = d3.forceSimulation(nodesData)
+          .force('link', d3.forceLink(linksData).id(d=>d.id)
+            .distance(d => d.esSatelite ? 14 + Math.random()*12 : Math.min(width,height)*0.34)
+            .strength(d => d.esSatelite ? 0.7 : 0.5))
+          .force('charge', d3.forceManyBody().strength(d => d.esSatelite ? -4 : -120))
+          .force('center', d3.forceCenter(width/2, height/2))
+          .force('collide', d3.forceCollide(d => d.esSatelite ? 4 : radioDe(d)+10))
+          .force('vida', fuerzaVida)
+          .alphaTarget(ALPHA_VIDA);
+
+        const link = graphGroup.append('g').selectAll('line')
+          .data(linksData).join('line')
+          .attr('class', d => 'graph-svg-link' + (d.esSatelite ? ' satellite' : ''));
+
+        const node = graphGroup.append('g').selectAll('g')
+          .data(nodesData).join('g')
+          .attr('class', d => d.esADN ? 'graph-svg-node graph-adn' : d.esSatelite ? 'graph-svg-node satellite' : 'graph-svg-node')
+          .call(d3.drag().on('start', dragstarted).on('drag', dragged).on('end', dragended));
+
+        node.append('circle').attr('r', radioDe);
+        const nodePrincipal = node.filter(d => !d.esADN && !d.esSatelite);
+        nodePrincipal.append('image').attr('class','node-icon')
+          .attr('href', d => 'img/' + d.icono + '.webp')
+          .attr('width', d => radioDe(d)*1.5).attr('height', d => radioDe(d)*1.5)
+          .attr('x', d => -radioDe(d)*1.5/2).attr('y', d => -radioDe(d)*1.5/2);
+        nodePrincipal.append('text').attr('class','node-label').attr('y', d => radioDe(d)+13).text(d => d.nombre);
+        node.filter(d => d.esADN).append('text').attr('class','node-label').attr('y', -2).text('TU ADN');
+        node.filter(d => d.esADN).append('text').attr('class','node-sub').attr('y', 11).text('1 VEZ');
+
+        const graphInfo = document.getElementById('graph-info');
+        let jefeTracked = false;
+        function showJefe(d){
+          node.classed('active', n => n === d);
+          graphInfo.innerHTML = `<p><strong>${d.nombre}</strong> — ${d.desc}</p>`;
+          if (!jefeTracked) { gtag('event', 'interact_jefe_graph'); jefeTracked = true; }
+        }
+        let dragDistance = 0;
+        nodePrincipal.on('click', (event, d) => { if (dragDistance <= 6) showJefe(d); });
+        nodePrincipal.on('mouseenter', (event, d) => showJefe(d));
+        nodePrincipal.on('focus', (event, d) => showJefe(d));
+
+        simulation.on('tick', () => {
+          for (const d of nodesData){
+            if (d.esADN || d.esSatelite) continue;
+            const r = radioDe(d) + 30;
+            d.x = Math.max(r, Math.min(width - r, d.x));
+            d.y = Math.max(r, Math.min(height - r, d.y));
+          }
+          for (const d of nodesData){
+            if (d.esSatelite && d.parentRef){
+              d.orbitAngle += d.orbitSpeed;
+              d.x = d.parentRef.x + d.orbitRadius * Math.cos(d.orbitAngle);
+              d.y = d.parentRef.y + d.orbitRadius * Math.sin(d.orbitAngle);
+            }
+          }
+          link.attr('x1', d=>d.source.x).attr('y1', d=>d.source.y).attr('x2', d=>d.target.x).attr('y2', d=>d.target.y);
+          node.attr('transform', d => `translate(${d.x},${d.y})`);
+        });
+
+        function dragstarted(event, d){
+          dragDistance = 0;
+          if (!event.active) simulation.alphaTarget(0.25).restart();
+          if (d.esADN) return;
+          d.fx = d.x; d.fy = d.y;
+        }
+        function dragged(event, d){
+          dragDistance += Math.abs(event.dx) + Math.abs(event.dy);
+          if (d.esADN) return;
+          d.fx = event.x; d.fy = event.y;
+        }
+        function dragended(event, d){
+          if (!event.active) simulation.alphaTarget(ALPHA_VIDA);
+          if (d.esADN) return;
+          d.fx = null; d.fy = null;
+        }
+      }
+
+      function onResize(w, h){
+        width = w; height = h;
+        svg.attr('viewBox', [0,0,width,height]);
+        if (!booted){
+          booted = true;
+          boot();
+          return;
+        }
+        adnNode.fx = width/2; adnNode.fy = height/2;
+        simulation.force('center', d3.forceCenter(width/2, height/2));
+        simulation.alpha(0.3).restart();
+      }
+
+      // La mayoria de navegadores ya tienen el tamaño real listo aqui mismo
+      // (el CSS del contenedor no depende de JS ni de contenido async) --
+      // arranca de una vez si ya hay medidas validas.
+      const rectoInicial = wrap.getBoundingClientRect();
+      if (rectoInicial.width > 0 && rectoInicial.height > 0){
+        onResize(Math.round(rectoInicial.width), Math.round(rectoInicial.height));
+      }
+
+      // Respaldo para el caso raro en que arriba todavia midiera 0 (fuentes
+      // cargando, layout tardio, etc.) -- ResizeObserver dispara en cuanto
+      // el contenedor tenga tamaño real.
+      new ResizeObserver(entries => {
+        const {width:w, height:h} = entries[0].contentRect;
+        if (w > 0 && h > 0) onResize(Math.round(w), Math.round(h));
+      }).observe(wrap);
+
+      setTimeout(() => {
+        if (!booted) onResize(wrap.clientWidth || 560, wrap.clientHeight || 560);
+      }, 600);
+    })();
 
     let compareTracked = false;
     const compareRows = document.querySelectorAll('#compare-table .compare-row:not(.compare-head)');
