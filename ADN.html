@@ -779,24 +779,6 @@ Al terminar, dame cada respuesta con su etiqueta en orden para copiar y pegar di
     <div class="panel-head"><h2>Optimización inicial</h2><div class="panel-desc">Diagnóstico rápido — qué tan lista está la operación para escalar.</div></div>
     <div class="card" id="optimizacion-list"></div>
 
-    <div class="card" style="margin-top:14px;">
-      <div class="subhead">💰 Números del negocio</div>
-      <div class="field-row">
-        <div class="field"><label>Ticket promedio ($)</label><input type="number" id="opt-ticket" step="0.01" oninput="recalcOptIngresos()"></div>
-        <div class="field"><label># de ventas del mes</label><input type="number" id="opt-num-ventas" step="1" oninput="recalcOptIngresos()"></div>
-      </div>
-      <div class="field"><label>Ingresos promedio mensual ($) <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px;">— ticket × # ventas</span></label><input type="text" id="opt-ingresos" disabled></div>
-      <div class="field-row">
-        <div class="field"><label>Meta mensual de ventas ($)</label><input type="number" id="opt-meta-ventas" step="100"></div>
-        <div class="field"><label>Gasto mensual aprox. en mkt ($)</label><input type="number" id="opt-gasto-mkt" step="100"></div>
-      </div>
-      <div class="field-row">
-        <div class="field"><label>Costo variable (%)</label><input type="number" id="opt-costo-variable" step="0.1" oninput="recalcOptMargen()"></div>
-        <div class="field"><label>Margen bruto estimado</label><input type="text" id="opt-margen" disabled></div>
-      </div>
-      <div class="field"><label>Comentarios adicionales de números</label><textarea id="opt-comentarios" placeholder="Ej. Mis números varían mucho por temporada. El mejor mes fue diciembre con $X..."></textarea></div>
-    </div>
-
     <button class="ask-btn" style="margin-top:14px;" onclick="saveOptimizacion()">Guardar cambios</button>
     <div id="optimizacion-status" class="log-status"></div>
 
@@ -817,16 +799,6 @@ Al terminar, dame cada respuesta con su etiqueta en orden para copiar y pegar di
 9. ¿Tu equipo responde mensajes en menos de 1 hora? → Sí | A veces | No
 10. ¿Tienes testimonios o reseñas de clientes reales? → Sí | Pocos | No
 11. ¿Tienes catálogo, menú o lista de precios actualizado? → Sí | Desactualizado | No
-
-— Números del negocio —
-12. Ticket promedio ($):
-13. # de ventas del mes:
-    (Los Ingresos promedio mensual se calculan solos: ticket × # ventas)
-14. Meta mensual de ventas ($):
-15. Gasto mensual aprox. en mkt ($):
-16. Costo variable (%):
-    (El Margen bruto estimado se calcula solo: 100% - costo variable%)
-17. Comentarios adicionales de números:
 
 Al terminar, dame cada respuesta con su etiqueta en orden para copiar y pegar directo en la plataforma.</textarea>
         <button type="button" class="ask-btn ai-copy-btn" onclick="copyAIPrompt('optimizacion')">Copiar prompt</button>
@@ -1862,16 +1834,6 @@ function renderOptimizacion(){
   });
 }
 
-function recalcOptIngresos(){
-  const t=parseFloat(document.getElementById('opt-ticket').value);
-  const v=parseFloat(document.getElementById('opt-num-ventas').value);
-  document.getElementById('opt-ingresos').value=(!isNaN(t)&&!isNaN(v))? '$'+(t*v).toLocaleString('es-MX',{minimumFractionDigits:0,maximumFractionDigits:2}) : '';
-}
-function recalcOptMargen(){
-  const cv=parseFloat(document.getElementById('opt-costo-variable').value);
-  document.getElementById('opt-margen').value=isNaN(cv)?'':(100-cv).toFixed(1)+'%';
-}
-
 async function loadOptimizacion(){
   const data = await loadObj('optimizacion_inicial');
   // Soporta tanto el formato nuevo (objeto plano) como el antiguo (array de items)
@@ -1882,27 +1844,9 @@ async function loadOptimizacion(){
     optimizacionState = { ...data };
   }
   renderOptimizacion();
-  // Números del negocio
-  const n = optimizacionState._numeros || {};
-  document.getElementById('opt-ticket').value = n.ticket??'';
-  document.getElementById('opt-num-ventas').value = n.num_ventas??'';
-  document.getElementById('opt-meta-ventas').value = n.meta_ventas??'';
-  document.getElementById('opt-gasto-mkt').value = n.gasto_mkt??'';
-  document.getElementById('opt-costo-variable').value = n.costo_variable??'';
-  document.getElementById('opt-comentarios').value = n.comentarios??'';
-  recalcOptIngresos();
-  recalcOptMargen();
 }
 
 function saveOptimizacion(){
-  optimizacionState._numeros = {
-    ticket: document.getElementById('opt-ticket').value,
-    num_ventas: document.getElementById('opt-num-ventas').value,
-    meta_ventas: document.getElementById('opt-meta-ventas').value,
-    gasto_mkt: document.getElementById('opt-gasto-mkt').value,
-    costo_variable: document.getElementById('opt-costo-variable').value,
-    comentarios: document.getElementById('opt-comentarios').value.trim(),
-  };
   saveObj('optimizacion_inicial', optimizacionState, 'optimizacion-status');
 }
 
