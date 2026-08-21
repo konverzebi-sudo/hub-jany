@@ -1,5 +1,5 @@
 // Endpoint server-side para sugerir gancho + caption al desarrollar una idea
-// del Agente de Historias y Contenido. Mismo patron que api/agente-conversion.js:
+// del Jefe de Historias y Contenido. Mismo patron que api/jefe-conversion.js:
 // la ANTHROPIC_API_KEY vive solo aqui, nunca en el cliente.
 
 const SYSTEM_CONTEXT = `Eres el asistente de contenido de JefesHub, una plataforma de generación de contenido con IA para emprendedores. Tono: mexicano-casual, directo, cercano, con personalidad — nunca corporativo ni acartonado, nunca burlón hacia el cliente.
