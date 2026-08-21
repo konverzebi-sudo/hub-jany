@@ -1,16 +1,47 @@
-// Endpoint server-side para el "agente vivo" de Conversión y Ventas — multi-tenant.
-// La ANTHROPIC_API_KEY vive solo aquí (variable de entorno de Vercel), nunca en el cliente.
-// El prompt fijo es una plantilla generica compartida por las 3 marcas -- lo unico que cambia
-// por cliente es el CONTEXTO DEL NEGOCIO, cargado en tiempo real desde su propio ADN (mismo
-// patron que api/consultor-evergreen-builder.js). No hay datos de negocio hardcoded aqui.
+// Endpoint server-side para "Generar Estrategia de WhatsApp" del Jefe WhatsApp y Ventas — multi-tenant.
+// La ANTHROPIC_API_KEY vive solo aquí. Arranca automáticamente con el ADN completo del negocio
+// (identidad, tono, catálogo, audiencia) + el Jefe Evergreen (Comunicación, Sistema Evergreen,
+// ángulos, frases) -- mismo patrón que api/jefe-conversion.js y api/generar-ideas-evergreen.js.
+// Si falta información clave, devuelve hasta 3 preguntas de confirmación en vez de generar a ciegas
+// (una sola vuelta: el cliente reenvía las respuestas en `qa` y ya no se vuelve a preguntar).
 
 const fs = require('fs');
 const path = require('path');
 const { sql } = require('@vercel/postgres');
 
-const DEFAULT_CLIENTE = 'jefeshub';
-const PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-agente-conversion.md');
-const CONTEXT_CHAR_LIMIT = 12000;
+const DEFAULT_CLIENTE = 'rancho-seco';
+const PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-jefe-estrategia-whatsapp.md');
+const CONTEXT_CHAR_LIMIT = 14000;
+const TXT_CONVERSACION_LIMIT = 6000;
+const MAX_IMAGENES = 4;
+
+const TARJETAS_CAMPOS = [
+  's1_bienvenida', 's1_video_apertura',
+  's2_preguntas_calificacion', 's2_explicacion_producto',
+  's3_mensaje_precio', 's3_faq1_pregunta', 's3_faq1_respuesta', 's3_faq2_pregunta', 's3_faq2_respuesta',
+  's4_obj_precio_ideal', 's4_obj_precio_corta',
+  's4_obj_tiempo_ideal', 's4_obj_tiempo_corta',
+  's4_obj_confianza_ideal', 's4_obj_confianza_corta',
+  's4_obj_pensar_ideal', 's4_obj_pensar_corta',
+  's4_obj_consulta_ideal', 's4_obj_consulta_corta',
+  's5_mensaje_cierre', 's5_checklist_cierre', 's5_mensaje_confirmacion',
+  // Seguimiento (leads activos que se quedaron a medias) -- 7 casos x 3 versiones
+  'sg_preguntoinfo_calido', 'sg_preguntoinfo_directo', 'sg_preguntoinfo_corto',
+  'sg_recibioprecio_calido', 'sg_recibioprecio_directo', 'sg_recibioprecio_corto',
+  'sg_pensarlo_calido', 'sg_pensarlo_directo', 'sg_pensarlo_corto',
+  'sg_caro_calido', 'sg_caro_directo', 'sg_caro_corto',
+  'sg_interesasinpago_calido', 'sg_interesasinpago_directo', 'sg_interesasinpago_corto',
+  'sg_disponibilidad_calido', 'sg_disponibilidad_directo', 'sg_disponibilidad_corto',
+  'sg_ultimo_calido', 'sg_ultimo_directo', 'sg_ultimo_corto',
+  // Reactivación (leads enfriados o clientas que podrían volver) -- 7 segmentos x 2 versiones
+  'rx_nuncacompro_principal', 'rx_nuncacompro_corto',
+  'rx_preciodesaparecio_principal', 'rx_preciodesaparecio_corto',
+  'rx_pensarnovolvio_principal', 'rx_pensarnovolvio_corto',
+  'rx_sinrespuesta_principal', 'rx_sinrespuesta_corto',
+  'rx_comprouna_principal', 'rx_comprouna_corto',
+  'rx_antigua_principal', 'rx_antigua_corto',
+  'rx_vip_principal', 'rx_vip_corto',
+];
 
 let fixedPromptCache = null;
 function cargarPromptFijo() {
@@ -19,9 +50,10 @@ function cargarPromptFijo() {
   return fixedPromptCache;
 }
 
-// Rate limit básico en memoria (por IP, best-effort entre invocaciones warm de la misma instancia).
-const WINDOW_MS = 5 * 60 * 1000;
-const MAX_REQUESTS = 12;
+// Rate limit básico en memoria (por IP) -- ventana más generosa que jefe-conversion.js
+// porque una generación completa puede necesitar 2 llamadas (preguntas + generación real).
+const WINDOW_MS = 10 * 60 * 1000;
+const MAX_REQUESTS = 10;
 const hits = new Map();
 
 function isRateLimited(ip) {
@@ -83,7 +115,7 @@ function truncar(str, limite) {
   return str.length > limite ? str.slice(0, limite) + '\n[...recortado...]' : str;
 }
 
-// ---------- formateo del CONTEXTO DEL NEGOCIO a partir del ADN ----------
+// ---------- formateo del CONTEXTO DEL NEGOCIO a partir del ADN (mismo patrón que api/jefe-conversion.js) ----------
 
 function formatearIdentidad(d) {
   if (!d) return null;
@@ -134,29 +166,12 @@ function formatearCatalogo(items) {
   return 'CATÁLOGO DE PRODUCTOS (precios reales — úsalos siempre que pregunten precio):\n' + lineas.join('\n');
 }
 
-function formatearGuionesGuardados(d) {
-  if (!d) return null;
-  const etiquetas = {
-    apertura: 'Apertura (1–2 Frío)',
-    calificacion: 'Calificación (3–4 Tibio)',
-    oferta_precio: 'Oferta + precio (5–6 Interés)',
-    anti_objecion: 'Anti-objeción (7–8 Objeciones)',
-    cierre: 'Cierre (9–10)',
-  };
-  const lineas = Object.keys(etiquetas)
-    .filter((k) => d[k] && d[k].trim())
-    .map((k) => `${etiquetas[k]}:\n${d[k].trim()}`);
-  if (lineas.length === 0) return null;
-  return 'GUIONES DE WHATSAPP YA GUARDADOS POR EL USUARIO (úsalos como base, no los repitas tal cual si no aplican al mensaje):\n\n' + lineas.join('\n\n');
-}
-
 async function construirContextoNegocio(clienteId) {
-  const [identidad, tono, audiencia, catalogo, guiones] = await Promise.all([
+  const [identidad, tono, audiencia, catalogo] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.audiencia`).catch(() => null),
     leerJSON(`${clienteId}:catalogo-productos`).catch(() => null),
-    leerJSON(`${clienteId}:brand-book.whatsapp-guiones`).catch(() => null),
   ]);
 
   const bloques = [
@@ -164,16 +179,17 @@ async function construirContextoNegocio(clienteId) {
     formatearTono(tono),
     formatearAudiencias(audiencia),
     formatearCatalogo(catalogo),
-    formatearGuionesGuardados(guiones),
   ].filter(Boolean);
 
   if (bloques.length === 0) {
-    return 'CONTEXTO DEL NEGOCIO: todavía no hay datos guardados en el ADN de esta marca. Avísale al usuario que conviene llenar el ADN antes de confiar en las respuestas de precio.';
+    return 'CONTEXTO DEL NEGOCIO: todavía no hay datos guardados en el ADN de esta marca.';
   }
   return 'CONTEXTO DEL NEGOCIO (ya cargado del ADN — no le pidas al usuario que lo repita):\n\n' + truncar(bloques.join('\n\n'), CONTEXT_CHAR_LIMIT);
 }
 
-// ---------- CONTEXTO EVERGREEN (dolores, deseos, miedos, objeciones, ángulos, frases, sistema) ----------
+// ---------- formateo del CONTEXTO EVERGREEN (Comunicación + Sistema -- incluye ángulos y frases) ----------
+// Mismo formateo genérico que api/consultor-evergreen-builder.js (formatearNotasGuardadas): no le hace
+// falta conocer la forma exacta de cada campo (texto, tabla, objeto), lo aplana de forma legible.
 
 function formatearValorNota(valor) {
   if (valor == null) return '';
@@ -212,8 +228,8 @@ async function formatearConversacionEvergreenNoGuardada(clienteId) {
   return 'CONVERSACIÓN RECIENTE CON JEFE EVERGREEN (puede no estar copiada aún a Notas, pero es información real y reciente del negocio -- tómala en cuenta si aplica):\n\n' + recortado;
 }
 
-// Banco de Conversaciones reales de WhatsApp -- se guarda desde Jefe WhatsApp y Ventas
-// ({cliente}:whatsapp-convos) y se lee aquí como contexto extra, misma memoria compartida.
+// Banco de Conversaciones reales de WhatsApp -- se guarda desde esta misma página (Jefe WhatsApp
+// y Ventas, {cliente}:whatsapp-convos) y se lee aquí como contexto extra, misma memoria compartida.
 async function formatearBancoConversacionesWhatsApp(clienteId) {
   const items = await leerJSON(`${clienteId}:whatsapp-convos`).catch(() => null);
   if (!Array.isArray(items) || items.length === 0) return null;
@@ -225,7 +241,7 @@ async function formatearBancoConversacionesWhatsApp(clienteId) {
   if (!texto) return null;
   const limite = 4000;
   const recortado = texto.length > limite ? '[...conversaciones más antiguas omitidas...]\n' + texto.slice(-limite) : texto;
-  return 'BANCO DE CONVERSACIONES REALES DE WHATSAPP (guardadas por el usuario en Jefe WhatsApp y Ventas -- son transcripciones reales de clientes, úsalas para frases reales, objeciones y tono; no las inventes ni las repitas tal cual):\n\n' + recortado;
+  return 'BANCO DE CONVERSACIONES REALES DE WHATSAPP (guardadas por el usuario aquí mismo -- son transcripciones reales de clientes, úsalas para frases reales, objeciones y tono; no las inventes ni las repitas tal cual):\n\n' + recortado;
 }
 
 async function construirContextoEvergreen(clienteId) {
@@ -253,9 +269,28 @@ async function construirContextoEvergreen(clienteId) {
   if (bancoConversaciones) bloques.push(bancoConversaciones);
 
   if (bloques.length === 0) {
-    return 'CONTEXTO EVERGREEN: todavía no hay nada guardado en el Jefe Evergreen para esta marca -- usa lo que sí haya del ADN.';
+    return 'CONTEXTO EVERGREEN: todavía no hay Comunicación ni Sistema Evergreen guardados para esta marca -- genera con lo que sí haya del ADN.';
   }
-  return 'CONTEXTO EVERGREEN (Jefe Evergreen ya guardado — dolores, deseos, miedos y objeciones reales del cliente, úsalos para responder mejor):\n\n' + truncar(bloques.join('\n\n'), CONTEXT_CHAR_LIMIT);
+  return 'CONTEXTO EVERGREEN (Agente Evergreen ya guardado — úsalo para ángulos, frases y tono, no lo repitas tal cual):\n\n' + truncar(bloques.join('\n\n'), CONTEXT_CHAR_LIMIT);
+}
+
+// ---------- parseo de la respuesta del modelo ----------
+
+function extractJson(text) {
+  if (!text) return null;
+  const limpio = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+  try {
+    return JSON.parse(limpio);
+  } catch (err) {
+    // sigue al fallback
+  }
+  const match = limpio.match(/\{[\s\S]*\}/);
+  if (!match) return null;
+  try {
+    return JSON.parse(match[0]);
+  } catch (err) {
+    return null;
+  }
 }
 
 // ---------- handler ----------
@@ -280,29 +315,56 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ error: 'Falta configurar ANTHROPIC_API_KEY en el servidor.' });
   }
 
-  const { mensaje, imagen, cliente } = req.body || {};
-  if (!mensaje && !imagen) {
-    return res.status(400).json({ error: 'Falta mensaje o imagen.' });
-  }
-
-  const clienteId = (cliente || DEFAULT_CLIENTE).toString();
+  const body = req.body || {};
+  const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
+  const imagenes = Array.isArray(body.imagenes) ? body.imagenes.slice(0, MAX_IMAGENES) : [];
+  const txtConversacion = typeof body.txtConversacion === 'string' ? truncar(body.txtConversacion, TXT_CONVERSACION_LIMIT) : '';
+  const qa = Array.isArray(body.qa) ? body.qa.filter((x) => x && x.pregunta) : null;
+  const tarjetasActuales = body.tarjetasActuales && typeof body.tarjetasActuales === 'object' ? body.tarjetasActuales : null;
 
   try {
     const promptFijo = cargarPromptFijo();
-    const [contexto, contextoEvergreen] = await Promise.all([
+    const [contextoNegocio, contextoEvergreen] = await Promise.all([
       construirContextoNegocio(clienteId),
       construirContextoEvergreen(clienteId),
     ]);
-    const system = [promptFijo, contexto, contextoEvergreen].join('\n\n');
+    const system = [promptFijo, contextoNegocio, contextoEvergreen].join('\n\n');
 
     const content = [];
-    if (imagen && imagen.mediaType && imagen.data) {
-      content.push({ type: 'image', source: { type: 'base64', media_type: imagen.mediaType, data: imagen.data } });
-    }
-    content.push({
-      type: 'text',
-      text: 'Mensaje del cliente / captura a analizar:\n' + (mensaje || '(ver captura adjunta)'),
+    imagenes.forEach((img) => {
+      if (img && img.mediaType && img.data) {
+        content.push({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.data } });
+      }
     });
+
+    const partesUsuario = [];
+    if (tarjetasActuales) {
+      const llenas = TARJETAS_CAMPOS
+        .filter((campo) => tarjetasActuales[campo] && tarjetasActuales[campo].toString().trim())
+        .map((campo) => `- ${campo}: ${tarjetasActuales[campo].toString().trim()}`);
+      if (llenas.length) {
+        partesUsuario.push(
+          'CONTENIDO ACTUAL DE LAS TARJETAS (ya editado o generado antes por el usuario) -- úsalo como base: conserva lo que sigue siendo bueno, complétalo o mejóralo con la información nueva que tengas, no lo descartes ni lo reescribas sin razón. Los campos que no aparezcan aquí están vacíos, genéralos desde cero:\n' +
+          llenas.join('\n')
+        );
+      }
+    }
+    if (qa && qa.length) {
+      partesUsuario.push(
+        'El usuario ya contestó tus preguntas de una ronda anterior. NO vuelvas a preguntar bajo ninguna circunstancia -- genera las tarjetas ahora con lo mejor disponible:\n' +
+        qa.map((x, i) => `${i + 1}. ${x.pregunta}\nRespuesta: ${(x.respuesta || '(sin respuesta)').toString().trim()}`).join('\n\n')
+      );
+    }
+    if (txtConversacion) {
+      partesUsuario.push('CONVERSACIÓN REAL DE WHATSAPP EXPORTADA (usar solo para tono/vocabulario/objeciones reales, nunca para precios):\n' + txtConversacion);
+    }
+    if (imagenes.length) {
+      partesUsuario.push('Se adjuntan capturas de conversaciones reales como contexto adicional.');
+    }
+    if (partesUsuario.length === 0) {
+      partesUsuario.push('Genera la estrategia de WhatsApp por temperatura para este negocio.');
+    }
+    content.push({ type: 'text', text: partesUsuario.join('\n\n') });
 
     const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -313,7 +375,7 @@ module.exports = async function handler(req, res) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 600,
+        max_tokens: 7000,
         system,
         messages: [{ role: 'user', content }],
       }),
@@ -325,11 +387,33 @@ module.exports = async function handler(req, res) {
     }
 
     const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
-    if (!text) {
-      return res.status(502).json({ error: 'Respuesta vacía del modelo.' });
+    const parsed = extractJson(text);
+    if (!parsed) {
+      return res.status(502).json({
+        error: data.stop_reason === 'max_tokens'
+          ? 'La respuesta quedó incompleta (muy larga). Intenta de nuevo.'
+          : 'No se pudo interpretar la respuesta del modelo.',
+      });
     }
-    await registrarUsoTokens(clienteId, 'agente-conversion', data.usage);
-    return res.status(200).json({ text });
+
+    await registrarUsoTokens(clienteId, 'jefe-estrategia-whatsapp', data.usage);
+
+    if (Array.isArray(parsed.preguntas) && parsed.preguntas.length > 0 && !parsed.tarjetas) {
+      return res.status(200).json({ preguntas: parsed.preguntas.slice(0, 3) });
+    }
+
+    if (parsed.tarjetas && typeof parsed.tarjetas === 'object') {
+      const tarjetas = {};
+      TARJETAS_CAMPOS.forEach((campo) => {
+        tarjetas[campo] = typeof parsed.tarjetas[campo] === 'string' ? parsed.tarjetas[campo] : '';
+      });
+      return res.status(200).json({
+        tarjetas,
+        usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 },
+      });
+    }
+
+    return res.status(502).json({ error: 'Respuesta del modelo en un formato inesperado.' });
   } catch (err) {
     return res.status(500).json({ error: 'Error de conexión con el Agente.' });
   }

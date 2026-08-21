@@ -5,7 +5,7 @@
 // consultor-financiero.html (`datosCalculadora`), recalculado en vivo en cada turno.
 //
 // Prompt fijo, generico, compartido por todas las marcas -- mismo patron que
-// api/agente-conversion.js y api/consultor-radar.js. El prompt original ya no tenia
+// api/jefe-conversion.js y api/consultor-radar.js. El prompt original ya no tenia
 // ningun dato de negocio de JefesHub hardcodeado (solo formulas y tono), asi que se
 // reuso tal cual como plantilla generica. Lo unico que cambia por cliente es el
 // CONTEXTO DEL NEGOCIO (construirContextoNegocio, mas abajo), cargado en tiempo real
@@ -236,7 +236,7 @@ function formatearDatosCalculadora(datos) {
 
 // ---------- formateo del CONTEXTO DEL NEGOCIO para el Jefe de Producción de Video ----------
 // Campos propios (no reutiliza los formatters de arriba, que están atados a la forma de
-// datos financieros) -- mismo patron de lectura del ADN que api/agente-conversion.js.
+// datos financieros) -- mismo patron de lectura del ADN que api/jefe-conversion.js.
 
 function formatearTonoDiseno(d) {
   if (!d) return null;

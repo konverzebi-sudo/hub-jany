@@ -1,5 +1,5 @@
 // Endpoint server-side para el Consultor de Radar de Mercado y Tendencias — multi-tenant.
-// Mismo patron que api/agente-conversion.js: la ANTHROPIC_API_KEY vive solo aqui.
+// Mismo patron que api/jefe-conversion.js: la ANTHROPIC_API_KEY vive solo aqui.
 //
 // FLUJO HIBRIDO (Chrome extension + web): Instagram/TikTok bloquean la
 // navegacion directa por busqueda, asi que ya no se intenta web_search en
@@ -21,7 +21,7 @@ const DEFAULT_CLIENTE = 'jefeshub';
 const SEPARADOR_INSIGHTS = '---INSIGHTS-Y-IDEAS---';
 
 // Prompt fijo, generico, compartido por todas las marcas -- mismo patron que
-// api/agente-conversion.js. Lo unico que cambia por cliente es el CONTEXTO
+// api/jefe-conversion.js. Lo unico que cambia por cliente es el CONTEXTO
 // DEL NEGOCIO (construirContexto, mas abajo), cargado en tiempo real desde
 // su propio Brand Book en storage. No hay datos de negocio hardcoded aqui,
 // y no hace falta un archivo .md por marca para soportar una marca nueva.

@@ -172,7 +172,7 @@ function formatearTabla(filas, columnas, titulo) {
 }
 
 // ---------- CONTEXTO EVERGREEN: las 4 Notas guardadas por el Jefe Evergreen, no solo Comunicación ----------
-// Mismo patrón genérico que api/agente-estrategia-whatsapp.js (formatearValorNota/GRUPOS_EVERGREEN):
+// Mismo patrón genérico que api/jefe-estrategia-whatsapp.js (formatearValorNota/GRUPOS_EVERGREEN):
 // aplana cualquier campo (texto, tabla, objeto) sin necesitar conocer su forma exacta. Antes este
 // endpoint solo leía "evergreen-comunicacion" (ángulos + frases) -- se le escapaba por completo
 // "evergreen-perfil-cliente" (dolores, deseos, miedos, objeciones), que es la nota con el análisis
