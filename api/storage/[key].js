@@ -21,7 +21,7 @@ module.exports = async function handler(req, res) {
   // esta respuesta (ni en el browser ni en el edge de Vercel), o un refresh
   // puede mostrar una copia vieja y dar la impresión de que se perdió lo guardado.
   res.setHeader('Cache-Control', 'no-store, max-age=0');
-  // jefeshub.com (GitHub Pages) vive en otro origen que agentes.jefeshub.com
+  // jefeshub.com (GitHub Pages) vive en otro origen que ia.jefeshub.com
   // (Vercel) — sin esto el navegador bloquea el fetch desde /davilada.
   res.setHeader('Access-Control-Allow-Origin', 'https://jefeshub.com');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
