@@ -1,5 +1,5 @@
 // Endpoint server-side para el "agente vivo" del Jefe Finanzas — chat CON memoria (recibe el
-// historial completo en `messages`, mismo patron que api/consultor-evergreen-builder.js, porque
+// historial completo en `messages`, mismo patron que api/consultor-evergreen.js, porque
 // la Messages API no guarda estado en servidor). Ademas del ADN, cada llamada manda un bloque de
 // contexto extra: los datos que el usuario ya tiene llenados en las 5 calculadoras de
 // consultor-financiero.html (`datosCalculadora`), recalculado en vivo en cada turno.

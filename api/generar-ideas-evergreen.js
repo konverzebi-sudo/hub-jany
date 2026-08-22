@@ -1,6 +1,6 @@
 // Endpoint server-side para el Jefe Contenido -- genera las 5 tablas de Ideas de Contenido
 // Evergreen (Viral / Educativo / Venta / Entretenimiento / Testimonio) a partir del mismo
-// CONTEXTO DEL NEGOCIO que usa Jefe Evergreen + lo ya guardado en sus Notas de Comunicación
+// CONTEXTO DEL NEGOCIO que usa Jefe 366 + lo ya guardado en sus Notas de Comunicación
 // Evergreen (angulos, frases maestras, tono). Multi-tenant, sin datos hardcoded de ninguna marca.
 
 const fs = require('fs');
@@ -81,7 +81,7 @@ function truncar(str, limite) {
   return str.length > limite ? str.slice(0, limite) + '\n[...recortado...]' : str;
 }
 
-// ---------- formateo del CONTEXTO DEL NEGOCIO (mismo patron que api/consultor-evergreen-builder.js) ----------
+// ---------- formateo del CONTEXTO DEL NEGOCIO (mismo patron que api/consultor-evergreen.js) ----------
 
 function formatearIdentidad(d) {
   if (!d) return null;
@@ -142,13 +142,13 @@ function formatearTabla(filas, columnas, titulo) {
   return titulo + ':\n' + lineas.map((l) => '- ' + l).join('\n');
 }
 
-function formatearComunicacionEvergreen(d) {
+function formatearComunicacion366(d) {
   if (!d) return null;
   const bloques = [];
   const textoLineas = [];
   if (d.posicionamiento) textoLineas.push(`Posicionamiento: ${d.posicionamiento}`);
   if (d.diferenciador) textoLineas.push(`Diferenciador: ${d.diferenciador}`);
-  if (textoLineas.length) bloques.push('ESTRATEGIA DE COMUNICACIÓN EVERGREEN:\n' + textoLineas.join('\n'));
+  if (textoLineas.length) bloques.push('ESTRATEGIA DE COMUNICACIÓN 366:\n' + textoLineas.join('\n'));
 
   bloques.push(formatearTabla(
     d.angulos_evergreen,
@@ -166,7 +166,7 @@ function formatearComunicacionEvergreen(d) {
   return finales.join('\n\n');
 }
 
-async function formatearConversacionEvergreenNoGuardada(clienteId) {
+async function formatearConversacion366NoGuardada(clienteId) {
   const mensajes = await leerJSON(`${clienteId}:evergreen-builder-conversacion`).catch(() => null);
   if (!Array.isArray(mensajes) || mensajes.length === 0) return null;
   const texto = mensajes
@@ -176,7 +176,7 @@ async function formatearConversacionEvergreenNoGuardada(clienteId) {
   if (!texto) return null;
   const limite = 4000;
   const recortado = texto.length > limite ? '[...conversación anterior omitida...]\n' + texto.slice(-limite) : texto;
-  return 'CONVERSACIÓN RECIENTE CON JEFE EVERGREEN (puede no estar copiada aún a Notas, pero es información real y reciente del negocio -- tómala en cuenta si aplica):\n\n' + recortado;
+  return 'CONVERSACIÓN RECIENTE CON JEFE 366 (puede no estar copiada aún a Notas, pero es información real y reciente del negocio -- tómala en cuenta si aplica):\n\n' + recortado;
 }
 
 // Banco de Conversaciones reales de WhatsApp -- se guarda desde Jefe WhatsApp y Ventas
@@ -203,7 +203,7 @@ async function construirContexto(clienteId, grupoId) {
     leerJSON(`${clienteId}:catalogo-productos`).catch(() => null),
     leerJSON(`${clienteId}:grupos-negocio`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.evergreen-comunicacion`).catch(() => null),
-    formatearConversacionEvergreenNoGuardada(clienteId).catch(() => null),
+    formatearConversacion366NoGuardada(clienteId).catch(() => null),
     formatearBancoConversacionesWhatsApp(clienteId).catch(() => null),
   ]);
 
@@ -214,15 +214,15 @@ async function construirContexto(clienteId, grupoId) {
     formatearCatalogo(catalogo, grupos, grupoId),
   ].filter(Boolean);
 
-  const bloqueEvergreen = formatearComunicacionEvergreen(comunicacion);
+  const bloque366 = formatearComunicacion366(comunicacion);
 
   const partes = [];
   partes.push(bloquesNegocio.length
     ? 'CONTEXTO DEL NEGOCIO:\n\n' + bloquesNegocio.join('\n\n')
     : 'CONTEXTO DEL NEGOCIO: todavía no hay datos guardados en el ADN de esta marca.');
-  partes.push(bloqueEvergreen
-    ? 'CONTEXTO EVERGREEN (Notas de Comunicación Evergreen ya guardadas):\n\n' + bloqueEvergreen
-    : 'CONTEXTO EVERGREEN: todavía no hay ángulos ni frases maestras guardadas en el Jefe Evergreen -- genera con lo que sí haya del ADN.');
+  partes.push(bloque366
+    ? 'CONTEXTO 366 (Notas de Comunicación Evergreen ya guardadas):\n\n' + bloque366
+    : 'CONTEXTO 366: todavía no hay ángulos ni frases maestras guardadas en el Jefe 366 -- genera con lo que sí haya del ADN.');
   if (conversacionReciente) partes.push(conversacionReciente);
   if (bancoConversaciones) partes.push(bancoConversaciones);
 
