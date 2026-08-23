@@ -1,6 +1,6 @@
 // Endpoint server-side para "Generar Estrategia de WhatsApp" del Jefe WhatsApp y Ventas — multi-tenant.
 // La ANTHROPIC_API_KEY vive solo aquí. Arranca automáticamente con el ADN completo del negocio
-// (identidad, tono, catálogo, audiencia) + el Jefe Evergreen (Comunicación, Sistema Evergreen,
+// (identidad, tono, catálogo, audiencia) + el Jefe 366 (Comunicación, Sistema 366,
 // ángulos, frases) -- mismo patrón que api/jefe-conversion.js y api/generar-ideas-evergreen.js.
 // Si falta información clave, devuelve hasta 3 preguntas de confirmación en vez de generar a ciegas
 // (una sola vuelta: el cliente reenvía las respuestas en `qa` y ya no se vuelve a preguntar).
@@ -187,8 +187,8 @@ async function construirContextoNegocio(clienteId) {
   return 'CONTEXTO DEL NEGOCIO (ya cargado del ADN — no le pidas al usuario que lo repita):\n\n' + truncar(bloques.join('\n\n'), CONTEXT_CHAR_LIMIT);
 }
 
-// ---------- formateo del CONTEXTO EVERGREEN (Comunicación + Sistema -- incluye ángulos y frases) ----------
-// Mismo formateo genérico que api/consultor-evergreen-builder.js (formatearNotasGuardadas): no le hace
+// ---------- formateo del CONTEXTO 366 (Comunicación + Sistema -- incluye ángulos y frases) ----------
+// Mismo formateo genérico que api/consultor-evergreen.js (formatearNotasGuardadas): no le hace
 // falta conocer la forma exacta de cada campo (texto, tabla, objeto), lo aplana de forma legible.
 
 function formatearValorNota(valor) {
@@ -208,14 +208,14 @@ function formatearValorNota(valor) {
   return valor.toString().trim() ? '  ' + valor.toString().trim() : '';
 }
 
-const GRUPOS_EVERGREEN = [
-  { suffix: 'evergreen-producto', titulo: 'PRODUCTO EVERGREEN' },
-  { suffix: 'evergreen-perfil-cliente', titulo: 'PERFIL DE CLIENTE EVERGREEN (dolores, deseos, miedos, objeciones)' },
-  { suffix: 'evergreen-comunicacion', titulo: 'COMUNICACIÓN EVERGREEN (incluye ángulos y frases maestras)' },
-  { suffix: 'evergreen-sistema', titulo: 'SISTEMA EVERGREEN' },
+const GRUPOS_366 = [
+  { suffix: 'evergreen-producto', titulo: 'PRODUCTO 366' },
+  { suffix: 'evergreen-perfil-cliente', titulo: 'PERFIL DE CLIENTE 366 (dolores, deseos, miedos, objeciones)' },
+  { suffix: 'evergreen-comunicacion', titulo: 'COMUNICACIÓN 366 (incluye ángulos y frases maestras)' },
+  { suffix: 'evergreen-sistema', titulo: 'SISTEMA 366' },
 ];
 
-async function formatearConversacionEvergreenNoGuardada(clienteId) {
+async function formatearConversacion366NoGuardada(clienteId) {
   const mensajes = await leerJSON(`${clienteId}:evergreen-builder-conversacion`).catch(() => null);
   if (!Array.isArray(mensajes) || mensajes.length === 0) return null;
   const texto = mensajes
@@ -225,7 +225,7 @@ async function formatearConversacionEvergreenNoGuardada(clienteId) {
   if (!texto) return null;
   const limite = 4000;
   const recortado = texto.length > limite ? '[...conversación anterior omitida...]\n' + texto.slice(-limite) : texto;
-  return 'CONVERSACIÓN RECIENTE CON JEFE EVERGREEN (puede no estar copiada aún a Notas, pero es información real y reciente del negocio -- tómala en cuenta si aplica):\n\n' + recortado;
+  return 'CONVERSACIÓN RECIENTE CON JEFE 366 (puede no estar copiada aún a Notas, pero es información real y reciente del negocio -- tómala en cuenta si aplica):\n\n' + recortado;
 }
 
 // Banco de Conversaciones reales de WhatsApp -- se guarda desde esta misma página (Jefe WhatsApp
@@ -244,11 +244,11 @@ async function formatearBancoConversacionesWhatsApp(clienteId) {
   return 'BANCO DE CONVERSACIONES REALES DE WHATSAPP (guardadas por el usuario aquí mismo -- son transcripciones reales de clientes, úsalas para frases reales, objeciones y tono; no las inventes ni las repitas tal cual):\n\n' + recortado;
 }
 
-async function construirContextoEvergreen(clienteId) {
+async function construirContexto366(clienteId) {
   const datos = await Promise.all(
-    GRUPOS_EVERGREEN.map((g) => leerJSON(`${clienteId}:brand-book.${g.suffix}`).catch(() => null))
+    GRUPOS_366.map((g) => leerJSON(`${clienteId}:brand-book.${g.suffix}`).catch(() => null))
   );
-  const bloques = GRUPOS_EVERGREEN.map((g, i) => {
+  const bloques = GRUPOS_366.map((g, i) => {
     const d = datos[i];
     if (!d) return null;
     const campos = Object.entries(d)
@@ -262,16 +262,16 @@ async function construirContextoEvergreen(clienteId) {
     return g.titulo + ':\n' + campos.join('\n');
   }).filter(Boolean);
 
-  const conversacionReciente = await formatearConversacionEvergreenNoGuardada(clienteId).catch(() => null);
+  const conversacionReciente = await formatearConversacion366NoGuardada(clienteId).catch(() => null);
   if (conversacionReciente) bloques.push(conversacionReciente);
 
   const bancoConversaciones = await formatearBancoConversacionesWhatsApp(clienteId).catch(() => null);
   if (bancoConversaciones) bloques.push(bancoConversaciones);
 
   if (bloques.length === 0) {
-    return 'CONTEXTO EVERGREEN: todavía no hay Comunicación ni Sistema Evergreen guardados para esta marca -- genera con lo que sí haya del ADN.';
+    return 'CONTEXTO 366: todavía no hay Comunicación ni Sistema 366 guardados para esta marca -- genera con lo que sí haya del ADN.';
   }
-  return 'CONTEXTO EVERGREEN (Agente Evergreen ya guardado — úsalo para ángulos, frases y tono, no lo repitas tal cual):\n\n' + truncar(bloques.join('\n\n'), CONTEXT_CHAR_LIMIT);
+  return 'CONTEXTO 366 (Jefe 366 ya guardado — úsalo para ángulos, frases y tono, no lo repitas tal cual):\n\n' + truncar(bloques.join('\n\n'), CONTEXT_CHAR_LIMIT);
 }
 
 // ---------- parseo de la respuesta del modelo ----------
@@ -324,11 +324,11 @@ module.exports = async function handler(req, res) {
 
   try {
     const promptFijo = cargarPromptFijo();
-    const [contextoNegocio, contextoEvergreen] = await Promise.all([
+    const [contextoNegocio, contexto366] = await Promise.all([
       construirContextoNegocio(clienteId),
-      construirContextoEvergreen(clienteId),
+      construirContexto366(clienteId),
     ]);
-    const system = [promptFijo, contextoNegocio, contextoEvergreen].join('\n\n');
+    const system = [promptFijo, contextoNegocio, contexto366].join('\n\n');
 
     const content = [];
     imagenes.forEach((img) => {

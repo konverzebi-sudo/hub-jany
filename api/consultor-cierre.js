@@ -1,5 +1,5 @@
 // Endpoint server-side para el Jefe de Conversión — multi-tenant, multi-modo.
-// Sigue el mismo patron que api/consultor-evergreen-builder.js / api/consultor-financiero.js:
+// Sigue el mismo patron que api/consultor-evergreen.js / api/consultor-financiero.js:
 // prompt fijo generico (sin datos de negocio hardcoded) + CONTEXTO DEL NEGOCIO cargado en tiempo
 // real desde el ADN de cada marca. `modo` decide que fragmento de prompt se concatena.
 //

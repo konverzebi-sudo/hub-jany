@@ -171,8 +171,8 @@ function formatearTabla(filas, columnas, titulo) {
   return titulo + ':\n' + lineas.map((l) => '- ' + l).join('\n');
 }
 
-// ---------- CONTEXTO EVERGREEN: las 4 Notas guardadas por el Jefe Evergreen, no solo Comunicación ----------
-// Mismo patrón genérico que api/jefe-estrategia-whatsapp.js (formatearValorNota/GRUPOS_EVERGREEN):
+// ---------- CONTEXTO 366: las 4 Notas guardadas por el Jefe 366, no solo Comunicación ----------
+// Mismo patrón genérico que api/jefe-estrategia-whatsapp.js (formatearValorNota/GRUPOS_366):
 // aplana cualquier campo (texto, tabla, objeto) sin necesitar conocer su forma exacta. Antes este
 // endpoint solo leía "evergreen-comunicacion" (ángulos + frases) -- se le escapaba por completo
 // "evergreen-perfil-cliente" (dolores, deseos, miedos, objeciones), que es la nota con el análisis
@@ -196,18 +196,18 @@ function formatearValorNota(valor) {
   return valor.toString().trim() ? '  ' + valor.toString().trim() : '';
 }
 
-const GRUPOS_EVERGREEN = [
-  { suffix: 'evergreen-producto', titulo: 'PRODUCTO EVERGREEN' },
-  { suffix: 'evergreen-perfil-cliente', titulo: 'PERFIL DE CLIENTE EVERGREEN (dolores, deseos, miedos, objeciones)' },
-  { suffix: 'evergreen-comunicacion', titulo: 'COMUNICACIÓN EVERGREEN (incluye ángulos y frases maestras)' },
-  { suffix: 'evergreen-sistema', titulo: 'SISTEMA EVERGREEN' },
+const GRUPOS_366 = [
+  { suffix: 'evergreen-producto', titulo: 'PRODUCTO 366' },
+  { suffix: 'evergreen-perfil-cliente', titulo: 'PERFIL DE CLIENTE 366 (dolores, deseos, miedos, objeciones)' },
+  { suffix: 'evergreen-comunicacion', titulo: 'COMUNICACIÓN 366 (incluye ángulos y frases maestras)' },
+  { suffix: 'evergreen-sistema', titulo: 'SISTEMA 366' },
 ];
 
-async function construirContextoEvergreenNotas(clienteId) {
+async function construirContexto366Notas(clienteId) {
   const datos = await Promise.all(
-    GRUPOS_EVERGREEN.map((g) => leerJSON(`${clienteId}:brand-book.${g.suffix}`).catch(() => null))
+    GRUPOS_366.map((g) => leerJSON(`${clienteId}:brand-book.${g.suffix}`).catch(() => null))
   );
-  const bloques = GRUPOS_EVERGREEN.map((g, i) => {
+  const bloques = GRUPOS_366.map((g, i) => {
     const d = datos[i];
     if (!d) return null;
     const campos = Object.entries(d)
@@ -256,7 +256,7 @@ function formatearProducto(items, productoId, etiqueta) {
 
 // Retroalimentación que el usuario dejó escrita en tarjetas ya guardadas (campo "retroalimentacion"
 // en {cliente}:agente-anuncios) -- son correcciones puntuales sobre piezas concretas (no datos de
-// marca permanentes, esos van en el ADN/Evergreen), así que se inyectan como señales a corregir en
+// marca permanentes, esos van en el ADN/366), así que se inyectan como señales a corregir en
 // las próximas generaciones. Se toman las más recientes primero (las tarjetas se guardan con
 // unshift) y se limita la cantidad para no inflar el contexto sin control.
 const MAX_RETROALIMENTACION = 12;
@@ -272,7 +272,7 @@ async function formatearRetroalimentacion(clienteId) {
   return 'RETROALIMENTACIÓN PREVIA DEL USUARIO (correcciones puntuales sobre campañas ya generadas -- aplícalas en esta generación, no repitas el mismo error):\n' + lineas.join('\n');
 }
 
-async function formatearConversacionEvergreenNoGuardada(clienteId) {
+async function formatearConversacion366NoGuardada(clienteId) {
   const mensajes = await leerJSON(`${clienteId}:evergreen-builder-conversacion`).catch(() => null);
   if (!Array.isArray(mensajes) || mensajes.length === 0) return null;
   const texto = mensajes
@@ -282,7 +282,7 @@ async function formatearConversacionEvergreenNoGuardada(clienteId) {
   if (!texto) return null;
   const limite = 4000;
   const recortado = texto.length > limite ? '[...conversación anterior omitida...]\n' + texto.slice(-limite) : texto;
-  return 'CONVERSACIÓN RECIENTE CON JEFE EVERGREEN (puede no estar copiada aún a Notas, pero es información real y reciente del negocio -- tómala en cuenta si aplica):\n\n' + recortado;
+  return 'CONVERSACIÓN RECIENTE CON JEFE 366 (puede no estar copiada aún a Notas, pero es información real y reciente del negocio -- tómala en cuenta si aplica):\n\n' + recortado;
 }
 
 // Banco de Conversaciones reales de WhatsApp -- se guarda desde Jefe WhatsApp y Ventas
@@ -302,15 +302,15 @@ async function formatearBancoConversacionesWhatsApp(clienteId) {
 }
 
 async function construirContexto(clienteId, grupoId) {
-  const [identidad, tono, audiencia, catalogo, grupos, bloqueEvergreen, radarHistorial, conversacionReciente, bloqueRetroalimentacion, bancoConversaciones] = await Promise.all([
+  const [identidad, tono, audiencia, catalogo, grupos, bloque366, radarHistorial, conversacionReciente, bloqueRetroalimentacion, bancoConversaciones] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.audiencia`).catch(() => null),
     leerJSON(`${clienteId}:catalogo-productos`).catch(() => null),
     leerJSON(`${clienteId}:grupos-negocio`).catch(() => null),
-    construirContextoEvergreenNotas(clienteId).catch(() => null),
+    construirContexto366Notas(clienteId).catch(() => null),
     leerJSON(`${clienteId}:radar-historial`).catch(() => null),
-    formatearConversacionEvergreenNoGuardada(clienteId).catch(() => null),
+    formatearConversacion366NoGuardada(clienteId).catch(() => null),
     formatearRetroalimentacion(clienteId).catch(() => null),
     formatearBancoConversacionesWhatsApp(clienteId).catch(() => null),
   ]);
@@ -328,9 +328,9 @@ async function construirContexto(clienteId, grupoId) {
   partes.push(bloquesNegocio.length
     ? 'CONTEXTO DEL NEGOCIO:\n\n' + bloquesNegocio.join('\n\n')
     : 'CONTEXTO DEL NEGOCIO: todavía no hay datos guardados en el ADN de esta marca.');
-  partes.push(bloqueEvergreen
-    ? 'CONTEXTO EVERGREEN (las 4 Notas ya guardadas por el Jefe Evergreen — Producto, Perfil de Cliente, Comunicación y Sistema; úsalas para ángulos, frases, dolores/deseos y tono, no las repitas tal cual):\n\n' + bloqueEvergreen
-    : 'CONTEXTO EVERGREEN: todavía no hay Notas Evergreen guardadas para esta marca -- usa lo que sí haya del ADN.');
+  partes.push(bloque366
+    ? 'CONTEXTO 366 (las 4 Notas ya guardadas por el Jefe 366 — Producto, Perfil de Cliente, Comunicación y Sistema; úsalas para ángulos, frases, dolores/deseos y tono, no las repitas tal cual):\n\n' + bloque366
+    : 'CONTEXTO 366: todavía no hay Notas 366 guardadas para esta marca -- usa lo que sí haya del ADN.');
   partes.push(bloqueRadar
     ? bloqueRadar
     : 'RADAR DE MERCADO: todavía no hay corridas guardadas -- ignora esta sección.');
@@ -431,8 +431,8 @@ async function manejarModoIdeas(body, res) {
 
   const instruccion = 'INSTRUCCIÓN DE ESTA GENERACIÓN:\n' +
     (anguloTexto
-      ? `Ángulo evergreen elegido (enfócate SOLO en este, no mezcles con otros ángulos): ${anguloTexto}\n`
-      : 'No se eligió un ángulo específico -- explora libremente los ángulos evergreen disponibles, mezclando varios si aplica.\n') +
+      ? `Ángulo 366 elegido (enfócate SOLO en este, no mezcles con otros ángulos): ${anguloTexto}\n`
+      : 'No se eligió un ángulo específico -- explora libremente los ángulos 366 disponibles, mezclando varios si aplica.\n') +
     `Genera ${cantidadPorEtapa} idea(s) por cada una de las 3 etapas (adquisicion, consideracion, conversion) = ${cantidadPorEtapa * 3} en total, en el formato JSON indicado.` +
     (bloqueProducto ? '\n\n' + bloqueProducto : '');
 
@@ -659,8 +659,8 @@ async function manejarModoCompletarMeta(body, res) {
 // ---------- modo: chat (Consulta en vivo, multi-turno -- desarrolla anuncios conversando) ----------
 // Mismo patrón que el modo "pregunta" de api/generar-guion-organico.js: la Messages API no
 // guarda estado, así que se manda el historial completo en cada turno. construirContexto() ya
-// trae TODO (ADN, las 4 Notas Evergreen completas, Radar, retroalimentación previa) -- por eso el
-// chat "va conociendo" el Evergreen desde el primer mensaje, no solo lo que se escribe en el chat.
+// trae TODO (ADN, las 4 Notas 366 completas, Radar, retroalimentación previa) -- por eso el
+// chat "va conociendo" el 366 desde el primer mensaje, no solo lo que se escribe en el chat.
 
 const cargarPromptChat = () => cargarPrompt(PROMPT_PATH_CHAT);
 

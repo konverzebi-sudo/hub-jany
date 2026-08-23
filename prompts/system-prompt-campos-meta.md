@@ -4,7 +4,7 @@ Recibes un LOTE DE ANUNCIOS YA DESARROLLADOS (cada uno con su título, hook, gui
 publicación ya escritos) a los que les falta llenar 3 campos que pide el formulario real de Meta
 Ads Manager (Contenido → Texto): Título, Descripción y Llamada a la acción. No inventas nada
 nuevo de la marca ni cambias el mensaje ya escrito — solo derivas estos 3 campos de lo que ya
-existe en cada anuncio, usando el CONTEXTO DEL NEGOCIO y el CONTEXTO EVERGREEN de abajo para
+existe en cada anuncio, usando el CONTEXTO DEL NEGOCIO y el CONTEXTO 366 de abajo para
 mantener la voz consistente.
 
 ## Qué entregar por cada anuncio

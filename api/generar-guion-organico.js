@@ -1,7 +1,7 @@
 // Endpoint server-side para el Jefe Contenido -- Guionista Organico. Dos modos:
 // 'ideas' genera un banco de ideas con sus 7 angulos estrategicos; 'contenido' toma UNA idea ya
 // elegida y genera caption + guion siguiendo la estructura del objetivo. Lee en vivo el mismo
-// CONTEXTO DEL NEGOCIO que usa Jefe Evergreen + sus Notas de Comunicacion Evergreen + el Radar de
+// CONTEXTO DEL NEGOCIO que usa Jefe 366 + sus Notas de Comunicacion 366 + el Radar de
 // Mercado mas reciente. Multi-tenant, sin datos hardcoded de ninguna marca.
 
 const fs = require('fs');
@@ -147,18 +147,18 @@ function formatearTabla(filas, columnas, titulo) {
   return titulo + ':\n' + lineas.map((l) => '- ' + l).join('\n');
 }
 
-function formatearComunicacionEvergreen(d) {
+function formatearComunicacion366(d) {
   if (!d) return null;
   const bloques = [];
   const textoLineas = [];
   if (d.posicionamiento) textoLineas.push(`Posicionamiento: ${d.posicionamiento}`);
   if (d.diferenciador) textoLineas.push(`Diferenciador: ${d.diferenciador}`);
-  if (textoLineas.length) bloques.push('ESTRATEGIA DE COMUNICACIÓN EVERGREEN:\n' + textoLineas.join('\n'));
+  if (textoLineas.length) bloques.push('ESTRATEGIA DE COMUNICACIÓN 366:\n' + textoLineas.join('\n'));
 
   bloques.push(formatearTabla(
     d.angulos_evergreen,
     [{ key: 'angulo', label: 'Ángulo' }, { key: 'accion', label: 'Acción' }, { key: 'emocion', label: 'Emoción' }, { key: 'ejemplo', label: 'Ejemplo de mensaje' }],
-    'ÁNGULOS EVERGREEN YA DEFINIDOS'
+    'ÁNGULOS 366 YA DEFINIDOS'
   ));
   bloques.push(formatearTabla(
     d.frases_maestras,
@@ -200,7 +200,7 @@ function formatearProducto(items, productoId) {
   return 'PRODUCTO ESPECÍFICO A ENFOCAR (el guion debe girar en torno a este producto puntual):\n- ' + partes.join(' · ');
 }
 
-async function formatearConversacionEvergreenNoGuardada(clienteId) {
+async function formatearConversacion366NoGuardada(clienteId) {
   const mensajes = await leerJSON(`${clienteId}:evergreen-builder-conversacion`).catch(() => null);
   if (!Array.isArray(mensajes) || mensajes.length === 0) return null;
   const texto = mensajes
@@ -210,7 +210,7 @@ async function formatearConversacionEvergreenNoGuardada(clienteId) {
   if (!texto) return null;
   const limite = 4000;
   const recortado = texto.length > limite ? '[...conversación anterior omitida...]\n' + texto.slice(-limite) : texto;
-  return 'CONVERSACIÓN RECIENTE CON JEFE EVERGREEN (puede no estar copiada aún a Notas, pero es información real y reciente del negocio -- tómala en cuenta si aplica):\n\n' + recortado;
+  return 'CONVERSACIÓN RECIENTE CON JEFE 366 (puede no estar copiada aún a Notas, pero es información real y reciente del negocio -- tómala en cuenta si aplica):\n\n' + recortado;
 }
 
 // Banco de Conversaciones reales de WhatsApp -- se guarda desde Jefe WhatsApp y Ventas
@@ -238,7 +238,7 @@ async function construirContexto(clienteId, grupoId) {
     leerJSON(`${clienteId}:grupos-negocio`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.evergreen-comunicacion`).catch(() => null),
     leerJSON(`${clienteId}:radar-historial`).catch(() => null),
-    formatearConversacionEvergreenNoGuardada(clienteId).catch(() => null),
+    formatearConversacion366NoGuardada(clienteId).catch(() => null),
     formatearBancoConversacionesWhatsApp(clienteId).catch(() => null),
   ]);
 
@@ -249,16 +249,16 @@ async function construirContexto(clienteId, grupoId) {
     formatearCatalogo(catalogo, grupos, grupoId),
   ].filter(Boolean);
 
-  const bloqueEvergreen = formatearComunicacionEvergreen(comunicacion);
+  const bloque366 = formatearComunicacion366(comunicacion);
   const bloqueRadar = formatearRadar(radarHistorial);
 
   const partes = [];
   partes.push(bloquesNegocio.length
     ? 'CONTEXTO DEL NEGOCIO:\n\n' + bloquesNegocio.join('\n\n')
     : 'CONTEXTO DEL NEGOCIO: todavía no hay datos guardados en el ADN de esta marca.');
-  partes.push(bloqueEvergreen
-    ? 'CONTEXTO EVERGREEN (Notas de Comunicación Evergreen ya guardadas):\n\n' + bloqueEvergreen
-    : 'CONTEXTO EVERGREEN: todavía no hay ángulos ni frases maestras guardadas en el Jefe Evergreen -- usa lo que sí haya del ADN.');
+  partes.push(bloque366
+    ? 'CONTEXTO 366 (Notas de Comunicación 366 ya guardadas):\n\n' + bloque366
+    : 'CONTEXTO 366: todavía no hay ángulos ni frases maestras guardadas en el Jefe 366 -- usa lo que sí haya del ADN.');
   partes.push(bloqueRadar
     ? bloqueRadar
     : 'RADAR DE MERCADO: todavía no hay corridas guardadas -- ignora esta sección.');

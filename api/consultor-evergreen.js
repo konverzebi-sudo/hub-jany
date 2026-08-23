@@ -1,7 +1,8 @@
-// Endpoint server-side del Jefe Evergreen -- consolida en UN solo archivo (por el límite de 12
+// Endpoint server-side del Jefe 366 -- consolida en UN solo archivo (por el límite de 12
 // Serverless Functions del plan Hobby de Vercel) los 2 endpoints que antes vivían separados:
 // - api/consultor-evergreen.js         ("agente vivo", pregunta suelta sin memoria: body.mensaje)
-// - api/consultor-evergreen-builder.js (chat guiado multi-turno: body.messages)
+// - api/consultor-evergreen-builder.js (chat guiado multi-turno: body.messages -- ya fusionado
+//   aquí mismo, ese archivo ya no existe)
 // Se distinguen por la FORMA del body (ya eran distintas entre sí, así que no hace falta un campo
 // nuevo de "modo"): si viene `messages` es el chat guiado (builder); si viene `mensaje` es la
 // pregunta suelta. Cada rama conserva exactamente su lógica y forma de respuesta original -- esto
@@ -194,7 +195,7 @@ async function manejarPreguntaSuelta(req, res) {
     if (!text) {
       return res.status(502).json({ error: 'Respuesta vacía del modelo.' });
     }
-    await registrarUsoTokens(clienteId, 'consultor-evergreen-preguntas', data.usage);
+    await registrarUsoTokens(clienteId, 'consultor-366-preguntas', data.usage);
     return res.status(200).json({ text });
   } catch (err) {
     return res.status(500).json({ error: 'Error de conexión con el Agente.' });
@@ -202,7 +203,7 @@ async function manejarPreguntaSuelta(req, res) {
 }
 
 // =============================================================================================
-// RAMA "builder" (original api/consultor-evergreen-builder.js) -- chat guiado multi-turno.
+// RAMA "builder" (original api/consultor-evergreen.js) -- chat guiado multi-turno.
 // =============================================================================================
 
 const BUILDER_PROMPTS_POR_MODO = {
@@ -427,18 +428,18 @@ function builderFormatearValorNota(valor) {
   return valor.toString().trim() ? '  ' + valor.toString().trim() : '';
 }
 
-const BUILDER_GRUPOS_NOTAS_EVERGREEN = [
-  { suffix: 'evergreen-producto', titulo: 'PRODUCTO EVERGREEN' },
-  { suffix: 'evergreen-perfil-cliente', titulo: 'PERFIL DE CLIENTE EVERGREEN' },
-  { suffix: 'evergreen-comunicacion', titulo: 'COMUNICACIÓN EVERGREEN' },
-  { suffix: 'evergreen-sistema', titulo: 'SISTEMA EVERGREEN' },
+const BUILDER_GRUPOS_NOTAS_366 = [
+  { suffix: 'evergreen-producto', titulo: 'PRODUCTO 366' },
+  { suffix: 'evergreen-perfil-cliente', titulo: 'PERFIL DE CLIENTE 366' },
+  { suffix: 'evergreen-comunicacion', titulo: 'COMUNICACIÓN 366' },
+  { suffix: 'evergreen-sistema', titulo: 'SISTEMA 366' },
 ];
 
 async function builderFormatearNotasGuardadas(clienteId) {
   const datos = await Promise.all(
-    BUILDER_GRUPOS_NOTAS_EVERGREEN.map((g) => leerJSON(`${clienteId}:brand-book.${g.suffix}`).catch(() => null))
+    BUILDER_GRUPOS_NOTAS_366.map((g) => leerJSON(`${clienteId}:brand-book.${g.suffix}`).catch(() => null))
   );
-  const bloques = BUILDER_GRUPOS_NOTAS_EVERGREEN.map((g, i) => {
+  const bloques = BUILDER_GRUPOS_NOTAS_366.map((g, i) => {
     const d = datos[i];
     if (!d) return null;
     const campos = Object.entries(d)
@@ -520,7 +521,7 @@ async function manejarChatGuiado(req, res) {
     if (!text) {
       return res.status(502).json({ error: 'Respuesta vacía del modelo.' });
     }
-    await registrarUsoTokens(clienteId, 'consultor-evergreen-builder', data.usage);
+    await registrarUsoTokens(clienteId, 'consultor-366-builder', data.usage);
     return res.status(200).json({
       text,
       usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 },

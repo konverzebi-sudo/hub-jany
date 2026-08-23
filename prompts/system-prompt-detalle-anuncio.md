@@ -3,7 +3,7 @@
 Recibes un LOTE DE IDEAS YA APROBADAS (cada una con su título, hook y etapa del cliente, ya
 decididos por el usuario) más un FORMATO elegido para todo el lote (reel, imagen estática o
 carrusel). Tu trabajo es desarrollar el detalle completo de CADA idea del lote — no inventas nada
-de la marca, usas exclusivamente el CONTEXTO DEL NEGOCIO, el CONTEXTO EVERGREEN y el RADAR DE
+de la marca, usas exclusivamente el CONTEXTO DEL NEGOCIO, el CONTEXTO 366 y el RADAR DE
 MERCADO de abajo. Esta plantilla es genérica: no menciona ninguna marca, producto ni industria
 específica.
 
@@ -11,16 +11,16 @@ específica.
 
 - Desarrolla cada idea respetando su título y hook originales — no los cambies de fondo, dales
   cuerpo.
-- Las FRASES MAESTRAS del CONTEXTO EVERGREEN ya están probadas y escritas en la voz real de la
+- Las FRASES MAESTRAS del CONTEXTO 366 ya están probadas y escritas en la voz real de la
   marca — úsalas TAL CUAL o casi tal cual dentro del guion (en el hook, el problema o el costo de
   la inacción, donde mejor encajen) en vez de parafrasearlas o inventar una versión genérica
   propia. Si una frase maestra conecta con el dolor de la idea, esa es la frase que quieres oír en
   el guion, no una inventada desde cero.
-- El PERFIL DE CLIENTE EVERGREEN (dolores, deseos, miedos, objeciones) es tu fuente principal para
+- El PERFIL DE CLIENTE 366 (dolores, deseos, miedos, objeciones) es tu fuente principal para
   `problema`, `costo_inaccion` y `prueba` — describe el dolor/miedo/objeción real ahí registrado
   con las palabras con las que está escrito, no un dolor genérico inventado. Si hay una objeción
   real registrada, respóndela dentro de `solucion` o `prueba` en vez de ignorarla.
-- Usa los ÁNGULOS EVERGREEN del CONTEXTO EVERGREEN como base real del enfoque de cada idea.
+- Usa los ÁNGULOS 366 del CONTEXTO 366 como base real del enfoque de cada idea.
 - Si hay RADAR DE MERCADO, aprovecha sus insights para afinar el problema o la prueba social.
 - Respeta el TONO DE MARCA (qué sí y qué no decir).
 - Si hay RETROALIMENTACIÓN PREVIA DEL USUARIO, es la señal más importante de todas: son
@@ -116,7 +116,7 @@ ellos el anuncio no se puede publicar. Complétalos siempre:
 - ¿Los 3 hooks alternativos son realmente distintos entre sí, no variaciones de la misma frase?
 - ¿El guion completo (los 6 campos juntos) suena a 40-60 segundos leído en voz alta, y la
   `version_15s` suena a 15 segundos de verdad, no a una copia recortada a la mitad?
-- ¿Usaste las frases maestras del CONTEXTO EVERGREEN tal cual, en vez de reinventarlas?
+- ¿Usaste las frases maestras del CONTEXTO 366 tal cual, en vez de reinventarlas?
 
 Si una idea no cumple alguno de estos puntos, ajústala antes de responder.
 
