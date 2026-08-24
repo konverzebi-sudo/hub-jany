@@ -1,8 +1,8 @@
 # hub-jany
 
-Sitio estático de JefesHub (`jefeshub.com`), servido en producción desde GitHub Pages. El Centro de Agentes (`/agentes`) corre por separado en Vercel, desplegado desde la rama `feature/agentes-dashboard-backend`, en `agentes.jefeshub.com`.
+Sitio estático de JefesHub (`jefeshub.com`), servido en producción desde GitHub Pages. El Centro de Jefes (`/jefes`) corre por separado en Vercel, desplegado desde la rama `feature/agentes-dashboard-backend`, en `ia.jefeshub.com` (antes `agentes.jefeshub.com`, que ahora redirige).
 
-## Centro de Agentes (`/agentes`)
+## Centro de Jefes (`/jefes`)
 
 Este proyecto suma un backend serverless en Vercel para tres piezas:
 
