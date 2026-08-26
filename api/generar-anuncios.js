@@ -21,12 +21,19 @@ const PROMPT_PATH_DETALLE = path.join(__dirname, '..', 'prompts', 'system-prompt
 const PROMPT_PATH_TARGETING = path.join(__dirname, '..', 'prompts', 'system-prompt-targeting-anuncios.md');
 const PROMPT_PATH_CAMPOS_META = path.join(__dirname, '..', 'prompts', 'system-prompt-campos-meta.md');
 const PROMPT_PATH_CHAT = path.join(__dirname, '..', 'prompts', 'system-prompt-chat-anuncios.md');
+const PROMPT_PATH_DETALLE_IMAGEN = path.join(__dirname, '..', 'prompts', 'system-prompt-detalle-imagen.md');
 const CHAT_MAX_MESSAGES = 40;
 const CONTEXT_CHAR_LIMIT = 10000;
 const MAX_IDEAS_POR_LOTE = 9;
 const MAX_CAMPOS_META_POR_LOTE = 12;
 const FORMATOS_VALIDOS = ['reel', 'imagen estática', 'carrusel'];
 const ETAPAS = ['adquisicion', 'consideracion', 'conversion'];
+// Tipos de imagen que acepta la API de Claude -- el cliente ya normaliza todo a JPEG antes de
+// mandarlo, pero se valida por si acaso.
+const MEDIA_TYPES_IMAGEN_VALIDOS = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+// Base64 crudo tal cual llega en el body -- limita el tamaño para no pegarle al límite de payload
+// de la función serverless (el cliente ya comprime la imagen antes de mandarla).
+const MAX_IMAGEN_BASE64_CHARS = 6 * 1024 * 1024;
 // Lista fija de botones de CTA que existen de verdad en Meta Ads Manager -- nunca se le pide al
 // modelo que invente uno nuevo, solo que elija de esta lista.
 const CTA_OPTIONS = ['Enviar mensaje', 'Más información', 'Comprar ahora', 'Reservar', 'Solicitar hora', 'Registrarte', 'Contactarnos', 'Llamar ahora', 'Obtener oferta', 'Suscribirse'];
@@ -552,6 +559,84 @@ async function manejarModoDetalle(body, res) {
   return res.status(200).json({ detalles, formato, usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 } });
 }
 
+// ---------- modo: detalle_imagen (analiza una imagen/fotograma de un anuncio ya hecho) ----------
+
+async function manejarModoDetalleImagen(body, res) {
+  const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
+  const grupoId = body.grupo_id ? body.grupo_id.toString() : '';
+  const productoId = body.producto_id ? body.producto_id.toString() : '';
+  const notas = (body.notas || '').toString().trim().slice(0, 4000);
+  const formatoForzado = FORMATOS_VALIDOS.includes(body.formato) ? body.formato : '';
+  const imagenBase64 = (body.imagen_base64 || '').toString();
+  const mediaType = MEDIA_TYPES_IMAGEN_VALIDOS.includes(body.imagen_media_type) ? body.imagen_media_type : 'image/jpeg';
+
+  if (!imagenBase64) {
+    return res.status(400).json({ error: 'Falta la imagen a analizar.' });
+  }
+  if (imagenBase64.length > MAX_IMAGEN_BASE64_CHARS) {
+    return res.status(400).json({ error: 'La imagen es demasiado grande. Usa una imagen más ligera o un fotograma más pequeño.' });
+  }
+
+  const promptFijo = cargarPrompt(PROMPT_PATH_DETALLE_IMAGEN);
+  const { contexto, catalogo } = await construirContexto(clienteId, grupoId);
+  const bloqueProducto = formatearProducto(catalogo, productoId, 'el análisis debe conectar con este producto puntual si aplica');
+
+  const instruccion = 'INSTRUCCIÓN DE ESTA GENERACIÓN:\n' +
+    'Analiza la imagen adjunta (un anuncio ya hecho o el fotograma de un video de anuncio) y entrega su ficha completa en el formato JSON indicado.' +
+    (formatoForzado ? `\nFORMATO YA CONFIRMADO POR EL USUARIO (respeta este, no lo redetectes): ${formatoForzado}\n` : '\n') +
+    (notas ? `\nNOTAS DEL USUARIO (contexto extra, prioridad alta -- por ejemplo el guion o texto que se dice en el video):\n${notas}\n` : '') +
+    (bloqueProducto ? '\n' + bloqueProducto : '');
+
+  const system = [promptFijo, contexto, instruccion].join('\n\n');
+  const userContent = [
+    { type: 'image', source: { type: 'base64', media_type: mediaType, data: imagenBase64 } },
+    { type: 'text', text: 'Analiza esta imagen y entrega su ficha completa, en el formato JSON indicado.' },
+  ];
+  const { ok, status, data } = await llamarClaudeConHistorial(system, [{ role: 'user', content: userContent }], 3000);
+  if (!ok) {
+    return res.status(status).json({ error: data?.error?.message || 'Error al llamar a la API.' });
+  }
+
+  const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
+  const d = extractJson(text);
+  if (!d) {
+    return res.status(502).json({ error: data.stop_reason === 'max_tokens' ? 'La respuesta quedó incompleta (muy larga). Intenta de nuevo.' : 'No se pudo interpretar la respuesta del modelo.' });
+  }
+
+  const etapaDetectada = ETAPAS.includes(d.etapa) ? d.etapa : 'consideracion';
+  const detalle = {
+    titulo: d.titulo || '',
+    hook: d.hook || '',
+    etapa: etapaDetectada,
+    formato: formatoForzado || (FORMATOS_VALIDOS.includes(d.formato_detectado) ? d.formato_detectado : 'imagen estática'),
+    objetivo: d.objetivo || '',
+    angulo: d.angulo || '',
+    audiencia: AUDIENCIA_POR_ETAPA[etapaDetectada] || '',
+    guion: (d.guion && typeof d.guion === 'object') ? {
+      hook: d.guion.hook || '',
+      problema: d.guion.problema || '',
+      solucion: d.guion.solucion || '',
+      prueba: d.guion.prueba || '',
+      costo_inaccion: d.guion.costo_inaccion || '',
+      cta: d.guion.cta || '',
+    } : { hook: '', problema: '', solucion: '', prueba: '', costo_inaccion: '', cta: '' },
+    version_15s: d.version_15s || '',
+    hooks_alternativos: Array.isArray(d.hooks_alternativos) ? d.hooks_alternativos.filter(Boolean).map((h) => h.toString()) : [],
+    visual_sugerido: d.visual_sugerido || '',
+    duracion_sugerida: d.duracion_sugerida || '',
+    copy_publicacion: d.copy_publicacion || '',
+    prompt_imagen: d.prompt_imagen || '',
+    prompt_video: d.prompt_video || '',
+    caption_whatsapp: d.caption_whatsapp || '',
+    titulo_anuncio: d.titulo_anuncio || '',
+    descripcion_anuncio: d.descripcion_anuncio || '',
+    cta_boton: validarCta(d.cta_boton) || 'Más información',
+  };
+
+  await registrarUsoTokens(clienteId, 'generar-anuncios-detalle-imagen', data.usage);
+  return res.status(200).json({ detalle, usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 } });
+}
+
 // ---------- modo: targeting (perfil de segmentación sugerido para un Conjunto de Anuncios) ----------
 
 async function manejarModoTargeting(body, res) {
@@ -723,10 +808,11 @@ module.exports = async function handler(req, res) {
   try {
     if (modo === 'ideas') return await manejarModoIdeas(body, res);
     if (modo === 'detalle') return await manejarModoDetalle(body, res);
+    if (modo === 'detalle_imagen') return await manejarModoDetalleImagen(body, res);
     if (modo === 'targeting') return await manejarModoTargeting(body, res);
     if (modo === 'completar_meta') return await manejarModoCompletarMeta(body, res);
     if (modo === 'chat') return await manejarModoChat(body, res);
-    return res.status(400).json({ error: 'Falta o es inválido el campo "modo" (usa "ideas", "detalle", "targeting", "completar_meta" o "chat").' });
+    return res.status(400).json({ error: 'Falta o es inválido el campo "modo" (usa "ideas", "detalle", "detalle_imagen", "targeting", "completar_meta" o "chat").' });
   } catch (err) {
     return res.status(500).json({ error: 'Error de conexión con el Agente.' });
   }

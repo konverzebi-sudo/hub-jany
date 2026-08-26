@@ -132,6 +132,19 @@
   .carpeta-box input[type=text]:focus{border-color:#7CB9E8;}
   .carpeta-box input[type=text]::placeholder{color:var(--text-dim);opacity:.7;}
 
+  /* ANALIZAR CREATIVO — subir imagen o fotograma de video de un anuncio ya hecho */
+  .analizar-box{background:var(--surface);border:1px dashed var(--accent);border-radius:14px;padding:16px 18px;margin-bottom:20px;display:flex;flex-direction:column;gap:10px;}
+  .analizar-box .analizar-title{font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--accent);text-transform:uppercase;letter-spacing:.04em;}
+  .analizar-box .analizar-desc{font-size:12.5px;color:var(--text-dim);line-height:1.5;}
+  .analizar-box .analizar-row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;}
+  .analizar-box input[type=file]{font-family:'Inter',sans-serif;font-size:12.5px;color:var(--text-dim);max-width:280px;}
+  .analizar-box input[type=file]::file-selector-button{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;padding:7px 12px;margin-right:10px;cursor:pointer;}
+  .analizar-box input[type=file]::file-selector-button:hover{border-color:var(--accent);color:var(--accent);}
+  .analizar-box textarea{width:100%;min-height:56px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:9px 12px;outline:none;resize:vertical;}
+  .analizar-box textarea:focus{border-color:var(--accent);}
+  .analizar-box textarea::placeholder{color:var(--text-dim);opacity:.7;}
+  .analizar-preview{max-width:160px;max-height:160px;border-radius:8px;border:1px solid var(--line);object-fit:cover;}
+
   /* CHAT — Consulta en vivo (calcado de jefe-contenido-v2.html) */
   .chat-thread{display:flex;flex-direction:column;gap:10px;max-height:520px;overflow-y:auto;}
   .chat-msg{border-radius:12px;padding:12px 14px;font-size:13.5px;line-height:1.7;white-space:pre-wrap;font-family:'Inter',sans-serif;max-width:92%;}
@@ -278,6 +291,10 @@ let formatoSel = FORMATOS[0];
 let genStatus = '';
 let cardsLoaded = false;
 let currentTab = 'generador';
+// Estado del "Analizar un anuncio (imagen)" -- efímero, no se guarda (se resetea al elegir otro archivo).
+let analizarImagenBase64 = '';
+let analizarImagenMediaType = 'image/jpeg';
+let analizarNombreArchivo = '';
 
 function grupoKey(){ return grupoId || 'general'; }
 function datosActuales(){
@@ -485,6 +502,34 @@ function renderGenerador(container){
   `;
   wrap.appendChild(toolbar);
 
+  const analizarBox = document.createElement('div');
+  analizarBox.className = 'analizar-box';
+  analizarBox.innerHTML = `
+    <div class="analizar-title">📷 Analizar un anuncio ya hecho</div>
+    <div class="analizar-desc">Sube una imagen del anuncio (o un mockup/diseño) y la IA te arma su ficha completa -- guion, copy, prompts y campos de Meta -- lista para guardar directo en "Campañas guardadas". Si es un video, sube una captura o fotograma representativo (la IA solo puede ver esa imagen, no escuchar el audio ni ver el movimiento) y pega el guion o texto del video en las notas de abajo para que lo use como base.</div>
+    <div class="analizar-row">
+      <div class="mode-field" style="min-width:220px;">
+        <label>Imagen del anuncio</label>
+        <input type="file" id="analizar-file-input" accept="image/*,video/*">
+      </div>
+      <div class="mode-field" style="min-width:180px;">
+        <label>Formato (opcional)</label>
+        <select id="analizar-formato-sel">
+          <option value="">Detectar automáticamente</option>
+          ${FORMATOS.map(f=>`<option value="${f}">${f.charAt(0).toUpperCase()+f.slice(1)}</option>`).join('')}
+        </select>
+      </div>
+      <img id="analizar-preview-img" class="analizar-preview" style="display:none;">
+    </div>
+    <textarea id="analizar-notas-input" placeholder="Notas opcionales -- por ejemplo el guion o texto que se dice en el video, o cualquier contexto extra para el análisis..."></textarea>
+    <div class="analizar-row" style="align-items:center;">
+      <button class="btn btn-solid" id="analizar-btn" type="button" disabled>✨ Analizar y generar detalle</button>
+      <span class="mode-status" id="analizar-status"></span>
+    </div>
+  `;
+  wrap.appendChild(analizarBox);
+  bindAnalizarBox(analizarBox);
+
   const selBar = document.createElement('div');
   selBar.className='anuncios-selection-bar';
   selBar.innerHTML = `
@@ -678,6 +723,143 @@ async function generarDetalleSeleccionadas(){
     scheduleBorradorSave();
     statusEl.textContent = `✅ ${creadas} campaña(s) creada(s) en "Campañas guardadas".`;
     render();
+  }catch(e){
+    statusEl.textContent='Error de conexión.'; statusEl.classList.add('error');
+  }finally{
+    btn.disabled=false;
+  }
+}
+
+// ─── ANALIZAR UN ANUNCIO (IMAGEN) ─────────────────────────────────────────
+// Reduce cualquier imagen (o el fotograma extraído de un video) a un JPEG comprimido en base64
+// antes de mandarlo al servidor -- mantiene el payload ligero y dentro del límite de la función
+// serverless, y el tamaño recomendado para la API de Claude (lado largo ~1568px).
+function comprimirCanvasAJpegBase64(canvas, calidad){
+  const dataUrl = canvas.toDataURL('image/jpeg', calidad);
+  return dataUrl.split(',')[1];
+}
+function dibujarEnCanvasRedimensionado(origenAncho, origenAlto, maxLado){
+  let w = origenAncho, h = origenAlto;
+  if(w > maxLado || h > maxLado){
+    const escala = maxLado / Math.max(w, h);
+    w = Math.round(w * escala); h = Math.round(h * escala);
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  return canvas;
+}
+function imagenFileAJpegBase64(file, maxLado){
+  return new Promise((resolve, reject)=>{
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = ()=>{
+      const canvas = dibujarEnCanvasRedimensionado(img.naturalWidth, img.naturalHeight, maxLado);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      resolve(comprimirCanvasAJpegBase64(canvas, 0.85));
+    };
+    img.onerror = ()=>{ URL.revokeObjectURL(url); reject(new Error('No se pudo leer la imagen.')); };
+    img.src = url;
+  });
+}
+function videoFileAFotogramaJpegBase64(file, maxLado){
+  return new Promise((resolve, reject)=>{
+    const video = document.createElement('video');
+    video.muted = true; video.playsInline = true;
+    const url = URL.createObjectURL(file);
+    video.onloadedmetadata = ()=>{ video.currentTime = Math.min(1, (video.duration||1) / 3); };
+    video.onseeked = ()=>{
+      const canvas = dibujarEnCanvasRedimensionado(video.videoWidth, video.videoHeight, maxLado);
+      canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      resolve(comprimirCanvasAJpegBase64(canvas, 0.85));
+    };
+    video.onerror = ()=>{ URL.revokeObjectURL(url); reject(new Error('No se pudo leer el video.')); };
+    video.src = url;
+  });
+}
+
+function bindAnalizarBox(container){
+  const fileInput = container.querySelector('#analizar-file-input');
+  const previewImg = container.querySelector('#analizar-preview-img');
+  const statusEl = container.querySelector('#analizar-status');
+  const btn = container.querySelector('#analizar-btn');
+  fileInput.addEventListener('change', async ()=>{
+    const file = fileInput.files && fileInput.files[0];
+    analizarImagenBase64 = ''; analizarNombreArchivo = ''; btn.disabled = true;
+    if(!file) return;
+    statusEl.className='mode-status'; statusEl.textContent='⏳ Procesando archivo...';
+    try{
+      const esVideo = file.type.startsWith('video/');
+      const base64 = esVideo ? await videoFileAFotogramaJpegBase64(file, 1280) : await imagenFileAJpegBase64(file, 1280);
+      analizarImagenBase64 = base64;
+      analizarImagenMediaType = 'image/jpeg';
+      analizarNombreArchivo = file.name;
+      previewImg.src = 'data:image/jpeg;base64,' + base64;
+      previewImg.style.display = 'block';
+      statusEl.textContent = esVideo ? '✅ Fotograma extraído del video -- si tienes el guion, pégalo en notas.' : '✅ Imagen lista.';
+      btn.disabled = false;
+    }catch(err){
+      statusEl.className='mode-status error'; statusEl.textContent='No se pudo procesar el archivo.';
+    }
+  });
+  btn.addEventListener('click', analizarCreativo);
+}
+
+async function analizarCreativo(){
+  const statusEl = document.getElementById('analizar-status');
+  const btn = document.getElementById('analizar-btn');
+  if(!analizarImagenBase64){
+    statusEl.className='mode-status error'; statusEl.textContent='Sube una imagen primero.';
+    return;
+  }
+  const formato = document.getElementById('analizar-formato-sel').value;
+  const notas = document.getElementById('analizar-notas-input').value.trim();
+  btn.disabled = true;
+  statusEl.className='mode-status'; statusEl.textContent='⏳ Analizando la pieza y armando su ficha completa...';
+  try{
+    const res = await fetch('/api/generar-anuncios', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        modo:'detalle_imagen', cliente: CLIENTE_ID, grupo_id: grupoId, producto_id: productoId,
+        formato, notas, imagen_base64: analizarImagenBase64, imagen_media_type: analizarImagenMediaType,
+      }),
+    });
+    const data = await res.json();
+    if(!res.ok || !data.detalle){ statusEl.textContent='Error: '+(data.error||'No se pudo analizar la imagen.'); statusEl.classList.add('error'); return; }
+    const det = data.detalle;
+    const nuevaCard = {
+      id: mkCardId(),
+      etapa: det.etapa,
+      formato: det.formato,
+      titulo: det.titulo || analizarNombreArchivo || 'Anuncio analizado',
+      hook: det.hook || '',
+      objetivo: det.objetivo || '',
+      angulo: det.angulo || '',
+      audiencia: det.audiencia || '',
+      guion: det.guion,
+      version_15s: det.version_15s || '',
+      hooks_alternativos: Array.isArray(det.hooks_alternativos) ? det.hooks_alternativos : [],
+      visual_sugerido: det.visual_sugerido || '',
+      duracion_sugerida: det.duracion_sugerida || '',
+      copy_publicacion: det.copy_publicacion,
+      prompt_imagen: det.prompt_imagen,
+      prompt_video: det.prompt_video,
+      caption_whatsapp: det.caption_whatsapp,
+      titulo_anuncio: det.titulo_anuncio || '',
+      descripcion_anuncio: det.descripcion_anuncio || '',
+      cta_boton: det.cta_boton || '',
+      estado: 'idea',
+      fecha: '',
+      retroalimentacion: '',
+      link_archivo_final: '',
+    };
+    cards.unshift(nuevaCard);
+    document.getElementById('count-cards').textContent = cards.length;
+    scheduleCardsSave();
+    statusEl.textContent = '✅ Campaña creada en "Campañas guardadas".';
+    analizarImagenBase64 = ''; analizarNombreArchivo = '';
+    setTimeout(()=>irAEditarCard(nuevaCard.id), 300);
   }catch(e){
     statusEl.textContent='Error de conexión.'; statusEl.classList.add('error');
   }finally{
