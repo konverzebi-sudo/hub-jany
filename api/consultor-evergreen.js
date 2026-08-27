@@ -502,14 +502,14 @@ async function manejarChatGuiado(req, res) {
     const partesSystem = [promptFijo, contexto];
     const bancoConversaciones = await formatearBancoConversacionesWhatsApp(clienteId).catch(() => null);
     if (bancoConversaciones) partesSystem.push(bancoConversaciones);
-    if (modo === 'documento-maestro') {
-      partesSystem.push(await builderFormatearNotasGuardadas(clienteId));
-    }
+    // Se inyecta siempre (no solo en modo documento-maestro) para que el chat guiado normal
+    // también sepa qué ya está guardado y pueda comparar en vez de proponer siempre desde cero.
+    partesSystem.push(await builderFormatearNotasGuardadas(clienteId));
     const system = partesSystem.join('\n\n');
 
     const { ok, status, data } = await llamarClaude(system, {
       model: 'claude-sonnet-4-6',
-      max_tokens: modo === 'documento-maestro' ? 3000 : 1500,
+      max_tokens: modo === 'documento-maestro' ? 3000 : 2200,
       system,
       messages: limpio,
     });
