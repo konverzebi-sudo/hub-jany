@@ -201,7 +201,7 @@ function formatearProducto(items, productoId) {
 }
 
 async function formatearConversacion366NoGuardada(clienteId) {
-  const mensajes = await leerJSON(`${clienteId}:evergreen-builder-conversacion`).catch(() => null);
+  const mensajes = (await leerJSON(`${clienteId}:366-builder-conversacion`).catch(() => null)) || (await leerJSON(`${clienteId}:evergreen-builder-conversacion`).catch(() => null));
   if (!Array.isArray(mensajes) || mensajes.length === 0) return null;
   const texto = mensajes
     .filter((m) => m && m.role === 'assistant' && typeof m.content === 'string' && m.content.trim())
@@ -229,6 +229,14 @@ async function formatearBancoConversacionesWhatsApp(clienteId) {
   return 'BANCO DE CONVERSACIONES REALES DE WHATSAPP (guardadas por el usuario en Jefe WhatsApp y Ventas -- son transcripciones reales de clientes, úsalas para frases reales, objeciones y tono; no las inventes ni las repitas tal cual):\n\n' + recortado;
 }
 
+// Migración de storage: esta llave vivía bajo el nombre "evergreen-comunicacion" -- si la nueva
+// viene vacía, se cae a la vieja (solo lectura, el cliente es quien migra escribiendo hacia adelante).
+async function leerComunicacion366(clienteId) {
+  const nuevo = await leerJSON(`${clienteId}:brand-book.366-comunicacion`).catch(() => null);
+  if (nuevo) return nuevo;
+  return await leerJSON(`${clienteId}:brand-book.evergreen-comunicacion`).catch(() => null);
+}
+
 async function construirContexto(clienteId, grupoId) {
   const [identidad, tono, audiencia, catalogo, grupos, comunicacion, radarHistorial, conversacionReciente, bancoConversaciones] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
@@ -236,7 +244,7 @@ async function construirContexto(clienteId, grupoId) {
     leerJSON(`${clienteId}:brand-book.audiencia`).catch(() => null),
     leerJSON(`${clienteId}:catalogo-productos`).catch(() => null),
     leerJSON(`${clienteId}:grupos-negocio`).catch(() => null),
-    leerJSON(`${clienteId}:brand-book.evergreen-comunicacion`).catch(() => null),
+    leerComunicacion366(clienteId),
     leerJSON(`${clienteId}:radar-historial`).catch(() => null),
     formatearConversacion366NoGuardada(clienteId).catch(() => null),
     formatearBancoConversacionesWhatsApp(clienteId).catch(() => null),

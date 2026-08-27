@@ -1827,7 +1827,8 @@ function armarPromptLinkReferencia(){
 // Notas de Comunicación 366 (angulos, frases maestras) via api/generar-ideas-366.js.
 // No copia tablas a mano: cada vez que se "Genera", el servidor vuelve a leer el ADN + las
 // Notas de 366 mas recientes.
-const EVERGREEN_IDEAS_KEY = CLIENTE_ID + ':contenido-ideas-evergreen';
+const EVERGREEN_IDEAS_KEY = CLIENTE_ID + ':contenido-ideas-366';
+const EVERGREEN_IDEAS_KEY_VIEJA = CLIENTE_ID + ':contenido-ideas-evergreen';
 const EVERGREEN_CATEGORIAS = [
   { key:'viral', label:'🔥 Contenido Viral', desc:'Alcance y compartibilidad — humor, sorpresa, tendencias.' },
   { key:'educativo', label:'📚 Contenido Educativo', desc:'Enseña algo útil — genera autoridad y confianza.' },
@@ -1865,7 +1866,13 @@ async function ensureEvergreenLoaded(){
     evergreenProductos = rp && rp.value ? JSON.parse(rp.value) : [];
   }catch(e){ evergreenProductos = []; }
   try{
-    const ri = await window.storage.get(EVERGREEN_IDEAS_KEY);
+    // Migración: esta llave vivía bajo el nombre "contenido-ideas-evergreen" -- si la nueva
+    // viene vacía, se cae a la vieja y se copia hacia adelante.
+    let ri = await window.storage.get(EVERGREEN_IDEAS_KEY);
+    if(!ri || !ri.value){
+      ri = await window.storage.get(EVERGREEN_IDEAS_KEY_VIEJA);
+      if(ri && ri.value) window.storage.set(EVERGREEN_IDEAS_KEY, ri.value).catch(()=>{});
+    }
     evergreenIdeasStore = ri && ri.value ? JSON.parse(ri.value) : {};
   }catch(e){ evergreenIdeasStore = {}; }
 }

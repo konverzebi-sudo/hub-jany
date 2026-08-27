@@ -403,7 +403,7 @@
         <div class="field"><label>Objeciones</label><div id="epc-objeciones" class="tabla-notas-container"></div></div>
         <div class="field"><label>Frases reales del cliente</label><div id="epc-frases_reales" class="tabla-notas-container"></div></div>
         <div class="field"><label>Insight estratégico del cliente</label><textarea id="epc-insight_estrategico"></textarea></div>
-        <button class="notas-save-btn" onclick="guardarNotasGrupo('evergreen-perfil-cliente','epc',['descripcion_breve','situacion_compra','problema_resuelve','emocion_impulsa','que_convenceria','caracteristicas','dolores','miedos','deseos','objeciones','frases_reales','insight_estrategico'],'epc-status')">Guardar cambios</button>
+        <button class="notas-save-btn" onclick="guardarNotasGrupo('366-perfil-cliente','epc',['descripcion_breve','situacion_compra','problema_resuelve','emocion_impulsa','que_convenceria','caracteristicas','dolores','miedos','deseos','objeciones','frases_reales','insight_estrategico'],'epc-status')">Guardar cambios</button>
         <div id="epc-status" class="notas-status"></div>
       </div>
     </details>
@@ -421,7 +421,7 @@
         <div class="field"><label>Frases que debo evitar al vender</label><div id="ep-frases_evitar" class="tabla-notas-container"></div></div>
         <div class="field"><label>Sistema de Productos 366 (gancho, upsell, downsell, recurrencia)</label><div id="ep-sistema_productos" class="tabla-notas-container"></div></div>
         <div class="field"><label>Insight estratégico del producto</label><textarea id="ep-insight_estrategico"></textarea></div>
-        <button class="notas-save-btn" onclick="guardarNotasGrupo('evergreen-producto','ep',['que_vendemos','por_que_potencial','oferta_irresistible','pilar_deseo','pilar_confianza','pilar_facilidad','frases_enfatizar','frases_evitar','sistema_productos','insight_estrategico'],'ep-status')">Guardar cambios</button>
+        <button class="notas-save-btn" onclick="guardarNotasGrupo('366-producto','ep',['que_vendemos','por_que_potencial','oferta_irresistible','pilar_deseo','pilar_confianza','pilar_facilidad','frases_enfatizar','frases_evitar','sistema_productos','insight_estrategico'],'ep-status')">Guardar cambios</button>
         <div id="ep-status" class="notas-status"></div>
       </div>
     </details>
@@ -493,7 +493,7 @@
         <div class="field"><label>Oportunidades iniciales</label><div id="es-oportunidades_iniciales" class="tabla-notas-container"></div></div>
         <div class="field"><label>Información faltante o decisiones pendientes</label><textarea id="es-info_faltante"></textarea></div>
         <div class="field"><label>Reglas para el Equipo de Marketing IA</label><textarea id="es-reglas_equipo_ia"></textarea></div>
-        <button class="notas-save-btn" onclick="guardarNotasGrupo('evergreen-sistema','es',['contexto_general','customer_journey','plan_implementacion','secuencia_seguimiento','oportunidades_iniciales','info_faltante','reglas_equipo_ia'],'es-status')">Guardar cambios</button>
+        <button class="notas-save-btn" onclick="guardarNotasGrupo('366-sistema','es',['contexto_general','customer_journey','plan_implementacion','secuencia_seguimiento','oportunidades_iniciales','info_faltante','reglas_equipo_ia'],'es-status')">Guardar cambios</button>
         <div id="es-status" class="notas-status"></div>
       </div>
     </details>
@@ -510,7 +510,7 @@
         <div class="field"><label>Frases para objeciones</label><div id="ec-frases_objeciones" class="tabla-notas-container"></div></div>
         <div class="field"><label>Frases para conectar la oferta al resultado emocional</label><div id="ec-frases_conexion" class="tabla-notas-container"></div></div>
         <div class="field"><label>Ángulos 366</label><div id="ec-angulos_evergreen" class="tabla-notas-container"></div></div>
-        <button class="notas-save-btn" onclick="guardarNotasGrupo('evergreen-comunicacion','ec',['posicionamiento','diferenciador','que_no_es','resultado_entender','por_que_elegirnos','frases_maestras','frases_objeciones','frases_conexion','angulos_evergreen'],'ec-status')">Guardar cambios</button>
+        <button class="notas-save-btn" onclick="guardarNotasGrupo('366-comunicacion','ec',['posicionamiento','diferenciador','que_no_es','resultado_entender','por_que_elegirnos','frases_maestras','frases_objeciones','frases_conexion','angulos_evergreen'],'ec-status')">Guardar cambios</button>
         <div id="ec-status" class="notas-status"></div>
       </div>
     </details>
@@ -798,7 +798,8 @@ let builderBusy = false;
 let builderTokensTotal = 0;
 let builderInputTokensTotal = 0;
 let builderOutputTokensTotal = 0;
-const CONVERSACION_KEY = CLIENTE_ID + ':evergreen-builder-conversacion';
+const CONVERSACION_KEY = CLIENTE_ID + ':366-builder-conversacion';
+const CONVERSACION_KEY_VIEJA = CLIENTE_ID + ':evergreen-builder-conversacion';
 const COSTO_PRECIO_KEY = 'jefeshub:costo-precio-tokens';
 
 function cargarPrecioTokens() {
@@ -999,7 +1000,7 @@ function reiniciarConstructor() {
 }
 
 function continuarConstructor() {
-  window.storage.get(CONVERSACION_KEY).then((r) => {
+  getConMigracion(CONVERSACION_KEY, CONVERSACION_KEY_VIEJA).then((r) => {
     builderMessages = r && r.value ? JSON.parse(r.value) : [];
     document.getElementById('builderStartWrap').style.display = 'none';
     document.getElementById('builderControls').style.display = 'flex';
@@ -1009,7 +1010,7 @@ function continuarConstructor() {
 
 async function cargarConversacionEnProgreso() {
   try {
-    const r = await window.storage.get(CONVERSACION_KEY);
+    const r = await getConMigracion(CONVERSACION_KEY, CONVERSACION_KEY_VIEJA);
     const guardado = r && r.value ? JSON.parse(r.value) : [];
     if (Array.isArray(guardado) && guardado.length > 0) {
       document.getElementById('builderStartWrap').innerHTML = `
@@ -1022,7 +1023,8 @@ async function cargarConversacionEnProgreso() {
 /* ─── REVISIÓN DEL DOCUMENTO MAESTRO (mismo patrón que el chat guiado, pero modo:'documento-maestro') ─── */
 let docMaestroMessages = [];
 let docMaestroBusy = false;
-const DOC_MAESTRO_CONVERSACION_KEY = CLIENTE_ID + ':evergreen-documento-maestro-conversacion';
+const DOC_MAESTRO_CONVERSACION_KEY = CLIENTE_ID + ':366-documento-maestro-conversacion';
+const DOC_MAESTRO_CONVERSACION_KEY_VIEJA = CLIENTE_ID + ':evergreen-documento-maestro-conversacion';
 
 function renderDocMaestroChat() {
   const chat = document.getElementById('docMaestroChat');
@@ -1106,7 +1108,7 @@ function reiniciarDocMaestro() {
 }
 
 function continuarDocMaestro() {
-  window.storage.get(DOC_MAESTRO_CONVERSACION_KEY).then((r) => {
+  getConMigracion(DOC_MAESTRO_CONVERSACION_KEY, DOC_MAESTRO_CONVERSACION_KEY_VIEJA).then((r) => {
     docMaestroMessages = r && r.value ? JSON.parse(r.value) : [];
     document.getElementById('docMaestroStartWrap').style.display = 'none';
     document.getElementById('docMaestroControls').style.display = 'flex';
@@ -1116,7 +1118,7 @@ function continuarDocMaestro() {
 
 async function cargarDocMaestroEnProgreso() {
   try {
-    const r = await window.storage.get(DOC_MAESTRO_CONVERSACION_KEY);
+    const r = await getConMigracion(DOC_MAESTRO_CONVERSACION_KEY, DOC_MAESTRO_CONVERSACION_KEY_VIEJA);
     const guardado = r && r.value ? JSON.parse(r.value) : [];
     if (Array.isArray(guardado) && guardado.length > 0) {
       document.getElementById('docMaestroStartWrap').innerHTML = `
@@ -1127,17 +1129,49 @@ async function cargarDocMaestroEnProgreso() {
 }
 
 /* ─── NOTAS MANUALES — Documento Maestro 366 (mismo patrón que ADN.html: loadObj/saveObj) ─── */
-/* Nota: las llaves de storage (suffix 'evergreen-*') todavía no se renombraron -- eso es un paso
-   aparte con migración de datos, para no arriesgar lo ya guardado por los clientes actuales. */
 function key366(suffix) { return CLIENTE_ID + ':brand-book.' + suffix; }
+
+/* Migración: estas 4 llaves vivían bajo el nombre "evergreen-*" antes del rename a "366-*".
+   Si la llave nueva viene vacía, se lee la vieja y se copia hacia adelante -- mismo patrón que
+   waConvosKeyVieja() en Jefe WhatsApp y Ventas. No se borra la llave vieja, solo se deja de usar. */
+const SUFFIX_MIGRACION_366 = {
+  '366-producto': 'evergreen-producto',
+  '366-perfil-cliente': 'evergreen-perfil-cliente',
+  '366-comunicacion': 'evergreen-comunicacion',
+  '366-sistema': 'evergreen-sistema',
+};
 
 async function load366Grupo(suffix) {
   try {
     const r = await window.storage.get(key366(suffix));
-    return r && r.value ? JSON.parse(r.value) : {};
+    if (r && r.value) return JSON.parse(r.value);
+    const suffixViejo = SUFFIX_MIGRACION_366[suffix];
+    if (suffixViejo) {
+      const rv = await window.storage.get(key366(suffixViejo));
+      if (rv && rv.value) {
+        window.storage.set(key366(suffix), rv.value).catch(() => {});
+        return JSON.parse(rv.value);
+      }
+    }
+    return {};
   } catch (e) {
     return {};
   }
+}
+
+/* Migración genérica para llaves sueltas (no agrupadas por suffix): intenta la llave nueva, y si
+   viene vacía cae a la vieja, copiándola hacia la nueva. Mismo patrón que load366Grupo/arriba. */
+async function getConMigracion(llaveNueva, llaveVieja) {
+  try {
+    const r = await window.storage.get(llaveNueva);
+    if (r && r.value) return r;
+    const rv = await window.storage.get(llaveVieja);
+    if (rv && rv.value) {
+      window.storage.set(llaveNueva, rv.value).catch(() => {});
+      return rv;
+    }
+  } catch (e) {}
+  return null;
 }
 
 async function save366Grupo(suffix, data, statusId) {
@@ -1152,10 +1186,10 @@ async function save366Grupo(suffix, data, statusId) {
 }
 
 const GRUPOS_366 = [
-  { suffix: 'evergreen-perfil-cliente', prefix: 'epc', campos: ['descripcion_breve', 'situacion_compra', 'problema_resuelve', 'emocion_impulsa', 'que_convenceria', 'caracteristicas', 'dolores', 'miedos', 'deseos', 'objeciones', 'frases_reales', 'insight_estrategico'] },
-  { suffix: 'evergreen-producto', prefix: 'ep', campos: ['que_vendemos', 'por_que_potencial', 'oferta_irresistible', 'pilar_deseo', 'pilar_confianza', 'pilar_facilidad', 'frases_enfatizar', 'frases_evitar', 'sistema_productos', 'insight_estrategico'] },
-  { suffix: 'evergreen-sistema', prefix: 'es', campos: ['contexto_general', 'customer_journey', 'plan_implementacion', 'secuencia_seguimiento', 'oportunidades_iniciales', 'info_faltante', 'reglas_equipo_ia'] },
-  { suffix: 'evergreen-comunicacion', prefix: 'ec', campos: ['posicionamiento', 'diferenciador', 'que_no_es', 'resultado_entender', 'por_que_elegirnos', 'frases_maestras', 'frases_objeciones', 'frases_conexion', 'angulos_evergreen'] },
+  { suffix: '366-perfil-cliente', prefix: 'epc', campos: ['descripcion_breve', 'situacion_compra', 'problema_resuelve', 'emocion_impulsa', 'que_convenceria', 'caracteristicas', 'dolores', 'miedos', 'deseos', 'objeciones', 'frases_reales', 'insight_estrategico'] },
+  { suffix: '366-producto', prefix: 'ep', campos: ['que_vendemos', 'por_que_potencial', 'oferta_irresistible', 'pilar_deseo', 'pilar_confianza', 'pilar_facilidad', 'frases_enfatizar', 'frases_evitar', 'sistema_productos', 'insight_estrategico'] },
+  { suffix: '366-sistema', prefix: 'es', campos: ['contexto_general', 'customer_journey', 'plan_implementacion', 'secuencia_seguimiento', 'oportunidades_iniciales', 'info_faltante', 'reglas_equipo_ia'] },
+  { suffix: '366-comunicacion', prefix: 'ec', campos: ['posicionamiento', 'diferenciador', 'que_no_es', 'resultado_entender', 'por_que_elegirnos', 'frases_maestras', 'frases_objeciones', 'frases_conexion', 'angulos_evergreen'] },
 ];
 
 /* ── TABLAS EDITABLES: encabezados fijos + filas que se pueden agregar (pegado a la estructura del documento) ── */
@@ -1389,50 +1423,50 @@ async function cargarNotas366() {
    cada nombre exacto al campo real de Notas donde debe caer. */
 const CAMPO_LOOKUP = {
   // Perfil de Cliente 366
-  'Descripción breve': { suffix: 'evergreen-perfil-cliente', prefix: 'epc', campo: 'descripcion_breve', tipo: 'texto' },
-  'Situación de compra': { suffix: 'evergreen-perfil-cliente', prefix: 'epc', campo: 'situacion_compra', tipo: 'texto' },
-  'Qué problema resuelve': { suffix: 'evergreen-perfil-cliente', prefix: 'epc', campo: 'problema_resuelve', tipo: 'texto' },
-  'Qué emoción lo impulsa': { suffix: 'evergreen-perfil-cliente', prefix: 'epc', campo: 'emocion_impulsa', tipo: 'texto' },
-  'Qué lo convencería': { suffix: 'evergreen-perfil-cliente', prefix: 'epc', campo: 'que_convenceria', tipo: 'texto' },
-  'Características clave': { suffix: 'evergreen-perfil-cliente', prefix: 'epc', campo: 'caracteristicas', tipo: 'tabla', columnas: [{ key: 'caracteristica', label: 'Característica' }, { key: 'importa', label: 'Por qué importa para venderle' }] },
-  'Dolores (visibles y ocultos)': { suffix: 'evergreen-perfil-cliente', prefix: 'epc', campo: 'dolores', tipo: 'tabla', columnas: [{ key: 'visible', label: 'Visible' }, { key: 'oculto', label: 'Oculto' }] },
-  'Miedos': { suffix: 'evergreen-perfil-cliente', prefix: 'epc', campo: 'miedos', tipo: 'tabla', columnas: [{ key: 'miedo', label: 'Miedo' }, { key: 'frena', label: 'Cómo puede frenar la compra' }] },
-  'Deseos (visibles y secretos)': { suffix: 'evergreen-perfil-cliente', prefix: 'epc', campo: 'deseos', tipo: 'tabla', columnas: [{ key: 'visible', label: 'Visible' }, { key: 'secreto', label: 'Secreto' }] },
-  'Objeciones': { suffix: 'evergreen-perfil-cliente', prefix: 'epc', campo: 'objeciones', tipo: 'tabla', columnas: [{ key: 'tipo', label: 'Tipo' }, { key: 'objecion', label: 'Objeción' }, { key: 'porque', label: 'Por qué la tiene' }, { key: 'resuelve', label: 'Cómo podemos resolverla' }] },
-  'Frases reales del cliente': { suffix: 'evergreen-perfil-cliente', prefix: 'epc', campo: 'frases_reales', tipo: 'tabla', columnas: [{ key: 'frase', label: 'Frase real' }, { key: 'revela', label: 'Qué revela' }, { key: 'respuesta', label: 'Respuesta estratégica' }, { key: 'tono', label: 'Tono recomendado' }] },
-  'Insight estratégico del cliente': { suffix: 'evergreen-perfil-cliente', prefix: 'epc', campo: 'insight_estrategico', tipo: 'texto' },
+  'Descripción breve': { suffix: '366-perfil-cliente', prefix: 'epc', campo: 'descripcion_breve', tipo: 'texto' },
+  'Situación de compra': { suffix: '366-perfil-cliente', prefix: 'epc', campo: 'situacion_compra', tipo: 'texto' },
+  'Qué problema resuelve': { suffix: '366-perfil-cliente', prefix: 'epc', campo: 'problema_resuelve', tipo: 'texto' },
+  'Qué emoción lo impulsa': { suffix: '366-perfil-cliente', prefix: 'epc', campo: 'emocion_impulsa', tipo: 'texto' },
+  'Qué lo convencería': { suffix: '366-perfil-cliente', prefix: 'epc', campo: 'que_convenceria', tipo: 'texto' },
+  'Características clave': { suffix: '366-perfil-cliente', prefix: 'epc', campo: 'caracteristicas', tipo: 'tabla', columnas: [{ key: 'caracteristica', label: 'Característica' }, { key: 'importa', label: 'Por qué importa para venderle' }] },
+  'Dolores (visibles y ocultos)': { suffix: '366-perfil-cliente', prefix: 'epc', campo: 'dolores', tipo: 'tabla', columnas: [{ key: 'visible', label: 'Visible' }, { key: 'oculto', label: 'Oculto' }] },
+  'Miedos': { suffix: '366-perfil-cliente', prefix: 'epc', campo: 'miedos', tipo: 'tabla', columnas: [{ key: 'miedo', label: 'Miedo' }, { key: 'frena', label: 'Cómo puede frenar la compra' }] },
+  'Deseos (visibles y secretos)': { suffix: '366-perfil-cliente', prefix: 'epc', campo: 'deseos', tipo: 'tabla', columnas: [{ key: 'visible', label: 'Visible' }, { key: 'secreto', label: 'Secreto' }] },
+  'Objeciones': { suffix: '366-perfil-cliente', prefix: 'epc', campo: 'objeciones', tipo: 'tabla', columnas: [{ key: 'tipo', label: 'Tipo' }, { key: 'objecion', label: 'Objeción' }, { key: 'porque', label: 'Por qué la tiene' }, { key: 'resuelve', label: 'Cómo podemos resolverla' }] },
+  'Frases reales del cliente': { suffix: '366-perfil-cliente', prefix: 'epc', campo: 'frases_reales', tipo: 'tabla', columnas: [{ key: 'frase', label: 'Frase real' }, { key: 'revela', label: 'Qué revela' }, { key: 'respuesta', label: 'Respuesta estratégica' }, { key: 'tono', label: 'Tono recomendado' }] },
+  'Insight estratégico del cliente': { suffix: '366-perfil-cliente', prefix: 'epc', campo: 'insight_estrategico', tipo: 'texto' },
   // Producto 366
-  'Qué vendemos': { suffix: 'evergreen-producto', prefix: 'ep', campo: 'que_vendemos', tipo: 'texto' },
-  'Por qué tiene potencial 366': { suffix: 'evergreen-producto', prefix: 'ep', campo: 'por_que_potencial', tipo: 'texto' },
-  'Oferta Irresistible 366': { suffix: 'evergreen-producto', prefix: 'ep', campo: 'oferta_irresistible', tipo: 'texto' },
-  '🔥 Deseo': { suffix: 'evergreen-producto', prefix: 'ep', campo: 'pilar_deseo', tipo: 'tabla', columnas: [{ key: 'pregunta', label: '¿Qué desea lograr / sentir?' }, { key: 'resolucion', label: '¿Cómo lo resolvemos con nuestra oferta?' }] },
-  '🟢 Confianza': { suffix: 'evergreen-producto', prefix: 'ep', campo: 'pilar_confianza', tipo: 'tabla', columnas: [{ key: 'pregunta', label: '¿Qué duda / miedo tiene?' }, { key: 'resolucion', label: '¿Cómo lo resolvemos dentro de la oferta?' }] },
-  '🔵 Facilidad': { suffix: 'evergreen-producto', prefix: 'ep', campo: 'pilar_facilidad', tipo: 'tabla', columnas: [{ key: 'pregunta', label: '¿Qué frena la compra?' }, { key: 'resolucion', label: '¿Cómo hacemos más fácil que compre hoy?' }] },
-  'Frases que debo enfatizar al vender': { suffix: 'evergreen-producto', prefix: 'ep', campo: 'frases_enfatizar', tipo: 'tabla', columnas: [{ key: 'frase', label: 'Frase real' }, { key: 'revela', label: 'Qué revela' }] },
-  'Frases que debo evitar al vender': { suffix: 'evergreen-producto', prefix: 'ep', campo: 'frases_evitar', tipo: 'tabla', columnas: [{ key: 'frase', label: 'Frase real' }, { key: 'revela', label: 'Qué revela' }] },
-  'Sistema de Productos 366': { suffix: 'evergreen-producto', prefix: 'ep', campo: 'sistema_productos', tipo: 'tabla', columnas: [{ key: 'tipo', label: 'Tipo' }, { key: 'producto', label: 'Producto' }, { key: 'incluye', label: 'Qué incluye' }, { key: 'precio', label: 'Precio' }, { key: 'porque_funciona', label: 'Por qué funciona' }, { key: 'dato_estrategico', label: 'Dato estratégico' }] },
-  'Insight estratégico del producto': { suffix: 'evergreen-producto', prefix: 'ep', campo: 'insight_estrategico', tipo: 'texto' },
+  'Qué vendemos': { suffix: '366-producto', prefix: 'ep', campo: 'que_vendemos', tipo: 'texto' },
+  'Por qué tiene potencial 366': { suffix: '366-producto', prefix: 'ep', campo: 'por_que_potencial', tipo: 'texto' },
+  'Oferta Irresistible 366': { suffix: '366-producto', prefix: 'ep', campo: 'oferta_irresistible', tipo: 'texto' },
+  '🔥 Deseo': { suffix: '366-producto', prefix: 'ep', campo: 'pilar_deseo', tipo: 'tabla', columnas: [{ key: 'pregunta', label: '¿Qué desea lograr / sentir?' }, { key: 'resolucion', label: '¿Cómo lo resolvemos con nuestra oferta?' }] },
+  '🟢 Confianza': { suffix: '366-producto', prefix: 'ep', campo: 'pilar_confianza', tipo: 'tabla', columnas: [{ key: 'pregunta', label: '¿Qué duda / miedo tiene?' }, { key: 'resolucion', label: '¿Cómo lo resolvemos dentro de la oferta?' }] },
+  '🔵 Facilidad': { suffix: '366-producto', prefix: 'ep', campo: 'pilar_facilidad', tipo: 'tabla', columnas: [{ key: 'pregunta', label: '¿Qué frena la compra?' }, { key: 'resolucion', label: '¿Cómo hacemos más fácil que compre hoy?' }] },
+  'Frases que debo enfatizar al vender': { suffix: '366-producto', prefix: 'ep', campo: 'frases_enfatizar', tipo: 'tabla', columnas: [{ key: 'frase', label: 'Frase real' }, { key: 'revela', label: 'Qué revela' }] },
+  'Frases que debo evitar al vender': { suffix: '366-producto', prefix: 'ep', campo: 'frases_evitar', tipo: 'tabla', columnas: [{ key: 'frase', label: 'Frase real' }, { key: 'revela', label: 'Qué revela' }] },
+  'Sistema de Productos 366': { suffix: '366-producto', prefix: 'ep', campo: 'sistema_productos', tipo: 'tabla', columnas: [{ key: 'tipo', label: 'Tipo' }, { key: 'producto', label: 'Producto' }, { key: 'incluye', label: 'Qué incluye' }, { key: 'precio', label: 'Precio' }, { key: 'porque_funciona', label: 'Por qué funciona' }, { key: 'dato_estrategico', label: 'Dato estratégico' }] },
+  'Insight estratégico del producto': { suffix: '366-producto', prefix: 'ep', campo: 'insight_estrategico', tipo: 'texto' },
   // Sistema 366
-  'Contexto general': { suffix: 'evergreen-sistema', prefix: 'es', campo: 'contexto_general', tipo: 'texto' },
-  'Oportunidades iniciales': { suffix: 'evergreen-sistema', prefix: 'es', campo: 'oportunidades_iniciales', tipo: 'tabla', columnas: [{ key: 'oportunidad', label: 'Oportunidad' }, { key: 'como', label: 'Por qué / cómo aprovecharla' }] },
-  'Información faltante o decisiones pendientes': { suffix: 'evergreen-sistema', prefix: 'es', campo: 'info_faltante', tipo: 'texto' },
-  'Reglas para el Equipo de Marketing IA': { suffix: 'evergreen-sistema', prefix: 'es', campo: 'reglas_equipo_ia', tipo: 'texto' },
-  'Plan de Implementación': { suffix: 'evergreen-sistema', prefix: 'es', campo: 'plan_implementacion', tipo: 'tabla', columnas: [{ key: 'plazo', label: 'Plazo' }, { key: 'cuando', label: 'Semana / Mes' }, { key: 'fecha', label: 'Fecha objetivo' }, { key: 'que_se_implementa', label: 'Qué se implementa' }, { key: 'estado', label: 'Estado' }] },
-  'Secuencia de Seguimiento': { suffix: 'evergreen-sistema', prefix: 'es', campo: 'secuencia_seguimiento', tipo: 'tabla', columnas: [{ key: 'mes', label: 'Mes' }, { key: 'titulo', label: 'Título del ciclo' }, { key: 'mensaje', label: 'Mensaje / contenido' }] },
+  'Contexto general': { suffix: '366-sistema', prefix: 'es', campo: 'contexto_general', tipo: 'texto' },
+  'Oportunidades iniciales': { suffix: '366-sistema', prefix: 'es', campo: 'oportunidades_iniciales', tipo: 'tabla', columnas: [{ key: 'oportunidad', label: 'Oportunidad' }, { key: 'como', label: 'Por qué / cómo aprovecharla' }] },
+  'Información faltante o decisiones pendientes': { suffix: '366-sistema', prefix: 'es', campo: 'info_faltante', tipo: 'texto' },
+  'Reglas para el Equipo de Marketing IA': { suffix: '366-sistema', prefix: 'es', campo: 'reglas_equipo_ia', tipo: 'texto' },
+  'Plan de Implementación': { suffix: '366-sistema', prefix: 'es', campo: 'plan_implementacion', tipo: 'tabla', columnas: [{ key: 'plazo', label: 'Plazo' }, { key: 'cuando', label: 'Semana / Mes' }, { key: 'fecha', label: 'Fecha objetivo' }, { key: 'que_se_implementa', label: 'Qué se implementa' }, { key: 'estado', label: 'Estado' }] },
+  'Secuencia de Seguimiento': { suffix: '366-sistema', prefix: 'es', campo: 'secuencia_seguimiento', tipo: 'tabla', columnas: [{ key: 'mes', label: 'Mes' }, { key: 'titulo', label: 'Título del ciclo' }, { key: 'mensaje', label: 'Mensaje / contenido' }] },
   'Tu Sistema 366': {
-    suffix: 'evergreen-sistema', prefix: 'es', campo: 'customer_journey', tipo: 'multi-campo',
+    suffix: '366-sistema', prefix: 'es', campo: 'customer_journey', tipo: 'multi-campo',
     filaClaves: { 'entrada': 'entrada', 'conversión': 'conversion', 'conversion': 'conversion', 'cierre': 'cierre', 'fidelización': 'fidelizacion', 'fidelizacion': 'fidelizacion', 'bola de nieve': 'bola_nieve' },
   },
   // Comunicación 366
-  'Posicionamiento': { suffix: 'evergreen-comunicacion', prefix: 'ec', campo: 'posicionamiento', tipo: 'texto' },
-  'Diferenciador principal': { suffix: 'evergreen-comunicacion', prefix: 'ec', campo: 'diferenciador', tipo: 'texto' },
-  'Qué NO es la oferta': { suffix: 'evergreen-comunicacion', prefix: 'ec', campo: 'que_no_es', tipo: 'texto' },
-  'Resultado que el cliente debe entender': { suffix: 'evergreen-comunicacion', prefix: 'ec', campo: 'resultado_entender', tipo: 'texto' },
-  'Por qué elegirnos': { suffix: 'evergreen-comunicacion', prefix: 'ec', campo: 'por_que_elegirnos', tipo: 'texto' },
-  'Frases maestras': { suffix: 'evergreen-comunicacion', prefix: 'ec', campo: 'frases_maestras', tipo: 'tabla', columnas: [{ key: 'frase', label: 'Frase' }, { key: 'activa', label: 'Qué activa en el cliente' }, { key: 'donde', label: 'Dónde usarla' }] },
-  'Frases para objeciones': { suffix: 'evergreen-comunicacion', prefix: 'ec', campo: 'frases_objeciones', tipo: 'tabla', columnas: [{ key: 'objecion', label: 'Objeción' }, { key: 'frase', label: 'Frase para responderla' }] },
-  'Frases para conectar la oferta al resultado emocional': { suffix: 'evergreen-comunicacion', prefix: 'ec', campo: 'frases_conexion', tipo: 'tabla', columnas: [{ key: 'frase', label: 'Frase' }, { key: 'resultado', label: 'Resultado emocional que busca el cliente' }] },
-  'Ángulos 366': { suffix: 'evergreen-comunicacion', prefix: 'ec', campo: 'angulos_evergreen', tipo: 'tabla', columnaClave: 'angulo', columnas: [{ key: 'angulo', label: 'Ángulo' }, { key: 'accion', label: 'Acción' }, { key: 'emocion', label: 'Qué emoción activa' }, { key: 'conecta', label: 'Cómo conecta con la venta' }, { key: 'ejemplo', label: 'Ejemplo de mensaje' }] },
+  'Posicionamiento': { suffix: '366-comunicacion', prefix: 'ec', campo: 'posicionamiento', tipo: 'texto' },
+  'Diferenciador principal': { suffix: '366-comunicacion', prefix: 'ec', campo: 'diferenciador', tipo: 'texto' },
+  'Qué NO es la oferta': { suffix: '366-comunicacion', prefix: 'ec', campo: 'que_no_es', tipo: 'texto' },
+  'Resultado que el cliente debe entender': { suffix: '366-comunicacion', prefix: 'ec', campo: 'resultado_entender', tipo: 'texto' },
+  'Por qué elegirnos': { suffix: '366-comunicacion', prefix: 'ec', campo: 'por_que_elegirnos', tipo: 'texto' },
+  'Frases maestras': { suffix: '366-comunicacion', prefix: 'ec', campo: 'frases_maestras', tipo: 'tabla', columnas: [{ key: 'frase', label: 'Frase' }, { key: 'activa', label: 'Qué activa en el cliente' }, { key: 'donde', label: 'Dónde usarla' }] },
+  'Frases para objeciones': { suffix: '366-comunicacion', prefix: 'ec', campo: 'frases_objeciones', tipo: 'tabla', columnas: [{ key: 'objecion', label: 'Objeción' }, { key: 'frase', label: 'Frase para responderla' }] },
+  'Frases para conectar la oferta al resultado emocional': { suffix: '366-comunicacion', prefix: 'ec', campo: 'frases_conexion', tipo: 'tabla', columnas: [{ key: 'frase', label: 'Frase' }, { key: 'resultado', label: 'Resultado emocional que busca el cliente' }] },
+  'Ángulos 366': { suffix: '366-comunicacion', prefix: 'ec', campo: 'angulos_evergreen', tipo: 'tabla', columnaClave: 'angulo', columnas: [{ key: 'angulo', label: 'Ángulo' }, { key: 'accion', label: 'Acción' }, { key: 'emocion', label: 'Qué emoción activa' }, { key: 'conecta', label: 'Cómo conecta con la venta' }, { key: 'ejemplo', label: 'Ejemplo de mensaje' }] },
 };
 
 function parsearBloquesGuardar(texto) {
@@ -1582,7 +1616,13 @@ function inicializarVistaDividida() {
   });
   main.appendChild(wrapper);
 
-  if (localStorage.getItem('evergreen-vista-dividida') === '1') {
+  let vistaDivididaGuardada = localStorage.getItem('366-vista-dividida');
+  if (vistaDivididaGuardada == null) {
+    // Migración: esta preferencia vivía bajo el nombre viejo antes del rename a 366.
+    vistaDivididaGuardada = localStorage.getItem('evergreen-vista-dividida');
+    if (vistaDivididaGuardada != null) localStorage.setItem('366-vista-dividida', vistaDivididaGuardada);
+  }
+  if (vistaDivididaGuardada === '1') {
     main.classList.add('split-view');
     document.getElementById('viewToggleBtn').textContent = '☰ Vista normal';
   }
@@ -1591,7 +1631,7 @@ function inicializarVistaDividida() {
 function toggleVistaDividida() {
   const main = document.getElementById('publicidad-content');
   const activo = main.classList.toggle('split-view');
-  localStorage.setItem('evergreen-vista-dividida', activo ? '1' : '0');
+  localStorage.setItem('366-vista-dividida', activo ? '1' : '0');
   document.getElementById('viewToggleBtn').textContent = activo ? '☰ Vista normal' : '🔀 Vista dividida';
 }
 
