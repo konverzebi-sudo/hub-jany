@@ -511,6 +511,7 @@ function renderGenerador(container){
       <div class="mode-field" style="min-width:220px;">
         <label>Imagen del anuncio</label>
         <input type="file" id="analizar-file-input" accept="image/*,video/*">
+        <span class="mode-status">o pega una captura aquí mismo con Ctrl+V</span>
       </div>
       <div class="mode-field" style="min-width:180px;">
         <label>Formato (opcional)</label>
@@ -779,29 +780,54 @@ function videoFileAFotogramaJpegBase64(file, maxLado){
   });
 }
 
+// Procesa un archivo (del <input type=file> o pegado con Ctrl+V) y lo deja listo en el estado --
+// compartido entre las dos formas de subir la pieza. Busca los elementos por id porque cuando se
+// llama desde el paste global el contenedor de origen no se conoce.
+async function procesarArchivoAnalizar(file){
+  const previewImg = document.getElementById('analizar-preview-img');
+  const statusEl = document.getElementById('analizar-status');
+  const btn = document.getElementById('analizar-btn');
+  if(!previewImg || !statusEl || !btn) return; // la caja no está en pantalla ahorita
+  analizarImagenBase64 = ''; analizarNombreArchivo = ''; btn.disabled = true;
+  if(!file) return;
+  statusEl.className='mode-status'; statusEl.textContent='⏳ Procesando archivo...';
+  try{
+    const esVideo = file.type.startsWith('video/');
+    const base64 = esVideo ? await videoFileAFotogramaJpegBase64(file, 1280) : await imagenFileAJpegBase64(file, 1280);
+    analizarImagenBase64 = base64;
+    analizarImagenMediaType = 'image/jpeg';
+    analizarNombreArchivo = file.name || 'imagen-pegada.jpg';
+    previewImg.src = 'data:image/jpeg;base64,' + base64;
+    previewImg.style.display = 'block';
+    statusEl.textContent = esVideo ? '✅ Fotograma extraído del video -- si tienes el guion, pégalo en notas.' : '✅ Imagen lista.';
+    btn.disabled = false;
+  }catch(err){
+    statusEl.className='mode-status error'; statusEl.textContent='No se pudo procesar el archivo.';
+  }
+}
+
+// Pegar con Ctrl+V en cualquier parte de la página cuenta como subir la imagen, mientras la caja
+// de "Analizar un anuncio" esté visible (pestaña Generador) -- se registra UNA sola vez a nivel
+// documento (no en cada render) para no ir apilando listeners.
+function handleGlobalPasteAnalizar(e){
+  const fileInput = document.getElementById('analizar-file-input');
+  if(!fileInput) return; // la caja no está en pantalla ahorita, no interceptar el paste
+  const items = (e.clipboardData && e.clipboardData.items) || [];
+  let imgFile = null;
+  for(const item of items){
+    if(item.kind === 'file' && item.type && item.type.startsWith('image/')){ imgFile = item.getAsFile(); break; }
+  }
+  if(!imgFile) return; // no había imagen en el portapapeles -- deja el paste normal (ej. texto en notas)
+  e.preventDefault();
+  procesarArchivoAnalizar(imgFile);
+}
+document.addEventListener('paste', handleGlobalPasteAnalizar);
+
 function bindAnalizarBox(container){
   const fileInput = container.querySelector('#analizar-file-input');
-  const previewImg = container.querySelector('#analizar-preview-img');
-  const statusEl = container.querySelector('#analizar-status');
   const btn = container.querySelector('#analizar-btn');
-  fileInput.addEventListener('change', async ()=>{
-    const file = fileInput.files && fileInput.files[0];
-    analizarImagenBase64 = ''; analizarNombreArchivo = ''; btn.disabled = true;
-    if(!file) return;
-    statusEl.className='mode-status'; statusEl.textContent='⏳ Procesando archivo...';
-    try{
-      const esVideo = file.type.startsWith('video/');
-      const base64 = esVideo ? await videoFileAFotogramaJpegBase64(file, 1280) : await imagenFileAJpegBase64(file, 1280);
-      analizarImagenBase64 = base64;
-      analizarImagenMediaType = 'image/jpeg';
-      analizarNombreArchivo = file.name;
-      previewImg.src = 'data:image/jpeg;base64,' + base64;
-      previewImg.style.display = 'block';
-      statusEl.textContent = esVideo ? '✅ Fotograma extraído del video -- si tienes el guion, pégalo en notas.' : '✅ Imagen lista.';
-      btn.disabled = false;
-    }catch(err){
-      statusEl.className='mode-status error'; statusEl.textContent='No se pudo procesar el archivo.';
-    }
+  fileInput.addEventListener('change', ()=>{
+    procesarArchivoAnalizar(fileInput.files && fileInput.files[0]);
   });
   btn.addEventListener('click', analizarCreativo);
 }
