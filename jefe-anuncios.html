@@ -318,7 +318,10 @@ async function cargarInicial(){
   try{ const r=await window.storage.get(CLIENTE_ID+':grupos-negocio'); grupos = r&&r.value?JSON.parse(r.value):[]; }catch(e){ grupos=[]; }
   try{ const r=await window.storage.get(CLIENTE_ID+':catalogo-productos'); productos = r&&r.value?JSON.parse(r.value):[]; }catch(e){ productos=[]; }
   try{
-    const r=await window.storage.get(CLIENTE_ID+':brand-book.evergreen-comunicacion');
+    // Migración: esta llave vivía bajo el nombre "evergreen-comunicacion" -- si la nueva viene
+    // vacía, se cae a la vieja (solo lectura, Jefe 366 es quien migra escribiendo hacia adelante).
+    let r=await window.storage.get(CLIENTE_ID+':brand-book.366-comunicacion');
+    if(!r || !r.value) r=await window.storage.get(CLIENTE_ID+':brand-book.evergreen-comunicacion');
     const d = r&&r.value?JSON.parse(r.value):{};
     angulos366 = Array.isArray(d.angulos_evergreen) ? d.angulos_evergreen.filter(f=>f&&f.angulo&&f.angulo.trim()) : [];
   }catch(e){ angulos366=[]; }

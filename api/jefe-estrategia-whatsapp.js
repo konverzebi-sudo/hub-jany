@@ -209,14 +209,23 @@ function formatearValorNota(valor) {
 }
 
 const GRUPOS_366 = [
-  { suffix: 'evergreen-producto', titulo: 'PRODUCTO 366' },
-  { suffix: 'evergreen-perfil-cliente', titulo: 'PERFIL DE CLIENTE 366 (dolores, deseos, miedos, objeciones)' },
-  { suffix: 'evergreen-comunicacion', titulo: 'COMUNICACIÓN 366 (incluye ángulos y frases maestras)' },
-  { suffix: 'evergreen-sistema', titulo: 'SISTEMA 366' },
+  { suffix: '366-producto', suffixViejo: 'evergreen-producto', titulo: 'PRODUCTO 366' },
+  { suffix: '366-perfil-cliente', suffixViejo: 'evergreen-perfil-cliente', titulo: 'PERFIL DE CLIENTE 366 (dolores, deseos, miedos, objeciones)' },
+  { suffix: '366-comunicacion', suffixViejo: 'evergreen-comunicacion', titulo: 'COMUNICACIÓN 366 (incluye ángulos y frases maestras)' },
+  { suffix: '366-sistema', suffixViejo: 'evergreen-sistema', titulo: 'SISTEMA 366' },
 ];
 
+// Migración de storage: estas llaves vivían bajo el nombre "evergreen-*" -- si la nueva viene
+// vacía, se cae a la vieja (solo lectura, el cliente es quien migra escribiendo hacia adelante).
+async function leerJSONConMigracion(clienteId, sufijoNuevo, sufijoViejo) {
+  const nuevo = await leerJSON(`${clienteId}:brand-book.${sufijoNuevo}`).catch(() => null);
+  if (nuevo) return nuevo;
+  return await leerJSON(`${clienteId}:brand-book.${sufijoViejo}`).catch(() => null);
+}
+
 async function formatearConversacion366NoGuardada(clienteId) {
-  const mensajes = await leerJSON(`${clienteId}:evergreen-builder-conversacion`).catch(() => null);
+  const mensajes = (await leerJSON(`${clienteId}:366-builder-conversacion`).catch(() => null))
+    || (await leerJSON(`${clienteId}:evergreen-builder-conversacion`).catch(() => null));
   if (!Array.isArray(mensajes) || mensajes.length === 0) return null;
   const texto = mensajes
     .filter((m) => m && m.role === 'assistant' && typeof m.content === 'string' && m.content.trim())
@@ -246,7 +255,7 @@ async function formatearBancoConversacionesWhatsApp(clienteId) {
 
 async function construirContexto366(clienteId) {
   const datos = await Promise.all(
-    GRUPOS_366.map((g) => leerJSON(`${clienteId}:brand-book.${g.suffix}`).catch(() => null))
+    GRUPOS_366.map((g) => leerJSONConMigracion(clienteId, g.suffix, g.suffixViejo))
   );
   const bloques = GRUPOS_366.map((g, i) => {
     const d = datos[i];

@@ -429,15 +429,23 @@ function builderFormatearValorNota(valor) {
 }
 
 const BUILDER_GRUPOS_NOTAS_366 = [
-  { suffix: 'evergreen-producto', titulo: 'PRODUCTO 366' },
-  { suffix: 'evergreen-perfil-cliente', titulo: 'PERFIL DE CLIENTE 366' },
-  { suffix: 'evergreen-comunicacion', titulo: 'COMUNICACIÓN 366' },
-  { suffix: 'evergreen-sistema', titulo: 'SISTEMA 366' },
+  { suffix: '366-producto', suffixViejo: 'evergreen-producto', titulo: 'PRODUCTO 366' },
+  { suffix: '366-perfil-cliente', suffixViejo: 'evergreen-perfil-cliente', titulo: 'PERFIL DE CLIENTE 366' },
+  { suffix: '366-comunicacion', suffixViejo: 'evergreen-comunicacion', titulo: 'COMUNICACIÓN 366' },
+  { suffix: '366-sistema', suffixViejo: 'evergreen-sistema', titulo: 'SISTEMA 366' },
 ];
+
+// Migración de storage: estas llaves vivían bajo el nombre "evergreen-*" -- si la nueva viene
+// vacía, se cae a la vieja (solo lectura, el cliente es quien migra escribiendo hacia adelante).
+async function leerJSONConMigracion(clienteId, sufijoNuevo, sufijoViejo) {
+  const nuevo = await leerJSON(`${clienteId}:brand-book.${sufijoNuevo}`).catch(() => null);
+  if (nuevo) return nuevo;
+  return await leerJSON(`${clienteId}:brand-book.${sufijoViejo}`).catch(() => null);
+}
 
 async function builderFormatearNotasGuardadas(clienteId) {
   const datos = await Promise.all(
-    BUILDER_GRUPOS_NOTAS_366.map((g) => leerJSON(`${clienteId}:brand-book.${g.suffix}`).catch(() => null))
+    BUILDER_GRUPOS_NOTAS_366.map((g) => leerJSONConMigracion(clienteId, g.suffix, g.suffixViejo))
   );
   const bloques = BUILDER_GRUPOS_NOTAS_366.map((g, i) => {
     const d = datos[i];
@@ -454,9 +462,9 @@ async function builderFormatearNotasGuardadas(clienteId) {
   }).filter(Boolean);
 
   if (bloques.length === 0) {
-    return 'NOTAS EVERGREEN YA GUARDADAS: todavía no hay nada guardado en ninguno de los 4 grupos de Notas.';
+    return 'NOTAS 366 YA GUARDADAS: todavía no hay nada guardado en ninguno de los 4 grupos de Notas.';
   }
-  return 'NOTAS EVERGREEN YA GUARDADAS (esto es lo real, guardado por el usuario -- tu revisión se basa en esto, no en esta conversación):\n\n' + truncar(bloques.join('\n\n'), BUILDER_NOTAS_CHAR_LIMIT);
+  return 'NOTAS 366 YA GUARDADAS (esto es lo real, guardado por el usuario -- tu revisión se basa en esto, no en esta conversación):\n\n' + truncar(bloques.join('\n\n'), BUILDER_NOTAS_CHAR_LIMIT);
 }
 
 async function manejarChatGuiado(req, res) {
@@ -570,14 +578,14 @@ function temporadaFormatearProducto(camp) {
 }
 
 // Solo lo usa el módulo "perfil-cliente" -- ahí el prompt pide explícitamente no recrear al
-// cliente recurrente desde cero, así que se le manda el Perfil de Cliente Evergreen ya guardado.
+// cliente recurrente desde cero, así que se le manda el Perfil de Cliente 366 ya guardado.
 async function temporadaFormatearClienteRecurrente(clienteId) {
-  const d = await leerJSON(`${clienteId}:brand-book.evergreen-perfil-cliente`).catch(() => null);
-  if (!d) return 'CLIENTE RECURRENTE (Perfil de Cliente Evergreen): todavía no está guardado -- pregúntale al usuario lo mínimo indispensable antes de seguir.';
+  const d = await leerJSONConMigracion(clienteId, '366-perfil-cliente', 'evergreen-perfil-cliente');
+  if (!d) return 'CLIENTE RECURRENTE (Perfil de Cliente 366): todavía no está guardado -- pregúntale al usuario lo mínimo indispensable antes de seguir.';
   const campos = { descripcion_breve: 'Descripción breve', situacion_compra: 'Situación de compra', problema_resuelve: 'Qué problema resuelve', emocion_impulsa: 'Qué emoción lo impulsa', que_convenceria: 'Qué lo convencería' };
   const lineas = Object.keys(campos).map((k) => (d[k] ? `${campos[k]}: ${d[k]}` : null)).filter(Boolean);
-  if (lineas.length === 0) return 'CLIENTE RECURRENTE (Perfil de Cliente Evergreen): todavía no está guardado -- pregúntale al usuario lo mínimo indispensable antes de seguir.';
-  return 'CLIENTE RECURRENTE (Perfil de Cliente Evergreen ya construido -- nunca lo recrees desde cero):\n' + lineas.join('\n');
+  if (lineas.length === 0) return 'CLIENTE RECURRENTE (Perfil de Cliente 366): todavía no está guardado -- pregúntale al usuario lo mínimo indispensable antes de seguir.';
+  return 'CLIENTE RECURRENTE (Perfil de Cliente 366 ya construido -- nunca lo recrees desde cero):\n' + lineas.join('\n');
 }
 
 function temporadaFormatearCampana(camp) {

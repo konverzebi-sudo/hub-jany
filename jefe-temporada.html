@@ -310,7 +310,13 @@ function mkCampana(){
 async function cargarInicial(){
   try{ const r=await window.storage.get(TEMPORADA_KEY); campanas = r&&r.value?JSON.parse(r.value):[]; }catch(e){ campanas=[]; }
   try{ const r=await window.storage.get(CLIENTE_ID+':catalogo-productos'); catalogoProductos = r&&r.value?JSON.parse(r.value):[]; }catch(e){ catalogoProductos=[]; }
-  try{ const r=await window.storage.get(CLIENTE_ID+':brand-book.evergreen-perfil-cliente'); perfilCliente366 = r&&r.value?JSON.parse(r.value):{}; }catch(e){ perfilCliente366={}; }
+  try{
+    // Migración: esta llave vivía bajo el nombre "evergreen-perfil-cliente" -- si la nueva viene
+    // vacía, se cae a la vieja (solo lectura, Jefe 366 es quien migra escribiendo hacia adelante).
+    let r=await window.storage.get(CLIENTE_ID+':brand-book.366-perfil-cliente');
+    if(!r || !r.value) r=await window.storage.get(CLIENTE_ID+':brand-book.evergreen-perfil-cliente');
+    perfilCliente366 = r&&r.value?JSON.parse(r.value):{};
+  }catch(e){ perfilCliente366={}; }
   campanasLoaded = true;
   if(campanas.length) campanaActivaId = campanas[0].id;
   ['campana-select','btn-duplicar','btn-eliminar','btn-nueva'].forEach(id=>{ document.getElementById(id).disabled=false; });
