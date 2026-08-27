@@ -2,7 +2,7 @@
 // La ANTHROPIC_API_KEY vive solo aquí (variable de entorno de Vercel), nunca en el cliente.
 // El prompt fijo es una plantilla generica compartida por las 3 marcas -- lo unico que cambia
 // por cliente es el CONTEXTO DEL NEGOCIO, cargado en tiempo real desde su propio ADN (mismo
-// patron que api/consultor-evergreen.js). No hay datos de negocio hardcoded aqui.
+// patron que api/consultor-366.js). No hay datos de negocio hardcoded aqui.
 
 const fs = require('fs');
 const path = require('path');

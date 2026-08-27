@@ -1,7 +1,7 @@
 // Endpoint server-side del Jefe 366 -- consolida en UN solo archivo (por el límite de 12
 // Serverless Functions del plan Hobby de Vercel) los 2 endpoints que antes vivían separados:
-// - api/consultor-evergreen.js         ("agente vivo", pregunta suelta sin memoria: body.mensaje)
-// - api/consultor-evergreen-builder.js (chat guiado multi-turno: body.messages -- ya fusionado
+// - api/consultor-366.js         ("agente vivo", pregunta suelta sin memoria: body.mensaje)
+// - api/consultor-366.js (chat guiado multi-turno: body.messages -- ya fusionado
 //   aquí mismo, ese archivo ya no existe)
 // Se distinguen por la FORMA del body (ya eran distintas entre sí, así que no hace falta un campo
 // nuevo de "modo"): si viene `messages` es el chat guiado (builder); si viene `mensaje` es la
@@ -84,10 +84,10 @@ async function llamarClaude(system, body) {
 }
 
 // =============================================================================================
-// RAMA "preguntas" (original api/consultor-evergreen.js) -- pregunta suelta, sin memoria.
+// RAMA "preguntas" (original api/consultor-366.js) -- pregunta suelta, sin memoria.
 // =============================================================================================
 
-const PREGUNTAS_PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-consultor-evergreen-preguntas.md');
+const PREGUNTAS_PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-consultor-366-preguntas.md');
 const PREGUNTAS_CONTEXT_CHAR_LIMIT = 6000;
 
 let preguntasPromptCache = null;
@@ -203,11 +203,11 @@ async function manejarPreguntaSuelta(req, res) {
 }
 
 // =============================================================================================
-// RAMA "builder" (original api/consultor-evergreen.js) -- chat guiado multi-turno.
+// RAMA "builder" (original api/consultor-366.js) -- chat guiado multi-turno.
 // =============================================================================================
 
 const BUILDER_PROMPTS_POR_MODO = {
-  normal: path.join(__dirname, '..', 'prompts', 'system-prompt-constructor-oferta-evergreen.md'),
+  normal: path.join(__dirname, '..', 'prompts', 'system-prompt-constructor-oferta-366.md'),
   'documento-maestro': path.join(__dirname, '..', 'prompts', 'system-prompt-documento-maestro.md'),
 };
 

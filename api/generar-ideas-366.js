@@ -8,7 +8,7 @@ const path = require('path');
 const { sql } = require('@vercel/postgres');
 
 const DEFAULT_CLIENTE = 'jefeshub';
-const PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-ideas-contenido-evergreen.md');
+const PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-ideas-contenido-366.md');
 const CONTEXT_CHAR_LIMIT = 10000;
 
 let fixedPromptCache = null;
@@ -81,7 +81,7 @@ function truncar(str, limite) {
   return str.length > limite ? str.slice(0, limite) + '\n[...recortado...]' : str;
 }
 
-// ---------- formateo del CONTEXTO DEL NEGOCIO (mismo patron que api/consultor-evergreen.js) ----------
+// ---------- formateo del CONTEXTO DEL NEGOCIO (mismo patron que api/consultor-366.js) ----------
 
 function formatearIdentidad(d) {
   if (!d) return null;
@@ -318,7 +318,7 @@ module.exports = async function handler(req, res) {
         model: 'claude-sonnet-4-6',
         max_tokens: tipo === 'todos' ? 8000 : 2500,
         system,
-        messages: [{ role: 'user', content: 'Genera las ideas de contenido evergreen pedidas, en el formato JSON indicado. Sé breve por campo -- son ideas de referencia, no el guion final.' }],
+        messages: [{ role: 'user', content: 'Genera las ideas de contenido 366 pedidas, en el formato JSON indicado. Sé breve por campo -- son ideas de referencia, no el guion final.' }],
       }),
     });
 
@@ -338,7 +338,7 @@ module.exports = async function handler(req, res) {
       resultado[cat] = Array.isArray(parsed[cat]) ? parsed[cat] : [];
     });
 
-    await registrarUsoTokens(clienteId, 'generar-ideas-evergreen', data.usage);
+    await registrarUsoTokens(clienteId, 'generar-ideas-366', data.usage);
     return res.status(200).json({ ideas: resultado, usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 } });
   } catch (err) {
     return res.status(500).json({ error: 'Error de conexión con el Agente.' });
