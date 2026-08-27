@@ -1,7 +1,7 @@
 // Endpoint server-side para "Generar Estrategia de WhatsApp" del Jefe WhatsApp y Ventas — multi-tenant.
 // La ANTHROPIC_API_KEY vive solo aquí. Arranca automáticamente con el ADN completo del negocio
 // (identidad, tono, catálogo, audiencia) + el Jefe 366 (Comunicación, Sistema 366,
-// ángulos, frases) -- mismo patrón que api/jefe-conversion.js y api/generar-ideas-evergreen.js.
+// ángulos, frases) -- mismo patrón que api/jefe-conversion.js y api/generar-ideas-366.js.
 // Si falta información clave, devuelve hasta 3 preguntas de confirmación en vez de generar a ciegas
 // (una sola vuelta: el cliente reenvía las respuestas en `qa` y ya no se vuelve a preguntar).
 
@@ -188,7 +188,7 @@ async function construirContextoNegocio(clienteId) {
 }
 
 // ---------- formateo del CONTEXTO 366 (Comunicación + Sistema -- incluye ángulos y frases) ----------
-// Mismo formateo genérico que api/consultor-evergreen.js (formatearNotasGuardadas): no le hace
+// Mismo formateo genérico que api/consultor-366.js (formatearNotasGuardadas): no le hace
 // falta conocer la forma exacta de cada campo (texto, tabla, objeto), lo aplana de forma legible.
 
 function formatearValorNota(valor) {

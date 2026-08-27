@@ -1,5 +1,5 @@
 // Endpoint server-side para el "agente vivo" del Jefe Finanzas — chat CON memoria (recibe el
-// historial completo en `messages`, mismo patron que api/consultor-evergreen.js, porque
+// historial completo en `messages`, mismo patron que api/consultor-366.js, porque
 // la Messages API no guarda estado en servidor). Ademas del ADN, cada llamada manda un bloque de
 // contexto extra: los datos que el usuario ya tiene llenados en las 5 calculadoras de
 // consultor-financiero.html (`datosCalculadora`), recalculado en vivo en cada turno.
@@ -13,7 +13,7 @@
 //
 // FUSION con el Jefe de Producción de Video (por el límite de 12 Serverless Functions del
 // plan Hobby de Vercel, ya estábamos en 12/12 -- ver commit "Consolida endpoints..."). A
-// diferencia de la fusión de api/consultor-evergreen.js (que se distingue por la FORMA del
+// diferencia de la fusión de api/consultor-366.js (que se distingue por la FORMA del
 // body), aquí ambos agentes reciben `messages`, así que se distinguen por un campo explícito
 // `agente` en el body: ausente o 'financiero' => Jefe Finanzas (rama original, sin tocar);
 // 'diseno' => Jefe de Producción de Video (rama nueva, prompt y contexto propios, ver
