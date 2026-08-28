@@ -139,6 +139,25 @@ function formatearCatalogo(items, grupos, grupoId) {
   return 'CATÁLOGO DE PRODUCTOS' + (grupoId && nombrePorGrupo[grupoId] ? ` (grupo: ${nombrePorGrupo[grupoId]})` : '') + ':\n' + lineas.join('\n');
 }
 
+// Mismos datos que guarda ADN > Redes (brand-book.redes): número/link de WhatsApp ya armado con
+// wa.me y handles de redes sociales ya convertidos a link. Se usan tal cual en los CTA -- nunca se
+// inventa un número o URL si esto viene vacío.
+function formatearRedes(redes) {
+  if (!redes || typeof redes !== 'object') return null;
+  const lineas = [];
+  const wa = redes.whatsapp;
+  if (wa && wa.numero) {
+    lineas.push(`WhatsApp: ${wa.link || ('https://wa.me/' + wa.numero.toString().replace(/[^\d+]/g, ''))}`);
+  }
+  const CANALES = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube', linkedin: 'LinkedIn' };
+  Object.entries(CANALES).forEach(([key, label]) => {
+    const canal = redes[key];
+    if (canal && canal.link) lineas.push(`${label}: ${canal.link}`);
+  });
+  if (lineas.length === 0) return null;
+  return 'CONTACTO Y REDES (links reales -- úsalos tal cual en CTAs como "mándame mensaje", nunca inventes un link o número si no aparece aquí):\n' + lineas.map((l) => '  ' + l).join('\n');
+}
+
 function formatearTabla(filas, columnas, titulo) {
   if (!Array.isArray(filas) || filas.length === 0) return null;
   const utiles = filas.filter((f) => f && Object.values(f).some((v) => (v || '').toString().trim()));
@@ -238,7 +257,7 @@ async function leerComunicacion366(clienteId) {
 }
 
 async function construirContexto(clienteId, grupoId) {
-  const [identidad, tono, audiencia, catalogo, grupos, comunicacion, radarHistorial, conversacionReciente, bancoConversaciones] = await Promise.all([
+  const [identidad, tono, audiencia, catalogo, grupos, comunicacion, radarHistorial, conversacionReciente, bancoConversaciones, redes] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.audiencia`).catch(() => null),
@@ -248,6 +267,7 @@ async function construirContexto(clienteId, grupoId) {
     leerJSON(`${clienteId}:radar-historial`).catch(() => null),
     formatearConversacion366NoGuardada(clienteId).catch(() => null),
     formatearBancoConversacionesWhatsApp(clienteId).catch(() => null),
+    leerJSON(`${clienteId}:brand-book.redes`).catch(() => null),
   ]);
 
   const bloquesNegocio = [
@@ -255,6 +275,7 @@ async function construirContexto(clienteId, grupoId) {
     formatearTono(tono),
     formatearAudiencias(audiencia),
     formatearCatalogo(catalogo, grupos, grupoId),
+    formatearRedes(redes),
   ].filter(Boolean);
 
   const bloque366 = formatearComunicacion366(comunicacion);
@@ -342,8 +363,17 @@ async function llamarClaude({ system, mensaje, maxTokens, conBusqueda }) {
 
 const PREGUNTA_MAX_MESSAGES = 40;
 
-async function llamarClaudeTexto({ system, mensaje, messages, maxTokens }) {
+async function llamarClaudeTexto({ system, mensaje, messages, maxTokens, conBusqueda }) {
   const msgs = Array.isArray(messages) && messages.length ? messages : [{ role: 'user', content: mensaje }];
+  const requestBody = {
+    model: 'claude-sonnet-4-6',
+    max_tokens: maxTokens,
+    system,
+    messages: msgs,
+  };
+  if (conBusqueda) {
+    requestBody.tools = [{ type: 'web_search_20260209', name: 'web_search', max_uses: 3 }];
+  }
   const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -351,12 +381,7 @@ async function llamarClaudeTexto({ system, mensaje, messages, maxTokens }) {
       'x-api-key': process.env.ANTHROPIC_API_KEY,
       'anthropic-version': '2023-06-01',
     },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
-      max_tokens: maxTokens,
-      system,
-      messages: msgs,
-    }),
+    body: JSON.stringify(requestBody),
   });
   const data = await anthropicRes.json();
   if (!anthropicRes.ok) {
@@ -426,7 +451,7 @@ module.exports = async function handler(req, res) {
       const { contexto } = await construirContexto(clienteId, grupoId);
       const system = promptPreguntas + '\n\n' + contexto;
 
-      const { texto, usage } = await llamarClaudeTexto({ system, messages: historial, maxTokens: 800 });
+      const { texto, usage } = await llamarClaudeTexto({ system, messages: historial, maxTokens: 1100, conBusqueda: true });
       if (!texto) {
         return res.status(502).json({ error: 'El Agente no devolvió respuesta. Intenta de nuevo.' });
       }
