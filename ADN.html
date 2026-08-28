@@ -561,11 +561,8 @@ Al terminar, dame cada respuesta con su etiqueta en el mismo orden para copiar y
        5. AUDIENCIA Y CLIENTE IDEAL
   ══════════════════════════════════════════════ -->
   <section class="tab-panel" id="panel-audiencia">
-    <div class="panel-head"><h2>Audiencia y Cliente Ideal</h2><div class="panel-desc">Describe a quién le vendes. Puedes tener hasta 3 audiencias diferentes.</div></div>
-    <div class="aud-tabs" id="aud-tabs-nav"></div>
+    <div class="panel-head"><h2>Audiencia y Cliente Ideal</h2><div class="panel-desc">Estos perfiles se editan solo en <strong>Jefe 366</strong> — aquí se muestran de solo lectura, como referencia rápida.</div></div>
     <div id="aud-panels-container"></div>
-    <button class="ask-btn" onclick="saveAudiencias()">Guardar cambios</button>
-    <div id="audiencia-status" class="log-status"></div>
 
     <div class="ai-prompt-wrap">
       <button type="button" class="ai-prompt-toggle" onclick="toggleAIPrompt('audiencia')">🤖 Prompt de IA — lléname esta sección con ayuda de ChatGPT o Claude</button>
@@ -1381,145 +1378,34 @@ function saveRedes(){
 // ══════════════════════════════════════════════════════════════
 // 5. AUDIENCIA Y CLIENTE IDEAL (hasta 3 audiencias)
 // ══════════════════════════════════════════════════════════════
-const AUD_TEMPLATE = () => ({
-  nombre:'',
-  ocupacion:'',
-  miedo_deseo:'',
-  edad:'',
-  ubicacion:'',
-  como_ayuda:'',
-  quien_compra:'',
-  que_busca:'',
-  objecion_comun:'',
-  por_que_si:'',
-  por_que_no:'',
-  dudas:'',
-  preguntas:'',
-  frases:'',
-  activa: false,
-});
-
 let audienciasState = [];
-let activeAud = 0;
 
-function renderAudTabs(){
-  const nav = document.getElementById('aud-tabs-nav');
-  nav.innerHTML = '';
-  audienciasState.forEach((aud, i) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'aud-tab-btn' + (i===activeAud?' active':'');
-    btn.textContent = aud.nombre || ('Audiencia ' + (i+1));
-    btn.addEventListener('click', () => { activeAud = i; renderAudTabs(); renderAudPanels(); });
-    nav.appendChild(btn);
-  });
-  if(audienciasState.length < 3){
-    const addBtn = document.createElement('button');
-    addBtn.type = 'button';
-    addBtn.className = 'aud-tab-btn add-aud';
-    addBtn.textContent = '+ Agregar audiencia';
-    addBtn.addEventListener('click', () => {
-      const nueva = AUD_TEMPLATE();
-      nueva.activa = true;
-      nueva.nombre = 'Audiencia ' + (audienciasState.length + 1);
-      audienciasState.push(nueva);
-      activeAud = audienciasState.length - 1;
-      renderAudTabs();
-      renderAudPanels();
-    });
-    nav.appendChild(addBtn);
-  }
+function jefe366Href(){
+  const base = location.pathname.includes('rancho-seco') ? '/rancho-seco' : location.pathname.includes('rim') ? '/rim' : location.pathname.includes('optica-one') ? '/optica-one' : '';
+  return base + '/consultor-366';
 }
 
-function renderAudPanels(){
+/* Solo lectura: estos perfiles se editan en Jefe 366 (misma llave "brand-book.audiencias"),
+   aquí solo se muestran como referencia rápida para no duplicar la superficie de edición. */
+function renderAudienciasReadOnly(){
   const container = document.getElementById('aud-panels-container');
-  container.innerHTML = '';
-  audienciasState.forEach((aud, i) => {
-    const panel = document.createElement('div');
-    panel.className = 'aud-panel' + (i===activeAud?' active':'');
-    panel.innerHTML = `
-      <div class="card" style="margin-bottom:14px;">
-        <div class="field"><label>Nombre de esta audiencia (opcional)</label>
-          <input type="text" class="aud-nombre" data-i="${i}" value="${escapeHtml(aud.nombre)}" placeholder="Ej. Mamás de 30-40, Dueños de PyME...">
-        </div>
-        <div class="field"><label>¿A qué se dedica tu cliente?</label>
-          <input type="text" class="aud-f" data-f="ocupacion" data-i="${i}" value="${escapeHtml(aud.ocupacion)}" placeholder="Ej. Mamá de 30-40 años que trabaja medio tiempo">
-        </div>
-        <div class="field"><label>¿Qué miedo o deseo cubre lo que ofreces?</label>
-          <textarea class="aud-f" data-f="miedo_deseo" data-i="${i}" placeholder="Ej. Miedo a no verse bien en eventos. Desea verse joven y cuidada sin gastar horas.">${escapeHtml(aud.miedo_deseo)}</textarea>
-        </div>
-        <div class="field-row">
-          <div class="field"><label>Rango de edad</label>
-            <input type="text" class="aud-f" data-f="edad" data-i="${i}" value="${escapeHtml(aud.edad)}" placeholder="Ej. 28-45 años">
-          </div>
-          <div class="field"><label>Ubicación (ciudad, estado, país)</label>
-            <input type="text" class="aud-f" data-f="ubicacion" data-i="${i}" value="${escapeHtml(aud.ubicacion)}" placeholder="Ej. Monterrey, NL, México">
-          </div>
-        </div>
-        <div class="field"><label>¿Cómo le ayuda tu producto o servicio?</label>
-          <textarea class="aud-f" data-f="como_ayuda" data-i="${i}" placeholder="Ej. Les ahorra tiempo al tener todo listo en un solo lugar...">${escapeHtml(aud.como_ayuda)}</textarea>
-        </div>
+  if(!container) return;
+  const href = jefe366Href();
+  if(!audienciasState.length){
+    container.innerHTML = `<div class="card" style="padding:20px;color:var(--text-dim);font-size:13.5px;line-height:1.5;">Aún no hay perfiles guardados. Se crean y editan en <a href="${href}" style="color:var(--accent);" onclick="return warnBeforeLeave()">Jefe 366 → Perfil de Cliente</a>.</div>`;
+    return;
+  }
+  container.innerHTML = audienciasState.map((aud, i) => `
+    <div class="card" style="margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
+        <div style="font-weight:700;font-size:14.5px;">${escapeHtml(aud.nombre || ('Perfil ' + (i+1)))}</div>
+        <span style="font-size:11px;color:var(--text-dim);white-space:nowrap;">#${i+1} en prioridad de compra</span>
       </div>
-      <div class="card">
-        <div class="subhead">Perfil de compra y objeciones</div>
-        <div class="field"><label>¿Quién compra hoy?</label>
-          <textarea class="aud-f" data-f="quien_compra" data-i="${i}" placeholder="Describe quién es el que realmente saca la tarjeta...">${escapeHtml(aud.quien_compra)}</textarea>
-        </div>
-        <div class="field"><label>¿Qué busca / qué quiere lograr?</label>
-          <textarea class="aud-f" data-f="que_busca" data-i="${i}">${escapeHtml(aud.que_busca)}</textarea>
-        </div>
-        <div class="field"><label>Objeción más común</label>
-          <textarea class="aud-f" data-f="objecion_comun" data-i="${i}" placeholder="Ej. &quot;Está muy caro&quot;, &quot;Déjame pensarlo&quot;...">${escapeHtml(aud.objecion_comun)}</textarea>
-        </div>
-        <div class="field-row">
-          <div class="field"><label>¿Por qué SÍ compran?</label>
-            <textarea class="aud-f" data-f="por_que_si" data-i="${i}">${escapeHtml(aud.por_que_si)}</textarea>
-          </div>
-          <div class="field"><label>¿Por qué NO compran?</label>
-            <textarea class="aud-f" data-f="por_que_no" data-i="${i}">${escapeHtml(aud.por_que_no)}</textarea>
-          </div>
-        </div>
-        <div class="field">
-          <label>Dudas frecuentes (mínimo 5 — una por línea)</label>
-          <textarea class="aud-f" data-f="dudas" data-i="${i}" style="min-height:110px;" placeholder="¿Cuánto tarda?&#10;¿Tienen garantía?&#10;¿Cómo funciona?&#10;¿Hacen envíos?&#10;¿Cuál es el método de pago?">${escapeHtml(aud.dudas)}</textarea>
-        </div>
-        <div class="field">
-          <label>Preguntas frecuentes (FAQ) <span style="font-size:10px;color:var(--text-dim);font-weight:400;text-transform:none;letter-spacing:0;">— se llena automáticamente desde el Analizador de WhatsApp</span></label>
-          ${aud.preguntas
-            ? `<textarea disabled style="min-height:80px;opacity:0.75;background:var(--surface);color:var(--text-dim);cursor:not-allowed;">${escapeHtml(aud.preguntas)}</textarea>`
-            : `<div style="background:var(--surface-2);border:1px dashed var(--line);border-radius:10px;padding:12px 14px;font-size:13px;color:var(--text-dim);line-height:1.5;">
-                Aún no hay FAQs. Usa el <a href="${location.pathname.includes('rancho-seco')?'/rancho-seco':location.pathname.includes('rim')?'/rim':location.pathname.includes('optica-one')?'/optica-one':''}/consultor-whatsapp" style="color:var(--accent);" onclick="return warnBeforeLeave()">Agente de WhatsApp</a> para analizar tus conversaciones y detectar las preguntas más frecuentes.<br><span style="font-size:11px;">⚠️ Guarda los cambios antes de salir.</span>
-              </div>`}
-        </div>
-        <div class="field">
-          <label>Frases reales de clientes (una por línea)</label>
-          <textarea class="aud-f" data-f="frases" data-i="${i}" style="min-height:80px;" placeholder="Cosas que dicen literalmente al escribirte, en comentarios, o en reseñas...">${escapeHtml(aud.frases)}</textarea>
-        </div>
-        ${audienciasState.length > 1 ? `<button type="button" onclick="eliminarAudiencia(${i})" style="background:transparent;border:1px solid #EF4444;color:#EF4444;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:12px;">Eliminar esta audiencia</button>` : ''}
-      </div>
-    `;
-    container.appendChild(panel);
-  });
-
-  // Listeners
-  container.querySelectorAll('.aud-nombre').forEach(el => {
-    el.addEventListener('input', () => {
-      audienciasState[parseInt(el.dataset.i,10)].nombre = el.value;
-      renderAudTabs();
-    });
-  });
-  container.querySelectorAll('.aud-f').forEach(el => {
-    el.addEventListener('input', () => {
-      audienciasState[parseInt(el.dataset.i,10)][el.dataset.f] = el.value;
-    });
-  });
-}
-
-function eliminarAudiencia(i){
-  audienciasState.splice(i,1);
-  if(activeAud >= audienciasState.length) activeAud = audienciasState.length - 1;
-  renderAudTabs();
-  renderAudPanels();
+      ${aud.producto_relacionado ? `<div style="font-size:12px;color:var(--text-dim);margin-top:4px;">Compra probable: ${escapeHtml(aud.producto_relacionado)}</div>` : ''}
+      ${(aud.ocupacion || aud.quien_compra) ? `<p style="font-size:13px;color:var(--text-dim);margin:10px 0 0;line-height:1.5;">${[aud.ocupacion, aud.quien_compra].filter(Boolean).map(escapeHtml).join(' — ')}</p>` : ''}
+      ${aud.miedo_deseo ? `<p style="font-size:13px;color:var(--text-dim);margin:6px 0 0;line-height:1.5;">${escapeHtml(aud.miedo_deseo)}</p>` : ''}
+    </div>
+  `).join('') + `<a href="${href}" class="ask-btn" style="display:inline-block;text-decoration:none;" onclick="return warnBeforeLeave()">Editar en Jefe 366 →</a>`;
 }
 
 async function loadAudiencias(){
@@ -1528,21 +1414,12 @@ async function loadAudiencias(){
   if(Array.isArray(data.lista) && data.lista.length > 0){
     audienciasState = data.lista;
   } else {
-    // Migración: carga el formato antiguo como audiencia 1
+    // Migración: carga el formato antiguo como audiencia 1 (solo lectura, no se re-guarda aquí
+    // -- Jefe 366 es quien hace la migración con permiso de escritura al cargar sus perfiles).
     const old = await loadObj('audiencia');
-    const primera = AUD_TEMPLATE();
-    primera.activa = true;
-    primera.nombre = 'Audiencia Principal';
-    if(old.descripcion_clientes) primera.quien_compra = old.descripcion_clientes;
-    audienciasState = [primera];
+    audienciasState = old.descripcion_clientes ? [{ nombre: 'Perfil Principal', quien_compra: old.descripcion_clientes }] : [];
   }
-  activeAud = 0;
-  renderAudTabs();
-  renderAudPanels();
-}
-
-function saveAudiencias(){
-  saveObj('audiencias', { lista: audienciasState }, 'audiencia-status');
+  renderAudienciasReadOnly();
 }
 
 

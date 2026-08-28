@@ -103,18 +103,51 @@ function formatearTono(d) {
   return 'TONO DE MARCA:\n' + lineas.join('\n');
 }
 
+// Perfiles de cliente: misma llave que usa Jefe 366 para su "Perfil de Cliente" en pestañas
+// (brand-book.audiencias, {lista:[...]}) -- una sola fuente de verdad, se edita solo en Jefe 366,
+// el ADN la muestra de solo lectura. El orden de la lista es la prioridad de compra.
+async function leerAudiencias(clienteId) {
+  const nuevo = await leerJSON(`${clienteId}:brand-book.audiencias`).catch(() => null);
+  if (nuevo && Array.isArray(nuevo.lista) && nuevo.lista.length) return nuevo.lista;
+  const viejo = await leerJSON(`${clienteId}:brand-book.audiencia`).catch(() => null);
+  if (Array.isArray(viejo) && viejo.length) return viejo;
+  if (viejo && viejo.descripcion_clientes) return [{ nombre: 'Perfil Principal', quien_compra: viejo.descripcion_clientes }];
+  const perfil366 = (await leerJSON(`${clienteId}:brand-book.366-perfil-cliente`).catch(() => null))
+    || (await leerJSON(`${clienteId}:brand-book.evergreen-perfil-cliente`).catch(() => null));
+  if (perfil366 && Object.keys(perfil366).length) return [Object.assign({ nombre: 'Perfil Principal' }, perfil366)];
+  return [];
+}
+
+function formatearFilasEpc(valor) {
+  if (!Array.isArray(valor)) return '';
+  const filas = valor.filter((f) => f && Object.values(f).some((v) => (v || '').toString().trim()));
+  if (filas.length === 0) return '';
+  return filas
+    .map((f) => Object.entries(f).filter(([k, v]) => k !== '_marcada' && (v || '').toString().trim()).map(([k, v]) => `${k}: ${v}`).join(' | '))
+    .map((l) => '  - ' + l)
+    .join('\n');
+}
+
 function formatearAudiencias(items) {
   if (!Array.isArray(items) || items.length === 0) return null;
   const bloques = items
-    .filter((a) => a && (a.nombre || a.ocupacion))
+    .filter((a) => a && (a.nombre || a.ocupacion || a.descripcion_breve))
     .map((a, i) => {
-      const l = [`Audiencia ${i + 1}: ${a.nombre || '(sin nombre)'}`];
+      const l = [`Perfil ${i + 1}${a.nombre ? ': ' + a.nombre : ''} (prioridad de compra ${i + 1} de ${items.length})`];
+      if (a.producto_relacionado) l.push(`  Producto/oferta que más probablemente compra: ${a.producto_relacionado}`);
       if (a.miedo_deseo) l.push(`  Miedo/deseo: ${a.miedo_deseo}`);
       if (a.que_busca) l.push(`  Qué busca: ${a.que_busca}`);
+      if (a.frases) l.push(`  Frases reales de clientes: ${a.frases}`);
+      if (a.que_convenceria) l.push(`  Qué lo convencería: ${a.que_convenceria}`);
+      if (a.insight_estrategico) l.push(`  Insight estratégico: ${a.insight_estrategico}`);
+      ['dolores', 'miedos', 'deseos', 'objeciones', 'frases_reales'].forEach((campo) => {
+        const f = formatearFilasEpc(a[campo]);
+        if (f) l.push(`  ${campo}:\n${f}`);
+      });
       return l.join('\n');
     });
   if (bloques.length === 0) return null;
-  return 'CLIENTE IDEAL (audiencias del ADN):\n' + bloques.join('\n\n');
+  return 'PERFILES DE CLIENTE (de Jefe 366, ordenados de mayor a menor probabilidad de compra -- si el producto que se está trabajando coincide con el "producto relacionado" de un perfil, prioriza ese perfil; si no, usa el primero de la lista):\n' + bloques.join('\n\n');
 }
 
 function formatearCatalogo(items, grupos, grupoId) {
@@ -207,7 +240,7 @@ async function construirContexto(clienteId, grupoId) {
   const [identidad, tono, audiencia, catalogo, grupos, comunicacion, conversacionReciente, bancoConversaciones] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
-    leerJSON(`${clienteId}:brand-book.audiencia`).catch(() => null),
+    leerAudiencias(clienteId).catch(() => []),
     leerJSON(`${clienteId}:catalogo-productos`).catch(() => null),
     leerJSON(`${clienteId}:grupos-negocio`).catch(() => null),
     leerComunicacion366(clienteId),

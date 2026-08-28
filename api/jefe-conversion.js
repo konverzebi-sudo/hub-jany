@@ -105,18 +105,44 @@ function formatearTono(d) {
   return 'TONO DE MARCA:\n' + lineas.join('\n');
 }
 
+// Perfiles de cliente: misma llave que usa Jefe 366 para su "Perfil de Cliente" en pestañas
+// (brand-book.audiencias, {lista:[...]}) -- una sola fuente de verdad, se edita solo en Jefe 366,
+// el ADN la muestra de solo lectura. El orden de la lista es la prioridad de compra.
+async function leerAudiencias(clienteId) {
+  const nuevo = await leerJSON(`${clienteId}:brand-book.audiencias`).catch(() => null);
+  if (nuevo && Array.isArray(nuevo.lista) && nuevo.lista.length) return nuevo.lista;
+  const viejo = await leerJSON(`${clienteId}:brand-book.audiencia`).catch(() => null);
+  if (Array.isArray(viejo) && viejo.length) return viejo;
+  if (viejo && viejo.descripcion_clientes) return [{ nombre: 'Perfil Principal', quien_compra: viejo.descripcion_clientes }];
+  const perfil366 = (await leerJSON(`${clienteId}:brand-book.366-perfil-cliente`).catch(() => null))
+    || (await leerJSON(`${clienteId}:brand-book.evergreen-perfil-cliente`).catch(() => null));
+  if (perfil366 && Object.keys(perfil366).length) return [Object.assign({ nombre: 'Perfil Principal' }, perfil366)];
+  return [];
+}
+
 function formatearAudiencias(items) {
   if (!Array.isArray(items) || items.length === 0) return null;
   const bloques = items
-    .filter((a) => a && (a.nombre || a.ocupacion))
+    .filter((a) => a && (a.nombre || a.ocupacion || a.descripcion_breve))
     .map((a, i) => {
-      const l = [`Audiencia ${i + 1}: ${a.nombre || '(sin nombre)'}`];
+      const l = [`Perfil ${i + 1}${a.nombre ? ': ' + a.nombre : ''} (prioridad de compra ${i + 1} de ${items.length})`];
+      if (a.producto_relacionado) l.push(`  Producto/oferta que más probablemente compra: ${a.producto_relacionado}`);
       if (a.miedo_deseo) l.push(`  Miedo/deseo: ${a.miedo_deseo}`);
       if (a.objecion_comun) l.push(`  Objeción más común: ${a.objecion_comun}`);
+      if (a.quien_compra) l.push(`  Quién compra: ${a.quien_compra}`);
+      if (a.dudas) l.push(`  Dudas frecuentes: ${a.dudas}`);
+      if (a.frases) l.push(`  Frases reales de clientes: ${a.frases}`);
+      if (a.problema_resuelve) l.push(`  Problema que resuelve: ${a.problema_resuelve}`);
+      if (a.que_convenceria) l.push(`  Qué lo convencería: ${a.que_convenceria}`);
+      if (a.insight_estrategico) l.push(`  Insight estratégico: ${a.insight_estrategico}`);
+      ['dolores', 'miedos', 'deseos', 'objeciones', 'frases_reales'].forEach((campo) => {
+        const f = formatearValorNota(a[campo]);
+        if (f) l.push(`  ${campo}:\n${f}`);
+      });
       return l.join('\n');
     });
   if (bloques.length === 0) return null;
-  return 'CLIENTE IDEAL (audiencias del ADN):\n' + bloques.join('\n\n');
+  return 'PERFILES DE CLIENTE (de Jefe 366, ordenados de mayor a menor probabilidad de compra -- si el producto que se está trabajando coincide con el "producto relacionado" de un perfil, prioriza ese perfil; si no, usa el primero de la lista):\n' + bloques.join('\n\n');
 }
 
 function formatearCatalogo(items) {
@@ -154,7 +180,7 @@ async function construirContextoNegocio(clienteId) {
   const [identidad, tono, audiencia, catalogo, guiones] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
-    leerJSON(`${clienteId}:brand-book.audiencia`).catch(() => null),
+    leerAudiencias(clienteId).catch(() => []),
     leerJSON(`${clienteId}:catalogo-productos`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.whatsapp-guiones`).catch(() => null),
   ]);
@@ -193,8 +219,6 @@ function formatearValorNota(valor) {
 }
 
 const GRUPOS_366 = [
-  { suffix: '366-producto', suffixViejo: 'evergreen-producto', titulo: 'PRODUCTO 366' },
-  { suffix: '366-perfil-cliente', suffixViejo: 'evergreen-perfil-cliente', titulo: 'PERFIL DE CLIENTE 366 (dolores, deseos, miedos, objeciones)' },
   { suffix: '366-comunicacion', suffixViejo: 'evergreen-comunicacion', titulo: 'COMUNICACIÓN 366 (incluye ángulos y frases maestras)' },
   { suffix: '366-sistema', suffixViejo: 'evergreen-sistema', titulo: 'SISTEMA 366' },
 ];
@@ -205,6 +229,37 @@ async function leerJSONConMigracion(clienteId, sufijoNuevo, sufijoViejo) {
   const nuevo = await leerJSON(`${clienteId}:brand-book.${sufijoNuevo}`).catch(() => null);
   if (nuevo) return nuevo;
   return await leerJSON(`${clienteId}:brand-book.${sufijoViejo}`).catch(() => null);
+}
+
+// Producto 366 también funciona con pestañas (varias ofertas) -- misma migración de 3 niveles
+// que leerAudiencias: {lista:[...]} nuevo -> objeto plano 366-producto viejo -> evergreen-producto.
+async function leerProductos366(clienteId) {
+  const nuevo = await leerJSON(`${clienteId}:brand-book.366-producto`).catch(() => null);
+  if (nuevo && Array.isArray(nuevo.lista) && nuevo.lista.length) return nuevo.lista;
+  if (nuevo && Object.keys(nuevo).length) return [Object.assign({ nombre: 'Producto Principal' }, nuevo)];
+  const viejo = await leerJSON(`${clienteId}:brand-book.evergreen-producto`).catch(() => null);
+  if (viejo && Object.keys(viejo).length) return [Object.assign({ nombre: 'Producto Principal' }, viejo)];
+  return [];
+}
+
+function formatearProductos366(items) {
+  if (!Array.isArray(items) || items.length === 0) return null;
+  const bloques = items
+    .filter((p) => p && (p.nombre || p.que_vendemos))
+    .map((p, i) => {
+      const l = [`Oferta ${i + 1}${p.nombre ? ': ' + p.nombre : ''}`];
+      if (p.que_vendemos) l.push(`  Qué vendemos: ${p.que_vendemos}`);
+      if (p.por_que_potencial) l.push(`  Por qué tiene potencial 366: ${p.por_que_potencial}`);
+      if (p.oferta_irresistible) l.push(`  Oferta Irresistible 366: ${p.oferta_irresistible}`);
+      if (p.insight_estrategico) l.push(`  Insight estratégico: ${p.insight_estrategico}`);
+      ['pilar_deseo', 'pilar_confianza', 'pilar_facilidad', 'frases_enfatizar', 'frases_evitar', 'sistema_productos'].forEach((campo) => {
+        const f = formatearValorNota(p[campo]);
+        if (f) l.push(`  ${campo}:\n${f}`);
+      });
+      return l.join('\n');
+    });
+  if (bloques.length === 0) return null;
+  return 'PRODUCTO 366 (puede haber varias ofertas guardadas):\n' + bloques.join('\n\n');
 }
 
 async function formatearConversacion366NoGuardada(clienteId) {
@@ -238,9 +293,10 @@ async function formatearBancoConversacionesWhatsApp(clienteId) {
 }
 
 async function construirContexto366(clienteId) {
-  const datos = await Promise.all(
-    GRUPOS_366.map((g) => leerJSONConMigracion(clienteId, g.suffix, g.suffixViejo))
-  );
+  const [datos, productos] = await Promise.all([
+    Promise.all(GRUPOS_366.map((g) => leerJSONConMigracion(clienteId, g.suffix, g.suffixViejo))),
+    leerProductos366(clienteId).catch(() => []),
+  ]);
   const bloques = GRUPOS_366.map((g, i) => {
     const d = datos[i];
     if (!d) return null;
@@ -254,6 +310,8 @@ async function construirContexto366(clienteId) {
     if (campos.length === 0) return null;
     return g.titulo + ':\n' + campos.join('\n');
   }).filter(Boolean);
+  const productosBloque = formatearProductos366(productos);
+  if (productosBloque) bloques.unshift(productosBloque);
 
   const conversacionReciente = await formatearConversacion366NoGuardada(clienteId).catch(() => null);
   if (conversacionReciente) bloques.push(conversacionReciente);

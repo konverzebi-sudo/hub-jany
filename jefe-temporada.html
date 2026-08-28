@@ -234,7 +234,7 @@ function toggleVistaDividida(){
 let campanas = [];
 let campanaActivaId = null;
 let catalogoProductos = [];
-let perfilCliente366 = {};
+let perfilesCliente366 = [];
 let campanasLoaded = false;
 let chatMessages = []; // chat general, efímero -- se reinicia al cambiar de campaña
 let chatBusy = false;
@@ -311,12 +311,20 @@ async function cargarInicial(){
   try{ const r=await window.storage.get(TEMPORADA_KEY); campanas = r&&r.value?JSON.parse(r.value):[]; }catch(e){ campanas=[]; }
   try{ const r=await window.storage.get(CLIENTE_ID+':catalogo-productos'); catalogoProductos = r&&r.value?JSON.parse(r.value):[]; }catch(e){ catalogoProductos=[]; }
   try{
-    // Migración: esta llave vivía bajo el nombre "evergreen-perfil-cliente" -- si la nueva viene
-    // vacía, se cae a la vieja (solo lectura, Jefe 366 es quien migra escribiendo hacia adelante).
-    let r=await window.storage.get(CLIENTE_ID+':brand-book.366-perfil-cliente');
-    if(!r || !r.value) r=await window.storage.get(CLIENTE_ID+':brand-book.evergreen-perfil-cliente');
-    perfilCliente366 = r&&r.value?JSON.parse(r.value):{};
-  }catch(e){ perfilCliente366={}; }
+    // Los perfiles de cliente viven en brand-book.audiencias (mismos que Jefe 366 y el ADN
+    // comparten, {lista:[...]}, en orden de prioridad de compra). Con fallbacks de solo lectura
+    // hacia llaves más viejas por si el cliente no ha vuelto a Jefe 366 desde esta migración.
+    let r=await window.storage.get(CLIENTE_ID+':brand-book.audiencias');
+    let data = r&&r.value?JSON.parse(r.value):null;
+    if(data && Array.isArray(data.lista) && data.lista.length){
+      perfilesCliente366 = data.lista;
+    } else {
+      let r2=await window.storage.get(CLIENTE_ID+':brand-book.366-perfil-cliente');
+      if(!r2 || !r2.value) r2=await window.storage.get(CLIENTE_ID+':brand-book.evergreen-perfil-cliente');
+      const perfil366 = r2&&r2.value?JSON.parse(r2.value):null;
+      perfilesCliente366 = (perfil366 && Object.keys(perfil366).length) ? [Object.assign({nombre:'Perfil Principal'}, perfil366)] : [];
+    }
+  }catch(e){ perfilesCliente366=[]; }
   campanasLoaded = true;
   if(campanas.length) campanaActivaId = campanas[0].id;
   ['campana-select','btn-duplicar','btn-eliminar','btn-nueva'].forEach(id=>{ document.getElementById(id).disabled=false; });
@@ -833,16 +841,34 @@ function renderDocumento(container, camp){
   ['producto','perfil-cliente','comunicacion'].forEach(renderMiniChat);
 }
 
+// Si la campaña activa ya tiene un producto elegido, usa el perfil cuyo "producto relacionado"
+// coincida con ese producto; si no hay coincidencia (o no hay producto elegido), usa el primero
+// de la lista (mayor prioridad de compra) -- mismo criterio que usa el backend en consultor-366.js.
+function elegirPerfilClienteRecurrente(){
+  if(!perfilesCliente366.length) return null;
+  const camp=activeCampana();
+  const nombreProducto=(camp?(camp.producto_origen==='nuevo'?camp.producto_nuevo:camp.producto_nombre):'')||'';
+  const buscado=nombreProducto.toString().trim().toLowerCase();
+  if(buscado){
+    const match=perfilesCliente366.find(p=>p && p.producto_relacionado && p.producto_relacionado.toString().toLowerCase().includes(buscado));
+    if(match) return match;
+  }
+  return perfilesCliente366[0];
+}
+
 function renderClienteRecurrenteBox(){
   const el=document.getElementById('cliente-recurrente-box');
   if(!el) return;
-  const d=perfilCliente366||{};
+  const d=elegirPerfilClienteRecurrente()||{};
   const campos=[
+    ['Nombre del perfil', d.nombre],
     ['Descripción breve', d.descripcion_breve],
     ['Situación de compra', d.situacion_compra],
     ['Qué problema resuelve', d.problema_resuelve],
     ['Qué emoción lo impulsa', d.emocion_impulsa],
     ['Qué lo convencería', d.que_convenceria],
+    ['Quién compra', d.quien_compra],
+    ['Miedo/deseo', d.miedo_deseo],
   ].filter(([,v])=>v && v.toString().trim());
   if(!campos.length){
     el.innerHTML = `<div class="ref-title">Cliente base (recurrente)</div>Todavía no hay Perfil de Cliente 366 guardado — <a href="${document.getElementById('link366').href}" target="_blank" rel="noopener">complétalo en Jefe 366</a> para que este módulo detecte qué cambia en campaña.`;

@@ -127,13 +127,27 @@ function preguntasFormatearTono(d) {
   return 'TONO DE MARCA:\n' + lineas.join('\n');
 }
 
+// Misma llave que usa Jefe 366 para su "Perfil de Cliente" en pestañas (brand-book.audiencias,
+// {lista:[...]}) -- una sola fuente de verdad, se edita solo en Jefe 366.
+async function preguntasLeerAudiencias(clienteId) {
+  const nuevo = await leerJSON(`${clienteId}:brand-book.audiencias`).catch(() => null);
+  if (nuevo && Array.isArray(nuevo.lista) && nuevo.lista.length) return nuevo.lista;
+  const viejo = await leerJSON(`${clienteId}:brand-book.audiencia`).catch(() => null);
+  if (Array.isArray(viejo) && viejo.length) return viejo;
+  if (viejo && viejo.descripcion_clientes) return [{ nombre: 'Perfil Principal', quien_compra: viejo.descripcion_clientes }];
+  const perfil366 = (await leerJSON(`${clienteId}:brand-book.366-perfil-cliente`).catch(() => null))
+    || (await leerJSON(`${clienteId}:brand-book.evergreen-perfil-cliente`).catch(() => null));
+  if (perfil366 && Object.keys(perfil366).length) return [Object.assign({ nombre: 'Perfil Principal' }, perfil366)];
+  return [];
+}
+
 function preguntasFormatearAudiencias(items) {
   if (!Array.isArray(items) || items.length === 0) return null;
   const bloques = items
-    .filter((a) => a && (a.nombre || a.ocupacion))
-    .map((a, i) => `Audiencia ${i + 1}: ${a.nombre || '(sin nombre)'}${a.miedo_deseo ? ' — ' + a.miedo_deseo : ''}`);
+    .filter((a) => a && (a.nombre || a.ocupacion || a.descripcion_breve))
+    .map((a, i) => `Perfil ${i + 1}: ${a.nombre || '(sin nombre)'}${a.producto_relacionado ? ' — compra probable: ' + a.producto_relacionado : ''}${a.miedo_deseo ? ' — ' + a.miedo_deseo : ''}`);
   if (bloques.length === 0) return null;
-  return 'CLIENTE IDEAL:\n' + bloques.join('\n');
+  return 'CLIENTE IDEAL (ordenado de mayor a menor probabilidad de compra):\n' + bloques.join('\n');
 }
 
 function preguntasFormatearCatalogo(items) {
@@ -147,7 +161,7 @@ async function preguntasConstruirContextoNegocio(clienteId) {
   const [identidad, tono, audiencia, catalogo] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
-    leerJSON(`${clienteId}:brand-book.audiencia`).catch(() => null),
+    preguntasLeerAudiencias(clienteId).catch(() => []),
     leerJSON(`${clienteId}:catalogo-productos`).catch(() => null),
   ]);
 
@@ -299,15 +313,33 @@ function builderFormatearTono(d) {
   return 'TONO DE MARCA:\n' + lineas.join('\n');
 }
 
+// Perfiles de cliente: misma llave que usa Jefe 366 para su "Perfil de Cliente" en pestañas
+// (brand-book.audiencias, {lista:[...]}) -- una sola fuente de verdad, se edita solo en Jefe 366,
+// el ADN la muestra de solo lectura. El orden de la lista es la prioridad de compra.
+async function builderLeerAudiencias(clienteId) {
+  const nuevo = await leerJSON(`${clienteId}:brand-book.audiencias`).catch(() => null);
+  if (nuevo && Array.isArray(nuevo.lista) && nuevo.lista.length) return nuevo.lista;
+  const viejo = await leerJSON(`${clienteId}:brand-book.audiencia`).catch(() => null);
+  if (Array.isArray(viejo) && viejo.length) return viejo;
+  if (viejo && viejo.descripcion_clientes) return [{ nombre: 'Perfil Principal', quien_compra: viejo.descripcion_clientes }];
+  const perfil366 = (await leerJSON(`${clienteId}:brand-book.366-perfil-cliente`).catch(() => null))
+    || (await leerJSON(`${clienteId}:brand-book.evergreen-perfil-cliente`).catch(() => null));
+  if (perfil366 && Object.keys(perfil366).length) return [Object.assign({ nombre: 'Perfil Principal' }, perfil366)];
+  return [];
+}
+
 function builderFormatearAudiencias(items) {
   if (!Array.isArray(items) || items.length === 0) return null;
   const bloques = items
-    .filter((a) => a && (a.nombre || a.ocupacion))
+    .filter((a) => a && (a.nombre || a.ocupacion || a.descripcion_breve))
     .map((a, i) => {
-      const l = [];
-      l.push(`Audiencia ${i + 1}: ${a.nombre || '(sin nombre)'}`);
+      const l = [`Perfil ${i + 1}${a.nombre ? ': ' + a.nombre : ''} (prioridad de compra ${i + 1} de ${items.length})`];
+      if (a.producto_relacionado) l.push(`  Producto/oferta que más probablemente compra: ${a.producto_relacionado}`);
       if (a.ocupacion) l.push(`  Ocupación: ${a.ocupacion}`);
+      if (a.edad) l.push(`  Edad: ${a.edad}`);
+      if (a.ubicacion) l.push(`  Ubicación: ${a.ubicacion}`);
       if (a.miedo_deseo) l.push(`  Miedo/deseo: ${a.miedo_deseo}`);
+      if (a.como_ayuda) l.push(`  Cómo le ayuda: ${a.como_ayuda}`);
       if (a.quien_compra) l.push(`  Quién compra: ${a.quien_compra}`);
       if (a.que_busca) l.push(`  Qué busca: ${a.que_busca}`);
       if (a.objecion_comun) l.push(`  Objeción más común: ${a.objecion_comun}`);
@@ -315,10 +347,20 @@ function builderFormatearAudiencias(items) {
       if (a.por_que_no) l.push(`  Por qué NO compran: ${a.por_que_no}`);
       if (a.dudas) l.push(`  Dudas frecuentes: ${a.dudas}`);
       if (a.frases) l.push(`  Frases reales de clientes: ${a.frases}`);
+      if (a.descripcion_breve) l.push(`  Descripción breve: ${a.descripcion_breve}`);
+      if (a.situacion_compra) l.push(`  Situación de compra: ${a.situacion_compra}`);
+      if (a.problema_resuelve) l.push(`  Problema que resuelve: ${a.problema_resuelve}`);
+      if (a.emocion_impulsa) l.push(`  Emoción que lo impulsa: ${a.emocion_impulsa}`);
+      if (a.que_convenceria) l.push(`  Qué lo convencería: ${a.que_convenceria}`);
+      if (a.insight_estrategico) l.push(`  Insight estratégico: ${a.insight_estrategico}`);
+      ['caracteristicas', 'dolores', 'miedos', 'deseos', 'objeciones', 'frases_reales'].forEach((campo) => {
+        const f = builderFormatearValorNota(a[campo]);
+        if (f) l.push(`  ${campo}:\n${f}`);
+      });
       return l.join('\n');
     });
   if (bloques.length === 0) return null;
-  return 'CLIENTE IDEAL (audiencias del ADN):\n' + bloques.join('\n\n');
+  return 'PERFILES DE CLIENTE (ordenados de mayor a menor probabilidad de compra -- si el producto/ángulo en cuestión coincide con el "producto relacionado" de un perfil, prioriza ese; si no, usa el primero de la lista):\n' + bloques.join('\n\n');
 }
 
 function builderFormatearGrupos(grupos) {
@@ -387,7 +429,7 @@ async function builderConstruirContextoNegocio(clienteId) {
   const [identidad, tono, audiencia, catalogo, grupos, journey, metricas, financieros] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
-    leerJSON(`${clienteId}:brand-book.audiencia`).catch(() => null),
+    builderLeerAudiencias(clienteId).catch(() => []),
     leerJSON(`${clienteId}:catalogo-productos`).catch(() => null),
     leerJSON(`${clienteId}:grupos-negocio`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.customer_journey`).catch(() => null),
@@ -429,8 +471,6 @@ function builderFormatearValorNota(valor) {
 }
 
 const BUILDER_GRUPOS_NOTAS_366 = [
-  { suffix: '366-producto', suffixViejo: 'evergreen-producto', titulo: 'PRODUCTO 366' },
-  { suffix: '366-perfil-cliente', suffixViejo: 'evergreen-perfil-cliente', titulo: 'PERFIL DE CLIENTE 366' },
   { suffix: '366-comunicacion', suffixViejo: 'evergreen-comunicacion', titulo: 'COMUNICACIÓN 366' },
   { suffix: '366-sistema', suffixViejo: 'evergreen-sistema', titulo: 'SISTEMA 366' },
 ];
@@ -443,10 +483,43 @@ async function leerJSONConMigracion(clienteId, sufijoNuevo, sufijoViejo) {
   return await leerJSON(`${clienteId}:brand-book.${sufijoViejo}`).catch(() => null);
 }
 
+// Producto 366 también funciona con pestañas (varias ofertas) -- misma migración de 3 niveles
+// que audiencias: {lista:[...]} nuevo -> objeto plano 366-producto viejo -> evergreen-producto.
+async function builderLeerProductos366(clienteId) {
+  const nuevo = await leerJSON(`${clienteId}:brand-book.366-producto`).catch(() => null);
+  if (nuevo && Array.isArray(nuevo.lista) && nuevo.lista.length) return nuevo.lista;
+  if (nuevo && Object.keys(nuevo).length) return [Object.assign({ nombre: 'Producto Principal' }, nuevo)];
+  const viejo = await leerJSON(`${clienteId}:brand-book.evergreen-producto`).catch(() => null);
+  if (viejo && Object.keys(viejo).length) return [Object.assign({ nombre: 'Producto Principal' }, viejo)];
+  return [];
+}
+
+function builderFormatearProductos366(items) {
+  if (!Array.isArray(items) || items.length === 0) return null;
+  const bloques = items
+    .filter((p) => p && (p.nombre || p.que_vendemos))
+    .map((p, i) => {
+      const l = [`Oferta ${i + 1}${p.nombre ? ': ' + p.nombre : ''}`];
+      if (p.que_vendemos) l.push(`  Qué vendemos: ${p.que_vendemos}`);
+      if (p.por_que_potencial) l.push(`  Por qué tiene potencial 366: ${p.por_que_potencial}`);
+      if (p.oferta_irresistible) l.push(`  Oferta Irresistible 366: ${p.oferta_irresistible}`);
+      if (p.insight_estrategico) l.push(`  Insight estratégico: ${p.insight_estrategico}`);
+      ['pilar_deseo', 'pilar_confianza', 'pilar_facilidad', 'frases_enfatizar', 'frases_evitar', 'sistema_productos'].forEach((campo) => {
+        const f = builderFormatearValorNota(p[campo]);
+        if (f) l.push(`  ${campo}:\n${f}`);
+      });
+      return l.join('\n');
+    });
+  if (bloques.length === 0) return null;
+  return 'PRODUCTO 366 (puede haber varias ofertas guardadas):\n' + bloques.join('\n\n');
+}
+
 async function builderFormatearNotasGuardadas(clienteId) {
-  const datos = await Promise.all(
-    BUILDER_GRUPOS_NOTAS_366.map((g) => leerJSONConMigracion(clienteId, g.suffix, g.suffixViejo))
-  );
+  const [datos, perfiles, productos] = await Promise.all([
+    Promise.all(BUILDER_GRUPOS_NOTAS_366.map((g) => leerJSONConMigracion(clienteId, g.suffix, g.suffixViejo))),
+    builderLeerAudiencias(clienteId).catch(() => []),
+    builderLeerProductos366(clienteId).catch(() => []),
+  ]);
   const bloques = BUILDER_GRUPOS_NOTAS_366.map((g, i) => {
     const d = datos[i];
     if (!d) return null;
@@ -460,6 +533,13 @@ async function builderFormatearNotasGuardadas(clienteId) {
     if (campos.length === 0) return null;
     return g.titulo + ':\n' + campos.join('\n');
   }).filter(Boolean);
+  // Perfil de Cliente 366 ya no vive en su propio grupo de Notas -- vive en brand-book.audiencias
+  // (los mismos perfiles que Jefe 366 y el ADN comparten), se agrega aquí para que la regla de
+  // "revisa lo ya guardado antes de proponer" también aplique a estos campos.
+  const perfilesBloque = builderFormatearAudiencias(perfiles);
+  if (perfilesBloque) bloques.unshift('PERFIL DE CLIENTE 366:\n' + perfilesBloque);
+  const productosBloque = builderFormatearProductos366(productos);
+  if (productosBloque) bloques.unshift(productosBloque);
 
   if (bloques.length === 0) {
     return 'NOTAS 366 YA GUARDADAS: todavía no hay nada guardado en ninguno de los 4 grupos de Notas.';
@@ -578,14 +658,22 @@ function temporadaFormatearProducto(camp) {
 }
 
 // Solo lo usa el módulo "perfil-cliente" -- ahí el prompt pide explícitamente no recrear al
-// cliente recurrente desde cero, así que se le manda el Perfil de Cliente 366 ya guardado.
-async function temporadaFormatearClienteRecurrente(clienteId) {
-  const d = await leerJSONConMigracion(clienteId, '366-perfil-cliente', 'evergreen-perfil-cliente');
-  if (!d) return 'CLIENTE RECURRENTE (Perfil de Cliente 366): todavía no está guardado -- pregúntale al usuario lo mínimo indispensable antes de seguir.';
-  const campos = { descripcion_breve: 'Descripción breve', situacion_compra: 'Situación de compra', problema_resuelve: 'Qué problema resuelve', emocion_impulsa: 'Qué emoción lo impulsa', que_convenceria: 'Qué lo convencería' };
-  const lineas = Object.keys(campos).map((k) => (d[k] ? `${campos[k]}: ${d[k]}` : null)).filter(Boolean);
+// cliente recurrente desde cero, así que se le manda el Perfil de Cliente 366 ya guardado. Los
+// perfiles viven en brand-book.audiencias (varios, en orden de prioridad de compra); si la
+// campaña ya tiene un producto elegido se usa el perfil cuyo "producto relacionado" coincida,
+// si no hay coincidencia (o no hay producto elegido) se usa el primero de la lista.
+async function temporadaFormatearClienteRecurrente(clienteId, productoNombre) {
+  const perfiles = await builderLeerAudiencias(clienteId).catch(() => []);
+  if (!perfiles.length) return 'CLIENTE RECURRENTE (Perfil de Cliente 366): todavía no está guardado -- pregúntale al usuario lo mínimo indispensable antes de seguir.';
+  const nombreBuscado = (productoNombre || '').toString().trim().toLowerCase();
+  const porProducto = nombreBuscado
+    ? perfiles.find((p) => p && p.producto_relacionado && p.producto_relacionado.toString().toLowerCase().includes(nombreBuscado))
+    : null;
+  const elegido = porProducto || perfiles[0];
+  const campos = { nombre: 'Nombre del perfil', descripcion_breve: 'Descripción breve', situacion_compra: 'Situación de compra', problema_resuelve: 'Qué problema resuelve', emocion_impulsa: 'Qué emoción lo impulsa', que_convenceria: 'Qué lo convencería', quien_compra: 'Quién compra', miedo_deseo: 'Miedo/deseo' };
+  const lineas = Object.keys(campos).map((k) => (elegido[k] ? `${campos[k]}: ${elegido[k]}` : null)).filter(Boolean);
   if (lineas.length === 0) return 'CLIENTE RECURRENTE (Perfil de Cliente 366): todavía no está guardado -- pregúntale al usuario lo mínimo indispensable antes de seguir.';
-  return 'CLIENTE RECURRENTE (Perfil de Cliente 366 ya construido -- nunca lo recrees desde cero):\n' + lineas.join('\n');
+  return 'CLIENTE RECURRENTE (Perfil de Cliente 366 ya construido' + (porProducto ? ', elegido por coincidir con el producto de esta campaña' : '') + ' -- nunca lo recrees desde cero):\n' + lineas.join('\n');
 }
 
 function temporadaFormatearCampana(camp) {
@@ -635,7 +723,7 @@ async function manejarChatTemporada(req, res) {
     const [contextoNegocio, notasEvergreen, clienteRecurrente] = await Promise.all([
       builderConstruirContextoNegocio(clienteId),
       builderFormatearNotasGuardadas(clienteId),
-      modulo === 'perfil-cliente' ? temporadaFormatearClienteRecurrente(clienteId) : Promise.resolve(null),
+      modulo === 'perfil-cliente' ? temporadaFormatearClienteRecurrente(clienteId, campana && (campana.producto_nombre || campana.producto_nuevo)) : Promise.resolve(null),
     ]);
     const partesSystem = [cargarPromptTemporada(modulo), contextoNegocio, notasEvergreen];
     if (clienteRecurrente) partesSystem.push(clienteRecurrente);
