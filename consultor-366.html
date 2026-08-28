@@ -101,6 +101,7 @@
     .bubble { max-width: 88%; padding: 12px 14px; border-radius: 12px; font-size: 14px; line-height: 1.55; white-space: pre-line; }
     .bubble.user { align-self: flex-end; background: var(--accent); color: #0F0B16; font-weight: 500; border-bottom-right-radius: 3px; }
     .bubble.assistant { align-self: flex-start; background: var(--surface); border: 1px solid var(--line); border-bottom-left-radius: 3px; }
+    .bubble.local-warning { align-self: center; background: rgba(239, 68, 68, .1); border: 1px solid #EF4444; color: #EF4444; font-size: 12.5px; max-width: 95%; }
     .bubble.error { align-self: flex-start; background: #3B1B1B; border: 1px solid #EF4444; color: #FCA5A5; }
     .builder-doc-save { margin-top: 4px; }
     .builder-controls { display: flex; align-items: center; gap: 10px; }
@@ -924,6 +925,9 @@ function renderBuilderChat() {
     if (m.role === 'user') {
       return `<div class="bubble user">${escaparHtmlBuilder(m.content)}</div>`;
     }
+    if (m.role === 'local-warning') {
+      return `<div class="bubble local-warning">⚠️ ${escaparHtmlBuilder(m.content)}</div>`;
+    }
     return `<div class="bubble assistant">${escaparHtmlBuilder(m.content)}</div>
       <button class="copy-btn builder-doc-save" onclick="copyText(this, \`${m.content.replace(/`/g, "'")}\`)">Copiar</button>`;
   }).join('');
@@ -998,13 +1002,43 @@ function iniciarConstructor() {
   llamarConstructor();
 }
 
+/* Distancia de edición (Levenshtein) simple, para tolerar errores de dedo en "CONFIRMO JEFE"
+   (ej. "Confrimo Jefe") sin depender de una coincidencia exacta. */
+function distanciaEdicion(a, b) {
+  const m = a.length, n = b.length;
+  const fila = Array(n + 1);
+  for (let j = 0; j <= n; j++) fila[j] = j;
+  for (let i = 1; i <= m; i++) {
+    let anterior = fila[0];
+    fila[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const temp = fila[j];
+      fila[j] = a[i - 1] === b[j - 1] ? anterior : 1 + Math.min(anterior, fila[j], fila[j - 1]);
+      anterior = temp;
+    }
+  }
+  return fila[n];
+}
+
+function esIntentoDeConfirmar(texto) {
+  const normalizado = texto.trim().toUpperCase().replace(/\s+/g, ' ').normalize('NFD').replace(/[̀-ͯ]/g, '');
+  if (normalizado === 'CONFIRMO JEFE') return true;
+  // Solo tolera errores de dedo en frases cortas y parecidas -- evita que un mensaje normal
+  // que solo mencione "jefe" o "confirmo" de pasada dispare esto por accidente.
+  if (normalizado.length < 8 || normalizado.length > 20) return false;
+  return distanciaEdicion(normalizado, 'CONFIRMO JEFE') <= 2;
+}
+
 function enviarMensajeConstructor() {
   if (builderBusy) return;
   const input = document.getElementById('builderInput');
   const texto = input.value.trim();
   if (!texto) return;
-  if (texto.toUpperCase() === 'CONFIRMO JEFE') {
-    procesarConfirmoJefe();
+  if (esIntentoDeConfirmar(texto)) {
+    const encontroAlgo = procesarConfirmoJefe();
+    if (!encontroAlgo) {
+      builderMessages.push({ role: 'local-warning', content: 'No encontré ningún bloque listo para guardar en el último mensaje del chat, así que no se guardó nada en Notas. Si el chat sí te había dado algo para confirmar, pídele que te lo repita e intenta de nuevo.' });
+    }
   }
   builderMessages.push({ role: 'user', content: texto });
   input.value = '';
