@@ -62,6 +62,7 @@
   .section{margin-bottom:30px;}
   .section-head{display:flex;align-items:center;gap:8px;padding:9px 16px;border-radius:10px;margin-bottom:14px;font-weight:700;font-size:13.5px;font-family:'Sora',sans-serif;letter-spacing:.02em;}
   .section-head.proceso{background:#332708;color:#F5C84C;}
+  .section-head.programado{background:#0C2E33;color:#4FD1E8;}
   .section-head.idea{background:#1B2142;color:#A8B4F0;}
   .section-head.publicado{background:#3A2013;color:#FF9466;}
   .section-head .scount{font-weight:400;opacity:.7;font-size:12px;font-family:'JetBrains Mono',monospace;}
@@ -75,6 +76,7 @@
   select.estado-select{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:5px 10px;border-radius:100px;border:1px solid transparent;cursor:pointer;}
   select.estado-select.idea{background:#1B2142;color:#A8B4F0;border-color:#3A4380;}
   select.estado-select.proceso{background:#332708;color:#F5C84C;border-color:#6B4F14;}
+  select.estado-select.programado{background:#0C2E33;color:#4FD1E8;border-color:#155B66;}
   select.estado-select.publicado{background:#3A2013;color:#FF9466;border-color:#7A3A1E;}
   .fecha-input{width:128px;background:transparent;border:1px solid var(--line);border-radius:8px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:11.5px;padding:5px 8px;outline:none;color-scheme:dark;}
   .fecha-input:focus{border-color:var(--accent);color:var(--text);}
@@ -437,6 +439,7 @@ const USO_LABELS = {organico:'📱 Orgánico',evergreen:'♻️ Evergreen',ambos
 
 const SECTIONS = [
   {key:'proceso',emoji:'⚙️',label:'EN PROCESO',cls:'proceso'},
+  {key:'programado',emoji:'📅',label:'PROGRAMADO',cls:'programado'},
   {key:'idea',emoji:'💡',label:'IDEAS',cls:'idea'},
   {key:'publicado',emoji:'🔥',label:'YA PUBLICADOS',cls:'publicado'}
 ];
@@ -645,6 +648,7 @@ function buildCard(r){
       <select class="estado-select ${r.estado}" data-id="${r.id}" data-field="estado">
         <option value="idea" ${r.estado==='idea'?'selected':''}>💡 Idea</option>
         <option value="proceso" ${r.estado==='proceso'?'selected':''}>⚙️ En proceso</option>
+        <option value="programado" ${r.estado==='programado'?'selected':''}>📅 Programado</option>
         <option value="publicado" ${r.estado==='publicado'?'selected':''}>🔥 Publicado</option>
       </select>
       <div class="item-top-right">
@@ -2164,6 +2168,7 @@ async function loadStorage(){
     statusEl.textContent='Nueva sesión (sin datos guardados aún).';
   }
   if(migrarFechasLegacy()){ scheduleSave(); }
+  if(autoPublicarProgramados()){ scheduleSave(); }
   scheduleAgendaSync();
   try{
     const r=await window.storage.get(CARPETA_KEY);
@@ -2188,6 +2193,20 @@ function migrarFechasLegacy(){
     if(month<1||month>12||day<1||day>31) return;
     item.fecha=fechaISO(anio, month, day);
     cambio=true;
+  });
+  return cambio;
+}
+
+// Si un item "programado" ya llegó (o pasó) su fecha, lo pasa solo a "publicado" -- se revisa
+// cada vez que se carga la página.
+function autoPublicarProgramados(){
+  let cambio=false;
+  const hoy=fechaISO(new Date().getFullYear(), new Date().getMonth()+1, new Date().getDate());
+  [...state.historias, ...state.contenido].forEach(item=>{
+    if(item.estado==='programado' && item.fecha && item.fecha<=hoy){
+      item.estado='publicado';
+      cambio=true;
+    }
   });
   return cambio;
 }
