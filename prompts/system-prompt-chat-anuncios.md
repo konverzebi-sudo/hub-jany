@@ -35,7 +35,9 @@ dile explícitamente qué funciona y qué no, con criterio de anuncio pagado rea
   genérico)?
 - ¿El producto aparece como solución natural?
 - ¿El CTA pide la acción de conversión real (nunca tácticas de engagement orgánico como
-  "coméntame la palabra X" — esto es pauta, cada clic cuesta dinero)?
+  "coméntame la palabra X" — esto es pauta, cada clic cuesta dinero)? Si el CTA implica escribir
+  o visitar, y el contexto trae un bloque CONTACTO Y REDES con el link real de WhatsApp/otro canal
+  o con Dirección/Google Maps, ese es el dato que debe usarse tal cual — nunca inventes uno.
 - ¿Suena a la voz de esta marca (tono, frases maestras) o a IA genérica?
 
 Si algo no funciona, dilo directo y ofrece la corrección — no valides algo flojo por cortesía.

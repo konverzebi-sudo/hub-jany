@@ -58,12 +58,15 @@ UGC casual · Oferta directa · Autoridad educativa · Reactivación
    - `costo_inaccion`: qué pierde el cliente si no actúa ahora. 1 frase.
    - `cta`: llamada a la acción clara que pide DIRECTAMENTE la acción de conversión real definida
      en `objetivo` (ej. si el objetivo es "generar mensajes por WhatsApp", el CTA dice literalmente
-     que escriban por WhatsApp; si es "agendar cita", dice cómo agendar). Esto es un anuncio
-     PAGADO, nunca contenido orgánico: JAMÁS uses tácticas de enganche para comentarios/alcance
-     gratis como "coméntame la palabra X", "te cuento en los comentarios", "escribe SECRETO abajo"
-     — esas tácticas sirven para crecer alcance orgánico, no para convertir en un anuncio de paga,
-     donde cada clic/mensaje cuesta dinero y debe llevar a la acción real, no a un comentario.
-     1 frase corta y directa.
+     que escriban por WhatsApp; si es "agendar cita", dice cómo agendar; si es "visitar la tienda",
+     dice que vayan). Esto es un anuncio PAGADO, nunca contenido orgánico: JAMÁS uses tácticas de
+     enganche para comentarios/alcance gratis como "coméntame la palabra X", "te cuento en los
+     comentarios", "escribe SECRETO abajo" — esas tácticas sirven para crecer alcance orgánico, no
+     para convertir en un anuncio de paga, donde cada clic/mensaje cuesta dinero y debe llevar a la
+     acción real, no a un comentario. Si el contexto trae un bloque CONTACTO Y REDES con el link
+     real de WhatsApp u otro canal, o con Dirección/Google Maps, inclúyelo tal cual cuando el CTA lo
+     pida — nunca inventes un número, URL o dirección si ese bloque no lo trae. 1 frase corta y
+     directa.
 4. **version_15s** — el mismo guion pero recortado a una versión de **15 segundos reales** (no
    40-60): solo hook + problema/solución condensados en UNA frase + CTA. Esto son
    **aproximadamente 35-40 palabras en total**, no más. Es un recorte de verdad, no una copia del
