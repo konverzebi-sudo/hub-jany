@@ -496,19 +496,39 @@ btnNuevaIdeaEl.addEventListener('click',()=>{
 });
 
 // ─── DATE / HORIZON ─────────────────────────────────────────────────────────
-function parseFechaDDMM(str){
+// Fechas se guardan en ISO "YYYY-MM-DD" (input type=date); se soporta el "dd/mm" viejo
+// por si algún item no pasó por la migración todavía.
+function parseFecha(str){
   if(!str) return null;
-  const m=str.trim().match(/^(\d{1,2})\/(\d{1,2})$/);
-  if(!m) return null;
-  const day=parseInt(m[1],10),month=parseInt(m[2],10)-1;
-  if(month<0||month>11||day<1||day>31) return null;
-  const now=new Date();
-  let d=new Date(now.getFullYear(),month,day);
-  if((now-d)/86400000>30) d=new Date(now.getFullYear()+1,month,day);
-  return d;
+  const iso=str.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(iso){
+    const d=new Date(+iso[1],+iso[2]-1,+iso[3]);
+    return isNaN(d) ? null : d;
+  }
+  const dm=str.trim().match(/^(\d{1,2})\/(\d{1,2})$/);
+  if(dm){
+    const day=parseInt(dm[1],10),month=parseInt(dm[2],10)-1;
+    if(month<0||month>11||day<1||day>31) return null;
+    const now=new Date();
+    let d=new Date(now.getFullYear(),month,day);
+    if((now-d)/86400000>30) d=new Date(now.getFullYear()+1,month,day);
+    return d;
+  }
+  return null;
+}
+// Ordena por fecha real: ascendente = más próxima primero (proceso/programado/idea);
+// descendente = publicada más reciente primero. Sin fecha, siempre al final.
+function ordenarPorFecha(rows, ascendente){
+  return rows.slice().sort((a,b)=>{
+    const da=parseFecha(a.fecha), db=parseFecha(b.fecha);
+    if(da && db) return ascendente ? da-db : db-da;
+    if(da && !db) return -1;
+    if(!da && db) return 1;
+    return 0;
+  });
 }
 function fechaHorizonIndex(fechaStr){
-  const d=parseFechaDDMM(fechaStr);
+  const d=parseFecha(fechaStr);
   if(!d) return null;
   const today=new Date(); today.setHours(0,0,0,0);
   const days=Math.round((d-today)/86400000);
@@ -598,7 +618,7 @@ function render(){
   if(currentTab==='historias') rows=rows.slice(0,HIST_MAX);
 
   SECTIONS.forEach(sec=>{
-    const secRows=rows.filter(r=>r.estado===sec.key).sort((a,b)=>horizonIndex(b)-horizonIndex(a));
+    const secRows=ordenarPorFecha(rows.filter(r=>r.estado===sec.key), sec.key!=='publicado');
     const section=document.createElement('div');
     section.className='section';
     const head=document.createElement('div');
