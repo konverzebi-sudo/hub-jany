@@ -512,17 +512,13 @@
     return d.toISOString().slice(0,10);
   }
 
-  function getStreak(habitId){
-    var todayChecked = !!(data.habitChecks[todayKey] && data.habitChecks[todayKey][habitId]);
-    var streak = 0;
-    var offset = 1;
-    if(todayChecked){ streak = 1; }
-    while(true){
-      var ds = dateStrOffset(offset);
-      if(data.habitChecks[ds] && data.habitChecks[ds][habitId]){ streak++; offset++; }
-      else break;
+  function getWeekCount(habitId){
+    var count = 0;
+    for(var i=0; i<7; i++){
+      var ds = dateStrOffset(i);
+      if(data.habitChecks[ds] && data.habitChecks[ds][habitId]) count++;
     }
-    return streak;
+    return count;
   }
 
   function renderHabits(){
@@ -541,12 +537,12 @@
       box.appendChild(done);
     }
     pending.forEach(function(h){
-      var streak = getStreak(h.id);
+      var weekCount = getWeekCount(h.id);
       var row = document.createElement('label');
       row.className = 'jd-row';
       row.style.cssText = 'padding:6px 0;font-size:13px;cursor:pointer;justify-content:space-between;';
       row.innerHTML = '<span class="jd-row" style="gap:8px;"><input type="checkbox" style="width:16px;height:16px;accent-color:#C6FF4B;"> <span>'+h.text+'</span></span>'+
-        '<span class="jd-sub">'+(streak>0 ? streak+'d racha' : '')+'</span>';
+        '<span class="jd-sub">('+weekCount+'/7)</span>';
       row.querySelector('input').addEventListener('change', function(e){
         if(!data.habitChecks[todayKey]) data.habitChecks[todayKey] = {};
         data.habitChecks[todayKey][h.id] = e.target.checked;
@@ -573,13 +569,25 @@
       row.className = 'jd-row';
       row.style.cssText = 'justify-content:space-between;padding:7px 0;border-bottom:1px solid #232A1E;';
       row.innerHTML = '<span style="font-size:12.5px;flex:1;"><span class="jd-dot" style="background:'+c.dot+';"></span>'+t.text+'</span>';
+      var actions = document.createElement('div');
+      actions.className = 'jd-row'; actions.style.gap = '4px';
+      var check = document.createElement('button');
+      check.className = 'jd-btn'; check.textContent = '✓'; check.style.padding = '1px 8px'; check.style.color = '#8FE39E';
+      check.addEventListener('click', function(){
+        data.history.unshift(Object.assign({id:uid('hist'), project:guessProject(t.text.toLowerCase()), text:t.text, minutes:null}, historyStamp()));
+        if(data.history.length > 50) data.history.length = 50;
+        data.tasks = data.tasks.filter(function(x){ return x.id !== t.id; });
+        save(); renderTasks(); renderHistory(); renderCalendar();
+      });
       var del = document.createElement('button');
       del.className = 'jd-btn'; del.textContent = '×'; del.style.padding = '1px 8px';
       del.addEventListener('click', function(){
         data.tasks = data.tasks.filter(function(x){ return x.id !== t.id; });
         save(); renderTasks();
       });
-      row.appendChild(del);
+      actions.appendChild(check);
+      actions.appendChild(del);
+      row.appendChild(actions);
       box.appendChild(row);
     });
   }
