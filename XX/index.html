@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mi día — Jany</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+  body{margin:0;background:#0B0F0C;padding:16px 0;}
+  #jd-root{font-family:'Inter',system-ui,sans-serif;background:#0B0F0C;color:#F2F5EC;border-radius:20px;overflow:hidden;max-width:520px;margin:0 auto;border:1px solid #1E241B;}
+  #jd-root *{box-sizing:border-box;}
+  .jd-disp{font-family:'Space Grotesk',sans-serif;}
+  .jd-card{background:#141911;border:1px solid #232A1E;border-radius:14px;padding:14px;}
+  .jd-h{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;margin:0 0 10px;color:#F2F5EC;letter-spacing:.2px;}
+  .jd-sub{color:#8B9186;font-size:11.5px;}
+  .jd-btn{background:#1B2117;border:1px solid #2A3324;color:#DDE3D4;border-radius:9px;padding:7px 10px;font-size:12.5px;font-family:'Inter',sans-serif;cursor:pointer;}
+  .jd-btn:active{transform:scale(.97);}
+  .jd-btn-lima{background:#C6FF4B;border:1px solid #C6FF4B;color:#12210A;font-weight:600;}
+  .jd-input{border:1px solid #2A3324;border-radius:9px;padding:8px 10px;font-size:12.5px;font-family:'Inter',sans-serif;width:100%;background:#0F140D;color:#F2F5EC;}
+  .jd-input::placeholder{color:#6B7266;}
+  #jd-note::placeholder{color:#4A5A3C;}
+  .jd-row{display:flex;gap:8px;align-items:center;}
+  .jd-chip{display:inline-block;font-size:10.5px;padding:2px 8px;border-radius:999px;font-weight:600;}
+  .jd-grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .jd-dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:3px;}
+  a{color:#C6FF4B;}
+</style>
+</head>
+<body>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<div id="jd-auth-gate" style="position:fixed;inset:0;background:#0B0F0C;z-index:999;display:flex;align-items:flex-start;justify-content:center;padding:60px 16px;font-family:'Inter',system-ui,sans-serif;">
+  <div class="jd-card" style="max-width:340px;width:100%;">
+    <div class="jd-h">Acceso — Jany</div>
+    <button id="jd-auth-google" class="jd-btn jd-btn-lima" style="width:100%;margin-bottom:12px;">Continuar con Google</button>
+    <div class="jd-sub" style="text-align:center;margin:8px 0;">— o con correo y clave —</div>
+    <input class="jd-input" id="jd-auth-email" placeholder="Correo" type="email" style="margin-bottom:8px;">
+    <input class="jd-input" id="jd-auth-pass" placeholder="Clave" type="password" style="margin-bottom:8px;">
+    <button id="jd-auth-submit" class="jd-btn" style="width:100%;">Entrar</button>
+    <div id="jd-auth-msg" class="jd-sub" style="margin-top:8px;color:#F08C82;min-height:14px;"></div>
+  </div>
+</div>
+
+<div id="jd-root" style="display:none;">
+
+
+  <div id="jd-hero" style="background:#C6FF4B;padding:20px 16px 16px;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div>
+        <div class="jd-disp" style="color:#12210A;font-size:21px;font-weight:600;">Hola, Jany</div>
+        <div id="jd-clock" style="color:#3C4A2E;font-size:11.5px;margin-top:2px;"></div>
+      </div>
+      <a href="https://jefeshub.com/x" style="background:#0B0F0C;color:#FFFFFF;font-size:11.5px;font-weight:600;padding:6px 10px;border-radius:8px;text-decoration:none;white-space:nowrap;">Mis herramientas ›</a>
+    </div>
+    <button id="jd-auth-logout" style="background:transparent;border:none;color:#3C4A2E;font-size:10.5px;margin-top:6px;cursor:pointer;padding:0;text-decoration:underline;">Cerrar sesión</button>
+    <div id="jd-phrase" class="jd-disp" style="color:#12210A;font-size:15.5px;margin-top:16px;line-height:1.4;min-height:40px;">Hoy también cuenta.</div>
+    <div class="jd-row" style="margin-top:14px;background:#B4EE2F;border:1px solid #12210A;border-radius:12px;padding:9px 12px;">
+      <span style="color:#12210A;font-size:14px;">›</span>
+      <input class="jd-input" id="jd-note" placeholder="Escribe lo que necesitas..." style="background:transparent;border:none;color:#12210A;">
+      <button id="jd-mic-btn" type="button" aria-label="Dictar por voz" style="background:transparent;border:1px solid #12210A;color:#12210A;border-radius:8px;width:32px;height:32px;font-size:14px;cursor:pointer;">🎤</button>
+      <button id="jd-note-add" style="padding:6px 12px;border-radius:8px;background:#0B0F0C;border:1px solid #0B0F0C;color:#FFFFFF;font-weight:600;font-family:'Inter',sans-serif;font-size:12.5px;cursor:pointer;">Agregar</button>
+    </div>
+  </div>
+
+  <div id="jd-chatlog-wrap" style="display:none;padding:14px 14px 0;">
+    <div class="jd-card">
+      <div class="jd-h">Consulta con Claude</div>
+      <div id="jd-chatlog" style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow-y:auto;"></div>
+    </div>
+  </div>
+
+  <div style="padding:14px 14px 0;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+    <button id="jd-card-links" class="jd-card" style="text-align:left;cursor:pointer;padding:10px;">
+      <div class="jd-sub">Links</div>
+      <div class="jd-disp" id="jd-links-count" style="font-size:17px;margin-top:2px;">0</div>
+    </button>
+    <div class="jd-card" style="padding:10px;">
+      <div class="jd-sub">Avance</div>
+      <div id="jd-progress-mini" style="margin-top:6px;"></div>
+    </div>
+    <button id="jd-card-finance" class="jd-card" style="text-align:left;cursor:pointer;padding:10px;">
+      <div class="jd-sub">Deuda y ahorro</div>
+      <div class="jd-disp" id="jd-debt-mini" style="font-size:14px;margin-top:2px;color:#F08C82;">$0</div>
+    </button>
+  </div>
+
+  <div style="padding:14px;">
+    <div class="jd-row" style="justify-content:space-between;">
+      <div class="jd-h" style="margin:0;">Checklist mañanero</div>
+      <span class="jd-sub" id="jd-habits-count"></span>
+    </div>
+    <div class="jd-card" id="jd-habits-card">
+      <div id="jd-habits"></div>
+    </div>
+  </div>
+
+  <div id="jd-links-drawer" style="display:none;background:#0E120E;border-bottom:1px solid #1E241B;padding:14px;">
+    <div class="jd-card" style="margin:0;">
+      <div class="jd-h">Links privados</div>
+      <div id="jd-links-list"></div>
+      <div class="jd-row" style="margin-top:10px;">
+        <input class="jd-input" id="jd-link-name" placeholder="Nombre">
+        <input class="jd-input" id="jd-link-url" placeholder="URL">
+      </div>
+      <button class="jd-btn" style="margin-top:8px;width:100%;" id="jd-link-add">Agregar link</button>
+    </div>
+  </div>
+
+  <div id="jd-finance-drawer" style="display:none;background:#0E120E;border-bottom:1px solid #1E241B;padding:14px;">
+    <div class="jd-card" style="margin:0 0 10px;">
+      <div class="jd-grid2">
+        <div>
+          <div class="jd-sub">Deuda total</div>
+          <div class="jd-disp" id="jd-debt-total" style="font-size:22px;color:#F08C82;"></div>
+        </div>
+        <div>
+          <div class="jd-sub">Ahorro total</div>
+          <div class="jd-disp" id="jd-savings-total" style="font-size:22px;color:#8FE39E;"></div>
+        </div>
+      </div>
+      <div class="jd-h" style="margin-top:14px;">Desglose de deuda</div>
+      <div id="jd-debt-list"></div>
+      <div class="jd-h" style="margin-top:14px;">Por banco</div>
+      <div id="jd-bank-list"></div>
+      <div class="jd-row" style="margin-top:10px;">
+        <input class="jd-input" id="jd-debt-name" placeholder="Nombre (ej. BBVA Oro)">
+        <input class="jd-input" id="jd-debt-amount" placeholder="Monto" type="number" style="max-width:90px;">
+      </div>
+      <button class="jd-btn" style="margin-top:8px;width:100%;" id="jd-debt-add">Agregar deuda</button>
+      <div class="jd-sub" style="margin-top:10px;">Registrar movimiento en una deuda (compra o pago):</div>
+      <div class="jd-row" style="margin-top:6px;">
+        <select class="jd-input" id="jd-mov-debt"></select>
+        <input class="jd-input" id="jd-mov-amount" placeholder="+/- monto" type="number" style="max-width:90px;">
+      </div>
+      <button class="jd-btn" style="margin-top:8px;width:100%;" id="jd-mov-add">Aplicar movimiento</button>
+      <div class="jd-h" style="margin-top:14px;">Ahorro</div>
+      <div id="jd-savings-list"></div>
+      <div class="jd-row" style="margin-top:10px;">
+        <input class="jd-input" id="jd-saving-name" placeholder="Nombre (ej. Ahorro casa)">
+        <input class="jd-input" id="jd-saving-amount" placeholder="Monto" type="number" style="max-width:90px;">
+      </div>
+      <button class="jd-btn" style="margin-top:8px;width:100%;" id="jd-saving-add">Agregar ahorro</button>
+    </div>
+    <div class="jd-card" style="margin:0;">
+      <div class="jd-h">Movimientos recientes (desde el chat)</div>
+      <div id="jd-movements-list"></div>
+      <div class="jd-sub" style="margin-top:8px;">Escribe en el chat de arriba: "gasté 200 en la tiendita" o "se cobró 199 de Spotify" y se registra aquí solo.</div>
+    </div>
+  </div>
+
+  <div style="padding:14px;" class="jd-grid2">
+    <div class="jd-card">
+      <div class="jd-row" style="justify-content:space-between;margin-bottom:8px;">
+        <div class="jd-h" style="margin:0;">Retos del día</div>
+      </div>
+      <div id="jd-tasks"></div>
+      <div class="jd-row" style="margin-top:10px;">
+        <input class="jd-input" id="jd-task-text" placeholder="Nuevo reto...">
+      </div>
+      <select class="jd-input" id="jd-task-color" style="margin-top:6px;">
+        <option value="verde">Urgente</option>
+        <option value="amarillo" selected>Normal</option>
+        <option value="rojo">Puede esperar</option>
+      </select>
+      <button class="jd-btn" style="margin-top:8px;width:100%;" id="jd-task-add">Agregar</button>
+    </div>
+    <div class="jd-card" style="background:#1C2A12;border-color:#33461F;display:flex;flex-direction:column;justify-content:center;">
+      <div class="jd-disp" style="font-size:15px;color:#EAFFC8;line-height:1.4;">"No necesitas hacerlo todo. Necesitas avanzar en lo importante."</div>
+    </div>
+  </div>
+
+  <div style="padding:0 14px;">
+    <div class="jd-h">Calendario y balance</div>
+  </div>
+  <div style="padding:0 14px 14px;" class="jd-grid2">
+    <div class="jd-card">
+      <div class="jd-h">Balance del día</div>
+      <div id="jd-balance"></div>
+    </div>
+    <div class="jd-card">
+      <div class="jd-h">Agenda y pendientes</div>
+      <div id="jd-agenda"></div>
+      <input class="jd-input" id="jd-agenda-text" placeholder="Nuevo pendiente..." style="margin-top:8px;">
+      <button class="jd-btn" style="margin-top:8px;width:100%;" id="jd-agenda-add">Agregar</button>
+    </div>
+  </div>
+
+  <div style="padding:0 14px 14px;">
+    <div class="jd-h">Avance por proyecto</div>
+    <div class="jd-grid2" id="jd-products"></div>
+  </div>
+
+  <div style="padding:0 14px 14px;">
+    <div class="jd-row" style="justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <div class="jd-h" style="margin:0;">Mapa de tiempo</div>
+      <div class="jd-row" style="gap:6px;">
+        <button id="jd-cal-prev" style="background:#1B2117;color:#B9C0AF;border:none;border-radius:6px;width:26px;height:26px;cursor:pointer;">‹</button>
+        <span id="jd-cal-label" style="font-size:12px;color:#B9C0AF;min-width:76px;text-align:center;"></span>
+        <button id="jd-cal-next" style="background:#1B2117;color:#B9C0AF;border:none;border-radius:6px;width:26px;height:26px;cursor:pointer;">›</button>
+      </div>
+    </div>
+    <div class="jd-card">
+      <div id="jd-cal-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;"></div>
+      <div id="jd-cal-day-detail" style="display:none;"></div>
+    </div>
+  </div>
+
+  <div style="padding:0 14px 14px;">
+    <div class="jd-h">Historial y tiempo</div>
+    <div class="jd-card">
+      <div id="jd-history-summary" style="margin-bottom:10px;"></div>
+      <div id="jd-history-list"></div>
+    </div>
+  </div>
+
+  <div id="jd-banner" class="jd-disp" style="background:#C6FF4B;color:#12210A;text-align:center;padding:14px;font-size:13px;font-weight:600;">
+    La meta no es hacerlo todo. Es construir una vida que funcione.
+  </div>
+</div>
+
+<script>
+  // ==== CONFIGURACIÓN DE SUPABASE — reemplaza con los datos de tu proyecto ====
+  // Los encuentras en: Supabase → tu proyecto → Settings → API
+  var SUPABASE_URL = 'https://wyiqigrzcipywvijtchg.supabase.co';
+  var SUPABASE_ANON_KEY = 'sb_publishable_fy739Px-yWNLc9aripC7Ag_evHkSvgz';
+  var supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // window.storage solo existe dentro del entorno de Artifacts de Claude;
+  // fuera de ahí (ej. GitHub Pages) se define aquí usando localStorage del navegador.
+  if(!window.storage){
+    window.storage = {
+      get: function(key){ return Promise.resolve({ value: localStorage.getItem(key) }); },
+      set: function(key, value){ localStorage.setItem(key, value); return Promise.resolve(); }
+    };
+  }
+
+  function showApp(){
+    document.getElementById('jd-auth-gate').style.display = 'none';
+    document.getElementById('jd-root').style.display = '';
+  }
+  function showGate(msg){
+    document.getElementById('jd-auth-gate').style.display = 'flex';
+    document.getElementById('jd-root').style.display = 'none';
+    if(msg) document.getElementById('jd-auth-msg').textContent = msg;
+  }
+
+  supabaseClient.auth.getSession().then(function(res){
+    if(res.data.session) showApp(); else showGate();
+  });
+
+  supabaseClient.auth.onAuthStateChange(function(event, session){
+    if(session) showApp(); else showGate();
+  });
+
+  document.getElementById('jd-auth-google').addEventListener('click', function(){
+    supabaseClient.auth.signInWithOAuth({ provider: 'google' });
+  });
+
+  document.getElementById('jd-auth-submit').addEventListener('click', async function(){
+    var email = document.getElementById('jd-auth-email').value.trim();
+    var pass = document.getElementById('jd-auth-pass').value;
+    if(!email || !pass){ showGate('Escribe tu correo y clave.'); return; }
+    var res = await supabaseClient.auth.signInWithPassword({ email: email, password: pass });
+    if(res.error) showGate('Correo o clave incorrectos.');
+  });
+
+  document.addEventListener('click', function(e){
+    if(e.target && e.target.id === 'jd-auth-logout'){
+      supabaseClient.auth.signOut();
+    }
+  });
+</script>
+
+<script>
+(function(){
+  var defaultData = {
+    chatLog: [],
+    history: [
+      Object.assign({id:'hist1', project:'Rancho Seco', text:'Diseño de los 4 banners (Carnes El Mirador)', minutes:90}, {date:new Date().toLocaleDateString('es-MX',{day:'numeric',month:'short'}), dateISO:new Date().toISOString().slice(0,10), time:new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})})
+    ],
+    debts: [
+      {id:'d1', name:'BBVA Oro ****9972', amount:36807.07},
+      {id:'d2', name:'BBVA Azul ****8827', amount:26402.83},
+      {id:'d3', name:'Banamex', amount:10000}
+    ],
+    savings: [],
+    movements: [],
+    links: [
+      {id:'l1', name:'Hub Jefes en Expansión', url:'https://jefeshub.com'},
+      {id:'l2', name:'Cloudflare Worker (API)', url:'https://hub-jany-api.konverze-bi.workers.dev'},
+      {id:'l3', name:'Supabase', url:'https://supabase.com'},
+      {id:'l4', name:'Canva', url:'https://canva.com'},
+      {id:'l5', name:'Higgsfield', url:'https://higgsfield.ai'}
+    ],
+    habits: [
+      {id:'h1', text:'Tendí mi cama', daily:true},
+      {id:'h2', text:'Agradecí', daily:true},
+      {id:'h3', text:'Hice ejercicio', daily:true},
+      {id:'h4', text:'Tomé agua', daily:true},
+      {id:'h5', text:'Leí', daily:true},
+      {id:'h6', text:'Desayuné bien', daily:true},
+      {id:'h7', text:'Buenos días a mi familia', daily:false}
+    ],
+    habitChecks: {},
+    tasks: [
+      {id:'t1', text:'Videos e imágenes campaña Rancho Seco', color:'verde'},
+      {id:'t2', text:'Diseñar banner Rancho Seco', color:'verde'},
+      {id:'t3', text:'Lista de clientes grandes Miraisierra', color:'amarillo'},
+      {id:'t4', text:'Mandar presentación por WhatsApp', color:'amarillo'},
+      {id:'t5', text:'Campaña WhatsApp Red Impulso', color:'rojo'}
+    ],
+    agenda: [
+      {id:'a1', text:'Último martes de cada mes, 10 AM: capacitación grupal'},
+      {id:'a2', text:'Publicar frase de libertad por viajes'}
+    ],
+    balance: {espiritualidad:4, ejercicio:3, trabajo:7, familia:3, disfrute:2},
+    products: [
+      {id:'p1', name:'Hub Jefes', color:'#7F77DD', tasks:[
+        {id:'p1t1', text:'Definir membresía $1,000/mes', done:false},
+        {id:'p1t2', text:'Cerrar calendario de cohortes', done:false}
+      ]},
+      {id:'p2', name:'Rancho Seco', color:'#5DCAA5', tasks:[
+        {id:'p2t1', text:'Banner + campaña visual', done:false},
+        {id:'p2t2', text:'Lista clientes Miraisierra', done:false},
+        {id:'p2t3', text:'Ir a tomar contenido real de las instalaciones (fotos y video)', done:false},
+        {id:'p2t4', text:'Armar plantilla de prompts para que el encargado genere anuncios básicos con la identidad', done:false},
+        {id:'p2t5', text:'Terminar presentación para locales alrededor', done:false},
+        {id:'p2t6', text:'Enviar presentación a prospectos de la zona', done:false},
+        {id:'p2t7', text:'Enviar propuesta de diseños a Carnes El Mirador', done:false},
+        {id:'p2t8', text:'Enviar banners a Flor — reforma de motos (hoy)', done:false},
+        {id:'p2t9', text:'Enviar banners a Flor — carnes (mañana)', done:false},
+        {id:'p2t10', text:'Diseño de los 4 banners (Carnes El Mirador)', done:true}
+      ]},
+      {id:'p3', name:'Red Impulso Mujer', color:'#D4537E', tasks:[
+        {id:'p3t1', text:'Checar WhatsApp o doblar presupuesto', done:false}
+      ]},
+      {id:'p4', name:'Blog de viajes', color:'#378ADD', tasks:[
+        {id:'p4t1', text:'Publicar backlog de París', done:false},
+        {id:'p4t2', text:'Reconectar Jubi/Jucito', done:false}
+      ]}
+    ]
+  };
+
+  var phrases = [
+    'Hoy también cuenta.',
+    'No tienes que hacerlo todo. Solo lo importante.',
+    'Ingresos fijos, tiempo libre, corazón en paz.',
+    'Un paso de fe, un paso de orden.',
+    'Tu casa también se construye con estos días.',
+    'Claridad hoy, libertad mañana.'
+  ];
+
+  var data = null;
+  var todayKey = new Date().toISOString().slice(0,10);
+
+  function fmt(n){ return '$' + Number(n||0).toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+  function uid(p){ return p + Date.now() + Math.floor(Math.random()*1000); }
+  function historyStamp(){
+    var d = new Date();
+    return {
+      date: d.toLocaleDateString('es-MX',{day:'numeric',month:'short'}),
+      dateISO: d.toISOString().slice(0,10),
+      time: d.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})
+    };
+  }
+
+  async function save(){
+    try{ await window.storage.set('jany-dashboard-v2', JSON.stringify(data)); }
+    catch(e){ console.error('storage error', e); }
+  }
+
+  async function load(){
+    try{
+      var r = await window.storage.get('jany-dashboard-v2');
+      data = r && r.value ? JSON.parse(r.value) : JSON.parse(JSON.stringify(defaultData));
+    }catch(e){
+      data = JSON.parse(JSON.stringify(defaultData));
+    }
+    if(!data.habitChecks) data.habitChecks = {};
+    if(!data.chatLog) data.chatLog = [];
+    if(!data.history) data.history = [];
+    if(!data.habitChecks[todayKey]) data.habitChecks[todayKey] = {};
+    renderAll();
+  }
+
+  function renderAll(){
+    renderClock(); renderPhrase(); renderDebt(); renderLinks(); renderFinance(); renderProgressMini(); renderChatLog();
+    renderHabits(); renderTasks(); renderAgenda(); renderBalance(); renderProducts(); renderHistory(); renderCalendar();
+  }
+
+  function renderClock(){
+    var d = new Date();
+    document.getElementById('jd-clock').textContent = d.toLocaleDateString('es-MX', {weekday:'long', day:'numeric', month:'long'});
+  }
+
+  function renderPhrase(){
+    var el = document.getElementById('jd-phrase');
+    var i = 0;
+    el.textContent = phrases[0];
+    el.style.transition = 'opacity .3s';
+    setInterval(function(){
+      i = (i+1) % phrases.length;
+      el.style.opacity = 0;
+      setTimeout(function(){ el.textContent = phrases[i]; el.style.opacity = 1; }, 300);
+    }, 7000);
+  }
+
+  function renderDebt(){
+    var total = data.debts.reduce(function(s,d){ return s + Number(d.amount); }, 0);
+    var totalEl = document.getElementById('jd-debt-total');
+    if(totalEl) totalEl.textContent = fmt(total);
+    var mini = document.getElementById('jd-debt-mini');
+    if(mini) mini.textContent = fmt(total);
+    var list = document.getElementById('jd-debt-list');
+    list.innerHTML = '';
+    var sel = document.getElementById('jd-mov-debt');
+    sel.innerHTML = '';
+    data.debts.forEach(function(d){
+      var row = document.createElement('div');
+      row.className = 'jd-row';
+      row.style.cssText = 'justify-content:space-between;padding:6px 0;border-bottom:1px solid #232A1E;font-size:13px;';
+      row.innerHTML = '<span>'+d.name+'</span><span style="font-weight:600;">'+fmt(d.amount)+'</span>';
+      list.appendChild(row);
+      var opt = document.createElement('option');
+      opt.value = d.id; opt.textContent = d.name;
+      sel.appendChild(opt);
+    });
+    renderBankBreakdown();
+  }
+
+  function renderBankBreakdown(){
+    var box = document.getElementById('jd-bank-list');
+    if(!box) return;
+    var banks = {};
+    data.debts.forEach(function(d){
+      var bank = d.name.split(' ')[0];
+      banks[bank] = (banks[bank] || 0) + Number(d.amount);
+    });
+    box.innerHTML = '';
+    Object.keys(banks).forEach(function(b){
+      var row = document.createElement('div');
+      row.className = 'jd-row';
+      row.style.cssText = 'justify-content:space-between;padding:5px 0;font-size:12.5px;color:#9BA294;';
+      row.innerHTML = '<span>'+b+'</span><span>'+fmt(banks[b])+'</span>';
+      box.appendChild(row);
+    });
+  }
+
+  function renderFinance(){
+    var savingsTotal = data.savings.reduce(function(s,x){ return s + Number(x.amount); }, 0);
+    var savEl = document.getElementById('jd-savings-total');
+    if(savEl) savEl.textContent = fmt(savingsTotal);
+    var savList = document.getElementById('jd-savings-list');
+    if(savList){
+      savList.innerHTML = '';
+      data.savings.forEach(function(s){
+        var row = document.createElement('div');
+        row.className = 'jd-row';
+        row.style.cssText = 'justify-content:space-between;padding:6px 0;border-bottom:1px solid #232A1E;font-size:13px;';
+        row.innerHTML = '<span>'+s.name+'</span><span style="font-weight:600;color:#8FE39E;">'+fmt(s.amount)+'</span>';
+        savList.appendChild(row);
+      });
+    }
+    var movList = document.getElementById('jd-movements-list');
+    if(movList){
+      movList.innerHTML = '';
+      if(data.movements.length === 0){
+        var empty = document.createElement('div');
+        empty.className = 'jd-sub'; empty.textContent = 'Sin movimientos todavía.';
+        movList.appendChild(empty);
+      }
+      data.movements.slice(0,8).forEach(function(m){
+        var row = document.createElement('div');
+        row.className = 'jd-row';
+        row.style.cssText = 'justify-content:space-between;padding:6px 0;border-bottom:1px solid #232A1E;font-size:12.5px;';
+        var color = m.amount < 0 ? '#F08C82' : '#8FE39E';
+        row.innerHTML = '<span style="color:#9BA294;">'+m.date+' · '+m.text+'</span><span style="font-weight:600;color:'+color+';">'+(m.amount<0?'-':'+')+fmt(Math.abs(m.amount))+'</span>';
+        movList.appendChild(row);
+      });
+    }
+  }
+
+  function renderProgressMini(){
+    var box = document.getElementById('jd-progress-mini');
+    if(!box) return;
+    box.innerHTML = '';
+    data.products.forEach(function(p){
+      var pct = p.tasks.length ? Math.round(p.tasks.filter(function(t){return t.done;}).length/p.tasks.length*100) : 0;
+      var bar = document.createElement('div');
+      bar.style.cssText = 'height:4px;background:#1B2117;border-radius:4px;overflow:hidden;margin-bottom:4px;';
+      bar.innerHTML = '<div style="height:100%;width:'+pct+'%;background:'+p.color+';"></div>';
+      box.appendChild(bar);
+    });
+  }
+
+  function renderLinks(){
+    var countEl = document.getElementById('jd-links-count');
+    if(countEl) countEl.textContent = data.links.length;
+    var list = document.getElementById('jd-links-list');
+    list.innerHTML = '';
+    data.links.forEach(function(l){
+      var row = document.createElement('div');
+      row.style.cssText = 'padding:6px 0;border-bottom:1px solid #232A1E;font-size:13px;';
+      row.innerHTML = '<a href="'+l.url+'" style="font-weight:600;text-decoration:none;">'+l.name+'</a><div class="jd-sub">'+l.url+'</div>';
+      list.appendChild(row);
+    });
+  }
+
+  function dateStrOffset(offset){
+    var d = new Date();
+    d.setDate(d.getDate()-offset);
+    return d.toISOString().slice(0,10);
+  }
+
+  function getStreak(habitId){
+    var todayChecked = !!(data.habitChecks[todayKey] && data.habitChecks[todayKey][habitId]);
+    var streak = 0;
+    var offset = 1;
+    if(todayChecked){ streak = 1; }
+    while(true){
+      var ds = dateStrOffset(offset);
+      if(data.habitChecks[ds] && data.habitChecks[ds][habitId]){ streak++; offset++; }
+      else break;
+    }
+    return streak;
+  }
+
+  function renderHabits(){
+    var box = document.getElementById('jd-habits');
+    box.innerHTML = '';
+    var day = new Date().getDay();
+    var isMWF = (day===1 || day===3 || day===5);
+    var applicable = data.habits.filter(function(h){ return h.daily || isMWF; });
+    var doneCount = applicable.filter(function(h){ return !!data.habitChecks[todayKey][h.id]; }).length;
+    document.getElementById('jd-habits-count').textContent = doneCount + '/' + applicable.length + ' hoy';
+    var pending = applicable.filter(function(h){ return !data.habitChecks[todayKey][h.id]; });
+    if(pending.length === 0){
+      var done = document.createElement('div');
+      done.style.cssText = 'font-size:12.5px;color:#8FE39E;padding:6px 0;';
+      done.textContent = 'Ya marcaste todo hoy.';
+      box.appendChild(done);
+    }
+    pending.forEach(function(h){
+      var streak = getStreak(h.id);
+      var row = document.createElement('label');
+      row.className = 'jd-row';
+      row.style.cssText = 'padding:6px 0;font-size:13px;cursor:pointer;justify-content:space-between;';
+      row.innerHTML = '<span class="jd-row" style="gap:8px;"><input type="checkbox" style="width:16px;height:16px;accent-color:#C6FF4B;"> <span>'+h.text+'</span></span>'+
+        '<span class="jd-sub">'+(streak>0 ? streak+'d racha' : '')+'</span>';
+      row.querySelector('input').addEventListener('change', function(e){
+        if(!data.habitChecks[todayKey]) data.habitChecks[todayKey] = {};
+        data.habitChecks[todayKey][h.id] = e.target.checked;
+        save(); renderHabits();
+      });
+      box.appendChild(row);
+    });
+  }
+
+  var colorMap = {
+    verde: {bg:'#1E3B24', fg:'#8FE39E', dot:'#4FCF6D'},
+    amarillo: {bg:'#3B331A', fg:'#F2C94C', dot:'#F2C94C'},
+    rojo: {bg:'#3B211E', fg:'#F08C82', dot:'#E2574C'}
+  };
+
+  function renderTasks(){
+    var box = document.getElementById('jd-tasks');
+    box.innerHTML = '';
+    var order = {verde:0, amarillo:1, rojo:2};
+    var sorted = data.tasks.slice().sort(function(a,b){ return order[a.color]-order[b.color]; });
+    sorted.forEach(function(t){
+      var c = colorMap[t.color];
+      var row = document.createElement('div');
+      row.className = 'jd-row';
+      row.style.cssText = 'justify-content:space-between;padding:7px 0;border-bottom:1px solid #232A1E;';
+      row.innerHTML = '<span style="font-size:12.5px;flex:1;"><span class="jd-dot" style="background:'+c.dot+';"></span>'+t.text+'</span>';
+      var del = document.createElement('button');
+      del.className = 'jd-btn'; del.textContent = '×'; del.style.padding = '1px 8px';
+      del.addEventListener('click', function(){
+        data.tasks = data.tasks.filter(function(x){ return x.id !== t.id; });
+        save(); renderTasks();
+      });
+      row.appendChild(del);
+      box.appendChild(row);
+    });
+  }
+
+  function renderAgenda(){
+    var box = document.getElementById('jd-agenda');
+    box.innerHTML = '';
+    data.agenda.forEach(function(a){
+      var row = document.createElement('div');
+      row.className = 'jd-row';
+      row.style.cssText = 'justify-content:space-between;padding:6px 0;border-bottom:1px solid #232A1E;font-size:12.5px;';
+      row.innerHTML = '<span>'+a.text+'</span>';
+      var del = document.createElement('button');
+      del.className = 'jd-btn'; del.textContent = '×'; del.style.padding = '1px 8px';
+      del.addEventListener('click', function(){
+        data.agenda = data.agenda.filter(function(x){ return x.id !== a.id; });
+        save(); renderAgenda();
+      });
+      row.appendChild(del);
+      box.appendChild(row);
+    });
+  }
+
+  function renderBalance(){
+    var box = document.getElementById('jd-balance');
+    box.innerHTML = '';
+    var labels = {espiritualidad:'Espíritu', ejercicio:'Cuerpo', trabajo:'Trabajo', familia:'Familia', disfrute:'Disfrute'};
+    Object.keys(data.balance).forEach(function(k){
+      var v = data.balance[k];
+      var row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:5px 0;';
+      var dots = '';
+      for(var i=1;i<=8;i++){ dots += '<span class="jd-dot" style="background:'+(i<=v?'#C6FF4B':'#232A1E')+';"></span>'; }
+      row.innerHTML = '<span style="font-size:12px;color:#B9C0AF;width:64px;">'+labels[k]+'</span><span>'+dots+'</span>';
+      var ctrl = document.createElement('div');
+      ctrl.className='jd-row'; ctrl.style.gap='3px';
+      var minus=document.createElement('button'); minus.className='jd-btn'; minus.textContent='-'; minus.style.padding='0 7px';
+      var plus=document.createElement('button'); plus.className='jd-btn'; plus.textContent='+'; plus.style.padding='0 7px';
+      minus.addEventListener('click', function(){ data.balance[k]=Math.max(0,data.balance[k]-1); save(); renderBalance(); });
+      plus.addEventListener('click', function(){ data.balance[k]=Math.min(8,data.balance[k]+1); save(); renderBalance(); });
+      ctrl.appendChild(minus); ctrl.appendChild(plus);
+      row.appendChild(ctrl);
+      box.appendChild(row);
+    });
+  }
+
+  var calViewDate = new Date(); calViewDate.setDate(1);
+  var monthNames = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  var legacyMonths = {ene:0,feb:1,mar:2,abr:3,may:4,jun:5,jul:6,ago:7,sep:8,oct:9,nov:10,dic:11};
+
+  function entryDateISO(h){
+    if(h.dateISO) return h.dateISO;
+    var m = /^(\d{1,2})\s+([a-zñ]{3})/i.exec((h.date||'').trim());
+    if(!m) return null;
+    var day = parseInt(m[1],10);
+    var mon = legacyMonths[m[2].toLowerCase()];
+    if(mon === undefined) return null;
+    var year = new Date().getFullYear();
+    return year + '-' + String(mon+1).padStart(2,'0') + '-' + String(day).padStart(2,'0');
+  }
+
+  function hexToRgba(hex, alpha){
+    hex = (hex||'#6B7280').replace('#','');
+    var r = parseInt(hex.substring(0,2),16), g = parseInt(hex.substring(2,4),16), b = parseInt(hex.substring(4,6),16);
+    return 'rgba('+r+','+g+','+b+','+alpha+')';
+  }
+
+  function projectColor(name){
+    var p = data.products.find(function(x){ return x.name === name; });
+    return p ? p.color : '#6B7280';
+  }
+
+  function buildMonthMap(){
+    var byDay = {};
+    data.history.forEach(function(h){
+      var iso = entryDateISO(h);
+      if(!iso) return;
+      if(!byDay[iso]) byDay[iso] = {total:0, byProject:{}, entries:[]};
+      var mins = h.minutes || 0;
+      byDay[iso].total += mins;
+      byDay[iso].byProject[h.project] = (byDay[iso].byProject[h.project]||0) + mins;
+      byDay[iso].entries.push(h);
+    });
+    return byDay;
+  }
+
+  function renderCalendar(){
+    var grid = document.getElementById('jd-cal-grid');
+    var label = document.getElementById('jd-cal-label');
+    if(!grid || !label) return;
+    label.textContent = monthNames[calViewDate.getMonth()] + ' ' + calViewDate.getFullYear();
+
+    var byDay = buildMonthMap();
+    grid.innerHTML = '';
+    ['L','M','M','J','V','S','D'].forEach(function(d){
+      var head = document.createElement('div');
+      head.style.cssText = 'font-size:10px;color:#5C6157;text-align:center;padding-bottom:2px;';
+      head.textContent = d;
+      grid.appendChild(head);
+    });
+
+    var year = calViewDate.getFullYear(), month = calViewDate.getMonth();
+    var firstDay = new Date(year, month, 1);
+    var startOffset = (firstDay.getDay() + 6) % 7;
+    var daysInMonth = new Date(year, month+1, 0).getDate();
+    var todayISO = new Date().toISOString().slice(0,10);
+
+    for(var i=0; i<startOffset; i++){ grid.appendChild(document.createElement('div')); }
+
+    for(var day=1; day<=daysInMonth; day++){
+      var iso = year + '-' + String(month+1).padStart(2,'0') + '-' + String(day).padStart(2,'0');
+      var info = byDay[iso];
+      var cell = document.createElement('div');
+      var isToday = iso === todayISO;
+      var bg = '#1B2117', textColor = '#B9C0AF';
+      if(info && info.total > 0){
+        var dominant = Object.keys(info.byProject).reduce(function(a,b){ return info.byProject[a] >= info.byProject[b] ? a : b; });
+        var alpha = info.total >= 180 ? 1 : info.total >= 90 ? 0.75 : info.total >= 30 ? 0.5 : 0.3;
+        bg = hexToRgba(projectColor(dominant), alpha);
+        textColor = info.total >= 90 ? '#0B0F0C' : '#EDEFEA';
+      } else if(info){
+        bg = '#2A3122';
+      }
+      cell.style.cssText = 'aspect-ratio:1;border-radius:6px;background:'+bg+';display:flex;align-items:center;justify-content:center;'+
+        'font-size:11px;color:'+textColor+';cursor:pointer;'+(isToday?'box-shadow:0 0 0 1.5px #C6FF4B inset;':'');
+      cell.textContent = day;
+      cell.addEventListener('click', (function(clickedIso, clickedInfo){
+        return function(){ renderDayDetail(clickedIso, clickedInfo); };
+      })(iso, info));
+      grid.appendChild(cell);
+    }
+  }
+
+  function renderDayDetail(iso, info){
+    var panel = document.getElementById('jd-cal-day-detail');
+    if(!panel) return;
+    panel.style.display = 'block';
+    var d = new Date(iso + 'T00:00:00');
+    var dateLabel = d.toLocaleDateString('es-MX', {weekday:'long', day:'numeric', month:'long'});
+    if(!info || info.entries.length === 0){
+      panel.innerHTML = '<div style="border-top:1px solid #232A1E;padding-top:10px;">'+
+        '<div style="font-size:12.5px;font-weight:600;color:#EDEFEA;margin-bottom:4px;text-transform:capitalize;">'+dateLabel+'</div>'+
+        '<div class="jd-sub">Sin actividad registrada este día.</div></div>';
+      return;
+    }
+    var html = '<div style="border-top:1px solid #232A1E;padding-top:10px;">';
+    html += '<div style="font-size:12.5px;font-weight:600;color:#EDEFEA;margin-bottom:6px;text-transform:capitalize;">'+dateLabel+'</div>';
+    Object.keys(info.byProject).forEach(function(k){
+      var mins = info.byProject[k];
+      var h = Math.floor(mins/60), m = mins%60;
+      var mlabel = mins ? ((h>0?h+'h ':'')+(m>0?m+'min':(h>0?'':'0min'))) : 'sin duración';
+      html += '<div class="jd-row" style="justify-content:space-between;font-size:11.5px;color:#9BA294;padding:2px 0;">'+
+        '<span class="jd-row" style="gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:'+projectColor(k)+';display:inline-block;"></span>'+k+'</span><span>'+mlabel+'</span></div>';
+    });
+    html += '<div style="margin-top:8px;">';
+    info.entries.slice().sort(function(a,b){ return (a.time||'').localeCompare(b.time||''); }).forEach(function(h){
+      var mins = h.minutes ? ' · ' + h.minutes + ' min' : '';
+      var time = h.time ? h.time + ' — ' : '';
+      html += '<div style="padding:5px 0;border-bottom:1px solid #232A1E;font-size:11.5px;color:#9BA294;">'+
+        '<span class="jd-sub">'+time+'</span><span class="jd-chip" style="background:#1B2117;color:#B9C0AF;margin:0 6px;">'+h.project+'</span>'+h.text+mins+'</div>';
+    });
+    html += '</div></div>';
+    panel.innerHTML = html;
+  }
+
+  function renderHistory(){
+    var summary = document.getElementById('jd-history-summary');
+    var list = document.getElementById('jd-history-list');
+    if(!summary || !list) return;
+    var totals = {};
+    data.history.forEach(function(h){
+      if(h.minutes){ totals[h.project] = (totals[h.project] || 0) + h.minutes; }
+    });
+    summary.innerHTML = '';
+    var keys = Object.keys(totals);
+    if(keys.length === 0){
+      summary.innerHTML = '<div class="jd-sub">Todavía no hay tiempo registrado.</div>';
+    } else {
+      keys.forEach(function(k){
+        var row = document.createElement('div');
+        row.className = 'jd-row';
+        row.style.cssText = 'justify-content:space-between;font-size:12.5px;color:#9BA294;padding:3px 0;';
+        var h = Math.floor(totals[k]/60), m = totals[k]%60;
+        var label = (h>0 ? h+'h ' : '') + (m>0 ? m+'min' : (h>0?'':'0min'));
+        row.innerHTML = '<span>'+k+'</span><span>'+label+'</span>';
+        summary.appendChild(row);
+      });
+    }
+    list.innerHTML = '';
+    data.history.slice(0,10).forEach(function(h){
+      var row = document.createElement('div');
+      row.style.cssText = 'padding:6px 0;border-bottom:1px solid #232A1E;font-size:12px;color:#9BA294;';
+      var mins = h.minutes ? ' · ' + h.minutes + ' min' : '';
+      row.innerHTML = '<span class="jd-chip" style="background:#1B2117;color:#B9C0AF;margin-right:6px;">'+h.project+'</span>'+h.text+mins+' <span class="jd-sub">('+h.date+')</span>';
+      list.appendChild(row);
+    });
+  }
+
+  function renderProducts(){
+    var box = document.getElementById('jd-products');
+    box.innerHTML = '';
+    data.products.forEach(function(p){
+      var card = document.createElement('div');
+      card.className = 'jd-card';
+      var pendingCount = p.tasks.filter(function(t){ return !t.done; }).length;
+      var doneCount = p.tasks.length - pendingCount;
+      var pct = p.tasks.length ? Math.round(doneCount/p.tasks.length*100) : 0;
+      var head = document.createElement('div');
+      head.className = 'jd-row'; head.style.cssText='justify-content:space-between;margin-bottom:6px;';
+      head.innerHTML = '<div class="jd-row" style="gap:6px;"><span style="width:9px;height:9px;border-radius:50%;background:'+p.color+';display:inline-block;"></span>'+
+        '<span style="font-size:12.5px;font-weight:600;">'+p.name+'</span></div>'+
+        '<span class="jd-chip" style="background:#1B2117;color:#B9C0AF;">'+pendingCount+' pend.</span>';
+      card.appendChild(head);
+      var bar = document.createElement('div');
+      bar.style.cssText = 'height:4px;background:#1B2117;border-radius:4px;overflow:hidden;margin-bottom:8px;';
+      bar.innerHTML = '<div style="height:100%;width:'+pct+'%;background:'+p.color+';"></div>';
+      card.appendChild(bar);
+      p.tasks.forEach(function(t){
+        var row = document.createElement('label');
+        row.className = 'jd-row';
+        row.style.cssText = 'gap:6px;padding:2px 0;cursor:pointer;';
+        row.innerHTML = '<input type="checkbox" '+(t.done?'checked':'')+' style="width:13px;height:13px;accent-color:'+p.color+';">'+
+          '<span style="font-size:11.5px;'+(t.done?'color:#5C6157;text-decoration:line-through;':'color:#9BA294;')+'">'+t.text+'</span>';
+        row.querySelector('input').addEventListener('change', function(e){
+          t.done = e.target.checked;
+          if(e.target.checked){
+            data.history.unshift(Object.assign({id:uid('hist'), project:p.name, text:t.text, minutes:null}, historyStamp()));
+            if(data.history.length > 50) data.history.length = 50;
+          }
+          save(); renderProducts(); renderProgressMini(); renderHistory(); renderCalendar();
+        });
+        card.appendChild(row);
+      });
+      box.appendChild(card);
+    });
+  }
+
+  document.getElementById('jd-card-links').addEventListener('click', function(){
+    var dr = document.getElementById('jd-links-drawer');
+    dr.style.display = dr.style.display === 'none' ? 'block' : 'none';
+  });
+
+  document.getElementById('jd-card-finance').addEventListener('click', function(){
+    var dr = document.getElementById('jd-finance-drawer');
+    dr.style.display = dr.style.display === 'none' ? 'block' : 'none';
+  });
+
+  document.getElementById('jd-saving-add').addEventListener('click', function(){
+    var name = document.getElementById('jd-saving-name').value.trim();
+    var amount = parseFloat(document.getElementById('jd-saving-amount').value);
+    if(!name || isNaN(amount)) return;
+    data.savings.push({id:uid('s'), name:name, amount:amount});
+    document.getElementById('jd-saving-name').value='';
+    document.getElementById('jd-saving-amount').value='';
+    save(); renderFinance();
+  });
+
+  document.getElementById('jd-debt-add').addEventListener('click', function(){
+    var name = document.getElementById('jd-debt-name').value.trim();
+    var amount = parseFloat(document.getElementById('jd-debt-amount').value);
+    if(!name || isNaN(amount)) return;
+    data.debts.push({id:uid('d'), name:name, amount:amount});
+    document.getElementById('jd-debt-name').value='';
+    document.getElementById('jd-debt-amount').value='';
+    save(); renderDebt();
+  });
+
+  document.getElementById('jd-mov-add').addEventListener('click', function(){
+    var id = document.getElementById('jd-mov-debt').value;
+    var amount = parseFloat(document.getElementById('jd-mov-amount').value);
+    if(!id || isNaN(amount)) return;
+    var debt = data.debts.find(function(d){ return d.id===id; });
+    if(debt){ debt.amount = Math.max(0, debt.amount + amount); }
+    document.getElementById('jd-mov-amount').value='';
+    save(); renderDebt();
+  });
+
+  document.getElementById('jd-link-add').addEventListener('click', function(){
+    var name = document.getElementById('jd-link-name').value.trim();
+    var url = document.getElementById('jd-link-url').value.trim();
+    if(!name || !url) return;
+    data.links.push({id:uid('l'), name:name, url:url});
+    document.getElementById('jd-link-name').value='';
+    document.getElementById('jd-link-url').value='';
+    save(); renderLinks();
+  });
+
+  document.getElementById('jd-task-add').addEventListener('click', function(){
+    var text = document.getElementById('jd-task-text').value.trim();
+    var color = document.getElementById('jd-task-color').value;
+    if(!text) return;
+    data.tasks.push({id:uid('t'), text:text, color:color});
+    document.getElementById('jd-task-text').value='';
+    save(); renderTasks();
+  });
+
+  document.getElementById('jd-cal-prev').addEventListener('click', function(){
+    calViewDate.setMonth(calViewDate.getMonth() - 1);
+    document.getElementById('jd-cal-day-detail').style.display = 'none';
+    renderCalendar();
+  });
+  document.getElementById('jd-cal-next').addEventListener('click', function(){
+    calViewDate.setMonth(calViewDate.getMonth() + 1);
+    document.getElementById('jd-cal-day-detail').style.display = 'none';
+    renderCalendar();
+  });
+
+  document.getElementById('jd-agenda-add').addEventListener('click', function(){
+    var text = document.getElementById('jd-agenda-text').value.trim();
+    if(!text) return;
+    data.agenda.push({id:uid('a'), text:text});
+    document.getElementById('jd-agenda-text').value='';
+    save(); renderAgenda();
+  });
+
+  function wordsOverlap(a, b){
+    var wa = a.split(/\s+/).filter(function(w){ return w.length>=4; });
+    return wa.some(function(w){ return b.indexOf(w) > -1; });
+  }
+
+  function parseMinutes(lower){
+    if(lower.indexOf('hora y media') > -1) return 90;
+    var hourMatch = lower.match(/(\d+(\.\d+)?)\s*horas?/);
+    if(hourMatch) return Math.round(parseFloat(hourMatch[1]) * 60);
+    var minMatch = lower.match(/(\d+)\s*min(utos)?/);
+    if(minMatch) return parseInt(minMatch[1], 10);
+    return null;
+  }
+
+  function guessProject(lower){
+    var found = data.products.find(function(p){ return lower.indexOf(p.name.toLowerCase()) > -1; });
+    return found ? found.name : 'General';
+  }
+
+  function tryMarkDone(text){
+    var lower = text.toLowerCase();
+    var doneKeywords = ['ya hice','ya se hizo','ya esta','ya está','ya quedo','ya quedó','listo','termine','terminé','terminado','hecho','ya lo hice','completado','ya lo termine','ya lo terminé'];
+    var isDoneCommand = doneKeywords.some(function(k){ return lower.indexOf(k) > -1; });
+    if(!isDoneCommand) return false;
+    var minutes = parseMinutes(lower);
+    var matched = null;
+    data.tasks.forEach(function(t){
+      if(!matched && (wordsOverlap(lower, t.text.toLowerCase()) || wordsOverlap(t.text.toLowerCase(), lower))) matched = {type:'reto', obj:t};
+    });
+    if(!matched){
+      data.products.forEach(function(p){
+        p.tasks.forEach(function(t){
+          if(!matched && !t.done && (wordsOverlap(lower, t.text.toLowerCase()) || wordsOverlap(t.text.toLowerCase(), lower))) matched = {type:'producto', obj:t, product:p};
+        });
+      });
+    }
+    var historyEntry;
+    if(matched){
+      if(matched.type==='reto'){
+        data.tasks = data.tasks.filter(function(x){ return x.id !== matched.obj.id; }); renderTasks();
+        historyEntry = Object.assign({id:uid('hist'), project:guessProject(lower), text:matched.obj.text, minutes:minutes}, historyStamp());
+      } else {
+        matched.obj.done = true; renderProducts(); renderProgressMini();
+        historyEntry = Object.assign({id:uid('hist'), project:matched.product.name, text:matched.obj.text, minutes:minutes}, historyStamp());
+      }
+    } else {
+      historyEntry = Object.assign({id:uid('hist'), project:guessProject(lower), text:text, minutes:minutes}, historyStamp());
+    }
+    data.history.unshift(historyEntry);
+    if(data.history.length > 50) data.history.length = 50;
+    save(); renderHistory(); renderCalendar();
+    return true;
+  }
+
+  function tryLogFinance(text){
+    var lower = text.toLowerCase();
+    var expenseKw = ['gaste','gasté','gasto','se cobro','se cobró','cobraron','pague','pagué','compre','compré','cargo','cargó'];
+    var savingKw = ['ahorre','ahorré','ahorro','deposite','deposité','guarde','guardé'];
+    var isExpense = expenseKw.some(function(k){ return lower.indexOf(k) > -1; });
+    var isSaving = !isExpense && savingKw.some(function(k){ return lower.indexOf(k) > -1; });
+    if(!isExpense && !isSaving) return false;
+    var m = lower.match(/(\d+[.,]?\d*)/);
+    if(!m) return false;
+    var amount = parseFloat(m[1].replace(',', '.'));
+    if(isNaN(amount)) return false;
+    var signed = isExpense ? -Math.abs(amount) : Math.abs(amount);
+    var dateLabel = new Date().toLocaleDateString('es-MX', {day:'numeric', month:'short'});
+    data.movements.unshift({id:uid('m'), date:dateLabel, text:text, amount:signed});
+    if(data.movements.length > 30) data.movements.length = 30;
+    save(); renderFinance();
+    return true;
+  }
+
+  function renderChatLog(){
+    var wrap = document.getElementById('jd-chatlog-wrap');
+    var box = document.getElementById('jd-chatlog');
+    if(data.chatLog.length === 0){ wrap.style.display = 'none'; return; }
+    wrap.style.display = 'block';
+    box.innerHTML = '';
+    data.chatLog.slice(-10).forEach(function(m){
+      var row = document.createElement('div');
+      var isUser = m.role === 'user';
+      row.style.cssText = 'font-size:12.5px;line-height:1.5;padding:8px 10px;border-radius:10px;max-width:90%;'+
+        (isUser ? 'align-self:flex-end;background:#1B2117;color:#F2F5EC;' : 'align-self:flex-start;background:#C6FF4B;color:#12210A;');
+      row.textContent = m.text;
+      box.appendChild(row);
+    });
+    box.scrollTop = box.scrollHeight;
+  }
+
+  async function askClaude(userText){
+    var projectNames = data.products.map(function(p){ return p.name; }).join(', ');
+    var systemPrompt = 'Eres el asistente del dashboard personal de Jany (marketing, negocios, finanzas, hábitos). '+
+      'Responde SOLO con un JSON valido, sin texto extra ni markdown, con esta forma exacta:\n'+
+      '{"action":"reto|habito|agenda|proyecto|pregunta","text":"...","color":"verde|amarillo|rojo|null","project":"'+projectNames+'|null","reply":"..."}\n'+
+      'Reglas: action=reto es un pendiente suelto de hoy sin proyecto claro (color segun urgencia, verde=urgente, amarillo=normal, rojo=puede esperar). '+
+      'action=habito es un habito diario nuevo a trackear. action=agenda es un pendiente o fecha futura. '+
+      'action=proyecto es una tarea que pertenece claramente a uno de estos proyectos: '+projectNames+' (pon el nombre EXACTO en project). '+
+      'action=pregunta es cualquier consulta, duda o pedido de consejo de negocio/marketing/finanzas que NO es algo para agregar a una lista; en ese caso responde en "reply" de forma util y breve (maximo 4 lineas), y deja "text" vacio. '+
+      'Si no es pregunta, deja "reply" vacio.\n\nMensaje de Jany: ' + userText;
+    try{
+      var response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 500,
+          messages: [{ role: 'user', content: systemPrompt }]
+        })
+      });
+      var json = await response.json();
+      var textBlocks = (json.content || []).filter(function(b){ return b.type === 'text'; }).map(function(b){ return b.text; }).join('\n');
+      var clean = textBlocks.replace(/```json|```/g, '').trim();
+      return JSON.parse(clean);
+    }catch(e){
+      console.error('Claude API error', e);
+      return null;
+    }
+  }
+
+  function routeParsed(originalText, parsed){
+    if(!parsed || !parsed.action){
+      data.tasks.push({id:uid('t'), text:originalText, color:'amarillo'});
+      save(); renderTasks();
+      return;
+    }
+    if(parsed.action === 'pregunta'){
+      data.chatLog.push({role:'user', text:originalText});
+      data.chatLog.push({role:'assistant', text: parsed.reply || 'No tengo una respuesta clara para eso, cuéntame un poco más.'});
+      if(data.chatLog.length > 20) data.chatLog = data.chatLog.slice(-20);
+      save(); renderChatLog();
+      return;
+    }
+    if(parsed.action === 'habito'){
+      data.habits.push({id:uid('h'), text: parsed.text || originalText, daily:true});
+      save(); renderHabits();
+      return;
+    }
+    if(parsed.action === 'agenda'){
+      data.agenda.push({id:uid('a'), text: parsed.text || originalText});
+      save(); renderAgenda();
+      return;
+    }
+    if(parsed.action === 'proyecto' && parsed.project){
+      var product = data.products.find(function(p){ return p.name === parsed.project; });
+      if(product){
+        product.tasks.push({id:uid('pt'), text: parsed.text || originalText, done:false});
+        save(); renderProducts(); renderProgressMini();
+        return;
+      }
+    }
+    var color = (parsed.color === 'verde' || parsed.color === 'rojo') ? parsed.color : 'amarillo';
+    data.tasks.push({id:uid('t'), text: parsed.text || originalText, color: color});
+    save(); renderTasks();
+  }
+
+  document.getElementById('jd-note-add').addEventListener('click', async function(){
+    var input = document.getElementById('jd-note');
+    var btn = document.getElementById('jd-note-add');
+    var text = input.value.trim();
+    if(!text) return;
+    input.value = '';
+    var handledFast = tryMarkDone(text) || tryLogFinance(text);
+    if(handledFast){
+      var original = input.placeholder;
+      input.placeholder = 'Registrado ✓';
+      setTimeout(function(){ input.placeholder = original; }, 2500);
+      return;
+    }
+    var originalLabel = btn.textContent;
+    btn.textContent = '...';
+    btn.disabled = true;
+    var parsed = await askClaude(text);
+    btn.textContent = originalLabel;
+    btn.disabled = false;
+    routeParsed(text, parsed);
+  });
+
+  (function setupVoice(){
+    var micBtn = document.getElementById('jd-mic-btn');
+    var input = document.getElementById('jd-note');
+    var Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(!Recognition){
+      micBtn.addEventListener('click', function(){
+        micBtn.textContent = '✕';
+        input.placeholder = 'Tu navegador no soporta dictado aquí, usa el micrófono del teclado.';
+        setTimeout(function(){ micBtn.textContent = '🎤'; input.placeholder = 'Escribe lo que necesitas...'; }, 3500);
+      });
+      return;
+    }
+    var recognition = new Recognition();
+    recognition.lang = 'es-MX';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    var listening = false;
+    recognition.addEventListener('result', function(e){
+      var transcript = e.results[0][0].transcript;
+      input.value = transcript;
+    });
+    recognition.addEventListener('end', function(){
+      listening = false;
+      micBtn.style.background = 'transparent';
+    });
+    recognition.addEventListener('error', function(){
+      listening = false;
+      micBtn.style.background = 'transparent';
+    });
+    micBtn.addEventListener('click', function(){
+      if(listening){ recognition.stop(); return; }
+      listening = true;
+      micBtn.style.background = '#0B0F0C';
+      micBtn.style.color = '#FFFFFF';
+      try{ recognition.start(); }catch(e){ listening = false; }
+    });
+  })();
+
+  load();
+})();
+</script>
+</body>
+</html>

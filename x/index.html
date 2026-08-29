@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Accesos rápidos — Jany</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+  body{margin:0;background:#0B0F0C;padding:16px 0;}
+  #jd-root{font-family:'Inter',system-ui,sans-serif;background:#0B0F0C;color:#F2F5EC;border-radius:20px;overflow:hidden;max-width:520px;margin:0 auto;border:1px solid #1E241B;}
+  #jd-root *{box-sizing:border-box;}
+  .jd-disp{font-family:'Space Grotesk',sans-serif;}
+  .jd-card{background:#141911;border:1px solid #232A1E;border-radius:14px;padding:14px;}
+  .jd-h{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;margin:0 0 10px;color:#F2F5EC;letter-spacing:.2px;}
+  .jd-sub{color:#8B9186;font-size:11.5px;}
+  .jd-btn{background:#1B2117;border:1px solid #2A3324;color:#DDE3D4;border-radius:9px;padding:7px 10px;font-size:12.5px;font-family:'Inter',sans-serif;cursor:pointer;}
+  .jd-btn:active{transform:scale(.97);}
+  .jd-btn-lima{background:#C6FF4B;border:1px solid #C6FF4B;color:#12210A;font-weight:600;}
+  .jd-input{border:1px solid #2A3324;border-radius:9px;padding:8px 10px;font-size:12.5px;font-family:'Inter',sans-serif;width:100%;background:#0F140D;color:#F2F5EC;}
+  .jd-input::placeholder{color:#6B7266;}
+  .jd-row{display:flex;gap:8px;align-items:center;}
+  a{color:#C6FF4B;}
+  .jd-tool-link{display:flex;align-items:center;justify-content:space-between;padding:12px;border-radius:12px;background:#141911;border:1px solid #232A1E;text-decoration:none;color:#F2F5EC;margin-bottom:10px;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;}
+  .jd-tool-link:active{transform:scale(.98);}
+  .jd-tool-link span.arrow{color:#C6FF4B;font-family:'Inter',sans-serif;font-weight:400;}
+</style>
+</head>
+<body>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<div id="jd-auth-gate" style="position:fixed;inset:0;background:#0B0F0C;z-index:999;display:flex;align-items:flex-start;justify-content:center;padding:60px 16px;font-family:'Inter',system-ui,sans-serif;">
+  <div class="jd-card" style="max-width:340px;width:100%;">
+    <div class="jd-h">Acceso — Jany</div>
+    <button id="jd-auth-google" class="jd-btn jd-btn-lima" style="width:100%;margin-bottom:12px;">Continuar con Google</button>
+    <div class="jd-sub" style="text-align:center;margin:8px 0;">— o con correo y clave —</div>
+    <input class="jd-input" id="jd-auth-email" placeholder="Correo" type="email" style="margin-bottom:8px;">
+    <input class="jd-input" id="jd-auth-pass" placeholder="Clave" type="password" style="margin-bottom:8px;">
+    <button id="jd-auth-submit" class="jd-btn" style="width:100%;">Entrar</button>
+    <div id="jd-auth-msg" class="jd-sub" style="margin-top:8px;color:#F08C82;min-height:14px;"></div>
+  </div>
+</div>
+
+<div id="jd-root" style="display:none;">
+
+  <div style="background:#C6FF4B;padding:20px 16px 16px;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div>
+        <div class="jd-disp" style="color:#12210A;font-size:21px;font-weight:600;">Mis herramientas</div>
+        <div class="jd-sub" style="color:#3C4A2E;">Accesos rápidos</div>
+      </div>
+      <a href="/XX" style="background:#0B0F0C;color:#FFFFFF;font-size:11.5px;font-weight:600;padding:6px 10px;border-radius:8px;text-decoration:none;white-space:nowrap;">‹ Mi día</a>
+    </div>
+    <button id="jd-auth-logout" style="background:transparent;border:none;color:#3C4A2E;font-size:10.5px;margin-top:6px;cursor:pointer;padding:0;text-decoration:underline;">Cerrar sesión</button>
+  </div>
+
+  <div style="padding:16px 14px;">
+    <div id="jd-tools-list"></div>
+  </div>
+
+</div>
+
+<script>
+  // ==== CONFIGURACIÓN DE SUPABASE — reemplaza con los datos de tu proyecto ====
+  // Los encuentras en: Supabase → tu proyecto → Settings → API
+  var SUPABASE_URL = 'https://wyiqigrzcipywvijtchg.supabase.co';
+  var SUPABASE_ANON_KEY = 'sb_publishable_fy739Px-yWNLc9aripC7Ag_evHkSvgz';
+  var supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  function showApp(){
+    document.getElementById('jd-auth-gate').style.display = 'none';
+    document.getElementById('jd-root').style.display = '';
+  }
+  function showGate(msg){
+    document.getElementById('jd-auth-gate').style.display = 'flex';
+    document.getElementById('jd-root').style.display = 'none';
+    if(msg) document.getElementById('jd-auth-msg').textContent = msg;
+  }
+
+  supabaseClient.auth.getSession().then(function(res){
+    if(res.data.session) showApp(); else showGate();
+  });
+
+  supabaseClient.auth.onAuthStateChange(function(event, session){
+    if(session) showApp(); else showGate();
+  });
+
+  document.getElementById('jd-auth-google').addEventListener('click', function(){
+    supabaseClient.auth.signInWithOAuth({ provider: 'google' });
+  });
+
+  document.getElementById('jd-auth-submit').addEventListener('click', async function(){
+    var email = document.getElementById('jd-auth-email').value.trim();
+    var pass = document.getElementById('jd-auth-pass').value;
+    if(!email || !pass){ showGate('Escribe tu correo y clave.'); return; }
+    var res = await supabaseClient.auth.signInWithPassword({ email: email, password: pass });
+    if(res.error) showGate('Correo o clave incorrectos.');
+  });
+
+  document.addEventListener('click', function(e){
+    if(e.target && e.target.id === 'jd-auth-logout'){
+      supabaseClient.auth.signOut();
+    }
+  });
+</script>
+
+<script>
+  var tools = [
+    {name:'Mi día (dashboard)', url:'/XX'},
+    {name:'Hub Jefes en Expansión', url:'https://jefeshub.com'},
+    {name:'Cloudflare Worker (API)', url:'https://hub-jany-api.konverze-bi.workers.dev'},
+    {name:'Supabase', url:'https://supabase.com'},
+    {name:'Canva', url:'https://canva.com'},
+    {name:'Higgsfield', url:'https://higgsfield.ai'}
+  ];
+  var box = document.getElementById('jd-tools-list');
+  tools.forEach(function(t){
+    var a = document.createElement('a');
+    a.href = t.url;
+    a.className = 'jd-tool-link';
+    a.innerHTML = '<span>' + t.name + '</span><span class="arrow">›</span>';
+    box.appendChild(a);
+  });
+</script>
+
+</body>
+</html>
