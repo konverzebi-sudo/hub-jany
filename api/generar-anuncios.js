@@ -132,6 +132,31 @@ function formatearTono(d) {
   return 'TONO DE MARCA:\n' + lineas.join('\n');
 }
 
+// Mismos datos que guarda ADN > Redes (brand-book.redes): número/link de WhatsApp ya armado con
+// wa.me, handles de redes sociales ya convertidos a link, y dirección/link de Google Maps si el
+// negocio tiene ubicación física. Se usan tal cual en los CTA -- nunca se inventa un dato si esto
+// viene vacío (mismo patrón que api/generar-guion-organico.js).
+function formatearRedes(redes) {
+  if (!redes || typeof redes !== 'object') return null;
+  const lineas = [];
+  const wa = redes.whatsapp;
+  if (wa && wa.numero) {
+    lineas.push(`WhatsApp: ${wa.link || ('https://wa.me/' + wa.numero.toString().replace(/[^\d+]/g, ''))}`);
+  }
+  const CANALES = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube', linkedin: 'LinkedIn' };
+  Object.entries(CANALES).forEach(([key, label]) => {
+    const canal = redes[key];
+    if (canal && canal.link) lineas.push(`${label}: ${canal.link}`);
+  });
+  const ubi = redes.ubicacion;
+  if (ubi && ubi.direccion) {
+    lineas.push(`Dirección: ${ubi.direccion}`);
+    if (ubi.mapsLink) lineas.push(`Google Maps: ${ubi.mapsLink}`);
+  }
+  if (lineas.length === 0) return null;
+  return 'CONTACTO Y REDES (datos reales -- úsalos tal cual en CTAs que piden mensaje, llamada o visita, nunca inventes un link, número o dirección si no aparece aquí):\n' + lineas.map((l) => '  ' + l).join('\n');
+}
+
 // Perfiles de cliente: misma llave que usa Jefe 366 para su "Perfil de Cliente" en pestañas
 // (brand-book.audiencias, {lista:[...]}) -- una sola fuente de verdad, se edita solo en Jefe 366,
 // el ADN la muestra de solo lectura. El orden de la lista es la prioridad de compra: el primero
@@ -382,7 +407,7 @@ async function formatearBancoConversacionesWhatsApp(clienteId) {
 }
 
 async function construirContexto(clienteId, grupoId) {
-  const [identidad, tono, audiencia, catalogo, grupos, bloque366, radarHistorial, conversacionReciente, bloqueRetroalimentacion, bancoConversaciones] = await Promise.all([
+  const [identidad, tono, audiencia, catalogo, grupos, bloque366, radarHistorial, conversacionReciente, bloqueRetroalimentacion, bancoConversaciones, redes] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
     leerAudiencias(clienteId).catch(() => []),
@@ -393,6 +418,7 @@ async function construirContexto(clienteId, grupoId) {
     formatearConversacion366NoGuardada(clienteId).catch(() => null),
     formatearRetroalimentacion(clienteId).catch(() => null),
     formatearBancoConversacionesWhatsApp(clienteId).catch(() => null),
+    leerJSON(`${clienteId}:brand-book.redes`).catch(() => null),
   ]);
 
   const bloquesNegocio = [
@@ -400,6 +426,7 @@ async function construirContexto(clienteId, grupoId) {
     formatearTono(tono),
     formatearAudiencias(audiencia),
     formatearCatalogo(catalogo, grupos, grupoId),
+    formatearRedes(redes),
   ].filter(Boolean);
 
   const bloqueRadar = formatearRadar(radarHistorial);

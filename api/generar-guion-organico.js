@@ -173,8 +173,9 @@ function formatearCatalogo(items, grupos, grupoId) {
 }
 
 // Mismos datos que guarda ADN > Redes (brand-book.redes): número/link de WhatsApp ya armado con
-// wa.me y handles de redes sociales ya convertidos a link. Se usan tal cual en los CTA -- nunca se
-// inventa un número o URL si esto viene vacío.
+// wa.me, handles de redes sociales ya convertidos a link, y dirección/link de Google Maps si el
+// negocio tiene ubicación física. Se usan tal cual en los CTA -- nunca se inventa un dato si esto
+// viene vacío.
 function formatearRedes(redes) {
   if (!redes || typeof redes !== 'object') return null;
   const lineas = [];
@@ -187,8 +188,13 @@ function formatearRedes(redes) {
     const canal = redes[key];
     if (canal && canal.link) lineas.push(`${label}: ${canal.link}`);
   });
+  const ubi = redes.ubicacion;
+  if (ubi && ubi.direccion) {
+    lineas.push(`Dirección: ${ubi.direccion}`);
+    if (ubi.mapsLink) lineas.push(`Google Maps: ${ubi.mapsLink}`);
+  }
   if (lineas.length === 0) return null;
-  return 'CONTACTO Y REDES (links reales -- úsalos tal cual en CTAs como "mándame mensaje", nunca inventes un link o número si no aparece aquí):\n' + lineas.map((l) => '  ' + l).join('\n');
+  return 'CONTACTO Y REDES (datos reales -- úsalos tal cual en CTAs como "mándame mensaje" o "visítanos", nunca inventes un link, número o dirección si no aparece aquí):\n' + lineas.map((l) => '  ' + l).join('\n');
 }
 
 function formatearTabla(filas, columnas, titulo) {

@@ -109,8 +109,10 @@ Te darán UNA idea ya elegida (con sus 7 ángulos), un OBJETIVO y un FORMATO. De
   Que suene a la marca, no a IA genérica (o al tema, si la idea no es de marca). Si el CTA implica
   contactar ("mándame mensaje", "escríbeme", "visita el link") y el contexto trae un bloque
   CONTACTO Y REDES con el link real de WhatsApp u otro canal, inclúyelo tal cual en el caption. Si
-  no hay ningún link en el contexto, no inventes uno — deja el CTA sin link (ej. "mándame mensaje")
-  en vez de escribir un número o URL falsos.
+  el CTA implica visitar el negocio ("visítanos", "ven a la tienda", "te esperamos en") y el bloque
+  CONTACTO Y REDES trae Dirección y/o Google Maps, inclúyelos tal cual. Si no hay ningún dato en el
+  contexto, no inventes uno — deja el CTA sin link/dirección (ej. "mándame mensaje" o "visítanos")
+  en vez de escribir un número, URL o dirección falsos.
   Cierra siempre con EXACTAMENTE 5 hashtags, en este orden y composición fija:
   1. El nombre de la marca (de IDENTIDAD DEL NEGOCIO, sin espacios, ej. #NombreDeLaMarca).
   2. Un hashtag de posicionamiento (del "Posicionamiento" o "Diferenciador principal" de
