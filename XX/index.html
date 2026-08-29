@@ -89,11 +89,12 @@
   <div style="padding:14px;">
     <div class="jd-row" style="justify-content:space-between;">
       <div class="jd-h" style="margin:0;">Checklist mañanero</div>
-      <span class="jd-sub" id="jd-habits-count"></span>
+      <button id="jd-habits-count" class="jd-sub" style="background:transparent;border:none;cursor:pointer;padding:0;text-decoration:underline;"></button>
     </div>
     <div class="jd-card" id="jd-habits-card">
       <div id="jd-habits"></div>
     </div>
+    <div class="jd-card" id="jd-habits-stats" style="display:none;margin-top:8px;"></div>
   </div>
 
   <div id="jd-finance-drawer" style="display:none;background:#0E120E;border-bottom:1px solid #1E241B;padding:14px;">
@@ -509,14 +510,30 @@
     return d.toISOString().slice(0,10);
   }
 
-  function getHabitRatio(habitId){
+  function getHabitStats(habitId){
     var totalDays = Math.floor((new Date(todayKey) - new Date(data.startDate)) / 86400000) + 1;
     var count = 0;
     for(var i=0; i<totalDays; i++){
       var ds = dateStrOffset(i);
       if(data.habitChecks[ds] && data.habitChecks[ds][habitId]) count++;
     }
-    return count + '/' + totalDays;
+    return {count:count, total:totalDays};
+  }
+
+  function renderHabitsStats(){
+    var box = document.getElementById('jd-habits-stats');
+    if(!box) return;
+    box.innerHTML = '<div class="jd-h" style="margin-bottom:8px;">Tu avance por hábito</div>';
+    data.habits.forEach(function(h){
+      var s = getHabitStats(h.id);
+      var pct = s.total ? Math.round(s.count/s.total*100) : 0;
+      var row = document.createElement('div');
+      row.style.cssText = 'padding:5px 0;';
+      row.innerHTML = '<div class="jd-row" style="justify-content:space-between;font-size:12px;color:#B9C0AF;margin-bottom:3px;">'+
+        '<span>'+h.text+'</span><span class="jd-sub">'+s.count+'/'+s.total+'</span></div>'+
+        '<div style="height:4px;background:#1B2117;border-radius:4px;overflow:hidden;"><div style="height:100%;width:'+pct+'%;background:#C6FF4B;"></div></div>';
+      box.appendChild(row);
+    });
   }
 
   function renderHabits(){
@@ -535,12 +552,12 @@
       box.appendChild(done);
     }
     pending.forEach(function(h){
-      var ratio = getHabitRatio(h.id);
+      var s = getHabitStats(h.id);
       var row = document.createElement('label');
       row.className = 'jd-row';
       row.style.cssText = 'padding:6px 0;font-size:13px;cursor:pointer;justify-content:space-between;';
       row.innerHTML = '<span class="jd-row" style="gap:8px;"><input type="checkbox" style="width:16px;height:16px;accent-color:#C6FF4B;"> <span>'+h.text+'</span></span>'+
-        '<span class="jd-sub">('+ratio+')</span>';
+        '<span class="jd-sub">('+s.count+'/'+s.total+')</span>';
       row.querySelector('input').addEventListener('change', function(e){
         if(!data.habitChecks[todayKey]) data.habitChecks[todayKey] = {};
         data.habitChecks[todayKey][h.id] = e.target.checked;
@@ -548,6 +565,7 @@
       });
       box.appendChild(row);
     });
+    renderHabitsStats();
   }
 
   var colorMap = {
@@ -872,6 +890,11 @@
       box.appendChild(card);
     });
   }
+
+  document.getElementById('jd-habits-count').addEventListener('click', function(){
+    var box = document.getElementById('jd-habits-stats');
+    box.style.display = box.style.display === 'none' ? 'block' : 'none';
+  });
 
   document.getElementById('jd-card-links').addEventListener('click', function(){
     window.location.href = 'https://jefeshub.com/x/';
