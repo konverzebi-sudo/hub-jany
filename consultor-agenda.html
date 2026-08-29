@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jefe de Agenda</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0F0B16;
+      --surface: #181120;
+      --surface-2: #211829;
+      --line: #332A3D;
+      --text: #F3EEF9;
+      --text-dim: #B6A9C7;
+      --accent: #B8F725;
+      --accent-soft: #2E3610;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: radial-gradient(1200px 600px at 50% -10%, #241733 0%, var(--bg) 55%); color: var(--text); font-family: Inter, sans-serif; -webkit-font-smoothing: antialiased; min-height: 100vh; }
+    h1, h2, h3 { font-family: Sora, sans-serif; }
+
+    header { padding: 38px 20px 20px; text-align: center; max-width: 900px; margin: 0 auto; }
+    .back-link { font-family: "JetBrains Mono", monospace; font-size: 12px; color: var(--text-dim); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; margin-bottom: 20px; }
+    .back-link:hover { color: var(--accent); }
+    header h1 { font-size: clamp(26px, 4vw, 38px); font-weight: 800; margin: 0 0 8px; line-height: 1.15; }
+    header p { color: var(--text-dim); font-size: 15px; margin: 0 0 20px; }
+
+    main { max-width: 900px; margin: 0 auto; padding: 8px 20px 80px; display: flex; flex-direction: column; gap: 20px; }
+
+    .cal-toolbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
+    .cal-nav{display:flex;align-items:center;gap:10px;}
+    .cal-nav button{background:var(--surface-2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:6px 12px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:12px;}
+    .cal-nav button:hover{border-color:var(--accent);color:var(--accent);}
+    .cal-month-label{font-family:'Sora',sans-serif;font-weight:700;font-size:16px;min-width:150px;text-align:center;}
+    .btn-primary{background:var(--accent);border:none;color:#0F0B16;font-weight:700;font-size:13px;padding:9px 16px;border-radius:9px;cursor:pointer;transition:.15s;}
+    .btn-primary:hover{filter:brightness(1.1);}
+
+    .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
+    .cal-dow{font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;color:var(--text-dim);text-align:center;padding-bottom:4px;}
+    .cal-cell{background:var(--surface);border:1px solid var(--line);border-radius:10px;min-height:100px;padding:6px;display:flex;flex-direction:column;gap:4px;overflow:hidden;position:relative;}
+    .cal-cell.cal-empty{background:transparent;border:none;}
+    .cal-cell.cal-today{border-color:var(--accent);}
+    .cal-daynum{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim);}
+    .cal-temporada-label{font-family:'JetBrains Mono',monospace;font-size:9.5px;font-weight:700;padding:2px 5px;border-radius:5px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .cal-chip{font-size:10.5px;line-height:1.3;padding:3px 6px;border-radius:6px;background:var(--surface-2);border-left:3px solid var(--accent);cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .cal-chip:hover{background:var(--accent-soft);}
+    .cal-chip.origen-anuncios{border-left-color:#F472B6;}
+    .cal-chip.origen-contenido{border-left-color:#38BDF8;}
+    .cal-chip.origen-temporada{border-left-color:#FBBF24;}
+    .cal-chip-mas{font-size:10px;color:var(--text-dim);padding-left:6px;}
+
+    .temporadas-section{display:flex;flex-direction:column;gap:10px;}
+    .temporadas-section h2{font-size:15px;margin:0;}
+    .temporadas-list{display:flex;flex-wrap:wrap;gap:8px;}
+    .temporada-chip{font-family:'JetBrains Mono',monospace;font-size:11.5px;padding:6px 12px;border-radius:20px;border:1.5px solid var(--line);cursor:pointer;transition:.15s;}
+    .temporada-chip:hover{filter:brightness(1.15);}
+    .temporadas-empty{font-size:12.5px;color:var(--text-dim);}
+
+    .legend{display:flex;flex-wrap:wrap;gap:16px;font-size:12px;color:var(--text-dim);align-items:center;}
+    .legend span{display:inline-flex;align-items:center;gap:6px;}
+    .legend .dot{width:9px;height:9px;border-radius:3px;display:inline-block;}
+
+    /* ── MODALES ── */
+    .overlay{position:fixed;inset:0;background:rgba(10,6,16,.72);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50;}
+    .overlay[hidden]{display:none;}
+    .modal{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px;width:100%;max-width:420px;display:flex;flex-direction:column;gap:14px;}
+    .modal h3{margin:0;font-size:17px;}
+    .modal label{font-size:12px;color:var(--text-dim);display:flex;flex-direction:column;gap:5px;}
+    .modal input[type=text], .modal input[type=date], .modal select{background:var(--surface-2);border:1.5px solid var(--line);border-radius:9px;color:var(--text);padding:9px 11px;font-family:Inter,sans-serif;font-size:14px;color-scheme:dark;}
+    .modal input:focus, .modal select:focus{outline:none;border-color:var(--accent);}
+    .swatches{display:flex;gap:8px;flex-wrap:wrap;}
+    .swatch{width:26px;height:26px;border-radius:50%;cursor:pointer;border:2px solid transparent;}
+    .swatch.selected{border-color:var(--text);}
+    .modal-actions{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+    .modal-actions-right{display:flex;gap:8px;}
+    .btn-secondary{background:transparent;border:1px solid var(--line);color:var(--text-dim);font-size:12.5px;padding:9px 14px;border-radius:8px;cursor:pointer;}
+    .btn-secondary:hover{border-color:var(--text-dim);color:var(--text);}
+    .btn-danger{background:transparent;border:1px solid #7A3A1E;color:#FF9466;font-size:12.5px;padding:9px 14px;border-radius:8px;cursor:pointer;}
+    .btn-danger:hover{background:#3A2013;}
+
+    footer { text-align: center; padding: 24px 20px; font-size: 12px; color: var(--text-dim); font-family: "JetBrains Mono", monospace; border-top: 1px solid var(--line); margin-top: 20px; }
+
+    @media (max-width: 640px) {
+      .cal-grid{gap:4px;}
+      .cal-cell{min-height:64px;padding:4px;}
+      .cal-chip{font-size:9.5px;}
+      .cal-dow{font-size:9px;}
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <a id="agenda-back-hub" href="/" class="back-link">← Hub de Jefes</a>
+  <div id="brand-bar" style="display:inline-flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:#B8F725;margin-bottom:14px;padding:5px 14px;border:1px solid rgba(184,247,37,0.3);border-radius:100px;background:rgba(255,255,255,.03);">
+    <span>JefesHub</span><span style="opacity:.4;">·</span>
+    <span>Jefe de Agenda</span><span style="opacity:.4;">·</span>
+    <span id="brand-marca-label">—</span>
+  </div>
+  <script src="/js/storage-client.js"></script>
+  <script>
+    function detectClienteId(){
+      var p=location.pathname;
+      if(/\/rancho-seco(\/|$)/.test(p)) return 'rancho-seco';
+      if(/\/rim(\/|$)/.test(p)) return 'rim';
+      if(/\/optica-one(\/|$)/.test(p)) return 'optica-one';
+      return 'jefeshub';
+    }
+    var CLIENTE_ID = detectClienteId();
+    var AGENDA_KEY = CLIENTE_ID + ':agenda-eventos';
+    var CONTENIDO_KEY = CLIENTE_ID + ':agente-contenido';
+    var ANUNCIOS_KEY = CLIENTE_ID + ':agente-anuncios';
+    var TEMPORADA_KEY = CLIENTE_ID + ':temporada-campanas';
+    var HUB_POR_CLIENTE = { 'rancho-seco': '/rancho-seco', rim: '/rim', 'optica-one': '/optica-one', jefeshub: '/' };
+    document.getElementById('agenda-back-hub').href = HUB_POR_CLIENTE[CLIENTE_ID];
+  </script>
+  <script>(async function(){
+    var BRANDS={'rancho-seco':{fallback:'Rancho Seco',color:'#F2C230'},'rim':{fallback:'RIM',color:'#F472B6'},'optica-one':{fallback:'Óptica One',color:'#38BDF8'},'jefeshub':{fallback:'JefesHub',color:'#B8F725'}};
+    var b=BRANDS[CLIENTE_ID];
+    var bar=document.getElementById('brand-bar');
+    bar.style.color=b.color;
+    bar.style.borderColor=b.color.replace('#','rgba(').slice(0,-1)+',0.3)';
+    var el=document.getElementById('brand-marca-label');
+    el.textContent=b.fallback;
+    try{var r=await window.storage.get(CLIENTE_ID+':brand-book.identidad');if(r&&r.value){var d=JSON.parse(r.value);if(d.nombre)el.textContent=d.nombre;}}catch(e){}
+  })();</script>
+  <h1>🗓️ Jefe de Agenda</h1>
+  <p>Todo lo que ya tiene fecha en tus demás Jefes (Contenido, Anuncios), de un vistazo. Marca temporadas para ver campañas y fechas clave en contexto.</p>
+</header>
+
+<main>
+  <div class="cal-toolbar">
+    <div class="cal-nav">
+      <button type="button" id="cal-prev" title="Mes anterior">←</button>
+      <span class="cal-month-label" id="cal-month-label"></span>
+      <button type="button" id="cal-next" title="Mes siguiente">→</button>
+      <button type="button" id="cal-hoy">Hoy</button>
+    </div>
+    <button type="button" class="btn-primary" id="btn-nueva-temporada">+ Nueva temporada</button>
+  </div>
+
+  <div class="cal-grid" id="cal-grid"></div>
+
+  <div class="legend">
+    <span><span class="dot" style="background:#38BDF8;"></span> Contenido</span>
+    <span><span class="dot" style="background:#F472B6;"></span> Anuncios</span>
+    <span><span class="dot" style="background:#FBBF24;"></span> Campaña de Temporada</span>
+    <span><span class="dot" style="background:var(--accent);"></span> Temporada (rango)</span>
+    <span style="opacity:.7;">Click en un evento o temporada para editarlo</span>
+  </div>
+
+  <div class="temporadas-section">
+    <h2>Temporadas de este mes</h2>
+    <div class="temporadas-list" id="temporadas-list"></div>
+  </div>
+</main>
+
+<footer>Jefe de Agenda</footer>
+
+<!-- Modal: editar evento espejado -->
+<div class="overlay" id="overlay-evento" hidden>
+  <div class="modal">
+    <h3 id="modal-evento-title">Evento</h3>
+    <a id="ev-origen-link" href="#" target="_blank" rel="noopener" style="display:none;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--accent);text-decoration:none;">Ver/editar el original →</a>
+    <label>Título<input type="text" id="ev-titulo"></label>
+    <label>Fecha<input type="date" id="ev-fecha"></label>
+    <label>Estado
+      <select id="ev-estado">
+        <option value="idea">💡 Idea</option>
+        <option value="proceso">⚙️ En proceso</option>
+        <option value="publicado">🔥 Publicado</option>
+      </select>
+    </label>
+    <div class="modal-actions">
+      <button type="button" class="btn-danger" id="ev-quitar">Quitar del calendario</button>
+      <div class="modal-actions-right">
+        <button type="button" class="btn-secondary" id="ev-cancelar">Cancelar</button>
+        <button type="button" class="btn-primary" id="ev-guardar">Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: temporada -->
+<div class="overlay" id="overlay-temporada" hidden>
+  <div class="modal">
+    <h3 id="modal-temporada-title">Nueva temporada</h3>
+    <label>Nombre<input type="text" id="tmp-nombre" placeholder="ej. Temporada Navideña"></label>
+    <label>Fecha inicio<input type="date" id="tmp-inicio"></label>
+    <label>Fecha fin<input type="date" id="tmp-fin"></label>
+    <label>Color
+      <div class="swatches" id="tmp-swatches"></div>
+    </label>
+    <div class="modal-actions">
+      <button type="button" class="btn-danger" id="tmp-borrar" style="display:none;">Borrar temporada</button>
+      <div class="modal-actions-right">
+        <button type="button" class="btn-secondary" id="tmp-cancelar">Cancelar</button>
+        <button type="button" class="btn-primary" id="tmp-guardar">Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const MESES_LABEL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const COLORES_TEMPORADA = ['#F2C230','#F472B6','#38BDF8','#B8F725','#FB7185','#A78BFA'];
+const NOMBRE_ORIGEN = { contenido: 'Jefe de Contenido', anuncios: 'Jefe de Anuncios', temporada: 'Jefe de Temporada' };
+const RUTA_ORIGEN = {
+  contenido: { jefeshub: '/consultor-contenido', 'rancho-seco': '/rancho-seco/consultor-contenido', rim: '/rim/consultor-contenido', 'optica-one': '/optica-one/consultor-contenido' },
+  anuncios: { jefeshub: '/consultor-anuncios', 'rancho-seco': '/rancho-seco/consultor-anuncios', rim: '/rim/consultor-anuncios', 'optica-one': '/optica-one/consultor-anuncios' },
+  temporada: { jefeshub: '/consultor-temporada', 'rancho-seco': '/rancho-seco/consultor-temporada', rim: '/rim/consultor-temporada', 'optica-one': '/optica-one/consultor-temporada' },
+};
+
+let calMonth = new Date().getMonth();
+let calYear = new Date().getFullYear();
+let agendaData = { eventos: [], temporadas: [] };
+let editandoTemporadaId = null; // null = creando
+
+async function cargarAgenda(){
+  try{
+    const r = await window.storage.get(AGENDA_KEY);
+    if(r && r.value){
+      const d = JSON.parse(r.value);
+      agendaData = { eventos: Array.isArray(d.eventos)?d.eventos:[], temporadas: Array.isArray(d.temporadas)?d.temporadas:[] };
+    }
+  }catch(e){}
+  render();
+}
+
+async function guardarAgenda(){
+  await window.storage.set(AGENDA_KEY, JSON.stringify(agendaData));
+}
+
+function fechaISO(anio,mes,dia){ return anio+'-'+String(mes).padStart(2,'0')+'-'+String(dia).padStart(2,'0'); }
+
+function temporadasEnFecha(iso){
+  return agendaData.temporadas.filter(t=> t.fechaInicio<=iso && iso<=t.fechaFin);
+}
+
+function temporadasDelMes(){
+  const inicioMes = fechaISO(calYear, calMonth+1, 1);
+  const finMes = fechaISO(calYear, calMonth+1, new Date(calYear,calMonth+1,0).getDate());
+  return agendaData.temporadas.filter(t=> t.fechaInicio<=finMes && t.fechaFin>=inicioMes);
+}
+
+function render(){
+  document.getElementById('cal-month-label').textContent = MESES_LABEL[calMonth]+' '+calYear;
+  renderGrid();
+  renderTemporadasList();
+}
+
+function renderGrid(){
+  const grid = document.getElementById('cal-grid');
+  grid.innerHTML='';
+  ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].forEach(d=>{
+    const el=document.createElement('div'); el.className='cal-dow'; el.textContent=d; grid.appendChild(el);
+  });
+
+  const eventosPorDia = {};
+  agendaData.eventos.forEach(ev=>{
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(ev.fecha||'')) return;
+    if(!eventosPorDia[ev.fecha]) eventosPorDia[ev.fecha]=[];
+    eventosPorDia[ev.fecha].push(ev);
+  });
+
+  const primerDiaSemana=(new Date(calYear,calMonth,1).getDay()+6)%7;
+  const diasEnMes=new Date(calYear,calMonth+1,0).getDate();
+  const hoy=new Date();
+  const esHoy=(d)=> hoy.getFullYear()===calYear && hoy.getMonth()===calMonth && hoy.getDate()===d;
+
+  for(let i=0;i<primerDiaSemana;i++){ const el=document.createElement('div'); el.className='cal-cell cal-empty'; grid.appendChild(el); }
+
+  for(let d=1; d<=diasEnMes; d++){
+    const iso = fechaISO(calYear, calMonth+1, d);
+    const cell=document.createElement('div');
+    cell.className='cal-cell'+(esHoy(d)?' cal-today':'');
+
+    const temporadasDia = temporadasEnFecha(iso);
+    if(temporadasDia.length){
+      const t = temporadasDia[0];
+      cell.style.background = t.color+'26';
+      cell.style.borderColor = t.color+'80';
+      if(iso===t.fechaInicio || (d===1 && t.fechaInicio<iso)){
+        const label=document.createElement('div');
+        label.className='cal-temporada-label';
+        label.style.background=t.color; label.style.color='#0F0B16';
+        label.textContent=t.nombre;
+        label.addEventListener('click',(e)=>{ e.stopPropagation(); abrirModalTemporada(t); });
+        cell.appendChild(label);
+      }
+    }
+
+    const dayNum=document.createElement('div');
+    dayNum.className='cal-daynum';
+    dayNum.textContent=d;
+    cell.appendChild(dayNum);
+
+    const items=(eventosPorDia[iso]||[]).slice(0,4);
+    items.forEach(ev=>{
+      const chip=document.createElement('div');
+      chip.className='cal-chip origen-'+ev.origen;
+      const icon = ev.origen==='contenido' ? (ev.origenTab==='historias'?'🎬':'📄') : ev.origen==='temporada' ? '🗓️' : '📣';
+      chip.textContent = icon+' '+(ev.titulo||'(sin título)');
+      chip.title = ev.titulo||'';
+      chip.addEventListener('click',()=>abrirModalEvento(ev));
+      cell.appendChild(chip);
+    });
+    const total=(eventosPorDia[iso]||[]).length;
+    if(total>4){
+      const mas=document.createElement('div');
+      mas.className='cal-chip-mas';
+      mas.textContent='+'+(total-4)+' más';
+      cell.appendChild(mas);
+    }
+
+    grid.appendChild(cell);
+  }
+
+  document.getElementById('cal-prev').onclick=()=>{ calMonth--; if(calMonth<0){calMonth=11;calYear--;} render(); };
+  document.getElementById('cal-next').onclick=()=>{ calMonth++; if(calMonth>11){calMonth=0;calYear++;} render(); };
+  document.getElementById('cal-hoy').onclick=()=>{ const n=new Date(); calMonth=n.getMonth(); calYear=n.getFullYear(); render(); };
+}
+
+function renderTemporadasList(){
+  const wrap = document.getElementById('temporadas-list');
+  const del = temporadasDelMes();
+  if(!del.length){
+    wrap.innerHTML = '<span class="temporadas-empty">Sin temporadas marcadas este mes.</span>';
+    return;
+  }
+  wrap.innerHTML='';
+  del.forEach(t=>{
+    const chip=document.createElement('button');
+    chip.type='button';
+    chip.className='temporada-chip';
+    chip.style.background=t.color+'26';
+    chip.style.color=t.color;
+    chip.style.borderColor=t.color+'80';
+    chip.textContent=t.nombre+' · '+t.fechaInicio+' → '+t.fechaFin;
+    chip.addEventListener('click',()=>abrirModalTemporada(t));
+    wrap.appendChild(chip);
+  });
+}
+
+/* ─── MODAL EVENTO ─── */
+let eventoActivo = null;
+function abrirModalEvento(ev){
+  eventoActivo = ev;
+  document.getElementById('modal-evento-title').textContent = ev.origen ? ('Evento · '+NOMBRE_ORIGEN[ev.origen]) : 'Evento';
+  const origenLink = document.getElementById('ev-origen-link');
+  const ruta = ev.origen && RUTA_ORIGEN[ev.origen] ? RUTA_ORIGEN[ev.origen][CLIENTE_ID] : null;
+  if(ruta){ origenLink.href = ruta; origenLink.style.display='inline-block'; }
+  else { origenLink.style.display='none'; }
+  document.getElementById('ev-titulo').value = ev.titulo||'';
+  document.getElementById('ev-fecha').value = ev.fecha||'';
+  document.getElementById('ev-estado').value = ev.estado||'idea';
+  document.getElementById('overlay-evento').hidden = false;
+}
+document.getElementById('ev-cancelar').addEventListener('click',()=>{ document.getElementById('overlay-evento').hidden=true; eventoActivo=null; });
+document.getElementById('overlay-evento').addEventListener('click',(e)=>{ if(e.target.id==='overlay-evento'){ e.target.hidden=true; eventoActivo=null; } });
+
+document.getElementById('ev-guardar').addEventListener('click', async ()=>{
+  if(!eventoActivo) return;
+  const nuevoTitulo = document.getElementById('ev-titulo').value.trim() || '(sin título)';
+  const nuevaFecha = document.getElementById('ev-fecha').value;
+  const nuevoEstado = document.getElementById('ev-estado').value;
+  if(!nuevaFecha){ alert('La fecha no puede quedar vacía — usa "Quitar del calendario" si ya no aplica.'); return; }
+  eventoActivo.titulo = nuevoTitulo;
+  eventoActivo.fecha = nuevaFecha;
+  eventoActivo.estado = nuevoEstado;
+  await guardarAgenda();
+  document.getElementById('overlay-evento').hidden=true;
+  render();
+  if(eventoActivo.origen){
+    if(confirm('¿Actualizar también en el '+NOMBRE_ORIGEN[eventoActivo.origen]+' de origen?')){
+      await sincronizarConFuente(eventoActivo);
+    }
+  }
+  eventoActivo = null;
+});
+
+document.getElementById('ev-quitar').addEventListener('click', async ()=>{
+  if(!eventoActivo) return;
+  const ev = eventoActivo;
+  if(!confirm('¿Quitar "'+(ev.titulo||'este evento')+'" del calendario?')) return;
+  agendaData.eventos = agendaData.eventos.filter(e=>e.id!==ev.id);
+  await guardarAgenda();
+  document.getElementById('overlay-evento').hidden=true;
+  render();
+  if(ev.origen){
+    if(confirm('¿Quitar también la fecha en el '+NOMBRE_ORIGEN[ev.origen]+' de origen? Si no, puede reaparecer la próxima vez que se guarde ahí.')){
+      await sincronizarConFuente({...ev, fecha:''});
+    }
+  }
+  eventoActivo = null;
+});
+
+async function sincronizarConFuente(ev){
+  if(ev.origen==='temporada'){
+    try{
+      const r = await window.storage.get(TEMPORADA_KEY);
+      if(!r || !r.value) return;
+      const campanas = JSON.parse(r.value);
+      const [campId, rowId] = (ev.origenId||'').split(':');
+      const camp = Array.isArray(campanas) ? campanas.find(c=>c.id===campId) : null;
+      const row = camp && Array.isArray(camp.calendario) ? camp.calendario.find(x=>x.id===rowId) : null;
+      if(!row) return;
+      row.fecha = ev.fecha;
+      row.estado = ev.estado;
+      await window.storage.set(TEMPORADA_KEY, JSON.stringify(campanas));
+    }catch(e){
+      alert('No se pudo sincronizar con '+NOMBRE_ORIGEN[ev.origen]+'. El cambio quedó guardado en la Agenda de todas formas.');
+    }
+    return;
+  }
+  const sourceKey = ev.origen==='contenido' ? CONTENIDO_KEY : ANUNCIOS_KEY;
+  try{
+    const r = await window.storage.get(sourceKey);
+    if(!r || !r.value) return;
+    const data = JSON.parse(r.value);
+    let item = null;
+    if(ev.origen==='contenido'){
+      const list = data[ev.origenTab];
+      if(Array.isArray(list)) item = list.find(it=>it.id===ev.origenId);
+    } else {
+      if(Array.isArray(data)) item = data.find(it=>it.id===ev.origenId);
+    }
+    if(!item) return;
+    item.fecha = ev.fecha;
+    item.estado = ev.estado;
+    await window.storage.set(sourceKey, JSON.stringify(data));
+  }catch(e){
+    alert('No se pudo sincronizar con '+NOMBRE_ORIGEN[ev.origen]+'. El cambio quedó guardado en la Agenda de todas formas.');
+  }
+}
+
+/* ─── MODAL TEMPORADA ─── */
+let colorSeleccionado = COLORES_TEMPORADA[0];
+function pintarSwatches(){
+  const wrap=document.getElementById('tmp-swatches');
+  wrap.innerHTML='';
+  COLORES_TEMPORADA.forEach(c=>{
+    const sw=document.createElement('div');
+    sw.className='swatch'+(c===colorSeleccionado?' selected':'');
+    sw.style.background=c;
+    sw.addEventListener('click',()=>{ colorSeleccionado=c; pintarSwatches(); });
+    wrap.appendChild(sw);
+  });
+}
+
+function abrirModalTemporada(t){
+  editandoTemporadaId = t ? t.id : null;
+  document.getElementById('modal-temporada-title').textContent = t ? 'Editar temporada' : 'Nueva temporada';
+  document.getElementById('tmp-nombre').value = t ? t.nombre : '';
+  document.getElementById('tmp-inicio').value = t ? t.fechaInicio : fechaISO(calYear,calMonth+1,1);
+  document.getElementById('tmp-fin').value = t ? t.fechaFin : fechaISO(calYear,calMonth+1,1);
+  colorSeleccionado = t ? t.color : COLORES_TEMPORADA[0];
+  pintarSwatches();
+  document.getElementById('tmp-borrar').style.display = t ? 'inline-block' : 'none';
+  document.getElementById('overlay-temporada').hidden = false;
+}
+document.getElementById('btn-nueva-temporada').addEventListener('click',()=>abrirModalTemporada(null));
+document.getElementById('tmp-cancelar').addEventListener('click',()=>{ document.getElementById('overlay-temporada').hidden=true; });
+document.getElementById('overlay-temporada').addEventListener('click',(e)=>{ if(e.target.id==='overlay-temporada'){ e.target.hidden=true; } });
+
+document.getElementById('tmp-guardar').addEventListener('click', async ()=>{
+  const nombre = document.getElementById('tmp-nombre').value.trim();
+  const inicio = document.getElementById('tmp-inicio').value;
+  const fin = document.getElementById('tmp-fin').value;
+  if(!nombre || !inicio || !fin){ alert('Completa nombre, fecha inicio y fecha fin.'); return; }
+  if(fin<inicio){ alert('La fecha fin no puede ser antes que la fecha inicio.'); return; }
+  if(editandoTemporadaId){
+    const t = agendaData.temporadas.find(x=>x.id===editandoTemporadaId);
+    if(t){ t.nombre=nombre; t.fechaInicio=inicio; t.fechaFin=fin; t.color=colorSeleccionado; }
+  } else {
+    agendaData.temporadas.push({ id:'temp-'+Date.now().toString(36)+Math.random().toString(36).slice(2,7), nombre, fechaInicio:inicio, fechaFin:fin, color:colorSeleccionado });
+  }
+  await guardarAgenda();
+  document.getElementById('overlay-temporada').hidden=true;
+  render();
+});
+
+document.getElementById('tmp-borrar').addEventListener('click', async ()=>{
+  if(!editandoTemporadaId) return;
+  if(!confirm('¿Borrar esta temporada? No se puede deshacer.')) return;
+  agendaData.temporadas = agendaData.temporadas.filter(t=>t.id!==editandoTemporadaId);
+  await guardarAgenda();
+  document.getElementById('overlay-temporada').hidden=true;
+  render();
+});
+
+cargarAgenda();
+</script>
+</body>
+</html>

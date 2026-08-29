@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jefe de Conversión — Rancho Seco</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0F0B16;
+      --surface: #181120;
+      --surface-2: #211829;
+      --line: #332A3D;
+      --text: #F3EEF9;
+      --text-dim: #B6A9C7;
+      --accent: #B8F725;
+      --accent-soft: #2E3610;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: radial-gradient(1200px 600px at 50% -10%, #241733 0%, var(--bg) 55%); color: var(--text); font-family: Inter, sans-serif; -webkit-font-smoothing: antialiased; min-height: 100vh; }
+    h1, h2, h3 { font-family: Sora, sans-serif; }
+
+    header { padding: 38px 20px 20px; text-align: center; max-width: 820px; margin: 0 auto; }
+    .back-link { font-family: "JetBrains Mono", monospace; font-size: 12px; color: var(--text-dim); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; margin-bottom: 20px; }
+    .back-link:hover { color: var(--accent); }
+    header h1 { font-size: clamp(26px, 4vw, 38px); font-weight: 800; margin: 0 0 8px; line-height: 1.15; }
+    header p { color: var(--text-dim); font-size: 15px; margin: 0 0 20px; }
+
+    main { max-width: 820px; margin: 0 auto; padding: 8px 20px 80px; display: flex; flex-direction: column; gap: 22px; }
+
+    /* ── SELECTOR DE RUTA ── */
+    .route-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .route-tile { background: var(--surface); border: 1.5px solid var(--line); border-radius: 16px; padding: 22px 18px; text-align: left; cursor: pointer; transition: all 0.15s; color: var(--text); }
+    .route-tile:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .route-tile .route-emoji { font-size: 28px; margin-bottom: 8px; display: block; }
+    .route-tile h3 { font-size: 17px; margin: 0 0 6px; }
+    .route-tile p { font-size: 13px; color: var(--text-dim); margin: 0; line-height: 1.5; }
+    @media (max-width: 720px) { .route-grid { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 480px) { .route-grid { grid-template-columns: 1fr; } }
+
+    .whatsapp-banner { background: var(--accent-soft); border: 1.5px solid var(--accent); border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+    .whatsapp-banner p { margin: 0; font-size: 13px; color: var(--text-dim); line-height: 1.5; }
+    .whatsapp-banner a.cta-whatsapp { align-self: flex-start; background: var(--accent); color: #0F0B16; font-weight: 700; font-size: 13.5px; padding: 9px 16px; border-radius: 9px; text-decoration: none; }
+    .whatsapp-banner a.cta-whatsapp:hover { filter: brightness(1.1); }
+
+    .route-switch { font-family: "JetBrains Mono", monospace; font-size: 12px; color: var(--text-dim); background: transparent; border: 1px solid var(--line); border-radius: 20px; padding: 7px 14px; cursor: pointer; align-self: flex-start; }
+    .route-switch:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── TABS (dentro de una ruta) ── */
+    .calc-tabs { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+    .calc-tab { font-family: "JetBrains Mono", monospace; font-size: 12px; padding: 8px 16px; border-radius: 20px; border: 1.5px solid var(--line); background: transparent; color: var(--text-dim); cursor: pointer; transition: all 0.15s; }
+    .calc-tab.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); font-weight: 700; }
+    .calc-tab:not(.active):hover { border-color: var(--text-dim); color: var(--text); }
+
+    .panel { display: none; flex-direction: column; gap: 16px; }
+    .panel.active { display: flex; }
+    .panel-intro h2 { font-size: 19px; margin: 0 0 4px; }
+    .panel-intro p { font-size: 13px; color: var(--text-dim); margin: 0; line-height: 1.5; }
+
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
+    .card-label { font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); margin-bottom: 12px; }
+    .card-label.results { color: #38bdf8; }
+
+    .field-row { display: grid; grid-template-columns: 1fr 160px; gap: 12px; align-items: start; padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .field-row:last-child { border-bottom: none; }
+    .field-label { font-size: 13.5px; font-weight: 500; line-height: 1.4; }
+    .field-hint { font-size: 11.5px; color: var(--text-dim); margin-top: 4px; line-height: 1.4; }
+    .field-input { background: var(--surface-2); border: 1.5px solid var(--line); border-radius: 9px; color: var(--text); padding: 9px 11px; font-family: Inter, sans-serif; font-size: 14px; width: 100%; transition: border-color 0.15s; text-align: right; }
+    .field-input:focus { outline: none; border-color: var(--accent); }
+    .field-input.text-input { text-align: left; }
+
+    .result-row { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: baseline; padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .result-row:last-child { border-bottom: none; }
+    .result-label { font-size: 13.5px; font-weight: 500; }
+    .result-value { font-family: Sora, sans-serif; font-size: 16px; font-weight: 800; color: #38bdf8; white-space: nowrap; text-align: right; }
+
+    .info-note { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; font-size: 12.5px; color: var(--text-dim); line-height: 1.5; }
+    .calc-btn { background: var(--accent); border: none; color: #0F0B16; font-weight: 700; font-size: 13.5px; padding: 11px 18px; border-radius: 9px; cursor: pointer; transition: 0.15s; align-self: flex-start; }
+    .calc-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .calc-btn:disabled { opacity: 0.5; cursor: wait; }
+
+    /* ── AGENT BOX (chat con memoria) ── */
+    .agent-box { background: var(--surface-2); border: 1.5px solid var(--line); border-radius: 16px; padding: 18px 20px; transition: border-color 0.15s; }
+    .agent-box:focus-within { border-color: var(--accent); }
+    .agent-title { font-size: 14px; font-weight: 600; margin: 0 0 5px; }
+    .agent-sub { font-size: 12.5px; color: var(--text-dim); margin: 0 0 14px; line-height: 1.5; }
+    .mode-label { display: inline-block; font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--accent); background: var(--accent-soft); border-radius: 20px; padding: 4px 12px; margin-bottom: 12px; }
+    .agent-chat { display: flex; flex-direction: column; gap: 12px; max-height: 480px; overflow-y: auto; padding-right: 4px; margin-bottom: 12px; }
+    .agent-chat:empty { display: none; }
+    .bubble { max-width: 88%; padding: 12px 14px; border-radius: 12px; font-size: 14px; line-height: 1.55; white-space: pre-line; }
+    .bubble.user { align-self: flex-end; background: var(--accent); color: #0F0B16; font-weight: 500; border-bottom-right-radius: 3px; }
+    .bubble.assistant { align-self: flex-start; background: var(--surface); border: 1px solid var(--line); border-bottom-left-radius: 3px; }
+    .agent-controls { display: flex; align-items: center; gap: 10px; }
+    .agent-input-line { flex: 1; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; color: var(--text); padding: 11px 14px; font-family: Inter, sans-serif; font-size: 14px; outline: none; }
+    textarea.agent-input-line { resize: none; min-height: 42px; max-height: 160px; overflow-y: auto; line-height: 1.4; }
+    .agent-input-line:focus { border-color: var(--accent); }
+    .ask-btn { background: var(--accent); border: none; color: #0F0B16; font-weight: 700; font-size: 13.5px; padding: 10px 18px; border-radius: 9px; cursor: pointer; transition: 0.15s; white-space: nowrap; }
+    .ask-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .ask-btn:disabled { opacity: 0.5; cursor: wait; }
+    .agent-reset { background: transparent; border: 1px solid var(--line); color: var(--text-dim); font-size: 12px; padding: 8px 12px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+    .agent-reset:hover { border-color: #EF4444; color: #EF4444; }
+    .agent-suggestions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+    .agent-suggestion { font-family: "JetBrains Mono", monospace; font-size: 11.5px; padding: 6px 12px; border-radius: 20px; border: 1px solid var(--line); background: transparent; color: var(--text-dim); cursor: pointer; transition: 0.15s; }
+    .agent-suggestion:hover { border-color: var(--accent); color: var(--accent); }
+    .agent-suggestion.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); font-weight: 700; }
+    .copy-btn { background: var(--accent-soft); border: 1px solid var(--accent); color: var(--accent); font-family: Inter, sans-serif; font-size: 11.5px; font-weight: 600; padding: 5px 12px; border-radius: 7px; cursor: pointer; transition: 0.15s; }
+    .copy-btn:hover { background: var(--accent); color: #0F0B16; }
+    .copy-btn.copied { background: var(--accent); color: #0F0B16; }
+
+    footer { text-align: center; padding: 24px 20px; font-size: 12px; color: var(--text-dim); font-family: "JetBrains Mono", monospace; border-top: 1px solid var(--line); margin-top: 20px; }
+
+    @media (max-width: 600px) {
+      .field-row { grid-template-columns: 1fr; }
+      .field-input { text-align: left; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <a id="cierre-back-hub" href="/" class="back-link">← Hub de Jefes</a>
+  <div id="brand-bar" style="display:inline-flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:#B8F725;margin-bottom:14px;padding:5px 14px;border:1px solid rgba(184,247,37,0.3);border-radius:100px;background:rgba(255,255,255,.03);">
+    <span>JefesHub</span><span style="opacity:.4;">·</span>
+    <span>Jefe de Conversión</span><span style="opacity:.4;">·</span>
+    <span id="brand-marca-label">—</span>
+  </div>
+  <script src="/js/storage-client.js"></script>
+  <script>
+    // Multi-tenant: detectado por pathname — Vercel no expone ?cliente= al browser (mismo
+    // patron que consultor-financiero.html / consultor-radar-mercado.html).
+    function detectClienteId(){
+      var p=location.pathname;
+      if(/\/rancho-seco(\/|$)/.test(p)) return 'rancho-seco';
+      if(/\/rim(\/|$)/.test(p)) return 'rim';
+      if(/\/optica-one(\/|$)/.test(p)) return 'optica-one';
+      return 'jefeshub';
+    }
+    var CLIENTE_ID = detectClienteId();
+    var HUB_POR_CLIENTE = { 'rancho-seco': '/rancho-seco', rim: '/rim', 'optica-one': '/optica-one', jefeshub: '/' };
+    var WHATSAPP_POR_CLIENTE = { 'rancho-seco': '/rancho-seco/consultor-whatsapp', rim: '/rim/consultor-whatsapp', 'optica-one': '/optica-one/consultor-whatsapp', jefeshub: '/consultor-whatsapp' };
+    document.getElementById('cierre-back-hub').href = HUB_POR_CLIENTE[CLIENTE_ID];
+  </script>
+  <script>(async function(){
+    var BRANDS={'rancho-seco':{fallback:'Rancho Seco',color:'#F2C230'},'rim':{fallback:'RIM',color:'#F472B6'},'optica-one':{fallback:'Óptica One',color:'#38BDF8'},'jefeshub':{fallback:'JefesHub',color:'#B8F725'}};
+    var b=BRANDS[CLIENTE_ID];
+    var bar=document.getElementById('brand-bar');
+    bar.style.color=b.color;
+    bar.style.borderColor=b.color.replace('#','rgba(').slice(0,-1)+',0.3)';
+    var el=document.getElementById('brand-marca-label');
+    el.textContent=b.fallback;
+    try{var r=await window.storage.get(CLIENTE_ID+':brand-book.identidad');if(r&&r.value){var d=JSON.parse(r.value);if(d.nombre)el.textContent=d.nombre;}}catch(e){}
+  })();</script>
+  <h1>🎯 Jefe de Conversión</h1>
+  <p>Audita tu ruta de conversión, mide tus tasas reales y construye el manual para mejorarla — tienda online o cita, llamada, masterclass, webinar y eventos. No cubre WhatsApp/DM: eso lo hace Jefe WhatsApp y Ventas.</p>
+</header>
+
+<main>
+
+  <!-- ═══ SELECTOR DE RUTA ═══ -->
+  <section id="routePicker">
+    <div class="route-grid">
+      <button class="route-tile" onclick="seleccionarRuta('tienda')">
+        <span class="route-emoji">🏪</span>
+        <h3>Tienda Online / Landing</h3>
+        <p>Vendes por página web, landing, carrito o checkout.</p>
+      </button>
+      <button class="route-tile" onclick="seleccionarRuta('evento')">
+        <span class="route-emoji">🎤</span>
+        <h3>Cita, Llamada o Evento</h3>
+        <p>Vendes por llamada, cita, masterclass, webinar, reserva o evento.</p>
+      </button>
+      <button class="route-tile" onclick="seleccionarRuta('mensaje')">
+        <span class="route-emoji">💬</span>
+        <h3>WhatsApp / Mensajes</h3>
+        <p>Vendes por WhatsApp, Instagram DM o chat. Aquí solo mides tus tasas — para auditar conversaciones o guiones, usa Jefe WhatsApp y Ventas.</p>
+      </button>
+    </div>
+  </section>
+
+  <!-- ═══ RUTA ACTIVA ═══ -->
+  <section id="rutaActiva" style="display:none; flex-direction:column; gap:22px;">
+    <button class="route-switch" onclick="volverASelectorRuta()">← Cambiar de ruta</button>
+
+    <div class="calc-tabs" id="stepTabs"></div>
+
+    <!-- PASO: AUDITORÍA + MANUAL (un solo hilo de chat) -->
+    <div class="panel" id="panel-chat">
+      <div class="panel-intro">
+        <h2 id="chatTitle">Auditoría</h2>
+        <p id="chatSub">Primero auditamos lo que ya tienes hoy. Cuando termines, puedes pedirle que construya tu manual optimizado usando esta misma auditoría.</p>
+      </div>
+
+      <div id="eventoSubmodoRow" style="display:none;" class="agent-suggestions">
+        <button class="agent-suggestion" id="btnSubmodoPropio" onclick="elegirSubmodoEvento('propio')">🎤 Auditar mi evento</button>
+        <button class="agent-suggestion" id="btnSubmodoReferencia" onclick="elegirSubmodoEvento('referencia')">📺 Analizar evento de referencia</button>
+      </div>
+
+      <div class="agent-box">
+        <p class="agent-title">Chat con el Jefe de Conversión</p>
+        <p class="agent-sub">Chat con memoria: ya lee el ADN de tu marca. Comparte tu tienda/landing o tu evento y te doy la auditoría; después dime "construye mi manual optimizado" para pasar al siguiente paso.</p>
+        <span class="mode-label" id="modeLabel">Modo: Auditoría</span>
+        <div class="agent-suggestions" id="agentSuggestions">
+          <button class="agent-suggestion" onclick="pedirManual()">✅ Construir mi manual optimizado</button>
+          <button class="agent-suggestion" onclick="volverAAuditoria()">🔎 Volver a la auditoría</button>
+        </div>
+        <div class="agent-chat" id="agentChat"></div>
+        <div class="agent-controls">
+          <textarea rows="1" class="agent-input-line" id="agentInput" placeholder="Escribe aquí... (Shift+Enter para salto de línea)" onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();enviarMensajeAgente();}" oninput="autoAlturaAgentInput(this)"></textarea>
+          <button class="ask-btn" id="agentSendBtn" onclick="enviarMensajeAgente()">Enviar</button>
+          <button class="agent-reset" onclick="reiniciarAgente()">Reiniciar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PASO: DIAGNÓSTICO NUMÉRICO -->
+    <div class="panel" id="panel-diagnostico">
+      <div class="panel-intro">
+        <h2>Diagnóstico numérico</h2>
+        <p>Mete tus conteos agregados de los últimos días (no nombres ni datos por persona) y te calculo tus tasas y dónde está la fuga.</p>
+      </div>
+
+      <div class="whatsapp-banner" id="whatsappBanner" style="display:none;">
+        <p>Este diagnóstico es solo el ejercicio numérico. Para auditar tus conversaciones reales, guiones y objeciones de WhatsApp, usa Jefe WhatsApp y Ventas.</p>
+        <a class="cta-whatsapp" id="whatsappCtaLink" href="#" target="_blank" rel="noopener">💬 Explorar a fondo con el Jefe de WhatsApp →</a>
+      </div>
+
+      <div class="card" id="camposMensaje" style="display:none;">
+        <div class="card-label">📝 Mensajes / WhatsApp — últimos días</div>
+        <div class="field-row"><div><div class="field-label">Leads recibidos</div><div class="field-hint">Total de personas que preguntaron</div></div><input type="number" class="field-input" id="d-m-leadsRecibidos"></div>
+        <div class="field-row"><div><div class="field-label">Leads respondidos</div></div><input type="number" class="field-input" id="d-m-leadsRespondidos"></div>
+        <div class="field-row"><div><div class="field-label">Leads calificados</div></div><input type="number" class="field-input" id="d-m-leadsCalificados"></div>
+        <div class="field-row"><div><div class="field-label">Cotizaciones enviadas</div></div><input type="number" class="field-input" id="d-m-cotizacionesEnviadas"></div>
+        <div class="field-row"><div><div class="field-label">Ventas cerradas</div></div><input type="number" class="field-input" id="d-m-ventasCerradas"></div>
+        <div class="field-row"><div><div class="field-label">Leads sin seguimiento</div></div><input type="number" class="field-input" id="d-m-leadsSinSeguimiento"></div>
+        <div class="field-row"><div><div class="field-label">Tiempo promedio de respuesta (minutos)</div></div><input type="number" class="field-input" id="d-m-tiempoRespuestaPromedio"></div>
+        <div class="field-row"><div><div class="field-label">Ticket promedio (MXN)</div></div><input type="number" class="field-input" id="d-m-ticketPromedio"></div>
+        <div class="field-row"><div><div class="field-label">Objeción más común</div><div class="field-hint">Opcional — texto libre</div></div><input type="text" class="field-input text-input" id="d-m-objecionComun"></div>
+        <div class="field-row"><div><div class="field-label">Canal principal</div><div class="field-hint">Opcional — WhatsApp, IG DM, etc.</div></div><input type="text" class="field-input text-input" id="d-m-canalPrincipal"></div>
+      </div>
+
+      <div class="card" id="camposTienda" style="display:none;">
+        <div class="card-label">📝 Tienda online — últimos días</div>
+        <div class="field-row"><div><div class="field-label">Visitas totales</div></div><input type="number" class="field-input" id="d-t-visitas"></div>
+        <div class="field-row"><div><div class="field-label">Visitas a página de producto</div><div class="field-hint">Opcional — si no lo sabes, déjalo vacío</div></div><input type="number" class="field-input" id="d-t-visitasProducto"></div>
+        <div class="field-row"><div><div class="field-label">Agregaron al carrito</div></div><input type="number" class="field-input" id="d-t-agregaronCarrito"></div>
+        <div class="field-row"><div><div class="field-label">Iniciaron checkout</div></div><input type="number" class="field-input" id="d-t-iniciaronCheckout"></div>
+        <div class="field-row"><div><div class="field-label">Compras</div></div><input type="number" class="field-input" id="d-t-compras"></div>
+        <div class="field-row"><div><div class="field-label">Ingresos totales (MXN)</div></div><input type="number" class="field-input" id="d-t-ingresos"></div>
+        <div class="field-row"><div><div class="field-label">Ticket promedio (MXN)</div><div class="field-hint">Opcional — si no lo pones, se calcula de ingresos ÷ compras</div></div><input type="number" class="field-input" id="d-t-ticketPromedio"></div>
+      </div>
+
+      <div class="card" id="camposEvento" style="display:none;">
+        <div class="card-label">📝 Evento — últimos días</div>
+        <div class="field-row"><div><div class="field-label">Registrados / agendados</div></div><input type="number" class="field-input" id="d-e-registrados"></div>
+        <div class="field-row"><div><div class="field-label">Confirmados</div></div><input type="number" class="field-input" id="d-e-confirmados"></div>
+        <div class="field-row"><div><div class="field-label">Asistieron</div></div><input type="number" class="field-input" id="d-e-asistieron"></div>
+        <div class="field-row"><div><div class="field-label">Compraron</div></div><input type="number" class="field-input" id="d-e-compraron"></div>
+        <div class="field-row"><div><div class="field-label">Ingresos totales (MXN)</div></div><input type="number" class="field-input" id="d-e-ingresos"></div>
+        <div class="field-row"><div><div class="field-label">Ticket promedio (MXN)</div><div class="field-hint">Opcional — si no lo pones, se calcula de ingresos ÷ compraron</div></div><input type="number" class="field-input" id="d-e-ticketPromedio"></div>
+      </div>
+
+      <button class="calc-btn" id="diagBtn" onclick="calcularDiagnostico()">Calcular diagnóstico</button>
+
+      <div class="card" id="diagResultCard" style="display:none;">
+        <div class="card-label results">📊 Tus tasas</div>
+        <div id="diagRates"></div>
+      </div>
+
+      <div class="agent-box" id="diagTextBox" style="display:none;">
+        <p class="agent-title">Lectura del Jefe de Conversión</p>
+        <div class="agent-chat" id="diagChat" style="max-height:none;"></div>
+      </div>
+    </div>
+
+  </section>
+
+</main>
+
+<footer>Jefe de Conversión</footer>
+
+<script>
+/* ─── RUTA ─── */
+let rutaActual = null; // 'tienda' | 'evento'
+let stepActual = 'chat'; // 'chat' | 'diagnostico'
+let modoActivo = 'audit'; // 'audit' | 'manual' (dentro del paso chat)
+let eventoSubmodo = null; // 'propio' | 'referencia'
+
+const STEPS = [
+  { id: 'chat', label: '1-2. Auditoría / Manual' },
+  { id: 'diagnostico', label: '3. Diagnóstico numérico' },
+];
+
+function renderStepTabs() {
+  const wrap = document.getElementById('stepTabs');
+  wrap.innerHTML = STEPS.map((s, i) => `<button class="calc-tab${i === 0 ? ' active' : ''}" data-step="${s.id}">${s.label}</button>`).join('');
+  wrap.querySelectorAll('.calc-tab').forEach((btn) => {
+    btn.addEventListener('click', () => switchStep(btn.dataset.step));
+  });
+}
+
+function switchStep(stepId) {
+  stepActual = stepId;
+  document.querySelectorAll('.calc-tab').forEach((b) => b.classList.toggle('active', b.dataset.step === stepId));
+  document.querySelectorAll('.panel').forEach((p) => p.classList.toggle('active', p.id === 'panel-' + stepId));
+}
+
+function seleccionarRuta(ruta) {
+  rutaActual = ruta;
+  modoActivo = 'audit';
+  document.getElementById('routePicker').style.display = 'none';
+  document.getElementById('rutaActiva').style.display = 'flex';
+  document.getElementById('eventoSubmodoRow').style.display = ruta === 'evento' ? 'flex' : 'none';
+  document.getElementById('camposTienda').style.display = ruta === 'tienda' ? 'block' : 'none';
+  document.getElementById('camposEvento').style.display = ruta === 'evento' ? 'block' : 'none';
+  document.getElementById('camposMensaje').style.display = ruta === 'mensaje' ? 'block' : 'none';
+  document.getElementById('whatsappBanner').style.display = ruta === 'mensaje' ? 'flex' : 'none';
+
+  if (ruta === 'mensaje') {
+    // Ruta mensaje/WhatsApp: solo diagnóstico numérico, sin auditoría ni manual (eso vive en Jefe WhatsApp y Ventas).
+    document.getElementById('whatsappCtaLink').href = WHATSAPP_POR_CLIENTE[CLIENTE_ID];
+    document.getElementById('stepTabs').style.display = 'none';
+    document.querySelectorAll('.panel').forEach((p) => p.classList.toggle('active', p.id === 'panel-diagnostico'));
+    cargarDiagnosticoGuardado();
+    return;
+  }
+
+  document.getElementById('stepTabs').style.display = 'flex';
+  document.getElementById('chatTitle').textContent = ruta === 'tienda' ? 'Auditoría de tienda online' : 'Auditoría de evento';
+  actualizarModeLabel();
+  renderStepTabs();
+  switchStep('chat');
+  agentMessages = [];
+  renderAgentChat();
+  cargarHiloRuta();
+  cargarDiagnosticoGuardado();
+}
+
+function volverASelectorRuta() {
+  rutaActual = null;
+  document.getElementById('routePicker').style.display = 'block';
+  document.getElementById('rutaActiva').style.display = 'none';
+}
+
+function elegirSubmodoEvento(submodo) {
+  eventoSubmodo = submodo;
+  document.getElementById('btnSubmodoPropio').classList.toggle('active', submodo === 'propio');
+  document.getElementById('btnSubmodoReferencia').classList.toggle('active', submodo === 'referencia');
+}
+
+function pedirManual() {
+  modoActivo = 'manual';
+  actualizarModeLabel();
+  enviarSugerenciaAgente('Ya terminamos la auditoría. Ahora ayúdame a construir mi manual optimizado con lo que encontramos.');
+}
+
+function volverAAuditoria() {
+  modoActivo = 'audit';
+  actualizarModeLabel();
+}
+
+function actualizarModeLabel() {
+  const label = document.getElementById('modeLabel');
+  if (modoActivo === 'manual') {
+    label.textContent = rutaActual === 'tienda' ? 'Modo: Manual optimizado (tienda)' : 'Modo: Manual optimizado (evento)';
+  } else {
+    label.textContent = rutaActual === 'tienda' ? 'Modo: Auditoría (tienda)' : 'Modo: Auditoría (evento)';
+  }
+}
+
+function modoActualParaApi() {
+  if (rutaActual === 'tienda') return modoActivo === 'manual' ? 'manual-tienda' : 'audit-tienda';
+  // evento
+  if (modoActivo === 'manual') return 'manual-evento';
+  return eventoSubmodo === 'referencia' ? 'audit-evento-referencia' : 'audit-evento-propio';
+}
+
+/* ─── CHAT (auditoría + manual, un solo hilo por ruta) ─── */
+function escaparHtmlCierre(str) {
+  const d = document.createElement('div');
+  d.textContent = str == null ? '' : String(str);
+  return d.innerHTML;
+}
+
+function copyText(btn, text) {
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = '✓ Copiado';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+let agentMessages = [];
+let agentBusy = false;
+
+function conversacionKey() {
+  return CLIENTE_ID + ':conversion-cierre-' + rutaActual + '-conversacion';
+}
+
+function renderAgentChat() {
+  const chat = document.getElementById('agentChat');
+  chat.innerHTML = agentMessages.map((m) => {
+    if (m.role === 'user') {
+      return `<div class="bubble user">${escaparHtmlCierre(m.content)}</div>`;
+    }
+    return `<div class="bubble assistant">${escaparHtmlCierre(m.content)}</div>
+      <button class="copy-btn" onclick="copyText(this, \`${m.content.replace(/`/g, "'")}\`)">Copiar</button>`;
+  }).join('');
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function persistirAgente() {
+  window.storage.set(conversacionKey(), JSON.stringify(agentMessages)).catch(() => {});
+}
+
+async function cargarHiloRuta() {
+  try {
+    const r = await window.storage.get(conversacionKey());
+    const guardado = r && r.value ? JSON.parse(r.value) : [];
+    agentMessages = Array.isArray(guardado) ? guardado : [];
+  } catch (e) {
+    agentMessages = [];
+  }
+  renderAgentChat();
+  if (rutaActual === 'evento') {
+    try {
+      const r2 = await window.storage.get(CLIENTE_ID + ':conversion-cierre-evento-submodo');
+      if (r2 && r2.value) elegirSubmodoEvento(JSON.parse(r2.value));
+    } catch (e) {}
+  }
+}
+
+async function llamarAgente(modo) {
+  agentBusy = true;
+  document.getElementById('agentSendBtn').disabled = true;
+  document.getElementById('agentInput').disabled = true;
+  try {
+    const response = await fetch('/api/consultor-cierre', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ modo, cliente: CLIENTE_ID, messages: agentMessages }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      agentMessages.push({ role: 'assistant', content: '⚠️ ' + (data.error || 'No se pudo generar respuesta. Intenta de nuevo.') });
+    } else {
+      agentMessages.push({ role: 'assistant', content: data.text });
+    }
+  } catch (err) {
+    agentMessages.push({ role: 'assistant', content: '⚠️ Hubo un error de conexión. Intenta de nuevo en un momento.' });
+  } finally {
+    agentBusy = false;
+    document.getElementById('agentSendBtn').disabled = false;
+    document.getElementById('agentInput').disabled = false;
+    renderAgentChat();
+    persistirAgente();
+  }
+}
+
+function autoAlturaAgentInput(ta) {
+  ta.style.height = 'auto';
+  ta.style.height = (ta.scrollHeight + 2) + 'px';
+}
+
+function enviarMensajeAgente() {
+  if (agentBusy || !rutaActual) return;
+  const input = document.getElementById('agentInput');
+  const texto = input.value.trim();
+  if (!texto) return;
+  if (rutaActual === 'evento' && !eventoSubmodo) eventoSubmodo = 'propio';
+  agentMessages.push({ role: 'user', content: texto });
+  input.value = '';
+  input.style.height = 'auto';
+  renderAgentChat();
+  llamarAgente(modoActualParaApi());
+  if (rutaActual === 'evento') {
+    window.storage.set(CLIENTE_ID + ':conversion-cierre-evento-submodo', JSON.stringify(eventoSubmodo)).catch(() => {});
+  }
+}
+
+function enviarSugerenciaAgente(texto) {
+  if (agentBusy || !rutaActual) return;
+  agentMessages.push({ role: 'user', content: texto });
+  renderAgentChat();
+  llamarAgente(modoActualParaApi());
+}
+
+function reiniciarAgente() {
+  agentMessages = [];
+  modoActivo = 'audit';
+  actualizarModeLabel();
+  renderAgentChat();
+  window.storage.set(conversacionKey(), JSON.stringify([])).catch(() => {});
+}
+
+/* ─── DIAGNÓSTICO NUMÉRICO ─── */
+function num(v) {
+  if (v === '' || v === null || v === undefined) return null;
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function leerDatosDiagnostico() {
+  if (rutaActual === 'tienda') {
+    return {
+      visitas: num(document.getElementById('d-t-visitas').value),
+      visitasProducto: num(document.getElementById('d-t-visitasProducto').value),
+      agregaronCarrito: num(document.getElementById('d-t-agregaronCarrito').value),
+      iniciaronCheckout: num(document.getElementById('d-t-iniciaronCheckout').value),
+      compras: num(document.getElementById('d-t-compras').value),
+      ingresos: num(document.getElementById('d-t-ingresos').value),
+      ticketPromedio: num(document.getElementById('d-t-ticketPromedio').value),
+    };
+  }
+  if (rutaActual === 'evento') {
+    return {
+      registrados: num(document.getElementById('d-e-registrados').value),
+      confirmados: num(document.getElementById('d-e-confirmados').value),
+      asistieron: num(document.getElementById('d-e-asistieron').value),
+      compraron: num(document.getElementById('d-e-compraron').value),
+      ingresos: num(document.getElementById('d-e-ingresos').value),
+      ticketPromedio: num(document.getElementById('d-e-ticketPromedio').value),
+    };
+  }
+  return {
+    leadsRecibidos: num(document.getElementById('d-m-leadsRecibidos').value),
+    leadsRespondidos: num(document.getElementById('d-m-leadsRespondidos').value),
+    leadsCalificados: num(document.getElementById('d-m-leadsCalificados').value),
+    cotizacionesEnviadas: num(document.getElementById('d-m-cotizacionesEnviadas').value),
+    ventasCerradas: num(document.getElementById('d-m-ventasCerradas').value),
+    leadsSinSeguimiento: num(document.getElementById('d-m-leadsSinSeguimiento').value),
+    tiempoRespuestaPromedio: num(document.getElementById('d-m-tiempoRespuestaPromedio').value),
+    ticketPromedio: num(document.getElementById('d-m-ticketPromedio').value),
+    objecionComun: document.getElementById('d-m-objecionComun').value || '',
+    canalPrincipal: document.getElementById('d-m-canalPrincipal').value || '',
+  };
+}
+
+function pintarDatosDiagnostico(datos) {
+  if (!datos) return;
+  if (rutaActual === 'tienda') {
+    document.getElementById('d-t-visitas').value = datos.visitas ?? '';
+    document.getElementById('d-t-visitasProducto').value = datos.visitasProducto ?? '';
+    document.getElementById('d-t-agregaronCarrito').value = datos.agregaronCarrito ?? '';
+    document.getElementById('d-t-iniciaronCheckout').value = datos.iniciaronCheckout ?? '';
+    document.getElementById('d-t-compras').value = datos.compras ?? '';
+    document.getElementById('d-t-ingresos').value = datos.ingresos ?? '';
+    document.getElementById('d-t-ticketPromedio').value = datos.ticketPromedio ?? '';
+  } else if (rutaActual === 'evento') {
+    document.getElementById('d-e-registrados').value = datos.registrados ?? '';
+    document.getElementById('d-e-confirmados').value = datos.confirmados ?? '';
+    document.getElementById('d-e-asistieron').value = datos.asistieron ?? '';
+    document.getElementById('d-e-compraron').value = datos.compraron ?? '';
+    document.getElementById('d-e-ingresos').value = datos.ingresos ?? '';
+    document.getElementById('d-e-ticketPromedio').value = datos.ticketPromedio ?? '';
+  } else {
+    document.getElementById('d-m-leadsRecibidos').value = datos.leadsRecibidos ?? '';
+    document.getElementById('d-m-leadsRespondidos').value = datos.leadsRespondidos ?? '';
+    document.getElementById('d-m-leadsCalificados').value = datos.leadsCalificados ?? '';
+    document.getElementById('d-m-cotizacionesEnviadas').value = datos.cotizacionesEnviadas ?? '';
+    document.getElementById('d-m-ventasCerradas').value = datos.ventasCerradas ?? '';
+    document.getElementById('d-m-leadsSinSeguimiento').value = datos.leadsSinSeguimiento ?? '';
+    document.getElementById('d-m-tiempoRespuestaPromedio').value = datos.tiempoRespuestaPromedio ?? '';
+    document.getElementById('d-m-ticketPromedio').value = datos.ticketPromedio ?? '';
+    document.getElementById('d-m-objecionComun').value = datos.objecionComun ?? '';
+    document.getElementById('d-m-canalPrincipal').value = datos.canalPrincipal ?? '';
+  }
+}
+
+async function cargarDiagnosticoGuardado() {
+  try {
+    const key = CLIENTE_ID + ':conversion-cierre-diagnostico-' + rutaActual;
+    const r = await window.storage.get(key);
+    if (r && r.value) pintarDatosDiagnostico(JSON.parse(r.value));
+  } catch (e) {}
+}
+
+const RATE_LABELS_TIENDA = [
+  ['tasaConversionPct', 'Tasa de conversión (compras/visitas)'],
+  ['tasaProductoACarritoPct', 'Tasa de producto a carrito'],
+  ['tasaCarritoACompraPct', 'Tasa de carrito a compra'],
+  ['tasaCheckoutACompraPct', 'Tasa de checkout a compra'],
+  ['valorPerdidoCarritosAbandonados', 'Valor perdido en carritos abandonados (MXN)'],
+];
+const RATE_LABELS_EVENTO = [
+  ['tasaConfirmacionPct', 'Tasa de confirmación'],
+  ['tasaShowUpPct', 'Tasa de show-up'],
+  ['tasaCierrePct', 'Tasa de cierre sobre asistentes'],
+  ['tasaRegistroAVentaPct', 'Tasa de registro a venta'],
+];
+const RATE_LABELS_MENSAJE = [
+  ['tasaRespuestaPct', 'Tasa de respuesta'],
+  ['tasaCalificacionPct', 'Tasa de calificación'],
+  ['tasaCierrePct', 'Tasa de cierre'],
+  ['tasaCotizacionAVentaPct', 'Tasa de cotización a venta'],
+  ['pctSinSeguimiento', '% de leads sin seguimiento'],
+  ['ingresosPotencialesAbiertos', 'Ingresos potenciales abiertos (MXN)'],
+];
+const RATE_LABELS_POR_RUTA = { tienda: RATE_LABELS_TIENDA, evento: RATE_LABELS_EVENTO, mensaje: RATE_LABELS_MENSAJE };
+const RATE_KEYS_MONEDA = new Set(['valorPerdidoCarritosAbandonados', 'ingresosPotencialesAbiertos']);
+
+function renderTasas(rates) {
+  const labels = RATE_LABELS_POR_RUTA[rutaActual] || RATE_LABELS_TIENDA;
+  document.getElementById('diagRates').innerHTML = labels.map(([key, label]) => {
+    const v = rates ? rates[key] : null;
+    const esMoneda = RATE_KEYS_MONEDA.has(key);
+    const valorTexto = v == null ? '—' : (esMoneda ? '$' + Math.round(v).toLocaleString('es-MX') : v + '%');
+    return `<div class="result-row"><div class="result-label">${label}</div><div class="result-value">${valorTexto}</div></div>`;
+  }).join('');
+  document.getElementById('diagResultCard').style.display = 'block';
+}
+
+const MODO_DIAGNOSTICO_POR_RUTA = { tienda: 'diagnostico-tienda', evento: 'diagnostico-evento', mensaje: 'diagnostico-mensaje' };
+
+async function calcularDiagnostico() {
+  const btn = document.getElementById('diagBtn');
+  btn.disabled = true;
+  btn.textContent = 'Calculando...';
+  const datos = leerDatosDiagnostico();
+  const modo = MODO_DIAGNOSTICO_POR_RUTA[rutaActual];
+  try {
+    window.storage.set(CLIENTE_ID + ':conversion-cierre-diagnostico-' + rutaActual, JSON.stringify(datos)).catch(() => {});
+    const response = await fetch('/api/consultor-cierre', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ modo, cliente: CLIENTE_ID, datos }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      renderTasas(null);
+      document.getElementById('diagTextBox').style.display = 'block';
+      document.getElementById('diagChat').innerHTML = `<div class="bubble assistant">⚠️ ${escaparHtmlCierre(data.error || 'No se pudo calcular el diagnóstico.')}</div>`;
+    } else {
+      renderTasas(data.rates);
+      document.getElementById('diagTextBox').style.display = 'block';
+      document.getElementById('diagChat').innerHTML = `<div class="bubble assistant">${escaparHtmlCierre(data.text)}</div>
+        <button class="copy-btn" onclick="copyText(this, \`${(data.text || '').replace(/`/g, "'")}\`)">Copiar</button>`;
+    }
+  } catch (err) {
+    document.getElementById('diagTextBox').style.display = 'block';
+    document.getElementById('diagChat').innerHTML = '<div class="bubble assistant">⚠️ Hubo un error de conexión. Intenta de nuevo.</div>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Calcular diagnóstico';
+  }
+}
+</script>
+</body>
+</html>

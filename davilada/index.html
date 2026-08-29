@@ -1,0 +1,2002 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>La Davilada — Árbol Familiar</title>
+<style>
+  :root{
+    --ink:#171310;
+    --ink-soft:#7a6d64;
+    --paper:#efe4dc;
+    --paper-deep:#e2d3c7;
+    --card:#f8f2ec;
+    --card-edge:#d9c6b8;
+    --accent:#7c332b;
+    --accent-soft:#a5564a;
+    --teal:#3f6b63;
+    --teal-soft:#5c8b82;
+    --rust:#7c332b;
+    --line:#a89686;
+    --shadow:rgba(30,20,14,0.22);
+    --focus:#7c332b;
+    --male:#3f5e73;
+    --female:#96435c;
+  }
+  /* Paleta oficial fija (blush + negro) — se mantiene clara aunque el sistema use modo oscuro */
+  :root[data-theme="dark"],
+  :root[data-theme="light"]{
+    --ink:#171310; --ink-soft:#7a6d64; --paper:#efe4dc; --paper-deep:#e2d3c7;
+    --card:#f8f2ec; --card-edge:#d9c6b8; --accent:#7c332b; --accent-soft:#a5564a;
+    --teal:#3f6b63; --teal-soft:#5c8b82; --rust:#7c332b; --line:#a89686;
+    --shadow:rgba(30,20,14,0.22); --focus:#7c332b;
+    --male:#3f5e73; --female:#96435c;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:"Segoe UI",ui-sans-serif,system-ui,-apple-system,sans-serif;
+    color:var(--ink);
+    background:var(--paper);
+    height:100vh;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+  }
+  h1,h2,h3,.display{
+    font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    font-weight:600;
+    text-wrap:balance;
+  }
+  button{ font-family:inherit; }
+  ::selection{ background:var(--accent-soft); color:#1a1710; }
+  :focus-visible{ outline:2px solid var(--focus); outline-offset:2px; }
+
+  /* ---------- Toolbar ---------- */
+  #toolbar{
+    display:flex;
+    align-items:center;
+    gap:.6rem;
+    flex-wrap:wrap;
+    padding:.65rem 1rem;
+    background:var(--paper-deep);
+    border-bottom:1px solid var(--card-edge);
+    box-shadow:0 1px 0 var(--shadow);
+    z-index:20;
+  }
+  #toolbar h1{
+    font-size:1.15rem;
+    margin:0 1rem 0 0;
+    color:var(--accent);
+    letter-spacing:.02em;
+    white-space:nowrap;
+  }
+  #toolbar h1 small{
+    display:block;
+    font-family:"Segoe UI",ui-sans-serif,system-ui,sans-serif;
+    font-size:.62rem;
+    font-weight:400;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+  }
+  .tbtn{
+    display:inline-flex;
+    align-items:center;
+    gap:.4rem;
+    background:var(--card);
+    border:1px solid var(--card-edge);
+    color:var(--ink);
+    padding:.45rem .75rem;
+    border-radius:5px;
+    font-size:.82rem;
+    cursor:pointer;
+    transition:background .12s, border-color .12s, transform .05s;
+    white-space:nowrap;
+  }
+  .tbtn:hover{ border-color:var(--accent); background:var(--card); }
+  .tbtn:active{ transform:translateY(1px); }
+  .tbtn.primary{ background:var(--teal); border-color:var(--teal); color:#fbf9f2; }
+  .tbtn.primary:hover{ background:var(--teal-soft); border-color:var(--teal-soft); }
+  .tbtn.danger{ color:var(--rust); }
+  .tbtn.active{ background:var(--accent); border-color:var(--accent); color:#231a0d; }
+  #zoomGroup{ display:flex; align-items:center; gap:.3rem; margin-left:auto; }
+  #zoomLabel{ font-size:.78rem; color:var(--ink-soft); min-width:3.2em; text-align:center; font-variant-numeric:tabular-nums; }
+  #peopleCount{ font-size:.78rem; color:var(--ink-soft); white-space:nowrap; }
+
+  /* ---------- Canvas ---------- */
+  #canvasWrapper{
+    flex:1;
+    overflow:auto;
+    position:relative;
+    background:
+      radial-gradient(circle at 1px 1px, var(--card-edge) 1px, transparent 1px);
+    background-size:26px 26px;
+    background-color:var(--paper);
+    /* deja el pan de un dedo al navegador; el pellizco de dos dedos lo maneja setZoom() */
+    touch-action:pan-x pan-y;
+  }
+  #canvas{
+    position:relative;
+    width:2200px;
+    height:1500px;
+    transform-origin:0 0;
+  }
+  #linesSvg{
+    position:absolute;
+    top:0; left:0;
+    width:100%; height:100%;
+    pointer-events:none;
+    overflow:visible;
+  }
+  #linesSvg path{ pointer-events:stroke; cursor:pointer; }
+  #linesSvg path:hover{ filter:brightness(1.3); }
+
+  #loadingOverlay{
+    position:absolute; inset:0;
+    background:var(--paper);
+    display:flex; align-items:center; justify-content:center;
+    font-size:.9rem; color:var(--ink-soft);
+    z-index:40;
+  }
+  #loadingOverlay.hidden{ display:none; }
+
+  #hint{
+    position:absolute;
+    top:1.5rem; left:1.5rem;
+    max-width:280px;
+    background:var(--card);
+    border:1px solid var(--card-edge);
+    border-left:4px solid var(--accent);
+    border-radius:4px;
+    padding:.8rem 1rem;
+    font-size:.82rem;
+    line-height:1.5;
+    color:var(--ink-soft);
+    box-shadow:0 2px 10px var(--shadow);
+  }
+  #hint b{ color:var(--ink); }
+  #hint button{
+    margin-top:.5rem; background:none; border:none; color:var(--teal);
+    font-size:.78rem; cursor:pointer; padding:0; text-decoration:underline;
+  }
+
+  /* ---------- Person card ---------- */
+  .person{
+    position:absolute;
+    width:172px;
+    background:var(--card);
+    border:1px solid var(--card-edge);
+    border-radius:3px;
+    box-shadow:0 3px 10px var(--shadow);
+    user-select:none;
+    transition:box-shadow .15s, left .25s ease, top .25s ease;
+  }
+  .person:hover{ box-shadow:0 6px 18px var(--shadow); }
+  .person.linking{ outline:2px solid var(--teal); outline-offset:2px; }
+  .person.link-target-hover{ outline:2px solid var(--accent); outline-offset:2px; }
+  .person.gender-m{ border-top:3px solid var(--male); }
+  .person.gender-f{ border-top:3px solid var(--female); }
+  .quick-add-badge{
+    position:absolute;
+    bottom:-11px; right:10px;
+    width:24px; height:24px;
+    border-radius:50%;
+    background:var(--accent);
+    color:#fbf5ee;
+    border:2px solid var(--paper);
+    font-size:15px;
+    line-height:1;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    box-shadow:0 2px 6px var(--shadow);
+    z-index:6;
+    padding:0;
+  }
+  .quick-add-badge:hover{ background:var(--accent-soft); }
+  .person::before,.person::after,
+  .person .corner-l,.person .corner-r{
+    content:"";
+    position:absolute;
+    width:14px; height:14px;
+    background:var(--accent-soft);
+    opacity:.85;
+  }
+  .person::before{ top:-1px; left:-1px; clip-path:polygon(0 0,100% 0,0 100%); }
+  .person::after{ top:-1px; right:-1px; clip-path:polygon(100% 0,100% 100%,0 0); }
+  .photo-wrap{
+    position:relative;
+    width:100%;
+    aspect-ratio:1/1;
+    background:var(--paper-deep);
+    overflow:hidden;
+    border-bottom:1px solid var(--card-edge);
+  }
+  .photo-wrap img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .photo-wrap .no-photo{
+    width:100%; height:100%;
+    display:flex; align-items:center; justify-content:center;
+    color:var(--ink-soft);
+    font-size:2.1rem;
+    font-family:"Iowan Old Style",Georgia,serif;
+  }
+  .deceased-mark{
+    position:absolute; top:5px; left:5px;
+    background:rgba(20,18,14,.55);
+    color:#f4f1e6;
+    font-size:.68rem;
+    padding:1px 6px;
+    border-radius:3px;
+    letter-spacing:.03em;
+  }
+  .person-body{ padding:.55rem .6rem .6rem; }
+  .person-name{
+    font-family:"Iowan Old Style","Palatino Linotype",Georgia,serif;
+    font-size:.92rem;
+    font-weight:600;
+    line-height:1.2;
+    margin:0 0 .15rem;
+    text-wrap:balance;
+  }
+  .person-sub{
+    font-size:.7rem;
+    color:var(--ink-soft);
+    line-height:1.4;
+    font-variant-numeric:tabular-nums;
+  }
+  .person-socials{
+    display:flex;
+    gap:.3rem;
+    margin-top:.35rem;
+    flex-wrap:wrap;
+  }
+  .social-badge{
+    font-size:.66rem;
+    padding:.12rem .4rem;
+    border-radius:20px;
+    background:var(--paper-deep);
+    border:1px solid var(--card-edge);
+    color:var(--accent);
+    text-decoration:none;
+    line-height:1.5;
+  }
+  .social-badge:hover{ border-color:var(--accent); background:var(--card); }
+  .person-actions{
+    display:flex;
+    gap:.3rem;
+    margin-top:.4rem;
+    opacity:0;
+    transition:opacity .1s;
+  }
+  .person:hover .person-actions,
+  .person:focus-within .person-actions{ opacity:1; }
+  .pbtn{
+    flex:1;
+    background:var(--paper-deep);
+    border:1px solid var(--card-edge);
+    color:var(--ink);
+    font-size:.68rem;
+    padding:.28rem 0;
+    border-radius:3px;
+    cursor:pointer;
+  }
+  .pbtn:hover{ border-color:var(--accent); }
+  .pbtn.link-btn:hover{ border-color:var(--teal); color:var(--teal); }
+  .pbtn.del-btn:hover{ border-color:var(--rust); color:var(--rust); }
+
+  /* ---------- Modal ---------- */
+  .modal-backdrop{
+    position:fixed; inset:0;
+    background:rgba(20,17,12,.5);
+    display:flex; align-items:center; justify-content:center;
+    z-index:100;
+    padding:1rem;
+  }
+  .modal-backdrop.hidden{ display:none; }
+  .modal{
+    background:var(--card);
+    border:1px solid var(--card-edge);
+    border-radius:8px;
+    width:100%;
+    max-width:440px;
+    max-height:90vh;
+    overflow-y:auto;
+    box-shadow:0 20px 50px var(--shadow);
+  }
+  .modal-header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:1rem 1.2rem .6rem;
+    border-bottom:1px solid var(--card-edge);
+  }
+  .modal-header h2{ margin:0; font-size:1.05rem; }
+  .modal-close{
+    background:none; border:none; font-size:1.3rem; line-height:1;
+    color:var(--ink-soft); cursor:pointer; padding:.2rem .4rem;
+  }
+  .modal-close:hover{ color:var(--rust); }
+  .modal-body{ padding:1rem 1.2rem; display:flex; flex-direction:column; gap:.85rem; }
+  .field label{
+    display:block; font-size:.72rem; text-transform:uppercase; letter-spacing:.08em;
+    color:var(--ink-soft); margin-bottom:.3rem;
+  }
+  .field input[type=text], .field input[type=date], .field select, .field textarea{
+    width:100%;
+    background:var(--paper);
+    border:1px solid var(--card-edge);
+    border-radius:4px;
+    padding:.5rem .6rem;
+    color:var(--ink);
+    font-size:.88rem;
+    font-family:inherit;
+  }
+  .field textarea{ min-height:64px; resize:vertical; }
+  .field-row{ display:flex; gap:.7rem; }
+  .field-row .field{ flex:1; }
+  .birthdate-row{ display:flex; gap:.4rem; }
+  .birthdate-row input{ min-width:0; text-align:center; }
+  .birthdate-row input#fBirthDay, .birthdate-row input#fBirthMonth{ flex:0 0 26%; }
+  .birthdate-row input#fBirthYear{ flex:1; }
+  .weekday-hint{ font-size:.72rem; color:var(--teal); margin-top:.3rem; min-height:1em; }
+  .weekday-hint.invalid{ color:var(--rust); }
+  .checkline{ display:flex; align-items:center; gap:.5rem; font-size:.85rem; }
+  .photo-picker{ display:flex; gap:.8rem; align-items:center; }
+  .photo-preview{
+    width:70px; height:70px; border-radius:4px; overflow:hidden;
+    background:var(--paper-deep); border:1px solid var(--card-edge);
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    color:var(--ink-soft); font-family:"Iowan Old Style",Georgia,serif; font-size:1.6rem;
+  }
+  .photo-preview img{ width:100%; height:100%; object-fit:cover; }
+  .photo-picker-btns{ display:flex; flex-direction:column; gap:.4rem; }
+  .photo-picker-btns label, .photo-picker-btns button{
+    font-size:.76rem; padding:.35rem .6rem; border-radius:4px;
+    border:1px solid var(--card-edge); background:var(--paper); color:var(--ink);
+    cursor:pointer; text-align:center;
+  }
+  .modal-footer{
+    display:flex; justify-content:space-between; gap:.6rem;
+    padding:.9rem 1.2rem 1.1rem;
+    border-top:1px solid var(--card-edge);
+  }
+  .modal-footer .right{ display:flex; gap:.5rem; }
+
+  /* relation-type mini modal */
+  .rel-option{
+    display:block; width:100%; text-align:left;
+    background:var(--paper); border:1px solid var(--card-edge); border-radius:5px;
+    padding:.6rem .8rem; margin-bottom:.5rem; cursor:pointer; font-size:.85rem; color:var(--ink);
+  }
+  .rel-option:hover{ border-color:var(--teal); background:var(--card); }
+  .rel-option b{ color:var(--accent); }
+
+  /* toast */
+  #toast{
+    position:fixed; bottom:1.2rem; left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--ink); color:var(--paper);
+    padding:.6rem 1.1rem; border-radius:6px; font-size:.82rem;
+    opacity:0; pointer-events:none; transition:opacity .2s, transform .2s;
+    z-index:200;
+    box-shadow:0 8px 20px var(--shadow);
+  }
+  #toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  #legend{
+    position:absolute; bottom:1.2rem; right:1.2rem;
+    background:var(--card); border:1px solid var(--card-edge); border-radius:6px;
+    padding:.6rem .8rem; font-size:.7rem; color:var(--ink-soft);
+    box-shadow:0 2px 10px var(--shadow);
+    display:flex; flex-direction:column; gap:.3rem;
+  }
+  #legend .lg-line{ display:flex; align-items:center; gap:.4rem; }
+  #legend svg{ flex-shrink:0; }
+
+  input[type=file]{ display:none; }
+
+  .attend-badge{
+    display:inline-block;
+    margin-top:.35rem;
+    font-size:.66rem;
+    padding:.15rem .5rem;
+    border-radius:20px;
+    line-height:1.4;
+  }
+  .attend-badge.si{ background:rgba(63,107,99,.15); color:var(--teal); border:1px solid var(--teal); }
+  .attend-badge.no{ background:var(--paper-deep); color:var(--ink-soft); border:1px solid var(--card-edge); }
+
+  @media (prefers-reduced-motion: reduce){
+    .person{ transition:box-shadow .15s; }
+  }
+
+  @media print{
+    #toolbar, #hint, #legend, .person-actions, #toast{ display:none !important; }
+    body{ overflow:visible; height:auto; background:#fff; }
+    #canvasWrapper{ overflow:visible; background:#fff; }
+    #canvas{ transform:none !important; }
+    .person{ box-shadow:none; border:1px solid #999; }
+    .person::before,.person::after{ display:none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+  <h1>La Davilada<small>Árbol genealógico · Saltillo 2026</small></h1>
+  <button class="tbtn primary" id="btnAdd">+ Agregar persona</button>
+  <button class="tbtn" id="btnLink">🔗 Conectar</button>
+  <button class="tbtn" id="btnExport">⭳ Descargar backup (.json)</button>
+  <label class="tbtn" id="btnImportLabel">⭱ Restaurar backup
+    <input type="file" id="importInput" accept="application/json" />
+  </label>
+  <button class="tbtn" id="btnPrint">🖶 Imprimir / PDF</button>
+  <button class="tbtn" id="btnRefresh" title="Traer los últimos cambios guardados por otros">🔄 Actualizar</button>
+  <span id="peopleCount"></span>
+  <div id="zoomGroup">
+    <button class="tbtn" id="zoomOut">–</button>
+    <span id="zoomLabel">100%</span>
+    <button class="tbtn" id="zoomIn">+</button>
+  </div>
+</div>
+
+<div id="canvasWrapper">
+  <div id="canvas">
+    <svg id="linesSvg"></svg>
+  </div>
+  <div id="loadingOverlay" class="hidden">Cargando el árbol…</div>
+  <div id="hint">
+    <b>Cómo usarlo:</b> pulsa el <b>+</b> de cualquier tarjeta para agregar papá, mamá, hijo/a, hermano/a, medio hermano/a o pareja — el árbol se acomoda solo (papás arriba, hermanos en fila). Usa <b>🔗 Conectar</b> solo para casos especiales. Se guarda en línea automáticamente — cualquiera con este link ve y edita el mismo árbol. Pulsa <b>🔄 Actualizar</b> para traer lo que hayan agregado otros.
+    <br><button id="hintClose">Entendido, ocultar</button>
+  </div>
+  <div id="legend">
+    <div class="lg-line"><svg width="26" height="10"><line x1="0" y1="5" x2="26" y2="5" stroke="var(--teal)" stroke-width="2.4"/></svg> Padre/madre → hijo/a</div>
+    <div class="lg-line"><svg width="26" height="10"><line x1="0" y1="5" x2="26" y2="5" stroke="var(--accent)" stroke-width="2.4" stroke-dasharray="5,3"/></svg> Cónyuges</div>
+    <div class="lg-line"><svg width="26" height="10"><line x1="0" y1="5" x2="26" y2="5" stroke="var(--line)" stroke-width="2" stroke-dasharray="1.5,3"/></svg> Hermanos/as</div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="editBackdrop">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="editTitle">Nueva persona</h2>
+      <button class="modal-close" id="editClose">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Foto</label>
+        <div class="photo-picker">
+          <div class="photo-preview" id="photoPreview">🖼</div>
+          <div class="photo-picker-btns">
+            <label>Tomar / subir foto<input type="file" accept="image/*" capture="environment" id="photoInput"></label>
+            <button type="button" id="photoRemove">Quitar foto</button>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Nombre(s)</label>
+        <input type="text" id="fName" list="nombresList" placeholder="Ej. María Elena">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Apellido 1 (paterno)</label>
+          <input type="text" id="fApellido1" list="apellidosList" placeholder="Ej. Torres">
+        </div>
+        <div class="field">
+          <label>Apellido 2 (materno)</label>
+          <input type="text" id="fApellido2" list="apellidosList" placeholder="Ej. Dávila">
+        </div>
+      </div>
+      <datalist id="nombresList"></datalist>
+      <datalist id="apellidosList"></datalist>
+      <div class="field-row">
+        <div class="field">
+          <label>Apodo</label>
+          <input type="text" id="fNick" placeholder="Ej. Nena">
+        </div>
+        <div class="field">
+          <label>Género</label>
+          <select id="fGender">
+            <option value="">Sin especificar</option>
+            <option value="F">Femenino</option>
+            <option value="M">Masculino</option>
+            <option value="O">Otro</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Fecha de nacimiento</label>
+          <div class="birthdate-row">
+            <input type="number" id="fBirthDay" placeholder="Día" min="1" max="31" inputmode="numeric">
+            <input type="number" id="fBirthMonth" placeholder="Mes" min="1" max="12" inputmode="numeric">
+            <input type="number" id="fBirthYear" placeholder="Año" min="1900" max="2100" inputmode="numeric">
+          </div>
+          <div id="fBirthWeekday" class="weekday-hint"></div>
+        </div>
+        <div class="field">
+          <label>Lugar de nacimiento</label>
+          <input type="text" id="fBirthPlace" list="ciudadesList" placeholder="Ciudad, país">
+        </div>
+      </div>
+      <div class="field">
+        <label>Dónde vive actualmente</label>
+        <input type="text" id="fCurrentPlace" list="ciudadesList" placeholder="Ciudad, país">
+      </div>
+      <datalist id="ciudadesList"></datalist>
+      <div class="field">
+        <label class="checkline"><input type="checkbox" id="fDeceased"> Falleció</label>
+      </div>
+      <div class="field-row" id="deathFields" style="display:none;">
+        <div class="field">
+          <label>Fecha de fallecimiento</label>
+          <input type="date" id="fDeathDate">
+        </div>
+        <div class="field">
+          <label>Lugar de fallecimiento</label>
+          <input type="text" id="fDeathPlace" list="ciudadesList" placeholder="Ciudad, país">
+        </div>
+      </div>
+      <div class="field">
+        <label>Ocupación</label>
+        <input type="text" id="fOccupation" placeholder="Ej. Maestra, agricultor...">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Instagram</label>
+          <input type="text" id="fInstagram" placeholder="@usuario">
+        </div>
+        <div class="field">
+          <label>Facebook</label>
+          <input type="text" id="fFacebook" placeholder="usuario o link">
+        </div>
+      </div>
+      <div class="field">
+        <label>Otra red social / WhatsApp</label>
+        <input type="text" id="fSocialOther" placeholder="Link o número">
+      </div>
+      <div class="field">
+        <label>¿Asistió a La Davilada?</label>
+        <select id="fAsistio">
+          <option value="">Sin confirmar</option>
+          <option value="si">Sí asistió</option>
+          <option value="no">No asistió</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Notas / historia familiar</label>
+        <textarea id="fNotes" placeholder="Anécdotas, nacionalidad, procedencia, historia..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="tbtn danger" id="editDelete">Eliminar persona</button>
+      <div class="right">
+        <button class="tbtn" id="editCancel">Cancelar</button>
+        <button class="tbtn primary" id="editSave">Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="relBackdrop">
+  <div class="modal" style="max-width:360px;">
+    <div class="modal-header">
+      <h2>¿Qué relación tienen?</h2>
+      <button class="modal-close" id="relClose">&times;</button>
+    </div>
+    <div class="modal-body" id="relOptions"></div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="quickAddBackdrop">
+  <div class="modal" style="max-width:320px;">
+    <div class="modal-header">
+      <h2 id="quickAddTitle">Agregar familiar</h2>
+      <button class="modal-close" id="quickAddClose">&times;</button>
+    </div>
+    <div class="modal-body" id="quickAddBody"></div>
+  </div>
+</div>
+
+<div class="modal-backdrop hidden" id="relEditBackdrop">
+  <div class="modal" style="max-width:360px;">
+    <div class="modal-header">
+      <h2>Estado de la relación</h2>
+      <button class="modal-close" id="relEditClose">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Estado</label>
+        <select id="relEstado">
+          <option value="union_libre">Unión libre / pareja</option>
+          <option value="casado">Casados</option>
+          <option value="divorciado">Divorciados</option>
+        </select>
+      </div>
+      <div class="field">
+        <label id="relDate1Label">Fecha</label>
+        <input type="date" id="relDate1">
+      </div>
+      <div class="field" id="relDate2Field" style="display:none;">
+        <label>Fecha de divorcio</label>
+        <input type="date" id="relDate2">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="tbtn danger" id="relEditDelete">Eliminar relación</button>
+      <div class="right">
+        <button class="tbtn" id="relEditCancel">Cancelar</button>
+        <button class="tbtn primary" id="relEditSave">Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+  var API_BASE = "https://agentes.jefeshub.com/api/storage/";
+  var SERVER_KEY = "davilada-arbol-familiar";
+  var LOCAL_CACHE_KEY = "laDavilada.arbolFamiliar.cache";
+  var state = { people: [], relations: [] };
+  var zoom = 1;
+  var linking = null; // person id currently selected as source for a relation
+
+  var canvas = document.getElementById("canvas");
+  var canvasWrapper = document.getElementById("canvasWrapper");
+  var svg = document.getElementById("linesSvg");
+
+  function uid(){ return "p" + Math.random().toString(36).slice(2,10) + Date.now().toString(36); }
+
+  function showLoading(on){
+    document.getElementById("loadingOverlay").classList.toggle("hidden", !on);
+  }
+
+  // El árbol vive en el servidor (compartido entre todos) — el navegador
+  // solo guarda una copia local de respaldo por si falla la conexión.
+  function loadFromServer(){
+    return fetch(API_BASE + SERVER_KEY, { cache: "no-store" })
+      .then(function(res){
+        if(!res.ok) throw new Error("status " + res.status);
+        return res.json();
+      })
+      .then(function(data){
+        if(data && data.value && Array.isArray(data.value.people)){
+          state = data.value;
+          try{ localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(state)); }catch(e){}
+        }
+      })
+      .catch(function(e){
+        console.warn("No se pudo cargar desde el servidor, usando copia local si existe.", e);
+        try{
+          var raw = localStorage.getItem(LOCAL_CACHE_KEY);
+          if(raw){
+            var parsed = JSON.parse(raw);
+            if(parsed && Array.isArray(parsed.people)) state = parsed;
+          }
+        }catch(e2){}
+        toast("No se pudo conectar al servidor. Mostrando la última copia disponible en este dispositivo.");
+      });
+  }
+
+  var saveTimer = null;
+  function save(){
+    try{ localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(state)); }catch(e){}
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function(){
+      fetch(API_BASE + SERVER_KEY, {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: state })
+      }).then(function(res){
+        if(!res.ok) throw new Error("status " + res.status);
+      }).catch(function(e){
+        toast("No se pudo guardar en línea (revisa tu conexión). Quedó una copia local en este dispositivo.");
+      });
+    }, 400);
+  }
+
+  function toast(msg){
+    var t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(toast._h);
+    toast._h = setTimeout(function(){ t.classList.remove("show"); }, 2600);
+  }
+
+  function fmtDate(d){
+    if(!d) return "";
+    var parts = d.split("-");
+    if(parts.length !== 3) return d;
+    return parts[2] + "/" + parts[1] + "/" + parts[0];
+  }
+
+  var DIAS_SEMANA = ["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
+  // Día/mes/año en campos de número (en vez del <input type=date> nativo,
+  // cuyo selector de calendario es muy lento en celular para llegar a
+  // años viejos) — arma la fecha "YYYY-MM-DD" y de paso muestra el día de
+  // la semana en automático.
+  function birthDateFromFields(){
+    var y = document.getElementById("fBirthYear").value.trim();
+    var m = document.getElementById("fBirthMonth").value.trim();
+    var d = document.getElementById("fBirthDay").value.trim();
+    if(!y && !m && !d) return "";
+    if(!y || !m || !d) return "";
+    var mm = ("0"+m).slice(-2), dd = ("0"+d).slice(-2);
+    return y + "-" + mm + "-" + dd;
+  }
+  function updateBirthWeekday(){
+    var hint = document.getElementById("fBirthWeekday");
+    var y = parseInt(document.getElementById("fBirthYear").value, 10);
+    var m = parseInt(document.getElementById("fBirthMonth").value, 10);
+    var d = parseInt(document.getElementById("fBirthDay").value, 10);
+    if(!y || !m || !d){ hint.textContent = ""; hint.classList.remove("invalid"); return; }
+    var dt = new Date(y, m-1, d);
+    if(dt.getFullYear()!==y || dt.getMonth()!==m-1 || dt.getDate()!==d){
+      hint.textContent = "Esa fecha no existe — revisa el día/mes.";
+      hint.classList.add("invalid");
+      return;
+    }
+    hint.classList.remove("invalid");
+    hint.textContent = "Fue un " + DIAS_SEMANA[dt.getDay()] + ".";
+  }
+  ["fBirthYear","fBirthMonth","fBirthDay"].forEach(function(id){
+    document.getElementById(id).addEventListener("input", updateBirthWeekday);
+  });
+
+  function ensureCanvasSize(x, y){
+    var w = parseInt(canvas.style.width || canvas.offsetWidth, 10);
+    var h = parseInt(canvas.style.height || canvas.offsetHeight, 10);
+    var needW = x + 260, needH = y + 260;
+    var changed = false;
+    if(needW > w){ w = needW; changed = true; }
+    if(needH > h){ h = needH; changed = true; }
+    if(changed){
+      canvas.style.width = w + "px";
+      canvas.style.height = h + "px";
+    }
+  }
+
+  function personById(id){
+    for(var i=0;i<state.people.length;i++) if(state.people[i].id === id) return state.people[i];
+    return null;
+  }
+
+  var CARD_W = 172, GAP_X = 40;
+
+  function relatedParents(personId){
+    return state.relations.filter(function(r){ return r.type==="parent" && r.to===personId; }).map(function(r){ return r.from; });
+  }
+  function relatedChildren(personId){
+    return state.relations.filter(function(r){ return r.type==="parent" && r.from===personId; }).map(function(r){ return r.to; });
+  }
+  function spousesOf(personId){
+    return state.relations.filter(function(r){ return r.type==="spouse" && (r.from===personId || r.to===personId); })
+      .map(function(r){ return r.from===personId ? r.to : r.from; });
+  }
+  function primarySpouseFor(personId){
+    var sp = spousesOf(personId);
+    return sp.length===1 ? sp[0] : null; // si hay 2+ parejas, no adivinamos cuál es la segunda madre/padre
+  }
+  function addRelationSilent(type, from, to){
+    var dup = state.relations.some(function(r){
+      return r.type===type && ((r.from===from&&r.to===to)||(type!=="parent"&&r.from===to&&r.to===from));
+    });
+    if(dup) return;
+    state.relations.push({ id: uid(), type: type, from: from, to: to });
+  }
+
+  // Solo crea las relaciones; autoLayout() (llamado desde render) recalcula x/y de todo el árbol.
+  function linkQuickAdd(newP, sourceId, kind, extra){
+    if(kind==="papa" || kind==="mama"){
+      addRelationSilent("parent", newP.id, sourceId);
+    } else if(kind==="hijo"){
+      if(extra && extra.parentA){
+        // El usuario confirmó (o corrigió) a los papás en la pantalla previa.
+        addRelationSilent("parent", extra.parentA, newP.id);
+        if(extra.parentB) addRelationSilent("parent", extra.parentB, newP.id);
+      } else {
+        var spouseId = primarySpouseFor(sourceId);
+        addRelationSilent("parent", sourceId, newP.id);
+        if(spouseId) addRelationSilent("parent", spouseId, newP.id);
+      }
+    } else if(kind==="hermano"){
+      var parents = relatedParents(sourceId);
+      if(parents.length){
+        parents.forEach(function(pid){ addRelationSilent("parent", pid, newP.id); });
+      } else {
+        addRelationSilent("sibling", sourceId, newP.id);
+      }
+    } else if(kind==="mediohermano"){
+      if(extra && extra.sharedParentId){
+        addRelationSilent("parent", extra.sharedParentId, newP.id);
+      } else {
+        var onlyParents = relatedParents(sourceId);
+        if(onlyParents.length){ addRelationSilent("parent", onlyParents[0], newP.id); }
+        else { addRelationSilent("sibling", sourceId, newP.id); }
+      }
+    } else if(kind==="conyuge"){
+      addRelationSilent("spouse", sourceId, newP.id);
+    }
+  }
+
+  // Genera x/y de todas las personas a partir del árbol de relaciones:
+  // generación por generación, papás centrados arriba de sus hijos, hermanos en fila.
+  function autoLayout(){
+    if(!state.people.length) return;
+    var gen = {};
+    state.people.forEach(function(p){ gen[p.id] = 0; });
+    for(var iter=0; iter<state.people.length+5; iter++){
+      var changed = false;
+      state.relations.forEach(function(r){
+        if(r.type==="parent"){
+          if(gen[r.to] < gen[r.from]+1){ gen[r.to] = gen[r.from]+1; changed = true; }
+        } else if(r.type==="spouse" || r.type==="sibling"){
+          // cónyuges y hermanos (aunque no compartan padres registrados) van
+          // siempre en el mismo nivel horizontal.
+          var g = Math.max(gen[r.from], gen[r.to]);
+          if(gen[r.from]!==g){ gen[r.from]=g; changed=true; }
+          if(gen[r.to]!==g){ gen[r.to]=g; changed=true; }
+        }
+      });
+      if(!changed) break;
+    }
+    var minGen = Math.min.apply(null, state.people.map(function(p){ return gen[p.id]; }));
+    state.people.forEach(function(p){ gen[p.id] -= minGen; });
+
+    var byGen = {};
+    state.people.forEach(function(p){ (byGen[gen[p.id]] = byGen[gen[p.id]] || []).push(p.id); });
+    var maxGen = Math.max.apply(null, Object.keys(byGen).map(Number));
+
+    var xPos = {};
+    // Posición actual de alguien mientras se recalcula el acomodo: usa lo ya
+    // resuelto en esta pasada (o una pasada de relajación anterior) y solo
+    // cae al valor guardado la primerísima vez que se coloca a esa persona.
+    function curX(id){ return xPos[id] != null ? xPos[id] : (personById(id).x || 0); }
+    function birthTime(id){
+      var d = personById(id).birthDate;
+      return d ? new Date(d).getTime() : null;
+    }
+    // Hermanos de mayor a menor (izquierda a derecha) según su fecha de
+    // nacimiento; quien no tenga fecha capturada se acomoda al final del
+    // grupo, en su orden anterior, para no des-ordenar al resto.
+    function bySiblingAge(a, b){
+      var ta = birthTime(a), tb = birthTime(b);
+      if(ta != null && tb != null) return ta - tb;
+      if(ta != null) return -1;
+      if(tb != null) return 1;
+      return curX(a) - curX(b);
+    }
+
+    // Agrupa ids en "unidades" (persona sola, o pareja si su cónyuge está en
+    // la misma lista) y las coloca de izquierda a derecha centrada cada una
+    // en idealX[id] (si existe) — sin encimarse con la unidad anterior.
+    // Primero se agrupan hermanos completos (mismo conjunto exacto de
+    // padres): sin esto, dos hermanas sin pareja propia (ej. Priscila y
+    // Pamela) podían quedar separadas por otras familias en medio, y la
+    // línea que las conecta con sus papás terminaba cruzando por encima de
+    // tarjetas de tíos, pareciendo una conexión equivocada.
+    function layoutUnits(ids, idealX){
+      var idSet = {};
+      ids.forEach(function(id){ idSet[id] = true; });
+      // Determina UNA sola vez quién queda emparejado con quién (dando
+      // prioridad a que una persona de sangre reclame a su cónyuge sin
+      // papás propios) y se reutiliza tanto para decidir quién no lleva
+      // llave/turno independiente como para armar las parejas más abajo —
+      // si estos dos pasos usaran lógicas distintas podían desincronizarse
+      // (alguien quedaba excluido de su propia llave sin que nadie más lo
+      // reclamara de verdad, dejándolo sin lugar).
+      var pairOf = {}, pairedAway = {};
+      ids.forEach(function(id){
+        if(!relatedParents(id).length || pairOf[id]) return;
+        var sp = spousesOf(id).find(function(s){ return idSet[s] && !relatedParents(s).length && !pairOf[s]; });
+        if(sp){ pairOf[id] = sp; pairOf[sp] = id; pairedAway[sp] = true; }
+      });
+      // parejas restantes (ej. ambos con papás propios, caso raro) para no
+      // dejar a nadie sin intentar emparejar.
+      ids.forEach(function(id){
+        if(pairOf[id]) return;
+        var sp = spousesOf(id).find(function(s){ return idSet[s] && s !== id && !pairOf[s]; });
+        if(sp){ pairOf[id] = sp; pairOf[sp] = id; }
+      });
+
+      var byParentKey = {}, keyOrder = [];
+      ids.forEach(function(id){
+        if(pairedAway[id]) return;
+        var cp = relatedParents(id);
+        var key = cp.length ? cp.slice().sort().join(",") : ("_solo_"+id);
+        if(!byParentKey[key]){ byParentKey[key] = []; keyOrder.push(key); }
+        byParentKey[key].push(id);
+      });
+      Object.keys(byParentKey).forEach(function(key){
+        byParentKey[key].sort(bySiblingAge);
+      });
+      keyOrder.sort(function(ka, kb){
+        function avgOldX(key){
+          var members = byParentKey[key];
+          return members.reduce(function(s,id){ return s+curX(id); },0)/members.length;
+        }
+        return avgOldX(ka) - avgOldX(kb);
+      });
+
+      var unitsOrder = [], seenU = {};
+      keyOrder.forEach(function(key){
+        byParentKey[key].forEach(function(id){
+          if(seenU[id]) return;
+          var sp = pairOf[id];
+          if(sp && idSet[sp] && !seenU[sp]){ unitsOrder.push([id, sp]); seenU[id] = true; seenU[sp] = true; }
+          else { unitsOrder.push([id]); seenU[id] = true; }
+        });
+      });
+      var unitIdeal = unitsOrder.map(function(unit){
+        var vals = unit.map(function(id){ return idealX[id]; }).filter(function(v){ return v != null; });
+        return vals.length ? vals.reduce(function(s,v){ return s+v; },0)/vals.length : null;
+      });
+      var cursorX = 20;
+      unitsOrder.forEach(function(unit, i){
+        var w = unit.length*(CARD_W+GAP_X) - GAP_X;
+        var center = unitIdeal[i] != null ? unitIdeal[i] : cursorX + w/2;
+        var start = Math.max(cursorX, center - w/2);
+        unit.forEach(function(id, j){ xPos[id] = start + j*(CARD_W+GAP_X); });
+        cursorX = start + w + (CARD_W+GAP_X);
+      });
+    }
+
+    // Todo el acomodo (de abajo hacia arriba + el ajuste de centrado) se
+    // repite varias veces: la primera pasada puede empujar a un grupo de
+    // hijos hacia un lado para no encimarse con la familia vecina, dejando
+    // al papá (ya fijado en una pasada anterior) sin recentrar sobre ellos
+    // — cada repetición usa el resultado de la anterior como punto de
+    // partida, así los papás se van recentrando sobre sus hijos ya
+    // corridos hasta que el árbol se asienta.
+    for(var relax=0; relax<3; relax++){
+
+    // De la generación más profunda hacia la 0: los nietos/hijos se colocan
+    // primero en fila simple, y cada generación de arriba toma el promedio
+    // de sus propios hijos ya posicionados — así padres e hijos quedan
+    // centrados entre sí sin importar cuántos hijos tenga cada quien.
+    for(var g=maxGen; g>=0; g--){
+      var ids = (byGen[g] || []).slice().sort(function(a,b){ return curX(a) - curX(b); });
+      var idealX = {};
+      ids.forEach(function(id){
+        var kids = relatedChildren(id).filter(function(cid){ return xPos[cid] != null; });
+        if(kids.length){
+          idealX[id] = kids.reduce(function(s,cid){ return s+xPos[cid]; },0)/kids.length;
+        }
+      });
+      layoutUnits(ids, idealX);
+    }
+
+    // Ajuste de arriba hacia abajo: el paso anterior deja a los hijos
+    // alineados bajo el promedio de sus padres, pero con un solo hijo eso
+    // lo deja bajo uno de los dos en vez de exactamente entre ambos. Aquí
+    // se centra cada bloque de hijos en medio de su propia pareja de
+    // padres, arrastrando también a nietos/bisnietos con ellos, y se
+    // resuelven los encimes que eso genere entre grupos vecinos.
+    // Al mover un bloque, se arrastran sus descendientes Y la pareja de cada
+    // uno (para no separar a alguien casado hacia dentro de la familia,
+    // como Cristina al lado de José Alberto, de su lado del árbol).
+    function descendantsOf(ids){
+      var result = {}, queue = ids.slice();
+      ids.forEach(function(id){ result[id] = true; });
+      while(queue.length){
+        var id = queue.shift();
+        relatedChildren(id).forEach(function(cid){
+          if(!result[cid]){ result[cid] = true; queue.push(cid); }
+        });
+      }
+      Object.keys(result).forEach(function(id){
+        spousesOf(id).forEach(function(sp){ result[sp] = true; });
+      });
+      return Object.keys(result);
+    }
+    for(var gp=0; gp<maxGen; gp++){
+      var parentIds = (byGen[gp] || []).slice();
+
+      // Agrupa a los hijos de esta generación por su combinación REAL de
+      // padres (no por parejas "visuales") — así alguien con 2 matrimonios
+      // (ej. dos esposas) no deja a los hijos del segundo sin centrar.
+      var parentGroups = {};
+      (byGen[gp+1] || []).forEach(function(cid){
+        var cp = relatedParents(cid).filter(function(pid){ return parentIds.indexOf(pid) !== -1; });
+        if(!cp.length) return;
+        var key = cp.slice().sort().join(",");
+        if(!parentGroups[key]) parentGroups[key] = { parentIds: cp, kidIds: [] };
+        parentGroups[key].kidIds.push(cid);
+      });
+
+      var blocks = Object.keys(parentGroups).map(function(key){
+        var grp = parentGroups[key];
+        var unitCenter = grp.parentIds.reduce(function(s,id){ return s+xPos[id]+CARD_W/2; },0)/grp.parentIds.length;
+        // El "hueco" real del bloque incluye también a las parejas que se
+        // arrastran con él (ej. la esposa de un nieto) — si solo se mide el
+        // ancho de los hijos de sangre, el siguiente grupo no deja suficiente
+        // espacio y se encima con ese acompañante.
+        var affected = descendantsOf(grp.kidIds);
+        var xs = affected.map(function(id){ return xPos[id]; });
+        var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs) + CARD_W;
+        var kidXs = grp.kidIds.map(function(id){ return xPos[id]; });
+        var kidMinX = Math.min.apply(null, kidXs), kidMaxX = Math.max.apply(null, kidXs) + CARD_W;
+        return { affected: affected, unitCenter: unitCenter, minX: minX, maxX: maxX, kidCenter: (kidMinX+kidMaxX)/2 };
+      });
+      // Se ordena por el centro AL QUE VA cada bloque (unitCenter), no por
+      // dónde arrancó (minX). Si alguien tiene 2 parejas y quedaron una a
+      // cada lado suyo (ej. 2 matrimonios), los centros ideales de esas dos
+      // familias pueden terminar "cruzados" respecto a su posición inicial
+      // — ordenar por destino evita que el barrido de la izquierda empuje
+      // al bloque equivocado hacia el lado que no le toca.
+      blocks.sort(function(a,b){ return a.unitCenter - b.unitCenter; });
+
+      var prevMax = null;
+      blocks.forEach(function(b){
+        // Se centra según los hijos de sangre (kidCenter), pero se resuelven
+        // encimes según el ancho total ya incluyendo a las parejas arrastradas.
+        var delta = b.unitCenter - b.kidCenter;
+        var newMin = b.minX + delta;
+        if(prevMax != null && newMin < prevMax + GAP_X){
+          delta += (prevMax + GAP_X) - newMin;
+        }
+        if(delta){
+          b.affected.forEach(function(id){ xPos[id] += delta; });
+        }
+        prevMax = b.maxX + delta;
+      });
+    }
+
+    } // fin de la relajación (for relax)
+
+    // Cierra huecos horizontales sobrantes: dos ramas que nunca se solapan
+    // en ninguna generación (ej. una rama antigua que ya estaba muy a la
+    // derecha y una rama de ancestros agregada después, con coordenadas
+    // chicas) pueden quedar con kilómetros de espacio vacío entre sí porque
+    // el acomodo de arriba solo centra y evita encimes, nunca junta. Se
+    // recorre a TODOS los ids ordenados por x (sin importar su generación)
+    // y, si el espacio libre entre uno y el siguiente supera unas pocas
+    // tarjetas de ancho, se recorta el sobrante desplazando en bloque a ese
+    // id y a todos los que están más a la derecha — como el desplazamiento
+    // es uniforme para ese "resto", no puede generar un nuevo encime.
+    var sortedByX = Object.keys(xPos).sort(function(a,b){ return xPos[a]-xPos[b]; });
+    var MAX_GAP = (CARD_W+GAP_X) * 3;
+    for(var ci=1; ci<sortedByX.length; ci++){
+      var prevRight = xPos[sortedByX[ci-1]] + CARD_W;
+      var gap = xPos[sortedByX[ci]] - prevRight;
+      if(gap > MAX_GAP){
+        var shiftGap = gap - MAX_GAP;
+        for(var cj=ci; cj<sortedByX.length; cj++){ xPos[sortedByX[cj]] -= shiftGap; }
+      }
+    }
+
+    // El centrado pudo haber recorrido todo el árbol hacia la izquierda del
+    // borde del lienzo (x negativa) — se recorre todo en bloque hacia la
+    // derecha lo necesario para que nada quede fuera de vista.
+    var allX = state.people.map(function(p){ return xPos[p.id] != null ? xPos[p.id] : 20; });
+    var minX = Math.min.apply(null, allX.concat([20]));
+    if(minX < 20){
+      var shift = 20 - minX;
+      Object.keys(xPos).forEach(function(id){ xPos[id] += shift; });
+    }
+
+    state.people.forEach(function(p){
+      p.x = xPos[p.id] != null ? xPos[p.id] : 20;
+    });
+    return gen;
+  }
+
+  function fullName(p){
+    if(!p) return "";
+    if(p.givenName || p.apellido1 || p.apellido2){
+      return [p.givenName, p.apellido1, p.apellido2].filter(Boolean).join(" ");
+    }
+    return p.name || ""; // datos antiguos guardados antes de separar apellidos
+  }
+
+  // Para mostrar en pantalla: si tiene apodo, se usa en vez del nombre de
+  // pila (útil cuando hay varios familiares con el mismo nombre, ej. dos
+  // "Marco") — pero conservando los apellidos para no perder el contexto.
+  function displayName(p){
+    if(!p) return "";
+    if(p.nickname) return [p.nickname, p.apellido1, p.apellido2].filter(Boolean).join(" ");
+    return fullName(p);
+  }
+
+  // Ciudades más comunes de la región (Saltillo y alrededores) + destinos
+  // frecuentes de migración — punto de partida para las sugerencias; se le
+  // suman las ciudades que ya se hayan capturado en el árbol.
+  var CIUDADES_BASE = [
+    "Saltillo, Coahuila", "Ramos Arizpe, Coahuila", "Arteaga, Coahuila",
+    "Monclova, Coahuila", "Torreón, Coahuila", "Piedras Negras, Coahuila",
+    "Ciudad Acuña, Coahuila", "Sabinas, Coahuila", "Múzquiz, Coahuila",
+    "Parras de la Fuente, Coahuila", "Monterrey, Nuevo León",
+    "San Pedro Garza García, Nuevo León", "San Luis Potosí, San Luis Potosí",
+    "Ciudad de México", "Guadalajara, Jalisco", "Puebla, Puebla",
+    "Querétaro, Querétaro", "Chihuahua, Chihuahua", "Tijuana, Baja California",
+    "Mérida, Yucatán", "León, Guanajuato",
+    "San Antonio, Texas", "Houston, Texas", "Dallas, Texas", "Austin, Texas",
+    "El Paso, Texas", "Laredo, Texas", "Chicago, Illinois",
+    "Los Ángeles, California"
+  ];
+
+  function refreshDatalists(){
+    var apSet = {}, nameSet = {}, citySet = {};
+    CIUDADES_BASE.forEach(function(c){ citySet[c] = 1; });
+    state.people.forEach(function(p){
+      if(p.apellido1) apSet[p.apellido1] = 1;
+      if(p.apellido2) apSet[p.apellido2] = 1;
+      if(p.givenName) nameSet[p.givenName] = 1;
+      if(p.birthPlace) citySet[p.birthPlace] = 1;
+      if(p.deathPlace) citySet[p.deathPlace] = 1;
+      if(p.currentPlace) citySet[p.currentPlace] = 1;
+    });
+    document.getElementById("apellidosList").innerHTML = Object.keys(apSet).sort().map(function(a){
+      return '<option value="'+escapeHtml(a)+'"></option>';
+    }).join("");
+    document.getElementById("nombresList").innerHTML = Object.keys(nameSet).sort().map(function(a){
+      return '<option value="'+escapeHtml(a)+'"></option>';
+    }).join("");
+    document.getElementById("ciudadesList").innerHTML = Object.keys(citySet).sort().map(function(a){
+      return '<option value="'+escapeHtml(a)+'"></option>';
+    }).join("");
+  }
+
+  /* ---------- Rendering ---------- */
+  function render(){
+    var gen = autoLayout();
+    var frag = document.createDocumentFragment();
+    // remove existing person nodes (keep svg)
+    Array.prototype.slice.call(canvas.querySelectorAll(".person")).forEach(function(n){ n.remove(); });
+
+    state.people.forEach(function(p){
+      var el = buildPersonEl(p);
+      frag.appendChild(el);
+    });
+    canvas.appendChild(frag);
+
+    // El alto de cada tarjeta varía según cuántos datos tenga la persona
+    // (foto, notas, redes, insignia de asistencia...) — se mide el alto real
+    // de cada fila ya en el DOM para que ninguna generación se encime con
+    // la siguiente, en vez de asumir una altura fija.
+    var ROW_GAP = 50;
+    var maxGenNum = 0;
+    var rowHeight = {};
+    state.people.forEach(function(p){
+      var g = gen[p.id] || 0;
+      maxGenNum = Math.max(maxGenNum, g);
+      var el = canvas.querySelector('.person[data-id="'+p.id+'"]');
+      var h = el ? el.offsetHeight : 240;
+      rowHeight[g] = Math.max(rowHeight[g] || 0, h);
+    });
+    var rowTop = {}, cursorY = 20;
+    for(var g=0; g<=maxGenNum; g++){
+      rowTop[g] = cursorY;
+      cursorY += (rowHeight[g] || 240) + ROW_GAP;
+    }
+    state.people.forEach(function(p){
+      p.y = rowTop[gen[p.id] || 0];
+      var el = canvas.querySelector('.person[data-id="'+p.id+'"]');
+      if(el) el.style.top = p.y + "px";
+      ensureCanvasSize(p.x, p.y);
+    });
+
+    document.getElementById("peopleCount").textContent =
+      state.people.length ? (state.people.length + (state.people.length===1 ? " persona" : " personas") + " · " + state.relations.length + " relaciones") : "";
+    updateLines();
+  }
+
+  function buildPersonEl(p){
+    var el = document.createElement("div");
+    el.className = "person";
+    if(p.gender==="M") el.classList.add("gender-m");
+    else if(p.gender==="F") el.classList.add("gender-f");
+    el.dataset.id = p.id;
+    el.style.left = p.x + "px";
+    el.style.top = p.y + "px";
+
+    var photoWrap = document.createElement("div");
+    photoWrap.className = "photo-wrap";
+    var pName = displayName(p);
+    if(p.photo){
+      var img = document.createElement("img");
+      img.src = p.photo;
+      img.alt = pName || "Foto";
+      photoWrap.appendChild(img);
+    } else {
+      var ph = document.createElement("div");
+      ph.className = "no-photo";
+      ph.textContent = (pName||"?").trim().charAt(0).toUpperCase() || "?";
+      photoWrap.appendChild(ph);
+    }
+    if(p.deceased){
+      var dm = document.createElement("div");
+      dm.className = "deceased-mark";
+      dm.textContent = "✝";
+      photoWrap.appendChild(dm);
+    }
+    el.appendChild(photoWrap);
+
+    var body = document.createElement("div");
+    body.className = "person-body";
+
+    var name = document.createElement("div");
+    name.className = "person-name";
+    name.textContent = pName || "(Sin nombre)";
+    body.appendChild(name);
+
+    var sub = document.createElement("div");
+    sub.className = "person-sub";
+    var lines = [];
+    if(p.birthDate || p.birthPlace) lines.push("🎂 " + [fmtDate(p.birthDate), p.birthPlace].filter(Boolean).join(" · "));
+    if(p.deceased && (p.deathDate || p.deathPlace)) lines.push("✝ " + [fmtDate(p.deathDate), p.deathPlace].filter(Boolean).join(" · "));
+    if(!p.deceased && p.currentPlace) lines.push("📍 " + p.currentPlace);
+    if(p.occupation) lines.push(p.occupation);
+    sub.innerHTML = lines.map(function(l){ return escapeHtml(l); }).join("<br>");
+    body.appendChild(sub);
+
+    if(p.asistio==="si" || p.asistio==="no"){
+      var attend = document.createElement("div");
+      attend.className = "attend-badge " + p.asistio;
+      attend.textContent = p.asistio==="si" ? "✓ Asistió a La Davilada" : "✕ No asistió";
+      body.appendChild(attend);
+    }
+
+    var socialLinks = socialUrls(p);
+    if(socialLinks.length){
+      var socRow = document.createElement("div");
+      socRow.className = "person-socials";
+      socialLinks.forEach(function(s){
+        var a = document.createElement("a");
+        a.className = "social-badge";
+        a.href = s.url;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.textContent = s.label;
+        a.addEventListener("click", function(ev){ ev.stopPropagation(); });
+        socRow.appendChild(a);
+      });
+      body.appendChild(socRow);
+    }
+
+    var actions = document.createElement("div");
+    actions.className = "person-actions";
+    var editBtn = mkPBtn("✎ Editar", function(ev){ ev.stopPropagation(); openEdit(p.id); });
+    var linkBtn = mkPBtn("🔗 Unir", function(ev){ ev.stopPropagation(); handleLinkClick(p.id, el); });
+    linkBtn.classList.add("link-btn");
+    var delBtn = mkPBtn("✕", function(ev){ ev.stopPropagation(); deletePerson(p.id); });
+    delBtn.classList.add("del-btn");
+    delBtn.style.flex = "0 0 28px";
+    actions.appendChild(editBtn);
+    actions.appendChild(linkBtn);
+    actions.appendChild(delBtn);
+    body.appendChild(actions);
+
+    el.appendChild(body);
+
+    var quickBtn = document.createElement("button");
+    quickBtn.type = "button";
+    quickBtn.className = "quick-add-badge";
+    quickBtn.title = "Agregar papá, mamá, hijo/a, hermano/a o pareja";
+    quickBtn.textContent = "+";
+    quickBtn.addEventListener("click", function(ev){ ev.stopPropagation(); openQuickAddMenu(p.id); });
+    el.appendChild(quickBtn);
+
+    el.addEventListener("click", function(){
+      if(linking && linking !== p.id) completeLink(p.id, el);
+    });
+
+    if(linking === p.id) el.classList.add("linking");
+    return el;
+  }
+
+  function mkPBtn(label, fn){
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "pbtn";
+    b.textContent = label;
+    b.addEventListener("click", fn);
+    return b;
+  }
+
+  function normalizeSocial(type, raw){
+    var v = (raw||"").trim();
+    if(!v) return null;
+    if(/^https?:\/\//i.test(v)) return v;
+    if(type==="whatsapp" && /^[\d+][\d\s+-]*$/.test(v)) return "https://wa.me/" + v.replace(/[^\d]/g,"");
+    var handle = v.replace(/^@/,"");
+    if(type==="instagram") return "https://instagram.com/" + handle;
+    if(type==="facebook") return "https://facebook.com/" + handle;
+    return "https://" + v;
+  }
+  function socialUrls(p){
+    var out = [];
+    if(p.instagram){ out.push({ label:"Instagram", url: normalizeSocial("instagram", p.instagram) }); }
+    if(p.facebook){ out.push({ label:"Facebook", url: normalizeSocial("facebook", p.facebook) }); }
+    if(p.socialOther){
+      var t = /^\d/.test(p.socialOther.trim()) ? "whatsapp" : "other";
+      out.push({ label: t==="whatsapp" ? "WhatsApp" : "Enlace", url: normalizeSocial(t, p.socialOther) });
+    }
+    return out;
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  /* ---------- Linking ---------- */
+  function handleLinkClick(id, el){
+    if(!linking){
+      linking = id;
+      el.classList.add("linking");
+      toast("Ahora haz clic en la segunda persona para conectar (o pulsa 🔗 Conectar de nuevo para cancelar).");
+    } else if(linking === id){
+      cancelLink();
+    } else {
+      completeLink(id, el);
+    }
+  }
+  function completeLink(targetId, targetEl){
+    var a = linking;
+    openRelChooser(a, targetId);
+  }
+  function cancelLink(){
+    if(linking){
+      var prevEl = canvas.querySelector('.person[data-id="'+linking+'"]');
+      if(prevEl) prevEl.classList.remove("linking");
+    }
+    linking = null;
+    document.getElementById("btnLink").classList.remove("active");
+  }
+  document.getElementById("btnLink").addEventListener("click", function(){
+    if(linking){ cancelLink(); toast("Conexión cancelada."); }
+    else { toast("Haz clic en la primera persona a conectar."); this.classList.add("active"); }
+  });
+
+  function openRelChooser(aId, bId){
+    var a = personById(aId), b = personById(bId);
+    var aName = displayName(a), bName = displayName(b);
+    var box = document.getElementById("relOptions");
+    box.innerHTML = "";
+    var options = [
+      { label: "<b>"+escapeHtml(aName||"A")+"</b> es padre/madre de <b>"+escapeHtml(bName||"B")+"</b>", type:"parent", from:aId, to:bId },
+      { label: "<b>"+escapeHtml(bName||"B")+"</b> es padre/madre de <b>"+escapeHtml(aName||"A")+"</b>", type:"parent", from:bId, to:aId },
+      { label: "Son <b>cónyuges / pareja</b>", type:"spouse", from:aId, to:bId },
+      { label: "Son <b>hermanos/as</b>", type:"sibling", from:aId, to:bId }
+    ];
+    options.forEach(function(o){
+      var btn = document.createElement("button");
+      btn.className = "rel-option";
+      btn.innerHTML = o.label;
+      btn.addEventListener("click", function(){
+        addRelation(o.type, o.from, o.to);
+        closeRelChooser();
+        cancelLink();
+      });
+      box.appendChild(btn);
+    });
+    document.getElementById("relBackdrop").classList.remove("hidden");
+  }
+  function closeRelChooser(){ document.getElementById("relBackdrop").classList.add("hidden"); }
+  document.getElementById("relClose").addEventListener("click", function(){ closeRelChooser(); cancelLink(); });
+  document.getElementById("relBackdrop").addEventListener("click", function(ev){
+    if(ev.target === this){ closeRelChooser(); cancelLink(); }
+  });
+
+  function addRelation(type, from, to){
+    if(type==="sibling"){
+      // Si alguno de los dos ya tiene papá/mamá registrados, es mejor
+      // vincular al otro con esos mismos papás (así el árbol los centra
+      // juntos) en vez de guardar solo un lazo "hermanos" sin papás.
+      var parentsFrom = relatedParents(from), parentsTo = relatedParents(to);
+      if(parentsFrom.length || parentsTo.length){
+        var parents = parentsFrom.length ? parentsFrom : parentsTo;
+        var target = parentsFrom.length ? to : from;
+        var already = parents.every(function(pid){
+          return state.relations.some(function(r){ return r.type==="parent" && r.from===pid && r.to===target; });
+        });
+        if(already){ toast("Esa relación ya existe."); return; }
+        parents.forEach(function(pid){ addRelationSilent("parent", pid, target); });
+        save();
+        render();
+        toast("Relación creada.");
+        return;
+      }
+    }
+    var dup = state.relations.some(function(r){
+      return r.type===type && ((r.from===from&&r.to===to)||(type!=="parent"&&r.from===to&&r.to===from));
+    });
+    if(dup){ toast("Esa relación ya existe."); return; }
+    state.relations.push({ id: uid(), type: type, from: from, to: to });
+    save();
+    render();
+    toast("Relación creada.");
+  }
+
+  /* ---------- Lines ---------- */
+  function updateLines(){
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+    var canvasRect = canvas.getBoundingClientRect();
+
+    function center(id){
+      var el = canvas.querySelector('.person[data-id="'+id+'"]');
+      if(!el) return null;
+      var r = el.getBoundingClientRect();
+      return {
+        cx: (r.left - canvasRect.left)/zoom + r.width/(2*zoom),
+        top: (r.top - canvasRect.top)/zoom,
+        bottom: (r.top - canvasRect.top)/zoom + r.height/zoom,
+        left: (r.left - canvasRect.left)/zoom,
+        right: (r.left - canvasRect.left)/zoom + r.width/zoom
+      };
+    }
+
+    state.relations.forEach(function(r){
+      var a = center(r.from), b = center(r.to);
+      if(!a || !b) return;
+      var path = document.createElementNS("http://www.w3.org/2000/svg","path");
+      var d;
+      if(r.type === "parent"){
+        var midY = a.bottom + (b.top - a.bottom)/2;
+        d = "M "+a.cx+" "+a.bottom+" L "+a.cx+" "+midY+" L "+b.cx+" "+midY+" L "+b.cx+" "+b.top;
+        path.setAttribute("stroke", "var(--teal)");
+        path.setAttribute("stroke-width", "2.4");
+        path.setAttribute("fill", "none");
+      } else if(r.type === "spouse"){
+        var ay = (a.top+a.bottom)/2, by = (b.top+b.bottom)/2;
+        d = "M "+a.right+" "+ay+" L "+b.left+" "+by;
+        if(a.cx > b.cx) d = "M "+a.left+" "+ay+" L "+b.right+" "+by;
+        // El estilo de la línea refleja el estado: unión libre (punteado
+        // fino, por defecto si no se ha capturado nada), casados (guiones),
+        // divorciados (gris apagado).
+        if(r.status === "divorciado"){
+          path.setAttribute("stroke", "var(--line)");
+          path.setAttribute("stroke-dasharray", "6,4");
+        } else if(r.status === "casado"){
+          path.setAttribute("stroke", "var(--accent)");
+          path.setAttribute("stroke-dasharray", "5,3");
+        } else {
+          path.setAttribute("stroke", "var(--accent)");
+          path.setAttribute("stroke-dasharray", "1.5,3");
+        }
+        path.setAttribute("stroke-width", "2.2");
+        path.setAttribute("fill", "none");
+      } else {
+        var ay2=(a.top+a.bottom)/2, by2=(b.top+b.bottom)/2;
+        d = "M "+a.cx+" "+ay2+" L "+b.cx+" "+by2;
+        path.setAttribute("stroke", "var(--line)");
+        path.setAttribute("stroke-width", "1.8");
+        path.setAttribute("stroke-dasharray", "1.5,3.5");
+        path.setAttribute("fill", "none");
+      }
+      path.setAttribute("d", d);
+      path.dataset.relId = r.id;
+      path.addEventListener("click", function(){
+        if(r.type === "spouse"){
+          openRelationEdit(r.id);
+          return;
+        }
+        if(confirm("¿Eliminar esta relación?")){
+          state.relations = state.relations.filter(function(x){ return x.id !== r.id; });
+          save(); render();
+        }
+      });
+      svg.appendChild(path);
+    });
+  }
+
+  /* ---------- Editar relación (estado de pareja) ---------- */
+  var editingRelId = null;
+  function updateRelDateFields(){
+    var estado = document.getElementById("relEstado").value;
+    var label1 = document.getElementById("relDate1Label");
+    var field2 = document.getElementById("relDate2Field");
+    if(estado === "union_libre"){ label1.textContent = "Fecha desde que son pareja"; }
+    else { label1.textContent = "Fecha de matrimonio"; }
+    field2.style.display = (estado === "divorciado") ? "block" : "none";
+  }
+  document.getElementById("relEstado").addEventListener("change", updateRelDateFields);
+  function openRelationEdit(relId){
+    var r = state.relations.find(function(x){ return x.id === relId; });
+    if(!r) return;
+    editingRelId = relId;
+    document.getElementById("relEstado").value = r.status || "union_libre";
+    document.getElementById("relDate1").value = r.date1 || "";
+    document.getElementById("relDate2").value = r.date2 || "";
+    updateRelDateFields();
+    document.getElementById("relEditBackdrop").classList.remove("hidden");
+  }
+  function closeRelationEdit(){
+    document.getElementById("relEditBackdrop").classList.add("hidden");
+    editingRelId = null;
+  }
+  document.getElementById("relEditClose").addEventListener("click", closeRelationEdit);
+  document.getElementById("relEditCancel").addEventListener("click", closeRelationEdit);
+  document.getElementById("relEditBackdrop").addEventListener("click", function(ev){ if(ev.target===this) closeRelationEdit(); });
+  document.getElementById("relEditSave").addEventListener("click", function(){
+    var r = state.relations.find(function(x){ return x.id === editingRelId; });
+    if(!r) return;
+    r.status = document.getElementById("relEstado").value;
+    r.date1 = document.getElementById("relDate1").value;
+    r.date2 = document.getElementById("relEstado").value === "divorciado" ? document.getElementById("relDate2").value : "";
+    save();
+    render();
+    closeRelationEdit();
+    toast("Relación actualizada.");
+  });
+  document.getElementById("relEditDelete").addEventListener("click", function(){
+    if(!confirm("¿Eliminar esta relación?")) return;
+    state.relations = state.relations.filter(function(x){ return x.id !== editingRelId; });
+    save();
+    render();
+    closeRelationEdit();
+    toast("Relación eliminada.");
+  });
+
+  /* ---------- Add / Edit / Delete ---------- */
+  var editingId = null;
+  var pendingPhoto = undefined; // undefined = unchanged, null = removed, string = new
+  var pendingQuickAdd = null; // { type, sourceId, sharedParentId? }
+  var quickAddSourceId = null;
+
+  var QUICK_ADD_OPTIONS = [
+    { kind:"papa", label:"+ Papá" },
+    { kind:"mama", label:"+ Mamá" },
+    { kind:"hijo", label:"+ Hijo/a" },
+    { kind:"hermano", label:"+ Hermano/a" },
+    { kind:"mediohermano", label:"+ Medio hermano/a" },
+    { kind:"conyuge", label:"+ Cónyuge / 2do matrimonio" }
+  ];
+
+  function openQuickAddMenu(personId){
+    quickAddSourceId = personId;
+    document.getElementById("quickAddTitle").textContent = "Agregar familiar";
+    renderQuickAddMenu();
+    document.getElementById("quickAddBackdrop").classList.remove("hidden");
+  }
+  function renderQuickAddMenu(){
+    var box = document.getElementById("quickAddBody");
+    box.innerHTML = "";
+    QUICK_ADD_OPTIONS.forEach(function(opt){
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "rel-option";
+      btn.textContent = opt.label;
+      btn.addEventListener("click", function(){ startQuickAdd(opt.kind); });
+      box.appendChild(btn);
+    });
+  }
+  function closeQuickAddMenu(){
+    document.getElementById("quickAddBackdrop").classList.add("hidden");
+  }
+  function startQuickAdd(kind){
+    if(kind==="mediohermano"){
+      var parents = relatedParents(quickAddSourceId);
+      if(parents.length >= 2){
+        showMedioHermanoChoice(parents);
+        return;
+      }
+    }
+    if(kind==="hijo"){
+      showHijoParentConfirm(quickAddSourceId);
+      return;
+    }
+    pendingQuickAdd = { type: kind, sourceId: quickAddSourceId };
+    closeQuickAddMenu();
+    openEdit(null);
+    if(kind==="papa") document.getElementById("fGender").value = "M";
+    if(kind==="mama") document.getElementById("fGender").value = "F";
+    if(kind==="hermano"){
+      // Los hermanos completos normalmente comparten los 2 apellidos —
+      // se precargan (editable) para no tener que volver a escribirlos.
+      var src = personById(quickAddSourceId);
+      document.getElementById("fApellido1").value = src.apellido1 || "";
+      document.getElementById("fApellido2").value = src.apellido2 || "";
+    }
+    if(kind==="mediohermano"){
+      // Aquí solo se llega cuando hay 0 o 1 papá conocido (con 2+ ya se
+      // preguntó con cuál comparte). Si hay uno, se precarga su apellido.
+      var onlyParents = relatedParents(quickAddSourceId);
+      if(onlyParents.length===1) prefillApellidoFromParent(personById(onlyParents[0]));
+    }
+  }
+  // Pone el apellido del papá/mamá compartido en el campo que le
+  // corresponde (1º si es hombre, 2º si es mujer) — editable después.
+  function prefillApellidoFromParent(parent){
+    if(!parent) return;
+    if(parent.gender==="F"){
+      document.getElementById("fApellido2").value = parent.apellido1 || "";
+    } else {
+      document.getElementById("fApellido1").value = parent.apellido1 || "";
+    }
+  }
+  // Antes de crear al hijo, se confirman (y se pueden corregir) sus papás:
+  // evita el error de tocar la tarjeta de alguien con el mismo nombre por
+  // accidente (ej. un tío en vez del papá real) y que quede mal enlazado.
+  function showHijoParentConfirm(sourceId){
+    document.getElementById("quickAddTitle").textContent = "¿Quiénes son los papás?";
+    var box = document.getElementById("quickAddBody");
+    box.innerHTML = "";
+
+    var note = document.createElement("p");
+    note.style.cssText = "font-size:.78rem;color:var(--ink-soft);margin:0 0 .7rem;";
+    note.textContent = "Revisa que sean las personas correctas — si hay dos familiares con el mismo nombre, aquí puedes elegir la que sí es.";
+    box.appendChild(note);
+
+    var sortedPeople = state.people.slice().sort(function(a,b){
+      return displayName(a).localeCompare(displayName(b), "es");
+    });
+    function buildSelect(id, defaultId, labelText){
+      var wrap = document.createElement("div");
+      wrap.className = "field";
+      wrap.style.marginBottom = ".7rem";
+      var lab = document.createElement("label");
+      lab.textContent = labelText;
+      wrap.appendChild(lab);
+      var sel = document.createElement("select");
+      sel.id = id;
+      var noneOpt = document.createElement("option");
+      noneOpt.value = "";
+      noneOpt.textContent = "— Ninguno —";
+      sel.appendChild(noneOpt);
+      sortedPeople.forEach(function(pp){
+        var opt = document.createElement("option");
+        opt.value = pp.id;
+        opt.textContent = displayName(pp) || "(sin nombre)";
+        sel.appendChild(opt);
+      });
+      sel.value = defaultId || "";
+      wrap.appendChild(sel);
+      box.appendChild(wrap);
+    }
+    buildSelect("hijoParentA", sourceId, "Papá / mamá 1");
+    buildSelect("hijoParentB", primarySpouseFor(sourceId), "Papá / mamá 2 (si aplica)");
+
+    var continueBtn = document.createElement("button");
+    continueBtn.type = "button";
+    continueBtn.className = "tbtn primary";
+    continueBtn.textContent = "Continuar";
+    continueBtn.addEventListener("click", function(){
+      var a = document.getElementById("hijoParentA").value;
+      var b = document.getElementById("hijoParentB").value;
+      if(!a){ toast("Elige al menos un papá o mamá."); return; }
+      pendingQuickAdd = { type: "hijo", parentA: a, parentB: b || null };
+      closeQuickAddMenu();
+      openEdit(null);
+      // Apellido 1 = del papá (paterno), apellido 2 = de la mamá (su
+      // propio primer apellido) — según quién tenga género registrado
+      // como hombre/mujer; si no hay género, usa el orden en que se
+      // eligieron.
+      var pa = personById(a), pb = b ? personById(b) : null;
+      var father = (pa && pa.gender==="M") ? pa : (pb && pb.gender==="M") ? pb : null;
+      var mother = (pa && pa.gender==="F") ? pa : (pb && pb.gender==="F") ? pb : null;
+      if(!father && !mother){ father = pa; mother = pb; }
+      else { if(!father) father = (pa===mother) ? pb : pa; if(!mother) mother = (pb===father) ? pa : pb; }
+      document.getElementById("fApellido1").value = father ? (father.apellido1||"") : "";
+      document.getElementById("fApellido2").value = mother ? (mother.apellido1||"") : "";
+    });
+    box.appendChild(continueBtn);
+
+    var back = document.createElement("button");
+    back.type = "button";
+    back.className = "tbtn";
+    back.style.marginTop = ".4rem";
+    back.textContent = "← Volver";
+    back.addEventListener("click", function(){
+      document.getElementById("quickAddTitle").textContent = "Agregar familiar";
+      renderQuickAddMenu();
+    });
+    box.appendChild(back);
+  }
+  function showMedioHermanoChoice(parentIds){
+    document.getElementById("quickAddTitle").textContent = "¿Con cuál comparte?";
+    var box = document.getElementById("quickAddBody");
+    box.innerHTML = "";
+    parentIds.forEach(function(pid){
+      var pp = personById(pid);
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "rel-option";
+      btn.innerHTML = "Comparte a <b>"+escapeHtml(displayName(pp)||"este familiar")+"</b>";
+      btn.addEventListener("click", function(){
+        pendingQuickAdd = { type:"mediohermano", sourceId: quickAddSourceId, sharedParentId: pid };
+        closeQuickAddMenu();
+        openEdit(null);
+        prefillApellidoFromParent(pp);
+      });
+      box.appendChild(btn);
+    });
+    var back = document.createElement("button");
+    back.type = "button";
+    back.className = "tbtn";
+    back.style.marginTop = ".3rem";
+    back.textContent = "← Volver";
+    back.addEventListener("click", function(){
+      document.getElementById("quickAddTitle").textContent = "Agregar familiar";
+      renderQuickAddMenu();
+    });
+    box.appendChild(back);
+  }
+  document.getElementById("quickAddClose").addEventListener("click", closeQuickAddMenu);
+  document.getElementById("quickAddBackdrop").addEventListener("click", function(ev){ if(ev.target===this) closeQuickAddMenu(); });
+
+  function openEdit(id){
+    editingId = id;
+    pendingPhoto = undefined;
+    var p = id ? personById(id) : null;
+    document.getElementById("editTitle").textContent = p ? "Editar persona" : "Nueva persona";
+    document.getElementById("editDelete").style.display = p ? "inline-flex" : "none";
+    refreshDatalists();
+    document.getElementById("fName").value = p ? (p.givenName != null ? p.givenName : (p.name||"")) : "";
+    document.getElementById("fApellido1").value = p ? p.apellido1||"" : "";
+    document.getElementById("fApellido2").value = p ? p.apellido2||"" : "";
+    document.getElementById("fNick").value = p ? p.nickname||"" : "";
+    document.getElementById("fGender").value = p ? p.gender||"" : "";
+    var bParts = (p && p.birthDate) ? p.birthDate.split("-") : ["","",""];
+    document.getElementById("fBirthYear").value = bParts[0] || "";
+    document.getElementById("fBirthMonth").value = bParts[1] ? String(Number(bParts[1])) : "";
+    document.getElementById("fBirthDay").value = bParts[2] ? String(Number(bParts[2])) : "";
+    updateBirthWeekday();
+    document.getElementById("fBirthPlace").value = p ? p.birthPlace||"" : "";
+    document.getElementById("fCurrentPlace").value = p ? p.currentPlace||"" : "";
+    document.getElementById("fDeceased").checked = p ? !!p.deceased : false;
+    document.getElementById("fDeathDate").value = p ? p.deathDate||"" : "";
+    document.getElementById("fDeathPlace").value = p ? p.deathPlace||"" : "";
+    document.getElementById("fOccupation").value = p ? p.occupation||"" : "";
+    document.getElementById("fInstagram").value = p ? p.instagram||"" : "";
+    document.getElementById("fFacebook").value = p ? p.facebook||"" : "";
+    document.getElementById("fSocialOther").value = p ? p.socialOther||"" : "";
+    document.getElementById("fAsistio").value = p ? p.asistio||"" : "";
+    document.getElementById("fNotes").value = p ? p.notes||"" : "";
+    document.getElementById("deathFields").style.display = (p && p.deceased) ? "flex" : "none";
+    renderPhotoPreview(p ? p.photo : null);
+    document.getElementById("editBackdrop").classList.remove("hidden");
+    document.getElementById("fName").focus();
+  }
+  function renderPhotoPreview(src){
+    var box = document.getElementById("photoPreview");
+    box.innerHTML = "";
+    if(src){
+      var img = document.createElement("img");
+      img.src = src;
+      box.appendChild(img);
+    } else {
+      box.textContent = "🖼";
+    }
+  }
+  function closeEdit(){
+    document.getElementById("editBackdrop").classList.add("hidden");
+    editingId = null;
+    pendingQuickAdd = null;
+  }
+  document.getElementById("editClose").addEventListener("click", closeEdit);
+  document.getElementById("editCancel").addEventListener("click", closeEdit);
+  document.getElementById("editBackdrop").addEventListener("click", function(ev){ if(ev.target===this) closeEdit(); });
+
+  document.getElementById("fDeceased").addEventListener("change", function(){
+    document.getElementById("deathFields").style.display = this.checked ? "flex" : "none";
+  });
+
+  // El árbol completo (todas las personas) se guarda como un solo bloque en el
+  // servidor con límite de 2MB — cada foto se reduce a ~360px y se recomprime
+  // como JPEG para que quepan muchas personas con foto sin acercarse al límite.
+  function compressPhoto(file, maxDim, quality){
+    return new Promise(function(resolve, reject){
+      var reader = new FileReader();
+      reader.onload = function(){
+        var img = new Image();
+        img.onload = function(){
+          var scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+          var w = Math.max(1, Math.round(img.width * scale));
+          var h = Math.max(1, Math.round(img.height * scale));
+          var canvasEl = document.createElement("canvas");
+          canvasEl.width = w; canvasEl.height = h;
+          canvasEl.getContext("2d").drawImage(img, 0, 0, w, h);
+          resolve(canvasEl.toDataURL("image/jpeg", quality));
+        };
+        img.onerror = reject;
+        img.src = reader.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  document.getElementById("photoInput").addEventListener("change", function(ev){
+    var file = ev.target.files && ev.target.files[0];
+    if(!file) return;
+    if(file.size > 12*1024*1024){ toast("La imagen es muy grande (máx. 12MB)."); return; }
+    compressPhoto(file, 360, 0.75).then(function(dataUrl){
+      pendingPhoto = dataUrl;
+      renderPhotoPreview(pendingPhoto);
+    }).catch(function(){
+      toast("No se pudo procesar esa foto. Intenta con otra.");
+    });
+  });
+  document.getElementById("photoRemove").addEventListener("click", function(){
+    pendingPhoto = null;
+    renderPhotoPreview(null);
+  });
+
+  document.getElementById("editSave").addEventListener("click", function(){
+    var givenName = document.getElementById("fName").value.trim();
+    var apellido1 = document.getElementById("fApellido1").value.trim();
+    var apellido2 = document.getElementById("fApellido2").value.trim();
+    if(!givenName && !apellido1 && !apellido2){
+      toast("Escribe al menos el nombre o un apellido.");
+      document.getElementById("fName").focus();
+      return;
+    }
+    var p = editingId ? personById(editingId) : null;
+    var isNew = !p;
+    if(isNew){
+      p = { id: uid(), x: 40 + (state.people.length%6)*40, y: 40 + Math.floor(state.people.length/6)*40, photo:null };
+      state.people.push(p);
+    }
+    p.givenName = givenName;
+    p.apellido1 = apellido1;
+    p.apellido2 = apellido2;
+    delete p.name;
+    p.nickname = document.getElementById("fNick").value.trim();
+    p.gender = document.getElementById("fGender").value;
+    p.birthDate = birthDateFromFields();
+    p.birthPlace = document.getElementById("fBirthPlace").value.trim();
+    p.currentPlace = document.getElementById("fCurrentPlace").value.trim();
+    p.deceased = document.getElementById("fDeceased").checked;
+    p.deathDate = document.getElementById("fDeathDate").value;
+    p.deathPlace = document.getElementById("fDeathPlace").value.trim();
+    p.occupation = document.getElementById("fOccupation").value.trim();
+    p.instagram = document.getElementById("fInstagram").value.trim();
+    p.facebook = document.getElementById("fFacebook").value.trim();
+    p.socialOther = document.getElementById("fSocialOther").value.trim();
+    p.asistio = document.getElementById("fAsistio").value;
+    p.notes = document.getElementById("fNotes").value.trim();
+    if(pendingPhoto !== undefined) p.photo = pendingPhoto;
+
+    if(isNew && pendingQuickAdd){
+      linkQuickAdd(p, pendingQuickAdd.sourceId, pendingQuickAdd.type, pendingQuickAdd);
+    }
+    pendingQuickAdd = null;
+
+    save();
+    render();
+    closeEdit();
+    toast(isNew ? "Persona agregada." : "Cambios guardados.");
+    if(isNew){
+      var newEl = canvas.querySelector('.person[data-id="'+p.id+'"]');
+      if(newEl) newEl.scrollIntoView({ block:"center", inline:"center", behavior:"smooth" });
+    }
+  });
+
+  function deletePerson(id){
+    var p = personById(id);
+    if(!confirm('¿Eliminar a "'+(displayName(p)||"esta persona")+'" y sus relaciones?')) return;
+    state.people = state.people.filter(function(x){ return x.id !== id; });
+    state.relations = state.relations.filter(function(r){ return r.from!==id && r.to!==id; });
+    save();
+    render();
+    toast("Persona eliminada.");
+  }
+  document.getElementById("editDelete").addEventListener("click", function(){
+    if(editingId){ closeEdit(); deletePerson(editingId); }
+  });
+
+  document.getElementById("btnAdd").addEventListener("click", function(){ openEdit(null); });
+
+  /* ---------- Zoom ---------- */
+  function setZoom(z){
+    zoom = Math.min(1.6, Math.max(0.1, z));
+    canvas.style.transform = "scale("+zoom+")";
+    document.getElementById("zoomLabel").textContent = Math.round(zoom*100)+"%";
+    updateLines();
+  }
+  document.getElementById("zoomIn").addEventListener("click", function(){ setZoom(zoom+0.1); });
+  document.getElementById("zoomOut").addEventListener("click", function(){ setZoom(zoom-0.1); });
+
+  // Zoom con gesto de pellizco (dos dedos) en celular/tablet, como al ver una foto.
+  function touchDist(touches){
+    var dx = touches[0].clientX - touches[1].clientX;
+    var dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx*dx + dy*dy);
+  }
+  var pinchStartDist = null, pinchStartZoom = 1;
+  canvasWrapper.addEventListener("touchstart", function(ev){
+    if(ev.touches.length === 2){
+      pinchStartDist = touchDist(ev.touches);
+      pinchStartZoom = zoom;
+    }
+  }, { passive: true });
+  canvasWrapper.addEventListener("touchmove", function(ev){
+    if(ev.touches.length === 2 && pinchStartDist){
+      ev.preventDefault();
+      setZoom(pinchStartZoom * (touchDist(ev.touches) / pinchStartDist));
+    }
+  }, { passive: false });
+  canvasWrapper.addEventListener("touchend", function(ev){
+    if(ev.touches.length < 2) pinchStartDist = null;
+  });
+
+  /* ---------- Backup export / import ---------- */
+  document.getElementById("btnExport").addEventListener("click", function(){
+    var ordered = {
+      people: state.people.slice().sort(function(x,y){
+        var kx = [x.apellido1||"", x.apellido2||"", x.givenName||x.name||""].join(" ").toLowerCase();
+        var ky = [y.apellido1||"", y.apellido2||"", y.givenName||y.name||""].join(" ").toLowerCase();
+        return kx.localeCompare(ky, "es");
+      }),
+      relations: state.relations
+    };
+    var blob = new Blob([JSON.stringify(ordered, null, 2)], { type: "application/json" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    var stamp = new Date().toISOString().slice(0,10);
+    a.href = url;
+    a.download = "la-davilada-arbol-backup-"+stamp+".json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+    toast("Backup descargado. Guárdalo en un lugar seguro (Drive, USB, etc.).");
+  });
+
+  document.getElementById("importInput").addEventListener("change", function(ev){
+    var file = ev.target.files && ev.target.files[0];
+    if(!file) return;
+    var reader = new FileReader();
+    reader.onload = function(){
+      try{
+        var parsed = JSON.parse(reader.result);
+        if(!parsed || !Array.isArray(parsed.people)) throw new Error("formato inválido");
+        var replace = true;
+        if(state.people.length){
+          replace = confirm("Ya tienes datos en el árbol. Aceptar = REEMPLAZAR todo con el backup. Cancelar = no hacer nada.");
+        }
+        if(replace){
+          state = { people: parsed.people||[], relations: parsed.relations||[] };
+          save();
+          render();
+          toast("Backup restaurado correctamente.");
+        }
+      }catch(e){
+        toast("Ese archivo no parece un backup válido.");
+      }
+      ev.target.value = "";
+    };
+    reader.readAsText(file);
+  });
+
+  document.getElementById("btnPrint").addEventListener("click", function(){ window.print(); });
+
+  /* ---------- Hint ---------- */
+  document.getElementById("hintClose").addEventListener("click", function(){
+    document.getElementById("hint").style.display = "none";
+    localStorage.setItem("laDavilada.hintHidden", "1");
+  });
+  if(localStorage.getItem("laDavilada.hintHidden")) document.getElementById("hint").style.display = "none";
+
+  window.addEventListener("resize", updateLines);
+
+  document.getElementById("btnRefresh").addEventListener("click", function(){
+    showLoading(true);
+    loadFromServer().then(function(){
+      showLoading(false);
+      render();
+      toast("Actualizado con los últimos cambios.");
+    });
+  });
+
+  /* ---------- Init ---------- */
+  showLoading(true);
+  loadFromServer().then(function(){
+    showLoading(false);
+    if(!state.people.length){
+      state.people.push({ id: uid(), name:"", x: 60, y: 60, photo:null });
+    }
+    render();
+    setTimeout(function(){
+      if(state.people.length===1 && !state.people[0].name){ openEdit(state.people[0].id); }
+    }, 200);
+  });
+})();
+</script>
+</body>
+</html>

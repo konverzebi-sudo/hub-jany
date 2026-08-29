@@ -1,0 +1,534 @@
+// Endpoint server-side para el Consultor de Radar de Mercado y Tendencias — multi-tenant.
+// Mismo patron que api/jefe-conversion.js: la ANTHROPIC_API_KEY vive solo aqui.
+//
+// FLUJO HIBRIDO (Chrome extension + web): Instagram/TikTok bloquean la
+// navegacion directa por busqueda, asi que ya no se intenta web_search en
+// vivo sobre las cuentas guardadas. En vez de eso:
+//   1. El cliente arma (sin IA) un prompt para pegar en Claude en Chrome.
+//   2. El usuario pega el resultado -> 'diagnostico-general' (sin web_search).
+//   3. Analisis por cuenta bajo demanda, extraido de ese mismo texto pegado
+//      -> 'analisis-cuenta-guardada' (cacheado en el propio historial).
+//   4. Analisis general siempre fresco, combinando el diagnostico + web_search
+//      de tendencias de industria (no de las cuentas) -> 'analisis-general'.
+//   5. Insights/ideas para Sección 5 vienen en el mismo response de 'analisis-general'.
+
+const fs = require('fs');
+const path = require('path');
+const { sql } = require('@vercel/postgres');
+
+const PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-consultor-radar.md');
+const DEFAULT_CLIENTE = 'jefeshub';
+const SEPARADOR_INSIGHTS = '---INSIGHTS-Y-IDEAS---';
+
+// Prompt fijo, generico, compartido por todas las marcas -- mismo patron que
+// api/jefe-conversion.js. Lo unico que cambia por cliente es el CONTEXTO
+// DEL NEGOCIO (construirContexto, mas abajo), cargado en tiempo real desde
+// su propio Brand Book en storage. No hay datos de negocio hardcoded aqui,
+// y no hace falta un archivo .md por marca para soportar una marca nueva.
+let fixedPromptCache = null;
+function cargarPromptFijo() {
+  if (fixedPromptCache) return fixedPromptCache;
+  fixedPromptCache = fs.readFileSync(PROMPT_PATH, 'utf-8');
+  return fixedPromptCache;
+}
+
+// Rate limit basico en memoria (por IP, best-effort entre invocaciones warm de la misma instancia).
+const WINDOW_MS = 5 * 60 * 1000;
+const MAX_REQUESTS = 12;
+const hits = new Map();
+
+function isRateLimited(ip) {
+  const now = Date.now();
+  const recent = (hits.get(ip) || []).filter((t) => now - t < WINDOW_MS);
+  recent.push(now);
+  hits.set(ip, recent);
+  return recent.length > MAX_REQUESTS;
+}
+
+// ---------- kv_store helpers (mismo shape que api/storage/[key].js) ----------
+
+let tableEnsured = false;
+async function ensureTable() {
+  if (tableEnsured) return;
+  await sql`CREATE TABLE IF NOT EXISTS kv_store (
+    key TEXT PRIMARY KEY,
+    value JSONB NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`;
+  tableEnsured = true;
+}
+
+// window.storage.set(key, JSON.stringify(datos)) hace que api/storage/[key].js
+// guarde JSON.stringify(body.value) — es decir, un doble-encode del string ya
+// serializado. Replicamos ese mismo shape aqui para que lo que este endpoint
+// escribe se pueda seguir leyendo con window.storage.get() desde el cliente.
+async function leerJSON(key) {
+  await ensureTable();
+  const { rows } = await sql`SELECT value FROM kv_store WHERE key = ${key}`;
+  if (!rows[0] || rows[0].value == null) return null;
+  try {
+    return JSON.parse(rows[0].value);
+  } catch (err) {
+    return null;
+  }
+}
+
+async function escribirJSON(key, valor) {
+  await ensureTable();
+  const value = JSON.stringify(valor);
+  const json = JSON.stringify(value);
+  await sql`
+    INSERT INTO kv_store (key, value, updated_at)
+    VALUES (${key}, ${json}::jsonb, now())
+    ON CONFLICT (key) DO UPDATE SET value = ${json}::jsonb, updated_at = now()
+  `;
+}
+
+async function registrarUsoTokens(clienteId, endpoint, usage) {
+  try {
+    const key = `${clienteId}:uso-tokens-log`;
+    const items = (await leerJSON(key)) || [];
+    items.push({ date: new Date().toISOString(), endpoint, inputTokens: usage?.input_tokens || 0, outputTokens: usage?.output_tokens || 0 });
+    await escribirJSON(key, items.slice(-500));
+  } catch (err) {
+    // No bloquear la respuesta al usuario si falla el registro de uso.
+  }
+}
+
+function fechaHoy() {
+  return new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function isoWeekKey(d) {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+  return `${date.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+}
+
+function extractJson(text) {
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) return null;
+  try {
+    return JSON.parse(match[0]);
+  } catch (err) {
+    return null;
+  }
+}
+
+function extractJsonArray(text) {
+  const match = text.match(/\[[\s\S]*\]/);
+  if (!match) return null;
+  try {
+    const parsed = JSON.parse(match[0]);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+// ---------- historial ({cliente}:radar-historial) ----------
+// Entradas mezcladas por 'tipo': 'diagnostico-general' (Sección 2, con cache
+// por cuenta en porCuenta) y 'analisis-general' (Sección 4, siempre fresco).
+
+async function leerHistorial(cliente) {
+  const items = await leerJSON(`${cliente}:radar-historial`);
+  return Array.isArray(items) ? items : [];
+}
+
+async function guardarHistorialEntry(cliente, datos) {
+  const key = `${cliente}:radar-historial`;
+  const items = await leerHistorial(cliente);
+  const entry = Object.assign(
+    { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), date: fechaHoy() },
+    datos
+  );
+  items.push(entry);
+  // Evita crecimiento sin limite: solo se necesitan las corridas recientes
+  // para el historial visible.
+  const recortado = items.slice(-30);
+  await escribirJSON(key, recortado);
+  return entry;
+}
+
+function ultimaEntradaPorTipo(items, tipo) {
+  for (let i = items.length - 1; i >= 0; i--) {
+    if (items[i].tipo === tipo) return items[i];
+  }
+  return null;
+}
+
+// ---------- contexto dinamico (Brand Book, lista maestra, historial) ----------
+
+const CONTEXT_CHAR_LIMIT = 6000;
+
+function truncar(str, limite) {
+  if (!str) return str;
+  return str.length > limite ? str.slice(0, limite) + '\n[...recortado...]' : str;
+}
+
+function formatearListaMaestra(items) {
+  if (!Array.isArray(items) || items.length === 0) return null;
+  const lineas = items.slice(-40).map((it) => `- [${it.tipo || 'general'}] ${it.text || ''}`);
+  return 'Lista maestra del cliente ideal:\n' + lineas.join('\n');
+}
+
+function formatearBrandBookCampo(nombre, valor) {
+  if (valor == null) return null;
+  if (typeof valor === 'object' && Object.keys(valor).length === 0) return null;
+  const texto = typeof valor === 'string' ? valor : JSON.stringify(valor);
+  if (!texto.trim()) return null;
+  return `${nombre}:\n${texto}`;
+}
+
+const CAMPOS_LABEL = {
+  'brand-book.identidad': 'Identidad de marca',
+  'brand-book.tono': 'Tono de comunicación',
+  'brand-book.audiencia': 'Audiencia',
+  'brand-book.contenido_actual': 'Contenido actual',
+};
+
+async function construirContexto(cliente, campos) {
+  const valores = await Promise.all(campos.map((campo) => leerJSON(`${cliente}:${campo}`).catch(() => null)));
+
+  const bloques = [];
+  campos.forEach((campo, i) => {
+    const valor = valores[i];
+    if (valor == null) return;
+    let bloque = null;
+    if (campo === 'lista-maestra-cliente-ideal') bloque = formatearListaMaestra(valor);
+    else bloque = formatearBrandBookCampo(CAMPOS_LABEL[campo] || campo, valor);
+    if (bloque) bloques.push(bloque);
+  });
+
+  if (bloques.length === 0) return '';
+  return 'CONTEXTO DEL NEGOCIO (Brand Book y datos guardados):\n' + truncar(bloques.join('\n\n'), CONTEXT_CHAR_LIMIT);
+}
+
+// ---------- llamada a Claude ----------
+
+async function llamarClaude({ promptCompleto, webSearch, maxTokens }) {
+  const body = {
+    model: 'claude-sonnet-4-6',
+    max_tokens: maxTokens || 3000,
+    messages: [{ role: 'user', content: promptCompleto }],
+  };
+  if (webSearch) {
+    body.tools = [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }];
+  }
+
+  let anthropicRes;
+  try {
+    anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    return { ok: false, status: 500, error: 'Error de conexión con el Agente.' };
+  }
+
+  const data = await anthropicRes.json();
+  if (!anthropicRes.ok) {
+    return { ok: false, status: anthropicRes.status, error: data?.error?.message || 'Error al llamar a la API.' };
+  }
+
+  const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
+  if (!text) return { ok: false, status: 502, error: 'Respuesta vacía del modelo.' };
+  return { ok: true, text, usage: data.usage };
+}
+
+// identificadores: { label, handle, link } — un label genérico como
+// "Instagram" (fallback cuando no se llenó "Nombre de cuenta") NO alcanza
+// para aislar una cuenta si hay varias de la misma plataforma en el texto
+// pegado; el @handle y el link son las señales confiables, porque son
+// literalmente lo que el prompt de la Sección 1 le pide a Claude en Chrome
+// que use como encabezado de cada bloque ("CUENTA: @usuario").
+function instruccionAnalisisCuentaJSON(identificadores, fuenteTexto) {
+  const { label, handle, link } = identificadores;
+  const senales = [];
+  if (handle) senales.push(`el handle ${handle}`);
+  if (link) senales.push(`el link ${link}`);
+  if (label && label !== handle) senales.push(`el nombre "${label}"`);
+  const senalesTexto = senales.length ? senales.join(', ') : `la cuenta "${label}"`;
+
+  return (
+    `El siguiente texto pegado fue capturado manualmente de VARIAS cuentas y normalmente trae varios bloques, cada uno empezando con "CUENTA: @algo" (uno por cada cuenta visitada). Tu tarea es encontrar el bloque que corresponde a UNA sola cuenta específica — la que coincide con ${senalesTexto} — y analizar ÚNICAMENTE ese bloque, ignorando todos los demás por completo.\n\n` +
+    `Si ningún bloque coincide claramente con esta cuenta específica, NO tomes otro bloque al azar ni inventes datos — responde con accesible:false.\n\n` +
+    `TEXTO PEGADO:\n"""\n${fuenteTexto}\n"""\n\n` +
+    `Detecta patrones (sin copiar) y responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional antes ni después, con este formato exacto:\n` +
+    `{"accesible": true, "tipo_de_contenido": "...", "frecuencia": "...", "temas": ["..."], "hooks": ["..."], "formatos": ["..."], "que_funciona": "...", "que_aprender": "...", "que_no_copiar": "...", "que_adaptar": "...", "objecion_o_deseo": "..."}\n` +
+    `El campo "objecion_o_deseo" debe decir qué objeción o deseo del cliente ideal conecta con esta cuenta — usa la lista maestra del contexto de abajo si está disponible (di cuál objeción/deseo ya registrado coincide); si no hay coincidencia clara, describe la objeción o deseo que sí detectes, o deja "" si no aplica.\n` +
+    `Si la cuenta no aparece en el texto o no hay suficiente información, responde exactamente:\n` +
+    `{"accesible": false, "tipo_de_contenido": "", "frecuencia": "", "temas": [], "hooks": [], "formatos": [], "que_funciona": "", "que_aprender": "", "que_no_copiar": "", "que_adaptar": "", "objecion_o_deseo": ""}`
+  );
+}
+
+// "Análisis de contenido específico" (Otros modos, Modo 2) — pieza puntual,
+// no una cuenta completa. Exige explícitamente cómo se adapta a la marca.
+function instruccionAnalisisContenidoJSON(link, contenidoPegado) {
+  return (
+    `Analiza esta pieza de contenido específica (link: ${link}), a partir del siguiente texto pegado manualmente ` +
+    `(capturado por el usuario desde Chrome, sin web_search).\n\nCONTENIDO PEGADO:\n"""\n${contenidoPegado}\n"""\n\n` +
+    'Detecta el patrón (sin copiar) y responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional antes ni después, con este formato exacto:\n' +
+    '{"accesible": true, "hook": "...", "estructura": "...", "tema": "...", "formato": "...", "emocion_o_deseo": "...", "que_funciona": "...", "que_no_copiar": "...", "como_adaptarlo_a_la_marca": "..."}\n' +
+    'El campo "como_adaptarlo_a_la_marca" debe conectar explícitamente el patrón detectado con la marca del negocio, usando el contexto del Brand Book de abajo si está disponible.\n' +
+    'Si no hay suficiente información en el texto pegado, responde exactamente:\n' +
+    '{"accesible": false, "hook": "", "estructura": "", "tema": "", "formato": "", "emocion_o_deseo": "", "que_funciona": "", "que_no_copiar": "", "como_adaptarlo_a_la_marca": ""}'
+  );
+}
+
+// ---------- handlers de flujo hibrido ----------
+
+async function handleDiagnosticoGeneral(req, res, clienteId, systemPrompt) {
+  const textoPegado = ((req.body && req.body.extra) || '').toString().trim();
+  if (!textoPegado) return res.status(400).json({ error: 'Falta el texto pegado.' });
+
+  const contexto = await construirContexto(clienteId, [
+    'brand-book.identidad',
+    'brand-book.tono',
+    'brand-book.audiencia',
+    'brand-book.contenido_actual',
+    'lista-maestra-cliente-ideal',
+  ]).catch(() => '');
+
+  const instruccion =
+    'Analiza el siguiente texto, que contiene datos extraídos manualmente de varias cuentas de referencia ' +
+    '(capturado por el usuario desde Instagram/TikTok con su propia sesión). Da un DIAGNÓSTICO GENERAL sobre ' +
+    'el conjunto completo — NO lo desgloses cuenta por cuenta todavía: temas que se repiten, hooks que funcionan, ' +
+    'formatos usados, qué aprender, qué NO copiar (señala explícitamente cualquier práctica de presión falsa, ' +
+    'manipulación o promesa exagerada que no se debe imitar), y qué adaptar a nuestro negocio.\n\n' +
+    'Si detectas objeciones o deseos del cliente que se repiten entre las cuentas, señálalos explícitamente y ' +
+    'cruza cada uno contra la lista maestra del cliente ideal (abajo, si está disponible) — di si confirman una ' +
+    'objeción/deseo ya registrado o si es una señal nueva.\n\n' +
+    'Si el texto marca alguna cuenta como "🔒 no accesible", no la analices — solo continúa con las que sí ' +
+    `tienen datos.\n\nTEXTO PEGADO:\n"""\n${textoPegado}\n"""`;
+
+  const promptCompleto = [systemPrompt, contexto, instruccion].filter(Boolean).join('\n\n');
+  const r = await llamarClaude({ promptCompleto, webSearch: false });
+  if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
+  await registrarUsoTokens(clienteId, 'consultor-radar-diagnostico-general', r.usage);
+
+  try {
+    await guardarHistorialEntry(clienteId, {
+      tipo: 'diagnostico-general',
+      textoPegado,
+      diagnostico: r.text,
+      porCuenta: {},
+    });
+  } catch (err) {
+    // No bloquear la respuesta al usuario si falla el guardado del historial.
+  }
+
+  return res.status(200).json({ text: r.text });
+}
+
+async function handleAnalisisCuentaGuardada(req, res, clienteId, systemPrompt) {
+  const accountId = ((req.body && req.body.accountId) || '').toString();
+  const accountLabel = ((req.body && req.body.accountLabel) || accountId).toString();
+  const accountHandle = ((req.body && req.body.accountHandle) || '').toString().trim();
+  const accountLink = ((req.body && req.body.accountLink) || '').toString().trim();
+  if (!accountId) return res.status(400).json({ error: 'Falta accountId.' });
+
+  const key = `${clienteId}:radar-historial`;
+  const items = await leerHistorial(clienteId);
+  const entry = ultimaEntradaPorTipo(items, 'diagnostico-general');
+  if (!entry) {
+    return res.status(400).json({ error: 'Genera el diagnóstico general primero (Sección 2).' });
+  }
+
+  const contexto = await construirContexto(clienteId, ['brand-book.identidad', 'brand-book.tono', 'brand-book.audiencia', 'lista-maestra-cliente-ideal']).catch(() => '');
+  const instruccion = instruccionAnalisisCuentaJSON({ label: accountLabel, handle: accountHandle, link: accountLink }, entry.textoPegado);
+  const promptCompleto = [systemPrompt, contexto, instruccion].filter(Boolean).join('\n\n');
+
+  const r = await llamarClaude({ promptCompleto, webSearch: false });
+  if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
+  await registrarUsoTokens(clienteId, 'consultor-radar-analisis-cuenta', r.usage);
+
+  const parsed = extractJson(r.text);
+  const resultado = { data: parsed, raw: r.text, date: fechaHoy() };
+
+  try {
+    entry.porCuenta = entry.porCuenta || {};
+    entry.porCuenta[accountId] = resultado;
+    await escribirJSON(key, items);
+  } catch (err) {
+    // No bloquear la respuesta al usuario si falla el guardado del cache.
+  }
+
+  return res.status(200).json(resultado);
+}
+
+// "Análisis de contenido específico" (Otros modos, Modo 2) — link a una
+// pieza puntual + texto pegado desde Chrome (mismo patrón que Secciones 1/2,
+// a escala de una sola pieza).
+async function handleAnalisisContenido(req, res, clienteId, systemPrompt) {
+  const link = ((req.body && req.body.link) || '').toString().trim();
+  const contenidoPegado = ((req.body && req.body.contenidoPegado) || '').toString().trim();
+  if (!link || !contenidoPegado) {
+    return res.status(400).json({ error: 'Falta el link o el contenido pegado.' });
+  }
+
+  const contexto = await construirContexto(clienteId, ['brand-book.identidad', 'brand-book.tono', 'brand-book.audiencia']).catch(() => '');
+  const instruccion = instruccionAnalisisContenidoJSON(link, contenidoPegado);
+  const promptCompleto = [systemPrompt, contexto, instruccion].filter(Boolean).join('\n\n');
+
+  const r = await llamarClaude({ promptCompleto, webSearch: false });
+  if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
+  await registrarUsoTokens(clienteId, 'consultor-radar-analisis-contenido', r.usage);
+
+  const parsed = extractJson(r.text);
+  return res.status(200).json({ data: parsed, raw: r.text });
+}
+
+async function handleAnalisisGeneral(req, res, clienteId, systemPrompt) {
+  const items = await leerHistorial(clienteId);
+  const diagEntry = ultimaEntradaPorTipo(items, 'diagnostico-general');
+  if (!diagEntry) {
+    return res.status(400).json({ error: 'Genera el diagnóstico general primero (Sección 2).' });
+  }
+
+  const contexto = await construirContexto(clienteId, [
+    'brand-book.identidad',
+    'brand-book.tono',
+    'brand-book.audiencia',
+    'brand-book.contenido_actual',
+    'lista-maestra-cliente-ideal',
+  ]).catch(() => '');
+
+  // Las 10 ideas accionables ya NO se piden aquí — se generan aparte, bajo
+  // demanda, en 'ideas-accionables' (botón de la Sección 5) para no gastar
+  // tokens si el usuario solo quería ver los insights.
+  const instruccion =
+    'Genera el ANÁLISIS GENERAL de la semana. Combina:\n' +
+    '1) El diagnóstico general ya calculado sobre las cuentas de referencia (abajo, en DIAGNÓSTICO PREVIO).\n' +
+    '2) Una búsqueda fresca con web_search sobre tendencias ACTUALES de la industria/tema de este negocio — ' +
+    'no busques en las cuentas de referencia, busca tendencias generales del nicho.\n' +
+    '3) El contexto del Brand Book (abajo, si está disponible).\n\n' +
+    `Entrega tu respuesta en DOS bloques, separados exactamente por esta línea sola (nada más en esa línea): ${SEPARADOR_INSIGHTS}\n\n` +
+    'BLOQUE 1 — responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional antes ni después, con este formato exacto. ' +
+    'TODOS los campos son arreglos de puntos clave CORTOS (máximo ~12 palabras cada uno) — nunca un párrafo largo de prosa, ni siquiera en "que_funciona":\n' +
+    '{"que_funciona": ["...", "..."], "hooks_que_se_repiten": ["...", "..."], "formatos_que_usan": ["...", "..."], "temas_que_ganan_atencion": ["...", "..."], "ideas_adaptar_semana": ["...", "..."]}\n\n' +
+    'BLOQUE 2 — responde ÚNICAMENTE con un arreglo JSON de exactamente 5 objetos (sin texto adicional antes ni después), ' +
+    'cada uno un insight principal breve y accionable, en orden de prioridad, con este formato exacto: ' +
+    '{"insight": "insight breve y accionable", "uso": "orgánico | ads | ambos", "prioridad": "alta | media | baja"}. ' +
+    'Arreglo completo: [{"insight": "...", "uso": "...", "prioridad": "..."}, ...] — exactamente 5 elementos.\n\n' +
+    `DIAGNÓSTICO PREVIO:\n"""\n${diagEntry.diagnostico}\n"""`;
+
+  const promptCompleto = [systemPrompt, contexto, instruccion].filter(Boolean).join('\n\n');
+  const r = await llamarClaude({ promptCompleto, webSearch: true, maxTokens: 2600 });
+  if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
+  await registrarUsoTokens(clienteId, 'consultor-radar-analisis-general', r.usage);
+
+  const partes = r.text.split(SEPARADOR_INSIGHTS);
+  const analisisRaw = (partes[0] || '').trim();
+  const insightsRaw = (partes[1] || '').trim();
+  const analisisData = extractJson(analisisRaw);
+  const insights = extractJsonArray(insightsRaw);
+  const isoWeek = isoWeekKey(new Date());
+
+  let entryGuardada = null;
+  try {
+    entryGuardada = await guardarHistorialEntry(clienteId, {
+      tipo: 'analisis-general',
+      isoWeek,
+      analisisData,
+      analisisRaw,
+      insights,
+      insightsRaw,
+      ideas: null,
+    });
+  } catch (err) {
+    // No bloquear la respuesta al usuario si falla el guardado del historial.
+  }
+
+  return res.status(200).json({ analisisData, analisisRaw, insights, insightsRaw, isoWeek, date: entryGuardada && entryGuardada.date });
+}
+
+async function handleIdeasAccionables(req, res, clienteId, systemPrompt) {
+  const key = `${clienteId}:radar-historial`;
+  const items = await leerHistorial(clienteId);
+  let idx = -1;
+  for (let i = items.length - 1; i >= 0; i--) {
+    if (items[i].tipo === 'analisis-general') { idx = i; break; }
+  }
+  if (idx === -1) {
+    return res.status(400).json({ error: 'Genera el análisis general primero (Sección 4).' });
+  }
+  const entry = items[idx];
+  // Array.isArray(entry.ideas) && length===0 significa que un intento anterior
+  // no logro parsear el JSON del modelo (ver mas abajo) — un arreglo vacio es
+  // "truthy" en JS, asi que sin este chequeo explicito nunca se reintentaria.
+  const yaCalculado = Array.isArray(entry.ideas) ? entry.ideas.length > 0 : !!entry.ideas;
+  if (yaCalculado) {
+    return res.status(200).json({ ideas: entry.ideas, ideasRaw: entry.ideasRaw });
+  }
+
+  const contexto = await construirContexto(clienteId, ['brand-book.identidad', 'brand-book.tono', 'brand-book.audiencia', 'lista-maestra-cliente-ideal']).catch(() => '');
+  const instruccion =
+    'A partir del análisis general y los insights ya generados (abajo), da EXACTAMENTE 10 ideas de contenido accionables. ' +
+    'Responde ÚNICAMENTE con un arreglo JSON de exactamente 10 objetos, sin texto adicional antes ni después, con este formato exacto:\n' +
+    '{"idea": "idea principal", "angulo": "ángulo", "hook": "hook posible", "formato": "formato recomendado", "uso": "orgánico | ads | ambos", "porque": "por qué funciona para el cliente ideal"}\n' +
+    'Arreglo completo: [{"idea": "...", "angulo": "...", "hook": "...", "formato": "...", "uso": "...", "porque": "..."}, ...] — exactamente 10 elementos.\n\n' +
+    `ANÁLISIS GENERAL:\n"""\n${entry.analisisRaw || ''}\n"""\n\nINSIGHTS:\n"""\n${JSON.stringify(entry.insights || [])}\n"""`;
+  const promptCompleto = [systemPrompt, contexto, instruccion].filter(Boolean).join('\n\n');
+  const r = await llamarClaude({ promptCompleto, webSearch: false, maxTokens: 2200 });
+  if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
+  await registrarUsoTokens(clienteId, 'consultor-radar-ideas-accionables', r.usage);
+
+  const ideas = extractJsonArray(r.text) || [];
+
+  try {
+    entry.ideas = ideas;
+    entry.ideasRaw = r.text;
+    await escribirJSON(key, items);
+  } catch (err) {
+    // No bloquear la respuesta al usuario si falla el guardado del cache.
+  }
+
+  return res.status(200).json({ ideas, ideasRaw: r.text });
+}
+
+module.exports = async function handler(req, res) {
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
+
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST');
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const ip = (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown')
+    .toString()
+    .split(',')[0]
+    .trim();
+  if (isRateLimited(ip)) {
+    return res.status(429).json({ error: 'Demasiadas solicitudes, espera unos minutos.' });
+  }
+
+  const { modo, cliente } = req.body || {};
+  const clienteId = (cliente || DEFAULT_CLIENTE).toString();
+
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.status(500).json({ error: 'Falta configurar ANTHROPIC_API_KEY en el servidor.' });
+  }
+
+  const systemPrompt = cargarPromptFijo();
+
+  try {
+    if (modo === 'diagnostico-general') return await handleDiagnosticoGeneral(req, res, clienteId, systemPrompt);
+    if (modo === 'analisis-cuenta-guardada') return await handleAnalisisCuentaGuardada(req, res, clienteId, systemPrompt);
+    if (modo === 'analisis-contenido') return await handleAnalisisContenido(req, res, clienteId, systemPrompt);
+    if (modo === 'analisis-general') return await handleAnalisisGeneral(req, res, clienteId, systemPrompt);
+    if (modo === 'ideas-accionables') return await handleIdeasAccionables(req, res, clienteId, systemPrompt);
+  } catch (err) {
+    return res.status(500).json({ error: 'Error de conexión con el Agente.' });
+  }
+
+  return res.status(400).json({ error: `Modo desconocido: ${modo}` });
+};

@@ -1,0 +1,1592 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jefe de Anuncios — Campañas de Paga — JefesHub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0F0B16;
+    --surface:#181120;
+    --surface-2:#211829;
+    --line:#332A3D;
+    --text:#F3EEF9;
+    --text-dim:#B6A9C7;
+    --accent:#B8F725;
+    --accent-soft:#2E3610;
+    --adq:#6366F1;--adq-soft:#1E1B4B;
+    --con:#0EA5E9;--con-soft:#082F49;
+    --conv:#22C55E;--conv-soft:#052E16;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:radial-gradient(1200px 600px at 50% -10%,#241733 0%,var(--bg) 55%);color:var(--text);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;padding:28px 16px 80px;}
+  h1,.display{font-family:'Sora',sans-serif;}
+  .wrap{max-width:1400px;margin:0 auto;}
+  h1{font-size:clamp(24px,3.4vw,32px);font-weight:800;margin:0 0 6px;}
+  .sub{color:var(--text-dim);font-size:14px;margin:0 0 22px;line-height:1.5;max-width:680px;}
+
+  /* TABS */
+  .tabs{display:flex;gap:6px;margin-bottom:18px;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+  .tab{padding:10px 16px;cursor:pointer;font-size:14px;font-weight:600;color:var(--text-dim);border-bottom:2px solid transparent;user-select:none;font-family:'Sora',sans-serif;}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+  .tab .count{display:inline-block;margin-left:6px;background:var(--surface-2);color:var(--text-dim);border-radius:10px;padding:1px 8px;font-size:11px;font-family:'JetBrains Mono',monospace;}
+
+  /* BUTTONS / FIELDS (compartido con Jefe Contenido) */
+  .btn{font-family:'Inter',sans-serif;font-weight:700;font-size:13px;padding:10px 16px;border-radius:9px;cursor:pointer;border:none;transition:.15s;}
+  .btn-solid{background:var(--accent);color:#0F0B16;}
+  .btn-solid:hover{filter:brightness(1.08);}
+  .btn:disabled{opacity:.5;cursor:wait;}
+  .btn-outline{font-family:'Inter',sans-serif;font-weight:600;font-size:12px;padding:7px 12px;border-radius:8px;cursor:pointer;border:1px solid var(--line);background:transparent;color:var(--text-dim);transition:.15s;}
+  .btn-outline:hover{border-color:var(--accent);color:var(--accent);}
+  .btn-outline:disabled{opacity:.4;cursor:wait;}
+  .btn-guion{border:none;background:transparent;color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;cursor:pointer;padding:2px 0;letter-spacing:.03em;text-transform:uppercase;opacity:.8;}
+  .btn-guion:hover{opacity:1;}
+  .mode-field{display:flex;flex-direction:column;gap:4px;}
+  .mode-field label{font-size:10.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em;font-family:'JetBrains Mono',monospace;}
+  .mode-field select,.mode-field input[type=text],.mode-field textarea{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:9px 12px;outline:none;}
+  .mode-field select:focus,.mode-field input[type=text]:focus,.mode-field textarea:focus{border-color:var(--accent);}
+  .mode-field input[type=text]::placeholder,.mode-field textarea::placeholder{color:var(--text-dim);opacity:.7;}
+  .mode-status{font-size:12px;font-family:'JetBrains Mono',monospace;color:var(--text-dim);}
+  .mode-status.error{color:#F87171;}
+
+  /* GENERADOR: toolbar + selección */
+  .anuncios-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 20px;margin-bottom:14px;}
+  .anuncios-selection-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 20px;margin-bottom:18px;}
+
+  /* VER ÁNGULOS (caja colapsable de solo lectura, mismos datos que en Jefe 366) */
+  .mini-details{width:100%;margin-top:8px;border-top:1px solid var(--line);padding-top:12px;}
+  .mini-details summary{cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--accent);list-style:none;}
+  .mini-details summary::-webkit-details-marker{display:none;}
+  .mini-details summary::before{content:'▶ ';font-size:9px;}
+  .mini-details[open] summary::before{content:'▼ ';}
+  .mini-details .anuncios-table-wrap{margin-top:10px;}
+
+  /* CAJAS POR ETAPA + TABLA EDITABLE */
+  .etapa-box{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px 20px;margin-bottom:14px;}
+  .etapa-box.adquisicion{border-left:4px solid var(--adq);}
+  .etapa-box.consideracion{border-left:4px solid var(--con);}
+  .etapa-box.conversion{border-left:4px solid var(--conv);}
+  .etapa-title{font-family:'Sora',sans-serif;font-weight:700;font-size:15px;margin:0 0 4px;}
+  .etapa-desc{color:var(--text-dim);font-size:12px;margin:0 0 12px;}
+  .anuncios-table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;}
+  table.anuncios-table{width:100%;border-collapse:collapse;min-width:640px;}
+  table.anuncios-table th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);font-family:'JetBrains Mono',monospace;padding:9px 8px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--surface-2);}
+  table.anuncios-table td{padding:4px 6px;border-bottom:1px solid var(--line);vertical-align:top;}
+  table.anuncios-table tr:last-child td{border-bottom:none;}
+  table.anuncios-table textarea{width:100%;min-height:44px;background:transparent;border:1px solid transparent;border-radius:6px;color:var(--text);padding:7px 8px;font-family:Inter,sans-serif;font-size:12.5px;outline:none;resize:vertical;}
+  table.anuncios-table textarea:hover{border-color:var(--line);}
+  table.anuncios-table textarea:focus{border-color:var(--accent);background:var(--surface-2);}
+  .anuncios-row-del{background:transparent;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;padding:4px 8px;}
+  .anuncios-row-del:hover{color:#EF4444;}
+  .anuncios-row-add{background:transparent;border:1px dashed var(--line);color:var(--text-dim);font-family:Inter,sans-serif;font-size:12px;padding:7px 12px;border-radius:8px;cursor:pointer;}
+  .anuncios-row-add:hover{border-color:var(--accent);color:var(--accent);}
+  .gen-badge{display:inline-block;font-size:10px;font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:100px;padding:2px 7px;margin-left:6px;white-space:nowrap;}
+
+  /* CARDS (calcado de item-card de Jefe Contenido) */
+  .cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;}
+  .empty-row{padding:18px;text-align:center;color:var(--text-dim);font-size:13px;background:var(--surface);border:1px dashed var(--line);border-radius:12px;}
+  .item-card{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--horizon,var(--adq));border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:10px;transition:transform .12s,box-shadow .12s;}
+  .item-card.dragging{opacity:.4;}
+  .item-card.drag-over{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft);}
+  .item-top{display:flex;align-items:center;gap:8px;justify-content:space-between;}
+  .item-top-right{display:flex;align-items:center;gap:6px;}
+  .drag-handle{cursor:grab;color:var(--text-dim);font-size:15px;line-height:1;user-select:none;flex-shrink:0;}
+  .drag-handle:active{cursor:grabbing;}
+  .item-del{border:none;background:transparent;color:var(--text-dim);cursor:pointer;font-size:14px;padding:5px 7px;border-radius:6px;opacity:.5;transition:.15s;}
+  .item-del:hover{color:#EF4444;opacity:1;background:rgba(239,68,68,.1);}
+  select.estado-select{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:5px 10px;border-radius:100px;border:1px solid transparent;cursor:pointer;}
+  select.estado-select.idea{background:#1B2142;color:#A8B4F0;border-color:#3A4380;}
+  select.estado-select.proceso{background:#332708;color:#F5C84C;border-color:#6B4F14;}
+  select.estado-select.publicado{background:#3A2013;color:#FF9466;border-color:#7A3A1E;}
+  .fecha-input{width:128px;background:transparent;border:1px solid var(--line);border-radius:8px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:11.5px;padding:5px 8px;outline:none;color-scheme:dark;}
+  .fecha-input:focus{border-color:var(--accent);color:var(--text);}
+  textarea.gancho-input{width:100%;border:none;background:transparent;color:var(--text);font-family:'Sora',sans-serif;font-size:15.5px;font-weight:700;line-height:1.4;resize:none;padding:0;outline:none;min-height:24px;}
+  .badges-row{display:flex;gap:5px;flex-wrap:wrap;align-items:center;}
+  .badge{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-family:'JetBrains Mono',monospace;font-weight:700;padding:3px 8px;border-radius:100px;letter-spacing:.02em;border:1px solid transparent;}
+  .badge-adquisicion{background:var(--adq-soft);color:var(--adq);border-color:#312E81;}
+  .badge-consideracion{background:var(--con-soft);color:var(--con);border-color:#0C4A6E;}
+  .badge-conversion{background:var(--conv-soft);color:var(--conv);border-color:#14532D;}
+  .badge-tipo{background:var(--surface-2);color:var(--text-dim);border-color:var(--line);}
+  .item-details{border-top:1px solid var(--line);padding-top:8px;}
+  .item-details summary{cursor:pointer;font-size:12px;color:var(--horizon,var(--accent));font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.03em;list-style:none;display:flex;align-items:center;justify-content:space-between;}
+  .item-details summary::-webkit-details-marker{display:none;}
+  .detail-grid{display:flex;flex-direction:column;gap:10px;margin-top:10px;}
+  .detail-field{display:flex;flex-direction:column;gap:2px;}
+  .detail-field-head{display:flex;align-items:center;justify-content:space-between;}
+  .detail-field label{display:block;font-size:10.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em;font-family:'JetBrains Mono',monospace;margin-bottom:4px;}
+  .detail-field textarea,.detail-field input[type=text],.detail-field select{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:8px 10px;resize:vertical;outline:none;line-height:1.5;}
+  .detail-field textarea:focus,.detail-field input[type=text]:focus,.detail-field select:focus{border-color:var(--accent);}
+  .detail-field input[type=text]::placeholder,.detail-field textarea::placeholder{color:var(--text-dim);opacity:.7;}
+  .meta-fields-box{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:10px;}
+  .meta-fields-title{margin:0;font-family:'JetBrains Mono',monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);}
+  .meta-fields-box .detail-field textarea,.meta-fields-box .detail-field input[type=text],.meta-fields-box .detail-field select{background:var(--surface);}
+  .retro-field textarea{background:var(--accent-soft);border-color:var(--accent);min-height:44px;}
+  .retro-field label{color:var(--accent);}
+  .link-field .link-input{color:#7CB9E8;border-color:#2A4A63;}
+  .link-field label{color:#7CB9E8;}
+  .carpeta-box{background:var(--surface);border:1px solid #2A4A63;border-radius:14px;padding:14px 18px;margin-bottom:16px;display:flex;flex-direction:column;gap:8px;}
+  .carpeta-box label{font-size:10.5px;color:#7CB9E8;text-transform:uppercase;letter-spacing:.04em;font-family:'JetBrains Mono',monospace;}
+  .carpeta-box input[type=text]{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;color:#7CB9E8;font-family:'Inter',sans-serif;font-size:13px;padding:9px 12px;outline:none;}
+  .carpeta-box input[type=text]:focus{border-color:#7CB9E8;}
+  .carpeta-box input[type=text]::placeholder{color:var(--text-dim);opacity:.7;}
+
+  /* ANALIZAR CREATIVO — subir imagen o fotograma de video de un anuncio ya hecho */
+  .analizar-box{background:var(--surface);border:1px dashed var(--accent);border-radius:14px;padding:16px 18px;margin-bottom:20px;display:flex;flex-direction:column;gap:10px;}
+  .analizar-box .analizar-title{font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--accent);text-transform:uppercase;letter-spacing:.04em;}
+  .analizar-box .analizar-desc{font-size:12.5px;color:var(--text-dim);line-height:1.5;}
+  .analizar-box .analizar-row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;}
+  .analizar-box input[type=file]{font-family:'Inter',sans-serif;font-size:12.5px;color:var(--text-dim);max-width:280px;}
+  .analizar-box input[type=file]::file-selector-button{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;padding:7px 12px;margin-right:10px;cursor:pointer;}
+  .analizar-box input[type=file]::file-selector-button:hover{border-color:var(--accent);color:var(--accent);}
+  .analizar-box textarea{width:100%;min-height:56px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:9px 12px;outline:none;resize:vertical;}
+  .analizar-box textarea:focus{border-color:var(--accent);}
+  .analizar-box textarea::placeholder{color:var(--text-dim);opacity:.7;}
+  .analizar-preview{max-width:160px;max-height:160px;border-radius:8px;border:1px solid var(--line);object-fit:cover;}
+
+  /* CHAT — Consulta en vivo (calcado de jefe-contenido-v2.html) */
+  .chat-thread{display:flex;flex-direction:column;gap:10px;max-height:520px;overflow-y:auto;}
+  .chat-msg{border-radius:12px;padding:12px 14px;font-size:13.5px;line-height:1.7;white-space:pre-wrap;font-family:'Inter',sans-serif;max-width:92%;}
+  .chat-msg-user{background:var(--accent-soft);border:1px solid var(--accent);color:var(--text);align-self:flex-end;}
+  .chat-msg-assistant{background:var(--surface-2);border:1px solid var(--line);color:var(--text);align-self:flex-start;}
+  .chat-msg-actions{display:flex;gap:14px;margin-top:8px;}
+  .chat-msg-actions button{border:none;background:transparent;color:var(--accent);font-size:11px;font-family:'JetBrains Mono',monospace;cursor:pointer;padding:0;font-weight:700;text-transform:uppercase;letter-spacing:.03em;}
+  .chat-msg-actions button:hover{text-decoration:underline;}
+  .chat-msg-actions button.done{color:#4ADE80;pointer-events:none;}
+  .chat-empty{color:var(--text-dim);font-style:italic;font-size:13px;}
+  .chat-box{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px 20px;display:flex;flex-direction:column;gap:12px;}
+  .chat-box textarea{width:100%;min-height:64px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;color:var(--text);padding:10px 12px;font-family:'Inter',sans-serif;font-size:14px;resize:vertical;outline:none;}
+  .chat-box textarea:focus{border-color:var(--accent);}
+
+  /* ESTRUCTURA DE ADS: Campaña > Conjunto de Anuncios > (nota + link a Anuncios) */
+  .campana-card{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:14px;padding:18px 20px;margin-bottom:16px;display:flex;flex-direction:column;gap:14px;}
+  .campana-top{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .campana-top-title{font-family:'Sora',sans-serif;font-weight:700;font-size:15px;}
+  .campana-fields-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;}
+  .campana-fields-grid .mode-field input,.campana-fields-grid .mode-field select{width:100%;}
+  .conjuntos-wrap{display:flex;flex-direction:column;gap:12px;margin-top:4px;padding-top:12px;border-top:1px dashed var(--line);}
+  .conjuntos-title{font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);}
+  .conjunto-card{background:var(--surface-2);border:1px solid var(--line);border-left:3px solid var(--con);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;}
+  .conjunto-top{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .conjunto-top-title{font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--con);}
+  .conjunto-fields-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;}
+  .conjunto-fields-grid .mode-field input,.conjunto-fields-grid .mode-field textarea{width:100%;}
+  .conjunto-fields-grid .mode-field textarea{min-height:38px;resize:vertical;font-family:'Inter',sans-serif;}
+  .anuncios-nota-box{background:var(--accent-soft);border:1px dashed var(--accent);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;}
+  .anuncios-nota-box p{margin:0;font-size:12px;color:var(--text-dim);line-height:1.5;}
+  .anuncios-nota-box p b{color:var(--accent);}
+  .hack-final-box{background:var(--surface);border:1px solid var(--accent);border-radius:16px;padding:20px 22px;margin-top:22px;display:flex;flex-direction:column;gap:10px;}
+  .hack-final-title{font-family:'Sora',sans-serif;font-weight:700;font-size:15px;color:var(--accent);margin:0;}
+  .hack-final-box p{margin:0;font-size:13.5px;color:var(--text);line-height:1.6;font-style:italic;}
+  .anuncios-link-list{display:flex;flex-direction:column;gap:4px;max-height:180px;overflow-y:auto;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;}
+  .anuncio-link-row{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:3px 0;cursor:pointer;}
+  .anuncio-link-row input{flex-shrink:0;accent-color:var(--accent);}
+  .anuncio-link-row .badge{flex-shrink:0;}
+  .anuncio-link-titulo{color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;}
+  .anuncio-link-titulo:hover{color:var(--accent);text-decoration:underline;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a id="back-hub" href="/" style="display:inline-flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#B6A9C7;text-decoration:none;margin-bottom:12px;padding:7px 14px;border:1px solid #332A3D;border-radius:100px;transition:.15s;" onmouseover="this.style.borderColor='#B8F725';this.style.color='#B8F725'" onmouseout="this.style.borderColor='#332A3D';this.style.color='#B6A9C7'">← Hub de Jefes</a>
+  <script>(function(){var p=location.pathname;var b=p.indexOf('/rancho-seco/')!==-1||p.endsWith('/rancho-seco')?'/rancho-seco':p.indexOf('/rim/')!==-1||p.endsWith('/rim')?'/rim':p.indexOf('/optica-one/')!==-1||p.endsWith('/optica-one')?'/optica-one':null;if(b)document.getElementById('back-hub').href=b;})();</script>
+  <div id="brand-bar" style="display:inline-flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:#B6A9C7;margin-bottom:14px;padding:5px 14px;border:1px solid #332A3D;border-radius:100px;background:rgba(255,255,255,.03);">
+    <span style="color:#B8F725;">JefesHub</span><span style="opacity:.4;">·</span>
+    <span>Jefe de Anuncios — Campañas de Paga</span><span style="opacity:.4;">·</span>
+    <span id="brand-marca-label">—</span>
+  </div>
+  <script src="/js/storage-client.js"></script>
+  <script>(async function(){
+    var BRANDS={'rancho-seco':{fallback:'Rancho Seco',color:'#F2C230'},'rim':{fallback:'RIM',color:'#F472B6'},'optica-one':{fallback:'Óptica One',color:'#38BDF8'},'jefeshub':{fallback:'JefesHub',color:'#B8F725'}};
+    var p=location.pathname;
+    var key=/\/rancho-seco(\/|$)/.test(p)?'rancho-seco':/\/rim(\/|$)/.test(p)?'rim':/\/optica-one(\/|$)/.test(p)?'optica-one':'jefeshub';
+    var b=BRANDS[key];var el=document.getElementById('brand-marca-label');
+    el.textContent=b.fallback;el.style.color=b.color;
+    try{var r=await window.storage.get(key+':brand-book.identidad');if(r&&r.value){var d=JSON.parse(r.value);if(d.nombre)el.textContent=d.nombre;}}catch(e){}
+  })();</script>
+  <h1>Jefe de Anuncios — Campañas de Paga</h1>
+  <p class="sub">Genera ideas de anuncios evergreen a partir de tu ADN, tu Sistema 366 y el Radar de Mercado — elige las que te gusten, dales formato y arma el guion, el copy y los prompts de imagen/video completos.</p>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="generador">✨ Generador con AI</div>
+    <div class="tab" data-tab="guardadas">Campañas guardadas <span class="count" id="count-cards">0</span></div>
+    <div class="tab" data-tab="estructura">🏗️ Estructura de Ads</div>
+    <div class="tab" data-tab="chat">💬 Consulta en vivo</div>
+  </div>
+
+  <div id="content"></div>
+</div>
+
+<script>
+// ─── CLIENTE ID (detectado por pathname — Vercel no expone ?cliente= al browser) ───
+function detectClienteId(){
+  var p=location.pathname;
+  if(/\/rancho-seco(\/|$)/.test(p)) return 'rancho-seco';
+  if(/\/rim(\/|$)/.test(p)) return 'rim';
+  if(/\/optica-one(\/|$)/.test(p)) return 'optica-one';
+  return 'jefeshub';
+}
+const CLIENTE_ID = detectClienteId();
+const BORRADOR_KEY = CLIENTE_ID + ':anuncios-ideas-borrador';
+const CARDS_KEY = CLIENTE_ID + ':agente-anuncios';
+const AGENDA_KEY = CLIENTE_ID + ':agenda-eventos';
+const ESTRUCTURA_KEY = CLIENTE_ID + ':anuncios-estructura';
+const CARPETA_KEY = CLIENTE_ID + ':anuncios-carpeta-link';
+const BM_KEY = CLIENTE_ID + ':anuncios-bm-link';
+
+const ETAPAS = [
+  { key:'adquisicion', label:'📢 Adquisición', desc:'Para gente que no conoce la marca todavía — hook de scroll-stop, no vende directo.' },
+  { key:'consideracion', label:'🔵 Consideración', desc:'Para gente que ya vio la marca pero no decide — resuelve objeciones, muestra el método.' },
+  { key:'conversion', label:'🟢 Conversión', desc:'Para gente lista para comprar — oferta directa, urgencia, CTA fuerte.' },
+];
+const FORMATOS = ['reel', 'imagen estática', 'carrusel'];
+// Misma lista fija que api/generar-anuncios.js (CTA_OPTIONS) -- botones reales de Meta Ads Manager.
+const CTA_OPTIONS = ['Enviar mensaje', 'Más información', 'Comprar ahora', 'Reservar', 'Solicitar hora', 'Registrarte', 'Contactarnos', 'Llamar ahora', 'Obtener oferta', 'Suscribirse'];
+const MAX_CAMPOS_META_POR_LOTE = 12;
+const ETAPA_LABEL = {}; ETAPAS.forEach(e=>{ ETAPA_LABEL[e.key]=e.label; });
+
+// ─── ESTRUCTURA DE ADS: taxonomía real de objetivos de Meta Ads (ODAX) ──────
+const OBJETIVOS = [
+  { key:'reconocimiento', label:'📣 Reconocimiento' },
+  { key:'trafico', label:'🚦 Tráfico' },
+  { key:'interaccion', label:'💬 Interacción' },
+  { key:'leads', label:'🎯 Clientes potenciales' },
+  { key:'promocion_app', label:'📱 Promoción de la app' },
+  { key:'ventas', label:'💰 Ventas' },
+];
+const OBJETIVO_TIPO_MAP = {
+  reconocimiento: ['Alcance', 'Reconocimiento de marca'],
+  trafico: ['Tráfico al sitio web', 'Tráfico a la app', 'Mensajes (WhatsApp/Messenger/Instagram)', 'Llamadas'],
+  interaccion: ['Mensajes (WhatsApp/Messenger/Instagram)', 'Interacción con la publicación', 'Seguidores de la página'],
+  leads: ['Formulario instantáneo', 'Mensajes (WhatsApp/Messenger/Instagram)', 'Llamadas'],
+  promocion_app: ['Instalaciones de la app', 'Eventos dentro de la app'],
+  ventas: ['Conversiones en el sitio web', 'Ventas del catálogo', 'Mensajes (WhatsApp/Messenger/Instagram)'],
+};
+const GENEROS = ['Todos', 'Mujeres', 'Hombres'];
+
+function escHtml(s){
+  return (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function autoGrow(el){ el.style.height='auto'; el.style.height=el.scrollHeight+'px'; }
+
+// ─── ESTADO ─────────────────────────────────────────────────────────────────
+let grupos = [];
+let productos = [];
+let angulos366 = [];
+let grupoId = '';
+let productoId = '';
+let anguloIdx = '';
+let cantidadPorEtapa = 3;
+let borradorStore = {};
+let cards = [];
+let draggedCardId = null;
+let estructuras = [];
+let linkCarpeta = '';
+let linkBM = '';
+let chatMessages = []; // {role:'user'|'assistant', content, usada?:boolean} -- efímero, no se guarda (mismo patrón que Jefe Contenido)
+let chatDraft = '';
+let chatStatus = '';
+let formatoSel = FORMATOS[0];
+let genStatus = '';
+let cardsLoaded = false;
+let currentTab = 'generador';
+// Estado del "Analizar un anuncio (imagen)" -- efímero, no se guarda (se resetea al elegir otro archivo).
+let analizarImagenBase64 = '';
+let analizarImagenMediaType = 'image/jpeg';
+let analizarNombreArchivo = '';
+
+function grupoKey(){ return grupoId || 'general'; }
+function datosActuales(){
+  const key = grupoKey();
+  if(!borradorStore[key]) borradorStore[key] = {};
+  ETAPAS.forEach(e=>{ if(!Array.isArray(borradorStore[key][e.key])) borradorStore[key][e.key]=[]; });
+  return borradorStore[key];
+}
+function mkIdeaId(etapa){ return etapa+'_'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function mkCardId(){ return 'ac'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function mkCampanaId(){ return 'camp'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function mkConjuntoId(){ return 'conj'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function mkCampana(){ return { id:mkCampanaId(), objetivo:'', tipo:'', grupo_id:'', producto_id:'', resultado_esperado:'', conjuntos:[] }; }
+// Presupuesto mínimo recomendado y duración por defecto -- regla fija del negocio, no depende
+// del contexto de marca, así que se aplica siempre igual (no se le pide a la IA que la decida).
+const PRESUPUESTO_DIARIO_MINIMO = '$100 MXN (mínimo recomendado)';
+const DURACION_DEFAULT = 'Indefinido';
+function mkConjunto(){ return { id:mkConjuntoId(), ubicacion:'', edad:'', genero:'Todos', intereses:'', presupuesto_diario:PRESUPUESTO_DIARIO_MINIMO, duracion:DURACION_DEFAULT, tipo_contenido:'', anuncios_ids:[] }; }
+
+async function cargarInicial(){
+  try{ const r=await window.storage.get(CLIENTE_ID+':grupos-negocio'); grupos = r&&r.value?JSON.parse(r.value):[]; }catch(e){ grupos=[]; }
+  try{ const r=await window.storage.get(CLIENTE_ID+':catalogo-productos'); productos = r&&r.value?JSON.parse(r.value):[]; }catch(e){ productos=[]; }
+  try{
+    // Migración: esta llave vivía bajo el nombre "evergreen-comunicacion" -- si la nueva viene
+    // vacía, se cae a la vieja (solo lectura, Jefe 366 es quien migra escribiendo hacia adelante).
+    let r=await window.storage.get(CLIENTE_ID+':brand-book.366-comunicacion');
+    if(!r || !r.value) r=await window.storage.get(CLIENTE_ID+':brand-book.evergreen-comunicacion');
+    const d = r&&r.value?JSON.parse(r.value):{};
+    angulos366 = Array.isArray(d.angulos_evergreen) ? d.angulos_evergreen.filter(f=>f&&f.angulo&&f.angulo.trim()) : [];
+  }catch(e){ angulos366=[]; }
+  try{ const r=await window.storage.get(BORRADOR_KEY); borradorStore = r&&r.value?JSON.parse(r.value):{}; }catch(e){ borradorStore={}; }
+  try{
+    const r=await window.storage.get(CARDS_KEY);
+    cards = r&&r.value?JSON.parse(r.value):[];
+  }catch(e){ cards=[]; }
+  if(migrarFechasLegacyCards()){ scheduleCardsSave(); }
+  scheduleAgendaSync();
+  try{
+    const r=await window.storage.get(ESTRUCTURA_KEY);
+    estructuras = r&&r.value?JSON.parse(r.value):[];
+  }catch(e){ estructuras=[]; }
+  try{
+    const r=await window.storage.get(CARPETA_KEY);
+    linkCarpeta = r&&r.value?JSON.parse(r.value):'';
+  }catch(e){ linkCarpeta=''; }
+  try{
+    const r=await window.storage.get(BM_KEY);
+    linkBM = r&&r.value?JSON.parse(r.value):'';
+  }catch(e){ linkBM=''; }
+  cardsLoaded = true;
+  document.getElementById('count-cards').textContent = cards.length;
+}
+
+// ─── GUARDADO (debounced, igual patrón que jefe-contenido-v2.html) ────────
+let borradorSaveTimer=null;
+function scheduleBorradorSave(){ clearTimeout(borradorSaveTimer); borradorSaveTimer=setTimeout(guardarBorrador,600); }
+async function guardarBorrador(opts){ try{ await window.storage.set(BORRADOR_KEY, JSON.stringify(borradorStore), opts); }catch(e){} }
+
+let cardsSaveTimer=null, cardsPendingSave=false;
+function scheduleCardsSave(){ cardsPendingSave=true; clearTimeout(cardsSaveTimer); cardsSaveTimer=setTimeout(doSaveCards,500); }
+async function doSaveCards(opts){
+  clearTimeout(cardsSaveTimer); cardsSaveTimer=null; if(!cardsPendingSave) return;
+  try{ await window.storage.set(CARDS_KEY, JSON.stringify(cards), opts); cardsPendingSave=false; scheduleAgendaSync(); }catch(e){}
+}
+
+// Migra fecha "dd/mm" (sin año, formato viejo) a ISO "YYYY-MM-DD" asumiendo
+// el año actual — el usuario corrige a mano con el picker si el año no aplica.
+function migrarFechasLegacyCards(){
+  let cambio=false;
+  const anio=new Date().getFullYear();
+  cards.forEach(item=>{
+    const m=(item.fecha||'').trim().match(/^(\d{1,2})\/(\d{1,2})$/);
+    if(!m) return;
+    const day=parseInt(m[1],10), month=parseInt(m[2],10);
+    if(month<1||month>12||day<1||day>31) return;
+    item.fecha=anio+'-'+String(month).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+    cambio=true;
+  });
+  return cambio;
+}
+
+// ─── SYNC CON EL JEFE DE AGENDA ─────────────────────────────────────────────
+// Espeja las campañas con fecha al calendario cruzado de Jefes
+// ({cliente}:agenda-eventos), sin tocar los eventos de otros Jefes (ej.
+// Contenido) ni las temporadas creadas manualmente en la Agenda.
+let agendaSyncTimer=null, agendaSyncPending=false;
+function scheduleAgendaSync(){ agendaSyncPending=true; clearTimeout(agendaSyncTimer); agendaSyncTimer=setTimeout(syncAgendaEventos,1500); }
+async function syncAgendaEventos(opts){
+  clearTimeout(agendaSyncTimer); agendaSyncTimer=null; if(!agendaSyncPending) return;
+  try{
+    const result=await window.storage.get(AGENDA_KEY);
+    const data=(result&&result.value)?JSON.parse(result.value):{eventos:[],temporadas:[]};
+    const otros=(data.eventos||[]).filter(e=>e.origen!=='anuncios');
+    const propios=[];
+    cards.forEach(item=>{
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(item.fecha||'')) return;
+      propios.push({
+        id:'anuncios-'+item.id,
+        origen:'anuncios', origenId:item.id,
+        fecha:item.fecha, titulo:item.titulo||item.hook||'(sin título)', estado:item.estado||'idea',
+      });
+    });
+    data.eventos=[...otros, ...propios];
+    await window.storage.set(AGENDA_KEY, JSON.stringify(data), opts);
+    agendaSyncPending=false;
+  }catch(e){}
+}
+let estructuraSaveTimer=null;
+function scheduleEstructuraSave(){ clearTimeout(estructuraSaveTimer); estructuraSaveTimer=setTimeout(guardarEstructura,600); }
+async function guardarEstructura(opts){ try{ await window.storage.set(ESTRUCTURA_KEY, JSON.stringify(estructuras), opts); }catch(e){} }
+
+let carpetaSaveTimer=null;
+function scheduleCarpetaSave(){ clearTimeout(carpetaSaveTimer); carpetaSaveTimer=setTimeout(guardarCarpeta,600); }
+async function guardarCarpeta(opts){ try{ await window.storage.set(CARPETA_KEY, JSON.stringify(linkCarpeta), opts); }catch(e){} }
+
+let bmSaveTimer=null;
+function scheduleBMSave(){ clearTimeout(bmSaveTimer); bmSaveTimer=setTimeout(guardarBM,600); }
+async function guardarBM(opts){ try{ await window.storage.set(BM_KEY, JSON.stringify(linkBM), opts); }catch(e){} }
+
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'){ if(cardsPendingSave) doSaveCards({keepalive:true}); guardarBorrador({keepalive:true}); guardarEstructura({keepalive:true}); guardarCarpeta({keepalive:true}); guardarBM({keepalive:true}); if(agendaSyncPending) syncAgendaEventos({keepalive:true}); } });
+window.addEventListener('pagehide',()=>{ if(cardsPendingSave) doSaveCards({keepalive:true}); guardarBorrador({keepalive:true}); guardarEstructura({keepalive:true}); guardarCarpeta({keepalive:true}); guardarBM({keepalive:true}); if(agendaSyncPending) syncAgendaEventos({keepalive:true}); });
+
+// ─── TABS ─────────────────────────────────────────────────────────────────
+function render(){
+  const contentEl = document.getElementById('content');
+  contentEl.innerHTML='';
+  if(currentTab==='generador') renderGenerador(contentEl);
+  else if(currentTab==='estructura') renderEstructura(contentEl);
+  else if(currentTab==='chat') renderChat(contentEl);
+  else renderGuardadas(contentEl);
+}
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    currentTab = t.dataset.tab;
+    render();
+  });
+});
+
+// ─── GENERADOR ────────────────────────────────────────────────────────────
+function seleccionadas(){
+  const datos = datosActuales();
+  const items = [];
+  ETAPAS.forEach(e=>{ (datos[e.key]||[]).forEach(it=>{ if(it.selected) items.push(Object.assign({etapa:e.key}, it)); }); });
+  return items;
+}
+
+function renderGenerador(container){
+  const datos = datosActuales();
+  const productosDisponibles = productos.filter(p => p && p.nombre && (!grupoId || p.grupo_id === grupoId));
+
+  const wrap = document.createElement('div');
+
+  const toolbar = document.createElement('div');
+  toolbar.className='anuncios-toolbar';
+  toolbar.innerHTML = `
+    <div class="mode-field" style="min-width:200px;">
+      <label>Grupo de negocio</label>
+      <select id="anuncios-grupo-sel">
+        <option value="">General (sin grupo)</option>
+        ${grupos.map(g=>`<option value="${g.id}"${grupoId===g.id?' selected':''}>${escHtml(g.nombre)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="mode-field" style="min-width:200px;">
+      <label>Producto 366 (opcional)</label>
+      <select id="anuncios-producto-sel">
+        <option value="">Todo el grupo</option>
+        ${productosDisponibles.map(p=>`<option value="${p.id}"${productoId===p.id?' selected':''}>${escHtml(p.nombre)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="mode-field" style="min-width:200px;">
+      <label>Ángulo 366 (opcional)</label>
+      <select id="anuncios-angulo-sel">
+        <option value=""${anguloIdx===''?' selected':''}>Todos los ángulos (mezcla automática)</option>
+        ${angulos366.map((f,i)=>`<option value="${i}"${String(anguloIdx)===String(i)?' selected':''}>${escHtml(f.angulo)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="mode-field" style="min-width:150px;">
+      <label>Cuántas por etapa</label>
+      <select id="anuncios-cantidad-sel">
+        <option value="1"${cantidadPorEtapa===1?' selected':''}>1 (3 en total)</option>
+        <option value="2"${cantidadPorEtapa===2?' selected':''}>2 (6 en total)</option>
+        <option value="3"${cantidadPorEtapa===3?' selected':''}>3 (9 en total)</option>
+      </select>
+    </div>
+    <button class="btn btn-solid" id="anuncios-gen-btn" type="button">✨ Generar ideas</button>
+    <span class="mode-status" id="anuncios-gen-status">${escHtml(genStatus)}</span>
+    <details class="mini-details">
+      <summary>📋 Ver todos tus ángulos guardados</summary>
+      <div class="anuncios-table-wrap">
+        <table class="anuncios-table">
+          <thead><tr><th>Ángulo</th><th>Acción</th><th>Qué emoción activa</th><th>Cómo conecta con la venta</th><th>Ejemplo de mensaje</th></tr></thead>
+          <tbody>
+            ${angulos366.length ? angulos366.map(f=>`
+              <tr>
+                <td>${escHtml(f.angulo)}</td>
+                <td>${escHtml(f.accion)}</td>
+                <td>${escHtml(f.emocion)}</td>
+                <td>${escHtml(f.conecta)}</td>
+                <td>${escHtml(f.ejemplo)}</td>
+              </tr>
+            `).join('') : `<tr><td colspan="5" class="mode-status">Todavía no hay ángulos guardados en tu Comunicación 366.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  `;
+  wrap.appendChild(toolbar);
+
+  const analizarBox = document.createElement('div');
+  analizarBox.className = 'analizar-box';
+  analizarBox.innerHTML = `
+    <div class="analizar-title">📷 Analizar un anuncio ya hecho</div>
+    <div class="analizar-desc">Sube una imagen del anuncio (o un mockup/diseño) y la IA te arma su ficha completa -- guion, copy, prompts y campos de Meta -- lista para guardar directo en "Campañas guardadas". Si es un video, sube una captura o fotograma representativo (la IA solo puede ver esa imagen, no escuchar el audio ni ver el movimiento) y pega el guion o texto del video en las notas de abajo para que lo use como base.</div>
+    <div class="analizar-row">
+      <div class="mode-field" style="min-width:220px;">
+        <label>Imagen del anuncio</label>
+        <input type="file" id="analizar-file-input" accept="image/*,video/*">
+        <span class="mode-status">o pega una captura aquí mismo con Ctrl+V</span>
+      </div>
+      <div class="mode-field" style="min-width:180px;">
+        <label>Formato (opcional)</label>
+        <select id="analizar-formato-sel">
+          <option value="">Detectar automáticamente</option>
+          ${FORMATOS.map(f=>`<option value="${f}">${f.charAt(0).toUpperCase()+f.slice(1)}</option>`).join('')}
+        </select>
+      </div>
+      <img id="analizar-preview-img" class="analizar-preview" style="display:none;">
+    </div>
+    <textarea id="analizar-notas-input" placeholder="Notas opcionales -- por ejemplo el guion o texto que se dice en el video, o cualquier contexto extra para el análisis..."></textarea>
+    <div class="analizar-row" style="align-items:center;">
+      <button class="btn btn-solid" id="analizar-btn" type="button" disabled>✨ Analizar y generar detalle</button>
+      <span class="mode-status" id="analizar-status"></span>
+    </div>
+  `;
+  wrap.appendChild(analizarBox);
+  bindAnalizarBox(analizarBox);
+
+  const selBar = document.createElement('div');
+  selBar.className='anuncios-selection-bar';
+  selBar.innerHTML = `
+    <span id="anuncios-sel-count" class="mode-status">0 idea(s) seleccionada(s)</span>
+    <div class="mode-field" style="min-width:180px;">
+      <label>Formato del lote</label>
+      <select id="anuncios-formato-sel">
+        ${FORMATOS.map(f=>`<option value="${f}"${formatoSel===f?' selected':''}>${f.charAt(0).toUpperCase()+f.slice(1)}</option>`).join('')}
+      </select>
+    </div>
+    <button class="btn btn-outline" id="anuncios-detalle-btn" type="button">→ Generar detalle de seleccionadas</button>
+    <span class="mode-status" id="anuncios-detalle-status"></span>
+  `;
+  wrap.appendChild(selBar);
+
+  ETAPAS.forEach(etapa=>{
+    const filas = datos[etapa.key];
+    const box = document.createElement('div');
+    box.className='etapa-box '+etapa.key;
+    box.innerHTML = `
+      <p class="etapa-title">${etapa.label}</p>
+      <p class="etapa-desc">${etapa.desc}</p>
+      <div class="anuncios-table-wrap">
+        <table class="anuncios-table">
+          <thead><tr><th></th><th>Título</th><th>Hook</th><th>Por qué</th><th></th></tr></thead>
+          <tbody>
+            ${filas.length ? filas.map((fila)=>`
+              <tr data-etapa="${etapa.key}" data-fid="${fila.id}">
+                <td style="text-align:center;"><input type="checkbox" class="anuncios-row-check" data-etapa="${etapa.key}" data-fid="${fila.id}"${fila.selected?' checked':''}></td>
+                <td><textarea data-etapa="${etapa.key}" data-fid="${fila.id}" data-key="titulo">${escHtml(fila.titulo)}</textarea></td>
+                <td><textarea data-etapa="${etapa.key}" data-fid="${fila.id}" data-key="hook">${escHtml(fila.hook)}</textarea></td>
+                <td><textarea data-etapa="${etapa.key}" data-fid="${fila.id}" data-key="porque">${escHtml(fila.porque)}</textarea></td>
+                <td>${fila.generado?`<span class="gen-badge">✓ generada ${fila.generado}x</span>`:''}<button type="button" class="anuncios-row-del" data-etapa="${etapa.key}" data-fid="${fila.id}">✕</button></td>
+              </tr>
+            `).join('') : `<tr><td colspan="5" class="mode-status">Todavía no hay ideas. Usa "✨ Generar ideas" o agrega una fila a mano.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+      <button type="button" class="anuncios-row-add" data-etapa="${etapa.key}">+ Agregar fila</button>
+    `;
+    wrap.appendChild(box);
+  });
+
+  container.appendChild(wrap);
+  updateSelCount();
+
+  document.getElementById('anuncios-grupo-sel').addEventListener('change',(e)=>{ grupoId=e.target.value; productoId=''; render(); });
+  document.getElementById('anuncios-producto-sel').addEventListener('change',(e)=>{ productoId=e.target.value; });
+  document.getElementById('anuncios-angulo-sel').addEventListener('change',(e)=>{ anguloIdx=e.target.value; });
+  document.getElementById('anuncios-cantidad-sel').addEventListener('change',(e)=>{ cantidadPorEtapa=parseInt(e.target.value,10)||3; });
+  document.getElementById('anuncios-formato-sel').addEventListener('change',(e)=>{ formatoSel=e.target.value; });
+  document.getElementById('anuncios-gen-btn').addEventListener('click', generarIdeas);
+  document.getElementById('anuncios-detalle-btn').addEventListener('click', generarDetalleSeleccionadas);
+
+  wrap.querySelectorAll('textarea[data-fid]').forEach(ta=>{
+    autoGrow(ta);
+    ta.addEventListener('input',(e)=>{
+      autoGrow(ta);
+      const { etapa, fid, key } = e.target.dataset;
+      const fila = (datosActuales()[etapa]||[]).find(f=>f.id===fid);
+      if(fila){ fila[key]=e.target.value; scheduleBorradorSave(); }
+    });
+  });
+  wrap.querySelectorAll('.anuncios-row-del').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const { etapa, fid } = btn.dataset;
+      const datos2 = datosActuales();
+      datos2[etapa] = (datos2[etapa]||[]).filter(f=>f.id!==fid);
+      scheduleBorradorSave();
+      render();
+    });
+  });
+  wrap.querySelectorAll('.anuncios-row-add').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const etapa = btn.dataset.etapa;
+      datosActuales()[etapa].push({ id:mkIdeaId(etapa), titulo:'', hook:'', porque:'', selected:false, generado:0 });
+      scheduleBorradorSave();
+      render();
+    });
+  });
+  wrap.querySelectorAll('.anuncios-row-check').forEach(cb=>{
+    cb.addEventListener('change',(e)=>{
+      const { etapa, fid } = e.target.dataset;
+      const fila = (datosActuales()[etapa]||[]).find(f=>f.id===fid);
+      if(fila){ fila.selected = e.target.checked; scheduleBorradorSave(); updateSelCount(); }
+    });
+  });
+}
+
+function updateSelCount(){
+  const el = document.getElementById('anuncios-sel-count');
+  if(el) el.textContent = `${seleccionadas().length} idea(s) seleccionada(s)`;
+}
+
+async function generarIdeas(){
+  const btn = document.getElementById('anuncios-gen-btn');
+  const statusEl = document.getElementById('anuncios-gen-status');
+  const anguloSelIdx = document.getElementById('anuncios-angulo-sel').value;
+  const anguloFila = anguloSelIdx !== '' ? angulos366[anguloSelIdx] : null;
+  const anguloTexto = anguloFila ? [anguloFila.angulo, anguloFila.accion, anguloFila.emocion, anguloFila.conecta].filter(Boolean).join(' — ') : '';
+  const cantidad = parseInt(document.getElementById('anuncios-cantidad-sel').value, 10) || 3;
+  const total = cantidad * 3;
+  btn.disabled = true; btn.textContent = 'Generando...';
+  statusEl.className='mode-status'; statusEl.textContent=`⏳ Leyendo ADN + 366 + Radar para armar ${total} idea(s)...`;
+  try{
+    const res = await fetch('/api/generar-anuncios', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ modo: 'ideas', cliente: CLIENTE_ID, grupo_id: grupoId, producto_id: productoId, angulo_texto: anguloTexto, cantidad_por_etapa: cantidad }),
+    });
+    const data = await res.json();
+    if(!res.ok){ statusEl.textContent='Error: '+(data.error||'No se pudo generar.'); statusEl.classList.add('error'); return; }
+    const datos = datosActuales();
+    ETAPAS.forEach(e=>{
+      const nuevas = Array.isArray(data.ideas[e.key]) ? data.ideas[e.key] : [];
+      nuevas.forEach(it=>{
+        datos[e.key].push({ id:mkIdeaId(e.key), titulo: it.titulo||'', hook: it.hook||'', porque: it.porque||'', selected:false, generado:0 });
+      });
+    });
+    genStatus = `✅ ${total} idea(s) generadas — revísalas, edítalas y marca las que quieras desarrollar.`;
+    scheduleBorradorSave();
+    render();
+  }catch(e){
+    statusEl.textContent='Error de conexión.'; statusEl.classList.add('error');
+  }finally{
+    btn.disabled=false; btn.textContent='✨ Generar ideas';
+  }
+}
+
+async function generarDetalleSeleccionadas(){
+  const statusEl = document.getElementById('anuncios-detalle-status');
+  const btn = document.getElementById('anuncios-detalle-btn');
+  const sel = seleccionadas();
+  if(!sel.length){
+    statusEl.className='mode-status error'; statusEl.textContent='Selecciona al menos una idea primero.';
+    return;
+  }
+  const formato = document.getElementById('anuncios-formato-sel').value;
+  btn.disabled = true;
+  statusEl.className='mode-status'; statusEl.textContent='⏳ Desarrollando guion, copy y prompts de '+sel.length+' idea(s)...';
+  try{
+    const res = await fetch('/api/generar-anuncios', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        modo: 'detalle', cliente: CLIENTE_ID, grupo_id: grupoId, producto_id: productoId, formato,
+        ideas: sel.map(it=>({ id: it.id, titulo: it.titulo, hook: it.hook, etapa: it.etapa })),
+      }),
+    });
+    const data = await res.json();
+    if(!res.ok){ statusEl.textContent='Error: '+(data.error||'No se pudo generar.'); statusEl.classList.add('error'); return; }
+
+    const detallesPorId = {};
+    (data.detalles||[]).forEach(d=>{ detallesPorId[d.id]=d; });
+
+    let creadas = 0;
+    sel.forEach(it=>{
+      const det = detallesPorId[it.id];
+      if(!det) return;
+      cards.unshift({
+        id: mkCardId(),
+        etapa: it.etapa,
+        formato: data.formato || formato,
+        titulo: it.titulo,
+        hook: it.hook,
+        objetivo: det.objetivo || '',
+        angulo: det.angulo || '',
+        audiencia: det.audiencia || '',
+        guion: det.guion,
+        version_15s: det.version_15s || '',
+        hooks_alternativos: Array.isArray(det.hooks_alternativos) ? det.hooks_alternativos : [],
+        visual_sugerido: det.visual_sugerido || '',
+        duracion_sugerida: det.duracion_sugerida || '',
+        copy_publicacion: det.copy_publicacion,
+        prompt_imagen: det.prompt_imagen,
+        prompt_video: det.prompt_video,
+        caption_whatsapp: det.caption_whatsapp,
+        titulo_anuncio: det.titulo_anuncio || '',
+        descripcion_anuncio: det.descripcion_anuncio || '',
+        cta_boton: det.cta_boton || '',
+        estado: 'idea',
+        fecha: '',
+        retroalimentacion: '',
+        link_archivo_final: '',
+      });
+      creadas++;
+      const fila = (datosActuales()[it.etapa]||[]).find(f=>f.id===it.id);
+      if(fila){ fila.selected=false; fila.generado=(fila.generado||0)+1; }
+    });
+
+    document.getElementById('count-cards').textContent = cards.length;
+    scheduleCardsSave();
+    scheduleBorradorSave();
+    statusEl.textContent = `✅ ${creadas} campaña(s) creada(s) en "Campañas guardadas".`;
+    render();
+  }catch(e){
+    statusEl.textContent='Error de conexión.'; statusEl.classList.add('error');
+  }finally{
+    btn.disabled=false;
+  }
+}
+
+// ─── ANALIZAR UN ANUNCIO (IMAGEN) ─────────────────────────────────────────
+// Reduce cualquier imagen (o el fotograma extraído de un video) a un JPEG comprimido en base64
+// antes de mandarlo al servidor -- mantiene el payload ligero y dentro del límite de la función
+// serverless, y el tamaño recomendado para la API de Claude (lado largo ~1568px).
+function comprimirCanvasAJpegBase64(canvas, calidad){
+  const dataUrl = canvas.toDataURL('image/jpeg', calidad);
+  return dataUrl.split(',')[1];
+}
+function dibujarEnCanvasRedimensionado(origenAncho, origenAlto, maxLado){
+  let w = origenAncho, h = origenAlto;
+  if(w > maxLado || h > maxLado){
+    const escala = maxLado / Math.max(w, h);
+    w = Math.round(w * escala); h = Math.round(h * escala);
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  return canvas;
+}
+function imagenFileAJpegBase64(file, maxLado){
+  return new Promise((resolve, reject)=>{
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = ()=>{
+      const canvas = dibujarEnCanvasRedimensionado(img.naturalWidth, img.naturalHeight, maxLado);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      resolve(comprimirCanvasAJpegBase64(canvas, 0.85));
+    };
+    img.onerror = ()=>{ URL.revokeObjectURL(url); reject(new Error('No se pudo leer la imagen.')); };
+    img.src = url;
+  });
+}
+function videoFileAFotogramaJpegBase64(file, maxLado){
+  return new Promise((resolve, reject)=>{
+    const video = document.createElement('video');
+    video.muted = true; video.playsInline = true;
+    const url = URL.createObjectURL(file);
+    video.onloadedmetadata = ()=>{ video.currentTime = Math.min(1, (video.duration||1) / 3); };
+    video.onseeked = ()=>{
+      const canvas = dibujarEnCanvasRedimensionado(video.videoWidth, video.videoHeight, maxLado);
+      canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      resolve(comprimirCanvasAJpegBase64(canvas, 0.85));
+    };
+    video.onerror = ()=>{ URL.revokeObjectURL(url); reject(new Error('No se pudo leer el video.')); };
+    video.src = url;
+  });
+}
+
+// Procesa un archivo (del <input type=file> o pegado con Ctrl+V) y lo deja listo en el estado --
+// compartido entre las dos formas de subir la pieza. Busca los elementos por id porque cuando se
+// llama desde el paste global el contenedor de origen no se conoce.
+async function procesarArchivoAnalizar(file){
+  const previewImg = document.getElementById('analizar-preview-img');
+  const statusEl = document.getElementById('analizar-status');
+  const btn = document.getElementById('analizar-btn');
+  if(!previewImg || !statusEl || !btn) return; // la caja no está en pantalla ahorita
+  analizarImagenBase64 = ''; analizarNombreArchivo = ''; btn.disabled = true;
+  if(!file) return;
+  statusEl.className='mode-status'; statusEl.textContent='⏳ Procesando archivo...';
+  try{
+    const esVideo = file.type.startsWith('video/');
+    const base64 = esVideo ? await videoFileAFotogramaJpegBase64(file, 1280) : await imagenFileAJpegBase64(file, 1280);
+    analizarImagenBase64 = base64;
+    analizarImagenMediaType = 'image/jpeg';
+    analizarNombreArchivo = file.name || 'imagen-pegada.jpg';
+    previewImg.src = 'data:image/jpeg;base64,' + base64;
+    previewImg.style.display = 'block';
+    statusEl.textContent = esVideo ? '✅ Fotograma extraído del video -- si tienes el guion, pégalo en notas.' : '✅ Imagen lista.';
+    btn.disabled = false;
+  }catch(err){
+    statusEl.className='mode-status error'; statusEl.textContent='No se pudo procesar el archivo.';
+  }
+}
+
+// Pegar con Ctrl+V en cualquier parte de la página cuenta como subir la imagen, mientras la caja
+// de "Analizar un anuncio" esté visible (pestaña Generador) -- se registra UNA sola vez a nivel
+// documento (no en cada render) para no ir apilando listeners.
+function handleGlobalPasteAnalizar(e){
+  const fileInput = document.getElementById('analizar-file-input');
+  if(!fileInput) return; // la caja no está en pantalla ahorita, no interceptar el paste
+  const items = (e.clipboardData && e.clipboardData.items) || [];
+  let imgFile = null;
+  for(const item of items){
+    if(item.kind === 'file' && item.type && item.type.startsWith('image/')){ imgFile = item.getAsFile(); break; }
+  }
+  if(!imgFile) return; // no había imagen en el portapapeles -- deja el paste normal (ej. texto en notas)
+  e.preventDefault();
+  procesarArchivoAnalizar(imgFile);
+}
+document.addEventListener('paste', handleGlobalPasteAnalizar);
+
+function bindAnalizarBox(container){
+  const fileInput = container.querySelector('#analizar-file-input');
+  const btn = container.querySelector('#analizar-btn');
+  fileInput.addEventListener('change', ()=>{
+    procesarArchivoAnalizar(fileInput.files && fileInput.files[0]);
+  });
+  btn.addEventListener('click', analizarCreativo);
+}
+
+async function analizarCreativo(){
+  const statusEl = document.getElementById('analizar-status');
+  const btn = document.getElementById('analizar-btn');
+  if(!analizarImagenBase64){
+    statusEl.className='mode-status error'; statusEl.textContent='Sube una imagen primero.';
+    return;
+  }
+  const formato = document.getElementById('analizar-formato-sel').value;
+  const notas = document.getElementById('analizar-notas-input').value.trim();
+  btn.disabled = true;
+  statusEl.className='mode-status'; statusEl.textContent='⏳ Analizando la pieza y armando su ficha completa...';
+  try{
+    const res = await fetch('/api/generar-anuncios', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        modo:'detalle_imagen', cliente: CLIENTE_ID, grupo_id: grupoId, producto_id: productoId,
+        formato, notas, imagen_base64: analizarImagenBase64, imagen_media_type: analizarImagenMediaType,
+      }),
+    });
+    const data = await res.json();
+    if(!res.ok || !data.detalle){ statusEl.textContent='Error: '+(data.error||'No se pudo analizar la imagen.'); statusEl.classList.add('error'); return; }
+    const det = data.detalle;
+    const nuevaCard = {
+      id: mkCardId(),
+      etapa: det.etapa,
+      formato: det.formato,
+      titulo: det.titulo || analizarNombreArchivo || 'Anuncio analizado',
+      hook: det.hook || '',
+      objetivo: det.objetivo || '',
+      angulo: det.angulo || '',
+      audiencia: det.audiencia || '',
+      guion: det.guion,
+      version_15s: det.version_15s || '',
+      hooks_alternativos: Array.isArray(det.hooks_alternativos) ? det.hooks_alternativos : [],
+      visual_sugerido: det.visual_sugerido || '',
+      duracion_sugerida: det.duracion_sugerida || '',
+      copy_publicacion: det.copy_publicacion,
+      prompt_imagen: det.prompt_imagen,
+      prompt_video: det.prompt_video,
+      caption_whatsapp: det.caption_whatsapp,
+      titulo_anuncio: det.titulo_anuncio || '',
+      descripcion_anuncio: det.descripcion_anuncio || '',
+      cta_boton: det.cta_boton || '',
+      estado: 'idea',
+      fecha: '',
+      retroalimentacion: '',
+      link_archivo_final: '',
+    };
+    cards.unshift(nuevaCard);
+    document.getElementById('count-cards').textContent = cards.length;
+    scheduleCardsSave();
+    statusEl.textContent = '✅ Campaña creada en "Campañas guardadas".';
+    analizarImagenBase64 = ''; analizarNombreArchivo = '';
+    setTimeout(()=>irAEditarCard(nuevaCard.id), 300);
+  }catch(e){
+    statusEl.textContent='Error de conexión.'; statusEl.classList.add('error');
+  }finally{
+    btn.disabled=false;
+  }
+}
+
+// Cambia a "Campañas guardadas" y abre + hace scroll a una tarjeta puntual -- usado desde el
+// checklist de anuncios vinculados en cada Conjunto de la pestaña Estructura de Ads.
+function irAEditarCard(cardId){
+  currentTab = 'guardadas';
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active', x.dataset.tab==='guardadas'));
+  render();
+  const cardEl = document.querySelector(`.item-card[data-id="${cardId}"]`);
+  if(!cardEl) return;
+  const details = cardEl.querySelector('.item-details');
+  if(details) details.open = true;
+  cardEl.scrollIntoView({ behavior:'smooth', block:'center' });
+}
+
+// ─── CAMPAÑAS GUARDADAS ───────────────────────────────────────────────────
+function renderGuardadas(container){
+  const carpetaBox = document.createElement('div');
+  carpetaBox.className = 'carpeta-box';
+  carpetaBox.innerHTML = `
+    <div class="detail-field-head"><label>📁 Carpeta de campaña (Drive u otro) — videos y material terminado</label>${linkCarpeta?`<a class="btn-guion" href="${escHtml(linkCarpeta)}" target="_blank" rel="noopener">Abrir ↗</a>`:''}</div>
+    <input type="text" id="carpeta-link-input" placeholder="https://drive.google.com/..." value="${escHtml(linkCarpeta)}">
+  `;
+  container.appendChild(carpetaBox);
+  document.getElementById('carpeta-link-input').addEventListener('input',(e)=>{
+    linkCarpeta = e.target.value;
+    scheduleCarpetaSave();
+    const link = carpetaBox.querySelector('.btn-guion');
+    if(link) link.href = linkCarpeta;
+  });
+
+  const bmBox = document.createElement('div');
+  bmBox.className = 'carpeta-box';
+  bmBox.innerHTML = `
+    <div class="detail-field-head"><label>🏢 Business Manager (Meta Ads)</label>${linkBM?`<a class="btn-guion" href="${escHtml(linkBM)}" target="_blank" rel="noopener">Abrir ↗</a>`:''}</div>
+    <input type="text" id="bm-link-input" placeholder="https://business.facebook.com/..." value="${escHtml(linkBM)}">
+  `;
+  container.appendChild(bmBox);
+  document.getElementById('bm-link-input').addEventListener('input',(e)=>{
+    linkBM = e.target.value;
+    scheduleBMSave();
+    const link = bmBox.querySelector('.btn-guion');
+    if(link) link.href = linkBM;
+  });
+
+  if(cards.length){
+    const faltantes = cards.filter(c=>!c.titulo_anuncio || !c.cta_boton);
+    const completarBar = document.createElement('div');
+    completarBar.className = 'carpeta-box';
+    completarBar.style.cssText = 'flex-direction:row;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;';
+    completarBar.innerHTML = `
+      <span class="mode-status" id="completar-meta-status">${faltantes.length ? `${faltantes.length} campaña(s) sin Título/CTA de Meta Ads Manager.` : '✅ Todas las campañas tienen sus campos de Meta completos.'}</span>
+      <button class="btn btn-outline" id="completar-meta-btn" type="button"${faltantes.length?'':' disabled'}>✨ Completar campos de Meta Ads</button>
+    `;
+    container.appendChild(completarBar);
+    const completarBtn = document.getElementById('completar-meta-btn');
+    if(completarBtn) completarBtn.addEventListener('click', completarCamposMeta);
+  }
+
+  if(!cards.length){
+    const empty = document.createElement('div');
+    empty.className = 'empty-row';
+    empty.textContent = 'Todavía no hay campañas guardadas. Aprueba ideas en el Generador y elige un formato para crearlas.';
+    container.appendChild(empty);
+    return;
+  }
+  const grid = document.createElement('div');
+  grid.className='cards-grid';
+  cards.forEach(item=>grid.appendChild(buildAnuncioCard(item)));
+  container.appendChild(grid);
+  bindCardEvents(container);
+}
+
+// Backfill de una sola vez: completa Título/Descripción/CTA de Meta Ads Manager en las tarjetas
+// que se crearon antes de que existieran estos 3 campos. Las tarjetas nuevas ya salen completas
+// desde generarDetalleSeleccionadas() -- este botón es solo para ponerse al día con las viejas.
+async function completarCamposMeta(){
+  const statusEl = document.getElementById('completar-meta-status');
+  const btn = document.getElementById('completar-meta-btn');
+  const faltantes = cards.filter(c=>!c.titulo_anuncio || !c.cta_boton);
+  if(!faltantes.length) return;
+  btn.disabled = true;
+  let hechos = 0;
+  for(let i=0;i<faltantes.length;i+=MAX_CAMPOS_META_POR_LOTE){
+    const lote = faltantes.slice(i, i+MAX_CAMPOS_META_POR_LOTE);
+    statusEl.className = 'mode-status';
+    statusEl.textContent = `⏳ Completando ${hechos+1}-${Math.min(hechos+lote.length, faltantes.length)} de ${faltantes.length}...`;
+    try{
+      const res = await fetch('/api/generar-anuncios', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          modo:'completar_meta', cliente: CLIENTE_ID,
+          cards: lote.map(c=>({ id:c.id, titulo:c.titulo, hook:c.hook, objetivo:c.objetivo, guion:c.guion, copy_publicacion:c.copy_publicacion })),
+        }),
+      });
+      const data = await res.json();
+      if(!res.ok || !data.campos){ statusEl.textContent='Error: '+(data.error||'No se pudo completar.'); statusEl.classList.add('error'); btn.disabled=false; return; }
+      const porId = {};
+      data.campos.forEach(c=>{ porId[c.id]=c; });
+      lote.forEach(c=>{
+        const campos = porId[c.id];
+        if(!campos) return;
+        c.titulo_anuncio = campos.titulo_anuncio || c.titulo_anuncio;
+        c.descripcion_anuncio = campos.descripcion_anuncio || c.descripcion_anuncio;
+        c.cta_boton = campos.cta_boton || c.cta_boton;
+        hechos++;
+      });
+      scheduleCardsSave();
+    }catch(err){
+      statusEl.textContent = 'Error de conexión.'; statusEl.classList.add('error'); btn.disabled=false; return;
+    }
+  }
+  statusEl.textContent = `✅ ${hechos} campaña(s) completadas con Título/Descripción/CTA de Meta.`;
+  render();
+}
+
+// ─── ESTRUCTURA DE ADS ────────────────────────────────────────────────────
+// Jerarquía Campaña > Conjunto de Anuncios > (nota + link a Campañas guardadas, sin datos
+// propios en ese 3er nivel -- confirmado con el usuario). Mismo ciclo de guardado debounced que
+// borradorStore/cards, guardado en {cliente}:anuncios-estructura.
+
+function renderEstructura(container){
+  const wrap = document.createElement('div');
+
+  const header = document.createElement('div');
+  header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px;flex-wrap:wrap;';
+  header.innerHTML = `
+    <p class="etapa-desc" style="margin:0;max-width:640px;">Planea la configuración de pauta (objetivo, presupuesto, segmentación) antes de subir a Meta Ads Manager -- el contenido creativo de cada anuncio vive en "Campañas guardadas".</p>
+    <button class="btn btn-solid" id="estructura-nueva-campana-btn" type="button">+ Nueva campaña</button>
+  `;
+  wrap.appendChild(header);
+
+  if(!estructuras.length){
+    const empty = document.createElement('div');
+    empty.className = 'empty-row';
+    empty.textContent = 'Todavía no hay campañas de estructura. Usa "+ Nueva campaña" para empezar.';
+    wrap.appendChild(empty);
+  } else {
+    estructuras.forEach(campana=>wrap.appendChild(buildCampanaEstructuraCard(campana)));
+  }
+
+  const hackFinal = document.createElement('div');
+  hackFinal.className = 'hack-final-box';
+  hackFinal.innerHTML = `
+    <p class="hack-final-title">🧠 HACK FINAL</p>
+    <p>👉 Lo que no se mide, no se puede mejorar.</p>
+    <p>👉 Tu trabajo no es hacer el anuncio perfecto, es probar hasta encontrar el que funciona.</p>
+    <p>👉 Entre más claro tengas esto, menos dinero pierdes — y más abierta estás a la mejora continua.</p>
+  `;
+  wrap.appendChild(hackFinal);
+
+  container.appendChild(wrap);
+
+  document.getElementById('estructura-nueva-campana-btn').addEventListener('click', ()=>{
+    estructuras.unshift(mkCampana());
+    scheduleEstructuraSave();
+    render();
+  });
+}
+
+function buildCampanaEstructuraCard(campana){
+  const card = document.createElement('div');
+  card.className = 'campana-card';
+
+  const productosDisponibles = productos.filter(p => p && p.nombre && (!campana.grupo_id || p.grupo_id === campana.grupo_id));
+  const tiposDisponibles = OBJETIVO_TIPO_MAP[campana.objetivo] || [];
+
+  card.innerHTML = `
+    <div class="campana-top">
+      <span class="campana-top-title">📋 ${campana.objetivo ? (OBJETIVOS.find(o=>o.key===campana.objetivo)||{}).label||'Campaña' : 'Nueva campaña'}</span>
+      <button type="button" class="item-del" data-campana="${campana.id}" title="Eliminar campaña">✕</button>
+    </div>
+    <div class="campana-fields-grid">
+      <div class="mode-field">
+        <label>Objetivo de la campaña</label>
+        <select data-campana="${campana.id}" data-field="objetivo">
+          <option value="">— Selecciona —</option>
+          ${OBJETIVOS.map(o=>`<option value="${o.key}"${campana.objetivo===o.key?' selected':''}>${o.label}</option>`).join('')}
+        </select>
+      </div>
+      <div class="mode-field">
+        <label>Tipo de campaña</label>
+        <select data-campana="${campana.id}" data-field="tipo"${!campana.objetivo?' disabled':''}>
+          <option value="">${campana.objetivo?'— Selecciona —':'Elige un objetivo primero'}</option>
+          ${tiposDisponibles.map(t=>`<option value="${escHtml(t)}"${campana.tipo===t?' selected':''}>${escHtml(t)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="mode-field">
+        <label>Grupo de negocio</label>
+        <select data-campana="${campana.id}" data-field="grupo_id">
+          <option value="">General (sin grupo)</option>
+          ${grupos.map(g=>`<option value="${g.id}"${campana.grupo_id===g.id?' selected':''}>${escHtml(g.nombre)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="mode-field">
+        <label>Producto o servicio a vender</label>
+        <select data-campana="${campana.id}" data-field="producto_id">
+          <option value="">Todo el grupo</option>
+          ${productosDisponibles.map(p=>`<option value="${p.id}"${campana.producto_id===p.id?' selected':''}>${escHtml(p.nombre)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="mode-field" style="grid-column:1/-1;">
+        <label>Resultado esperado</label>
+        <input type="text" data-campana="${campana.id}" data-field="resultado_esperado" placeholder="Ej: Ventas por chat / Citas por chat / Ventas por sitio web" value="${escHtml(campana.resultado_esperado)}">
+      </div>
+    </div>
+    <div class="conjuntos-wrap">
+      <span class="conjuntos-title">Conjuntos de anuncios (${campana.conjuntos.length})</span>
+      <div class="conjuntos-list" data-campana-conjuntos="${campana.id}"></div>
+      <button type="button" class="anuncios-row-add" data-campana-add-conjunto="${campana.id}">+ Agregar conjunto de anuncios</button>
+    </div>
+  `;
+
+  const conjuntosList = card.querySelector('.conjuntos-list');
+  campana.conjuntos.forEach(conjunto=>conjuntosList.appendChild(buildConjuntoCard(campana, conjunto)));
+
+  card.querySelector('.item-del').addEventListener('click', ()=>{
+    if(!confirm('¿Eliminar esta campaña y todos sus conjuntos? No se puede deshacer.')) return;
+    estructuras = estructuras.filter(c=>c.id!==campana.id);
+    scheduleEstructuraSave();
+    render();
+  });
+
+  card.querySelectorAll('select[data-campana]').forEach(sel=>{
+    sel.addEventListener('change',(e)=>{
+      const field = e.target.dataset.field;
+      campana[field] = e.target.value;
+      if(field==='objetivo') campana.tipo='';
+      if(field==='grupo_id') campana.producto_id='';
+      scheduleEstructuraSave();
+      render();
+    });
+  });
+  card.querySelector('input[data-field="resultado_esperado"]').addEventListener('input',(e)=>{
+    campana.resultado_esperado = e.target.value;
+    scheduleEstructuraSave();
+  });
+  card.querySelector('[data-campana-add-conjunto]').addEventListener('click', ()=>{
+    campana.conjuntos.push(mkConjunto());
+    scheduleEstructuraSave();
+    render();
+  });
+
+  return card;
+}
+
+function buildConjuntoCard(campana, conjunto){
+  const card = document.createElement('div');
+  card.className = 'conjunto-card';
+  card.innerHTML = `
+    <div class="conjunto-top">
+      <span class="conjunto-top-title">🎯 Conjunto de anuncios${conjunto.anuncios_ids && conjunto.anuncios_ids.length ? ` · ${conjunto.anuncios_ids.length} anuncio(s) vinculado(s)` : ''}</span>
+      <button type="button" class="item-del" data-conjunto="${conjunto.id}" title="Eliminar conjunto">✕</button>
+    </div>
+    <div class="conjunto-fields-grid">
+      <div class="mode-field">
+        <label>Ubicación</label>
+        <input type="text" data-conjunto="${conjunto.id}" data-field="ubicacion" placeholder="México / ubicación precisa (10-20 km)" value="${escHtml(conjunto.ubicacion)}">
+      </div>
+      <div class="mode-field">
+        <label>Edad</label>
+        <input type="text" data-conjunto="${conjunto.id}" data-field="edad" placeholder="Ej: 20-35" value="${escHtml(conjunto.edad)}">
+      </div>
+      <div class="mode-field">
+        <label>Género</label>
+        <select data-conjunto="${conjunto.id}" data-field="genero">
+          ${GENEROS.map(g=>`<option value="${g}"${conjunto.genero===g?' selected':''}>${g}</option>`).join('')}
+        </select>
+      </div>
+      <div class="mode-field">
+        <label>Presupuesto diario</label>
+        <input type="text" data-conjunto="${conjunto.id}" data-field="presupuesto_diario" placeholder="Ej: $200 MXN" value="${escHtml(conjunto.presupuesto_diario)}">
+      </div>
+      <div class="mode-field">
+        <label>Duración de campaña</label>
+        <input type="text" data-conjunto="${conjunto.id}" data-field="duracion" placeholder="Ej: Indefinido / 7 días" value="${escHtml(conjunto.duracion)}">
+      </div>
+      <div class="mode-field">
+        <label>Tipo de contenido</label>
+        <input type="text" data-conjunto="${conjunto.id}" data-field="tipo_contenido" placeholder="Ej: Video UGC mostrando el producto" value="${escHtml(conjunto.tipo_contenido)}">
+      </div>
+      <div class="mode-field" style="grid-column:1/-1;">
+        <div class="detail-field-head"><label>Intereses</label><button type="button" class="btn-guion" data-sugerir-targeting="${conjunto.id}" data-campana="${campana.id}">✨ Sugerir con IA</button></div>
+        <textarea data-conjunto="${conjunto.id}" data-field="intereses" placeholder="Público abierto (sin intereses, deja que Advantage+ haga su trabajo)...">${escHtml(conjunto.intereses)}</textarea>
+      </div>
+    </div>
+    <div class="anuncios-nota-box">
+      <p><b>📌 No olvides utilizar formatos:</b> UGC · Testimonio · Demostración · Ángulos...</p>
+      <div class="anuncios-link-list">
+        ${cards.length ? cards.map(c=>`
+          <label class="anuncio-link-row">
+            <input type="checkbox" data-conjunto-anuncio="${conjunto.id}" data-card="${c.id}"${(conjunto.anuncios_ids||[]).includes(c.id)?' checked':''}>
+            <span class="badge badge-${c.etapa}">${ETAPA_LABEL[c.etapa]||c.etapa}</span>
+            <span class="anuncio-link-titulo" data-editar-card="${c.id}" title="Abrir y editar esta campaña">${escHtml(c.titulo)} ✎</span>
+          </label>
+        `).join('') : '<p class="mode-status" style="margin:0;">Todavía no hay campañas guardadas para vincular.</p>'}
+      </div>
+      <button type="button" class="btn-outline" data-ir-guardadas="1">→ Crear más anuncios en Campañas guardadas</button>
+    </div>
+  `;
+
+  card.querySelector('.item-del').addEventListener('click', ()=>{
+    if(!confirm('¿Eliminar este conjunto de anuncios?')) return;
+    campana.conjuntos = campana.conjuntos.filter(c=>c.id!==conjunto.id);
+    scheduleEstructuraSave();
+    render();
+  });
+  card.querySelectorAll('input[data-conjunto],textarea[data-conjunto]').forEach(inp=>{
+    inp.addEventListener('input',(e)=>{
+      conjunto[e.target.dataset.field] = e.target.value;
+      scheduleEstructuraSave();
+    });
+  });
+  card.querySelector('select[data-field="genero"]').addEventListener('change',(e)=>{
+    conjunto.genero = e.target.value;
+    scheduleEstructuraSave();
+  });
+  card.querySelector('[data-ir-guardadas]').addEventListener('click', ()=>{
+    currentTab = 'guardadas';
+    document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active', x.dataset.tab==='guardadas'));
+    render();
+  });
+  card.querySelectorAll('[data-editar-card]').forEach(el=>{
+    el.addEventListener('click', ()=>irAEditarCard(el.dataset.editarCard));
+  });
+  card.querySelectorAll('input[data-conjunto-anuncio]').forEach(cb=>{
+    cb.addEventListener('change',(e)=>{
+      const cardId = e.target.dataset.card;
+      if(!Array.isArray(conjunto.anuncios_ids)) conjunto.anuncios_ids=[];
+      if(e.target.checked){
+        if(!conjunto.anuncios_ids.includes(cardId)) conjunto.anuncios_ids.push(cardId);
+      } else {
+        conjunto.anuncios_ids = conjunto.anuncios_ids.filter(id=>id!==cardId);
+      }
+      scheduleEstructuraSave();
+      const titleEl = card.querySelector('.conjunto-top-title');
+      if(titleEl) titleEl.textContent = `🎯 Conjunto de anuncios${conjunto.anuncios_ids.length ? ` · ${conjunto.anuncios_ids.length} anuncio(s) vinculado(s)` : ''}`;
+    });
+  });
+  card.querySelector('[data-sugerir-targeting]').addEventListener('click', async (e)=>{
+    const btn = e.target;
+    btn.disabled = true; const prevText = btn.textContent; btn.textContent = 'Pensando...';
+    try{
+      const res = await fetch('/api/generar-anuncios', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ modo:'targeting', cliente: CLIENTE_ID, grupo_id: campana.grupo_id, producto_id: campana.producto_id }),
+      });
+      const data = await res.json();
+      if(!res.ok || !data.perfil){ alert('Error: '+(data.error||'No se pudo sugerir el perfil.')); return; }
+      Object.assign(conjunto, data.perfil);
+      if(!conjunto.duracion.trim()) conjunto.duracion = DURACION_DEFAULT;
+      if(!conjunto.presupuesto_diario.trim()) conjunto.presupuesto_diario = PRESUPUESTO_DIARIO_MINIMO;
+      scheduleEstructuraSave();
+      render();
+    }catch(err){
+      alert('Error de conexión.');
+    }finally{
+      btn.disabled = false; btn.textContent = prevText;
+    }
+  });
+
+  return card;
+}
+
+// ─── CONSULTA EN VIVO (chat multi-turno) ───────────────────────────────────
+// Mismo patrón que "Consulta en vivo" de Jefe Contenido (jefe-contenido-v2.html): la Messages
+// API no guarda estado, así que se manda TODO el historial en cada turno -- pero el contexto real
+// (ADN, las 4 Notas 366, Radar, retroalimentación) lo vuelve a leer el servidor en cada
+// llamada via construirContexto(), así que el chat "conoce" el 366 desde el primer mensaje,
+// no solo lo que se escribe dentro del chat. Conversación efímera, no se guarda en storage.
+
+function renderChat(container){
+  const wrap = document.createElement('div');
+  wrap.className = 'chat-box';
+  wrap.innerHTML = `
+    <p class="etapa-desc" style="margin:0;">Desarrolla un anuncio conversando con el Jefe -- ya conoce tu ADN, tus ángulos y frases maestras, el Perfil de Cliente y el Radar de Mercado, y te va a dar retroalimentación estratégica conforme avanzan, no solo respuestas sueltas.</p>
+    <div id="chat-thread" class="chat-thread"></div>
+    <textarea id="chat-input" rows="2" placeholder="ej. quiero un anuncio para gente que ya conoce la marca pero no se decide, dame 3 hooks...">${escHtml(chatDraft)}</textarea>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <button class="btn btn-solid" id="chat-send-btn" type="button">${chatMessages.length?'Seguir la conversación →':'Preguntar al Jefe →'}</button>
+      <span class="mode-status" id="chat-status">${escHtml(chatStatus)}</span>
+      ${chatMessages.length?'<button class="mode-add-banco" id="chat-reset-btn" type="button" style="margin-left:auto;">🔄 Nueva conversación</button>':''}
+    </div>
+  `;
+  container.appendChild(wrap);
+  pintarChatThread();
+
+  document.getElementById('chat-input').addEventListener('input',(e)=>{ chatDraft = e.target.value; });
+  document.getElementById('chat-send-btn').addEventListener('click', enviarMensajeChat);
+  const resetBtn = document.getElementById('chat-reset-btn');
+  if(resetBtn) resetBtn.addEventListener('click', ()=>{
+    chatMessages = []; chatDraft = ''; chatStatus = '';
+    render();
+  });
+}
+
+function pintarChatThread(){
+  const box = document.getElementById('chat-thread');
+  if(!box) return;
+  if(!chatMessages.length){
+    box.innerHTML = '<span class="chat-empty">La conversación aparecerá aquí -- pregunta, propón un hook o pide el guion completo de una idea.</span>';
+    return;
+  }
+  box.innerHTML = chatMessages.map((m,i)=>{
+    if(m.role==='user'){
+      return `<div class="chat-msg chat-msg-user">${escHtml(m.content)}</div>`;
+    }
+    return `<div class="chat-msg chat-msg-assistant">${escHtml(m.content)}
+      <div class="chat-msg-actions">
+        <button type="button" data-copy-idx="${i}">📋 Copiar</button>
+        <button type="button" data-usar-idx="${i}" class="${m.usada?'done':''}">${m.usada?'✅ Agregado a Campañas guardadas':'✅ Guardar como campaña'}</button>
+      </div>
+    </div>`;
+  }).join('');
+  box.scrollTop = box.scrollHeight;
+  box.querySelectorAll('[data-copy-idx]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      navigator.clipboard.writeText(chatMessages[+btn.dataset.copyIdx].content).then(()=>{
+        const prev=btn.textContent; btn.textContent='✅ Copiado';
+        setTimeout(()=>{ btn.textContent=prev; },1500);
+      });
+    });
+  });
+  box.querySelectorAll('[data-usar-idx]').forEach(btn=>{
+    btn.addEventListener('click',()=>usarRespuestaChatComoCampana(+btn.dataset.usarIdx));
+  });
+}
+
+async function enviarMensajeChat(){
+  const mensaje = (chatDraft||'').trim();
+  const statusEl = document.getElementById('chat-status');
+  if(!mensaje){ if(statusEl) statusEl.textContent='⚠️ Escribe tu mensaje primero.'; return; }
+  const btn = document.getElementById('chat-send-btn');
+  if(btn) btn.disabled = true;
+  if(statusEl){ statusEl.className='mode-status'; statusEl.textContent='⏳ Leyendo ADN + 366 + Radar para responderte...'; }
+  chatMessages.push({role:'user', content:mensaje});
+  chatDraft = '';
+  pintarChatThread();
+  try{
+    const res = await fetch('/api/generar-anuncios', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ modo:'chat', cliente: CLIENTE_ID, grupo_id: grupoId, producto_id: productoId, messages: chatMessages.map(m=>({role:m.role, content:m.content})) }),
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error || 'Error al consultar al Jefe.');
+    chatMessages.push({role:'assistant', content:data.text||''});
+    chatStatus = '✅ Listo';
+  }catch(err){
+    chatMessages.pop();
+    chatDraft = mensaje;
+    chatStatus = '❌ ' + (err.message || 'Error al consultar al Jefe.');
+  }
+  render();
+}
+
+function usarRespuestaChatComoCampana(idx){
+  const msg = chatMessages[idx];
+  if(!msg || msg.role!=='assistant' || msg.usada) return;
+  const preguntaPrevia = (chatMessages[idx-1] && chatMessages[idx-1].role==='user') ? chatMessages[idx-1].content : '';
+  const primeraLinea = (msg.content.split('\n').find(l=>l.trim())||'').slice(0,140);
+  cards.unshift({
+    id: mkCardId(),
+    etapa: 'consideracion',
+    formato: 'reel',
+    titulo: primeraLinea || 'Idea desde Consulta en vivo',
+    hook: primeraLinea,
+    objetivo: '', angulo: '', audiencia: '',
+    guion: { hook:'', problema:'', solucion:'', prueba:'', costo_inaccion:'', cta:'' },
+    version_15s: '', hooks_alternativos: [], visual_sugerido: '', duracion_sugerida: '',
+    copy_publicacion: msg.content,
+    prompt_imagen: '', prompt_video: '', caption_whatsapp: '',
+    titulo_anuncio: '', descripcion_anuncio: '', cta_boton: '',
+    estado: 'idea', fecha: '',
+    retroalimentacion: preguntaPrevia ? `Pregunta original en el chat: ${preguntaPrevia}` : '',
+    link_archivo_final: '',
+  });
+  msg.usada = true;
+  document.getElementById('count-cards').textContent = cards.length;
+  scheduleCardsSave();
+  chatStatus = '✅ Se guardó como campaña -- revísala y complétala en "Campañas guardadas".';
+  render();
+}
+
+function guionFieldsHtml(item){
+  const campos = [
+    ['hook','Hook (primeros 3 seg)'],
+    ['problema','Problema o error'],
+    ['solucion','Solución / método'],
+    ['prueba','Prueba o testimonio'],
+    ['costo_inaccion','Costo de la inacción'],
+    ['cta','CTA'],
+  ];
+  return campos.map(([key,label])=>`
+    <div class="detail-field">
+      <label>${label}</label>
+      <textarea data-id="${item.id}" data-field="guion.${key}">${escHtml(item.guion && item.guion[key])}</textarea>
+    </div>
+  `).join('');
+}
+
+function textFieldHtml(item, field, label){
+  return `
+    <div class="detail-field">
+      <label>${label}</label>
+      <textarea data-id="${item.id}" data-field="${field}">${escHtml(getField(item, field))}</textarea>
+    </div>
+  `;
+}
+
+function metaFieldsHtml(item){
+  return `
+    <div class="meta-fields-box">
+      <p class="meta-fields-title">🅕 Campos de Meta Ads Manager (Contenido → Texto)</p>
+      <div class="detail-field">
+        <label>Título (máx. 40 caracteres)</label>
+        <input type="text" maxlength="40" data-id="${item.id}" data-field="titulo_anuncio" placeholder="Ej: Agenda tu cita hoy" value="${escHtml(item.titulo_anuncio)}">
+      </div>
+      <div class="detail-field">
+        <label>Descripción (opcional)</label>
+        <input type="text" maxlength="30" data-id="${item.id}" data-field="descripcion_anuncio" placeholder="Ej: Cupo limitado esta semana" value="${escHtml(item.descripcion_anuncio)}">
+      </div>
+      <div class="detail-field">
+        <label>Llamada a la acción</label>
+        <select data-id="${item.id}" data-field="cta_boton">
+          <option value="">— Selecciona —</option>
+          ${CTA_OPTIONS.map(c=>`<option value="${c}"${item.cta_boton===c?' selected':''}>${c}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+  `;
+}
+
+function promptFieldHtml(item, field, label){
+  return `
+    <div class="detail-field">
+      <div class="detail-field-head"><label>${label}</label><button type="button" class="btn-guion copy-field-btn" data-copy-target="${field}" data-id="${item.id}">📋 Copiar</button></div>
+      <textarea data-id="${item.id}" data-field="${field}">${escHtml(item[field])}</textarea>
+    </div>
+  `;
+}
+
+function buildAnuncioCard(item){
+  const card = document.createElement('div');
+  card.className='item-card';
+  card.dataset.id = item.id;
+  card.draggable = true;
+  card.style.setProperty('--horizon', 'var(--'+(item.etapa==='adquisicion'?'adq':item.etapa==='consideracion'?'con':'conv')+')');
+  card.innerHTML = `
+    <div class="item-top">
+      <span class="drag-handle" title="Arrastra para reordenar">⠿</span>
+      <select class="estado-select ${item.estado}" data-id="${item.id}" data-field="estado">
+        <option value="idea" ${item.estado==='idea'?'selected':''}>💡 Idea</option>
+        <option value="proceso" ${item.estado==='proceso'?'selected':''}>⚙️ En proceso</option>
+        <option value="publicado" ${item.estado==='publicado'?'selected':''}>🔥 Publicado</option>
+      </select>
+      <div class="item-top-right">
+        <input type="date" class="fecha-input" value="${item.fecha||''}" data-id="${item.id}" data-field="fecha">
+        <button type="button" class="item-del" data-id="${item.id}" title="Eliminar campaña">✕</button>
+      </div>
+    </div>
+    <textarea class="gancho-input" data-id="${item.id}" data-field="titulo">${escHtml(item.titulo)}</textarea>
+    <div class="badges-row">
+      <span class="badge badge-${item.etapa}">${ETAPA_LABEL[item.etapa]||item.etapa}</span>
+      <span class="badge badge-tipo">${escHtml(item.formato)}</span>
+      ${item.audiencia?`<span class="badge badge-tipo">Audiencia ${escHtml(item.audiencia)}</span>`:''}
+      ${item.angulo?`<span class="badge badge-tipo">${escHtml(item.angulo)}</span>`:''}
+    </div>
+    <div class="detail-field retro-field">
+      <label>💬 Retroalimentación (se usa en las próximas generaciones)</label>
+      <textarea data-id="${item.id}" data-field="retroalimentacion" placeholder="Ej: falta mencionar que son 10 agentes de IA trabajando para el negocio...">${escHtml(item.retroalimentacion)}</textarea>
+    </div>
+    <div class="detail-field link-field">
+      <div class="detail-field-head"><label>🔗 Link del anuncio final (Drive, Canva, etc.)</label>${item.link_archivo_final?`<a class="btn-guion" href="${escHtml(item.link_archivo_final)}" target="_blank" rel="noopener">Abrir ↗</a>`:''}</div>
+      <input type="text" class="link-input" data-id="${item.id}" data-field="link_archivo_final" placeholder="https://..." value="${escHtml(item.link_archivo_final)}">
+    </div>
+    <details class="item-details">
+      <summary>Ver detalles</summary>
+      <div class="detail-grid">
+        ${textFieldHtml(item,'objetivo','Objetivo del anuncio')}
+        ${guionFieldsHtml(item)}
+        ${textFieldHtml(item,'version_15s','Versión 15 segundos')}
+        ${textFieldHtml(item,'hooks_alternativos','3 hooks alternativos (uno por línea)')}
+        ${textFieldHtml(item,'visual_sugerido','Visual sugerido (qué mostrar)')}
+        ${textFieldHtml(item,'duracion_sugerida','Duración sugerida')}
+        ${promptFieldHtml(item,'copy_publicacion','Copy para publicar')}
+        ${metaFieldsHtml(item)}
+        ${promptFieldHtml(item,'prompt_imagen','Prompt de imagen (IA)')}
+        ${promptFieldHtml(item,'prompt_video','Prompt de video (IA)')}
+        ${promptFieldHtml(item,'caption_whatsapp','Caption para WhatsApp')}
+      </div>
+    </details>
+  `;
+  return card;
+}
+
+function getField(item, field){
+  if(field.indexOf('guion.')===0) return (item.guion||{})[field.slice(6)];
+  if(field==='hooks_alternativos') return (item.hooks_alternativos||[]).join('\n');
+  return item[field];
+}
+function setField(item, field, value){
+  if(field.indexOf('guion.')===0){ if(!item.guion) item.guion={}; item.guion[field.slice(6)]=value; return; }
+  if(field==='hooks_alternativos'){ item.hooks_alternativos = value.split('\n').map(s=>s.trim()).filter(Boolean); return; }
+  item[field]=value;
+}
+
+function bindCardEvents(container){
+  container.querySelectorAll('select.estado-select').forEach(sel=>{
+    sel.addEventListener('change',(e)=>{
+      const item = cards.find(c=>c.id===e.target.dataset.id);
+      if(!item) return;
+      item.estado = e.target.value;
+      scheduleCardsSave();
+      render();
+    });
+  });
+  container.querySelectorAll('.fecha-input,.gancho-input,.detail-field textarea,.detail-field input[type=text],.detail-field select').forEach(inp=>{
+    if(inp.tagName==='TEXTAREA') autoGrow(inp);
+    inp.addEventListener('input',(e)=>{
+      if(inp.tagName==='TEXTAREA') autoGrow(inp);
+      const item = cards.find(c=>c.id===e.target.dataset.id);
+      if(!item) return;
+      setField(item, e.target.dataset.field, e.target.value);
+      scheduleCardsSave();
+    });
+  });
+  container.querySelectorAll('.item-del').forEach(btn=>{
+    btn.addEventListener('click',(e)=>{
+      e.preventDefault();
+      if(!confirm('¿Eliminar esta campaña? No se puede deshacer.')) return;
+      cards = cards.filter(c=>c.id!==btn.dataset.id);
+      document.getElementById('count-cards').textContent = cards.length;
+      scheduleCardsSave();
+      render();
+    });
+  });
+  container.querySelectorAll('.copy-field-btn').forEach(btn=>{
+    btn.addEventListener('click',(e)=>{
+      e.preventDefault();
+      const item = cards.find(c=>c.id===btn.dataset.id);
+      if(!item) return;
+      const value = getField(item, btn.dataset.copyTarget) || '';
+      navigator.clipboard.writeText(value).then(()=>{
+        const prev = btn.textContent;
+        btn.textContent='✅ Copiado';
+        setTimeout(()=>{ btn.textContent=prev; },1500);
+      });
+    });
+  });
+
+  // Arrastrar y soltar para reordenar manualmente -- reordena el array `cards` (fuente de verdad
+  // del orden guardado) y persiste con el mismo ciclo debounced de siempre.
+  container.querySelectorAll('.item-card[draggable="true"]').forEach(cardEl=>{
+    cardEl.addEventListener('dragstart',(e)=>{
+      draggedCardId = cardEl.dataset.id;
+      cardEl.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      try{ e.dataTransfer.setData('text/plain', cardEl.dataset.id); }catch(err){}
+    });
+    cardEl.addEventListener('dragend',()=>{
+      draggedCardId = null;
+      container.querySelectorAll('.item-card').forEach(c=>{ c.classList.remove('dragging'); c.classList.remove('drag-over'); });
+    });
+    cardEl.addEventListener('dragover',(e)=>{
+      if(!draggedCardId || draggedCardId===cardEl.dataset.id) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      cardEl.classList.add('drag-over');
+    });
+    cardEl.addEventListener('dragleave',()=>{
+      cardEl.classList.remove('drag-over');
+    });
+    cardEl.addEventListener('drop',(e)=>{
+      e.preventDefault();
+      cardEl.classList.remove('drag-over');
+      const targetId = cardEl.dataset.id;
+      if(!draggedCardId || draggedCardId===targetId) return;
+      const fromIdx = cards.findIndex(c=>c.id===draggedCardId);
+      if(fromIdx===-1) return;
+      const [moved] = cards.splice(fromIdx,1);
+      // Recalcula el índice del target DESPUÉS de quitar el arrastrado, para que "soltar sobre X"
+      // siempre signifique "justo antes de X", sin importar si arrastras hacia arriba o abajo.
+      const toIdx = cards.findIndex(c=>c.id===targetId);
+      cards.splice(toIdx===-1?fromIdx:toIdx, 0, moved);
+      draggedCardId = null;
+      scheduleCardsSave();
+      render();
+    });
+  });
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────
+cargarInicial().then(render);
+</script>
+</body>
+</html>

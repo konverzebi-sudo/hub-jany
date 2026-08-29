@@ -1,0 +1,1250 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Diagnóstico Exprés — Jany</title>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<style>
+  /* ======================================================
+     BLOQUE DE CONFIGURACIÓN — edita aquí para personalizar
+     ====================================================== */
+  :root{
+    --color-acento: #7c3aed;        /* morado eléctrico. Cambia por el color de marca */
+    --color-acento-2: #06b6d4;      /* azul eléctrico secundario, usado en degradados */
+    --negro: #0a0a0a;
+    --gris-oscuro: #1a1a1a;
+    --gris-card: #151515;
+    --gris-borde: #2a2a2a;
+    --texto: #f2f2f2;
+    --texto-tenue: #9a9a9a;
+    --verde-ok: #22c55e;
+    --amarillo-ok: #eab308;
+    --rojo-ok: #ef4444;
+  }
+
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    background:var(--negro);
+    color:var(--texto);
+    font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;
+    min-height:100vh;
+    line-height:1.5;
+  }
+  a{color:inherit;}
+  img{max-width:100%;display:block;}
+
+  /* Contenedor global */
+  .app-shell{
+    max-width:1200px;
+    margin:0 auto;
+    padding:24px 20px 80px;
+    position:relative;
+  }
+
+  /* Barra superior */
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;
+    gap:12px;margin-bottom:28px;flex-wrap:wrap;
+  }
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px;letter-spacing:.02em;color:var(--texto-tenue);}
+  .brand .dot{width:8px;height:8px;border-radius:50%;background:var(--color-acento);box-shadow:0 0 12px var(--color-acento);}
+  .btn-reset{
+    background:transparent;border:1px solid var(--gris-borde);color:var(--texto-tenue);
+    padding:8px 14px;border-radius:8px;font-size:13px;cursor:pointer;
+    display:flex;align-items:center;gap:6px;transition:.2s;
+  }
+  .btn-reset:hover{border-color:var(--color-acento);color:var(--texto);}
+
+  /* Pantallas */
+  .screen{display:none;}
+  .screen.active{display:block;animation:screenIn .3s ease both;}
+  @keyframes screenIn{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
+
+  .screen-header{margin-bottom:28px;}
+  .screen-header h1{font-size:clamp(24px,4vw,34px);font-weight:800;letter-spacing:-.01em;}
+  .screen-header p{color:var(--texto-tenue);margin-top:6px;font-size:15px;}
+  .screen-header .accent{color:var(--color-acento);}
+
+  /* Stepper */
+  .stepper{display:flex;gap:8px;margin-bottom:26px;}
+  .step-dot{flex:1;height:4px;border-radius:4px;background:var(--gris-borde);transition:.3s;}
+  .step-dot.done{background:var(--color-acento);}
+
+  /* Cards / paneles */
+  .panel{
+    background:linear-gradient(180deg,var(--gris-card),var(--gris-oscuro));
+    border:1px solid var(--gris-borde);
+    border-radius:16px;
+    padding:28px;
+  }
+  @media(max-width:600px){.panel{padding:18px;}}
+
+  /* Formulario */
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  @media(max-width:760px){.form-grid{grid-template-columns:1fr;}}
+  .field{display:flex;flex-direction:column;gap:6px;}
+  .field.full{grid-column:1/-1;}
+  .field label{font-size:13px;font-weight:600;color:var(--texto-tenue);}
+  .field label .opt{font-weight:400;color:#666;font-style:italic;}
+  .field input[type=text],
+  .field input[type=url],
+  .field textarea,
+  .field select{
+    background:#0f0f0f;border:1px solid var(--gris-borde);color:var(--texto);
+    border-radius:10px;padding:12px 14px;font-size:14px;font-family:inherit;
+    transition:border-color .2s, box-shadow .2s;
+    width:100%;
+  }
+  .field textarea{resize:vertical;min-height:70px;}
+  .field input:focus,.field textarea:focus,.field select:focus{
+    outline:none;border-color:var(--color-acento);box-shadow:0 0 0 3px rgba(124,58,237,.18);
+  }
+  .radio-group,.check-group{display:flex;flex-wrap:wrap;gap:8px;}
+  .chip{
+    position:relative;
+    border:1px solid var(--gris-borde);background:#0f0f0f;color:var(--texto-tenue);
+    padding:9px 14px;border-radius:999px;font-size:13px;cursor:pointer;user-select:none;
+    display:flex;align-items:center;gap:6px;transition:.15s;
+  }
+  .chip input{
+    position:absolute;opacity:0;width:1px;height:1px;margin:0;
+  }
+  .chip input:focus-visible ~ *,
+  .chip:has(input:focus-visible){outline:2px solid var(--color-acento);outline-offset:2px;}
+  .chip.active{border-color:var(--color-acento);color:var(--texto);background:rgba(124,58,237,.15);}
+  .chip:hover{border-color:var(--color-acento);}
+
+  .btn-primary{
+    background:linear-gradient(135deg,var(--color-acento),var(--color-acento-2));
+    color:#fff;border:none;padding:16px 28px;border-radius:12px;
+    font-size:16px;font-weight:700;cursor:pointer;width:100%;
+    display:flex;align-items:center;justify-content:center;gap:10px;
+    transition:transform .15s, box-shadow .15s;
+    box-shadow:0 8px 24px -8px rgba(124,58,237,.6);
+  }
+  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 12px 28px -8px rgba(124,58,237,.75);}
+  .btn-primary:active{transform:translateY(0);}
+  .btn-secondary{
+    background:#151515;border:1px solid var(--gris-borde);color:var(--texto);
+    padding:14px 22px;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;gap:8px;transition:.2s;
+  }
+  .btn-secondary:hover{border-color:var(--color-acento);}
+
+  .form-actions{margin-top:24px;}
+
+  /* Pantalla 2 — Prompt */
+  .prompt-box{
+    background:#0c0c0c;border:1px solid var(--gris-borde);border-radius:12px;
+    padding:20px;font-family:'Cascadia Code',Consolas,monospace;font-size:13px;
+    white-space:pre-wrap;word-break:break-word;max-height:420px;overflow-y:auto;color:#d8d8d8;
+    line-height:1.6;
+  }
+  .copy-row{display:flex;gap:12px;margin:18px 0 8px;flex-wrap:wrap;}
+  .copy-row .btn-primary{width:auto;flex:1;min-width:220px;}
+  @media(max-width:600px){.copy-row .btn-primary{font-size:17px;padding:20px 24px;}}
+  .hint{
+    display:flex;gap:10px;align-items:flex-start;background:rgba(124,58,237,.1);
+    border:1px solid rgba(124,58,237,.35);border-radius:10px;padding:14px 16px;
+    font-size:13.5px;color:#d9d0ff;margin:18px 0;
+  }
+  .hint i{flex-shrink:0;color:var(--color-acento);}
+  .divider{height:1px;background:var(--gris-borde);margin:28px 0;}
+  .paste-label{font-size:14px;font-weight:700;margin-bottom:10px;display:block;}
+  #respuestaClaude{
+    min-height:300px;width:100%;background:#0f0f0f;border:1px solid var(--gris-borde);
+    color:var(--texto);border-radius:12px;padding:16px;font-size:14px;font-family:inherit;
+    resize:vertical;
+  }
+  #respuestaClaude:focus{outline:none;border-color:var(--color-acento);}
+
+  .copied-flag{
+    display:none;align-items:center;gap:6px;color:var(--verde-ok);font-size:13px;font-weight:600;margin-top:8px;
+  }
+  .copied-flag.show{display:flex;}
+
+  /* Pantalla 3 — Dashboard */
+  .dash-title{font-size:clamp(26px,4vw,40px);font-weight:800;}
+  .dash-sub{color:var(--texto-tenue);margin-top:4px;font-size:16px;}
+  .section-title{
+    display:flex;align-items:center;gap:10px;font-size:19px;font-weight:800;
+    margin:42px 0 18px;
+  }
+  .section-title i{color:var(--color-acento);}
+  .section-title .badge{
+    font-size:11px;font-weight:700;color:var(--color-acento);
+    border:1px solid var(--color-acento);border-radius:999px;padding:2px 10px;letter-spacing:.04em;
+  }
+
+  .areas-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}
+  @media(max-width:980px){.areas-grid{grid-template-columns:repeat(2,1fr);}}
+  @media(max-width:640px){.areas-grid{grid-template-columns:1fr;}}
+
+  .area-card{
+    background:var(--gris-card);border:1px solid var(--gris-borde);border-radius:16px;
+    padding:22px;opacity:0;transform:translateY(16px);animation:cardIn .5s ease forwards;
+  }
+  @keyframes cardIn{to{opacity:1;transform:translateY(0);}}
+  .area-card .area-head{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+  .area-card .area-icon{
+    width:38px;height:38px;border-radius:10px;background:rgba(124,58,237,.15);
+    display:flex;align-items:center;justify-content:center;color:var(--color-acento);flex-shrink:0;
+  }
+  .area-card h3{font-size:16px;font-weight:700;}
+  .semaforo{
+    display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:700;
+    padding:6px 12px;border-radius:999px;margin-bottom:14px;
+  }
+  .semaforo.rojo{background:rgba(239,68,68,.12);color:var(--rojo-ok);}
+  .semaforo.amarillo{background:rgba(234,179,8,.12);color:var(--amarillo-ok);}
+  .semaforo.verde{background:rgba(34,197,94,.12);color:var(--verde-ok);}
+  .semaforo.gris{background:rgba(255,255,255,.06);color:var(--texto-tenue);}
+  .area-card .linea{font-size:13.5px;margin-bottom:10px;}
+  .area-card .linea b{display:block;color:var(--texto-tenue);font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;font-weight:700;}
+  .area-card .oportunidad{
+    background:rgba(124,58,237,.1);border-left:3px solid var(--color-acento);
+    padding:10px 12px;border-radius:0 8px 8px 0;font-size:13.5px;color:#e5dcff;margin-top:8px;
+  }
+
+  .op-grid{display:flex;flex-direction:column;gap:16px;}
+  .op-card{
+    background:var(--gris-card);border:1px solid var(--gris-borde);border-radius:16px;
+    padding:24px;display:flex;gap:20px;align-items:flex-start;
+    opacity:0;transform:translateY(16px);animation:cardIn .5s ease forwards;
+  }
+  @media(max-width:640px){.op-card{flex-direction:column;gap:12px;}}
+  .op-num{
+    font-size:38px;font-weight:900;color:var(--color-acento);line-height:1;flex-shrink:0;
+    min-width:50px;
+  }
+  .op-card h3{font-size:18px;font-weight:800;margin-bottom:10px;}
+  .op-card .linea{font-size:14px;margin-bottom:8px;color:#ddd;}
+  .op-card .linea b{color:var(--texto-tenue);font-weight:700;}
+  .op-card .resultado{
+    display:inline-block;margin-top:6px;background:rgba(34,197,94,.12);color:var(--verde-ok);
+    padding:8px 12px;border-radius:8px;font-size:13.5px;font-weight:600;
+  }
+
+  .comp-card{
+    border:1.5px solid var(--color-acento);border-radius:16px;padding:26px;
+    background:radial-gradient(circle at top left, rgba(124,58,237,.12), var(--gris-card));
+    opacity:0;transform:translateY(16px);animation:cardIn .5s ease forwards;
+  }
+  .comp-card h3{font-size:19px;font-weight:800;margin-bottom:18px;}
+  .comp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+  @media(max-width:760px){.comp-grid{grid-template-columns:1fr;}}
+  .comp-col{background:#0f0f0f;border-radius:12px;padding:16px;border:1px solid var(--gris-borde);}
+  .comp-col b{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--color-acento);margin-bottom:8px;}
+  .comp-col p{font-size:13.5px;color:#ddd;}
+
+  .pri-stack{display:flex;flex-direction:column;gap:16px;}
+  .pri-card{
+    background:var(--gris-card);border:1px solid var(--gris-borde);border-radius:16px;padding:24px;
+    opacity:0;transform:translateY(16px);animation:cardIn .5s ease forwards;
+  }
+  .pri-card .pri-head{display:flex;align-items:center;gap:14px;margin-bottom:12px;}
+  .pri-num{
+    width:42px;height:42px;border-radius:50%;background:var(--color-acento);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;flex-shrink:0;
+  }
+  .pri-card h3{font-size:17px;font-weight:800;}
+  .pri-card .linea{font-size:14px;margin-bottom:6px;color:#ddd;}
+  .pri-card .linea b{color:var(--texto-tenue);}
+  .pri-card .riesgo{
+    background:rgba(239,68,68,.1);color:#ff8f8f;padding:10px 12px;border-radius:8px;font-size:13.5px;margin-top:8px;
+  }
+
+  .audit-table-wrap{overflow-x:auto;border-radius:16px;border:1px solid var(--gris-borde);}
+  .audit-table{width:100%;border-collapse:collapse;background:var(--gris-card);font-size:13.5px;min-width:560px;}
+  .audit-table th{
+    background:rgba(124,58,237,.14);color:var(--color-acento);text-transform:uppercase;letter-spacing:.04em;
+    font-size:11px;font-weight:700;padding:12px 16px;text-align:left;white-space:nowrap;
+  }
+  .audit-table td{padding:14px 16px;border-top:1px solid var(--gris-borde);color:var(--texto);vertical-align:top;}
+  .audit-table tbody tr:nth-child(even) td{background:rgba(255,255,255,.02);}
+  .audit-table td.audit-metrica{font-weight:700;white-space:nowrap;}
+  .audit-table td.audit-ideal{color:var(--verde-ok);}
+
+  .ideas-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+  @media(max-width:980px){.ideas-grid{grid-template-columns:repeat(2,1fr);}}
+  @media(max-width:640px){.ideas-grid{grid-template-columns:1fr;}}
+  .idea-card{
+    background:var(--gris-card);border:1px solid var(--gris-borde);border-radius:16px;padding:20px;
+    opacity:0;transform:translateY(16px);animation:cardIn .5s ease forwards;
+  }
+  .idea-card .idea-num{font-size:12px;font-weight:800;letter-spacing:.04em;color:var(--color-acento);margin-bottom:8px;}
+  .idea-card h3{font-size:15px;font-weight:700;margin-bottom:8px;}
+  .idea-card .formato{
+    display:inline-block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
+    color:var(--color-acento);background:rgba(124,58,237,.12);padding:3px 10px;border-radius:999px;margin-bottom:10px;
+  }
+  .idea-card .desc{font-size:13.5px;color:#ddd;}
+
+  .cierre-box{
+    margin-top:48px;text-align:center;padding:44px 28px;border-radius:20px;
+    background:linear-gradient(135deg,var(--color-acento),var(--color-acento-2));
+    box-shadow:0 20px 50px -20px rgba(124,58,237,.6);
+  }
+  .cierre-box p{font-size:clamp(18px,2.6vw,24px);font-weight:700;color:#fff;max-width:760px;margin:0 auto 14px;line-height:1.4;}
+  .cierre-box .firma{font-size:14px;color:rgba(255,255,255,.85);font-weight:600;letter-spacing:.03em;}
+
+  .cta-final-wrap{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:36px;}
+  .cta-final-wrap .btn-primary{width:auto;padding:18px 36px;font-size:16px;}
+  .cta-final-wrap .btn-secondary{width:auto;padding:18px 28px;font-size:15px;}
+
+  .fallback-note{font-size:12.5px;color:#777;margin-top:10px;font-style:italic;}
+
+  /* Encabezado exclusivo para impresión/PDF */
+  .print-header{display:none;}
+  .print-header .ph-logo{max-height:44px;margin-bottom:10px;display:block;}
+  .print-header .ph-title{font-size:22px;font-weight:800;}
+  .print-header .ph-meta{font-size:13px;color:var(--texto-tenue);margin-top:4px;}
+  .brand-logo{height:22px;width:auto;border-radius:4px;}
+
+  /* ============================================================
+     IMPRESIÓN / DESCARGA DE PDF (vía window.print())
+     Solo se muestra el contenido del dashboard (Pantalla 3),
+     con fondo claro para no gastar tinta y facilitar la lectura.
+     ============================================================ */
+  @media print{
+    :root{
+      --negro:#ffffff;
+      --gris-oscuro:#ffffff;
+      --gris-card:#ffffff;
+      --gris-borde:#dddddd;
+      --texto:#111111;
+      --texto-tenue:#555555;
+    }
+    body{background:#fff;}
+    .topbar, .btn-reset, .stepper, .cta-final-wrap,
+    #screen-1, #screen-2{display:none !important;}
+    .print-header{display:block;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid #111;}
+    .panel, .area-card, .op-card, .comp-card, .pri-card, .idea-card{box-shadow:none;break-inside:avoid;}
+    .op-card .linea, .comp-col p, .pri-card .linea, .idea-card .desc{color:#222;}
+    .audit-table th{background:#efe9fb;color:#4b2e83;}
+    .audit-table td{color:#222;}
+    .audit-table tbody tr:nth-child(even) td{background:#f7f7f7;}
+    .oportunidad{color:#3a1f7a;}
+    .pri-card .riesgo{color:#8a1f1f;background:#fdeaea;}
+    .cierre-box{background:#f4f0ff;box-shadow:none;}
+    .cierre-box p{color:#1a1a1a;}
+    .cierre-box .firma{color:#4b2e83;}
+  }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+  <div class="topbar">
+    <div class="brand"><img id="brandLogo" class="brand-logo" alt="" style="display:none;"><span class="dot"></span> Diagnóstico Exprés &middot; <span id="presentadoraNombre"></span></div>
+    <button class="btn-reset" onclick="reiniciarApp()"><i data-lucide="rotate-ccw"></i> Reiniciar</button>
+  </div>
+
+  <!-- ============================================================
+       PANTALLA 1 — CAPTURA DE DATOS DEL CLIENTE
+       ============================================================ -->
+  <section class="screen active" id="screen-1">
+    <div class="stepper">
+      <div class="step-dot done"></div><div class="step-dot"></div><div class="step-dot"></div>
+    </div>
+    <div class="screen-header">
+      <h1>Diagnóstico Exprés — <span class="accent">Datos del Negocio</span></h1>
+      <p>Llena los datos del prospecto para generar su diagnóstico personalizado.</p>
+    </div>
+
+    <form class="panel" id="formCliente">
+      <div class="form-grid">
+        <div class="field">
+          <label for="nombreEmpresario">Nombre del empresario dueño del negocio</label>
+          <input type="text" id="nombreEmpresario" required placeholder="Ej. María Torres">
+        </div>
+        <div class="field">
+          <label for="whatsappProspecto">WhatsApp del prospecto <span class="opt">(opcional, para enviarle el PDF)</span></label>
+          <input type="tel" id="whatsappProspecto" placeholder="521XXXXXXXXXX (con código de país)">
+        </div>
+
+        <div class="field">
+          <label for="ventasMes">Ventas aproximadas al mes</label>
+          <select id="ventasMes" required>
+            <option value="" disabled selected>Selecciona un rango</option>
+            <option value="Menos de 10">Menos de 10</option>
+            <option value="10 a 30">10 a 30</option>
+            <option value="30 a 60">30 a 60</option>
+            <option value="Más de 60">Más de 60</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="giro">Giro o industria</label>
+          <select id="giro" required>
+            <option value="" disabled selected>Selecciona un giro</option>
+            <option value="Alimentos y bebidas">Alimentos y bebidas</option>
+            <option value="Moda y accesorios">Moda y accesorios</option>
+            <option value="Belleza y cuidado personal">Belleza y cuidado personal</option>
+            <option value="Salud y bienestar">Salud y bienestar</option>
+            <option value="Fitness y deporte">Fitness y deporte</option>
+            <option value="Educación y capacitación">Educación y capacitación</option>
+            <option value="Servicios profesionales">Servicios profesionales</option>
+            <option value="Tecnología y software">Tecnología y software</option>
+            <option value="Hogar y decoración">Hogar y decoración</option>
+            <option value="Turismo y hospitalidad">Turismo y hospitalidad</option>
+            <option value="Construcción y remodelación">Construcción y remodelación</option>
+            <option value="Automotriz">Automotriz</option>
+            <option value="Arte y manualidades">Arte y manualidades</option>
+            <option value="Otro">Otro</option>
+          </select>
+        </div>
+        <div class="field" id="giroOtroWrap" style="display:none;">
+          <label for="giroOtro">Especifica el giro</label>
+          <input type="text" id="giroOtro" placeholder="Ej. Repostería artesanal">
+        </div>
+
+        <div class="field full">
+          <label for="queVende">Qué vende (producto o servicio principal)</label>
+          <textarea id="queVende" required placeholder="Ej. Pasteles personalizados y repostería fina para eventos"></textarea>
+        </div>
+        <div class="field full">
+          <label for="aQuienVende">A quién le vende (cliente ideal)</label>
+          <textarea id="aQuienVende" required placeholder="Ej. Mujeres de 25-45 años que organizan eventos familiares"></textarea>
+        </div>
+
+        <div class="field full">
+          <label>Canales actuales</label>
+          <div class="check-group" id="canalesGroup">
+            <label class="chip"><input type="checkbox" value="Instagram">Instagram</label>
+            <label class="chip"><input type="checkbox" value="Facebook">Facebook</label>
+            <label class="chip"><input type="checkbox" value="TikTok">TikTok</label>
+            <label class="chip"><input type="checkbox" value="WhatsApp">WhatsApp</label>
+            <label class="chip"><input type="checkbox" value="Página web">Página web</label>
+            <label class="chip"><input type="checkbox" value="Google">Google</label>
+            <label class="chip"><input type="checkbox" value="Tienda física">Tienda física</label>
+            <label class="chip"><input type="checkbox" value="Otro">Otro</label>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="linkCanal1">Link del canal principal 1 <span class="opt">(recomendado)</span></label>
+          <input type="text" id="linkCanal1" placeholder="Ej. instagram.com/panaderialuna">
+        </div>
+        <div class="field">
+          <label for="linkCanal2">Link del canal principal 2 <span class="opt">(recomendado)</span></label>
+          <input type="text" id="linkCanal2" placeholder="Ej. facebook.com/panaderialuna">
+        </div>
+
+        <div class="field full">
+          <label for="dolor">Mayor dolor o frustración con respecto a ventas y publicidad actual</label>
+          <textarea id="dolor" required placeholder="Ej. No sabe cómo convertir seguidores en clientes"></textarea>
+        </div>
+        <div class="field full">
+          <label for="tareaTiempo">Qué tarea le quita más tiempo</label>
+          <textarea id="tareaTiempo" required placeholder="Ej. Contestar mensajes y cotizar uno por uno"></textarea>
+        </div>
+
+        <div class="field full">
+          <label for="competidorUrl">Link del competidor principal <span class="opt">(opcional)</span></label>
+          <input type="text" id="competidorUrl" placeholder="Ej. instagram.com/dulcevida">
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn-primary"><i data-lucide="sparkles"></i> Generar Diagnóstico</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- ============================================================
+       PANTALLA 2 — PROMPT GENERADO
+       ============================================================ -->
+  <section class="screen" id="screen-2">
+    <div class="stepper">
+      <div class="step-dot done"></div><div class="step-dot done"></div><div class="step-dot"></div>
+    </div>
+    <div class="screen-header">
+      <h1>Prompt listo para <span class="accent">Claude</span></h1>
+      <p>Copia este prompt, pégalo en Claude y espera la respuesta completa.</p>
+    </div>
+
+    <div class="panel">
+      <pre class="prompt-box" id="promptGenerado"></pre>
+
+      <div class="copy-row">
+        <button class="btn-primary" onclick="copiarPrompt()"><i data-lucide="copy"></i> Copiar Prompt</button>
+        <button class="btn-secondary" onclick="irAPantalla(1)"><i data-lucide="arrow-left"></i> Editar datos</button>
+      </div>
+      <div class="copied-flag" id="copiadoFlag"><i data-lucide="check-circle-2"></i> Prompt copiado al portapapeles</div>
+
+      <div class="hint">
+        <i data-lucide="info"></i>
+        <span>Copia este prompt y pégalo en Claude. Cuando tengas la respuesta, regresa aquí y pégala abajo.</span>
+      </div>
+
+      <div class="divider"></div>
+
+      <label class="paste-label" for="respuestaClaude">Pega aquí la respuesta de Claude</label>
+      <textarea id="respuestaClaude" placeholder="Pega aquí el diagnóstico completo que te dio Claude..."></textarea>
+
+      <div class="form-actions">
+        <button class="btn-primary" onclick="visualizarDiagnostico()"><i data-lucide="layout-dashboard"></i> Visualizar Diagnóstico</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       PANTALLA 3 — DASHBOARD VISUAL DEL DIAGNÓSTICO
+       ============================================================ -->
+  <section class="screen" id="screen-3">
+    <div class="screen-header">
+      <div class="print-header" id="printHeader"></div>
+      <div class="dash-title">Diagnóstico de <span class="accent">tu negocio</span></div>
+      <div class="dash-sub" id="dashNombreEmpresario"></div>
+    </div>
+
+    <div class="section-title"><i data-lucide="search-check"></i> Auditoría Rápida de Redes <span class="badge">PASO 1</span></div>
+    <div id="auditSectionWrap"></div>
+
+    <div class="section-title"><i data-lucide="stethoscope"></i> Diagnóstico por etapas del recorrido del cliente <span class="badge">PASO 2</span></div>
+    <div class="areas-grid" id="areasGrid"></div>
+
+    <div class="section-title"><i data-lucide="rocket"></i> Top 3 Oportunidades con IA <span class="badge">PASO 3</span></div>
+    <div class="op-grid" id="opGrid"></div>
+
+    <div id="compSectionWrap"></div>
+
+    <div class="section-title"><i data-lucide="calendar-check"></i> 3 Acciones para esta Semana <span class="badge">PASO 5</span></div>
+    <div class="pri-stack" id="accionesStack"></div>
+
+    <div class="section-title"><i data-lucide="lightbulb"></i> 5 Ideas de Contenido <span class="badge">PASO 6</span></div>
+    <div class="ideas-grid" id="ideasGrid"></div>
+
+    <div class="cierre-box">
+      <p>Esto es lo que encontré en tu negocio. El siguiente paso natural es instalar este sistema completo con acompañamiento personalizado. ¿Empezamos?</p>
+      <div class="firma" id="firmaPresentadora"></div>
+    </div>
+
+    <div class="cta-final-wrap">
+      <button class="btn-secondary" onclick="descargarPDF()"><i data-lucide="download"></i> Descargar PDF</button>
+      <button class="btn-secondary" onclick="enviarPorWhatsapp()"><i data-lucide="send"></i> Enviar por WhatsApp</button>
+    </div>
+    <p class="fallback-note" style="text-align:center;margin-top:10px;">1. Descarga el PDF &nbsp;→&nbsp; 2. Envíalo por WhatsApp y adjúntalo desde tus Descargas (WhatsApp no permite adjuntarlo solo)</p>
+  </section>
+
+</div>
+
+<script>
+/* ============================================================
+   BLOQUE DE CONFIGURACIÓN — edita estas variables fácilmente
+   ============================================================ */
+const NOMBRE_PRESENTADORA = "Jany Dávila";
+const COLOR_ACENTO      = "#7c3aed"; // Cambia el acento morado/azul del dashboard
+const LOGO_URL          = "";        // URL de logo opcional (si se deja vacío se usa el nombre en texto)
+
+// Aplica el color de acento configurado a las variables CSS
+document.documentElement.style.setProperty('--color-acento', COLOR_ACENTO);
+document.getElementById('presentadoraNombre').textContent = NOMBRE_PRESENTADORA;
+document.getElementById('firmaPresentadora').textContent = "— " + NOMBRE_PRESENTADORA;
+
+// Si se configuró un logo, se muestra en la barra superior
+if(LOGO_URL){
+  const brandLogo = document.getElementById('brandLogo');
+  brandLogo.src = LOGO_URL;
+  brandLogo.style.display = 'inline-block';
+}
+
+/* ============================================================
+   ESTADO GLOBAL
+   ============================================================ */
+let clienteData = null;      // datos capturados en pantalla 1
+let diagnosticoParsed = null; // resultado parseado de la respuesta de Claude
+const STORAGE_KEY = 'diagnostico_exprés_cliente';
+
+/* ============================================================
+   NAVEGACIÓN ENTRE PANTALLAS
+   ============================================================ */
+function irAPantalla(n){
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + n).classList.add('active');
+  window.scrollTo({top:0, behavior:'smooth'});
+  if(window.lucide) lucide.createIcons();
+}
+
+function reiniciarApp(){
+  if(!confirm('¿Reiniciar y empezar un nuevo diagnóstico? Se perderán los datos actuales.')) return;
+  clienteData = null;
+  diagnosticoParsed = null;
+  document.getElementById('formCliente').reset();
+  document.querySelectorAll('#canalesGroup .chip').forEach(c => c.classList.remove('active'));
+  actualizarGiroOtro();
+  document.getElementById('respuestaClaude').value = '';
+  localStorage.removeItem(STORAGE_KEY);
+  irAPantalla(1);
+}
+
+/* ============================================================
+   PANTALLA 1 — CAPTURA + PERSISTENCIA EN LOCALSTORAGE
+   ============================================================ */
+
+// Toggle visual de los chips de canales
+document.querySelectorAll('#canalesGroup .chip input').forEach(input => {
+  input.addEventListener('change', () => {
+    input.closest('.chip').classList.toggle('active', input.checked);
+  });
+});
+
+// Muestra/oculta el campo "Especifica el giro" cuando se elige "Otro"
+const giroSelect = document.getElementById('giro');
+const giroOtroWrap = document.getElementById('giroOtroWrap');
+const giroOtroInput = document.getElementById('giroOtro');
+function actualizarGiroOtro(){
+  const esOtro = giroSelect.value === 'Otro';
+  giroOtroWrap.style.display = esOtro ? '' : 'none';
+  giroOtroInput.required = esOtro;
+  if(!esOtro) giroOtroInput.value = '';
+}
+giroSelect.addEventListener('change', actualizarGiroOtro);
+
+// Restaurar datos guardados (si existen) para no perderlos ante recarga accidental
+function restaurarDesdeStorage(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return;
+    const data = JSON.parse(raw);
+    document.getElementById('nombreEmpresario').value = data.nombreEmpresario || '';
+    document.getElementById('whatsappProspecto').value = data.whatsappProspecto || '';
+    document.getElementById('queVende').value = data.queVende || '';
+    document.getElementById('aQuienVende').value = data.aQuienVende || '';
+    document.getElementById('linkCanal1').value = data.linkCanal1 || '';
+    document.getElementById('linkCanal2').value = data.linkCanal2 || '';
+    document.getElementById('dolor').value = data.dolor || '';
+    document.getElementById('tareaTiempo').value = data.tareaTiempo || '';
+    document.getElementById('competidorUrl').value = data.competidorUrl || '';
+    if(data.ventasMes) document.getElementById('ventasMes').value = data.ventasMes;
+    if(data.giroSeleccion) giroSelect.value = data.giroSeleccion;
+    giroOtroInput.value = data.giroOtro || '';
+    actualizarGiroOtro();
+    (data.canales || []).forEach(val => {
+      const input = document.querySelector(`#canalesGroup input[value="${CSS.escape(val)}"]`);
+      if(input){ input.checked = true; input.closest('.chip').classList.add('active'); }
+    });
+  }catch(e){ /* ignora datos corruptos en storage */ }
+}
+restaurarDesdeStorage();
+
+document.getElementById('formCliente').addEventListener('submit', function(e){
+  e.preventDefault();
+
+  const canales = Array.from(document.querySelectorAll('#canalesGroup input:checked')).map(i => i.value);
+  const giroSeleccion = giroSelect.value;
+  const giroOtro = giroOtroInput.value.trim();
+  const giro = giroSeleccion === 'Otro' ? (giroOtro || 'Otro') : giroSeleccion;
+
+  clienteData = {
+    nombreEmpresario: document.getElementById('nombreEmpresario').value.trim(),
+    whatsappProspecto: document.getElementById('whatsappProspecto').value.trim(),
+    giro: giro,
+    giroSeleccion: giroSeleccion,
+    giroOtro: giroOtro,
+    queVende: document.getElementById('queVende').value.trim(),
+    aQuienVende: document.getElementById('aQuienVende').value.trim(),
+    canales: canales,
+    linkCanal1: document.getElementById('linkCanal1').value.trim(),
+    linkCanal2: document.getElementById('linkCanal2').value.trim(),
+    ventasMes: document.getElementById('ventasMes').value,
+    dolor: document.getElementById('dolor').value.trim(),
+    tareaTiempo: document.getElementById('tareaTiempo').value.trim(),
+    competidorUrl: document.getElementById('competidorUrl').value.trim(),
+  };
+
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(clienteData));
+
+  document.getElementById('promptGenerado').textContent = construirPrompt(clienteData);
+  irAPantalla(2);
+});
+
+/* ============================================================
+   CONSTRUCCIÓN DEL PROMPT
+   Notas:
+   - Se pide TODO en una sola respuesta de texto plano (sin fases
+     con pausas, sin PDF) para que sea un solo copiar/pegar.
+   - El PASO 1 usa las 6 etapas del Customer Journey del Hub de
+     Jefes (mismo framework que ADN.html), no áreas genéricas.
+   - Se agregan etiquetas explícitas (OPORTUNIDAD 1/2/3,
+     ACCIÓN 1/2/3, IDEA 1-5, campos de competencia) para que la
+     respuesta de Claude sea parseable de forma confiable en
+     Pantalla 3.
+   ============================================================ */
+function construirPrompt(d){
+  const canalesTxt = d.canales.length ? d.canales.join(', ') : 'ningún canal activo registrado';
+  const tieneCompetidor = !!d.competidorUrl;
+
+  const links = [d.linkCanal1, d.linkCanal2].filter(Boolean);
+  const linksTxt = links.length ? ` Sus canales principales para analizar son: ${links.join(' y ')}.` : '';
+  const competenciaLinkTxt = tieneCompetidor ? ` También revisa el link del competidor principal: ${d.competidorUrl}.` : '';
+
+  let prompt = `Eres un estratega de negocios experto en marketing e inteligencia artificial. Piensas con la misma lógica del Hub de Jefes: te enfocas en el recorrido real del cliente (cómo descubre el negocio, cómo pide información, cómo decide, cómo paga, cómo recibe y qué pasa después de comprar), no en teoría genérica de marketing. Tu trabajo es analizar este negocio y entregar un diagnóstico claro, visual y accionable, a partir de la información y los enlaces que te comparto a continuación. Habla como consultor directo, sin tecnicismos, sin lenguaje de IA. El prospecto debe sentir que un experto analiza su negocio en tiempo real.
+
+Se dedica a ${d.giro}. Vende ${d.queVende} a ${d.aQuienVende}. Está presente en ${canalesTxt}.${linksTxt} Genera aproximadamente ${d.ventasMes} ventas al mes. Su mayor dolor respecto a ventas y publicidad es ${d.dolor}. Lo que más tiempo le quita es ${d.tareaTiempo}.
+
+IMPORTANTE — cómo entregar tu respuesta: escribe TODO en un único mensaje de texto plano, de una sola vez. No generes un documento ni PDF descargable, no te detengas a pedir confirmación entre secciones: desarrolla las fases siguientes una tras otra, en el orden indicado, sin pausas.
+
+IMPORTANTE — sobre investigar los links: si tienes forma de navegar o abrir los enlaces que te doy, úsala para revisar de verdad sus últimas publicaciones antes de responder el PASO 1. Si NO tienes forma de navegar o el enlace no carga, dilo explícitamente en ese campo (ej. "No pude acceder a este link") en vez de inventar datos como si los hubieras visto.
+
+IMPORTANTE — cómo dar recomendaciones: en cada "Oportunidad con IA" y en cada oportunidad del PASO 3, prioriza en este orden: primero acciones gratuitas o de bajo costo que el dueño puede implementar HOY con lo que ya tiene (cambiar hábitos, frecuencia de publicación, mensajes, procesos); solo si de verdad no hay una opción manual razonable, sugiere una herramienta o automatización con IA. Nunca sugieras contratar más personal como primera opción.
+
+PASO 1 — AUDITORÍA RÁPIDA DE REDES
+Visita los canales principales de este negocio: ${links.length ? links.join(' y ') : '(no se proporcionaron links de canales)'}.${competenciaLinkTxt} Revisa las últimas 10 publicaciones de cada canal que puedas abrir. Con eso, entrega una tabla comparativa: este negocio (Actual), el competidor si te compartí su link (Competencia), y una referencia de lo que sería lo ideal (Ideal). Entrega EXACTAMENTE este formato, una entrada por métrica:
+MÉTRICA: Frecuencia de publicación
+ACTUAL: [veces por semana, según las fechas de sus últimas publicaciones]
+COMPETENCIA: [lo mismo para el competidor, o "No proporcionado" si no hay link de competidor]
+IDEAL: Mínimo 3 veces por semana
+
+MÉTRICA: Actividad en historias
+ACTUAL: [qué tan activo está en historias]
+COMPETENCIA: [ídem, o "No proporcionado"]
+IDEAL: Historias activas casi todos los días
+
+MÉTRICA: Highlights
+ACTUAL: [si tiene highlights organizados o no]
+COMPETENCIA: [ídem, o "No proporcionado"]
+IDEAL: Highlights organizados por categoría (precios, proceso, testimonios)
+
+MÉTRICA: Uso de Reels
+ACTUAL: [de las últimas publicaciones que revisaste, cuántas fueron reels]
+COMPETENCIA: [ídem, o "No proporcionado"]
+IDEAL: Al menos 4 de cada 10 publicaciones en formato reel
+
+MÉTRICA: Canales de contacto visibles
+ACTUAL: [qué tan fácil es encontrar cómo contactarlo desde su perfil]
+COMPETENCIA: [ídem, o "No proporcionado"]
+IDEAL: WhatsApp o link de contacto visible desde la primera línea de la bio
+
+MÉTRICA: Mejores publicaciones
+ACTUAL: [las 1-2 publicaciones con más interacción que veas, y por qué crees que funcionaron]
+COMPETENCIA: [ídem, o "No proporcionado"]
+IDEAL: Contenido que muestre el producto en uso o resultados reales de clientes
+
+PASO 2 — DIAGNÓSTICO POR ETAPAS DEL RECORRIDO DEL CLIENTE
+Analiza estas 6 etapas del recorrido que sigue un cliente con este negocio. Para cada etapa, apóyate en los datos reales que ya tienes de este negocio (giro, qué vende, a quién le vende, canales, su mayor dolor, la tarea que más tiempo le quita, y lo que hayas visto en la auditoría del PASO 1). En las etapas donde no tengas un dato directo (por ejemplo Decide, Paga, Recibe o Post-Compra), no inventes detalles específicos como si los hubieras observado: describe lo que es típico y realista para un negocio de este giro y tamaño, dejando claro que es una suposición razonable, no un hecho confirmado. Entrega EXACTAMENTE este formato (respeta las etiquetas tal cual):
+ÁREA: [nombre de la etapa]
+Estado: 🔴 Crítico / 🟡 Mejorable / 🟢 Bien encaminado
+Qué tiene hoy: [1 línea específica]
+Qué le recomendamos: [1 línea específica, la recomendación concreta para esta etapa]
+Oportunidad con IA: [1 línea concreta para este negocio]
+
+Etapas: Descubre (dónde el cliente se entera de que existe), Pide Info (el primer contacto o consulta), Decide (dónde se cierra la conversación de venta), Paga (método y canal de pago), Recibe (cómo recibe el producto o servicio), Post-Compra (seguimiento, recompra y fidelización).
+
+PASO 3 — TOP 3 OPORTUNIDADES CON IA
+Las 3 oportunidades más urgentes donde la IA puede generar impacto real e inmediato. Entrega EXACTAMENTE este formato para cada una:
+OPORTUNIDAD 1: [nombre]
+Dolor que resuelve: [1-2 líneas]
+Cómo funciona: [1-2 líneas]
+Resultado esperado: [1 línea]
+
+OPORTUNIDAD 2: [nombre]
+Dolor que resuelve: [1-2 líneas]
+Cómo funciona: [1-2 líneas]
+Resultado esperado: [1 línea]
+
+OPORTUNIDAD 3: [nombre]
+Dolor que resuelve: [1-2 líneas]
+Cómo funciona: [1-2 líneas]
+Resultado esperado: [1 línea]
+`;
+
+  if(tieneCompetidor){
+    prompt += `
+PASO 4 — ANÁLISIS DE COMPETENCIA
+Analiza al competidor principal en el siguiente enlace: ${d.competidorUrl}. Entrega EXACTAMENTE este formato:
+Qué está haciendo bien: [1-2 líneas]
+Qué oportunidad deja abierta: [1-2 líneas]
+Cómo puede diferenciarse este negocio con IA: [1-2 líneas]
+`;
+  }
+
+  prompt += `
+PASO 5 — 3 ACCIONES PARA ESTA SEMANA
+Entrega 3 acciones concretas que el negocio puede tomar ESTA SEMANA, en orden de impacto. Entrega EXACTAMENTE este formato para cada una:
+ACCIÓN 1: [nombre]
+Por qué es urgente: [1-2 líneas]
+Qué pasa si no se resuelve: [1-2 líneas]
+
+ACCIÓN 2: [nombre]
+Por qué es urgente: [1-2 líneas]
+Qué pasa si no se resuelve: [1-2 líneas]
+
+ACCIÓN 3: [nombre]
+Por qué es urgente: [1-2 líneas]
+Qué pasa si no se resuelve: [1-2 líneas]
+
+Reglas para estas 3 acciones: las Acciones 1 y 2 deben ser cosas que el dueño puede hacer por su cuenta, sin contratar a nadie ni usar herramientas de IA. La Acción 3 SIEMPRE debe apuntar a instalar un sistema completo con acompañamiento experto — esto es justo lo que resuelve la Capacitación Estratégica con IA 1 a 1 (3 sesiones personalizadas, diagnóstico completo, estrategia, plan de implementación, y 4 meses de Hub de Jefes). Descríbela como el paso natural para quien ya intentó resolverlo solo y necesita que alguien se lo instale con acompañamiento, sin sonar a venta forzada.
+
+PASO 6 — 5 IDEAS DE CONTENIDO
+Basado en lo que vende, a quién le vende, y lo que mejor le ha funcionado en redes, dame 5 ideas de contenido listas para grabar o publicar esta semana. Entrega EXACTAMENTE este formato para cada una:
+IDEA 1: [título corto de la idea]
+Formato: [reel / carrusel / historia / post]
+De qué trata: [1-2 líneas]
+
+IDEA 2: [título corto de la idea]
+Formato: [reel / carrusel / historia / post]
+De qué trata: [1-2 líneas]
+
+IDEA 3: [título corto de la idea]
+Formato: [reel / carrusel / historia / post]
+De qué trata: [1-2 líneas]
+
+IDEA 4: [título corto de la idea]
+Formato: [reel / carrusel / historia / post]
+De qué trata: [1-2 líneas]
+
+IDEA 5: [título corto de la idea]
+Formato: [reel / carrusel / historia / post]
+De qué trata: [1-2 líneas]
+
+Cierra con: "Esto es lo que encontré en tu negocio. El siguiente paso natural es instalar este sistema completo con acompañamiento personalizado. ¿Empezamos?"`;
+
+  return prompt;
+}
+
+/* ============================================================
+   PANTALLA 2 — COPIAR PROMPT
+   ============================================================ */
+function copiarPrompt(){
+  const texto = document.getElementById('promptGenerado').textContent;
+  const flag = document.getElementById('copiadoFlag');
+
+  const mostrarFlag = () => {
+    flag.classList.add('show');
+    setTimeout(() => flag.classList.remove('show'), 2500);
+  };
+
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(texto).then(mostrarFlag).catch(() => copiarFallback(texto, mostrarFlag));
+  }else{
+    copiarFallback(texto, mostrarFlag);
+  }
+}
+
+function copiarFallback(texto, cb){
+  const ta = document.createElement('textarea');
+  ta.value = texto;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  try{ document.execCommand('copy'); cb(); }catch(e){ alert('No se pudo copiar automáticamente. Selecciona el texto manualmente.'); }
+  document.body.removeChild(ta);
+}
+
+/* ============================================================
+   PARSEO DE LA RESPUESTA DE CLAUDE
+   ============================================================ */
+function escapeHtml(str){
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// Extrae bloques repetidos tipo "ETIQUETA N: nombre" + campos con "Campo:"
+function extraerBloques(texto, tituloRegexStr, camposLabels){
+  // tituloRegexStr ej: 'ÁREA' o 'OPORTUNIDAD \\d+' o 'PRIORIDAD \\d+'
+  const tituloRegex = new RegExp('(?:^|\\n)\\s*' + tituloRegexStr + '\\s*:\\s*(.+)', 'g');
+  const matches = [...texto.matchAll(tituloRegex)];
+  const bloques = [];
+
+  for(let i = 0; i < matches.length; i++){
+    const start = matches[i].index;
+    const end = (i + 1 < matches.length) ? matches[i+1].index : texto.length;
+    const chunk = texto.slice(start, end);
+    const nombre = matches[i][1].trim().replace(/[*_#]/g,'').trim();
+
+    const campos = {};
+    camposLabels.forEach(label => {
+      const re = new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + '\\s*:\\s*(.+)', 'i');
+      const m = chunk.match(re);
+      campos[label] = m ? m[1].trim().replace(/^\*+|\*+$/g,'').trim() : '';
+    });
+
+    bloques.push({ nombre, campos, raw: chunk.trim() });
+  }
+  return bloques;
+}
+
+function detectarEstado(estadoTexto){
+  const t = (estadoTexto || '').toLowerCase();
+  if(t.includes('🔴') || t.includes('crítico') || t.includes('critico')) return {clase:'rojo', texto:'Crítico'};
+  if(t.includes('🟡') || t.includes('mejorable')) return {clase:'amarillo', texto:'Mejorable'};
+  if(t.includes('🟢') || t.includes('bien encaminado') || t.includes('bien')) return {clase:'verde', texto:'Bien encaminado'};
+  return {clase:'gris', texto: estadoTexto || 'Sin datos'};
+}
+
+function extraerSeccion(texto, inicioMarcadores, finMarcadores){
+  // Busca desde el primer marcador de inicio hasta el primer marcador de fin encontrado después
+  let startIdx = -1;
+  for(const m of inicioMarcadores){
+    const idx = texto.search(new RegExp(m, 'i'));
+    if(idx !== -1 && (startIdx === -1 || idx < startIdx)) startIdx = idx;
+  }
+  if(startIdx === -1) return '';
+
+  let endIdx = texto.length;
+  for(const m of finMarcadores){
+    const re = new RegExp(m, 'i');
+    const sub = texto.slice(startIdx + 10);
+    const idx = sub.search(re);
+    if(idx !== -1){
+      const real = startIdx + 10 + idx;
+      if(real < endIdx) endIdx = real;
+    }
+  }
+  return texto.slice(startIdx, endIdx).trim();
+}
+
+function parseClaudeResponse(texto, tieneCompetidor){
+  const resultado = { auditoria: [], areas: [], oportunidades: [], competencia: null, acciones: [], ideas: [] };
+
+  // --- AUDITORÍA RÁPIDA DE REDES (Paso 1) ---
+  const seccionAudit = extraerSeccion(texto, ['PASO\\s*1'], ['PASO\\s*2']);
+  const fuenteAudit = seccionAudit || texto;
+  const bloquesAudit = extraerBloques(fuenteAudit, 'MÉTRICA', ['ACTUAL', 'COMPETENCIA', 'IDEAL']);
+  resultado.auditoria = bloquesAudit.map(b => ({
+    nombre: b.nombre,
+    actual: b.campos['ACTUAL'],
+    competencia: b.campos['COMPETENCIA'],
+    ideal: b.campos['IDEAL'],
+    raw: b.raw
+  }));
+
+  // --- ÁREAS (Paso 2) ---
+  const seccionAreas = extraerSeccion(texto, ['PASO\\s*2'], ['PASO\\s*3']);
+  const fuenteAreas = seccionAreas || texto;
+  const bloquesArea = extraerBloques(fuenteAreas, 'ÁREA', ['Estado', 'Qué tiene hoy', 'Qué le recomendamos', 'Oportunidad con IA']);
+  resultado.areas = bloquesArea.map(b => ({
+    nombre: b.nombre,
+    estado: detectarEstado(b.campos['Estado']),
+    tieneHoy: b.campos['Qué tiene hoy'],
+    recomendacion: b.campos['Qué le recomendamos'],
+    oportunidad: b.campos['Oportunidad con IA'],
+    raw: b.raw
+  }));
+
+  // --- OPORTUNIDADES (Paso 3) ---
+  const seccionOp = extraerSeccion(texto, ['PASO\\s*3'], ['PASO\\s*4', 'PASO\\s*5']);
+  const fuenteOp = seccionOp || texto;
+  let bloquesOp = extraerBloques(fuenteOp, 'OPORTUNIDAD\\s*\\d+', ['Dolor que resuelve', 'Cómo funciona', 'Resultado esperado']);
+  if(bloquesOp.length === 0){
+    // Fallback: intenta dividir por líneas numeradas "1.", "2.", "3."
+    bloquesOp = extraerBloques(fuenteOp, '\\d+[\\.\\)]', ['Dolor que resuelve', 'Cómo funciona', 'Resultado esperado']);
+  }
+  resultado.oportunidades = bloquesOp.map(b => ({
+    nombre: b.nombre,
+    dolor: b.campos['Dolor que resuelve'],
+    comoFunciona: b.campos['Cómo funciona'],
+    resultado: b.campos['Resultado esperado'],
+    raw: b.raw
+  }));
+
+  // --- COMPETENCIA (Paso 4, solo si aplica) ---
+  if(tieneCompetidor){
+    const seccionComp = extraerSeccion(texto, ['PASO\\s*4'], ['PASO\\s*5']);
+    if(seccionComp){
+      const bienM = seccionComp.match(/Qué está haciendo bien\s*:\s*(.+)/i);
+      const oportM = seccionComp.match(/Qué oportunidad deja abierta\s*:\s*(.+)/i);
+      const difM = seccionComp.match(/Cómo puede diferenciarse[^:]*:\s*(.+)/i);
+      resultado.competencia = {
+        bien: bienM ? bienM[1].trim() : '',
+        oportunidad: oportM ? oportM[1].trim() : '',
+        diferenciarse: difM ? difM[1].trim() : '',
+        raw: seccionComp
+      };
+    }
+  }
+
+  // --- 3 ACCIONES PARA ESTA SEMANA (Paso 5) ---
+  const seccionAcciones = extraerSeccion(texto, ['PASO\\s*5'], ['PASO\\s*6']);
+  const fuenteAcciones = seccionAcciones || texto;
+  let bloquesAcciones = extraerBloques(fuenteAcciones, 'ACCI[OÓ]N\\s*\\d+', ['Por qué es urgente', 'Qué pasa si no se resuelve']);
+  resultado.acciones = bloquesAcciones.map(b => ({
+    nombre: b.nombre,
+    urgente: b.campos['Por qué es urgente'],
+    riesgo: b.campos['Qué pasa si no se resuelve'],
+    raw: b.raw
+  }));
+
+  // --- 5 IDEAS DE CONTENIDO (Paso 6) ---
+  const seccionIdeas = extraerSeccion(texto, ['PASO\\s*6'], ['$^']); // hasta el final
+  const fuenteIdeas = seccionIdeas || texto;
+  let bloquesIdeas = extraerBloques(fuenteIdeas, 'IDEA\\s*\\d+', ['Formato', 'De qué trata']);
+  resultado.ideas = bloquesIdeas.map(b => ({
+    nombre: b.nombre,
+    formato: b.campos['Formato'],
+    deQueTrata: b.campos['De qué trata'],
+    raw: b.raw
+  }));
+
+  return resultado;
+}
+
+/* ============================================================
+   PANTALLA 2 -> 3 — VISUALIZAR DIAGNÓSTICO
+   ============================================================ */
+const ICONOS_AREA = [
+  'search',         // Descubre
+  'message-circle', // Pide Info
+  'check-circle-2', // Decide
+  'credit-card',    // Paga
+  'package',        // Recibe
+  'repeat'          // Post-Compra
+];
+
+function visualizarDiagnostico(){
+  const texto = document.getElementById('respuestaClaude').value.trim();
+  if(!texto){
+    alert('Pega primero la respuesta de Claude para poder visualizar el diagnóstico.');
+    return;
+  }
+  if(!clienteData){
+    alert('Faltan los datos del cliente. Regresa a la pantalla de captura.');
+    return;
+  }
+
+  diagnosticoParsed = parseClaudeResponse(texto, !!clienteData.competidorUrl);
+  renderDashboard();
+  irAPantalla(3);
+}
+
+function renderDashboard(){
+  document.getElementById('dashNombreEmpresario').textContent = clienteData.nombreEmpresario ? `Empresario: ${clienteData.nombreEmpresario}` : '';
+
+  renderAuditoria();
+  renderAreas();
+  renderOportunidades();
+  renderCompetencia();
+  renderAcciones();
+  renderIdeas();
+
+  if(window.lucide) lucide.createIcons();
+}
+
+// Se parsea de la respuesta de Claude (PASO 1) — Claude investiga los links, no Jany
+function renderAuditoria(){
+  const wrap = document.getElementById('auditSectionWrap');
+
+  if(diagnosticoParsed.auditoria.length === 0){
+    wrap.innerHTML = `<p class="fallback-note">No se detectó la tabla de auditoría con el formato esperado.</p>`;
+    return;
+  }
+
+  const tieneCompetencia = !!clienteData.competidorUrl;
+
+  wrap.innerHTML = `
+    <div class="audit-table-wrap">
+      <table class="audit-table">
+        <thead>
+          <tr>
+            <th>Métrica</th>
+            <th>Actual</th>
+            ${tieneCompetencia ? '<th>Competencia</th>' : ''}
+            <th>Lo ideal</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${diagnosticoParsed.auditoria.map(f => `
+            <tr>
+              <td class="audit-metrica">${escapeHtml(f.nombre)}</td>
+              <td>${escapeHtml(f.actual || f.raw)}</td>
+              ${tieneCompetencia ? `<td>${escapeHtml(f.competencia)}</td>` : ''}
+              <td class="audit-ideal">${escapeHtml(f.ideal)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderAreas(){
+  const grid = document.getElementById('areasGrid');
+  grid.innerHTML = '';
+
+  if(diagnosticoParsed.areas.length === 0){
+    grid.innerHTML = `<div class="area-card" style="animation-delay:.05s"><p class="fallback-note">No se detectaron áreas con el formato esperado. Revisa la respuesta pegada.</p></div>`;
+    return;
+  }
+
+  diagnosticoParsed.areas.forEach((area, i) => {
+    const card = document.createElement('div');
+    card.className = 'area-card';
+    card.style.animationDelay = (i * 0.07) + 's';
+
+    const camposCompletos = area.tieneHoy && area.recomendacion && area.oportunidad;
+
+    card.innerHTML = `
+      <div class="area-head">
+        <div class="area-icon"><i data-lucide="${ICONOS_AREA[i % ICONOS_AREA.length]}"></i></div>
+        <h3>${escapeHtml(area.nombre || 'Área ' + (i+1))}</h3>
+      </div>
+      <div class="semaforo ${area.estado.clase}">${area.estado.texto}</div>
+      ${camposCompletos ? `
+        <div class="linea"><b>Qué tiene hoy</b>${escapeHtml(area.tieneHoy)}</div>
+        <div class="linea"><b>Qué le recomendamos</b>${escapeHtml(area.recomendacion)}</div>
+        <div class="oportunidad"><b style="color:var(--color-acento);display:block;margin-bottom:4px;">Oportunidad con IA</b>${escapeHtml(area.oportunidad)}</div>
+      ` : `<div class="linea">${escapeHtml(area.raw)}</div><p class="fallback-note">Formato parcial detectado.</p>`}
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function renderOportunidades(){
+  const grid = document.getElementById('opGrid');
+  grid.innerHTML = '';
+
+  if(diagnosticoParsed.oportunidades.length === 0){
+    grid.innerHTML = `<div class="op-card"><p class="fallback-note">No se detectaron oportunidades con el formato esperado.</p></div>`;
+    return;
+  }
+
+  diagnosticoParsed.oportunidades.forEach((op, i) => {
+    const card = document.createElement('div');
+    card.className = 'op-card';
+    card.style.animationDelay = (i * 0.08) + 's';
+
+    const camposCompletos = op.dolor && op.comoFunciona;
+
+    card.innerHTML = `
+      <div class="op-num">${i+1}</div>
+      <div>
+        <h3>${escapeHtml(op.nombre || 'Oportunidad ' + (i+1))}</h3>
+        ${camposCompletos ? `
+          <div class="linea"><b>Dolor que resuelve:</b> ${escapeHtml(op.dolor)}</div>
+          <div class="linea"><b>Cómo funciona:</b> ${escapeHtml(op.comoFunciona)}</div>
+          ${op.resultado ? `<div class="resultado">${escapeHtml(op.resultado)}</div>` : ''}
+        ` : `<div class="linea">${escapeHtml(op.raw)}</div>`}
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+// Convierte un link (ej. "https://www.instagram.com/dulcevida/") en una etiqueta corta y legible
+function etiquetaDesdeUrl(url){
+  return String(url).replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/$/, '');
+}
+
+function renderCompetencia(){
+  const wrap = document.getElementById('compSectionWrap');
+  wrap.innerHTML = '';
+
+  if(!clienteData.competidorUrl || !diagnosticoParsed.competencia) return;
+
+  const c = diagnosticoParsed.competencia;
+  const camposCompletos = c.bien && c.oportunidad && c.diferenciarse;
+
+  wrap.innerHTML = `
+    <div class="section-title"><i data-lucide="swords"></i> Análisis de Competencia <span class="badge">PASO 4</span></div>
+    <div class="comp-card">
+      <h3>vs ${escapeHtml(etiquetaDesdeUrl(clienteData.competidorUrl))}</h3>
+      ${camposCompletos ? `
+        <div class="comp-grid">
+          <div class="comp-col"><b>Qué hace bien</b><p>${escapeHtml(c.bien)}</p></div>
+          <div class="comp-col"><b>Oportunidad abierta</b><p>${escapeHtml(c.oportunidad)}</p></div>
+          <div class="comp-col"><b>Cómo diferenciarse</b><p>${escapeHtml(c.diferenciarse)}</p></div>
+        </div>
+      ` : `<p class="fallback-note">${escapeHtml(c.raw || 'Sin datos de competencia detectados en el formato esperado.')}</p>`}
+    </div>
+  `;
+}
+
+function renderAcciones(){
+  const stack = document.getElementById('accionesStack');
+  stack.innerHTML = '';
+
+  if(diagnosticoParsed.acciones.length === 0){
+    stack.innerHTML = `<div class="pri-card"><p class="fallback-note">No se detectaron acciones con el formato esperado.</p></div>`;
+    return;
+  }
+
+  diagnosticoParsed.acciones.forEach((a, i) => {
+    const card = document.createElement('div');
+    card.className = 'pri-card';
+    card.style.animationDelay = (i * 0.08) + 's';
+
+    const camposCompletos = a.urgente && a.riesgo;
+
+    card.innerHTML = `
+      <div class="pri-head">
+        <div class="pri-num">${i+1}</div>
+        <h3>${escapeHtml(a.nombre || 'Acción ' + (i+1))}</h3>
+      </div>
+      ${camposCompletos ? `
+        <div class="linea"><b>Por qué es urgente:</b> ${escapeHtml(a.urgente)}</div>
+        <div class="riesgo">${escapeHtml(a.riesgo)}</div>
+      ` : `<div class="linea">${escapeHtml(a.raw)}</div>`}
+    `;
+    stack.appendChild(card);
+  });
+}
+
+function renderIdeas(){
+  const grid = document.getElementById('ideasGrid');
+  grid.innerHTML = '';
+
+  if(diagnosticoParsed.ideas.length === 0){
+    grid.innerHTML = `<div class="idea-card"><p class="fallback-note">No se detectaron ideas de contenido con el formato esperado.</p></div>`;
+    return;
+  }
+
+  diagnosticoParsed.ideas.forEach((idea, i) => {
+    const card = document.createElement('div');
+    card.className = 'idea-card';
+    card.style.animationDelay = (i * 0.06) + 's';
+
+    const camposCompletos = idea.formato && idea.deQueTrata;
+
+    card.innerHTML = `
+      <div class="idea-num">IDEA ${i+1}</div>
+      <h3>${escapeHtml(idea.nombre || 'Idea ' + (i+1))}</h3>
+      ${camposCompletos ? `
+        <span class="formato">${escapeHtml(idea.formato)}</span>
+        <div class="desc">${escapeHtml(idea.deQueTrata)}</div>
+      ` : `<div class="desc">${escapeHtml(idea.raw)}</div>`}
+    `;
+    grid.appendChild(card);
+  });
+}
+
+/* ============================================================
+   PANTALLA 3 — DESCARGA DE PDF (usa la impresión nativa del navegador)
+   ============================================================ */
+function descargarPDF(){
+  const fecha = new Date().toLocaleDateString('es-MX', {year:'numeric', month:'long', day:'numeric'});
+  const logoHtml = LOGO_URL ? `<img class="ph-logo" src="${escapeHtml(LOGO_URL)}" alt="${escapeHtml(NOMBRE_PRESENTADORA)}">` : '';
+  document.getElementById('printHeader').innerHTML = `
+    ${logoHtml}
+    <div class="ph-title">Diagnóstico Exprés — ${escapeHtml(clienteData.nombreEmpresario || 'Reporte de negocio')}</div>
+    <div class="ph-meta">Generado el ${fecha} · Hub de Jefes × ${escapeHtml(NOMBRE_PRESENTADORA)}</div>
+  `;
+  window.print();
+}
+
+// Abre WhatsApp ya con el chat del prospecto y un mensaje listo.
+// El PDF NO se adjunta solo — WhatsApp no lo permite desde un link — hay que adjuntarlo a mano.
+function enviarPorWhatsapp(){
+  const numero = (clienteData.whatsappProspecto || '').replace(/[^\d]/g, '');
+  if(!numero){
+    alert('No hay un número de WhatsApp del prospecto. Regresa a la Pantalla 1 y llénalo antes de enviar.');
+    return;
+  }
+  const nombre = clienteData.nombreEmpresario ? `Hola ${clienteData.nombreEmpresario}, ` : 'Hola, ';
+  const mensaje = encodeURIComponent(`${nombre}aquí tienes tu diagnóstico completo. Te adjunto el PDF 👇`);
+  window.open(`https://wa.me/${numero}?text=${mensaje}`, '_blank', 'noopener');
+}
+
+/* ============================================================
+   INIT ICONOS
+   ============================================================ */
+if(window.lucide) lucide.createIcons();
+</script>
+</body>
+</html>
