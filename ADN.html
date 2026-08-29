@@ -117,6 +117,22 @@
   .wa-link-box{margin-top:6px;padding:8px 10px;background:var(--bg);border:1px solid var(--line);border-radius:8px;font-size:11px;color:#7CB9E8;word-break:break-all;display:none;}
   .wa-link-box.visible{display:block;}
   .ubi-hint{font-size:11px;color:var(--text-dim);margin-top:4px;line-height:1.4;}
+  .wa-ctas-wrap{padding:8px 0 12px 36px;border-bottom:1px solid var(--line);}
+  .wa-cta-card{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px;}
+  .wa-cta-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+  .wa-cta-head input[type=text]{flex:1;background:var(--bg);border:1px solid var(--line);border-radius:7px;color:var(--text);padding:6px 9px;font-family:'Inter',sans-serif;font-size:12.5px;font-weight:600;outline:none;}
+  .wa-cta-head input[type=text]:focus{border-color:var(--accent);}
+  .wa-cta-remove{background:none;border:1px solid var(--line);color:var(--text-dim);border-radius:7px;width:26px;height:26px;flex:none;cursor:pointer;font-size:13px;line-height:1;}
+  .wa-cta-remove:hover{border-color:#EF4444;color:#EF4444;}
+  .wa-cta-card textarea{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:8px 10px;font-family:'Inter',sans-serif;font-size:13px;outline:none;min-height:44px;resize:vertical;}
+  .wa-cta-card textarea:focus{border-color:var(--accent);}
+  .wa-cta-links{margin-top:8px;display:flex;flex-direction:column;gap:5px;}
+  .wa-cta-links .wa-link-box{margin-top:0;}
+  .wa-cta-short-row{display:flex;align-items:center;gap:8px;}
+  .wa-cta-short-row input[type=url]{flex:1;background:var(--bg);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:7px 9px;font-family:'Inter',sans-serif;font-size:12px;outline:none;}
+  .wa-cta-short-row input[type=url]:focus{border-color:var(--accent);}
+  .wa-cta-add-btn{background:none;border:1.5px dashed var(--line);color:var(--text-dim);border-radius:8px;padding:9px 14px;font-family:'JetBrains Mono',monospace;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;width:100%;}
+  .wa-cta-add-btn:hover{border-color:var(--accent);color:var(--accent);}
 
   /* AUDIENCIA TABS */
   .aud-tabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
@@ -530,9 +546,9 @@ Al terminar, dame cada respuesta con su etiqueta exacta, en este mismo orden, pa
 5. YouTube — ¿cuál es tu @canal?
 6. LinkedIn — ¿cuál es tu usuario?
 7. WhatsApp — número con código de país (ej. 521XXXXXXXXXX):
-8. Mensaje de bienvenida de WhatsApp (opcional — el texto que se pre-llena cuando alguien hace clic en tu link):
+8. Mensaje de bienvenida de WhatsApp (el mensaje general que se pre-llena al hacer clic en tu link — dentro de la plataforma puedes agregar más mensajes para campañas específicas, aquí solo el principal):
 9. Dirección completa de tu negocio, si tienes ubicación física (calle, número, colonia, ciudad) — si no tienes local físico, escribe "No aplica":
-10. Link de Google Maps de tu negocio (opcional pero recomendado — para conseguirlo: busca tu negocio en Google Maps → botón "Compartir" → "Copiar enlace"):
+10. Link de Google Maps de tu negocio (opcional — si no lo tienes a la mano, la plataforma genera uno solo con la dirección; pégalo aquí solo si quieres el de tu ficha real de Maps):
 
 — Estrategia de contenido —
 11. Frecuencia de publicación — elige una:
@@ -1306,11 +1322,11 @@ function renderRedesCanales(){
     container.appendChild(row);
   });
 
-  // WhatsApp — fila especial con número + mensaje + link generado
+  // WhatsApp — número único + una o varias tarjetas de mensaje (cada una con su propio
+  // link wa.me). Cada tarjeta puede tener un link corto pegado a mano (ej. de wa.link) para
+  // usarse en vez del link largo -- no generamos el corto nosotros, ver hint en la tarjeta.
   const waDef = { icon:'💬', nombre:'WhatsApp' };
-  const waNum  = redesState.whatsapp?.numero || '';
-  const waMsg  = redesState.whatsapp?.mensaje || '';
-  const waLink = buildWaLink(waNum, waMsg);
+  const waNum = redesState.whatsapp?.numero || '';
 
   const waRow = document.createElement('div');
   waRow.className = 'channel-row';
@@ -1321,33 +1337,90 @@ function renderRedesCanales(){
   `;
   container.appendChild(waRow);
 
-  const waMsgRow = document.createElement('div');
-  waMsgRow.className = 'wa-msg-row';
-  waMsgRow.innerHTML = `
-    <label>Mensaje de bienvenida (opcional — se pre-llena cuando alguien hace clic en tu link)</label>
-    <textarea id="wa-mensaje" placeholder="Ej. Hola, me interesa saber más sobre sus servicios 😊">${escapeHtml(waMsg)}</textarea>
-    <div class="wa-link-box${waLink?' visible':''}" id="wa-link-display">${escapeHtml(waLink)}</div>
-  `;
-  container.appendChild(waMsgRow);
-
-  function updateWaLink(){
-    const num = document.getElementById('wa-numero').value.trim();
-    const msg = document.getElementById('wa-mensaje').value.trim();
+  if(!Array.isArray(redesState.whatsapp?.ctas) || redesState.whatsapp.ctas.length === 0){
     if(!redesState.whatsapp) redesState.whatsapp = {};
-    redesState.whatsapp.numero  = num;
-    redesState.whatsapp.mensaje = msg;
-    redesState.whatsapp.link    = buildWaLink(num, msg);
-    const box = document.getElementById('wa-link-display');
-    box.textContent = redesState.whatsapp.link || '';
-    box.classList.toggle('visible', !!redesState.whatsapp.link);
+    redesState.whatsapp.ctas = [{ id:'cta-'+Date.now(), label:'General', mensaje:'' }];
   }
-  document.getElementById('wa-numero').addEventListener('input', updateWaLink);
-  document.getElementById('wa-mensaje').addEventListener('input', updateWaLink);
+
+  const waCtasWrap = document.createElement('div');
+  waCtasWrap.className = 'wa-ctas-wrap';
+  container.appendChild(waCtasWrap);
+
+  function renderCtaCard(cta){
+    const card = document.createElement('div');
+    card.className = 'wa-cta-card';
+    const link = buildWaLink(document.getElementById('wa-numero').value.trim(), cta.mensaje || '');
+    card.innerHTML = `
+      <div class="wa-cta-head">
+        <input type="text" class="cta-label" placeholder="Nombre de este mensaje (ej. Agendar cita)" value="${escapeHtml(cta.label||'')}">
+        <button type="button" class="wa-cta-remove" title="Quitar este mensaje">✕</button>
+      </div>
+      <textarea class="cta-mensaje" placeholder="Ej. Hola, me interesa saber más sobre sus servicios 😊">${escapeHtml(cta.mensaje||'')}</textarea>
+      <div class="wa-cta-links">
+        <div class="wa-link-box visible cta-link-display">${escapeHtml(link)}</div>
+        <div class="wa-cta-short-row">
+          <input type="url" class="cta-short" placeholder="Link corto (opcional, ej. de wa.link) — se usa en vez del de arriba si lo llenas" value="${escapeHtml(cta.shortLink||'')}">
+        </div>
+      </div>
+    `;
+    const labelInput = card.querySelector('.cta-label');
+    const msgInput   = card.querySelector('.cta-mensaje');
+    const shortInput = card.querySelector('.cta-short');
+    const linkBox    = card.querySelector('.cta-link-display');
+    const removeBtn  = card.querySelector('.wa-cta-remove');
+    function sync(){
+      cta.label     = labelInput.value.trim();
+      cta.mensaje   = msgInput.value.trim();
+      cta.shortLink = shortInput.value.trim();
+      cta.link      = buildWaLink(document.getElementById('wa-numero').value.trim(), cta.mensaje);
+      linkBox.textContent = cta.link || '';
+    }
+    labelInput.addEventListener('input', sync);
+    msgInput.addEventListener('input', sync);
+    shortInput.addEventListener('input', sync);
+    removeBtn.addEventListener('click', () => {
+      redesState.whatsapp.ctas = redesState.whatsapp.ctas.filter(c => c.id !== cta.id);
+      if(redesState.whatsapp.ctas.length === 0) redesState.whatsapp.ctas = [{ id:'cta-'+Date.now(), label:'General', mensaje:'' }];
+      renderRedesCanales();
+    });
+    return card;
+  }
+
+  redesState.whatsapp.ctas.forEach(cta => waCtasWrap.appendChild(renderCtaCard(cta)));
+
+  const addCtaBtn = document.createElement('button');
+  addCtaBtn.type = 'button';
+  addCtaBtn.className = 'wa-cta-add-btn';
+  addCtaBtn.textContent = '+ Agregar otro mensaje de WhatsApp';
+  addCtaBtn.addEventListener('click', () => {
+    redesState.whatsapp.ctas.push({ id:'cta-'+Date.now(), label:'', mensaje:'' });
+    renderRedesCanales();
+  });
+  waCtasWrap.appendChild(addCtaBtn);
+
+  function refrescarLinksWhatsapp(){
+    if(!redesState.whatsapp) redesState.whatsapp = {};
+    redesState.whatsapp.numero = document.getElementById('wa-numero').value.trim();
+    waCtasWrap.querySelectorAll('.wa-cta-card').forEach((card, i) => {
+      const cta = redesState.whatsapp.ctas[i];
+      if(!cta) return;
+      cta.link = buildWaLink(redesState.whatsapp.numero, cta.mensaje || '');
+      const linkBox = card.querySelector('.cta-link-display');
+      if(linkBox) linkBox.textContent = cta.link || '';
+    });
+  }
+  document.getElementById('wa-numero').addEventListener('input', refrescarLinksWhatsapp);
 
   // Ubicación — dirección completa + link de Google Maps, para que Contenido y
   // Anuncios los tengan a la mano cuando el CTA sea "visítanos" en vez de "escríbenos".
+  // El link de Maps se autogenera a partir de la dirección (búsqueda de Maps, sin API de pago);
+  // si el usuario pega su propio link (ej. el de "Compartir" de su ficha real de Maps, más
+  // preciso), respetamos ese y dejamos de autogenerar hasta que borre el campo.
   const ubiDireccion = redesState.ubicacion?.direccion || '';
   const ubiMapsLink  = redesState.ubicacion?.mapsLink || '';
+  if(redesState.ubicacion && redesState.ubicacion.mapsLinkAuto === undefined){
+    redesState.ubicacion.mapsLinkAuto = true; // dato viejo antes de esta funcion: se asume autogenerado
+  }
 
   const ubiRow = document.createElement('div');
   ubiRow.className = 'channel-row';
@@ -1361,24 +1434,55 @@ function renderRedesCanales(){
   const ubiMapsRow = document.createElement('div');
   ubiMapsRow.className = 'wa-msg-row';
   ubiMapsRow.innerHTML = `
-    <label>Link de Google Maps (opcional pero recomendado)</label>
+    <label>Link de Google Maps (se genera solo a partir de la dirección, o pega el tuyo de "Compartir" en Maps para uno más preciso)</label>
     <input type="url" id="ubi-maps-link" placeholder="https://maps.app.goo.gl/..." value="${escapeHtml(ubiMapsLink)}" style="width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:8px 10px;font-family:'Inter',sans-serif;font-size:13px;outline:none;">
-    <div class="ubi-hint">Para conseguirlo: busca tu negocio en Google Maps → botón "Compartir" → "Copiar enlace".</div>
+    <div class="ubi-hint">Si quieres el link exacto de tu ficha de negocio: búscala en Google Maps → botón "Compartir" → "Copiar enlace", y pégalo aquí.</div>
   `;
   container.appendChild(ubiMapsRow);
 
-  function updateUbicacion(){
+  function buildMapsSearchLink(direccion){
+    if(!direccion) return '';
+    return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(direccion);
+  }
+
+  document.getElementById('ubi-direccion').addEventListener('input', () => {
     if(!redesState.ubicacion) redesState.ubicacion = {};
     redesState.ubicacion.direccion = document.getElementById('ubi-direccion').value.trim();
-    redesState.ubicacion.mapsLink  = document.getElementById('ubi-maps-link').value.trim();
-  }
-  document.getElementById('ubi-direccion').addEventListener('input', updateUbicacion);
-  document.getElementById('ubi-maps-link').addEventListener('input', updateUbicacion);
+    if(redesState.ubicacion.mapsLinkAuto !== false){
+      redesState.ubicacion.mapsLink = buildMapsSearchLink(redesState.ubicacion.direccion);
+      redesState.ubicacion.mapsLinkAuto = true;
+      document.getElementById('ubi-maps-link').value = redesState.ubicacion.mapsLink;
+    }
+  });
+  document.getElementById('ubi-maps-link').addEventListener('input', () => {
+    if(!redesState.ubicacion) redesState.ubicacion = {};
+    const val = document.getElementById('ubi-maps-link').value.trim();
+    redesState.ubicacion.mapsLink = val;
+    redesState.ubicacion.mapsLinkAuto = val === '';
+  });
 }
 
 async function loadRedes(){
   const data = await loadObj('redes');
   redesState = { ...data };
+
+  // Migra el formato viejo (un solo mensaje/link plano) al nuevo formato de varias tarjetas.
+  if(redesState.whatsapp && !Array.isArray(redesState.whatsapp.ctas) && redesState.whatsapp.mensaje !== undefined){
+    redesState.whatsapp.ctas = [{ id:'cta-'+Date.now(), label:'General', mensaje: redesState.whatsapp.mensaje || '' }];
+  }
+
+  // Si no hay número de WhatsApp guardado todavía, usa el Teléfono de contacto de Identidad
+  // como default (mismo número casi siempre) -- se puede cambiar aquí sin afectar Identidad.
+  if(!redesState.whatsapp?.numero){
+    try{
+      const identidad = await loadObj('identidad');
+      if(identidad.telefono){
+        if(!redesState.whatsapp) redesState.whatsapp = {};
+        redesState.whatsapp.numero = identidad.telefono;
+      }
+    }catch(e){}
+  }
+
   renderRedesCanales();
   document.getElementById('cont-frecuencia').value = redesState._frecuencia || '';
   document.getElementById('cont-temas').value  = redesState._temas || '';
