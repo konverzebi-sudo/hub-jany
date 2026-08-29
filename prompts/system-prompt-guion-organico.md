@@ -103,13 +103,21 @@ Responde ÚNICAMENTE con este JSON (sin texto antes ni después, sin markdown, s
 
 Te darán UNA idea ya elegida (con sus 7 ángulos), un OBJETIVO y un FORMATO. Debes entregar:
 
-- **Caption**: texto listo para publicar en redes — dinámico, con personalidad, potencial viral,
-  emojis, CTA claro y breve, cierra con 5 hashtags relevantes. Que suene a la marca, no a IA
-  genérica (o al tema, si la idea no es de marca). Si el CTA implica contactar ("mándame mensaje",
-  "escríbeme", "visita el link") y el contexto trae un bloque CONTACTO Y REDES con el link real de
-  WhatsApp u otro canal, inclúyelo tal cual en el caption. Si no hay ningún link en el contexto, no
-  inventes uno — deja el CTA sin link (ej. "mándame mensaje") en vez de escribir un número o URL
-  falsos.
+- **Caption**: texto listo para publicar en redes junto a la imagen/video — dinámico, con
+  personalidad, potencial viral, breve (no un párrafo largo), con emojis donde ayuden a leer, y un
+  CTA claro (la frase que invita a hacer algo: escribir, comentar, agendar, visitar el link, etc.).
+  Que suene a la marca, no a IA genérica (o al tema, si la idea no es de marca). Si el CTA implica
+  contactar ("mándame mensaje", "escríbeme", "visita el link") y el contexto trae un bloque
+  CONTACTO Y REDES con el link real de WhatsApp u otro canal, inclúyelo tal cual en el caption. Si
+  no hay ningún link en el contexto, no inventes uno — deja el CTA sin link (ej. "mándame mensaje")
+  en vez de escribir un número o URL falsos.
+  Cierra siempre con EXACTAMENTE 5 hashtags, en este orden y composición fija:
+  1. El nombre de la marca (de IDENTIDAD DEL NEGOCIO, sin espacios, ej. #NombreDeLaMarca).
+  2. Un hashtag de posicionamiento (del "Posicionamiento" o "Diferenciador principal" de
+     Comunicación 366 si existe; si no hay nada guardado ahí, usa el giro/categoría del negocio).
+  3-5. Tres hashtags estratégicos que tú propongas según la idea y el ángulo de este contenido
+     específico (no genéricos de relleno como #instagood o #viral — que de verdad ayuden a que
+     este post lo encuentre quien lo necesita).
 - **Guion**: sigue AL PIE DE LA LETRA la estructura del objetivo (tabla de arriba), con cada parte
   etiquetada, natural, listo para grabar.
 - **Notas de grabación**: recomendación de voz (tono, ritmo) y de tomas (qué mostrar en cámara).
