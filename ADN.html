@@ -116,6 +116,7 @@
   .wa-msg-row textarea:focus{border-color:var(--accent);}
   .wa-link-box{margin-top:6px;padding:8px 10px;background:var(--bg);border:1px solid var(--line);border-radius:8px;font-size:11px;color:#7CB9E8;word-break:break-all;display:none;}
   .wa-link-box.visible{display:block;}
+  .ubi-hint{font-size:11px;color:var(--text-dim);margin-top:4px;line-height:1.4;}
 
   /* AUDIENCIA TABS */
   .aud-tabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
@@ -530,22 +531,24 @@ Al terminar, dame cada respuesta con su etiqueta exacta, en este mismo orden, pa
 6. LinkedIn — ¿cuál es tu usuario?
 7. WhatsApp — número con código de país (ej. 521XXXXXXXXXX):
 8. Mensaje de bienvenida de WhatsApp (opcional — el texto que se pre-llena cuando alguien hace clic en tu link):
+9. Dirección completa de tu negocio, si tienes ubicación física (calle, número, colonia, ciudad) — si no tienes local físico, escribe "No aplica":
+10. Link de Google Maps de tu negocio (opcional pero recomendado — para conseguirlo: busca tu negocio en Google Maps → botón "Compartir" → "Copiar enlace"):
 
 — Estrategia de contenido —
-9. Frecuencia de publicación — elige una:
+11. Frecuencia de publicación — elige una:
    Diario | 3-4 veces por semana | 1-2 veces por semana | Esporádico | No estoy publicando
-10. Tipos de contenido que usas — elige todos los que apliquen:
+12. Tipos de contenido que usas — elige todos los que apliquen:
    Fotos | Videos cortos | Reels | Stories | Lives | Carruseles | Blog | Newsletter | Podcasts
-11. Temas que ya tocas en tus publicaciones:
-12. Temas que te gustaría tocar pero aún no has hecho:
+13. Temas que ya tocas en tus publicaciones:
+14. Temas que te gustaría tocar pero aún no has hecho:
 
 — Contenido que convierte —
-13. ¿Qué contenido te ha generado ventas reales? (describe el tipo de post o formato)
-14. Links a tus 3 mejores contenidos (los que más ventas o interacción generaron):
+15. ¿Qué contenido te ha generado ventas reales? (describe el tipo de post o formato)
+16. Links a tus 3 mejores contenidos (los que más ventas o interacción generaron):
     · Mejor 1:
     · Mejor 2:
     · Mejor 3:
-15. Links a tus 3 peores contenidos (los que menos resultados dieron):
+17. Links a tus 3 peores contenidos (los que menos resultados dieron):
     · Peor 1:
     · Peor 2:
     · Peor 3:
@@ -1340,6 +1343,37 @@ function renderRedesCanales(){
   }
   document.getElementById('wa-numero').addEventListener('input', updateWaLink);
   document.getElementById('wa-mensaje').addEventListener('input', updateWaLink);
+
+  // Ubicación — dirección completa + link de Google Maps, para que Contenido y
+  // Anuncios los tengan a la mano cuando el CTA sea "visítanos" en vez de "escríbenos".
+  const ubiDireccion = redesState.ubicacion?.direccion || '';
+  const ubiMapsLink  = redesState.ubicacion?.mapsLink || '';
+
+  const ubiRow = document.createElement('div');
+  ubiRow.className = 'channel-row';
+  ubiRow.innerHTML = `
+    <span class="channel-icon">📍</span>
+    <span class="channel-name">Ubicación</span>
+    <input type="text" id="ubi-direccion" placeholder="Calle, número, colonia, ciudad" value="${escapeHtml(ubiDireccion)}" style="flex:1 1 200px;">
+  `;
+  container.appendChild(ubiRow);
+
+  const ubiMapsRow = document.createElement('div');
+  ubiMapsRow.className = 'wa-msg-row';
+  ubiMapsRow.innerHTML = `
+    <label>Link de Google Maps (opcional pero recomendado)</label>
+    <input type="url" id="ubi-maps-link" placeholder="https://maps.app.goo.gl/..." value="${escapeHtml(ubiMapsLink)}" style="width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:8px 10px;font-family:'Inter',sans-serif;font-size:13px;outline:none;">
+    <div class="ubi-hint">Para conseguirlo: busca tu negocio en Google Maps → botón "Compartir" → "Copiar enlace".</div>
+  `;
+  container.appendChild(ubiMapsRow);
+
+  function updateUbicacion(){
+    if(!redesState.ubicacion) redesState.ubicacion = {};
+    redesState.ubicacion.direccion = document.getElementById('ubi-direccion').value.trim();
+    redesState.ubicacion.mapsLink  = document.getElementById('ubi-maps-link').value.trim();
+  }
+  document.getElementById('ubi-direccion').addEventListener('input', updateUbicacion);
+  document.getElementById('ubi-maps-link').addEventListener('input', updateUbicacion);
 }
 
 async function loadRedes(){
