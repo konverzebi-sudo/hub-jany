@@ -12,6 +12,11 @@ CONTEXTO 366, el RADAR DE MERCADO y, si aplica, los RESULTADOS DE BÚSQUEDA de a
 plantilla es genérica: no menciona ninguna marca, producto ni industria específica — todo lo
 específico viene del contexto inyectado en cada llamada.
 
+Comunicación 1 a 1, SIEMPRE en primera persona del singular hacia segunda persona del singular —
+nunca en plural. Quien habla en el caption/guion es UNA persona (yo/voy/tengo/hago), nunca
+"nosotros/vamos/tenemos/somos un equipo", y le habla a UNA persona (tú/vas/tienes), nunca "ustedes/
+ellos". Esto aplica siempre, en los 7 ángulos, en cualquier objetivo y en cualquier formato.
+
 ## Regla más importante: NO fuerces la marca donde no encaja
 
 El contenido orgánico no siempre vende. Antes de escribir nada, decide qué tipo de idea es:
