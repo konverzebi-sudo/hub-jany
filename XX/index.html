@@ -301,7 +301,6 @@
       {id:'t5', text:'Campaña WhatsApp Red Impulso', color:'rojo'}
     ],
     agenda: [],
-    balance: {espiritualidad:0, ejercicio:0, trabajo:0, familia:0, disfrute:0},
     products: [
       {id:'p1', name:'Hub Jefes', color:'#C6FF4B', tasks:[
         {id:'p1t1', text:'Definir membresía $1,000/mes', done:false},
@@ -387,6 +386,12 @@
     if(!data.history) data.history = [];
     if(!data.habitChecks[todayKey]) data.habitChecks[todayKey] = {};
     if(!data.startDate){ data.startDate = todayKey; save(); }
+    if(!data.areaStats){
+      data.areaStats = {espiritualidad:{done:0,total:0}, ejercicio:{done:0,total:0}, trabajo:{done:0,total:0}, familia:{done:0,total:0}, disfrute:{done:0,total:0}};
+      data.tasks.forEach(function(t){ bumpAreaTotal(t.text); });
+      data.products.forEach(function(p){ p.tasks.forEach(function(t){ bumpAreaTotal(t.text); if(t.done) bumpAreaDone(t.text); }); });
+      save();
+    }
     renderAll();
   }
 
@@ -570,7 +575,7 @@
         data.history.unshift(Object.assign({id:uid('hist'), project:guessProject(t.text.toLowerCase()), text:t.text, minutes:null}, historyStamp()));
         if(data.history.length > 50) data.history.length = 50;
         data.tasks = data.tasks.filter(function(x){ return x.id !== t.id; });
-        categorizeAndBumpBalance(t.text);
+        bumpAreaDone(t.text);
         save(); renderTasks(); renderHistory(); renderCalendar(); renderBalance();
       });
       var del = document.createElement('button');
@@ -605,41 +610,42 @@
     });
   }
 
-  var BALANCE_KEYWORDS = {
+  var AREA_KEYWORDS = {
     espiritualidad: ['oré','ore','agradecí','agradeci','gracias','iglesia','medité','medite','meditación'],
     ejercicio: ['ejercicio','correr','gym','caminar','entrené','entrene','entrenamiento'],
     familia: ['familia','hijos','hijo','hija','esposo','esposa','mamá','mama','papá','papa'],
     disfrute: ['disfruté','disfrute','película','pelicula','descanso','diversión','diversion','relajar','viaje','salí','sali']
   };
-  function categorizeAndBumpBalance(text){
+  function categorizeText(text){
     var lower = (text||'').toLowerCase();
     var matched = 'trabajo';
-    Object.keys(BALANCE_KEYWORDS).some(function(area){
-      if(BALANCE_KEYWORDS[area].some(function(k){ return lower.indexOf(k) > -1; })){ matched = area; return true; }
+    Object.keys(AREA_KEYWORDS).some(function(area){
+      if(AREA_KEYWORDS[area].some(function(k){ return lower.indexOf(k) > -1; })){ matched = area; return true; }
       return false;
     });
-    data.balance[matched] = Math.min(8, (data.balance[matched]||0) + 1);
+    return matched;
+  }
+  function bumpAreaTotal(text){
+    var area = categorizeText(text);
+    data.areaStats[area].total++;
+  }
+  function bumpAreaDone(text){
+    var area = categorizeText(text);
+    data.areaStats[area].done = Math.min(data.areaStats[area].total, data.areaStats[area].done + 1);
   }
 
   function renderBalance(){
     var box = document.getElementById('jd-balance');
     box.innerHTML = '';
     var labels = {espiritualidad:'Espíritu', ejercicio:'Cuerpo', trabajo:'Trabajo', familia:'Familia', disfrute:'Disfrute'};
-    Object.keys(data.balance).forEach(function(k){
-      var v = data.balance[k];
+    Object.keys(data.areaStats).forEach(function(k){
+      var s = data.areaStats[k];
+      var pct = s.total ? Math.round(s.done/s.total*100) : 0;
       var row = document.createElement('div');
-      row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:5px 0;';
-      var dots = '';
-      for(var i=1;i<=8;i++){ dots += '<span class="jd-dot" style="background:'+(i<=v?'#C6FF4B':'#232A1E')+';"></span>'; }
-      row.innerHTML = '<span style="font-size:12px;color:#B9C0AF;width:64px;">'+labels[k]+'</span><span>'+dots+'</span>';
-      var ctrl = document.createElement('div');
-      ctrl.className='jd-row'; ctrl.style.gap='3px';
-      var minus=document.createElement('button'); minus.className='jd-btn'; minus.textContent='-'; minus.style.padding='0 7px';
-      var plus=document.createElement('button'); plus.className='jd-btn'; plus.textContent='+'; plus.style.padding='0 7px';
-      minus.addEventListener('click', function(){ data.balance[k]=Math.max(0,data.balance[k]-1); save(); renderBalance(); });
-      plus.addEventListener('click', function(){ data.balance[k]=Math.min(8,data.balance[k]+1); save(); renderBalance(); });
-      ctrl.appendChild(minus); ctrl.appendChild(plus);
-      row.appendChild(ctrl);
+      row.style.cssText = 'padding:6px 0;';
+      row.innerHTML = '<div class="jd-row" style="justify-content:space-between;font-size:12px;color:#B9C0AF;margin-bottom:3px;">'+
+        '<span>'+labels[k]+'</span><span class="jd-sub">'+s.done+'/'+s.total+' pend.</span></div>'+
+        '<div style="height:4px;background:#1B2117;border-radius:4px;overflow:hidden;"><div style="height:100%;width:'+pct+'%;background:#C6FF4B;"></div></div>';
       box.appendChild(row);
     });
   }
@@ -857,7 +863,7 @@
           if(e.target.checked){
             data.history.unshift(Object.assign({id:uid('hist'), project:p.name, text:t.text, minutes:null}, historyStamp()));
             if(data.history.length > 50) data.history.length = 50;
-            categorizeAndBumpBalance(t.text);
+            bumpAreaDone(t.text);
           }
           save(); renderProducts(); renderProgressMini(); renderHistory(); renderCalendar(); renderBalance();
         });
@@ -916,8 +922,9 @@
     var color = document.getElementById('jd-task-color').value;
     if(!text) return;
     data.tasks.push({id:uid('t'), text:text, color:color});
+    bumpAreaTotal(text);
     document.getElementById('jd-task-text').value='';
-    save(); renderTasks();
+    save(); renderTasks(); renderBalance();
   });
 
   document.getElementById('jd-cal-prev').addEventListener('click', function(){
@@ -980,16 +987,18 @@
       if(matched.type==='reto'){
         data.tasks = data.tasks.filter(function(x){ return x.id !== matched.obj.id; }); renderTasks();
         historyEntry = Object.assign({id:uid('hist'), project:guessProject(lower), text:matched.obj.text, minutes:minutes}, historyStamp());
+        bumpAreaDone(matched.obj.text);
       } else {
         matched.obj.done = true; renderProducts(); renderProgressMini();
         historyEntry = Object.assign({id:uid('hist'), project:matched.product.name, text:matched.obj.text, minutes:minutes}, historyStamp());
+        bumpAreaDone(matched.obj.text);
       }
     } else {
       historyEntry = Object.assign({id:uid('hist'), project:guessProject(lower), text:text, minutes:minutes}, historyStamp());
+      bumpAreaTotal(text); bumpAreaDone(text);
     }
     data.history.unshift(historyEntry);
     if(data.history.length > 50) data.history.length = 50;
-    categorizeAndBumpBalance(historyEntry.text);
     save(); renderHistory(); renderCalendar(); renderBalance();
     return true;
   }
@@ -1071,7 +1080,8 @@
   function routeParsed(originalText, parsed){
     if(!parsed || !parsed.action){
       data.tasks.push({id:uid('t'), text:originalText, color:'amarillo'});
-      save(); renderTasks();
+      bumpAreaTotal(originalText);
+      save(); renderTasks(); renderBalance();
       return;
     }
     if(parsed.action === 'pregunta'){
@@ -1095,13 +1105,15 @@
       var product = data.products.find(function(p){ return p.name === parsed.project; });
       if(product){
         product.tasks.push({id:uid('pt'), text: parsed.text || originalText, done:false});
-        save(); renderProducts(); renderProgressMini();
+        bumpAreaTotal(parsed.text || originalText);
+        save(); renderProducts(); renderProgressMini(); renderBalance();
         return;
       }
     }
     var color = (parsed.color === 'verde' || parsed.color === 'rojo') ? parsed.color : 'amarillo';
     data.tasks.push({id:uid('t'), text: parsed.text || originalText, color: color});
-    save(); renderTasks();
+    bumpAreaTotal(parsed.text || originalText);
+    save(); renderTasks(); renderBalance();
   }
 
   document.getElementById('jd-note-add').addEventListener('click', async function(){
