@@ -74,12 +74,12 @@
   <div style="padding:14px 14px 0;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
     <button id="jd-card-links" class="jd-card" style="text-align:left;cursor:pointer;padding:10px;">
       <div class="jd-sub">Links</div>
-      <div class="jd-disp" id="jd-links-count" style="font-size:17px;margin-top:2px;">0</div>
+      <div class="jd-disp" style="font-size:17px;margin-top:2px;">→</div>
     </button>
-    <div class="jd-card" style="padding:10px;">
-      <div class="jd-sub">Avance</div>
+    <button id="jd-card-avance" class="jd-card" style="text-align:left;cursor:pointer;padding:10px;">
+      <div class="jd-sub">Días activo</div>
       <div id="jd-progress-mini" style="margin-top:6px;"></div>
-    </div>
+    </button>
     <button id="jd-card-finance" class="jd-card" style="text-align:left;cursor:pointer;padding:10px;">
       <div class="jd-sub">Deuda y ahorro</div>
       <div class="jd-disp" id="jd-debt-mini" style="font-size:14px;margin-top:2px;color:#F08C82;">$0</div>
@@ -93,18 +93,6 @@
     </div>
     <div class="jd-card" id="jd-habits-card">
       <div id="jd-habits"></div>
-    </div>
-  </div>
-
-  <div id="jd-links-drawer" style="display:none;background:#0E120E;border-bottom:1px solid #1E241B;padding:14px;">
-    <div class="jd-card" style="margin:0;">
-      <div class="jd-h">Links privados</div>
-      <div id="jd-links-list"></div>
-      <div class="jd-row" style="margin-top:10px;">
-        <input class="jd-input" id="jd-link-name" placeholder="Nombre">
-        <input class="jd-input" id="jd-link-url" placeholder="URL">
-      </div>
-      <button class="jd-btn" style="margin-top:8px;width:100%;" id="jd-link-add">Agregar link</button>
     </div>
   </div>
 
@@ -176,7 +164,7 @@
   </div>
   <div style="padding:0 14px 14px;" class="jd-grid2">
     <div class="jd-card">
-      <div class="jd-h">Balance del día</div>
+      <div class="jd-h">Avances a mis metas</div>
       <div id="jd-balance"></div>
     </div>
     <div class="jd-card">
@@ -192,7 +180,7 @@
     <div class="jd-grid2" id="jd-products"></div>
   </div>
 
-  <div style="padding:0 14px 14px;">
+  <div style="padding:0 14px 14px;" id="jd-time-map-section">
     <div class="jd-row" style="justify-content:space-between;align-items:center;margin-bottom:6px;">
       <div class="jd-h" style="margin:0;">Mapa de tiempo</div>
       <div class="jd-row" style="gap:6px;">
@@ -312,17 +300,14 @@
       {id:'t4', text:'Mandar presentación por WhatsApp', color:'amarillo'},
       {id:'t5', text:'Campaña WhatsApp Red Impulso', color:'rojo'}
     ],
-    agenda: [
-      {id:'a1', text:'Último martes de cada mes, 10 AM: capacitación grupal'},
-      {id:'a2', text:'Publicar frase de libertad por viajes'}
-    ],
-    balance: {espiritualidad:4, ejercicio:3, trabajo:7, familia:3, disfrute:2},
+    agenda: [],
+    balance: {espiritualidad:0, ejercicio:0, trabajo:0, familia:0, disfrute:0},
     products: [
-      {id:'p1', name:'Hub Jefes', color:'#7F77DD', tasks:[
+      {id:'p1', name:'Hub Jefes', color:'#C6FF4B', tasks:[
         {id:'p1t1', text:'Definir membresía $1,000/mes', done:false},
         {id:'p1t2', text:'Cerrar calendario de cohortes', done:false}
       ]},
-      {id:'p2', name:'Rancho Seco', color:'#5DCAA5', tasks:[
+      {id:'p2', name:'Rancho Seco', color:'#F2C94C', tasks:[
         {id:'p2t1', text:'Banner + campaña visual', done:false},
         {id:'p2t2', text:'Lista clientes Miraisierra', done:false},
         {id:'p2t3', text:'Ir a tomar contenido real de las instalaciones (fotos y video)', done:false},
@@ -334,15 +319,33 @@
         {id:'p2t9', text:'Enviar banners a Flor — carnes (mañana)', done:false},
         {id:'p2t10', text:'Diseño de los 4 banners (Carnes El Mirador)', done:true}
       ]},
-      {id:'p3', name:'Red Impulso Mujer', color:'#D4537E', tasks:[
+      {id:'p3', name:'Red Impulso Mujer', color:'#FF4FA3', tasks:[
         {id:'p3t1', text:'Checar WhatsApp o doblar presupuesto', done:false}
       ]},
-      {id:'p4', name:'Blog de viajes', color:'#378ADD', tasks:[
+      {id:'p4', name:'Blog de viajes', color:'#2D9CDB', tasks:[
         {id:'p4t1', text:'Publicar backlog de París', done:false},
         {id:'p4t2', text:'Reconectar Jubi/Jucito', done:false}
       ]}
     ]
   };
+
+  var PROJECT_COLORS = {
+    'Hub Jefes': '#C6FF4B',
+    'Rancho Seco': '#F2C94C',
+    'Red Impulso Mujer': '#FF4FA3',
+    'Blog de viajes': '#2D9CDB'
+  };
+
+  var DEBT_COLORS = {
+    'bbva oro': '#A78BFA',
+    'bbva azul': '#2563EB',
+    'banamex': '#EF4444'
+  };
+  function debtColor(name){
+    var n = (name||'').toLowerCase();
+    var match = Object.keys(DEBT_COLORS).find(function(k){ return n.indexOf(k) > -1; });
+    return match ? DEBT_COLORS[match] : '#9BA294';
+  }
 
   var phrases = [
     'Hoy también cuenta.',
@@ -383,11 +386,12 @@
     if(!data.chatLog) data.chatLog = [];
     if(!data.history) data.history = [];
     if(!data.habitChecks[todayKey]) data.habitChecks[todayKey] = {};
+    if(!data.startDate){ data.startDate = todayKey; save(); }
     renderAll();
   }
 
   function renderAll(){
-    renderClock(); renderPhrase(); renderDebt(); renderLinks(); renderFinance(); renderProgressMini(); renderChatLog();
+    renderClock(); renderPhrase(); renderDebt(); renderFinance(); renderProgressMini(); renderChatLog();
     renderHabits(); renderTasks(); renderAgenda(); renderBalance(); renderProducts(); renderHistory(); renderCalendar();
   }
 
@@ -422,7 +426,7 @@
       var row = document.createElement('div');
       row.className = 'jd-row';
       row.style.cssText = 'justify-content:space-between;padding:6px 0;border-bottom:1px solid #232A1E;font-size:13px;';
-      row.innerHTML = '<span>'+d.name+'</span><span style="font-weight:600;">'+fmt(d.amount)+'</span>';
+      row.innerHTML = '<span><span class="jd-dot" style="background:'+debtColor(d.name)+';"></span>'+d.name+'</span><span style="font-weight:600;">'+fmt(d.amount)+'</span>';
       list.appendChild(row);
       var opt = document.createElement('option');
       opt.value = d.id; opt.textContent = d.name;
@@ -436,7 +440,7 @@
     if(!box) return;
     var banks = {};
     data.debts.forEach(function(d){
-      var bank = d.name.split(' ')[0];
+      var bank = d.name.split(' ').slice(0,2).join(' ');
       banks[bank] = (banks[bank] || 0) + Number(d.amount);
     });
     box.innerHTML = '';
@@ -444,7 +448,7 @@
       var row = document.createElement('div');
       row.className = 'jd-row';
       row.style.cssText = 'justify-content:space-between;padding:5px 0;font-size:12.5px;color:#9BA294;';
-      row.innerHTML = '<span>'+b+'</span><span>'+fmt(banks[b])+'</span>';
+      row.innerHTML = '<span><span class="jd-dot" style="background:'+debtColor(b)+';"></span>'+b+'</span><span>'+fmt(banks[b])+'</span>';
       box.appendChild(row);
     });
   }
@@ -476,8 +480,12 @@
         var row = document.createElement('div');
         row.className = 'jd-row';
         row.style.cssText = 'justify-content:space-between;padding:6px 0;border-bottom:1px solid #232A1E;font-size:12.5px;';
-        var color = m.amount < 0 ? '#F08C82' : '#8FE39E';
-        row.innerHTML = '<span style="color:#9BA294;">'+m.date+' · '+m.text+'</span><span style="font-weight:600;color:'+color+';">'+(m.amount<0?'-':'+')+fmt(Math.abs(m.amount))+'</span>';
+        if(m.amount === null || m.amount === undefined){
+          row.innerHTML = '<span style="color:#9BA294;">'+m.date+' · '+m.text+'</span>';
+        } else {
+          var color = m.amount < 0 ? '#F08C82' : '#8FE39E';
+          row.innerHTML = '<span style="color:#9BA294;">'+m.date+' · '+m.text+'</span><span style="font-weight:600;color:'+color+';">'+(m.amount<0?'-':'+')+fmt(Math.abs(m.amount))+'</span>';
+        }
         movList.appendChild(row);
       });
     }
@@ -486,27 +494,8 @@
   function renderProgressMini(){
     var box = document.getElementById('jd-progress-mini');
     if(!box) return;
-    box.innerHTML = '';
-    data.products.forEach(function(p){
-      var pct = p.tasks.length ? Math.round(p.tasks.filter(function(t){return t.done;}).length/p.tasks.length*100) : 0;
-      var bar = document.createElement('div');
-      bar.style.cssText = 'height:4px;background:#1B2117;border-radius:4px;overflow:hidden;margin-bottom:4px;';
-      bar.innerHTML = '<div style="height:100%;width:'+pct+'%;background:'+p.color+';"></div>';
-      box.appendChild(bar);
-    });
-  }
-
-  function renderLinks(){
-    var countEl = document.getElementById('jd-links-count');
-    if(countEl) countEl.textContent = data.links.length;
-    var list = document.getElementById('jd-links-list');
-    list.innerHTML = '';
-    data.links.forEach(function(l){
-      var row = document.createElement('div');
-      row.style.cssText = 'padding:6px 0;border-bottom:1px solid #232A1E;font-size:13px;';
-      row.innerHTML = '<a href="'+l.url+'" style="font-weight:600;text-decoration:none;">'+l.name+'</a><div class="jd-sub">'+l.url+'</div>';
-      list.appendChild(row);
-    });
+    var days = Math.floor((new Date(todayKey) - new Date(data.startDate)) / 86400000) + 1;
+    box.innerHTML = '<span class="jd-disp" style="font-size:20px;">'+days+'</span> <span class="jd-sub">día'+(days===1?'':'s')+'</span>';
   }
 
   function dateStrOffset(offset){
@@ -515,13 +504,14 @@
     return d.toISOString().slice(0,10);
   }
 
-  function getWeekCount(habitId){
+  function getHabitRatio(habitId){
+    var totalDays = Math.floor((new Date(todayKey) - new Date(data.startDate)) / 86400000) + 1;
     var count = 0;
-    for(var i=0; i<7; i++){
+    for(var i=0; i<totalDays; i++){
       var ds = dateStrOffset(i);
       if(data.habitChecks[ds] && data.habitChecks[ds][habitId]) count++;
     }
-    return count;
+    return count + '/' + totalDays;
   }
 
   function renderHabits(){
@@ -540,12 +530,12 @@
       box.appendChild(done);
     }
     pending.forEach(function(h){
-      var weekCount = getWeekCount(h.id);
+      var ratio = getHabitRatio(h.id);
       var row = document.createElement('label');
       row.className = 'jd-row';
       row.style.cssText = 'padding:6px 0;font-size:13px;cursor:pointer;justify-content:space-between;';
       row.innerHTML = '<span class="jd-row" style="gap:8px;"><input type="checkbox" style="width:16px;height:16px;accent-color:#C6FF4B;"> <span>'+h.text+'</span></span>'+
-        '<span class="jd-sub">('+weekCount+'/7)</span>';
+        '<span class="jd-sub">('+ratio+')</span>';
       row.querySelector('input').addEventListener('change', function(e){
         if(!data.habitChecks[todayKey]) data.habitChecks[todayKey] = {};
         data.habitChecks[todayKey][h.id] = e.target.checked;
@@ -580,7 +570,8 @@
         data.history.unshift(Object.assign({id:uid('hist'), project:guessProject(t.text.toLowerCase()), text:t.text, minutes:null}, historyStamp()));
         if(data.history.length > 50) data.history.length = 50;
         data.tasks = data.tasks.filter(function(x){ return x.id !== t.id; });
-        save(); renderTasks(); renderHistory(); renderCalendar();
+        categorizeAndBumpBalance(t.text);
+        save(); renderTasks(); renderHistory(); renderCalendar(); renderBalance();
       });
       var del = document.createElement('button');
       del.className = 'jd-btn'; del.textContent = '×'; del.style.padding = '1px 8px';
@@ -612,6 +603,22 @@
       row.appendChild(del);
       box.appendChild(row);
     });
+  }
+
+  var BALANCE_KEYWORDS = {
+    espiritualidad: ['oré','ore','agradecí','agradeci','gracias','iglesia','medité','medite','meditación'],
+    ejercicio: ['ejercicio','correr','gym','caminar','entrené','entrene','entrenamiento'],
+    familia: ['familia','hijos','hijo','hija','esposo','esposa','mamá','mama','papá','papa'],
+    disfrute: ['disfruté','disfrute','película','pelicula','descanso','diversión','diversion','relajar','viaje','salí','sali']
+  };
+  function categorizeAndBumpBalance(text){
+    var lower = (text||'').toLowerCase();
+    var matched = 'trabajo';
+    Object.keys(BALANCE_KEYWORDS).some(function(area){
+      if(BALANCE_KEYWORDS[area].some(function(k){ return lower.indexOf(k) > -1; })){ matched = area; return true; }
+      return false;
+    });
+    data.balance[matched] = Math.min(8, (data.balance[matched]||0) + 1);
   }
 
   function renderBalance(){
@@ -659,6 +666,7 @@
   }
 
   function projectColor(name){
+    if(PROJECT_COLORS[name]) return PROJECT_COLORS[name];
     var p = data.products.find(function(x){ return x.name === name; });
     return p ? p.color : '#6B7280';
   }
@@ -724,6 +732,33 @@
     }
   }
 
+  function buildHourMap(info){
+    var hours = new Array(24).fill(null);
+    if(!info) return hours;
+    info.entries.forEach(function(h){
+      var timeMatch = /^(\d{1,2}):(\d{2})/.exec(h.time || '');
+      if(!timeMatch) return;
+      var startHour = parseInt(timeMatch[1], 10);
+      if(isNaN(startHour) || startHour < 0 || startHour > 23) return;
+      var span = h.minutes ? Math.max(1, Math.ceil(h.minutes/60)) : 1;
+      for(var i=0; i<span && (startHour+i)<24; i++){ hours[startHour+i] = h.project; }
+    });
+    return hours;
+  }
+
+  function renderHourGrid(info){
+    var hourMap = buildHourMap(info);
+    var html = '<div style="display:grid;grid-template-columns:repeat(12,1fr);gap:3px;margin-bottom:10px;">';
+    for(var hh=0; hh<24; hh++){
+      var proj = hourMap[hh];
+      var bg = proj ? projectColor(proj) : '#1B2117';
+      var fg = proj ? '#0B0F0C' : '#5C6157';
+      html += '<div style="aspect-ratio:1;border-radius:4px;background:'+bg+';font-size:8px;display:flex;align-items:center;justify-content:center;color:'+fg+';">'+hh+'</div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
   function renderDayDetail(iso, info){
     var panel = document.getElementById('jd-cal-day-detail');
     if(!panel) return;
@@ -733,11 +768,13 @@
     if(!info || info.entries.length === 0){
       panel.innerHTML = '<div style="border-top:1px solid #232A1E;padding-top:10px;">'+
         '<div style="font-size:12.5px;font-weight:600;color:#EDEFEA;margin-bottom:4px;text-transform:capitalize;">'+dateLabel+'</div>'+
+        renderHourGrid(info)+
         '<div class="jd-sub">Sin actividad registrada este día.</div></div>';
       return;
     }
     var html = '<div style="border-top:1px solid #232A1E;padding-top:10px;">';
     html += '<div style="font-size:12.5px;font-weight:600;color:#EDEFEA;margin-bottom:6px;text-transform:capitalize;">'+dateLabel+'</div>';
+    html += renderHourGrid(info);
     Object.keys(info.byProject).forEach(function(k){
       var mins = info.byProject[k];
       var h = Math.floor(mins/60), m = mins%60;
@@ -793,6 +830,7 @@
     var box = document.getElementById('jd-products');
     box.innerHTML = '';
     data.products.forEach(function(p){
+      var color = PROJECT_COLORS[p.name] || p.color;
       var card = document.createElement('div');
       card.className = 'jd-card';
       var pendingCount = p.tasks.filter(function(t){ return !t.done; }).length;
@@ -800,27 +838,28 @@
       var pct = p.tasks.length ? Math.round(doneCount/p.tasks.length*100) : 0;
       var head = document.createElement('div');
       head.className = 'jd-row'; head.style.cssText='justify-content:space-between;margin-bottom:6px;';
-      head.innerHTML = '<div class="jd-row" style="gap:6px;"><span style="width:9px;height:9px;border-radius:50%;background:'+p.color+';display:inline-block;"></span>'+
+      head.innerHTML = '<div class="jd-row" style="gap:6px;"><span style="width:9px;height:9px;border-radius:50%;background:'+color+';display:inline-block;"></span>'+
         '<span style="font-size:12.5px;font-weight:600;">'+p.name+'</span></div>'+
         '<span class="jd-chip" style="background:#1B2117;color:#B9C0AF;">'+pendingCount+' pend.</span>';
       card.appendChild(head);
       var bar = document.createElement('div');
       bar.style.cssText = 'height:4px;background:#1B2117;border-radius:4px;overflow:hidden;margin-bottom:8px;';
-      bar.innerHTML = '<div style="height:100%;width:'+pct+'%;background:'+p.color+';"></div>';
+      bar.innerHTML = '<div style="height:100%;width:'+pct+'%;background:'+color+';"></div>';
       card.appendChild(bar);
       p.tasks.forEach(function(t){
         var row = document.createElement('label');
         row.className = 'jd-row';
         row.style.cssText = 'gap:6px;padding:2px 0;cursor:pointer;';
-        row.innerHTML = '<input type="checkbox" '+(t.done?'checked':'')+' style="width:13px;height:13px;accent-color:'+p.color+';">'+
+        row.innerHTML = '<input type="checkbox" '+(t.done?'checked':'')+' style="width:13px;height:13px;accent-color:'+color+';">'+
           '<span style="font-size:11.5px;'+(t.done?'color:#5C6157;text-decoration:line-through;':'color:#9BA294;')+'">'+t.text+'</span>';
         row.querySelector('input').addEventListener('change', function(e){
           t.done = e.target.checked;
           if(e.target.checked){
             data.history.unshift(Object.assign({id:uid('hist'), project:p.name, text:t.text, minutes:null}, historyStamp()));
             if(data.history.length > 50) data.history.length = 50;
+            categorizeAndBumpBalance(t.text);
           }
-          save(); renderProducts(); renderProgressMini(); renderHistory(); renderCalendar();
+          save(); renderProducts(); renderProgressMini(); renderHistory(); renderCalendar(); renderBalance();
         });
         card.appendChild(row);
       });
@@ -829,8 +868,11 @@
   }
 
   document.getElementById('jd-card-links').addEventListener('click', function(){
-    var dr = document.getElementById('jd-links-drawer');
-    dr.style.display = dr.style.display === 'none' ? 'block' : 'none';
+    window.location.href = 'https://jefeshub.com/x/';
+  });
+
+  document.getElementById('jd-card-avance').addEventListener('click', function(){
+    document.getElementById('jd-time-map-section').scrollIntoView({behavior:'smooth', block:'start'});
   });
 
   document.getElementById('jd-card-finance').addEventListener('click', function(){
@@ -868,15 +910,6 @@
     save(); renderDebt();
   });
 
-  document.getElementById('jd-link-add').addEventListener('click', function(){
-    var name = document.getElementById('jd-link-name').value.trim();
-    var url = document.getElementById('jd-link-url').value.trim();
-    if(!name || !url) return;
-    data.links.push({id:uid('l'), name:name, url:url});
-    document.getElementById('jd-link-name').value='';
-    document.getElementById('jd-link-url').value='';
-    save(); renderLinks();
-  });
 
   document.getElementById('jd-task-add').addEventListener('click', function(){
     var text = document.getElementById('jd-task-text').value.trim();
@@ -956,7 +989,8 @@
     }
     data.history.unshift(historyEntry);
     if(data.history.length > 50) data.history.length = 50;
-    save(); renderHistory(); renderCalendar();
+    categorizeAndBumpBalance(historyEntry.text);
+    save(); renderHistory(); renderCalendar(); renderBalance();
     return true;
   }
 
@@ -968,14 +1002,22 @@
     var isSaving = !isExpense && savingKw.some(function(k){ return lower.indexOf(k) > -1; });
     if(!isExpense && !isSaving) return false;
     var m = lower.match(/(\d+[.,]?\d*)/);
-    if(!m) return false;
-    var amount = parseFloat(m[1].replace(',', '.'));
-    if(isNaN(amount)) return false;
-    var signed = isExpense ? -Math.abs(amount) : Math.abs(amount);
+    var amount = m ? parseFloat(m[1].replace(',', '.')) : null;
+    var signed = (amount === null || isNaN(amount)) ? null : (isExpense ? -Math.abs(amount) : Math.abs(amount));
     var dateLabel = new Date().toLocaleDateString('es-MX', {day:'numeric', month:'short'});
     data.movements.unshift({id:uid('m'), date:dateLabel, text:text, amount:signed});
     if(data.movements.length > 30) data.movements.length = 30;
     save(); renderFinance();
+    return true;
+  }
+
+  function tryFutureAgenda(text){
+    var lower = text.toLowerCase();
+    var futureKw = ['voy a ', 'tengo que ', 'debo ', 'necesito ', 'hay que '];
+    var isFuture = futureKw.some(function(k){ return lower.indexOf(k) > -1; });
+    if(!isFuture) return false;
+    data.agenda.push({id:uid('a'), text:text});
+    save(); renderAgenda();
     return true;
   }
 
@@ -1068,7 +1110,7 @@
     var text = input.value.trim();
     if(!text) return;
     input.value = '';
-    var handledFast = tryMarkDone(text) || tryLogFinance(text);
+    var handledFast = tryMarkDone(text) || tryLogFinance(text) || tryFutureAgenda(text);
     if(handledFast){
       var original = input.placeholder;
       input.placeholder = 'Registrado ✓';
