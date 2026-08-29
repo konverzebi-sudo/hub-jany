@@ -132,16 +132,26 @@ function formatearTono(d) {
   return 'TONO DE MARCA:\n' + lineas.join('\n');
 }
 
-// Mismos datos que guarda ADN > Redes (brand-book.redes): número/link de WhatsApp ya armado con
-// wa.me, handles de redes sociales ya convertidos a link, y dirección/link de Google Maps si el
-// negocio tiene ubicación física. Se usan tal cual en los CTA -- nunca se inventa un dato si esto
-// viene vacío (mismo patrón que api/generar-guion-organico.js).
+// Mismos datos que guarda ADN > Redes (brand-book.redes): uno o varios mensajes de WhatsApp ya
+// armados con wa.me (o su link corto si el usuario lo pegó), handles de redes sociales ya
+// convertidos a link, y dirección/link de Google Maps si el negocio tiene ubicación física. Si hay
+// varios mensajes de WhatsApp, cada uno trae su etiqueta (ej. "Agendar cita") -- usa el que mejor
+// encaje con el objetivo de este anuncio. Se usan tal cual en los CTA -- nunca se inventa un dato
+// si esto viene vacío (mismo patrón que api/generar-guion-organico.js).
 function formatearRedes(redes) {
   if (!redes || typeof redes !== 'object') return null;
   const lineas = [];
   const wa = redes.whatsapp;
   if (wa && wa.numero) {
-    lineas.push(`WhatsApp: ${wa.link || ('https://wa.me/' + wa.numero.toString().replace(/[^\d+]/g, ''))}`);
+    const num = wa.numero.toString().replace(/[^\d+]/g, '');
+    if (Array.isArray(wa.ctas) && wa.ctas.length) {
+      wa.ctas.forEach((cta) => {
+        const link = cta.shortLink || cta.link || ('https://wa.me/' + num + (cta.mensaje ? '?text=' + encodeURIComponent(cta.mensaje) : ''));
+        lineas.push(`WhatsApp${cta.label ? ` (${cta.label})` : ''}: ${link}`);
+      });
+    } else {
+      lineas.push(`WhatsApp: ${wa.link || ('https://wa.me/' + num)}`);
+    }
   }
   const CANALES = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube', linkedin: 'LinkedIn' };
   Object.entries(CANALES).forEach(([key, label]) => {
