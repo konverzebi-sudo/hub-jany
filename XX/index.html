@@ -64,13 +64,6 @@
     </div>
   </div>
 
-  <div id="jd-chatlog-wrap" style="display:none;padding:14px 14px 0;">
-    <div class="jd-card">
-      <div class="jd-h">Consulta con Claude</div>
-      <div id="jd-chatlog" style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow-y:auto;"></div>
-    </div>
-  </div>
-
   <div style="padding:14px 14px 0;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
     <button id="jd-card-links" class="jd-card" style="text-align:left;cursor:pointer;padding:10px;">
       <div class="jd-sub">Links</div>
@@ -397,7 +390,7 @@
   }
 
   function renderAll(){
-    renderClock(); renderPhrase(); renderDebt(); renderFinance(); renderProgressMini(); renderChatLog();
+    renderClock(); renderPhrase(); renderDebt(); renderFinance(); renderProgressMini();
     renderHabits(); renderTasks(); renderAgenda(); renderBalance(); renderProducts(); renderHistory(); renderCalendar();
   }
 
@@ -1053,112 +1046,20 @@
     return true;
   }
 
-  function renderChatLog(){
-    var wrap = document.getElementById('jd-chatlog-wrap');
-    var box = document.getElementById('jd-chatlog');
-    if(data.chatLog.length === 0){ wrap.style.display = 'none'; return; }
-    wrap.style.display = 'block';
-    box.innerHTML = '';
-    data.chatLog.slice(-10).forEach(function(m){
-      var row = document.createElement('div');
-      var isUser = m.role === 'user';
-      row.style.cssText = 'font-size:12.5px;line-height:1.5;padding:8px 10px;border-radius:10px;max-width:90%;'+
-        (isUser ? 'align-self:flex-end;background:#1B2117;color:#F2F5EC;' : 'align-self:flex-start;background:#C6FF4B;color:#12210A;');
-      row.textContent = m.text;
-      box.appendChild(row);
-    });
-    box.scrollTop = box.scrollHeight;
-  }
-
-  async function askClaude(userText){
-    var projectNames = data.products.map(function(p){ return p.name; }).join(', ');
-    var systemPrompt = 'Eres el asistente del dashboard personal de Jany (marketing, negocios, finanzas, hábitos). '+
-      'Responde SOLO con un JSON valido, sin texto extra ni markdown, con esta forma exacta:\n'+
-      '{"action":"reto|habito|agenda|proyecto|pregunta","text":"...","color":"verde|amarillo|rojo|null","project":"'+projectNames+'|null","reply":"..."}\n'+
-      'Reglas: action=reto es un pendiente suelto de hoy sin proyecto claro (color segun urgencia, verde=urgente, amarillo=normal, rojo=puede esperar). '+
-      'action=habito es un habito diario nuevo a trackear. action=agenda es un pendiente o fecha futura. '+
-      'action=proyecto es una tarea que pertenece claramente a uno de estos proyectos: '+projectNames+' (pon el nombre EXACTO en project). '+
-      'action=pregunta es cualquier consulta, duda o pedido de consejo de negocio/marketing/finanzas que NO es algo para agregar a una lista; en ese caso responde en "reply" de forma util y breve (maximo 4 lineas), y deja "text" vacio. '+
-      'Si no es pregunta, deja "reply" vacio.\n\nMensaje de Jany: ' + userText;
-    try{
-      var response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 500,
-          messages: [{ role: 'user', content: systemPrompt }]
-        })
-      });
-      var json = await response.json();
-      var textBlocks = (json.content || []).filter(function(b){ return b.type === 'text'; }).map(function(b){ return b.text; }).join('\n');
-      var clean = textBlocks.replace(/```json|```/g, '').trim();
-      return JSON.parse(clean);
-    }catch(e){
-      console.error('Claude API error', e);
-      return null;
-    }
-  }
-
-  function routeParsed(originalText, parsed){
-    if(!parsed || !parsed.action){
-      data.tasks.push({id:uid('t'), text:originalText, color:'amarillo'});
-      bumpAreaTotal(originalText);
-      save(); renderTasks(); renderBalance();
-      return;
-    }
-    if(parsed.action === 'pregunta'){
-      data.chatLog.push({role:'user', text:originalText});
-      data.chatLog.push({role:'assistant', text: parsed.reply || 'No tengo una respuesta clara para eso, cuéntame un poco más.'});
-      if(data.chatLog.length > 20) data.chatLog = data.chatLog.slice(-20);
-      save(); renderChatLog();
-      return;
-    }
-    if(parsed.action === 'habito'){
-      data.habits.push({id:uid('h'), text: parsed.text || originalText, daily:true});
-      save(); renderHabits();
-      return;
-    }
-    if(parsed.action === 'agenda'){
-      data.agenda.push({id:uid('a'), text: parsed.text || originalText});
-      save(); renderAgenda();
-      return;
-    }
-    if(parsed.action === 'proyecto' && parsed.project){
-      var product = data.products.find(function(p){ return p.name === parsed.project; });
-      if(product){
-        product.tasks.push({id:uid('pt'), text: parsed.text || originalText, done:false});
-        bumpAreaTotal(parsed.text || originalText);
-        save(); renderProducts(); renderProgressMini(); renderBalance();
-        return;
-      }
-    }
-    var color = (parsed.color === 'verde' || parsed.color === 'rojo') ? parsed.color : 'amarillo';
-    data.tasks.push({id:uid('t'), text: parsed.text || originalText, color: color});
-    bumpAreaTotal(parsed.text || originalText);
-    save(); renderTasks(); renderBalance();
-  }
-
-  document.getElementById('jd-note-add').addEventListener('click', async function(){
+  document.getElementById('jd-note-add').addEventListener('click', function(){
     var input = document.getElementById('jd-note');
-    var btn = document.getElementById('jd-note-add');
     var text = input.value.trim();
     if(!text) return;
     input.value = '';
-    var handledFast = tryMarkDone(text) || tryLogFinance(text) || tryFutureAgenda(text);
-    if(handledFast){
-      var original = input.placeholder;
-      input.placeholder = 'Registrado ✓';
-      setTimeout(function(){ input.placeholder = original; }, 2500);
-      return;
+    var handled = tryMarkDone(text) || tryLogFinance(text) || tryFutureAgenda(text);
+    if(!handled){
+      data.tasks.push({id:uid('t'), text:text, color:'amarillo'});
+      bumpAreaTotal(text);
+      save(); renderTasks(); renderBalance();
     }
-    var originalLabel = btn.textContent;
-    btn.textContent = '...';
-    btn.disabled = true;
-    var parsed = await askClaude(text);
-    btn.textContent = originalLabel;
-    btn.disabled = false;
-    routeParsed(text, parsed);
+    var original = input.placeholder;
+    input.placeholder = 'Registrado ✓';
+    setTimeout(function(){ input.placeholder = original; }, 2500);
   });
 
   (function setupVoice(){
