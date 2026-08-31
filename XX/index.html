@@ -171,6 +171,10 @@
 
   <div style="padding:0 14px 14px;">
     <div class="jd-h">Avance por proyecto</div>
+    <div class="jd-row" style="margin-bottom:10px;">
+      <input class="jd-input" id="jd-project-name" placeholder="Nuevo proyecto...">
+      <button class="jd-btn" id="jd-project-add">Agregar</button>
+    </div>
     <div class="jd-grid2" id="jd-products"></div>
   </div>
 
@@ -328,6 +332,17 @@
     'Red Impulso Mujer': '#FF4FA3',
     'Blog de viajes': '#2D9CDB'
   };
+
+  var PROJECT_PALETTE = ['#7F77DD','#5DCAA5','#F2994A','#56CCF2','#BB6BD9','#EB5757','#6FCF97','#F2C94C'];
+  function createProject(name){
+    name = (name||'').trim();
+    if(!name) return false;
+    if(data.products.some(function(p){ return p.name.toLowerCase() === name.toLowerCase(); })) return false;
+    var color = PROJECT_PALETTE[data.products.length % PROJECT_PALETTE.length];
+    data.products.push({id:uid('p'), name:name, color:color, tasks:[]});
+    save(); renderProducts();
+    return true;
+  }
 
   var DEBT_COLORS = {
     'bbva oro': '#A78BFA',
@@ -889,6 +904,11 @@
     box.style.display = box.style.display === 'none' ? 'block' : 'none';
   });
 
+  document.getElementById('jd-project-add').addEventListener('click', function(){
+    var input = document.getElementById('jd-project-name');
+    if(createProject(input.value)) input.value = '';
+  });
+
   document.getElementById('jd-card-links').addEventListener('click', function(){
     window.location.href = 'https://jefeshub.com/x/';
   });
@@ -1019,12 +1039,18 @@
     return true;
   }
 
+  function tryCreateProject(text){
+    var m = /(?:nuevo proyecto|crear proyecto|agregar proyecto)[:\s]+(.+)/i.exec(text.trim());
+    if(!m) return false;
+    return createProject(m[1]);
+  }
+
   document.getElementById('jd-note-add').addEventListener('click', function(){
     var input = document.getElementById('jd-note');
     var text = input.value.trim();
     if(!text) return;
     input.value = '';
-    var handled = tryMarkDone(text) || tryLogFinance(text) || tryFutureAgenda(text);
+    var handled = tryMarkDone(text) || tryLogFinance(text) || tryFutureAgenda(text) || tryCreateProject(text);
     if(!handled){
       data.tasks.push({id:uid('t'), text:text, color:'amarillo'});
       bumpAreaTotal(text);
