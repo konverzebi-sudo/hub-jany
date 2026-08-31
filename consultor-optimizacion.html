@@ -328,9 +328,12 @@
     }).join('');
   }
 
-  function renderManualInstrucciones(){
+  function renderManualInstrucciones(link){
+    var pasoUno = link
+      ? '<li>Entra a este link directo de tu Administrador de Anuncios: <a href="' + escaparAtributoOpt(link) + '" target="_blank" style="color:var(--accent);">' + escaparAtributoOpt(link) + '</a></li>'
+      : '<li>Entra a <b>Meta Ads Manager</b> (business.facebook.com/adsmanager) y selecciona la cuenta publicitaria correcta.</li>';
     return '<ol>'
-      + '<li>Entra a <b>Meta Ads Manager</b> (business.facebook.com/adsmanager) y selecciona la cuenta publicitaria correcta.</li>'
+      + pasoUno
       + '<li>Ve a la pestaña <b>Anuncios</b> (nivel anuncio — no campañas ni conjuntos de anuncios).</li>'
       + '<li>Elige el rango de fechas que quieres analizar (arriba a la derecha).</li>'
       + '<li>Haz clic en el menú <b>Columnas</b> → <b>Personalizar columnas</b>.</li>'
@@ -341,46 +344,84 @@
       + '</ol>';
   }
 
-  function generarPromptClaude(){
-    var lineas = [
-      'Entra a Meta Ads Manager (business.facebook.com/adsmanager) — ya deberías tener mi cuenta conectada en este navegador.',
-      '',
-      'Sigue estos pasos:',
-      '1. Selecciona la cuenta publicitaria correcta.',
-      '2. Ve a la pestaña "Anuncios" (nivel anuncio, no campañas ni conjuntos de anuncios).',
-      '3. Abre el menú "Columnas" → "Personalizar columnas".',
-      '4. Activa (marca el check) exactamente estas columnas, SIN quitar las que ya estén marcadas:',
-    ];
+  function generarPromptClaude(link){
+    var lineas = [];
+    var pasoBase;
+    if (link) {
+      lineas.push('Entra a este link exacto de mi Administrador de Anuncios (ya tiene mi cuenta y la vista de Anuncios seleccionadas):');
+      lineas.push(link);
+      lineas.push('');
+      lineas.push('Ahí ya deberías ver la tabla de anuncios. Sigue estos pasos:');
+      lineas.push('1. Confirma que estás en la pestaña "Anuncios" (nivel anuncio, no campañas ni conjuntos de anuncios). Si no, cámbiate a esa pestaña.');
+      lineas.push('2. Abre el menú "Columnas" → "Personalizar columnas".');
+      lineas.push('3. Activa (marca el check) exactamente estas columnas, SIN quitar las que ya estén marcadas:');
+      pasoBase = 3;
+    } else {
+      lineas.push('Entra a Meta Ads Manager: business.facebook.com/adsmanager');
+      lineas.push('');
+      lineas.push('Sigue estos pasos:');
+      lineas.push('1. Selecciona la cuenta publicitaria correcta.');
+      lineas.push('2. Ve a la pestaña "Anuncios" (nivel anuncio, no campañas ni conjuntos de anuncios).');
+      lineas.push('3. Abre el menú "Columnas" → "Personalizar columnas".');
+      lineas.push('4. Activa (marca el check) exactamente estas columnas, SIN quitar las que ya estén marcadas:');
+      pasoBase = 4;
+    }
     COLUMNAS_REQUERIDAS.forEach(function(g){
       lineas.push('');
       lineas.push('   ' + g.grupo + ':');
       g.cols.forEach(function(c){ lineas.push('   - ' + c); });
     });
     lineas.push('');
-    lineas.push('5. Guarda esta selección como una plantilla nueva llamada "Jefe de Optimización" para poder reusarla después.');
-    lineas.push('6. Aplica los cambios y confirma que la tabla ya muestra esas columnas.');
-    lineas.push('7. Si no te he dicho qué rango de fechas quiero analizar, pregúntamelo antes de exportar.');
-    lineas.push('8. Haz clic en "Exportar" → "Exportar datos de la tabla" → formato CSV → desglose: Ninguno.');
-    lineas.push('9. Descarga el archivo y dime el nombre exacto que descargaste para que lo suba al Jefe de Optimización.');
+    lineas.push((pasoBase + 1) + '. Guarda esta selección como una plantilla nueva llamada "Jefe de Optimización" para poder reusarla después.');
+    lineas.push((pasoBase + 2) + '. Aplica los cambios y confirma que la tabla ya muestra esas columnas.');
+    lineas.push((pasoBase + 3) + '. Si no te he dicho qué rango de fechas quiero analizar, pregúntamelo antes de exportar.');
+    lineas.push((pasoBase + 4) + '. Haz clic en "Exportar" → "Exportar datos de la tabla" → formato CSV → desglose: Ninguno.');
+    lineas.push((pasoBase + 5) + '. Descarga el archivo y dime el nombre exacto que descargaste para que lo suba al Jefe de Optimización.');
     return lineas.join('\n');
   }
 
-  var instruccionesModal = document.getElementById('instruccionesModal');
-  document.getElementById('verInstruccionesBtn').addEventListener('click', function(){
-    document.getElementById('tabContentManual').innerHTML = renderManualInstrucciones();
-    var promptTexto = generarPromptClaude();
+  var LINK_ADS_KEY = CLIENTE_ID + ':optimizacion-link-ads-manager';
+  var linkAdsGuardarTimer = null;
+
+  function renderPromptClaudeTab(link){
+    var promptTexto = generarPromptClaude(link);
     document.getElementById('tabContentClaude').innerHTML =
-      '<p style="margin-top:0;">Copia este prompt y pégalo en un chat de Claude con acceso al navegador (Claude en Chrome, o Claude Code con el navegador conectado). Necesitas tener ya abierta tu sesión de Meta Ads Manager.</p>'
+      '<p style="margin-top:0;">Copia este prompt y pégalo en un chat de Claude con acceso al navegador (Claude en Chrome, o Claude Code con el navegador conectado).</p>'
+      + '<label style="display:block;font-size:12px;color:var(--text-dim);margin-bottom:6px;">Pega aquí el link directo a tu Administrador de Anuncios, en la pestaña Anuncios de la cuenta correcta (se guarda para la próxima vez):</label>'
+      + '<input type="text" id="linkAdsManagerInput" class="field-input-opt" placeholder="https://business.facebook.com/adsmanager/manage/ads?act=..." value="' + escaparAtributoOpt(link || '') + '" style="width:100%;background:var(--surface);border:1.5px solid var(--line);border-radius:8px;color:var(--text);padding:9px 12px;font-family:\'JetBrains Mono\',monospace;font-size:12px;margin-bottom:12px;">'
       + '<div class="prompt-box" id="promptClaudeBox">' + escaparAtributoOpt(promptTexto) + '</div>'
       + '<button type="button" class="copy-prompt-btn" id="copyPromptBtn">📋 Copiar prompt</button>';
+
     document.getElementById('copyPromptBtn').addEventListener('click', function(){
-      navigator.clipboard.writeText(promptTexto).then(function(){
+      var textoActual = document.getElementById('promptClaudeBox').textContent;
+      navigator.clipboard.writeText(textoActual).then(function(){
         var btn = document.getElementById('copyPromptBtn');
         btn.textContent = '✅ Copiado';
         btn.classList.add('copied');
         setTimeout(function(){ btn.textContent = '📋 Copiar prompt'; btn.classList.remove('copied'); }, 2000);
       });
     });
+
+    document.getElementById('linkAdsManagerInput').addEventListener('input', function(e){
+      var nuevoLink = e.target.value.trim();
+      document.getElementById('promptClaudeBox').textContent = generarPromptClaude(nuevoLink);
+      document.getElementById('tabContentManual').innerHTML = renderManualInstrucciones(nuevoLink);
+      clearTimeout(linkAdsGuardarTimer);
+      linkAdsGuardarTimer = setTimeout(function(){
+        window.storage.set(LINK_ADS_KEY, nuevoLink).catch(function(){});
+      }, 800);
+    });
+  }
+
+  var instruccionesModal = document.getElementById('instruccionesModal');
+  document.getElementById('verInstruccionesBtn').addEventListener('click', async function(){
+    var linkGuardado = '';
+    try {
+      var r = await window.storage.get(LINK_ADS_KEY);
+      if (r && r.value) linkGuardado = r.value;
+    } catch (e) {}
+    document.getElementById('tabContentManual').innerHTML = renderManualInstrucciones(linkGuardado);
+    renderPromptClaudeTab(linkGuardado);
     instruccionesModal.classList.add('open');
   });
   document.getElementById('cerrarInstruccionesBtn').addEventListener('click', function(){ instruccionesModal.classList.remove('open'); });
