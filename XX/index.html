@@ -962,11 +962,6 @@
     save(); renderAgenda();
   });
 
-  function wordsOverlap(a, b){
-    var wa = a.split(/\s+/).filter(function(w){ return w.length>=4; });
-    return wa.some(function(w){ return b.indexOf(w) > -1; });
-  }
-
   function parseMinutes(lower){
     if(lower.indexOf('hora y media') > -1) return 90;
     var hourMatch = lower.match(/(\d+(\.\d+)?)\s*horas?/);
@@ -983,38 +978,16 @@
 
   function tryMarkDone(text){
     var lower = text.toLowerCase();
-    var doneKeywords = ['ya hice','ya se hizo','ya esta','ya está','ya quedo','ya quedó','listo','termine','terminé','terminado','hecho','ya lo hice','completado','ya lo termine','ya lo terminé'];
+    var doneKeywords = ['ya hice','ya se hizo','ya esta','ya está','ya quedo','ya quedó','listo','termine','terminé','terminado','hecho','ya lo hice','completado','ya lo termine','ya lo terminé',
+      'ya se creo','ya se creó','ya cree','ya creé','ya subi','ya subí','ya lo subi','ya lo subí','ya mande','ya mandé','ya lo mande','ya lo mandé',
+      'ya envie','ya envié','ya lo envie','ya lo envié','ya salio','ya salió','ya acabe','ya acabé','acabo de','realizado','finalizado','concluido'];
     var isDoneCommand = doneKeywords.some(function(k){ return lower.indexOf(k) > -1; });
     if(!isDoneCommand) return false;
     var minutes = parseMinutes(lower);
-    var matched = null;
-    data.tasks.forEach(function(t){
-      if(!matched && (wordsOverlap(lower, t.text.toLowerCase()) || wordsOverlap(t.text.toLowerCase(), lower))) matched = {type:'reto', obj:t};
-    });
-    if(!matched){
-      data.products.forEach(function(p){
-        p.tasks.forEach(function(t){
-          if(!matched && !t.done && (wordsOverlap(lower, t.text.toLowerCase()) || wordsOverlap(t.text.toLowerCase(), lower))) matched = {type:'producto', obj:t, product:p};
-        });
-      });
-    }
-    var historyEntry;
-    if(matched){
-      if(matched.type==='reto'){
-        data.tasks = data.tasks.filter(function(x){ return x.id !== matched.obj.id; }); renderTasks();
-        historyEntry = Object.assign({id:uid('hist'), project:guessProject(lower), text:matched.obj.text, minutes:minutes}, historyStamp());
-        bumpAreaDone(matched.obj.text);
-      } else {
-        matched.obj.done = true; renderProducts(); renderProgressMini();
-        historyEntry = Object.assign({id:uid('hist'), project:matched.product.name, text:matched.obj.text, minutes:minutes}, historyStamp());
-        bumpAreaDone(matched.obj.text);
-      }
-    } else {
-      historyEntry = Object.assign({id:uid('hist'), project:guessProject(lower), text:text, minutes:minutes}, historyStamp());
-      bumpAreaTotal(text); bumpAreaDone(text);
-    }
+    var historyEntry = Object.assign({id:uid('hist'), project:guessProject(lower), text:text, minutes:minutes}, historyStamp());
     data.history.unshift(historyEntry);
     if(data.history.length > 50) data.history.length = 50;
+    bumpAreaTotal(text); bumpAreaDone(text);
     save(); renderHistory(); renderCalendar(); renderBalance();
     return true;
   }
