@@ -42,6 +42,30 @@
 
     .how-export { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-size: 12.5px; color: var(--text-dim); line-height: 1.6; }
     .how-export b { color: var(--accent); }
+    .link-btn { background: none; border: none; color: var(--accent); font-size: 12.5px; font-weight: 600; cursor: pointer; text-decoration: underline; padding: 0; font-family: inherit; }
+    .link-btn:hover { color: #fff; }
+
+    /* ── MODAL DE INSTRUCCIONES ── */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 100; align-items: center; justify-content: center; padding: 20px; }
+    .modal-overlay.open { display: flex; }
+    .modal-box { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; max-width: 640px; width: 100%; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden; }
+    .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+    .modal-header h3 { margin: 0; font-size: 16px; }
+    .modal-close { background: none; border: none; color: var(--text-dim); font-size: 18px; cursor: pointer; padding: 4px 8px; }
+    .modal-close:hover { color: var(--accent); }
+    .modal-tabs { display: flex; gap: 8px; padding: 14px 20px 0; flex-shrink: 0; }
+    .modal-tab { background: transparent; border: 1px solid var(--line); color: var(--text-dim); font-size: 12.5px; padding: 8px 14px; border-radius: 20px; cursor: pointer; }
+    .modal-tab.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); font-weight: 700; }
+    .modal-body { padding: 16px 20px 20px; overflow-y: auto; font-size: 13.5px; line-height: 1.6; }
+    .modal-body ol { padding-left: 20px; margin: 0; }
+    .modal-body li { margin-bottom: 10px; }
+    .col-group { margin: 8px 0; }
+    .col-group-title { font-family: "JetBrains Mono", monospace; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin-bottom: 6px; }
+    .col-chip-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    .col-chip { background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; padding: 4px 9px; font-size: 11.5px; font-family: "JetBrains Mono", monospace; }
+    .prompt-box { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 14px; font-family: "JetBrains Mono", monospace; font-size: 11.5px; line-height: 1.6; white-space: pre-wrap; max-height: 320px; overflow-y: auto; }
+    .copy-prompt-btn { margin-top: 10px; background: var(--accent); border: none; color: #0F0B16; font-weight: 700; font-size: 13px; padding: 9px 16px; border-radius: 8px; cursor: pointer; }
+    .copy-prompt-btn.copied { background: #10b981; }
 
     /* ── HISTORIAL ── */
     .hist-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
@@ -155,12 +179,31 @@
 
     <div class="how-export" style="margin-top:14px;">
       <b>¿Cómo exportar tu CSV?</b><br>
-      Meta Ads Manager → Nivel Anuncio → Sin desglose → Exportar → CSV (.csv)
+      Meta Ads Manager → Nivel Anuncio → Sin desglose → Exportar → CSV (.csv)<br>
+      <button type="button" class="link-btn" id="verInstruccionesBtn" style="margin-top:8px;">📋 Ver instrucciones — qué columnas activar antes de exportar →</button>
     </div>
 
     <button type="button" class="analyze-btn" id="analyzeBtn" style="margin-top:16px;" disabled>Analizar reporte completo</button>
     <div class="error-box" id="uploadError"></div>
   </section>
+
+  <!-- ═══ MODAL: INSTRUCCIONES DE EXPORTACIÓN ═══ -->
+  <div class="modal-overlay" id="instruccionesModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>📋 Cómo exportar el CSV con todas las columnas</h3>
+        <button type="button" class="modal-close" id="cerrarInstruccionesBtn">✕</button>
+      </div>
+      <div class="modal-tabs">
+        <button type="button" class="modal-tab active" data-tab="manual">🖱️ Manual (en el navegador)</button>
+        <button type="button" class="modal-tab" data-tab="claude">🤖 Con Claude</button>
+      </div>
+      <div class="modal-body">
+        <div id="tabContentManual"></div>
+        <div id="tabContentClaude" style="display:none;"></div>
+      </div>
+    </div>
+  </div>
 
   <!-- ═══ CARGANDO ═══ -->
   <section class="loading-block" id="loadingBlock">
@@ -260,6 +303,97 @@
   }
 
   var ultimoDashboardHtml = '';
+
+  // ── INSTRUCCIONES DE EXPORTACIÓN (qué columnas activar en Meta Ads Manager) ──
+  // Basado en la seccion 5 (Que contiene un reporte de Meta Ads) del Documento
+  // Maestro del Jefe de Optimizacion -- prompts/system-prompt-analista-metaads.md
+  var COLUMNAS_REQUERIDAS = [
+    { grupo: 'Identificación', cols: ['Nombre del anuncio', 'Nombre del conjunto de anuncios', 'Nombre de la campaña', 'Entrega del anuncio'] },
+    { grupo: 'Presupuesto', cols: ['Presupuesto del conjunto de anuncios', 'Tipo de presupuesto'] },
+    { grupo: 'Resultado y gasto', cols: ['Importe gastado (MXN)', 'Resultados', 'Indicador de resultado', 'Costo por resultados'] },
+    { grupo: 'Rentabilidad (solo campañas de Compras en sitio web)', cols: ['ROAS de resultados', 'Valor de resultados'] },
+    { grupo: 'Atención y clic', cols: ['Impresiones', 'Alcance', 'Frecuencia', 'CTR (todos)', 'CTR (porcentaje de clics en el enlace)', 'Clics (todos)', 'CPC (todos)', 'CPM (costo por 1,000 impresiones)'] },
+    { grupo: 'Embudo (solo campañas de sitio web)', cols: ['Visitas a la página de destino', 'Pagos iniciados', 'Costo por pago iniciado'] },
+    { grupo: 'Calidad (si está disponible para tu cuenta)', cols: ['Clasificación de calidad', 'Clasificación del porcentaje de interacción', 'Clasificación del porcentaje de conversiones'] },
+  ];
+
+  function escaparAtributoOpt(str){
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function renderColumnasHtml(){
+    return COLUMNAS_REQUERIDAS.map(function(g){
+      return '<div class="col-group"><div class="col-group-title">' + escaparAtributoOpt(g.grupo) + '</div>'
+        + '<div class="col-chip-list">' + g.cols.map(function(c){ return '<span class="col-chip">' + escaparAtributoOpt(c) + '</span>'; }).join('') + '</div></div>';
+    }).join('');
+  }
+
+  function renderManualInstrucciones(){
+    return '<ol>'
+      + '<li>Entra a <b>Meta Ads Manager</b> (business.facebook.com/adsmanager) y selecciona la cuenta publicitaria correcta.</li>'
+      + '<li>Ve a la pestaña <b>Anuncios</b> (nivel anuncio — no campañas ni conjuntos de anuncios).</li>'
+      + '<li>Elige el rango de fechas que quieres analizar (arriba a la derecha).</li>'
+      + '<li>Haz clic en el menú <b>Columnas</b> → <b>Personalizar columnas</b>.</li>'
+      + '<li>Activa (marca el check) estas columnas, sin quitar las que ya tengas:' + renderColumnasHtml() + '</li>'
+      + '<li>Da clic en <b>Guardar</b> — si quieres, guárdala como plantilla nueva llamada "Jefe de Optimización" para no repetir esto cada vez.</li>'
+      + '<li>Con las columnas ya aplicadas, haz clic en <b>Exportar</b> → <b>Exportar datos de la tabla</b> → formato <b>.csv</b> → desglose: <b>Ninguno</b>.</li>'
+      + '<li>Descarga el archivo y súbelo aquí arriba.</li>'
+      + '</ol>';
+  }
+
+  function generarPromptClaude(){
+    var lineas = [
+      'Entra a Meta Ads Manager (business.facebook.com/adsmanager) — ya deberías tener mi cuenta conectada en este navegador.',
+      '',
+      'Sigue estos pasos:',
+      '1. Selecciona la cuenta publicitaria correcta.',
+      '2. Ve a la pestaña "Anuncios" (nivel anuncio, no campañas ni conjuntos de anuncios).',
+      '3. Abre el menú "Columnas" → "Personalizar columnas".',
+      '4. Activa (marca el check) exactamente estas columnas, SIN quitar las que ya estén marcadas:',
+    ];
+    COLUMNAS_REQUERIDAS.forEach(function(g){
+      lineas.push('');
+      lineas.push('   ' + g.grupo + ':');
+      g.cols.forEach(function(c){ lineas.push('   - ' + c); });
+    });
+    lineas.push('');
+    lineas.push('5. Guarda esta selección como una plantilla nueva llamada "Jefe de Optimización" para poder reusarla después.');
+    lineas.push('6. Aplica los cambios y confirma que la tabla ya muestra esas columnas.');
+    lineas.push('7. Si no te he dicho qué rango de fechas quiero analizar, pregúntamelo antes de exportar.');
+    lineas.push('8. Haz clic en "Exportar" → "Exportar datos de la tabla" → formato CSV → desglose: Ninguno.');
+    lineas.push('9. Descarga el archivo y dime el nombre exacto que descargaste para que lo suba al Jefe de Optimización.');
+    return lineas.join('\n');
+  }
+
+  var instruccionesModal = document.getElementById('instruccionesModal');
+  document.getElementById('verInstruccionesBtn').addEventListener('click', function(){
+    document.getElementById('tabContentManual').innerHTML = renderManualInstrucciones();
+    var promptTexto = generarPromptClaude();
+    document.getElementById('tabContentClaude').innerHTML =
+      '<p style="margin-top:0;">Copia este prompt y pégalo en un chat de Claude con acceso al navegador (Claude en Chrome, o Claude Code con el navegador conectado). Necesitas tener ya abierta tu sesión de Meta Ads Manager.</p>'
+      + '<div class="prompt-box" id="promptClaudeBox">' + escaparAtributoOpt(promptTexto) + '</div>'
+      + '<button type="button" class="copy-prompt-btn" id="copyPromptBtn">📋 Copiar prompt</button>';
+    document.getElementById('copyPromptBtn').addEventListener('click', function(){
+      navigator.clipboard.writeText(promptTexto).then(function(){
+        var btn = document.getElementById('copyPromptBtn');
+        btn.textContent = '✅ Copiado';
+        btn.classList.add('copied');
+        setTimeout(function(){ btn.textContent = '📋 Copiar prompt'; btn.classList.remove('copied'); }, 2000);
+      });
+    });
+    instruccionesModal.classList.add('open');
+  });
+  document.getElementById('cerrarInstruccionesBtn').addEventListener('click', function(){ instruccionesModal.classList.remove('open'); });
+  instruccionesModal.addEventListener('click', function(e){ if (e.target === instruccionesModal) instruccionesModal.classList.remove('open'); });
+  Array.prototype.forEach.call(document.querySelectorAll('.modal-tab'), function(tab){
+    tab.addEventListener('click', function(){
+      Array.prototype.forEach.call(document.querySelectorAll('.modal-tab'), function(t){ t.classList.remove('active'); });
+      tab.classList.add('active');
+      var target = tab.getAttribute('data-tab');
+      document.getElementById('tabContentManual').style.display = target === 'manual' ? 'block' : 'none';
+      document.getElementById('tabContentClaude').style.display = target === 'claude' ? 'block' : 'none';
+    });
+  });
 
   // ── HISTORIAL DE ANÁLISIS (guardado en storage, por marca) ──
   var HISTORIAL_KEY = CLIENTE_ID + ':optimizacion-historial';
