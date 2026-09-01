@@ -405,6 +405,24 @@ async function handleDiseno(req, res, body) {
 
 // ---------- rama Agente Analista de Meta Ads ----------
 
+// El prompt le pide a Claude que en Modo 1 su respuesta completa sea solo el HTML,
+// pero por si acaso se le cuela pre-analisis o cercas de codigo (```html) antes/despues
+// del documento, lo recortamos aqui -- es un no-op si la respuesta ya viene limpia o si
+// no es un dashboard HTML (ej. respuestas de chat de seguimiento en otros modos).
+function extraerHtmlDashboard(texto) {
+  if (!texto) return texto;
+  let limpio = texto;
+  const fence = limpio.match(/```(?:html)?\s*([\s\S]*?)```/i);
+  if (fence && /<!DOCTYPE|<html[\s>]/i.test(fence[1])) {
+    limpio = fence[1];
+  }
+  const inicio = limpio.search(/<!DOCTYPE html|<html[\s>]/i);
+  if (inicio > 0) limpio = limpio.slice(inicio);
+  const cierre = limpio.search(/<\/html\s*>/i);
+  if (cierre > -1) limpio = limpio.slice(0, cierre + '</html>'.length);
+  return limpio.trim();
+}
+
 async function handleMetaAds(req, res, body) {
   const clienteId = (body.cliente || DEFAULT_CLIENTE_METAADS).toString();
 
@@ -421,7 +439,7 @@ async function handleMetaAds(req, res, body) {
   const r = await llamarClaudeChat({ system, messages: limpio, maxTokens: 8000 });
   if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
   await registrarUsoTokens(clienteId, 'consultor-optimizacion', r.usage);
-  return res.status(200).json({ text: r.text });
+  return res.status(200).json({ text: extraerHtmlDashboard(r.text) });
 }
 
 // ---------- rama Generador de Imágenes (Jefe de Producción de Video) ----------
