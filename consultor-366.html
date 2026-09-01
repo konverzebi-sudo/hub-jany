@@ -660,22 +660,23 @@ function renderGroupTabs(grupos) {
 
 function switchGroup(grupos, idx) {
   document.querySelectorAll('.group-tab').forEach((t, i) => t.classList.toggle('active', i === idx));
-
-  const pubContent = document.getElementById('publicidad-content');
-  const soonContent = document.getElementById('soon-content');
   const grupo = grupos[idx];
-
-  if (idx === 0) {
-    pubContent.style.display = '';
-    soonContent.style.display = 'none';
-  } else {
-    pubContent.style.display = 'none';
-    soonContent.style.display = '';
-    document.getElementById('soonPanel').style.display = 'block';
-    document.getElementById('soonTitle').textContent = grupo.nombre + ' — Próximamente';
-    document.getElementById('soonDesc').textContent =
-      'Cuando completes el proceso 366 para ' + grupo.nombre +
-      ', esta sección se activará con su propia estrategia, frases, ángulos y guiones de WhatsApp.';
+  if (!grupo) return;
+  // Los grupos de negocio (Publicidad, Torneo, etc.) ya NO son universos separados con su propio
+  // chat -- el chat y las Notas de Jefe 366 son unificados (un mismo Perfil de Cliente y un mismo
+  // Sistema/Comunicación 366 sirven para cualquier producto). Dar clic en un grupo es solo un
+  // atajo para saltar a la pestaña de Producto 366 con ese mismo nombre, si ya existe.
+  if (typeof productosState !== 'undefined' && productosState.length) {
+    const nombreBuscado = grupo.nombre.toString().toLowerCase();
+    const match = productosState.findIndex((p) => p && p.nombre && p.nombre.toString().toLowerCase().includes(nombreBuscado));
+    if (match !== -1) {
+      capturarProductosDesdeDOM();
+      productoActivo = match;
+      renderEpTabs();
+      renderEpPanels();
+      const panel = document.getElementById('ep-panels-container');
+      if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   }
 }
 
