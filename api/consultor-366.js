@@ -1,12 +1,9 @@
-// Endpoint server-side del Jefe 366 -- consolida en UN solo archivo (por el límite de 12
-// Serverless Functions del plan Hobby de Vercel) los 2 endpoints que antes vivían separados:
-// - api/consultor-366.js         ("agente vivo", pregunta suelta sin memoria: body.mensaje)
-// - api/consultor-366.js (chat guiado multi-turno: body.messages -- ya fusionado
-//   aquí mismo, ese archivo ya no existe)
-// Se distinguen por la FORMA del body (ya eran distintas entre sí, así que no hace falta un campo
-// nuevo de "modo"): si viene `messages` es el chat guiado (builder); si viene `mensaje` es la
-// pregunta suelta. Cada rama conserva exactamente su lógica y forma de respuesta original -- esto
-// es solo reempaquetado, no cambia comportamiento.
+// Endpoint server-side del Jefe 366: el chat guiado multi-turno (Módulos 1-6, Documento Maestro)
+// y el chat de Jefe de Temporada, que se fusionó aquí mismo por el límite de 12 Serverless
+// Functions del plan Hobby de Vercel -- se distinguen por body.agente === 'temporada'.
+// La rama de "pregunta suelta sin memoria" (Consulta en vivo con el Agente) que vivía aquí se
+// retiró -- esa caja nunca guardaba nada en Notas y se quitó de la interfaz por ser redundante
+// con el chat guiado.
 
 const fs = require('fs');
 const path = require('path');
@@ -81,139 +78,6 @@ async function llamarClaude(system, body) {
   });
   const data = await anthropicRes.json();
   return { ok: anthropicRes.ok, status: anthropicRes.status, data };
-}
-
-// =============================================================================================
-// RAMA "preguntas" (original api/consultor-366.js) -- pregunta suelta, sin memoria.
-// =============================================================================================
-
-const PREGUNTAS_PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-consultor-366-preguntas.md');
-const PREGUNTAS_CONTEXT_CHAR_LIMIT = 6000;
-
-let preguntasPromptCache = null;
-function cargarPromptPreguntas() {
-  if (preguntasPromptCache) return preguntasPromptCache;
-  preguntasPromptCache = fs.readFileSync(PREGUNTAS_PROMPT_PATH, 'utf-8');
-  return preguntasPromptCache;
-}
-
-const preguntasHits = new Map();
-const PREGUNTAS_WINDOW_MS = 5 * 60 * 1000;
-const PREGUNTAS_MAX_REQUESTS = 12;
-function preguntasRateLimited(ip) {
-  const now = Date.now();
-  const recent = (preguntasHits.get(ip) || []).filter((t) => now - t < PREGUNTAS_WINDOW_MS);
-  recent.push(now);
-  preguntasHits.set(ip, recent);
-  return recent.length > PREGUNTAS_MAX_REQUESTS;
-}
-
-function preguntasFormatearIdentidad(d) {
-  if (!d) return null;
-  const lineas = [];
-  if (d.nombre) lineas.push(`Nombre: ${d.nombre}`);
-  if (d.giro_categoria || d.giro_texto) lineas.push(`Giro: ${d.giro_texto || d.giro_categoria}`);
-  if (d.producto_estrella) lineas.push(`Producto estrella: ${d.producto_estrella}`);
-  if (lineas.length === 0) return null;
-  return 'IDENTIDAD DEL NEGOCIO:\n' + lineas.join('\n');
-}
-
-function preguntasFormatearTono(d) {
-  if (!d) return null;
-  const lineas = [];
-  if (Array.isArray(d.tonos) && d.tonos.length) lineas.push(`Tonos: ${d.tonos.join(', ')}`);
-  if (d.persona) lineas.push(`Persona de marca: ${d.persona}`);
-  if (lineas.length === 0) return null;
-  return 'TONO DE MARCA:\n' + lineas.join('\n');
-}
-
-// Misma llave que usa Jefe 366 para su "Perfil de Cliente" en pestañas (brand-book.audiencias,
-// {lista:[...]}) -- una sola fuente de verdad, se edita solo en Jefe 366.
-async function preguntasLeerAudiencias(clienteId) {
-  const nuevo = await leerJSON(`${clienteId}:brand-book.audiencias`).catch(() => null);
-  if (nuevo && Array.isArray(nuevo.lista) && nuevo.lista.length) return nuevo.lista;
-  const viejo = await leerJSON(`${clienteId}:brand-book.audiencia`).catch(() => null);
-  if (Array.isArray(viejo) && viejo.length) return viejo;
-  if (viejo && viejo.descripcion_clientes) return [{ nombre: 'Perfil Principal', quien_compra: viejo.descripcion_clientes }];
-  const perfil366 = (await leerJSON(`${clienteId}:brand-book.366-perfil-cliente`).catch(() => null))
-    || (await leerJSON(`${clienteId}:brand-book.evergreen-perfil-cliente`).catch(() => null));
-  if (perfil366 && Object.keys(perfil366).length) return [Object.assign({ nombre: 'Perfil Principal' }, perfil366)];
-  return [];
-}
-
-function preguntasFormatearAudiencias(items) {
-  if (!Array.isArray(items) || items.length === 0) return null;
-  const bloques = items
-    .filter((a) => a && (a.nombre || a.ocupacion || a.descripcion_breve))
-    .map((a, i) => `Perfil ${i + 1}: ${a.nombre || '(sin nombre)'}${a.producto_relacionado ? ' — compra probable: ' + a.producto_relacionado : ''}${a.miedo_deseo ? ' — ' + a.miedo_deseo : ''}`);
-  if (bloques.length === 0) return null;
-  return 'CLIENTE IDEAL (ordenado de mayor a menor probabilidad de compra):\n' + bloques.join('\n');
-}
-
-function preguntasFormatearCatalogo(items) {
-  if (!Array.isArray(items) || items.length === 0) return null;
-  const lineas = items.filter((p) => p && p.nombre).map((p) => `- ${p.nombre}${p.precio != null && p.precio !== '' ? ` (precio $${p.precio})` : ''}`);
-  if (lineas.length === 0) return null;
-  return 'CATÁLOGO DE PRODUCTOS:\n' + lineas.join('\n');
-}
-
-async function preguntasConstruirContextoNegocio(clienteId) {
-  const [identidad, tono, audiencia, catalogo] = await Promise.all([
-    leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
-    leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
-    preguntasLeerAudiencias(clienteId).catch(() => []),
-    leerJSON(`${clienteId}:catalogo-productos`).catch(() => null),
-  ]);
-
-  const bloques = [preguntasFormatearIdentidad(identidad), preguntasFormatearTono(tono), preguntasFormatearAudiencias(audiencia), preguntasFormatearCatalogo(catalogo)].filter(Boolean);
-
-  if (bloques.length === 0) {
-    return 'CONTEXTO DEL NEGOCIO: todavía no hay datos guardados en el ADN de esta marca. Dilo con claridad en tu respuesta en vez de inventar.';
-  }
-  return 'CONTEXTO DEL NEGOCIO (ya cargado del ADN):\n\n' + truncar(bloques.join('\n\n'), PREGUNTAS_CONTEXT_CHAR_LIMIT);
-}
-
-async function manejarPreguntaSuelta(req, res) {
-  const ip = (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown').toString().split(',')[0].trim();
-  if (preguntasRateLimited(ip)) {
-    return res.status(429).json({ error: 'Demasiadas solicitudes, espera unos minutos.' });
-  }
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return res.status(500).json({ error: 'Falta configurar ANTHROPIC_API_KEY en el servidor.' });
-  }
-
-  const { mensaje, cliente } = req.body || {};
-  if (!mensaje || !mensaje.toString().trim()) {
-    return res.status(400).json({ error: 'Falta mensaje.' });
-  }
-
-  const clienteId = (cliente || 'rancho-seco').toString();
-  const promptFijo = cargarPromptPreguntas();
-
-  try {
-    const contexto = await preguntasConstruirContextoNegocio(clienteId);
-    const bancoConversaciones = await formatearBancoConversacionesWhatsApp(clienteId).catch(() => null);
-    const system = [promptFijo, contexto, bancoConversaciones].filter(Boolean).join('\n\n');
-
-    const { ok, status, data } = await llamarClaude(system, {
-      model: 'claude-sonnet-4-6',
-      max_tokens: 800,
-      system,
-      messages: [{ role: 'user', content: mensaje }],
-    });
-    if (!ok) {
-      return res.status(status).json({ error: data?.error?.message || 'Error al llamar a la API.' });
-    }
-
-    const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
-    if (!text) {
-      return res.status(502).json({ error: 'Respuesta vacía del modelo.' });
-    }
-    await registrarUsoTokens(clienteId, 'consultor-366-preguntas', data.usage);
-    return res.status(200).json({ text });
-  } catch (err) {
-    return res.status(500).json({ error: 'Error de conexión con el Agente.' });
-  }
 }
 
 // =============================================================================================
@@ -798,7 +662,8 @@ async function manejarChatTemporada(req, res) {
 }
 
 // =============================================================================================
-// handler -- despacha por la FORMA del body (messages -> builder o temporada; mensaje -> preguntas)
+// handler -- messages con agente:'temporada' va a Jefe de Temporada, cualquier otro con
+// messages va al chat guiado de Jefe 366.
 // =============================================================================================
 
 module.exports = async function handler(req, res) {
@@ -814,5 +679,5 @@ module.exports = async function handler(req, res) {
     if (body.agente === 'temporada') return manejarChatTemporada(req, res);
     return manejarChatGuiado(req, res);
   }
-  return manejarPreguntaSuelta(req, res);
+  return res.status(400).json({ error: 'Falta el historial de la conversación (messages).' });
 };
