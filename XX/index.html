@@ -1574,16 +1574,28 @@
     var agendaList = data.agenda.map(function(a){
       return a.id+': "'+a.text+'"'+(a.startDate ? ' ('+a.startDate+(a.endDate&&a.endDate!==a.startDate?' a '+a.endDate:'')+(a.time?' '+a.time:'')+(a.durationMinutes?', '+a.durationMinutes+' min':'')+')' : '');
     }).join('; ');
-    var systemPrompt = 'Eres el asistente del dashboard personal de Jany. Tu trabajo es entender que quiere agregar '+
-      '(un evento con fecha/hora, un pendiente suelto, un gasto o ahorro, un habito nuevo, o una tarea de un proyecto) '+
-      'o CORREGIR algo que ya existe en su Agenda, y, si falta informacion clave para un evento (el dia, o si es a una hora especifica o todo el dia, o cuanto dura), '+
-      'preguntarla de forma breve y natural, UNA sola pregunta a la vez, en espanol de Mexico.\n'+
-      'Hoy es '+todayISO+' ('+weekday+'). Proyectos existentes: '+(projectNames||'ninguno')+'.\n'+
+    var retosList = data.tasks.map(function(t){ return '"'+t.text+'" ('+t.color+')'; }).join('; ');
+    var projectsSummary = data.products.map(function(p){
+      var pend = p.tasks.filter(function(t){ return !t.done; });
+      return p.name+': '+pend.length+' pendiente(s)'+(pend.length ? ' — '+pend.slice(0,5).map(function(t){return t.text;}).join(', ') : '');
+    }).join(' | ');
+    var systemPrompt = 'Eres el asistente del dashboard personal de Jany — tambien puedes actuar como consultora de negocio/marketing/organizacion cuando ella lo pida, '+
+      'usando el contexto real de sus proyectos y pendientes de abajo. Tu trabajo principal es entender que quiere agregar '+
+      '(un evento con fecha/hora, un pendiente suelto, un gasto o ahorro, un habito nuevo, o una tarea de un proyecto), '+
+      'CORREGIR algo que ya existe en su Agenda, o RESPONDER si te hace una pregunta, pide consejo, o quiere ayuda organizando/priorizando. '+
+      'Si falta informacion clave para un evento (el dia, o si es a una hora especifica o todo el dia, o cuanto dura), '+
+      'preguntala de forma breve y natural, UNA sola pregunta a la vez, en espanol de Mexico.\n'+
+      'Hoy es '+todayISO+' ('+weekday+').\n'+
+      'Proyectos y sus pendientes: '+(projectsSummary||'ninguno')+'.\n'+
+      'Retos del dia (pendientes sueltos): '+(retosList||'ninguno')+'.\n'+
       'Pendientes de Agenda existentes (id: "texto" (fecha hora, duracion)): '+(agendaList||'ninguno')+'.\n\n'+
-      'Responde SIEMPRE con un JSON valido, sin texto extra ni markdown, en una de estas dos formas:\n'+
+      'Responde SIEMPRE con un JSON valido, sin texto extra ni markdown, en una de estas tres formas:\n'+
       '{"status":"ask","question":"..."}\n'+
+      '{"status":"respond","reply":"..."}\n'+
       '{"status":"done","action":{"type":"evento|editar|reto|gasto|habito|proyecto","editId":"id EXACTO de la lista de Agenda o null","text":"...","date":"YYYY-MM-DD","endDate":"YYYY-MM-DD o null","time":"HH:MM 24h o null","durationMinutes":numero o null,"project":"nombre EXACTO de la lista o null","amount":numero o null,"isExpense":true o false}}\n\n'+
-      'Reglas: si el mensaje pide corregir/cambiar/mover/actualizar algo que coincide claramente con un id de la lista de Agenda existente, '+
+      'Reglas: si el mensaje es una pregunta, pide consejo, o quiere ayuda para organizar/priorizar sus proyectos y pendientes '+
+      '(sin ser claramente algo para agregar a una lista), usa status="respond" con una respuesta util, especifica a su situacion real, y breve (maximo 5 lineas). '+
+      'Si el mensaje pide corregir/cambiar/mover/actualizar algo que coincide claramente con un id de la lista de Agenda existente, '+
       'usa type="editar" con "editId" = ese id EXACTO, y solo llena los campos que cambian (deja los demas null, no los inventes de nuevo). '+
       'Si no hay ninguna coincidencia clara en la lista, trata el mensaje como type="evento" nuevo (no inventes un editId). '+
       'type=evento siempre necesita al menos "date". Si no dijo hora, pregunta si es a una hora especifica o todo el dia; '+
@@ -1674,6 +1686,11 @@
     }
     if(result.status === 'ask' && result.question){
       pendingConversation.history.push({role:'assistant', text: result.question});
+      renderChatLog();
+      return;
+    }
+    if(result.status === 'respond' && result.reply){
+      pendingConversation.history.push({role:'assistant', text: result.reply});
       renderChatLog();
       return;
     }
