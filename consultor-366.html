@@ -205,6 +205,7 @@
     .notas-group summary { padding: 14px 18px; cursor: pointer; font-weight: 600; font-size: 14.5px; list-style: none; display: flex; justify-content: space-between; align-items: center; }
     .notas-group summary::-webkit-details-marker { display: none; }
     .notas-group summary:after { content: '+'; font-size: 18px; color: var(--accent); }
+    .titulo-activo-sufijo { color: var(--accent); font-weight: 700; }
     .notas-group[open] summary:after { content: '–'; }
     .notas-group .notas-body { padding: 4px 18px 18px; }
     .field { margin-bottom: 14px; position: relative; }
@@ -372,7 +373,7 @@
     </div>
 
     <details class="notas-group" open>
-      <summary>Perfil de Cliente 366</summary>
+      <summary><span id="epc-titulo-activo">Perfil de Cliente 366</span></summary>
       <div class="notas-body">
         <p style="font-size:12.5px;color:var(--text-dim);margin:0 0 14px;line-height:1.5;">Estos son los mismos perfiles que ves en <strong>ADN → Audiencias</strong> — se editan solo aquí, y en ADN se muestran de solo lectura. Puedes tener varios (uno por tipo de cliente/producto); el orden importa: el primero es el que compra con más probabilidad cuando un anuncio no apunta a un producto específico.</p>
         <div class="epc-tabs-nav" id="epc-tabs-nav"></div>
@@ -383,7 +384,7 @@
     </details>
 
     <details class="notas-group">
-      <summary>Producto 366</summary>
+      <summary><span id="ep-titulo-activo">Producto 366</span></summary>
       <div class="notas-body">
         <p style="font-size:12.5px;color:var(--text-dim);margin:0 0 14px;line-height:1.5;">Puedes tener varias ofertas 366 (ej. una de Capacitaciones, otra de otro producto). Un mismo Perfil de Cliente puede venderle a más de una oferta, pero recuerda que las motivaciones de compra pueden cambiar de una oferta a otra -- no asumas que son iguales solo porque el perfil se repite.</p>
         <div class="epc-tabs-nav" id="ep-tabs-nav"></div>
@@ -394,7 +395,7 @@
     </details>
 
     <details class="notas-group">
-      <summary>Sistema 366</summary>
+      <summary><span id="es-titulo-activo">Sistema 366</span></summary>
       <div class="notas-body">
         <p style="font-size:12.5px;color:var(--text-dim);margin:0 0 14px;line-height:1.5;">Puedes tener varios sistemas (uno por grupo de negocio, si de verdad conviene separarlos -- si Torneo y Publicidad operan igual, usa el mismo sistema para los dos).</p>
         <div class="epc-tabs-nav" id="es-tabs-nav"></div>
@@ -405,7 +406,7 @@
     </details>
 
     <details class="notas-group">
-      <summary>Comunicación 366</summary>
+      <summary><span id="ec-titulo-activo">Comunicación 366</span></summary>
       <div class="notas-body">
         <p style="font-size:12.5px;color:var(--text-dim);margin:0 0 14px;line-height:1.5;">Puedes tener varias estrategias de comunicación (una por grupo de negocio, si de verdad conviene separarlas -- si no, usa la misma para todo).</p>
         <div class="epc-tabs-nav" id="ec-tabs-nav"></div>
@@ -560,6 +561,15 @@ function switchGroup(grupos, idx) {
   // solo un atajo para saltar a la pestaña de cada sección que tenga ese mismo nombre, si existe.
   const nombreBuscado = grupo.nombre.toString().toLowerCase();
   let saltoA = null;
+  if (typeof perfilesState !== 'undefined' && perfilesState.length) {
+    const match = perfilesState.findIndex((p) => p && p.nombre && p.nombre.toString().toLowerCase().includes(nombreBuscado));
+    if (match !== -1) {
+      capturarPerfilesDesdeDOM();
+      perfilActivo = match;
+      renderEpcTabs();
+      renderEpcPanels();
+    }
+  }
   if (typeof productosState !== 'undefined' && productosState.length) {
     const match = productosState.findIndex((p) => p && p.nombre && p.nombre.toString().toLowerCase().includes(nombreBuscado));
     if (match !== -1) {
@@ -1374,9 +1384,21 @@ function capturarPerfilesDesdeDOM() {
   });
 }
 
+/* Muestra en el título de cada sección (el <summary>) cuál pestaña está activa ahorita mismo
+   -- ej. "Perfil de Cliente 366 — Torneo" -- para que sea inequívoco cuál se está editando o
+   confirmando, sobre todo cuando hay varias por sección. */
+function actualizarTituloActivo(spanId, base, nombre) {
+  const span = document.getElementById(spanId);
+  if (!span) return;
+  span.innerHTML = nombre
+    ? `${escaparHtmlBuilder(base)} <span class="titulo-activo-sufijo">— ${escaparHtmlBuilder(nombre)}</span>`
+    : escaparHtmlBuilder(base);
+}
+
 function renderEpcTabs() {
   const nav = document.getElementById('epc-tabs-nav');
   if (!nav) return;
+  actualizarTituloActivo('epc-titulo-activo', 'Perfil de Cliente 366', (perfilesState[perfilActivo] || {}).nombre);
   nav.innerHTML = '';
   perfilesState.forEach((p, i) => {
     const btn = document.createElement('button');
@@ -1605,6 +1627,7 @@ function capturarProductosDesdeDOM() {
 function renderEpTabs() {
   const nav = document.getElementById('ep-tabs-nav');
   if (!nav) return;
+  actualizarTituloActivo('ep-titulo-activo', 'Producto 366', (productosState[productoActivo] || {}).nombre);
   nav.innerHTML = '';
   productosState.forEach((p, i) => {
     const btn = document.createElement('button');
@@ -1859,6 +1882,7 @@ function sincronizarNombreSistema(i, valor) {
 function renderEsTabs() {
   const nav = document.getElementById('es-tabs-nav');
   if (!nav) return;
+  actualizarTituloActivo('es-titulo-activo', 'Sistema 366', (sistemasState[sistemaActivo] || {}).nombre);
   nav.innerHTML = '';
   sistemasState.forEach((p, i) => {
     const btn = document.createElement('button');
@@ -2044,6 +2068,7 @@ function sincronizarNombreComunicacion(i, valor) {
 function renderEcTabs() {
   const nav = document.getElementById('ec-tabs-nav');
   if (!nav) return;
+  actualizarTituloActivo('ec-titulo-activo', 'Comunicación 366', (comunicacionesState[comunicacionActivo] || {}).nombre);
   nav.innerHTML = '';
   comunicacionesState.forEach((p, i) => {
     const btn = document.createElement('button');
