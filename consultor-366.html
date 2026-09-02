@@ -673,7 +673,14 @@ function switchGroup(grupos, idx) {
   // grupo es un atajo para saltar a la pestaña de cada sección asignada a ese grupo, si existe. Si
   // ninguna pestaña está asignada todavía a este grupo, se avisa explícitamente en vez de no hacer
   // nada -- antes eso se veía como "no cambia nada" y parecía un error.
+  // saltoA siempre apunta al PRIMER aviso que aparezca (perfil, luego producto, sistema,
+  // comunicación, en ese orden) -- un aviso necesita acción, así que gana sobre un salto
+  // exitoso. Si las 4 encontraron su pestaña, se baja hasta el primer panel de Producto como
+  // confirmación visual de que sí pasó algo. Antes esto no bajaba la página en Perfil de Cliente
+  // 366 (por estar siempre abierto) -- pero esa sección es larga y el aviso quedaba enterrado
+  // hasta el final, invisible, así que "no cambió nada" aunque sí había pasado algo.
   let saltoA = null;
+  let saltoConfirmacion = null;
   if (typeof perfilesState !== 'undefined' && perfilesState.length) {
     const match = encontrarPorGrupo(perfilesState, grupo);
     if (match !== -1) {
@@ -681,9 +688,11 @@ function switchGroup(grupos, idx) {
       perfilActivo = match;
       renderEpcTabs();
       renderEpcPanels();
+      abrirSeccionDe('epc-status');
       limpiarAvisoGrupo('epc-status');
     } else {
       avisarSinPestanaGrupo('perfil', perfilesState, 'epc-status', grupo, '+ Agregar perfil');
+      saltoA = saltoA || 'epc-status';
     }
   }
   if (typeof productosState !== 'undefined' && productosState.length) {
@@ -694,10 +703,11 @@ function switchGroup(grupos, idx) {
       renderEpTabs();
       renderEpPanels();
       abrirSeccionDe('ep-status');
-      saltoA = saltoA || 'ep-panels-container';
+      saltoConfirmacion = saltoConfirmacion || 'ep-panels-container';
       limpiarAvisoGrupo('ep-status');
     } else {
       avisarSinPestanaGrupo('producto', productosState, 'ep-status', grupo, '+ Agregar producto');
+      saltoA = saltoA || 'ep-status';
     }
   }
   if (typeof sistemasState !== 'undefined' && sistemasState.length) {
@@ -711,6 +721,7 @@ function switchGroup(grupos, idx) {
       limpiarAvisoGrupo('es-status');
     } else {
       avisarSinPestanaGrupo('sistema', sistemasState, 'es-status', grupo, '+ Agregar sistema');
+      saltoA = saltoA || 'es-status';
     }
   }
   if (typeof comunicacionesState !== 'undefined' && comunicacionesState.length) {
@@ -724,11 +735,13 @@ function switchGroup(grupos, idx) {
       limpiarAvisoGrupo('ec-status');
     } else {
       avisarSinPestanaGrupo('comunicacion', comunicacionesState, 'ec-status', grupo, '+ Agregar comunicación');
+      saltoA = saltoA || 'ec-status';
     }
   }
-  if (saltoA) {
-    const panel = document.getElementById(saltoA);
-    if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const destino = saltoA || saltoConfirmacion;
+  if (destino) {
+    const el = document.getElementById(destino);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 }
 
