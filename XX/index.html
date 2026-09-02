@@ -679,6 +679,34 @@
       row.appendChild(actions);
       box.appendChild(row);
     });
+    agendaItemsForDay(todayKey).forEach(function(a){
+      var row = document.createElement('div');
+      row.className = 'jd-row';
+      row.style.cssText = 'justify-content:space-between;padding:7px 0;border-bottom:1px solid #232A1E;';
+      var timeLabel = a.time ? (' · '+a.time) : '';
+      row.innerHTML = '<span style="font-size:12.5px;flex:1;"><span class="jd-dot" style="background:#FF9F43;"></span>'+a.text+'<span class="jd-sub">'+timeLabel+'</span></span>';
+      var actions = document.createElement('div');
+      actions.className = 'jd-row'; actions.style.gap = '4px';
+      var check = document.createElement('button');
+      check.className = 'jd-btn'; check.textContent = '✓'; check.style.padding = '1px 8px'; check.style.color = '#8FE39E';
+      check.addEventListener('click', function(){
+        data.history.unshift(Object.assign({id:uid('hist'), project:guessProject(a.text.toLowerCase()), text:a.text, minutes:null}, historyStamp()));
+        if(data.history.length > 50) data.history.length = 50;
+        data.agenda = data.agenda.filter(function(x){ return x.id !== a.id; });
+        bumpAreaDone(a.text);
+        save(); renderTasks(); renderAgenda(); renderHistory(); renderCalendar(); renderWeekGrid(); renderBalance();
+      });
+      var del = document.createElement('button');
+      del.className = 'jd-btn'; del.textContent = '×'; del.style.padding = '1px 8px';
+      del.addEventListener('click', function(){
+        data.agenda = data.agenda.filter(function(x){ return x.id !== a.id; });
+        save(); renderTasks(); renderAgenda(); renderCalendar();
+      });
+      actions.appendChild(check);
+      actions.appendChild(del);
+      row.appendChild(actions);
+      box.appendChild(row);
+    });
   }
 
   function renderAgenda(){
@@ -704,7 +732,7 @@
       del.className = 'jd-btn'; del.textContent = '×'; del.style.padding = '1px 8px';
       del.addEventListener('click', function(){
         data.agenda = data.agenda.filter(function(x){ return x.id !== a.id; });
-        save(); renderAgenda(); renderCalendar();
+        save(); renderTasks(); renderAgenda(); renderCalendar();
       });
       row.appendChild(del);
       box.appendChild(row);
@@ -1346,7 +1374,7 @@
   function scheduleAgendaItem(item){
     item.gcalStatus = 'pending';
     data.agenda.push(item);
-    save(); renderAgenda(); renderCalendar();
+    save(); renderTasks(); renderAgenda(); renderCalendar();
     createGoogleCalendarEvent(item).then(function(eventId){
       item.gcalStatus = eventId ? 'synced' : 'failed';
       item.gcalEventId = eventId || null;
