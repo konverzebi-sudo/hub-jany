@@ -582,9 +582,20 @@ function encontrarPorGrupo(lista, grupo) {
   return lista.findIndex((p) => p && p.nombre && p.nombre.toString().toLowerCase().includes(nombreBuscado));
 }
 
+// Producto 366, Sistema 366 y Comunicación 366 empiezan colapsados (<details> cerrado) -- si el
+// salto de grupo o el aviso caen ahí dentro sin abrir la sección, se ve exactamente como "no pasó
+// nada", que es justo la confusión que este botón de arriba debía resolver.
+function abrirSeccionDe(elementoId) {
+  const el = document.getElementById(elementoId);
+  const detalles = el && el.closest('details');
+  if (detalles && !detalles.open) detalles.open = true;
+  return detalles;
+}
+
 function avisarSinPestanaGrupo(statusId, grupoNombre, boton) {
   const status = document.getElementById(statusId);
   if (!status) return;
+  abrirSeccionDe(statusId);
   status.classList.add('aviso');
   status.textContent = `Todavía no tienes uno asignado a "${grupoNombre}" — con "${grupoNombre}" seleccionado arriba, da clic en "${boton}" para crear uno ya asignado a este grupo.`;
 }
@@ -629,6 +640,7 @@ function switchGroup(grupos, idx) {
       productoActivo = match;
       renderEpTabs();
       renderEpPanels();
+      abrirSeccionDe('ep-status');
       saltoA = saltoA || 'ep-panels-container';
       limpiarAvisoGrupo('ep-status');
     } else {
@@ -642,6 +654,7 @@ function switchGroup(grupos, idx) {
       sistemaActivo = match;
       renderEsTabs();
       renderEsPanels();
+      abrirSeccionDe('es-status');
       limpiarAvisoGrupo('es-status');
     } else {
       avisarSinPestanaGrupo('es-status', grupo.nombre, '+ Agregar sistema');
