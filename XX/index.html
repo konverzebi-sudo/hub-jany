@@ -747,7 +747,7 @@
       var gcalIcon = '';
       if(a.gcalStatus === 'synced') gcalIcon = ' <span class="jd-chip" style="background:#1E3B24;color:#8FE39E;" title="En Google Calendar">📅 Sincronizado</span>';
       else if(a.gcalStatus === 'pending') gcalIcon = ' <span class="jd-chip" style="background:#232A1E;color:#9BA294;" title="Sincronizando...">📅 Sincronizando…</span>';
-      else if(a.gcalStatus === 'failed') gcalIcon = ' <span class="jd-chip" style="background:#3B211E;color:#F08C82;" title="No se pudo sincronizar con Google Calendar">📅 No sincronizado</span>';
+      else if(a.gcalStatus === 'failed') gcalIcon = ' <span class="jd-chip" style="background:#3B211E;color:#F08C82;">📅 No sincronizado'+(a.gcalError ? ': '+a.gcalError : '')+'</span>';
       row.innerHTML = '<span>'+dateChip+a.text+gcalIcon+'</span>';
       var del = document.createElement('button');
       del.className = 'jd-btn'; del.textContent = '×'; del.style.padding = '1px 8px';
@@ -1360,7 +1360,7 @@
   }
 
   async function createGoogleCalendarEvent(item){
-    if(!googleAccessToken) return false;
+    if(!googleAccessToken) return {ok:false, reason:'sin permiso de Calendar en esta sesión — cierra sesión y vuelve a entrar con Google'};
     try{
       var body;
       if(item.time){
@@ -1384,11 +1384,15 @@
         headers: { 'Authorization': 'Bearer ' + googleAccessToken, 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
-      if(!res.ok) return false;
+      if(!res.ok){
+        var errJson = await res.json().catch(function(){ return null; });
+        var msg = (errJson && errJson.error && errJson.error.message) ? errJson.error.message : ('HTTP '+res.status);
+        return {ok:false, reason: msg};
+      }
       var json = await res.json();
-      return json.id || false;
+      return {ok:true, id: json.id};
     }catch(e){
-      return false;
+      return {ok:false, reason: (e && e.message) || 'error de red'};
     }
   }
 
@@ -1396,9 +1400,10 @@
     item.gcalStatus = 'pending';
     data.agenda.push(item);
     save(); renderTasks(); renderAgenda(); renderCalendar();
-    createGoogleCalendarEvent(item).then(function(eventId){
-      item.gcalStatus = eventId ? 'synced' : 'failed';
-      item.gcalEventId = eventId || null;
+    createGoogleCalendarEvent(item).then(function(result){
+      item.gcalStatus = result.ok ? 'synced' : 'failed';
+      item.gcalEventId = result.ok ? result.id : null;
+      item.gcalError = result.ok ? null : result.reason;
       save(); renderAgenda();
     });
   }
