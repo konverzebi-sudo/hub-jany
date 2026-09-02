@@ -16,16 +16,100 @@ async function ensureTable() {
 // con el link pueda editar sin fricción. Mantener esta lista corta.
 const PUBLIC_WRITE_KEYS = ['davilada-arbol-familiar'];
 
+// ─── Leads del Diagnóstico Exprés (diagnostico-negocio.html) ───
+// Vive aquí, como caso especial de la key "leads", en vez de en su propio archivo
+// api/leads.js: el plan Hobby de Vercel tiene un límite de funciones serverless y este
+// proyecto ya estaba justo en el límite -- agregar un archivo nuevo lo pasaba y tumbaba
+// TODOS los despliegues (no solo este). Mismo patrón que ya se usa en otros endpoints de
+// este proyecto (ej. api/consultor-366.js resuelve más de un agente por dentro de un
+// mismo archivo) para no seguir sumando funciones nuevas.
+// POST es público (cualquiera que llena el formulario del diagnóstico puede registrar
+// su propio lead, igual que un formulario de contacto normal) — GET exige el token de
+// administrador porque ahí sí hay datos sensibles de clientes reales (nombre, WhatsApp,
+// dolores del negocio) que no deben quedar visibles para cualquiera con el código fuente.
+async function ensureLeadsTable() {
+  await sql`CREATE TABLE IF NOT EXISTS diagnostico_leads (
+    id SERIAL PRIMARY KEY,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    nombre_empresario TEXT,
+    whatsapp_prospecto TEXT,
+    giro TEXT,
+    que_vende TEXT,
+    a_quien_vende TEXT,
+    canales TEXT,
+    link_canal1 TEXT,
+    link_canal2 TEXT,
+    ventas_mes TEXT,
+    dolor TEXT,
+    tarea_tiempo TEXT,
+    competidor_url TEXT
+  )`;
+}
+
+// Corta cualquier campo absurdamente largo antes de guardarlo (evita payloads gigantes)
+function limitar(v, max) {
+  if (typeof v !== 'string') return '';
+  return v.slice(0, max);
+}
+
+async function manejarLeads(req, res) {
+  try {
+    await ensureLeadsTable();
+  } catch (err) {
+    return res.status(500).json({ error: 'No se pudo conectar a la base de datos.' });
+  }
+
+  if (req.method === 'POST') {
+    const b = req.body || {};
+    if (!b.nombreEmpresario || typeof b.nombreEmpresario !== 'string' || !b.nombreEmpresario.trim()) {
+      return res.status(400).json({ error: 'Falta nombreEmpresario.' });
+    }
+    try {
+      await sql`
+        INSERT INTO diagnostico_leads (
+          nombre_empresario, whatsapp_prospecto, giro, que_vende, a_quien_vende,
+          canales, link_canal1, link_canal2, ventas_mes, dolor, tarea_tiempo, competidor_url
+        ) VALUES (
+          ${limitar(b.nombreEmpresario, 200)}, ${limitar(b.whatsappProspecto, 40)}, ${limitar(b.giro, 100)},
+          ${limitar(b.queVende, 500)}, ${limitar(b.aQuienVende, 500)}, ${limitar(b.canales, 300)},
+          ${limitar(b.linkCanal1, 300)}, ${limitar(b.linkCanal2, 300)}, ${limitar(b.ventasMes, 50)},
+          ${limitar(b.dolor, 500)}, ${limitar(b.tareaTiempo, 500)}, ${limitar(b.competidorUrl, 300)}
+        )
+      `;
+      return res.status(200).json({ ok: true });
+    } catch (err) {
+      return res.status(500).json({ error: 'Error guardando el lead.' });
+    }
+  }
+
+  if (req.method === 'GET') {
+    const token = (req.headers['x-leads-token'] || '').toString().trim();
+    const expected = (process.env.LEADS_ADMIN_TOKEN || '').trim();
+    if (!token || !expected || token !== expected) {
+      return res.status(401).json({ error: 'No autorizado.' });
+    }
+    try {
+      const { rows } = await sql`SELECT * FROM diagnostico_leads ORDER BY created_at DESC LIMIT 500`;
+      return res.status(200).json({ leads: rows });
+    } catch (err) {
+      return res.status(500).json({ error: 'Error leyendo los leads.' });
+    }
+  }
+
+  res.setHeader('Allow', 'GET, POST, OPTIONS');
+  return res.status(405).json({ error: 'Method not allowed' });
+}
+
 module.exports = async function handler(req, res) {
   // Los datos cambian por dispositivo en cualquier momento: nunca cachear
   // esta respuesta (ni en el browser ni en el edge de Vercel), o un refresh
   // puede mostrar una copia vieja y dar la impresión de que se perdió lo guardado.
   res.setHeader('Cache-Control', 'no-store, max-age=0');
   // jefeshub.com (GitHub Pages) vive en otro origen que agentes.jefeshub.com
-  // (Vercel) — sin esto el navegador bloquea el fetch desde /davilada.
+  // (Vercel) — sin esto el navegador bloquea el fetch desde /davilada o el diagnóstico.
   res.setHeader('Access-Control-Allow-Origin', 'https://jefeshub.com');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Storage-Token');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Storage-Token, X-Leads-Token');
   if (req.method === 'OPTIONS') {
     return res.status(204).end();
   }
@@ -36,6 +120,10 @@ module.exports = async function handler(req, res) {
   // barras y comillas — cualquier caracter fuera de esta lista tumba el match.
   if (!key || Array.isArray(key) || !/^[a-zA-Z0-9_.:-]+$/.test(key)) {
     return res.status(400).json({ error: 'Key inválida.' });
+  }
+
+  if (key === 'leads') {
+    return manejarLeads(req, res);
   }
 
   try {
