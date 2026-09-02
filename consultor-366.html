@@ -538,6 +538,12 @@ function escapeHtmlEv(str) {
 }
 
 let gruposNegocioState = [];
+// El grupo de negocio (Publicidad, Torneo, etc.) seleccionado arriba de la página -- es la única
+// fuente de verdad de a qué grupo pertenece un perfil/producto/sistema nuevo: ya no se le vuelve
+// a preguntar dentro de cada pestaña, se asigna solo al crearla (ver agregarPerfilDesde y
+// equivalentes) según cuál esté activo aquí en ese momento.
+let grupoActivo = null;
+
 async function cargarGruposNegocio() {
   try {
     const r = await window.storage.get(CLIENTE_ID + ':grupos-negocio');
@@ -550,10 +556,12 @@ function renderGroupTabs(grupos) {
   const wrap = document.getElementById('groupTabs');
   const rutaAdn = { 'rancho-seco': '/rancho-seco/adn', rim: '/rim/adn', 'optica-one': '/optica-one/adn', jefeshub: '/adn' }[CLIENTE_ID] || '/adn';
   if (!grupos.length) {
+    grupoActivo = null;
     wrap.innerHTML = `<a class="group-tabs-hint" href="${rutaAdn}#catalogo">Define tus grupos de negocio en el Módulo #6: Catálogo del ADN →</a>`;
     return;
   }
-  wrap.innerHTML = grupos.map((g, i) => `<button class="group-tab${i === 0 ? ' active' : ''}" data-grupo-id="${g.id}" data-idx="${i}">${escapeHtmlEv(g.nombre)}</button>`).join('');
+  if (!grupoActivo || !grupos.some((g) => g.id === grupoActivo.id)) grupoActivo = grupos[0];
+  wrap.innerHTML = grupos.map((g, i) => `<button class="group-tab${g.id === grupoActivo.id ? ' active' : ''}" data-grupo-id="${g.id}" data-idx="${i}">${escapeHtmlEv(g.nombre)}</button>`).join('');
   wrap.querySelectorAll('.group-tab').forEach((btn) => {
     btn.addEventListener('click', () => switchGroup(grupos, +btn.dataset.idx));
   });
@@ -578,7 +586,7 @@ function avisarSinPestanaGrupo(statusId, grupoNombre, boton) {
   const status = document.getElementById(statusId);
   if (!status) return;
   status.classList.add('aviso');
-  status.textContent = `Todavía no tienes uno asignado a "${grupoNombre}" — da clic en "${boton}", créalo, y en su selector "Grupo de negocio" elige "${grupoNombre}".`;
+  status.textContent = `Todavía no tienes uno asignado a "${grupoNombre}" — con "${grupoNombre}" seleccionado arriba, da clic en "${boton}" para crear uno ya asignado a este grupo.`;
 }
 
 function limpiarAvisoGrupo(statusId) {
@@ -592,6 +600,7 @@ function switchGroup(grupos, idx) {
   document.querySelectorAll('.group-tab').forEach((t, i) => t.classList.toggle('active', i === idx));
   const grupo = grupos[idx];
   if (!grupo) return;
+  grupoActivo = grupo;
   // Los grupos de negocio (Publicidad, Torneo, etc.) ya NO son universos separados con su propio
   // chat -- el chat y las Notas de Jefe 366 son unificados. Producto 366 y Sistema 366 pueden
   // compartir una sola pestaña para todos los grupos (cuando de verdad da igual) o tener una
@@ -1381,7 +1390,7 @@ function PERFIL_TEMPLATE() {
     insight_estrategico: '', _importantes: {},
   };
 }
-const CAMPOS_TEXTO_EPC = ['nombre', 'grupo_id', 'producto_relacionado', 'ocupacion', 'miedo_deseo', 'edad', 'ubicacion', 'como_ayuda', 'quien_compra', 'que_busca', 'objecion_comun', 'por_que_si', 'por_que_no', 'dudas', 'frases', 'descripcion_breve', 'situacion_compra', 'problema_resuelve', 'emocion_impulsa', 'que_convenceria', 'insight_estrategico'];
+const CAMPOS_TEXTO_EPC = ['nombre', 'producto_relacionado', 'ocupacion', 'miedo_deseo', 'edad', 'ubicacion', 'como_ayuda', 'quien_compra', 'que_busca', 'objecion_comun', 'por_que_si', 'por_que_no', 'dudas', 'frases', 'descripcion_breve', 'situacion_compra', 'problema_resuelve', 'emocion_impulsa', 'que_convenceria', 'insight_estrategico'];
 const CAMPOS_TABLA_EPC = ['caracteristicas', 'dolores', 'miedos', 'deseos', 'objeciones', 'frases_reales'];
 
 let perfilesState = [];
@@ -1483,6 +1492,7 @@ function agregarPerfilDesde(valor) {
   capturarPerfilesDesdeDOM();
   const nuevo = clonarOEnBlanco(valor, perfilesState, PERFIL_TEMPLATE);
   if (!nuevo) return;
+  nuevo.grupo_id = grupoActivo ? grupoActivo.id : '';
   perfilesState.push(nuevo);
   perfilActivo = perfilesState.length - 1;
   renderEpcTabs();
@@ -1493,6 +1503,7 @@ function agregarProductoDesde(valor) {
   capturarProductosDesdeDOM();
   const nuevo = clonarOEnBlanco(valor, productosState, PRODUCTO_TEMPLATE);
   if (!nuevo) return;
+  nuevo.grupo_id = grupoActivo ? grupoActivo.id : '';
   productosState.push(nuevo);
   productoActivo = productosState.length - 1;
   renderEpTabs();
@@ -1503,6 +1514,7 @@ function agregarSistemaDesde(valor) {
   capturarSistemasDesdeDOM();
   const nuevo = clonarOEnBlanco(valor, sistemasState, SISTEMA_TEMPLATE);
   if (!nuevo) return;
+  nuevo.grupo_id = grupoActivo ? grupoActivo.id : '';
   sistemasState.push(nuevo);
   sistemaActivo = sistemasState.length - 1;
   renderEsTabs();
@@ -1531,22 +1543,12 @@ function toggleProductoDelCatalogo(checkbox) {
   el.value = lineas.join('\n');
 }
 
-/* Selector explícito de a cuál grupo de negocio (Publicidad, Torneo, etc.) aplica esta pestaña --
-   esto es lo que switchGroup() usa para saltar correctamente al dar clic arriba, en vez de
-   adivinar por el nombre de la pestaña (que casi nunca coincide, ej. "Capitán Organizador"). */
-function selectorGrupoHtml(prefix, i, valorActual) {
-  if (!gruposNegocioState.length) return '';
-  const opciones = gruposNegocioState.map((g) => `<option value="${escaparAttrBuilder(g.id)}"${valorActual === g.id ? ' selected' : ''}>${escaparHtmlBuilder(g.nombre)}</option>`).join('');
-  return `<div class="field"><label>Grupo de negocio</label><select id="${prefix}-grupo_id-${i}" class="epc-grupo-select"><option value="">Todos / no aplica</option>${opciones}</select></div>`;
-}
-
 function panelHtmlEpc(p, i) {
   const ta = (campo, label, placeholder, minH) => `<div class="field"><label>${escaparHtmlBuilder(label)}</label><textarea id="epc-${campo}-${i}"${minH ? ` style="min-height:${minH}px;"` : ''} placeholder="${escaparAttrBuilder(placeholder || '')}" oninput="${campo === 'nombre' ? `sincronizarNombrePerfil(${i},this.value)` : ''}">${escaparHtmlBuilder(p[campo] || '')}</textarea></div>`;
   const tabla = (campo, label) => `<div class="field"><label>${escaparHtmlBuilder(label)}</label><div id="epc-${campo}-${i}" class="tabla-notas-container"></div></div>`;
   return `
     <div class="card">
       ${ta('nombre', 'Nombre de este perfil', 'Ej. Mamás de 30-40, Dueños de PyME...')}
-      ${selectorGrupoHtml('epc', i, p.grupo_id)}
       ${catalogoProductosADN.filter((c) => c && c.nombre).length ? `<div class="field"><label>Marca del catálogo del ADN los que le vende este perfil</label>${listaProductosCatalogoHtml(p.producto_relacionado, i)}</div>` : ''}
       ${ta('producto_relacionado', 'Productos u ofertas 366 a los que le vende este perfil (uno por línea)', 'Ej. Capacitaciones\nConsultoría 1 a 1', 60)}
     </div>
@@ -1634,6 +1636,7 @@ function guardarPerfiles() {
     const nuevo = PERFIL_TEMPLATE();
     nuevo.activa = !!p.activa;
     nuevo.preguntas = p.preguntas || '';
+    nuevo.grupo_id = p.grupo_id || '';
     const importantes = {};
     CAMPOS_TEXTO_EPC.forEach((campo) => {
       const el = document.getElementById('epc-' + campo + '-' + i);
@@ -1704,7 +1707,7 @@ function PRODUCTO_TEMPLATE() {
     insight_estrategico: '', _importantes: {},
   };
 }
-const CAMPOS_TEXTO_EP = ['nombre', 'grupo_id', 'que_vendemos', 'por_que_potencial', 'oferta_irresistible', 'insight_estrategico'];
+const CAMPOS_TEXTO_EP = ['nombre', 'que_vendemos', 'por_que_potencial', 'oferta_irresistible', 'insight_estrategico'];
 const CAMPOS_TABLA_EP = ['pilar_deseo', 'pilar_confianza', 'pilar_facilidad', 'frases_enfatizar', 'frases_evitar', 'sistema_productos'];
 
 let productosState = [];
@@ -1773,7 +1776,6 @@ function panelHtmlEp(p, i) {
     <div class="card">
       <p class="card-label">Esta oferta</p>
       ${ta('nombre', 'Nombre de esta oferta 366 (opcional, ej. Capacitaciones)', 'Ej. Capacitaciones, Consultoría 1 a 1...')}
-      ${selectorGrupoHtml('ep', i, p.grupo_id)}
       ${vinculados.length ? `<div class="field"><label>Perfiles de Cliente vinculados a esta oferta</label><div style="font-size:12.5px;color:var(--text-dim);line-height:1.6;">${vinculados.map((v) => escaparHtmlBuilder(v.nombre || '(sin nombre)')).join(', ')} — <span style="opacity:.8;">se vinculan escribiendo el nombre de esta oferta en "Producto relacionado" dentro de cada perfil</span></div></div>` : `<div class="field"><label>Perfiles de Cliente vinculados a esta oferta</label><div style="font-size:12.5px;color:var(--text-dim);">Ninguno todavía -- ponle el mismo nombre de esta oferta en "Producto relacionado" del Perfil de Cliente que aplique.</div></div>`}
       ${ta('que_vendemos', 'Qué vendemos', '')}
       ${ta('por_que_potencial', 'Por qué tiene potencial 366', '')}
@@ -1836,6 +1838,7 @@ function eliminarProducto(i) {
 function guardarProductos() {
   const lista = productosState.map((p, i) => {
     const nuevo = PRODUCTO_TEMPLATE();
+    nuevo.grupo_id = p.grupo_id || '';
     const importantes = {};
     CAMPOS_TEXTO_EP.forEach((campo) => {
       const el = document.getElementById('ep-' + campo + '-' + i);
@@ -1949,7 +1952,7 @@ function SISTEMA_TEMPLATE() {
     _importantes: {},
   };
 }
-const CAMPOS_TEXTO_ES = ['nombre', 'grupo_id', 'contexto_general', 'info_faltante', 'reglas_equipo_ia'];
+const CAMPOS_TEXTO_ES = ['nombre', 'contexto_general', 'info_faltante', 'reglas_equipo_ia'];
 const CAMPOS_TABLA_ES = ['plan_implementacion', 'secuencia_seguimiento', 'oportunidades_iniciales'];
 
 let sistemasState = [];
@@ -2011,7 +2014,6 @@ function panelHtmlEs(p, i) {
     <div class="card">
       <p class="card-label">Este sistema</p>
       ${ta('nombre', 'Nombre de este sistema (opcional, ej. Torneo)', 'Ej. Publicidad, Torneo...')}
-      ${selectorGrupoHtml('es', i, p.grupo_id)}
     </div>
     <div class="card">
       <p class="card-label">Tu Sistema 366 (5 etapas) — la última columna la llenas tú</p>
@@ -2075,6 +2077,7 @@ function guardarSistemas() {
   capturarSistemasDesdeDOM();
   const lista = sistemasState.map((p, i) => {
     const nuevo = SISTEMA_TEMPLATE();
+    nuevo.grupo_id = p.grupo_id || '';
     const importantes = {};
     CAMPOS_TEXTO_ES.forEach((campo) => {
       const el = document.getElementById('es-' + campo + '-' + i);
