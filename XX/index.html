@@ -566,6 +566,16 @@
     return {count:count, total:totalDays};
   }
 
+  function habitLog(habitId){
+    var log = [];
+    Object.keys(data.habitChecks).forEach(function(ds){
+      var entry = data.habitChecks[ds][habitId];
+      if(entry) log.push({date: ds, time: (entry && entry.time) || null});
+    });
+    log.sort(function(a,b){ return b.date.localeCompare(a.date); });
+    return log;
+  }
+
   function renderHabitsStats(){
     var box = document.getElementById('jd-habits-stats');
     if(!box) return;
@@ -574,10 +584,25 @@
       var s = getHabitStats(h.id);
       var pct = s.total ? Math.round(s.count/s.total*100) : 0;
       var row = document.createElement('div');
-      row.style.cssText = 'padding:5px 0;';
+      row.style.cssText = 'padding:5px 0;cursor:pointer;';
       row.innerHTML = '<div class="jd-row" style="justify-content:space-between;font-size:12px;color:#B9C0AF;margin-bottom:3px;">'+
         '<span>'+h.text+'</span><span class="jd-sub">'+s.count+'/'+s.total+'</span></div>'+
         '<div style="height:4px;background:#1B2117;border-radius:4px;overflow:hidden;"><div style="height:100%;width:'+pct+'%;background:#C6FF4B;"></div></div>';
+      var logBox = document.createElement('div');
+      logBox.style.cssText = 'display:none;margin-top:6px;padding-left:6px;border-left:2px solid #232A1E;';
+      row.appendChild(logBox);
+      row.addEventListener('click', function(){
+        if(logBox.style.display === 'none'){
+          var log = habitLog(h.id);
+          logBox.innerHTML = log.length ? log.slice(0,14).map(function(l){
+            var dl = new Date(l.date+'T00:00:00').toLocaleDateString('es-MX', {day:'numeric', month:'short'});
+            return '<div class="jd-sub" style="padding:2px 0;">'+dl+(l.time ? ' · '+l.time : '')+'</div>';
+          }).join('') : '<div class="jd-sub">Sin registros todavía.</div>';
+          logBox.style.display = 'block';
+        } else {
+          logBox.style.display = 'none';
+        }
+      });
       box.appendChild(row);
     });
   }
@@ -606,7 +631,11 @@
         '<span class="jd-sub">('+s.count+'/'+s.total+')</span>';
       row.querySelector('input').addEventListener('change', function(e){
         if(!data.habitChecks[todayKey]) data.habitChecks[todayKey] = {};
-        data.habitChecks[todayKey][h.id] = e.target.checked;
+        if(e.target.checked){
+          data.habitChecks[todayKey][h.id] = {done:true, time: new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})};
+        } else {
+          delete data.habitChecks[todayKey][h.id];
+        }
         save(); renderHabits();
       });
       box.appendChild(row);
@@ -928,26 +957,38 @@
     }
   }
 
-  function buildHourMap(info){
+  function buildHourMap(info, iso){
     var hours = new Array(24).fill(null);
-    if(!info) return hours;
-    info.entries.forEach(function(h){
-      var timeMatch = /^(\d{1,2}):(\d{2})/.exec(h.time || '');
-      if(!timeMatch) return;
-      var startHour = parseInt(timeMatch[1], 10);
-      if(isNaN(startHour) || startHour < 0 || startHour > 23) return;
-      var span = h.minutes ? Math.max(1, Math.ceil(h.minutes/60)) : 1;
-      for(var i=0; i<span && (startHour+i)<24; i++){ hours[startHour+i] = h.project; }
-    });
+    if(info){
+      info.entries.forEach(function(h){
+        var timeMatch = /^(\d{1,2}):(\d{2})/.exec(h.time || '');
+        if(!timeMatch) return;
+        var startHour = parseInt(timeMatch[1], 10);
+        if(isNaN(startHour) || startHour < 0 || startHour > 23) return;
+        var span = h.minutes ? Math.max(1, Math.ceil(h.minutes/60)) : 1;
+        for(var i=0; i<span && (startHour+i)<24; i++){ hours[startHour+i] = h.project; }
+      });
+    }
+    if(iso){
+      agendaItemsForDay(iso).forEach(function(a){
+        if(!a.time) return;
+        var timeMatch = /^(\d{1,2}):(\d{2})/.exec(a.time);
+        if(!timeMatch) return;
+        var startHour = parseInt(timeMatch[1], 10);
+        if(isNaN(startHour) || startHour < 0 || startHour > 23) return;
+        var span = a.durationMinutes ? Math.max(1, Math.ceil(a.durationMinutes/60)) : 1;
+        for(var i=0; i<span && (startHour+i)<24; i++){ if(hours[startHour+i] === null) hours[startHour+i] = '__agenda__'; }
+      });
+    }
     return hours;
   }
 
-  function renderHourGrid(info){
-    var hourMap = buildHourMap(info);
+  function renderHourGrid(info, iso){
+    var hourMap = buildHourMap(info, iso);
     var html = '<div style="display:grid;grid-template-columns:repeat(12,1fr);gap:3px;margin-bottom:10px;">';
     for(var hh=0; hh<24; hh++){
       var proj = hourMap[hh];
-      var bg = proj ? projectColor(proj) : '#1B2117';
+      var bg = proj === '__agenda__' ? '#FF9F43' : (proj ? projectColor(proj) : '#1B2117');
       var fg = proj ? '#0B0F0C' : '#5C6157';
       html += '<div style="aspect-ratio:1;border-radius:4px;background:'+bg+';font-size:8px;display:flex;align-items:center;justify-content:center;color:'+fg+';">'+hh+'</div>';
     }
@@ -973,14 +1014,14 @@
       panel.innerHTML = '<div style="border-top:1px solid #232A1E;padding-top:10px;">'+
         '<div style="font-size:12.5px;font-weight:600;color:#EDEFEA;margin-bottom:4px;text-transform:capitalize;">'+dateLabel+'</div>'+
         agendaHtml+
-        renderHourGrid(info)+
+        renderHourGrid(info, iso)+
         '<div class="jd-sub">Sin actividad registrada este día.</div></div>';
       return;
     }
     var html = '<div style="border-top:1px solid #232A1E;padding-top:10px;">';
     html += '<div style="font-size:12.5px;font-weight:600;color:#EDEFEA;margin-bottom:6px;text-transform:capitalize;">'+dateLabel+'</div>';
     html += agendaHtml;
-    html += renderHourGrid(info);
+    html += renderHourGrid(info, iso);
     Object.keys(info.byProject).forEach(function(k){
       var mins = info.byProject[k];
       var h = Math.floor(mins/60), m = mins%60;
@@ -1263,7 +1304,12 @@
     if(dayRef === 'mañana') d.setDate(d.getDate() + 1);
     var iso = d.toISOString().slice(0,10);
     var timeLabel = String(hour).padStart(2,'0') + ':' + String(minute).padStart(2,'0');
-    var desc = text.replace(m[0], '').replace(/^\s*agrega[r]?\s+/i, '').trim();
+    var desc = text.replace(m[0], '')
+      .replace(/\bde\s+la\s+(mañana|tarde|noche)\b/i, '')
+      .replace(/\bde\s+(hoy|mañana)\b/i, '')
+      .replace(/^\s*agrega[r]?\s+/i, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
     return { iso: iso, time: timeLabel, desc: desc || text };
   }
 
