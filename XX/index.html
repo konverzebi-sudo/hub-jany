@@ -643,12 +643,19 @@
       var row = document.createElement('div');
       row.className = 'jd-row';
       row.style.cssText = 'justify-content:space-between;padding:6px 0;border-bottom:1px solid #232A1E;font-size:12.5px;';
-      row.innerHTML = '<span>'+a.text+'</span>';
+      var dateChip = '';
+      if(a.startDate){
+        var sd = new Date(a.startDate+'T00:00:00');
+        var ed = new Date((a.endDate||a.startDate)+'T00:00:00');
+        var rangeLabel = sd.getDate() + (a.endDate && a.endDate!==a.startDate ? '–'+ed.getDate() : '') + ' ' + monthNames[ed.getMonth()].slice(0,3);
+        dateChip = '<span class="jd-chip" style="background:#1B2117;color:#C6FF4B;margin-right:6px;">'+rangeLabel+'</span>';
+      }
+      row.innerHTML = '<span>'+dateChip+a.text+'</span>';
       var del = document.createElement('button');
       del.className = 'jd-btn'; del.textContent = '×'; del.style.padding = '1px 8px';
       del.addEventListener('click', function(){
         data.agenda = data.agenda.filter(function(x){ return x.id !== a.id; });
-        save(); renderAgenda();
+        save(); renderAgenda(); renderCalendar();
       });
       row.appendChild(del);
       box.appendChild(row);
@@ -841,6 +848,10 @@
     panel.innerHTML = html;
   }
 
+  function isAgendaDay(iso){
+    return data.agenda.some(function(a){ return a.startDate && iso >= a.startDate && iso <= (a.endDate||a.startDate); });
+  }
+
   function renderCalendar(){
     var grid = document.getElementById('jd-cal-grid');
     var label = document.getElementById('jd-cal-label');
@@ -878,9 +889,15 @@
       } else if(info){
         bg = '#2A3122';
       }
-      cell.style.cssText = 'aspect-ratio:1;border-radius:6px;background:'+bg+';display:flex;align-items:center;justify-content:center;'+
+      var agendaDay = isAgendaDay(iso);
+      cell.style.cssText = 'aspect-ratio:1;border-radius:6px;background:'+bg+';display:flex;align-items:center;justify-content:center;position:relative;'+
         'font-size:11px;color:'+textColor+';cursor:pointer;'+(isToday?'box-shadow:0 0 0 1.5px #C6FF4B inset;':'');
       cell.textContent = day;
+      if(agendaDay){
+        var marker = document.createElement('div');
+        marker.style.cssText = 'position:absolute;bottom:3px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:#FF9F43;';
+        cell.appendChild(marker);
+      }
       cell.addEventListener('click', (function(clickedIso, clickedInfo){
         return function(){ renderDayDetail(clickedIso, clickedInfo); };
       })(iso, info));
@@ -915,21 +932,31 @@
     return html;
   }
 
+  function agendaItemsForDay(iso){
+    return data.agenda.filter(function(a){ return a.startDate && iso >= a.startDate && iso <= (a.endDate||a.startDate); });
+  }
+
   function renderDayDetail(iso, info){
     var panel = document.getElementById('jd-cal-day-detail');
     if(!panel) return;
     panel.style.display = 'block';
     var d = new Date(iso + 'T00:00:00');
     var dateLabel = d.toLocaleDateString('es-MX', {weekday:'long', day:'numeric', month:'long'});
+    var agendaItems = agendaItemsForDay(iso);
+    var agendaHtml = agendaItems.length ? ('<div style="margin-bottom:8px;">' + agendaItems.map(function(a){
+      return '<div class="jd-row" style="gap:5px;font-size:11.5px;color:#EAFFC8;padding:2px 0;"><span style="width:8px;height:8px;border-radius:50%;background:#FF9F43;display:inline-block;"></span>'+a.text+'</div>';
+    }).join('') + '</div>') : '';
     if(!info || info.entries.length === 0){
       panel.innerHTML = '<div style="border-top:1px solid #232A1E;padding-top:10px;">'+
         '<div style="font-size:12.5px;font-weight:600;color:#EDEFEA;margin-bottom:4px;text-transform:capitalize;">'+dateLabel+'</div>'+
+        agendaHtml+
         renderHourGrid(info)+
         '<div class="jd-sub">Sin actividad registrada este día.</div></div>';
       return;
     }
     var html = '<div style="border-top:1px solid #232A1E;padding-top:10px;">';
     html += '<div style="font-size:12.5px;font-weight:600;color:#EDEFEA;margin-bottom:6px;text-transform:capitalize;">'+dateLabel+'</div>';
+    html += agendaHtml;
     html += renderHourGrid(info);
     Object.keys(info.byProject).forEach(function(k){
       var mins = info.byProject[k];
@@ -1164,6 +1191,39 @@
     return true;
   }
 
+  var MONTH_INDEX = {enero:0,febrero:1,marzo:2,abril:3,mayo:4,junio:5,julio:6,agosto:7,septiembre:8,setiembre:8,octubre:9,noviembre:10,diciembre:11};
+  function matchMonth(word){
+    if(!word) return undefined;
+    word = word.toLowerCase();
+    var names = Object.keys(MONTH_INDEX);
+    var found = names.find(function(m){ return m.indexOf(word.slice(0,4)) === 0 || word.indexOf(m.slice(0,4)) === 0; });
+    return found ? MONTH_INDEX[found] : undefined;
+  }
+
+  function parseDateRange(text){
+    var m = /(?:del|desde)\s+(\d{1,2})(?:\s+de\s+([a-záéíóúñ]+))?\s+(?:al|hasta)\s+(\d{1,2})(?:\s+de\s+([a-záéíóúñ]+))?/i.exec(text);
+    if(!m) return null;
+    var startDay = parseInt(m[1],10);
+    var endDay = parseInt(m[3],10);
+    var endMonth = matchMonth(m[4]) !== undefined ? matchMonth(m[4]) : matchMonth(m[2]);
+    var startMonth = matchMonth(m[2]) !== undefined ? matchMonth(m[2]) : endMonth;
+    if(startMonth === undefined || endMonth === undefined) return null;
+    var year = new Date().getFullYear();
+    var endYear = year + (endMonth < startMonth ? 1 : 0);
+    var startISO = year + '-' + String(startMonth+1).padStart(2,'0') + '-' + String(startDay).padStart(2,'0');
+    var endISO = endYear + '-' + String(endMonth+1).padStart(2,'0') + '-' + String(endDay).padStart(2,'0');
+    var desc = text.replace(m[0], '').replace(/^\s*agrega\s+/i, '').trim();
+    return {startISO:startISO, endISO:endISO, desc: desc || text};
+  }
+
+  function tryScheduleAgenda(text){
+    var parsed = parseDateRange(text);
+    if(!parsed) return false;
+    data.agenda.push({id:uid('a'), text:parsed.desc, startDate:parsed.startISO, endDate:parsed.endISO});
+    save(); renderAgenda(); renderCalendar();
+    return true;
+  }
+
   function tryFutureAgenda(text){
     var lower = text.toLowerCase();
     var futureKw = ['voy a ', 'tengo que ', 'debo ', 'necesito ', 'hay que '];
@@ -1185,7 +1245,7 @@
     var text = input.value.trim();
     if(!text) return;
     input.value = '';
-    var handled = tryMarkDone(text) || tryLogFinance(text) || tryFutureAgenda(text) || tryCreateProject(text);
+    var handled = tryMarkDone(text) || tryLogFinance(text) || tryScheduleAgenda(text) || tryFutureAgenda(text) || tryCreateProject(text);
     if(!handled){
       data.tasks.push({id:uid('t'), text:text, color:'amarillo'});
       bumpAreaTotal(text);
