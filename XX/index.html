@@ -1763,6 +1763,8 @@
     renderChatLog();
   });
 
+  var lastAssistantError = null;
+
   function extractFirstJson(text){
     var start = text.indexOf('{');
     if(start === -1) return null;
@@ -1834,30 +1836,63 @@
       }
       return {role: m.role, content: m.text};
     });
-    try{
-      var res = await fetch(CHAT_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 700,
-          system: systemPrompt,
-          messages: messages
-        })
-      });
-      var json = await res.json();
-      if(json.usage){
-        data.tokenUsage.inputTokens += json.usage.input_tokens || 0;
-        data.tokenUsage.outputTokens += json.usage.output_tokens || 0;
-        save(); renderTokenUsage();
+    lastAssistantError = null;
+    var maxAttempts = 3;
+    for(var attempt=1; attempt<=maxAttempts; attempt++){
+      try{
+        var res = await fetch(CHAT_API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 700,
+            system: systemPrompt,
+            messages: messages
+          })
+        });
+        var json = await res.json();
+        if(!res.ok || json.type === 'error' || json.error){
+          var errMsg = (json.error && json.error.message) || ('HTTP '+res.status);
+          var errType = (json.error && json.error.type) || '';
+          lastAssistantError = errMsg;
+          console.error('askAssistant error:', errType, errMsg);
+          var retriable = res.status >= 500 || res.status === 429 || /overloaded|rate_limit/i.test(errType);
+          if(retriable && attempt < maxAttempts){
+            await new Promise(function(r){ setTimeout(r, 900*attempt); });
+            continue;
+          }
+          return null;
+        }
+        if(json.usage){
+          data.tokenUsage.inputTokens += json.usage.input_tokens || 0;
+          data.tokenUsage.outputTokens += json.usage.output_tokens || 0;
+          save(); renderTokenUsage();
+        }
+        var textBlocks = (json.content || []).filter(function(b){ return b.type === 'text'; }).map(function(b){ return b.text; }).join('\n');
+        var clean = textBlocks.replace(/```json|```/g, '').trim();
+        var firstJson = extractFirstJson(clean);
+        try{
+          return JSON.parse(firstJson || clean);
+        }catch(parseErr){
+          lastAssistantError = 'respuesta invalida de la IA';
+          console.error('askAssistant parse error:', parseErr, textBlocks);
+          if(attempt < maxAttempts){
+            await new Promise(function(r){ setTimeout(r, 900*attempt); });
+            continue;
+          }
+          return null;
+        }
+      }catch(e){
+        lastAssistantError = 'sin conexion';
+        console.error('askAssistant network error:', e);
+        if(attempt < maxAttempts){
+          await new Promise(function(r){ setTimeout(r, 900*attempt); });
+          continue;
+        }
+        return null;
       }
-      var textBlocks = (json.content || []).filter(function(b){ return b.type === 'text'; }).map(function(b){ return b.text; }).join('\n');
-      var clean = textBlocks.replace(/```json|```/g, '').trim();
-      var firstJson = extractFirstJson(clean);
-      return JSON.parse(firstJson || clean);
-    }catch(e){
-      return null;
     }
+    return null;
   }
 
   function executeAssistantAction(action){
@@ -1924,7 +1959,8 @@
     btn.disabled = false;
 
     if(!result){
-      pendingConversation.history.push({role:'assistant', text:'No pude conectarme. Intenta de nuevo en un momento.'});
+      var failMsg = 'No pude conectarme'+(lastAssistantError ? ' ('+lastAssistantError+')' : '')+'. Intenta de nuevo en un momento.';
+      pendingConversation.history.push({role:'assistant', text: failMsg});
       renderChatLog();
       return;
     }
