@@ -730,32 +730,76 @@
     });
   }
 
+  var editingAgendaId = null;
+
   function renderAgenda(){
     var box = document.getElementById('jd-agenda');
     box.innerHTML = '';
     data.agenda.forEach(function(a){
       var row = document.createElement('div');
-      row.className = 'jd-row';
-      row.style.cssText = 'justify-content:space-between;padding:6px 0;border-bottom:1px solid #232A1E;font-size:12.5px;';
+      row.style.cssText = 'padding:6px 0;border-bottom:1px solid #232A1E;font-size:12.5px;';
+
+      if(editingAgendaId === a.id){
+        row.innerHTML = '<input class="jd-input" id="jd-edit-text" value="'+a.text.replace(/"/g,'&quot;')+'" style="margin-bottom:6px;">'+
+          '<div class="jd-row" style="gap:6px;flex-wrap:wrap;margin-bottom:6px;">'+
+            '<input class="jd-input" type="date" id="jd-edit-date" value="'+(a.startDate||'')+'" style="width:132px;">'+
+            '<input class="jd-input" type="time" id="jd-edit-time" value="'+(a.time||'')+'" style="width:95px;">'+
+            '<input class="jd-input" type="number" id="jd-edit-duration" placeholder="min" value="'+(a.durationMinutes||'')+'" style="width:70px;">'+
+          '</div>'+
+          '<div class="jd-row" style="gap:6px;">'+
+            '<button class="jd-btn jd-btn-lima" id="jd-edit-save" style="flex:1;">Guardar</button>'+
+            '<button class="jd-btn" id="jd-edit-cancel">Cancelar</button>'+
+          '</div>';
+        box.appendChild(row);
+        document.getElementById('jd-edit-save').addEventListener('click', function(){
+          var newText = document.getElementById('jd-edit-text').value.trim();
+          var newDate = document.getElementById('jd-edit-date').value;
+          var newTime = document.getElementById('jd-edit-time').value;
+          var newDur = parseInt(document.getElementById('jd-edit-duration').value, 10);
+          if(newText) a.text = newText;
+          if(newDate){ if(a.endDate === a.startDate || !a.endDate || a.endDate < newDate) a.endDate = newDate; a.startDate = newDate; }
+          a.time = newTime || undefined;
+          a.durationMinutes = isNaN(newDur) ? undefined : newDur;
+          editingAgendaId = null;
+          resyncAgendaItem(a);
+        });
+        document.getElementById('jd-edit-cancel').addEventListener('click', function(){
+          editingAgendaId = null;
+          renderAgenda();
+        });
+        return;
+      }
+
+      var textRow = document.createElement('div');
+      textRow.className = 'jd-row';
+      textRow.style.cssText = 'justify-content:space-between;';
       var dateChip = '';
       if(a.startDate){
         var sd = new Date(a.startDate+'T00:00:00');
         var ed = new Date((a.endDate||a.startDate)+'T00:00:00');
-        var rangeLabel = sd.getDate() + (a.endDate && a.endDate!==a.startDate ? '–'+ed.getDate() : '') + ' ' + monthNames[ed.getMonth()].slice(0,3) + (a.time ? ' · '+a.time : '');
+        var rangeLabel = sd.getDate() + (a.endDate && a.endDate!==a.startDate ? '–'+ed.getDate() : '') + ' ' + monthNames[ed.getMonth()].slice(0,3) + (a.time ? ' · '+a.time : '') + (a.time && a.durationMinutes ? ' ('+a.durationMinutes+'min)' : '');
         dateChip = '<span class="jd-chip" style="background:#1B2117;color:#C6FF4B;margin-right:6px;">'+rangeLabel+'</span>';
       }
       var gcalIcon = '';
       if(a.gcalStatus === 'synced') gcalIcon = ' <span class="jd-chip" style="background:#1E3B24;color:#8FE39E;" title="En Google Calendar">📅 Sincronizado</span>';
       else if(a.gcalStatus === 'pending') gcalIcon = ' <span class="jd-chip" style="background:#232A1E;color:#9BA294;" title="Sincronizando...">📅 Sincronizando…</span>';
       else if(a.gcalStatus === 'failed') gcalIcon = ' <span class="jd-chip" style="background:#3B211E;color:#F08C82;">📅 No sincronizado'+(a.gcalError ? ': '+a.gcalError : '')+'</span>';
-      row.innerHTML = '<span>'+dateChip+a.text+gcalIcon+'</span>';
+      var textSpan = document.createElement('span');
+      textSpan.style.cursor = 'pointer';
+      textSpan.innerHTML = dateChip+a.text+gcalIcon;
+      textSpan.addEventListener('click', function(){
+        editingAgendaId = a.id;
+        renderAgenda();
+      });
+      textRow.appendChild(textSpan);
       var del = document.createElement('button');
       del.className = 'jd-btn'; del.textContent = '×'; del.style.padding = '1px 8px';
       del.addEventListener('click', function(){
         data.agenda = data.agenda.filter(function(x){ return x.id !== a.id; });
         save(); renderTasks(); renderAgenda(); renderCalendar();
       });
-      row.appendChild(del);
+      textRow.appendChild(del);
+      row.appendChild(textRow);
       box.appendChild(row);
     });
   }
@@ -1408,6 +1452,55 @@
     });
   }
 
+  async function updateGoogleCalendarEvent(item){
+    if(!item.gcalEventId) return createGoogleCalendarEvent(item);
+    if(!googleAccessToken) return {ok:false, reason:'sin permiso de Calendar en esta sesión — cierra sesión y vuelve a entrar con Google'};
+    try{
+      var body;
+      if(item.time){
+        var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        var start = new Date(item.startDate + 'T' + item.time + ':00');
+        var end = new Date(start.getTime() + (item.durationMinutes || 30)*60000);
+        body = {
+          summary: item.text,
+          start: { dateTime: item.startDate + 'T' + item.time + ':00', timeZone: tz },
+          end: { dateTime: end.toISOString().slice(0,19), timeZone: tz }
+        };
+      } else {
+        body = {
+          summary: item.text,
+          start: { date: item.startDate },
+          end: { date: nextDayISO(item.endDate || item.startDate) }
+        };
+      }
+      var res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events/'+item.gcalEventId, {
+        method: 'PATCH',
+        headers: { 'Authorization': 'Bearer ' + googleAccessToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if(!res.ok){
+        var errJson = await res.json().catch(function(){ return null; });
+        var msg = (errJson && errJson.error && errJson.error.message) ? errJson.error.message : ('HTTP '+res.status);
+        return {ok:false, reason: msg};
+      }
+      var json = await res.json();
+      return {ok:true, id: json.id};
+    }catch(e){
+      return {ok:false, reason: (e && e.message) || 'error de red'};
+    }
+  }
+
+  function resyncAgendaItem(item){
+    item.gcalStatus = 'pending';
+    save(); renderTasks(); renderAgenda(); renderCalendar();
+    updateGoogleCalendarEvent(item).then(function(result){
+      item.gcalStatus = result.ok ? 'synced' : 'failed';
+      item.gcalEventId = result.ok ? result.id : item.gcalEventId;
+      item.gcalError = result.ok ? null : result.reason;
+      save(); renderAgenda();
+    });
+  }
+
   function tryScheduleAgenda(text){
     var range = parseDateRange(text);
     if(range){
@@ -1478,15 +1571,22 @@
     var today = new Date();
     var todayISO = today.toISOString().slice(0,10);
     var weekday = today.toLocaleDateString('es-MX', {weekday:'long'});
+    var agendaList = data.agenda.map(function(a){
+      return a.id+': "'+a.text+'"'+(a.startDate ? ' ('+a.startDate+(a.endDate&&a.endDate!==a.startDate?' a '+a.endDate:'')+(a.time?' '+a.time:'')+(a.durationMinutes?', '+a.durationMinutes+' min':'')+')' : '');
+    }).join('; ');
     var systemPrompt = 'Eres el asistente del dashboard personal de Jany. Tu trabajo es entender que quiere agregar '+
       '(un evento con fecha/hora, un pendiente suelto, un gasto o ahorro, un habito nuevo, o una tarea de un proyecto) '+
-      'y, si falta informacion clave para un evento (el dia, o si es a una hora especifica o todo el dia, o cuanto dura), '+
+      'o CORREGIR algo que ya existe en su Agenda, y, si falta informacion clave para un evento (el dia, o si es a una hora especifica o todo el dia, o cuanto dura), '+
       'preguntarla de forma breve y natural, UNA sola pregunta a la vez, en espanol de Mexico.\n'+
-      'Hoy es '+todayISO+' ('+weekday+'). Proyectos existentes: '+(projectNames||'ninguno')+'.\n\n'+
+      'Hoy es '+todayISO+' ('+weekday+'). Proyectos existentes: '+(projectNames||'ninguno')+'.\n'+
+      'Pendientes de Agenda existentes (id: "texto" (fecha hora, duracion)): '+(agendaList||'ninguno')+'.\n\n'+
       'Responde SIEMPRE con un JSON valido, sin texto extra ni markdown, en una de estas dos formas:\n'+
       '{"status":"ask","question":"..."}\n'+
-      '{"status":"done","action":{"type":"evento|reto|gasto|habito|proyecto","text":"...","date":"YYYY-MM-DD","endDate":"YYYY-MM-DD o null","time":"HH:MM 24h o null","durationMinutes":numero o null,"project":"nombre EXACTO de la lista o null","amount":numero o null,"isExpense":true o false}}\n\n'+
-      'Reglas: type=evento siempre necesita al menos "date". Si no dijo hora, pregunta si es a una hora especifica o todo el dia; '+
+      '{"status":"done","action":{"type":"evento|editar|reto|gasto|habito|proyecto","editId":"id EXACTO de la lista de Agenda o null","text":"...","date":"YYYY-MM-DD","endDate":"YYYY-MM-DD o null","time":"HH:MM 24h o null","durationMinutes":numero o null,"project":"nombre EXACTO de la lista o null","amount":numero o null,"isExpense":true o false}}\n\n'+
+      'Reglas: si el mensaje pide corregir/cambiar/mover/actualizar algo que coincide claramente con un id de la lista de Agenda existente, '+
+      'usa type="editar" con "editId" = ese id EXACTO, y solo llena los campos que cambian (deja los demas null, no los inventes de nuevo). '+
+      'Si no hay ninguna coincidencia clara en la lista, trata el mensaje como type="evento" nuevo (no inventes un editId). '+
+      'type=evento siempre necesita al menos "date". Si no dijo hora, pregunta si es a una hora especifica o todo el dia; '+
       'si responde que es todo el dia o no importa la hora, usa time:null. Si es a una hora especifica y no dijo cuanto dura, '+
       'PREGUNTA cuanto dura (en minutos u horas) antes de responder status:done. No preguntes duracion si es evento de todo el dia '+
       'o de varios dias (viaje, vacaciones) — en ese caso solo llena date y endDate. Si ya tienes fecha, y (hora + duracion) o "todo el dia" confirmado, responde status:done sin seguir preguntando. '+
@@ -1516,6 +1616,19 @@
 
   function executeAssistantAction(action){
     if(!action) return;
+    if(action.type === 'editar' && action.editId){
+      var existing = data.agenda.find(function(x){ return x.id === action.editId; });
+      if(existing){
+        if(action.text) existing.text = action.text;
+        if(action.date) existing.startDate = action.date;
+        if(action.endDate) existing.endDate = action.endDate;
+        if(action.time) existing.time = action.time;
+        if(typeof action.durationMinutes === 'number') existing.durationMinutes = action.durationMinutes;
+        resyncAgendaItem(existing);
+        return;
+      }
+      // no matching id: cae al flujo de creacion normal como evento nuevo
+    }
     if(action.type === 'evento' && action.date){
       scheduleAgendaItem({
         id: uid('a'), text: action.text || 'Evento',
