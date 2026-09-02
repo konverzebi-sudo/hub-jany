@@ -563,45 +563,66 @@
     return {count:count, total:totalDays};
   }
 
-  function habitLog(habitId){
-    var log = [];
-    Object.keys(data.habitChecks).forEach(function(ds){
-      var entry = data.habitChecks[ds][habitId];
-      if(entry) log.push({date: ds, time: (entry && entry.time) || null});
-    });
-    log.sort(function(a,b){ return b.date.localeCompare(a.date); });
-    return log;
-  }
+  var HABIT_PALETTE = ['#8FE39E','#BB6BD9','#56CCF2','#F2C94C','#EB5757','#6FCF97','#F2994A','#9B8CFF'];
 
   function renderHabitsStats(){
     var box = document.getElementById('jd-habits-stats');
     if(!box) return;
-    box.innerHTML = '<div class="jd-h" style="margin-bottom:8px;">Tu avance por hábito</div>';
-    data.habits.forEach(function(h){
-      var s = getHabitStats(h.id);
-      var pct = s.total ? Math.round(s.count/s.total*100) : 0;
-      var row = document.createElement('div');
-      row.style.cssText = 'padding:5px 0;cursor:pointer;';
-      row.innerHTML = '<div class="jd-row" style="justify-content:space-between;font-size:12px;color:#B9C0AF;margin-bottom:3px;">'+
-        '<span>'+h.text+'</span><span class="jd-sub">'+s.count+'/'+s.total+'</span></div>'+
-        '<div style="height:4px;background:#1B2117;border-radius:4px;overflow:hidden;"><div style="height:100%;width:'+pct+'%;background:#C6FF4B;"></div></div>';
-      var logBox = document.createElement('div');
-      logBox.style.cssText = 'display:none;margin-top:6px;padding-left:6px;border-left:2px solid #232A1E;';
-      row.appendChild(logBox);
-      row.addEventListener('click', function(){
-        if(logBox.style.display === 'none'){
-          var log = habitLog(h.id);
-          logBox.innerHTML = log.length ? log.slice(0,14).map(function(l){
-            var dl = new Date(l.date+'T00:00:00').toLocaleDateString('es-MX', {day:'numeric', month:'short'});
-            return '<div class="jd-sub" style="padding:2px 0;">'+dl+(l.time ? ' · '+l.time : '')+'</div>';
-          }).join('') : '<div class="jd-sub">Sin registros todavía.</div>';
-          logBox.style.display = 'block';
-        } else {
-          logBox.style.display = 'none';
+    var totalDays = Math.floor((new Date(todayKey) - new Date(data.startDate)) / 86400000) + 1;
+    var daysToShow = Math.min(totalDays, 14);
+    var days = [];
+    for(var i=daysToShow-1; i>=0; i--){ days.push(dateStrOffset(i)); }
+
+    var w = Math.max(280, days.length*38 + 46);
+    var h = 190;
+    var padLeft = 32, padBottom = 18, padTop = 6, padRight = 6;
+    var plotW = w - padLeft - padRight;
+    var plotH = h - padTop - padBottom;
+    function xFor(i){ return padLeft + (days.length<=1 ? plotW/2 : i/(days.length-1)*plotW); }
+    function yFor(hourFloat){ return padTop + plotH - (hourFloat/24)*plotH; }
+
+    var svg = '<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" style="display:block;">';
+    [0,6,12,18,24].forEach(function(hr){
+      var y = yFor(hr);
+      svg += '<line x1="'+padLeft+'" y1="'+y+'" x2="'+(w-padRight)+'" y2="'+y+'" stroke="#232A1E" stroke-width="1"/>';
+      svg += '<text x="'+(padLeft-4)+'" y="'+(y+3)+'" font-size="8" fill="#5C6157" text-anchor="end">'+hr+':00</text>';
+    });
+    days.forEach(function(ds,i){
+      var d = new Date(ds+'T00:00:00');
+      svg += '<text x="'+xFor(i)+'" y="'+(h-4)+'" font-size="8" fill="#5C6157" text-anchor="middle">'+d.getDate()+'</text>';
+    });
+
+    var anyPoints = false;
+    data.habits.forEach(function(hb, hi){
+      var color = HABIT_PALETTE[hi % HABIT_PALETTE.length];
+      var points = [];
+      days.forEach(function(ds,i){
+        var entry = data.habitChecks[ds] && data.habitChecks[ds][hb.id];
+        var time = entry && entry.time;
+        if(time){
+          var m = /^(\d{1,2}):(\d{2})/.exec(time);
+          if(m){ points.push({x: xFor(i), y: yFor(parseInt(m[1],10) + parseInt(m[2],10)/60)}); }
         }
       });
-      box.appendChild(row);
+      if(points.length){
+        anyPoints = true;
+        if(points.length > 1){
+          var path = points.map(function(p,idx){ return (idx===0?'M':'L')+p.x+','+p.y; }).join(' ');
+          svg += '<path d="'+path+'" fill="none" stroke="'+color+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
+        }
+        points.forEach(function(p){ svg += '<circle cx="'+p.x+'" cy="'+p.y+'" r="3" fill="'+color+'"/>'; });
+      }
     });
+    svg += '</svg>';
+
+    var legend = '<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;">' + data.habits.map(function(hb,hi){
+      var color = HABIT_PALETTE[hi % HABIT_PALETTE.length];
+      return '<div class="jd-row" style="gap:4px;"><span style="width:8px;height:8px;border-radius:50%;background:'+color+';display:inline-block;"></span><span class="jd-sub">'+hb.text+'</span></div>';
+    }).join('') + '</div>';
+
+    box.innerHTML = '<div class="jd-h" style="margin-bottom:8px;">Tu avance por hábito</div>'+
+      '<div style="overflow-x:auto;">'+svg+'</div>'+
+      (anyPoints ? legend : '<div class="jd-sub" style="margin-top:8px;">Todavía no hay horarios registrados.</div>');
   }
 
   function renderHabits(){
