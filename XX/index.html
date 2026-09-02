@@ -124,29 +124,31 @@
       <div id="jd-bank-list"></div>
     </div>
     <div class="jd-card" style="margin:0 0 10px;">
-      <div class="jd-h">Nuevo movimiento</div>
-      <input class="jd-input" id="jd-fin-name" placeholder="Movimiento (ej. Compra en Amazon)" style="margin-bottom:6px;">
-      <div class="jd-row" style="gap:6px;margin-bottom:6px;">
-        <select class="jd-input" id="jd-fin-type" style="flex:1;">
-          <option value="compra">Compra</option>
-          <option value="ingreso">Ingreso</option>
-          <option value="ahorro_corto">Ahorro corto plazo</option>
-          <option value="ahorro_largo">Ahorro largo plazo</option>
-        </select>
-        <select class="jd-input" id="jd-fin-payment" style="flex:1;">
-          <option value="unico">1 pago</option>
-          <option value="plazos">Plazos</option>
-        </select>
+      <button class="jd-btn jd-btn-lima" style="width:100%;" id="jd-fin-toggle">+ Nuevo movimiento</button>
+      <div id="jd-fin-form" style="display:none;margin-top:12px;">
+        <input class="jd-input" id="jd-fin-name" placeholder="Movimiento (ej. Compra en Amazon)" style="margin-bottom:6px;">
+        <div class="jd-row" style="gap:6px;margin-bottom:6px;">
+          <select class="jd-input" id="jd-fin-type" style="flex:1;">
+            <option value="compra">Compra</option>
+            <option value="ingreso">Ingreso</option>
+            <option value="ahorro_corto">Ahorro corto plazo</option>
+            <option value="ahorro_largo">Ahorro largo plazo</option>
+          </select>
+          <select class="jd-input" id="jd-fin-payment" style="flex:1;">
+            <option value="unico">1 pago</option>
+            <option value="plazos">Plazos</option>
+          </select>
+        </div>
+        <div class="jd-row" style="gap:6px;margin-bottom:6px;">
+          <input class="jd-input" id="jd-fin-account" placeholder="Cuenta (ej. BBVA Oro)" style="flex:1;">
+          <input class="jd-input" id="jd-fin-amount" placeholder="Monto" type="number" style="width:90px;">
+        </div>
+        <div class="jd-row" style="gap:6px;margin-bottom:6px;">
+          <input class="jd-input" id="jd-fin-date" type="date" style="flex:1;">
+        </div>
+        <button class="jd-btn jd-btn-lima" style="width:100%;" id="jd-fin-add">Agregar movimiento</button>
+        <div class="jd-sub" style="margin-top:8px;">También puedes escribirlo en el chat de arriba.</div>
       </div>
-      <div class="jd-row" style="gap:6px;margin-bottom:6px;">
-        <input class="jd-input" id="jd-fin-account" placeholder="Cuenta (ej. BBVA Oro)" style="flex:1;">
-        <input class="jd-input" id="jd-fin-amount" placeholder="Monto" type="number" style="width:90px;">
-      </div>
-      <div class="jd-row" style="gap:6px;margin-bottom:6px;">
-        <input class="jd-input" id="jd-fin-date" type="date" style="flex:1;">
-      </div>
-      <button class="jd-btn jd-btn-lima" style="width:100%;" id="jd-fin-add">Agregar movimiento</button>
-      <div class="jd-sub" style="margin-top:8px;">También puedes escribirlo en el chat de arriba.</div>
     </div>
     <div class="jd-card" style="margin:0 0 10px;">
       <div class="jd-h">Movimientos recientes (desde el chat)</div>
@@ -171,6 +173,7 @@
       <div class="jd-row" style="margin-top:6px;">
         <input class="jd-input" id="jd-sub-name" placeholder="Nombre (ej. Canva)">
         <input class="jd-input" id="jd-sub-amount" placeholder="Monto" type="number" style="max-width:90px;">
+        <input class="jd-input" id="jd-sub-day" placeholder="Día" type="number" min="1" max="31" style="max-width:60px;">
       </div>
       <button class="jd-btn" style="margin-top:8px;width:100%;" id="jd-sub-add">Agregar app</button>
     </div>
@@ -1267,6 +1270,13 @@
     dr.style.display = dr.style.display === 'none' ? 'block' : 'none';
   });
 
+  document.getElementById('jd-fin-toggle').addEventListener('click', function(){
+    var form = document.getElementById('jd-fin-form');
+    var open = form.style.display !== 'none';
+    form.style.display = open ? 'none' : 'block';
+    this.textContent = open ? '+ Nuevo movimiento' : '− Nuevo movimiento';
+  });
+
   function addFinMovement(name, type, paymentType, account, amount, dateISO){
     if(!name || isNaN(amount)) return false;
     var iso = dateISO || todayKey;
@@ -1313,12 +1323,13 @@
       var row = document.createElement('div');
       row.className = 'jd-row';
       row.style.cssText = 'justify-content:space-between;padding:6px 0;border-bottom:1px solid #232A1E;font-size:13px;';
-      row.innerHTML = '<span>'+s.name+'</span><span style="font-weight:600;">'+fmt(s.amount)+'/mes</span>';
+      var dayLabel = s.billingDay ? ' <span class="jd-sub">(cobra el '+s.billingDay+')</span>' : '';
+      row.innerHTML = '<span>'+s.name+dayLabel+'</span><span style="font-weight:600;">'+fmt(s.amount)+'/mes</span>';
       var del = document.createElement('button');
       del.className = 'jd-btn'; del.textContent = '×'; del.style.padding = '1px 8px';
       del.addEventListener('click', function(){
         data.subscriptions = data.subscriptions.filter(function(x){ return x.id !== s.id; });
-        save(); renderSubscriptions();
+        save(); renderSubscriptions(); renderFinCalendar();
       });
       row.appendChild(del);
       box.appendChild(row);
@@ -1330,11 +1341,13 @@
   document.getElementById('jd-sub-add').addEventListener('click', function(){
     var name = document.getElementById('jd-sub-name').value.trim();
     var amount = parseFloat(document.getElementById('jd-sub-amount').value);
+    var billingDay = parseInt(document.getElementById('jd-sub-day').value, 10);
     if(!name || isNaN(amount)) return;
-    data.subscriptions.push({id:uid('sub'), name:name, amount:amount});
+    data.subscriptions.push({id:uid('sub'), name:name, amount:amount, billingDay: isNaN(billingDay) ? null : billingDay});
     document.getElementById('jd-sub-name').value='';
     document.getElementById('jd-sub-amount').value='';
-    save(); renderSubscriptions();
+    document.getElementById('jd-sub-day').value='';
+    save(); renderSubscriptions(); renderFinCalendar();
   });
 
   var finCalViewDate = new Date(); finCalViewDate.setDate(1);
@@ -1365,12 +1378,17 @@
     for(var i=0; i<startOffset; i++){ grid.appendChild(document.createElement('div')); }
     for(var day=1; day<=daysInMonth; day++){
       var iso = year + '-' + String(month+1).padStart(2,'0') + '-' + String(day).padStart(2,'0');
-      var items = byDay[iso];
+      var items = (byDay[iso] || []).slice();
+      data.subscriptions.forEach(function(s){
+        if(!s.billingDay) return;
+        var subDay = Math.min(s.billingDay, daysInMonth);
+        if(subDay === day) items.push({id:s.id, name:s.name, amount:-Math.abs(s.amount), type:'suscripcion', account:null});
+      });
       var isToday = iso === todayISO;
       var cell = document.createElement('div');
       var bg = '#1B2117';
-      if(items && items.length){
-        bg = items.some(function(m){ return m.type==='compra'; }) ? '#3B211E' : items.some(function(m){ return m.type==='ingreso'; }) ? '#1E3B24' : '#1E2A3B';
+      if(items.length){
+        bg = items.some(function(m){ return m.type==='compra'; }) ? '#3B211E' : items.some(function(m){ return m.type==='ingreso'; }) ? '#1E3B24' : items.some(function(m){ return m.type==='suscripcion'; }) ? '#2A1E3B' : '#1E2A3B';
       }
       cell.style.cssText = 'aspect-ratio:1;border-radius:6px;background:'+bg+';display:flex;align-items:center;justify-content:center;font-size:11px;color:#B9C0AF;cursor:pointer;'+(isToday?'box-shadow:0 0 0 1.5px #C6FF4B inset;':'');
       cell.textContent = day;
@@ -1392,8 +1410,9 @@
       return;
     }
     var html = '<div style="border-top:1px solid #232A1E;padding-top:10px;"><div style="font-size:12.5px;font-weight:600;color:#EDEFEA;margin-bottom:6px;text-transform:capitalize;">'+dateLabel+'</div>';
+    var typeLabels = {compra:'compra', ingreso:'ingreso', ahorro_corto:'ahorro corto plazo', ahorro_largo:'ahorro largo plazo', suscripcion:'app mensual'};
     items.forEach(function(m){
-      html += '<div style="padding:5px 0;border-bottom:1px solid #232A1E;font-size:11.5px;color:#9BA294;">'+m.name+(m.account?' · '+m.account:'')+' — '+fmt(m.amount)+' <span class="jd-sub">('+m.type+')</span></div>';
+      html += '<div style="padding:5px 0;border-bottom:1px solid #232A1E;font-size:11.5px;color:#9BA294;">'+m.name+(m.account?' · '+m.account:'')+' — '+fmt(Math.abs(m.amount))+' <span class="jd-sub">('+(typeLabels[m.type]||m.type)+')</span></div>';
     });
     html += '</div>';
     panel.innerHTML = html;
