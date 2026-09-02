@@ -207,6 +207,22 @@ function formatearRedes(redes) {
   return 'CONTACTO Y REDES (datos reales -- úsalos tal cual en CTAs como "mándame mensaje" o "visítanos", nunca inventes un link, número o dirección si no aparece aquí):\n' + lineas.map((l) => '  ' + l).join('\n');
 }
 
+// Mismos datos que guarda ADN > Redes > "Contenido que convierte" (brand-book.redes, campos
+// _ventas_reales/_mejor_N/_peor_N). No podemos "ver" el post detrás de un link, pero sí sirve
+// como referencia real de qué formato/patrón ya funcionó o no, para inspirar ideas nuevas
+// (no para copiar tal cual).
+function formatearHistorialContenido(redes) {
+  if (!redes || typeof redes !== 'object') return null;
+  const lineas = [];
+  if (redes._ventas_reales) lineas.push(`Qué le ha generado ventas reales: ${redes._ventas_reales}`);
+  const mejores = [redes._mejor_1, redes._mejor_2, redes._mejor_3].filter(Boolean);
+  if (mejores.length) lineas.push('Links a su mejor contenido (referencia de qué SÍ funcionó):\n' + mejores.map((l) => '    - ' + l).join('\n'));
+  const peores = [redes._peor_1, redes._peor_2, redes._peor_3].filter(Boolean);
+  if (peores.length) lineas.push('Links a su peor contenido (referencia de qué evitar):\n' + peores.map((l) => '    - ' + l).join('\n'));
+  if (lineas.length === 0) return null;
+  return 'HISTORIAL DE CONTENIDO QUE CONVIERTE (no puedes abrir estos links, úsalos solo como referencia de que existen -- nunca describas o inventes qué muestran):\n' + lineas.map((l) => '  ' + l).join('\n');
+}
+
 function formatearTabla(filas, columnas, titulo) {
   if (!Array.isArray(filas) || filas.length === 0) return null;
   const utiles = filas.filter((f) => f && Object.values(f).some((v) => (v || '').toString().trim()));
@@ -325,6 +341,7 @@ async function construirContexto(clienteId, grupoId) {
     formatearAudiencias(audiencia),
     formatearCatalogo(catalogo, grupos, grupoId),
     formatearRedes(redes),
+    formatearHistorialContenido(redes),
   ].filter(Boolean);
 
   const bloque366 = formatearComunicacion366(comunicacion);
