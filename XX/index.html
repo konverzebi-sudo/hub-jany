@@ -64,6 +64,7 @@
       <button id="jd-mic-btn" type="button" aria-label="Dictar por voz" style="background:transparent;border:1px solid #12210A;color:#12210A;border-radius:8px;width:32px;height:32px;font-size:14px;cursor:pointer;">🎤</button>
       <button id="jd-note-add" style="padding:6px 12px;border-radius:8px;background:#0B0F0C;border:1px solid #0B0F0C;color:#FFFFFF;font-weight:600;font-family:'Inter',sans-serif;font-size:12.5px;cursor:pointer;">Agregar</button>
     </div>
+    <div id="jd-token-usage" style="color:#3C4A2E;font-size:10.5px;margin-top:6px;"></div>
   </div>
 
   <div id="jd-chatlog-wrap" style="display:none;padding:14px 14px 0;">
@@ -428,6 +429,7 @@
     if(!data.habitChecks) data.habitChecks = {};
     if(!data.chatLog) data.chatLog = [];
     if(!data.history) data.history = [];
+    if(!data.tokenUsage) data.tokenUsage = {inputTokens:0, outputTokens:0};
     if(!data.habitChecks[todayKey]) data.habitChecks[todayKey] = {};
     if(!data.startDate){ data.startDate = todayKey; save(); }
     if(!data.areaStats){
@@ -442,6 +444,16 @@
   function renderAll(){
     renderClock(); renderPhrase(); renderDebt(); renderFinance(); renderProgressMini();
     renderHabits(); renderTasks(); renderAgenda(); renderBalance(); renderProducts(); renderHistory(); renderCalendar(); renderWeekGrid();
+    renderTokenUsage();
+  }
+
+  function renderTokenUsage(){
+    var el = document.getElementById('jd-token-usage');
+    if(!el) return;
+    var t = data.tokenUsage;
+    var cost = (t.inputTokens/1000000)*1.00 + (t.outputTokens/1000000)*5.00;
+    var total = t.inputTokens + t.outputTokens;
+    el.textContent = total > 0 ? ('IA: '+total.toLocaleString('es-MX')+' tokens · ~$'+cost.toFixed(4)+' USD') : '';
   }
 
   function renderClock(){
@@ -1636,6 +1648,11 @@
         })
       });
       var json = await res.json();
+      if(json.usage){
+        data.tokenUsage.inputTokens += json.usage.input_tokens || 0;
+        data.tokenUsage.outputTokens += json.usage.output_tokens || 0;
+        save(); renderTokenUsage();
+      }
       var textBlocks = (json.content || []).filter(function(b){ return b.type === 'text'; }).map(function(b){ return b.text; }).join('\n');
       var clean = textBlocks.replace(/```json|```/g, '').trim();
       var firstJson = extractFirstJson(clean);
