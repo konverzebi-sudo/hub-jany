@@ -37,6 +37,9 @@
     .group-tab.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); font-weight: 700; }
     .group-tab:not(.active):hover { border-color: var(--text-dim); color: var(--text); }
     .group-tabs-hint { font-family: "JetBrains Mono", monospace; font-size: 12px; color: var(--text-dim); text-decoration: none; border-bottom: 1px dashed var(--text-dim); }
+    .mostrar-todas-btn { display: block; margin: 10px auto 0; background: transparent; border: none; font-family: "JetBrains Mono", monospace; font-size: 11.5px; color: var(--text-dim); text-decoration: none; border-bottom: 1px dashed var(--text-dim); cursor: pointer; padding: 2px 0; }
+    .mostrar-todas-btn:hover { color: var(--accent); border-color: var(--accent); }
+    .mostrar-todas-btn.activo { color: var(--accent); border-color: var(--accent); }
     .group-tabs-hint:hover { color: var(--accent); border-color: var(--accent); }
 
     /* ── MAIN ── */
@@ -357,6 +360,7 @@
   <h1>Jefe 366</h1>
   <p>Estoy para asesorarte para vender los 366/365 días del año.</p>
   <div class="group-tabs" id="groupTabs"></div>
+  <button type="button" class="mostrar-todas-btn" id="mostrarTodasBtn" onclick="toggleMostrarTodas()">Ver todas las pestañas (sin filtrar por grupo)</button>
 </header>
 
 <button type="button" class="view-toggle-btn" id="viewToggleBtn" onclick="toggleVistaDividida()">🔀 Vista dividida</button>
@@ -617,11 +621,30 @@ function encontrarPorGrupo(lista, grupo) {
    todas juntas (que se sentía como que "se comparten" aunque por dentro ya estaban separadas).
    Si el filtro no deja nada visible (ej. estado viejo antes de que todo tuviera grupo asignado),
    se cae a mostrar todo -- mejor eso que una barra de pestañas vacía sin explicación. */
+let mostrarTodasLasPestanas = false;
+
 function indicesDelGrupoActivo(lista) {
-  if (!grupoActivo || !gruposNegocioState.length) return lista.map((_, i) => i);
+  if (mostrarTodasLasPestanas || !grupoActivo || !gruposNegocioState.length) return lista.map((_, i) => i);
   const filtrados = [];
   lista.forEach((p, i) => { if (p && p.grupo_id === grupoActivo.id) filtrados.push(i); });
   return filtrados.length ? filtrados : lista.map((_, i) => i);
+}
+
+// Salida de emergencia: si una pestaña quedó sin grupo asignado y ningún grupo la reclama sola
+// (ej. porque los dos grupos ya tenían otra pestaña), se vuelve invisible en ambas vistas
+// filtradas -- este botón quita el filtro por completo para poder encontrarla y corregirle el
+// grupo con su selector "Grupo de negocio de esta pestaña", o borrarla si ya no hace falta.
+function toggleMostrarTodas() {
+  mostrarTodasLasPestanas = !mostrarTodasLasPestanas;
+  const btn = document.getElementById('mostrarTodasBtn');
+  if (btn) {
+    btn.classList.toggle('activo', mostrarTodasLasPestanas);
+    btn.textContent = mostrarTodasLasPestanas ? 'Volver a filtrar por grupo' : 'Ver todas las pestañas (sin filtrar por grupo)';
+  }
+  renderEpcTabs();
+  renderEpTabs();
+  renderEsTabs();
+  renderEcTabs();
 }
 
 // Si un grupo (Publicidad, Torneo...) todavía no tiene pestaña propia en esta sección, se crea
