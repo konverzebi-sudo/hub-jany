@@ -656,7 +656,7 @@
       if(a.startDate){
         var sd = new Date(a.startDate+'T00:00:00');
         var ed = new Date((a.endDate||a.startDate)+'T00:00:00');
-        var rangeLabel = sd.getDate() + (a.endDate && a.endDate!==a.startDate ? '–'+ed.getDate() : '') + ' ' + monthNames[ed.getMonth()].slice(0,3);
+        var rangeLabel = sd.getDate() + (a.endDate && a.endDate!==a.startDate ? '–'+ed.getDate() : '') + ' ' + monthNames[ed.getMonth()].slice(0,3) + (a.time ? ' · '+a.time : '');
         dateChip = '<span class="jd-chip" style="background:#1B2117;color:#C6FF4B;margin-right:6px;">'+rangeLabel+'</span>';
       }
       var gcalIcon = '';
@@ -1235,17 +1235,52 @@
     return d.toISOString().slice(0,10);
   }
 
+  function parseSingleSchedule(text){
+    var lower = text.toLowerCase();
+    var m = /a\s+las\s+(\d{1,2})(?::(\d{2}))?\s*(a\.?\s*m\.?|p\.?\s*m\.?)?(\s*de\s+(hoy|mañana))?/i.exec(text);
+    if(!m) return null;
+    var hour = parseInt(m[1], 10);
+    var minute = m[2] ? parseInt(m[2], 10) : 0;
+    var ampm = (m[3]||'').replace(/[.\s]/g,'').toLowerCase();
+    if(ampm === 'pm' && hour < 12) hour += 12;
+    if(ampm === 'am' && hour === 12) hour = 0;
+    if(!ampm){
+      if(/de\s+la\s+mañana/i.test(lower) && hour === 12) hour = 0;
+      else if(/de\s+la\s+(tarde|noche)/i.test(lower) && hour < 12) hour += 12;
+    }
+    var dayRef = (m[5]||'').toLowerCase();
+    var d = new Date();
+    if(dayRef === 'mañana') d.setDate(d.getDate() + 1);
+    var iso = d.toISOString().slice(0,10);
+    var timeLabel = String(hour).padStart(2,'0') + ':' + String(minute).padStart(2,'0');
+    var desc = text.replace(m[0], '').replace(/^\s*agrega[r]?\s+/i, '').trim();
+    return { iso: iso, time: timeLabel, desc: desc || text };
+  }
+
   async function createGoogleCalendarEvent(item){
     if(!googleAccessToken) return false;
     try{
-      var res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
-        method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + googleAccessToken, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      var body;
+      if(item.time){
+        var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        var start = new Date(item.startDate + 'T' + item.time + ':00');
+        var end = new Date(start.getTime() + 30*60000);
+        body = {
+          summary: item.text,
+          start: { dateTime: item.startDate + 'T' + item.time + ':00', timeZone: tz },
+          end: { dateTime: end.toISOString().slice(0,19), timeZone: tz }
+        };
+      } else {
+        body = {
           summary: item.text,
           start: { date: item.startDate },
           end: { date: nextDayISO(item.endDate || item.startDate) }
-        })
+        };
+      }
+      var res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + googleAccessToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
       });
       if(!res.ok) return false;
       var json = await res.json();
@@ -1255,10 +1290,8 @@
     }
   }
 
-  function tryScheduleAgenda(text){
-    var parsed = parseDateRange(text);
-    if(!parsed) return false;
-    var item = {id:uid('a'), text:parsed.desc, startDate:parsed.startISO, endDate:parsed.endISO, gcalStatus:'pending'};
+  function scheduleAgendaItem(item){
+    item.gcalStatus = 'pending';
     data.agenda.push(item);
     save(); renderAgenda(); renderCalendar();
     createGoogleCalendarEvent(item).then(function(eventId){
@@ -1266,7 +1299,20 @@
       item.gcalEventId = eventId || null;
       save(); renderAgenda();
     });
-    return true;
+  }
+
+  function tryScheduleAgenda(text){
+    var range = parseDateRange(text);
+    if(range){
+      scheduleAgendaItem({id:uid('a'), text:range.desc, startDate:range.startISO, endDate:range.endISO});
+      return true;
+    }
+    var single = parseSingleSchedule(text);
+    if(single){
+      scheduleAgendaItem({id:uid('a'), text:single.desc, startDate:single.iso, endDate:single.iso, time:single.time});
+      return true;
+    }
+    return false;
   }
 
   function tryFutureAgenda(text){
