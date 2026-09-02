@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Leads · Diagnóstico Exprés</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    background:#0a0a0a;color:#f2f2f2;min-height:100vh;
+    font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;
+    padding:28px 20px 60px;
+  }
+  .wrap{max-width:1200px;margin:0 auto;}
+  h1{font-size:24px;font-weight:800;margin-bottom:4px;}
+  .sub{color:#9a9a9a;font-size:14px;margin-bottom:24px;}
+
+  .gate{
+    max-width:420px;margin:60px auto;background:#151515;border:1px solid #2a2a2a;
+    border-radius:16px;padding:28px;text-align:center;
+  }
+  .gate p{color:#9a9a9a;font-size:13.5px;margin-bottom:16px;}
+  .gate input{
+    width:100%;background:#0f0f0f;border:1px solid #2a2a2a;color:#f2f2f2;
+    border-radius:10px;padding:12px 14px;font-size:14px;margin-bottom:12px;
+  }
+  .gate button, .toolbar button{
+    background:linear-gradient(135deg,#7c3aed,#06b6d4);color:#fff;border:none;
+    padding:12px 20px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;width:100%;
+  }
+  .error{color:#ff8f8f;font-size:13px;margin-top:10px;display:none;}
+  .error.show{display:block;}
+
+  .toolbar{display:flex;gap:10px;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;}
+  .toolbar button{width:auto;padding:9px 16px;font-size:13px;}
+  .toolbar .salir{background:transparent;border:1px solid #2a2a2a;color:#9a9a9a;}
+  .count{font-size:13px;color:#9a9a9a;}
+
+  .table-wrap{overflow-x:auto;border-radius:16px;border:1px solid #2a2a2a;}
+  table{width:100%;border-collapse:collapse;background:#151515;font-size:13px;min-width:1000px;}
+  th{
+    background:rgba(124,58,237,.14);color:#7c3aed;text-transform:uppercase;letter-spacing:.04em;
+    font-size:10.5px;font-weight:700;padding:12px 14px;text-align:left;white-space:nowrap;position:sticky;top:0;
+  }
+  td{padding:12px 14px;border-top:1px solid #2a2a2a;vertical-align:top;max-width:260px;}
+  tbody tr:nth-child(even) td{background:rgba(255,255,255,.02);}
+  td.nombre{font-weight:700;white-space:nowrap;}
+  td.fecha{color:#9a9a9a;white-space:nowrap;font-size:12px;}
+  .vacio{text-align:center;padding:60px 20px;color:#9a9a9a;}
+  [hidden]{display:none!important;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="gate" id="gate">
+    <h1 style="margin-bottom:10px;">Leads del Diagnóstico</h1>
+    <p>Pega tu clave de administrador para ver los registros. Se guarda solo en este navegador.</p>
+    <input type="password" id="tokenInput" placeholder="Clave de administrador">
+    <button onclick="cargarLeads()">Ver leads</button>
+    <div class="error" id="errorMsg">Clave incorrecta o sin conexión.</div>
+  </div>
+
+  <div id="contenido" hidden>
+    <h1>Leads · Diagnóstico Exprés</h1>
+    <div class="sub">Cada fila es un negocio que generó un diagnóstico en vivo.</div>
+
+    <div class="toolbar">
+      <div class="count" id="count"></div>
+      <div style="display:flex;gap:10px;">
+        <button onclick="cargarLeads()" style="background:#151515;border:1px solid #2a2a2a;">Actualizar</button>
+        <button class="salir" onclick="cerrarSesion()">Cambiar clave</button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Empresario</th>
+            <th>WhatsApp</th>
+            <th>Giro</th>
+            <th>Qué vende</th>
+            <th>A quién le vende</th>
+            <th>Ventas/mes</th>
+            <th>Dolor</th>
+            <th>Tarea que quita tiempo</th>
+            <th>Canales</th>
+            <th>Competidor</th>
+          </tr>
+        </thead>
+        <tbody id="filas"></tbody>
+      </table>
+    </div>
+    <div class="vacio" id="vacio" hidden>Todavía no hay leads registrados.</div>
+  </div>
+
+</div>
+
+<script>
+const LEADS_API = 'https://agentes.jefeshub.com/api/leads';
+const TOKEN_KEY = 'diagnostico_leads_token';
+
+function escapeHtml(str){
+  return String(str || '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function fechaCorta(iso){
+  if(!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-MX', {day:'numeric', month:'short', year:'numeric'}) + ' ' +
+         d.toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'});
+}
+
+async function cargarLeads(){
+  const inputEl = document.getElementById('tokenInput');
+  const token = inputEl ? inputEl.value.trim() : (localStorage.getItem(TOKEN_KEY) || '');
+  const errorEl = document.getElementById('errorMsg');
+  errorEl.classList.remove('show');
+
+  if(!token){
+    errorEl.textContent = 'Escribe tu clave de administrador.';
+    errorEl.classList.add('show');
+    return;
+  }
+
+  try{
+    const res = await fetch(LEADS_API, { headers: { 'X-Leads-Token': token } });
+    if(res.status === 401){
+      errorEl.textContent = 'Clave incorrecta.';
+      errorEl.classList.add('show');
+      localStorage.removeItem(TOKEN_KEY);
+      return;
+    }
+    if(!res.ok) throw new Error('Error del servidor');
+    const data = await res.json();
+
+    localStorage.setItem(TOKEN_KEY, token);
+    document.getElementById('gate').hidden = true;
+    document.getElementById('contenido').hidden = false;
+    renderLeads(data.leads || []);
+  }catch(e){
+    errorEl.textContent = 'No se pudo conectar. Revisa tu internet e intenta de nuevo.';
+    errorEl.classList.add('show');
+  }
+}
+
+function renderLeads(leads){
+  document.getElementById('count').textContent = `${leads.length} lead${leads.length === 1 ? '' : 's'}`;
+  const filas = document.getElementById('filas');
+  const vacio = document.getElementById('vacio');
+
+  if(leads.length === 0){
+    filas.innerHTML = '';
+    vacio.hidden = false;
+    return;
+  }
+  vacio.hidden = true;
+
+  filas.innerHTML = leads.map(l => `
+    <tr>
+      <td class="fecha">${escapeHtml(fechaCorta(l.created_at))}</td>
+      <td class="nombre">${escapeHtml(l.nombre_empresario)}</td>
+      <td>${escapeHtml(l.whatsapp_prospecto)}</td>
+      <td>${escapeHtml(l.giro)}</td>
+      <td>${escapeHtml(l.que_vende)}</td>
+      <td>${escapeHtml(l.a_quien_vende)}</td>
+      <td>${escapeHtml(l.ventas_mes)}</td>
+      <td>${escapeHtml(l.dolor)}</td>
+      <td>${escapeHtml(l.tarea_tiempo)}</td>
+      <td>${escapeHtml(l.canales)}</td>
+      <td>${escapeHtml(l.competidor_url)}</td>
+    </tr>
+  `).join('');
+}
+
+function cerrarSesion(){
+  localStorage.removeItem(TOKEN_KEY);
+  document.getElementById('tokenInput').value = '';
+  document.getElementById('contenido').hidden = true;
+  document.getElementById('gate').hidden = false;
+}
+
+// Si ya había una clave guardada en este navegador, carga directo
+(function initAuto(){
+  const saved = localStorage.getItem(TOKEN_KEY);
+  if(saved){
+    document.getElementById('tokenInput').value = saved;
+    cargarLeads();
+  }
+})();
+</script>
+</body>
+</html>

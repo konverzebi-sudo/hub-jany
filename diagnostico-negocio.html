@@ -671,10 +671,37 @@ document.getElementById('formCliente').addEventListener('submit', function(e){
   };
 
   localStorage.setItem(STORAGE_KEY, JSON.stringify(clienteData));
+  registrarLead(clienteData);
 
   document.getElementById('promptGenerado').textContent = construirPrompt(clienteData);
   irAPantalla(2);
 });
+
+// Registra el lead en la base de datos para seguimiento de ventas. Nunca debe
+// romper el flujo del diagnóstico en vivo si falla (sin internet, API caída, etc.).
+const LEADS_API = 'https://agentes.jefeshub.com/api/leads';
+function registrarLead(d){
+  try{
+    fetch(LEADS_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nombreEmpresario: d.nombreEmpresario,
+        whatsappProspecto: d.whatsappProspecto,
+        giro: d.giro,
+        queVende: d.queVende,
+        aQuienVende: d.aQuienVende,
+        canales: d.canales.join(', '),
+        linkCanal1: d.linkCanal1,
+        linkCanal2: d.linkCanal2,
+        ventasMes: d.ventasMes,
+        dolor: d.dolor,
+        tareaTiempo: d.tareaTiempo,
+        competidorUrl: d.competidorUrl,
+      }),
+    }).catch(() => { /* sin conexión o API caída: el diagnóstico sigue igual */ });
+  }catch(e){ /* nunca debe interrumpir el flujo en vivo */ }
+}
 
 /* ============================================================
    CONSTRUCCIÓN DEL PROMPT
