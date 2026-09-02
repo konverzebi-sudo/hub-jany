@@ -218,6 +218,7 @@
     .notas-group summary::-webkit-details-marker { display: none; }
     .notas-group summary:after { content: '+'; font-size: 18px; color: var(--accent); }
     .titulo-activo-sufijo { color: var(--accent); font-weight: 700; }
+    .titulo-activo-grupo { color: var(--text-dim); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
     .notas-group[open] summary:after { content: '–'; }
     .notas-group .notas-body { padding: 4px 18px 18px; }
     /* Al abrir una sección larga, el título (arriba) y esta barra (pestañas + Guardar) se quedan
@@ -634,6 +635,21 @@ function crearBlancoParaGrupo(lista, template, grupo) {
   return lista.length - 1;
 }
 
+// Antes de crear una pestaña en blanco nueva, reclama una que ya exista pero esté SIN grupo
+// asignado (típicamente la primera pestaña, creada antes de que la usuaria le diera clic a algún
+// grupo arriba, y que ya tiene contenido real escrito). Sin esto, esa pestaña se queda huérfana
+// para siempre en cuanto cualquier otra pestaña de la lista sí tenga grupo -- invisible en ambos
+// grupos, mientras se crean pestañas en blanco nuevas y vacías al lado. Esto es lo que causaba
+// que "se viera como que se borró todo": el contenido seguía ahí, solo que ya no se podía ver.
+function reclamarOCrearParaGrupo(lista, template, grupo) {
+  const sinAsignar = lista.findIndex((p) => p && !p.grupo_id);
+  if (sinAsignar !== -1) {
+    lista[sinAsignar].grupo_id = grupo.id;
+    return sinAsignar;
+  }
+  return crearBlancoParaGrupo(lista, template, grupo);
+}
+
 function limpiarAvisoGrupo(statusId) {
   const status = document.getElementById(statusId);
   if (!status) return;
@@ -657,7 +673,7 @@ function switchGroup(grupos, idx) {
   let huboCreacion = false;
   if (typeof perfilesState !== 'undefined' && perfilesState.length) {
     let match = encontrarPorGrupo(perfilesState, grupo);
-    if (match === -1) { match = crearBlancoParaGrupo(perfilesState, PERFIL_TEMPLATE, grupo); huboCreacion = true; }
+    if (match === -1) { match = reclamarOCrearParaGrupo(perfilesState, PERFIL_TEMPLATE, grupo); huboCreacion = true; }
     capturarPerfilesDesdeDOM();
     perfilActivo = match;
     renderEpcTabs();
@@ -665,7 +681,7 @@ function switchGroup(grupos, idx) {
   }
   if (typeof productosState !== 'undefined' && productosState.length) {
     let match = encontrarPorGrupo(productosState, grupo);
-    if (match === -1) { match = crearBlancoParaGrupo(productosState, PRODUCTO_TEMPLATE, grupo); huboCreacion = true; }
+    if (match === -1) { match = reclamarOCrearParaGrupo(productosState, PRODUCTO_TEMPLATE, grupo); huboCreacion = true; }
     capturarProductosDesdeDOM();
     productoActivo = match;
     renderEpTabs();
@@ -673,7 +689,7 @@ function switchGroup(grupos, idx) {
   }
   if (typeof sistemasState !== 'undefined' && sistemasState.length) {
     let match = encontrarPorGrupo(sistemasState, grupo);
-    if (match === -1) { match = crearBlancoParaGrupo(sistemasState, SISTEMA_TEMPLATE, grupo); huboCreacion = true; }
+    if (match === -1) { match = reclamarOCrearParaGrupo(sistemasState, SISTEMA_TEMPLATE, grupo); huboCreacion = true; }
     capturarSistemasDesdeDOM();
     sistemaActivo = match;
     renderEsTabs();
@@ -681,7 +697,7 @@ function switchGroup(grupos, idx) {
   }
   if (typeof comunicacionesState !== 'undefined' && comunicacionesState.length) {
     let match = encontrarPorGrupo(comunicacionesState, grupo);
-    if (match === -1) { match = crearBlancoParaGrupo(comunicacionesState, COMUNICACION_TEMPLATE, grupo); huboCreacion = true; }
+    if (match === -1) { match = reclamarOCrearParaGrupo(comunicacionesState, COMUNICACION_TEMPLATE, grupo); huboCreacion = true; }
     capturarComunicacionesDesdeDOM();
     comunicacionActivo = match;
     renderEcTabs();
@@ -1502,9 +1518,13 @@ function reasignarGrupo(select) {
 function actualizarTituloActivo(spanId, base, nombre) {
   const span = document.getElementById(spanId);
   if (!span) return;
+  // Muestra también el grupo de negocio activo (ej. "Torneo") junto al nombre de la pestaña --
+  // así, con la barra fija de arriba, siempre queda claro de cuál grupo es lo que se está viendo,
+  // sin tener que adivinarlo solo por el nombre de la pestaña.
+  const grupoTxt = grupoActivo ? ` <span class="titulo-activo-grupo">· ${escaparHtmlBuilder(grupoActivo.nombre)}</span>` : '';
   span.innerHTML = nombre
-    ? `${escaparHtmlBuilder(base)} <span class="titulo-activo-sufijo">— ${escaparHtmlBuilder(nombre)}</span>`
-    : escaparHtmlBuilder(base);
+    ? `${escaparHtmlBuilder(base)} <span class="titulo-activo-sufijo">— ${escaparHtmlBuilder(nombre)}</span>${grupoTxt}`
+    : `${escaparHtmlBuilder(base)}${grupoTxt}`;
 }
 
 function renderEpcTabs() {
