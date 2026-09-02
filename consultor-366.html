@@ -234,6 +234,7 @@
     .notas-save-btn { background: var(--surface-2); border: 1.5px solid var(--line); color: var(--text); font-family: Inter, sans-serif; font-size: 13px; font-weight: 600; padding: 9px 18px; border-radius: 9px; cursor: pointer; transition: .15s; }
     .notas-save-btn:hover { border-color: var(--accent); color: var(--accent); }
     .notas-status { font-size: 12px; color: #22c55e; min-height: 16px; margin-top: 6px; }
+    .notas-status.aviso { color: #FACC15; }
 
     /* ── PERFIL DE CLIENTE 366: pestañas de perfiles (mismo patrón que Audiencias del ADN) ── */
     .epc-tabs-nav { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; align-items: center; }
@@ -416,10 +417,8 @@
     </details>
 
     <details class="notas-group">
-      <summary><span id="ec-titulo-activo">Comunicación 366</span></summary>
+      <summary>Comunicación 366</summary>
       <div class="notas-body">
-        <p style="font-size:12.5px;color:var(--text-dim);margin:0 0 14px;line-height:1.5;">Puedes tener varias estrategias de comunicación (una por grupo de negocio, si de verdad conviene separarlas -- si no, usa la misma para todo).</p>
-        <div class="epc-tabs-nav" id="ec-tabs-nav"></div>
         <div id="ec-panels-container"></div>
         <button class="notas-save-btn" onclick="guardarComunicaciones()">Guardar cambios</button>
         <div id="ec-status" class="notas-status"></div>
@@ -575,15 +574,32 @@ function encontrarPorGrupo(lista, grupo) {
   return lista.findIndex((p) => p && p.nombre && p.nombre.toString().toLowerCase().includes(nombreBuscado));
 }
 
+function avisarSinPestanaGrupo(statusId, grupoNombre, boton) {
+  const status = document.getElementById(statusId);
+  if (!status) return;
+  status.classList.add('aviso');
+  status.textContent = `Todavía no tienes uno asignado a "${grupoNombre}" — da clic en "${boton}", créalo, y en su selector "Grupo de negocio" elige "${grupoNombre}".`;
+}
+
+function limpiarAvisoGrupo(statusId) {
+  const status = document.getElementById(statusId);
+  if (!status) return;
+  status.classList.remove('aviso');
+  status.textContent = '';
+}
+
 function switchGroup(grupos, idx) {
   document.querySelectorAll('.group-tab').forEach((t, i) => t.classList.toggle('active', i === idx));
   const grupo = grupos[idx];
   if (!grupo) return;
   // Los grupos de negocio (Publicidad, Torneo, etc.) ya NO son universos separados con su propio
-  // chat -- el chat y las Notas de Jefe 366 son unificados. Producto 366, Sistema 366 y
-  // Comunicación 366 pueden compartir una sola pestaña para todos los grupos (cuando de verdad da
-  // igual) o tener una propia por grupo (cuando conviene separarlos) -- dar clic en un grupo es
-  // solo un atajo para saltar a la pestaña de cada sección asignada a ese grupo, si existe.
+  // chat -- el chat y las Notas de Jefe 366 son unificados. Producto 366 y Sistema 366 pueden
+  // compartir una sola pestaña para todos los grupos (cuando de verdad da igual) o tener una
+  // propia por grupo (cuando conviene separarlos) -- dar clic en un grupo es solo un atajo para
+  // saltar a la pestaña de cada sección asignada a ese grupo, si existe. Si ninguna pestaña está
+  // asignada todavía a este grupo, se avisa explícitamente en vez de no hacer nada -- antes eso
+  // se veía como "no cambia nada" y parecía un error. Comunicación 366 es siempre una sola (no
+  // tiene pestañas), así que no participa de este salto.
   let saltoA = null;
   if (typeof perfilesState !== 'undefined' && perfilesState.length) {
     const match = encontrarPorGrupo(perfilesState, grupo);
@@ -592,6 +608,9 @@ function switchGroup(grupos, idx) {
       perfilActivo = match;
       renderEpcTabs();
       renderEpcPanels();
+      limpiarAvisoGrupo('epc-status');
+    } else {
+      avisarSinPestanaGrupo('epc-status', grupo.nombre, '+ Agregar perfil');
     }
   }
   if (typeof productosState !== 'undefined' && productosState.length) {
@@ -602,6 +621,9 @@ function switchGroup(grupos, idx) {
       renderEpTabs();
       renderEpPanels();
       saltoA = saltoA || 'ep-panels-container';
+      limpiarAvisoGrupo('ep-status');
+    } else {
+      avisarSinPestanaGrupo('ep-status', grupo.nombre, '+ Agregar producto');
     }
   }
   if (typeof sistemasState !== 'undefined' && sistemasState.length) {
@@ -611,15 +633,9 @@ function switchGroup(grupos, idx) {
       sistemaActivo = match;
       renderEsTabs();
       renderEsPanels();
-    }
-  }
-  if (typeof comunicacionesState !== 'undefined' && comunicacionesState.length) {
-    const match = encontrarPorGrupo(comunicacionesState, grupo);
-    if (match !== -1) {
-      capturarComunicacionesDesdeDOM();
-      comunicacionActivo = match;
-      renderEcTabs();
-      renderEcPanels();
+      limpiarAvisoGrupo('es-status');
+    } else {
+      avisarSinPestanaGrupo('es-status', grupo.nombre, '+ Agregar sistema');
     }
   }
   if (saltoA) {
@@ -1460,7 +1476,6 @@ function selectorAgregarHtml(tipo, lista, textoDefault) {
     if (tipo === 'perfil') agregarPerfilDesde(valor);
     else if (tipo === 'producto') agregarProductoDesde(valor);
     else if (tipo === 'sistema') agregarSistemaDesde(valor);
-    else if (tipo === 'comunicacion') agregarComunicacionDesde(valor);
   };
   return select;
 }
@@ -1502,16 +1517,6 @@ function agregarSistemaDesde(valor) {
   sistemaActivo = sistemasState.length - 1;
   renderEsTabs();
   renderEsPanels();
-}
-
-function agregarComunicacionDesde(valor) {
-  capturarComunicacionesDesdeDOM();
-  const nuevo = clonarOEnBlanco(valor, comunicacionesState, COMUNICACION_TEMPLATE);
-  if (!nuevo) return;
-  comunicacionesState.push(nuevo);
-  comunicacionActivo = comunicacionesState.length - 1;
-  renderEcTabs();
-  renderEcPanels();
 }
 
 function listaProductosCatalogoHtml(valorActual, i) {
@@ -2132,67 +2137,32 @@ function COMUNICACION_TEMPLATE() {
     _importantes: {},
   };
 }
-const CAMPOS_TEXTO_EC = ['nombre', 'grupo_id', 'posicionamiento', 'diferenciador', 'que_no_es', 'resultado_entender', 'por_que_elegirnos'];
+const CAMPOS_TEXTO_EC = ['posicionamiento', 'diferenciador', 'que_no_es', 'resultado_entender', 'por_que_elegirnos'];
 const CAMPOS_TABLA_EC = ['frases_maestras', 'frases_objeciones', 'frases_conexion', 'angulos_evergreen'];
 
+// Comunicación 366 es una sola por negocio (no tiene pestañas) -- comunicacionesState siempre
+// tiene como máximo 1 elemento; se mantiene como lista solo porque el resto del sistema
+// (backend, migración desde llaves viejas) ya espera { lista: [...] }.
 let comunicacionesState = [];
-let comunicacionActivo = 0;
 
 function capturarComunicacionesDesdeDOM() {
-  comunicacionesState.forEach((p, i) => {
-    if (!document.getElementById('ec-nombre-' + i)) return;
-    CAMPOS_TEXTO_EC.forEach((campo) => {
-      const el = document.getElementById('ec-' + campo + '-' + i);
-      if (el) p[campo] = leerCampoNotas(el);
-    });
-    CAMPOS_TABLA_EC.forEach((campo) => {
-      const el = document.getElementById('ec-' + campo + '-' + i);
-      if (el) p[campo] = leerCampoNotas(el) || [];
-    });
+  const p = comunicacionesState[0];
+  if (!p || !document.getElementById('ec-posicionamiento-0')) return;
+  CAMPOS_TEXTO_EC.forEach((campo) => {
+    const el = document.getElementById('ec-' + campo + '-0');
+    if (el) p[campo] = leerCampoNotas(el);
+  });
+  CAMPOS_TABLA_EC.forEach((campo) => {
+    const el = document.getElementById('ec-' + campo + '-0');
+    if (el) p[campo] = leerCampoNotas(el) || [];
   });
 }
 
-function sincronizarNombreComunicacion(i, valor) {
-  if (comunicacionesState[i]) comunicacionesState[i].nombre = valor;
-  renderEcTabs();
-}
-
-function renderEcTabs() {
-  const nav = document.getElementById('ec-tabs-nav');
-  if (!nav) return;
-  actualizarTituloActivo('ec-titulo-activo', 'Comunicación 366', (comunicacionesState[comunicacionActivo] || {}).nombre);
-  nav.innerHTML = '';
-  comunicacionesState.forEach((p, i) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'epc-tab-btn' + (i === comunicacionActivo ? ' active' : '');
-    btn.textContent = p.nombre || ('Comunicación ' + (i + 1));
-    btn.onclick = () => { capturarComunicacionesDesdeDOM(); comunicacionActivo = i; renderEcTabs(); renderEcPanels(); };
-    nav.appendChild(btn);
-    if (comunicacionesState.length > 1 && i > 0) {
-      const up = document.createElement('button');
-      up.type = 'button'; up.className = 'epc-move-btn'; up.title = 'Mover antes'; up.textContent = '↑';
-      up.onclick = () => moverComunicacion(i, -1);
-      nav.appendChild(up);
-    }
-    if (comunicacionesState.length > 1 && i < comunicacionesState.length - 1) {
-      const down = document.createElement('button');
-      down.type = 'button'; down.className = 'epc-move-btn'; down.title = 'Mover después'; down.textContent = '↓';
-      down.onclick = () => moverComunicacion(i, 1);
-      nav.appendChild(down);
-    }
-  });
-  nav.appendChild(selectorAgregarHtml('comunicacion', comunicacionesState, '+ Agregar comunicación'));
-}
-
-function panelHtmlEc(p, i) {
-  const ta = (campo, label, placeholder, minH) => `<div class="field"><label>${escaparHtmlBuilder(label)}</label><textarea id="ec-${campo}-${i}"${minH ? ` style="min-height:${minH}px;"` : ''} placeholder="${escaparAttrBuilder(placeholder || '')}" oninput="${campo === 'nombre' ? `sincronizarNombreComunicacion(${i},this.value)` : ''}">${escaparHtmlBuilder(p[campo] || '')}</textarea></div>`;
-  const tabla = (campo, label) => `<div class="field"><label>${escaparHtmlBuilder(label)}</label><div id="ec-${campo}-${i}" class="tabla-notas-container"></div></div>`;
+function panelHtmlEc(p) {
+  const ta = (campo, label, placeholder, minH) => `<div class="field"><label>${escaparHtmlBuilder(label)}</label><textarea id="ec-${campo}-0"${minH ? ` style="min-height:${minH}px;"` : ''} placeholder="${escaparAttrBuilder(placeholder || '')}">${escaparHtmlBuilder(p[campo] || '')}</textarea></div>`;
+  const tabla = (campo, label) => `<div class="field"><label>${escaparHtmlBuilder(label)}</label><div id="ec-${campo}-0" class="tabla-notas-container"></div></div>`;
   return `
     <div class="card">
-      <p class="card-label">Esta comunicación</p>
-      ${ta('nombre', 'Nombre de esta comunicación (opcional, ej. Torneo)', 'Ej. Publicidad, Torneo...')}
-      ${selectorGrupoHtml('ec', i, p.grupo_id)}
       ${ta('posicionamiento', 'Posicionamiento', '')}
       ${ta('diferenciador', 'Diferenciador principal', '')}
       ${ta('que_no_es', 'Qué NO es la oferta', '')}
@@ -2205,93 +2175,64 @@ function panelHtmlEc(p, i) {
       ${tabla('frases_conexion', 'Frases para conectar la oferta al resultado emocional')}
       ${tabla('angulos_evergreen', 'Ángulos 366')}
     </div>
-    ${comunicacionesState.length > 1 ? `<button type="button" class="epc-del-btn" onclick="eliminarComunicacion(${i})">Eliminar esta comunicación</button>` : ''}
   `;
 }
 
 function renderEcPanels() {
   const container = document.getElementById('ec-panels-container');
   if (!container) return;
-  container.innerHTML = comunicacionesState.map((p, i) => `<div class="epc-panel${i === comunicacionActivo ? ' active' : ''}">${panelHtmlEc(p, i)}</div>`).join('');
-  comunicacionesState.forEach((p, i) => {
-    CAMPOS_TABLA_EC.forEach((campo) => {
-      const el = document.getElementById('ec-' + campo + '-' + i);
-      if (!el) return;
-      const importantes = (p._importantes || {})[campo];
-      if (Array.isArray(importantes)) el._importantes = importantes;
-      escribirCampoNotas(el, p[campo]);
-    });
-    CAMPOS_TEXTO_EC.forEach((campo) => {
-      if ((p._importantes || {})[campo]) {
-        const el = document.getElementById('ec-' + campo + '-' + i);
-        if (el) aplicarImportanteCampo(el, true);
-      }
-    });
+  const p = comunicacionesState[0];
+  if (!p) return;
+  container.innerHTML = `<div class="epc-panel active">${panelHtmlEc(p)}</div>`;
+  CAMPOS_TABLA_EC.forEach((campo) => {
+    const el = document.getElementById('ec-' + campo + '-0');
+    if (!el) return;
+    const importantes = (p._importantes || {})[campo];
+    if (Array.isArray(importantes)) el._importantes = importantes;
+    escribirCampoNotas(el, p[campo]);
+  });
+  CAMPOS_TEXTO_EC.forEach((campo) => {
+    if ((p._importantes || {})[campo]) {
+      const el = document.getElementById('ec-' + campo + '-0');
+      if (el) aplicarImportanteCampo(el, true);
+    }
   });
   inicializarMarcadoImportante();
 }
 
-function moverComunicacion(i, dir) {
-  capturarComunicacionesDesdeDOM();
-  const j = i + dir;
-  if (j < 0 || j >= comunicacionesState.length) return;
-  const tmp = comunicacionesState[i]; comunicacionesState[i] = comunicacionesState[j]; comunicacionesState[j] = tmp;
-  if (comunicacionActivo === i) comunicacionActivo = j; else if (comunicacionActivo === j) comunicacionActivo = i;
-  renderEcTabs();
-  renderEcPanels();
-}
-
-function eliminarComunicacion(i) {
-  capturarComunicacionesDesdeDOM();
-  comunicacionesState.splice(i, 1);
-  if (comunicacionActivo >= comunicacionesState.length) comunicacionActivo = comunicacionesState.length - 1;
-  renderEcTabs();
-  renderEcPanels();
-}
-
 function guardarComunicaciones() {
   capturarComunicacionesDesdeDOM();
-  const lista = comunicacionesState.map((p, i) => {
-    const nuevo = COMUNICACION_TEMPLATE();
-    const importantes = {};
-    CAMPOS_TEXTO_EC.forEach((campo) => {
-      const el = document.getElementById('ec-' + campo + '-' + i);
-      nuevo[campo] = leerCampoNotas(el) || '';
-      if (el && el.parentElement.classList.contains('field-importante')) importantes[campo] = true;
-    });
-    CAMPOS_TABLA_EC.forEach((campo) => {
-      const el = document.getElementById('ec-' + campo + '-' + i);
-      nuevo[campo] = leerCampoNotas(el) || [];
-      if (el && el._importantes && el._importantes.some(Boolean)) importantes[campo] = el._importantes;
-    });
-    nuevo._importantes = importantes;
-    return nuevo;
+  const nuevo = COMUNICACION_TEMPLATE();
+  const importantes = {};
+  CAMPOS_TEXTO_EC.forEach((campo) => {
+    const el = document.getElementById('ec-' + campo + '-0');
+    nuevo[campo] = leerCampoNotas(el) || '';
+    if (el && el.parentElement.classList.contains('field-importante')) importantes[campo] = true;
   });
-  comunicacionesState = lista;
-  save366Grupo('366-comunicacion', { lista }, 'ec-status');
+  CAMPOS_TABLA_EC.forEach((campo) => {
+    const el = document.getElementById('ec-' + campo + '-0');
+    nuevo[campo] = leerCampoNotas(el) || [];
+    if (el && el._importantes && el._importantes.some(Boolean)) importantes[campo] = el._importantes;
+  });
+  nuevo._importantes = importantes;
+  comunicacionesState = [nuevo];
+  save366Grupo('366-comunicacion', { lista: comunicacionesState }, 'ec-status');
 }
 
 async function cargarComunicaciones() {
   const data = await load366Grupo('366-comunicacion');
   if (data && Array.isArray(data.lista) && data.lista.length) {
-    comunicacionesState = data.lista.map((p) => Object.assign(COMUNICACION_TEMPLATE(), p));
-    comunicacionActivo = 0;
-    renderEcTabs();
+    comunicacionesState = [Object.assign(COMUNICACION_TEMPLATE(), data.lista[0])];
     renderEcPanels();
     return;
   }
   if (data && Object.keys(data).length) {
-    const primera = Object.assign(COMUNICACION_TEMPLATE(), data, { nombre: 'Comunicación Principal' });
-    comunicacionesState = [primera];
-    comunicacionActivo = 0;
-    renderEcTabs();
+    comunicacionesState = [Object.assign(COMUNICACION_TEMPLATE(), data)];
     renderEcPanels();
     window.storage.set(key366('366-comunicacion'), JSON.stringify({ lista: comunicacionesState })).catch(() => {});
     return;
   }
   comunicacionesState = [COMUNICACION_TEMPLATE()];
-  comunicacionActivo = 0;
-  renderEcTabs();
   renderEcPanels();
 }
 
@@ -2383,7 +2324,6 @@ const CAMPO_LOOKUP = {
     filaClaves: { 'entrada': 'entrada', 'conversión': 'conversion', 'conversion': 'conversion', 'cierre': 'cierre', 'fidelización': 'fidelizacion', 'fidelizacion': 'fidelizacion', 'bola de nieve': 'bola_nieve' },
   },
   // Comunicación 366
-  'Nombre de la comunicación': { suffix: '366-comunicacion', prefix: 'ec', campo: 'nombre', tipo: 'texto' },
   'Posicionamiento': { suffix: '366-comunicacion', prefix: 'ec', campo: 'posicionamiento', tipo: 'texto' },
   'Diferenciador principal': { suffix: '366-comunicacion', prefix: 'ec', campo: 'diferenciador', tipo: 'texto' },
   'Qué NO es la oferta': { suffix: '366-comunicacion', prefix: 'ec', campo: 'que_no_es', tipo: 'texto' },
@@ -2470,7 +2410,7 @@ function procesarConfirmoJefe(mensajes) {
     const indiceActivo = lookup.suffix === 'audiencias' ? perfilActivo
       : lookup.suffix === '366-producto' ? productoActivo
       : lookup.suffix === '366-sistema' ? sistemaActivo
-      : lookup.suffix === '366-comunicacion' ? comunicacionActivo
+      : lookup.suffix === '366-comunicacion' ? 0
       : null;
     const idCampo = indiceActivo != null ? lookup.prefix + '-' + lookup.campo + '-' + indiceActivo : lookup.prefix + '-' + lookup.campo;
     const el = document.getElementById(idCampo);
