@@ -260,6 +260,9 @@
     .epc-field input[type="text"] { width: 100%; background: var(--surface-2); border: 1.5px solid var(--line); border-radius: 9px; color: var(--text); padding: 10px 12px; font-family: Inter, sans-serif; font-size: 13.5px; }
     .epc-field input[type="text"]:focus { outline: none; border-color: var(--accent); }
     .epc-del-btn { background: transparent; border: 1px solid #EF4444; color: #EF4444; border-radius: 8px; padding: 6px 12px; cursor: pointer; font-size: 12px; margin-top: 4px; }
+    .notas-status.aviso select { margin: 0 4px; background: var(--surface-2); border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 3px 6px; font-size: 12px; }
+    .epc-mover-aqui-btn { background: transparent; border: 1px solid #FACC15; color: #FACC15; border-radius: 6px; padding: 3px 9px; cursor: pointer; font-size: 12px; }
+    .epc-mover-aqui-btn:hover { background: #FACC15; color: #3B2E00; }
 
     /* ── Banner "Confirmar y guardar" (aparece cuando el chat ya entregó un bloque con ⚠️GUARDAR) ── */
     .confirmo-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; background: rgba(34, 197, 94, .12); border: 1.5px solid #22C55E; border-radius: 10px; padding: 10px 14px; margin: 10px 0; font-size: 13px; }
@@ -599,12 +602,57 @@ function abrirSeccionDe(elementoId) {
   return detalles;
 }
 
-function avisarSinPestanaGrupo(statusId, grupoNombre, boton) {
+// Muestra el aviso de "no hay pestaña para este grupo" con 2 salidas: crear una nueva ("+
+// Agregar...", de siempre) o mover aquí una que YA existe pero quedó mal asignada -- esto último
+// es el arreglo directo para cuando algo se creó con el grupo equivocado por accidente (ej. se le
+// dio "+ Agregar producto" sin cambiar antes el grupo de arriba): en vez de tener que ir a buscarla
+// bajo el grupo equivocado y usar su selector interno, se puede resolver desde aquí mismo, sin
+// salir de "no encuentro nada en este grupo".
+function avisarSinPestanaGrupo(tipo, lista, statusId, grupo, boton) {
   const status = document.getElementById(statusId);
   if (!status) return;
   abrirSeccionDe(statusId);
   status.classList.add('aviso');
-  status.textContent = `Todavía no tienes uno asignado a "${grupoNombre}" — con "${grupoNombre}" seleccionado arriba, da clic en "${boton}" para crear uno ya asignado a este grupo.`;
+  const opciones = lista.map((p, i) => `<option value="${i}">${escaparHtmlBuilder(p.nombre || ('#' + (i + 1)))}</option>`).join('');
+  status.innerHTML = `Todavía no tienes uno asignado a "${escaparHtmlBuilder(grupo.nombre)}" — da clic en "${escaparHtmlBuilder(boton)}" para crear uno nuevo` +
+    (lista.length ? `, o mueve aquí uno que ya tengas: <select id="${statusId}-mover"><option value="">-- elegir pestaña --</option>${opciones}</select> <button type="button" class="epc-mover-aqui-btn" onclick="moverPestanaAGrupo('${tipo}','${statusId}','${grupo.id}')">Mover aquí</button>` : '.') +
+    '.';
+}
+
+function moverPestanaAGrupo(tipo, statusId, grupoId) {
+  const sel = document.getElementById(statusId + '-mover');
+  if (!sel || sel.value === '') return;
+  const idx = parseInt(sel.value, 10);
+  if (tipo === 'perfil') {
+    capturarPerfilesDesdeDOM();
+    if (!perfilesState[idx]) return;
+    perfilesState[idx].grupo_id = grupoId;
+    perfilActivo = idx;
+    renderEpcTabs(); renderEpcPanels();
+    guardarPerfiles();
+  } else if (tipo === 'producto') {
+    capturarProductosDesdeDOM();
+    if (!productosState[idx]) return;
+    productosState[idx].grupo_id = grupoId;
+    productoActivo = idx;
+    renderEpTabs(); renderEpPanels();
+    guardarProductos();
+  } else if (tipo === 'sistema') {
+    capturarSistemasDesdeDOM();
+    if (!sistemasState[idx]) return;
+    sistemasState[idx].grupo_id = grupoId;
+    sistemaActivo = idx;
+    renderEsTabs(); renderEsPanels();
+    guardarSistemas();
+  } else if (tipo === 'comunicacion') {
+    capturarComunicacionesDesdeDOM();
+    if (!comunicacionesState[idx]) return;
+    comunicacionesState[idx].grupo_id = grupoId;
+    comunicacionActivo = idx;
+    renderEcTabs(); renderEcPanels();
+    guardarComunicaciones();
+  }
+  limpiarAvisoGrupo(statusId);
 }
 
 function limpiarAvisoGrupo(statusId) {
@@ -635,7 +683,7 @@ function switchGroup(grupos, idx) {
       renderEpcPanels();
       limpiarAvisoGrupo('epc-status');
     } else {
-      avisarSinPestanaGrupo('epc-status', grupo.nombre, '+ Agregar perfil');
+      avisarSinPestanaGrupo('perfil', perfilesState, 'epc-status', grupo, '+ Agregar perfil');
     }
   }
   if (typeof productosState !== 'undefined' && productosState.length) {
@@ -649,7 +697,7 @@ function switchGroup(grupos, idx) {
       saltoA = saltoA || 'ep-panels-container';
       limpiarAvisoGrupo('ep-status');
     } else {
-      avisarSinPestanaGrupo('ep-status', grupo.nombre, '+ Agregar producto');
+      avisarSinPestanaGrupo('producto', productosState, 'ep-status', grupo, '+ Agregar producto');
     }
   }
   if (typeof sistemasState !== 'undefined' && sistemasState.length) {
@@ -662,7 +710,7 @@ function switchGroup(grupos, idx) {
       abrirSeccionDe('es-status');
       limpiarAvisoGrupo('es-status');
     } else {
-      avisarSinPestanaGrupo('es-status', grupo.nombre, '+ Agregar sistema');
+      avisarSinPestanaGrupo('sistema', sistemasState, 'es-status', grupo, '+ Agregar sistema');
     }
   }
   if (typeof comunicacionesState !== 'undefined' && comunicacionesState.length) {
@@ -675,7 +723,7 @@ function switchGroup(grupos, idx) {
       abrirSeccionDe('ec-status');
       limpiarAvisoGrupo('ec-status');
     } else {
-      avisarSinPestanaGrupo('ec-status', grupo.nombre, '+ Agregar comunicación');
+      avisarSinPestanaGrupo('comunicacion', comunicacionesState, 'ec-status', grupo, '+ Agregar comunicación');
     }
   }
   if (saltoA) {
