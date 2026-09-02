@@ -592,6 +592,19 @@ function encontrarPorGrupo(lista, grupo) {
   return lista.findIndex((p) => p && p.nombre && p.nombre.toString().toLowerCase().includes(nombreBuscado));
 }
 
+/* Índices (en la lista completa) de los elementos que pertenecen al grupo activo -- esto es lo
+   que hace que la barra de pestañas de cada sección solo muestre las de Publicidad cuando
+   Publicidad está seleccionado arriba, y solo las de Torneo cuando es Torneo, en vez de mostrar
+   todas juntas (que se sentía como que "se comparten" aunque por dentro ya estaban separadas).
+   Si el filtro no deja nada visible (ej. estado viejo antes de que todo tuviera grupo asignado),
+   se cae a mostrar todo -- mejor eso que una barra de pestañas vacía sin explicación. */
+function indicesDelGrupoActivo(lista) {
+  if (!grupoActivo || !gruposNegocioState.length) return lista.map((_, i) => i);
+  const filtrados = [];
+  lista.forEach((p, i) => { if (p && p.grupo_id === grupoActivo.id) filtrados.push(i); });
+  return filtrados.length ? filtrados : lista.map((_, i) => i);
+}
+
 // Si un grupo (Publicidad, Torneo...) todavía no tiene pestaña propia en esta sección, se crea
 // sola en blanco -- ya asignada a este grupo -- en vez de pedirle a la usuaria que le dé clic a
 // "+ Agregar". Dar clic arriba en un grupo nunca debe sentirse como un error o un formulario más;
@@ -1456,11 +1469,13 @@ function reasignarGrupo(select) {
   if (!lista || !lista[i]) return;
   lista[i].grupo_id = select.value;
   // Se guarda de inmediato -- este selector es justo para corregir una asignación equivocada,
-  // así que no debe depender de que además se acuerden de darle "Guardar cambios" después.
-  if (tipo === 'perfil') { capturarPerfilesDesdeDOM(); guardarPerfiles(); }
-  else if (tipo === 'producto') { capturarProductosDesdeDOM(); guardarProductos(); }
-  else if (tipo === 'sistema') { capturarSistemasDesdeDOM(); guardarSistemas(); }
-  else if (tipo === 'comunicacion') { capturarComunicacionesDesdeDOM(); guardarComunicaciones(); }
+  // así que no debe depender de que además se acuerden de darle "Guardar cambios" después. También
+  // se vuelve a renderizar la barra de pestañas: como ahora se filtra por grupo activo, cambiar el
+  // grupo de una pestaña puede hacer que desaparezca (o aparezca) de la vista actual al instante.
+  if (tipo === 'perfil') { capturarPerfilesDesdeDOM(); guardarPerfiles(); renderEpcTabs(); renderEpcPanels(); }
+  else if (tipo === 'producto') { capturarProductosDesdeDOM(); guardarProductos(); renderEpTabs(); renderEpPanels(); }
+  else if (tipo === 'sistema') { capturarSistemasDesdeDOM(); guardarSistemas(); renderEsTabs(); renderEsPanels(); }
+  else if (tipo === 'comunicacion') { capturarComunicacionesDesdeDOM(); guardarComunicaciones(); renderEcTabs(); renderEcPanels(); }
 }
 
 /* Muestra en el título de cada sección (el <summary>) cuál pestaña está activa ahorita mismo
@@ -1479,27 +1494,29 @@ function renderEpcTabs() {
   if (!nav) return;
   actualizarTituloActivo('epc-titulo-activo', 'Perfil de Cliente 366', (perfilesState[perfilActivo] || {}).nombre);
   nav.innerHTML = '';
-  perfilesState.forEach((p, i) => {
+  const indices = indicesDelGrupoActivo(perfilesState);
+  indices.forEach((i, pos) => {
+    const p = perfilesState[i];
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'epc-tab-btn' + (i === perfilActivo ? ' active' : '');
     btn.textContent = p.nombre || ('Perfil ' + (i + 1));
     btn.onclick = () => { capturarPerfilesDesdeDOM(); perfilActivo = i; renderEpcTabs(); renderEpcPanels(); };
     nav.appendChild(btn);
-    if (perfilesState.length > 1 && i > 0) {
+    if (indices.length > 1 && pos > 0) {
       const up = document.createElement('button');
       up.type = 'button'; up.className = 'epc-move-btn'; up.title = 'Subir prioridad de compra'; up.textContent = '↑';
       up.onclick = () => moverPerfil(i, -1);
       nav.appendChild(up);
     }
-    if (perfilesState.length > 1 && i < perfilesState.length - 1) {
+    if (indices.length > 1 && pos < indices.length - 1) {
       const down = document.createElement('button');
       down.type = 'button'; down.className = 'epc-move-btn'; down.title = 'Bajar prioridad de compra'; down.textContent = '↓';
       down.onclick = () => moverPerfil(i, 1);
       nav.appendChild(down);
     }
   });
-  nav.appendChild(selectorAgregarHtml('perfil', perfilesState, '+ Agregar perfil'));
+  nav.appendChild(selectorAgregarHtml('perfil', perfilesState, '+ Agregar perfil', indices));
 }
 
 /* Selector "+ Agregar X" reusable: siempre ofrece empezar en blanco, o partir de una copia de una
@@ -1507,10 +1524,11 @@ function renderEpcTabs() {
    algo, la usuaria debe renombrarla para no confundirla con la original). El HTML es genérico,
    pero cada tipo tiene su propia función de "aplicar" (evita depender de window[...], que no
    funciona con variables let de nivel superior). */
-function selectorAgregarHtml(tipo, lista, textoDefault) {
+function selectorAgregarHtml(tipo, lista, textoDefault, indices) {
+  const idxs = indices || lista.map((_, i) => i);
   const select = document.createElement('select');
   select.className = 'epc-tab-btn add-epc epc-add-select';
-  const opciones = lista.map((p, idx) => `<option value="${idx}">Copiar de: ${escaparHtmlBuilder(p.nombre || ('Perfil ' + (idx + 1)))}</option>`).join('');
+  const opciones = idxs.map((idx) => `<option value="${idx}">Copiar de: ${escaparHtmlBuilder(lista[idx].nombre || ('Perfil ' + (idx + 1)))}</option>`).join('');
   select.innerHTML = `<option value="">${escaparHtmlBuilder(textoDefault)}</option><option value="__blank__">En blanco</option>${opciones}`;
   select.onchange = () => {
     const valor = select.value;
@@ -1664,8 +1682,10 @@ function renderEpcPanels() {
 
 function moverPerfil(i, dir) {
   capturarPerfilesDesdeDOM();
-  const j = i + dir;
-  if (j < 0 || j >= perfilesState.length) return;
+  const indices = indicesDelGrupoActivo(perfilesState);
+  const pos = indices.indexOf(i);
+  const j = indices[pos + dir];
+  if (pos === -1 || j === undefined) return;
   const tmp = perfilesState[i]; perfilesState[i] = perfilesState[j]; perfilesState[j] = tmp;
   if (perfilActivo === i) perfilActivo = j; else if (perfilActivo === j) perfilActivo = i;
   renderEpcTabs();
@@ -1676,7 +1696,8 @@ function moverPerfil(i, dir) {
 function eliminarPerfil(i) {
   capturarPerfilesDesdeDOM();
   perfilesState.splice(i, 1);
-  if (perfilActivo >= perfilesState.length) perfilActivo = perfilesState.length - 1;
+  const indicesRestantes = indicesDelGrupoActivo(perfilesState);
+  perfilActivo = indicesRestantes.length ? indicesRestantes[0] : 0;
   renderEpcTabs();
   renderEpcPanels();
   guardarPerfiles();
@@ -1790,27 +1811,29 @@ function renderEpTabs() {
   if (!nav) return;
   actualizarTituloActivo('ep-titulo-activo', 'Producto 366', (productosState[productoActivo] || {}).nombre);
   nav.innerHTML = '';
-  productosState.forEach((p, i) => {
+  const indices = indicesDelGrupoActivo(productosState);
+  indices.forEach((i, pos) => {
+    const p = productosState[i];
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'epc-tab-btn' + (i === productoActivo ? ' active' : '');
     btn.textContent = p.nombre || ('Producto ' + (i + 1));
     btn.onclick = () => { capturarProductosDesdeDOM(); productoActivo = i; renderEpTabs(); renderEpPanels(); };
     nav.appendChild(btn);
-    if (productosState.length > 1 && i > 0) {
+    if (indices.length > 1 && pos > 0) {
       const up = document.createElement('button');
       up.type = 'button'; up.className = 'epc-move-btn'; up.title = 'Mover antes'; up.textContent = '↑';
       up.onclick = () => moverProducto(i, -1);
       nav.appendChild(up);
     }
-    if (productosState.length > 1 && i < productosState.length - 1) {
+    if (indices.length > 1 && pos < indices.length - 1) {
       const down = document.createElement('button');
       down.type = 'button'; down.className = 'epc-move-btn'; down.title = 'Mover después'; down.textContent = '↓';
       down.onclick = () => moverProducto(i, 1);
       nav.appendChild(down);
     }
   });
-  nav.appendChild(selectorAgregarHtml('producto', productosState, '+ Agregar producto'));
+  nav.appendChild(selectorAgregarHtml('producto', productosState, '+ Agregar producto', indices));
 }
 
 function perfilesVinculadosATexto(nombreProducto) {
@@ -1871,8 +1894,10 @@ function renderEpPanels() {
 
 function moverProducto(i, dir) {
   capturarProductosDesdeDOM();
-  const j = i + dir;
-  if (j < 0 || j >= productosState.length) return;
+  const indices = indicesDelGrupoActivo(productosState);
+  const pos = indices.indexOf(i);
+  const j = indices[pos + dir];
+  if (pos === -1 || j === undefined) return;
   const tmp = productosState[i]; productosState[i] = productosState[j]; productosState[j] = tmp;
   if (productoActivo === i) productoActivo = j; else if (productoActivo === j) productoActivo = i;
   renderEpTabs();
@@ -1883,7 +1908,8 @@ function moverProducto(i, dir) {
 function eliminarProducto(i) {
   capturarProductosDesdeDOM();
   productosState.splice(i, 1);
-  if (productoActivo >= productosState.length) productoActivo = productosState.length - 1;
+  const indicesRestantes = indicesDelGrupoActivo(productosState);
+  productoActivo = indicesRestantes.length ? indicesRestantes[0] : 0;
   renderEpTabs();
   renderEpPanels();
   guardarProductos();
@@ -2038,27 +2064,29 @@ function renderEsTabs() {
   if (!nav) return;
   actualizarTituloActivo('es-titulo-activo', 'Sistema 366', (sistemasState[sistemaActivo] || {}).nombre);
   nav.innerHTML = '';
-  sistemasState.forEach((p, i) => {
+  const indices = indicesDelGrupoActivo(sistemasState);
+  indices.forEach((i, pos) => {
+    const p = sistemasState[i];
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'epc-tab-btn' + (i === sistemaActivo ? ' active' : '');
     btn.textContent = p.nombre || ('Sistema ' + (i + 1));
     btn.onclick = () => { capturarSistemasDesdeDOM(); sistemaActivo = i; renderEsTabs(); renderEsPanels(); };
     nav.appendChild(btn);
-    if (sistemasState.length > 1 && i > 0) {
+    if (indices.length > 1 && pos > 0) {
       const up = document.createElement('button');
       up.type = 'button'; up.className = 'epc-move-btn'; up.title = 'Mover antes'; up.textContent = '↑';
       up.onclick = () => moverSistema(i, -1);
       nav.appendChild(up);
     }
-    if (sistemasState.length > 1 && i < sistemasState.length - 1) {
+    if (indices.length > 1 && pos < indices.length - 1) {
       const down = document.createElement('button');
       down.type = 'button'; down.className = 'epc-move-btn'; down.title = 'Mover después'; down.textContent = '↓';
       down.onclick = () => moverSistema(i, 1);
       nav.appendChild(down);
     }
   });
-  nav.appendChild(selectorAgregarHtml('sistema', sistemasState, '+ Agregar sistema'));
+  nav.appendChild(selectorAgregarHtml('sistema', sistemasState, '+ Agregar sistema', indices));
 }
 
 function panelHtmlEs(p, i) {
@@ -2112,8 +2140,10 @@ function renderEsPanels() {
 
 function moverSistema(i, dir) {
   capturarSistemasDesdeDOM();
-  const j = i + dir;
-  if (j < 0 || j >= sistemasState.length) return;
+  const indices = indicesDelGrupoActivo(sistemasState);
+  const pos = indices.indexOf(i);
+  const j = indices[pos + dir];
+  if (pos === -1 || j === undefined) return;
   const tmp = sistemasState[i]; sistemasState[i] = sistemasState[j]; sistemasState[j] = tmp;
   if (sistemaActivo === i) sistemaActivo = j; else if (sistemaActivo === j) sistemaActivo = i;
   renderEsTabs();
@@ -2124,7 +2154,8 @@ function moverSistema(i, dir) {
 function eliminarSistema(i) {
   capturarSistemasDesdeDOM();
   sistemasState.splice(i, 1);
-  if (sistemaActivo >= sistemasState.length) sistemaActivo = sistemasState.length - 1;
+  const indicesRestantes = indicesDelGrupoActivo(sistemasState);
+  sistemaActivo = indicesRestantes.length ? indicesRestantes[0] : 0;
   renderEsTabs();
   renderEsPanels();
   guardarSistemas();
@@ -2218,27 +2249,29 @@ function renderEcTabs() {
   if (!nav) return;
   actualizarTituloActivo('ec-titulo-activo', 'Comunicación 366', (comunicacionesState[comunicacionActivo] || {}).nombre);
   nav.innerHTML = '';
-  comunicacionesState.forEach((p, i) => {
+  const indices = indicesDelGrupoActivo(comunicacionesState);
+  indices.forEach((i, pos) => {
+    const p = comunicacionesState[i];
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'epc-tab-btn' + (i === comunicacionActivo ? ' active' : '');
     btn.textContent = p.nombre || ('Comunicación ' + (i + 1));
     btn.onclick = () => { capturarComunicacionesDesdeDOM(); comunicacionActivo = i; renderEcTabs(); renderEcPanels(); };
     nav.appendChild(btn);
-    if (comunicacionesState.length > 1 && i > 0) {
+    if (indices.length > 1 && pos > 0) {
       const up = document.createElement('button');
       up.type = 'button'; up.className = 'epc-move-btn'; up.title = 'Mover antes'; up.textContent = '↑';
       up.onclick = () => moverComunicacion(i, -1);
       nav.appendChild(up);
     }
-    if (comunicacionesState.length > 1 && i < comunicacionesState.length - 1) {
+    if (indices.length > 1 && pos < indices.length - 1) {
       const down = document.createElement('button');
       down.type = 'button'; down.className = 'epc-move-btn'; down.title = 'Mover después'; down.textContent = '↓';
       down.onclick = () => moverComunicacion(i, 1);
       nav.appendChild(down);
     }
   });
-  nav.appendChild(selectorAgregarHtml('comunicacion', comunicacionesState, '+ Agregar comunicación'));
+  nav.appendChild(selectorAgregarHtml('comunicacion', comunicacionesState, '+ Agregar comunicación', indices));
 }
 
 function panelHtmlEc(p, i) {
@@ -2289,8 +2322,10 @@ function renderEcPanels() {
 
 function moverComunicacion(i, dir) {
   capturarComunicacionesDesdeDOM();
-  const j = i + dir;
-  if (j < 0 || j >= comunicacionesState.length) return;
+  const indices = indicesDelGrupoActivo(comunicacionesState);
+  const pos = indices.indexOf(i);
+  const j = indices[pos + dir];
+  if (pos === -1 || j === undefined) return;
   const tmp = comunicacionesState[i]; comunicacionesState[i] = comunicacionesState[j]; comunicacionesState[j] = tmp;
   if (comunicacionActivo === i) comunicacionActivo = j; else if (comunicacionActivo === j) comunicacionActivo = i;
   renderEcTabs();
@@ -2301,7 +2336,8 @@ function moverComunicacion(i, dir) {
 function eliminarComunicacion(i) {
   capturarComunicacionesDesdeDOM();
   comunicacionesState.splice(i, 1);
-  if (comunicacionActivo >= comunicacionesState.length) comunicacionActivo = comunicacionesState.length - 1;
+  const indicesRestantes = indicesDelGrupoActivo(comunicacionesState);
+  comunicacionActivo = indicesRestantes.length ? indicesRestantes[0] : 0;
   renderEcTabs();
   renderEcPanels();
   guardarComunicaciones();
