@@ -592,67 +592,15 @@ function encontrarPorGrupo(lista, grupo) {
   return lista.findIndex((p) => p && p.nombre && p.nombre.toString().toLowerCase().includes(nombreBuscado));
 }
 
-// Producto 366, Sistema 366 y Comunicación 366 empiezan colapsados (<details> cerrado) -- si el
-// salto de grupo o el aviso caen ahí dentro sin abrir la sección, se ve exactamente como "no pasó
-// nada", que es justo la confusión que este botón de arriba debía resolver.
-function abrirSeccionDe(elementoId) {
-  const el = document.getElementById(elementoId);
-  const detalles = el && el.closest('details');
-  if (detalles && !detalles.open) detalles.open = true;
-  return detalles;
-}
-
-// Muestra el aviso de "no hay pestaña para este grupo" con 2 salidas: crear una nueva ("+
-// Agregar...", de siempre) o mover aquí una que YA existe pero quedó mal asignada -- esto último
-// es el arreglo directo para cuando algo se creó con el grupo equivocado por accidente (ej. se le
-// dio "+ Agregar producto" sin cambiar antes el grupo de arriba): en vez de tener que ir a buscarla
-// bajo el grupo equivocado y usar su selector interno, se puede resolver desde aquí mismo, sin
-// salir de "no encuentro nada en este grupo".
-function avisarSinPestanaGrupo(tipo, lista, statusId, grupo, boton) {
-  const status = document.getElementById(statusId);
-  if (!status) return;
-  abrirSeccionDe(statusId);
-  status.classList.add('aviso');
-  const opciones = lista.map((p, i) => `<option value="${i}">${escaparHtmlBuilder(p.nombre || ('#' + (i + 1)))}</option>`).join('');
-  status.innerHTML = `Todavía no tienes uno asignado a "${escaparHtmlBuilder(grupo.nombre)}" — da clic en "${escaparHtmlBuilder(boton)}" para crear uno nuevo` +
-    (lista.length ? `, o mueve aquí uno que ya tengas: <select id="${statusId}-mover"><option value="">-- elegir pestaña --</option>${opciones}</select> <button type="button" class="epc-mover-aqui-btn" onclick="moverPestanaAGrupo('${tipo}','${statusId}','${grupo.id}')">Mover aquí</button>` : '.') +
-    '.';
-}
-
-function moverPestanaAGrupo(tipo, statusId, grupoId) {
-  const sel = document.getElementById(statusId + '-mover');
-  if (!sel || sel.value === '') return;
-  const idx = parseInt(sel.value, 10);
-  if (tipo === 'perfil') {
-    capturarPerfilesDesdeDOM();
-    if (!perfilesState[idx]) return;
-    perfilesState[idx].grupo_id = grupoId;
-    perfilActivo = idx;
-    renderEpcTabs(); renderEpcPanels();
-    guardarPerfiles();
-  } else if (tipo === 'producto') {
-    capturarProductosDesdeDOM();
-    if (!productosState[idx]) return;
-    productosState[idx].grupo_id = grupoId;
-    productoActivo = idx;
-    renderEpTabs(); renderEpPanels();
-    guardarProductos();
-  } else if (tipo === 'sistema') {
-    capturarSistemasDesdeDOM();
-    if (!sistemasState[idx]) return;
-    sistemasState[idx].grupo_id = grupoId;
-    sistemaActivo = idx;
-    renderEsTabs(); renderEsPanels();
-    guardarSistemas();
-  } else if (tipo === 'comunicacion') {
-    capturarComunicacionesDesdeDOM();
-    if (!comunicacionesState[idx]) return;
-    comunicacionesState[idx].grupo_id = grupoId;
-    comunicacionActivo = idx;
-    renderEcTabs(); renderEcPanels();
-    guardarComunicaciones();
-  }
-  limpiarAvisoGrupo(statusId);
+// Si un grupo (Publicidad, Torneo...) todavía no tiene pestaña propia en esta sección, se crea
+// sola en blanco -- ya asignada a este grupo -- en vez de pedirle a la usuaria que le dé clic a
+// "+ Agregar". Dar clic arriba en un grupo nunca debe sentirse como un error o un formulario más;
+// debe llevar directo a los 4 módulos de ese grupo, vacíos si es la primera vez.
+function crearBlancoParaGrupo(lista, template, grupo) {
+  const nuevo = template();
+  nuevo.grupo_id = grupo.id;
+  lista.push(nuevo);
+  return lista.length - 1;
 }
 
 function limpiarAvisoGrupo(statusId) {
@@ -670,78 +618,51 @@ function switchGroup(grupos, idx) {
   // Los grupos de negocio (Publicidad, Torneo, etc.) ya NO son universos separados con su propio
   // chat -- el chat y las Notas de Jefe 366 son unificados, pero cada uno de los 4 módulos
   // (Perfil, Producto, Sistema, Comunicación) tiene su propia pestaña por grupo -- dar clic en un
-  // grupo es un atajo para saltar a la pestaña de cada sección asignada a ese grupo, si existe. Si
-  // ninguna pestaña está asignada todavía a este grupo, se avisa explícitamente en vez de no hacer
-  // nada -- antes eso se veía como "no cambia nada" y parecía un error.
-  // saltoA siempre apunta al PRIMER aviso que aparezca (perfil, luego producto, sistema,
-  // comunicación, en ese orden) -- un aviso necesita acción, así que gana sobre un salto
-  // exitoso. Si las 4 encontraron su pestaña, se baja hasta el primer panel de Producto como
-  // confirmación visual de que sí pasó algo. Antes esto no bajaba la página en Perfil de Cliente
-  // 366 (por estar siempre abierto) -- pero esa sección es larga y el aviso quedaba enterrado
-  // hasta el final, invisible, así que "no cambió nada" aunque sí había pasado algo.
-  let saltoA = null;
-  let saltoConfirmacion = null;
+  // grupo cambia cuál pestaña está activa en cada sección. Si todavía no existe ninguna para este
+  // grupo, se crea sola en blanco (crearBlancoParaGrupo). Las 4 secciones se quedan tal cual
+  // estaban (colapsadas o abiertas, sin mover el scroll) -- el título de cada una (via
+  // actualizarTituloActivo dentro de cada renderXTabs) ya deja ver cuál quedó activa sin necesidad
+  // de abrir nada ni saltar a ningún lado.
+  let huboCreacion = false;
   if (typeof perfilesState !== 'undefined' && perfilesState.length) {
-    const match = encontrarPorGrupo(perfilesState, grupo);
-    if (match !== -1) {
-      capturarPerfilesDesdeDOM();
-      perfilActivo = match;
-      renderEpcTabs();
-      renderEpcPanels();
-      abrirSeccionDe('epc-status');
-      limpiarAvisoGrupo('epc-status');
-    } else {
-      avisarSinPestanaGrupo('perfil', perfilesState, 'epc-status', grupo, '+ Agregar perfil');
-      saltoA = saltoA || 'epc-status';
-    }
+    let match = encontrarPorGrupo(perfilesState, grupo);
+    if (match === -1) { match = crearBlancoParaGrupo(perfilesState, PERFIL_TEMPLATE, grupo); huboCreacion = true; }
+    capturarPerfilesDesdeDOM();
+    perfilActivo = match;
+    renderEpcTabs();
+    renderEpcPanels();
   }
   if (typeof productosState !== 'undefined' && productosState.length) {
-    const match = encontrarPorGrupo(productosState, grupo);
-    if (match !== -1) {
-      capturarProductosDesdeDOM();
-      productoActivo = match;
-      renderEpTabs();
-      renderEpPanels();
-      abrirSeccionDe('ep-status');
-      saltoConfirmacion = saltoConfirmacion || 'ep-panels-container';
-      limpiarAvisoGrupo('ep-status');
-    } else {
-      avisarSinPestanaGrupo('producto', productosState, 'ep-status', grupo, '+ Agregar producto');
-      saltoA = saltoA || 'ep-status';
-    }
+    let match = encontrarPorGrupo(productosState, grupo);
+    if (match === -1) { match = crearBlancoParaGrupo(productosState, PRODUCTO_TEMPLATE, grupo); huboCreacion = true; }
+    capturarProductosDesdeDOM();
+    productoActivo = match;
+    renderEpTabs();
+    renderEpPanels();
   }
   if (typeof sistemasState !== 'undefined' && sistemasState.length) {
-    const match = encontrarPorGrupo(sistemasState, grupo);
-    if (match !== -1) {
-      capturarSistemasDesdeDOM();
-      sistemaActivo = match;
-      renderEsTabs();
-      renderEsPanels();
-      abrirSeccionDe('es-status');
-      limpiarAvisoGrupo('es-status');
-    } else {
-      avisarSinPestanaGrupo('sistema', sistemasState, 'es-status', grupo, '+ Agregar sistema');
-      saltoA = saltoA || 'es-status';
-    }
+    let match = encontrarPorGrupo(sistemasState, grupo);
+    if (match === -1) { match = crearBlancoParaGrupo(sistemasState, SISTEMA_TEMPLATE, grupo); huboCreacion = true; }
+    capturarSistemasDesdeDOM();
+    sistemaActivo = match;
+    renderEsTabs();
+    renderEsPanels();
   }
   if (typeof comunicacionesState !== 'undefined' && comunicacionesState.length) {
-    const match = encontrarPorGrupo(comunicacionesState, grupo);
-    if (match !== -1) {
-      capturarComunicacionesDesdeDOM();
-      comunicacionActivo = match;
-      renderEcTabs();
-      renderEcPanels();
-      abrirSeccionDe('ec-status');
-      limpiarAvisoGrupo('ec-status');
-    } else {
-      avisarSinPestanaGrupo('comunicacion', comunicacionesState, 'ec-status', grupo, '+ Agregar comunicación');
-      saltoA = saltoA || 'ec-status';
-    }
+    let match = encontrarPorGrupo(comunicacionesState, grupo);
+    if (match === -1) { match = crearBlancoParaGrupo(comunicacionesState, COMUNICACION_TEMPLATE, grupo); huboCreacion = true; }
+    capturarComunicacionesDesdeDOM();
+    comunicacionActivo = match;
+    renderEcTabs();
+    renderEcPanels();
   }
-  const destino = saltoA || saltoConfirmacion;
-  if (destino) {
-    const el = document.getElementById(destino);
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  // Si se creó algo nuevo, se guarda de inmediato -- así queda asignado al grupo en el servidor
+  // aunque la usuaria no le dé clic a "Guardar cambios" todavía.
+  if (huboCreacion) {
+    guardarPerfiles();
+    guardarProductos();
+    guardarSistemas();
+    guardarComunicaciones();
   }
 }
 
