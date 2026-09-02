@@ -87,6 +87,10 @@
     .builder-box { background: var(--surface-2); border: 1.5px solid var(--accent); border-radius: 16px; padding: 18px 20px; }
     .builder-title { font-size: 15px; font-weight: 700; margin: 0 0 5px; }
     .builder-sub { font-size: 12.5px; color: var(--text-dim); margin: 0 0 14px; line-height: 1.5; }
+    #jefe366ChatBox { background: var(--accent); border-color: var(--accent); }
+    #jefe366ChatBox .builder-title, #jefe366ChatBox .builder-sub, #jefe366ChatBox p { color: #3B0764; }
+    #jefe366ChatBox #builderStartBtn { background: #6D28D9; color: #fff; }
+    #jefe366ChatBox #builderStartBtn:hover { filter: brightness(1.15); }
     .builder-chat { display: flex; flex-direction: column; gap: 12px; max-height: 480px; overflow-y: auto; padding-right: 4px; margin-bottom: 12px; }
     .builder-chat:empty { display: none; }
     .bubble { max-width: 88%; padding: 12px 14px; border-radius: 12px; font-size: 14px; line-height: 1.55; white-space: pre-line; }
@@ -213,6 +217,9 @@
     .field label { display: block; font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .05em; font-family: "JetBrains Mono", monospace; margin-bottom: 6px; }
     .field textarea { width: 100%; min-height: 64px; background: var(--surface-2); border: 1.5px solid var(--line); border-radius: 9px; color: var(--text); padding: 10px 12px; font-family: Inter, sans-serif; font-size: 13.5px; resize: vertical; }
     .field textarea:focus { outline: none; border-color: var(--accent); }
+    .catalogo-check-list { display: flex; flex-direction: column; gap: 6px; background: var(--surface-2); border: 1.5px solid var(--line); border-radius: 9px; padding: 10px 12px; margin-bottom: 8px; max-height: 180px; overflow-y: auto; }
+    .catalogo-check-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); cursor: pointer; }
+    .catalogo-check-item input { accent-color: var(--accent); cursor: pointer; }
     .importante-toggle { position: absolute; top: 0; right: 0; background: transparent; border: none; cursor: pointer; font-size: 15px; color: var(--text-dim); padding: 2px 4px; line-height: 1; }
     .importante-toggle:hover { color: #22C55E; }
     .importante-toggle.activo { color: #22C55E; }
@@ -1433,14 +1440,36 @@ function renderEpcTabs() {
   nav.appendChild(addBtn);
 }
 
+function listaProductosCatalogoHtml(valorActual, i) {
+  const items = catalogoProductosADN.filter((p) => p && p.nombre);
+  if (!items.length) return '';
+  const lineasActuales = (valorActual || '').split('\n').map((l) => l.trim().toLowerCase()).filter(Boolean);
+  return `<div class="catalogo-check-list">` + items.map((p) => {
+    const marcado = lineasActuales.includes(p.nombre.toString().trim().toLowerCase());
+    const detalle = p.precio != null && p.precio !== '' ? ` — $${p.precio}` : '';
+    return `<label class="catalogo-check-item"><input type="checkbox" data-perfil="${i}" data-nombre="${escaparAttrBuilder(p.nombre)}"${marcado ? ' checked' : ''} onchange="toggleProductoDelCatalogo(this)"> ${escaparHtmlBuilder(p.nombre)}${escaparHtmlBuilder(detalle)}</label>`;
+  }).join('') + `</div>`;
+}
+
+function toggleProductoDelCatalogo(checkbox) {
+  const el = document.getElementById('epc-producto_relacionado-' + checkbox.dataset.perfil);
+  if (!el) return;
+  const nombreProducto = checkbox.dataset.nombre;
+  const lineas = el.value.split('\n').map((l) => l.trim()).filter(Boolean);
+  const idx = lineas.findIndex((l) => l.toLowerCase() === nombreProducto.toLowerCase());
+  if (checkbox.checked && idx === -1) lineas.push(nombreProducto);
+  if (!checkbox.checked && idx !== -1) lineas.splice(idx, 1);
+  el.value = lineas.join('\n');
+}
+
 function panelHtmlEpc(p, i) {
   const ta = (campo, label, placeholder, minH) => `<div class="field"><label>${escaparHtmlBuilder(label)}</label><textarea id="epc-${campo}-${i}"${minH ? ` style="min-height:${minH}px;"` : ''} placeholder="${escaparAttrBuilder(placeholder || '')}" oninput="${campo === 'nombre' ? `sincronizarNombrePerfil(${i},this.value)` : ''}">${escaparHtmlBuilder(p[campo] || '')}</textarea></div>`;
   const tabla = (campo, label) => `<div class="field"><label>${escaparHtmlBuilder(label)}</label><div id="epc-${campo}-${i}" class="tabla-notas-container"></div></div>`;
   return `
     <div class="card">
-      <p class="card-label">Este perfil</p>
-      ${ta('nombre', 'Nombre de este perfil (opcional)', 'Ej. Mamás de 30-40, Dueños de PyME...')}
-      ${ta('producto_relacionado', 'Productos u ofertas 366 a los que le vende este perfil (uno por línea, opcional)', 'Ej. Capacitaciones\nConsultoría 1 a 1', 80)}
+      ${ta('nombre', 'Nombre de este perfil', 'Ej. Mamás de 30-40, Dueños de PyME...')}
+      ${catalogoProductosADN.filter((c) => c && c.nombre).length ? `<div class="field"><label>Marca del catálogo del ADN los que le vende este perfil</label>${listaProductosCatalogoHtml(p.producto_relacionado, i)}</div>` : ''}
+      ${ta('producto_relacionado', 'Productos u ofertas 366 a los que le vende este perfil (uno por línea)', 'Ej. Capacitaciones\nConsultoría 1 a 1', 60)}
     </div>
     <div class="card">
       <p class="card-label">Datos rápidos</p>
@@ -2212,9 +2241,18 @@ async function cargarComunicaciones() {
   renderEcPanels();
 }
 
+let catalogoProductosADN = [];
+async function cargarCatalogoProductosADN() {
+  try {
+    const r = await window.storage.get(CLIENTE_ID + ':catalogo-productos');
+    catalogoProductosADN = r && r.value ? JSON.parse(r.value) : [];
+  } catch (e) { catalogoProductosADN = []; }
+}
+
 async function cargarNotas366() {
   Object.keys(TABLA_CONFIGS).forEach((id) => renderTablaNotas(id));
   inicializarMarcadoImportante();
+  await cargarCatalogoProductosADN();
   await cargarPerfiles();
   await cargarProductos();
   await cargarSistemas();

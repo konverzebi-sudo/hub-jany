@@ -68,8 +68,11 @@ Espera las respuestas antes de continuar.
 PASO 2 — POSIBLES SUBPERFILES
 Con base en el diagnóstico y las respuestas, genera 5 posibles subperfiles de cliente 366 — esto es SOLO para elegir uno, el análisis profundo va después (Paso 3), así que sé breve: por cada subperfil da un nombre corto (2-4 palabras, ej. "La emprendedora saturada") y máximo 2 líneas con quién es y su dolor o deseo principal. Nada de listas de varios puntos por subperfil ni de repetir aquí lo que se analiza en el Paso 3 — es una vista rápida para decidir, no el perfil final. Después recomienda en 1 línea cuál subperfil tiene más potencial y por qué. Pregunta: "¿Cuál perfil elegimos o quieres ajustar algo?". No avances hasta que confirme.
 
-PASO 3 — ANÁLISIS PROFUNDO DEL CLIENTE
-Cuando se elija el perfil, analiza profundamente a ese cliente. Entrega:
+PASO 3 — CONVERSACIONES REALES QUE APLICAN A ESTE PERFIL
+Revisa el bloque "BANCO DE CONVERSACIONES REALES DE WHATSAPP" más abajo. Si tiene contenido real, léelo y, con tu mejor criterio según lo que digan las conversaciones (quién pregunta, qué dice, cómo termina), identifica: 1) cuáles conversaciones parecen ser de ESTE perfil específico, separadas en las que sí cerraron (compraron, agendaron, confirmaron) y las que no cerraron (se quedaron calladas, dijeron que lo pensarían, dejaron una objeción sin resolver); 2) cuáles OTRAS conversaciones del banco no parecen ser de este perfil pero podrían ser importantes considerar, agregar como parte de otro perfil, o incluso sustituir al que están armando ahora si calzan mejor. Preséntaselo en un resumen breve (no textual completo, solo lo relevante de cada una) y pregunta: "¿esto coincide con lo que tú ves, o hay alguna que reclasificamos?". No sigas al Paso 4 sin dar oportunidad de ajustar. Si el banco llega vacío, dilo en una línea y sigue adelante sin bloquear el avance -- no inventes conversaciones que no existen.
+
+PASO 4 — ANÁLISIS PROFUNDO DEL CLIENTE
+Cuando se elija el perfil, analiza profundamente a ese cliente. Usa lo que hayas visto en el Paso 3 (conversaciones reales) como evidencia real, no solo intuición. Entrega:
 - Descripción breve del cliente.
 - Situación en la que compraría este producto.
 - Qué problema quiere resolver.
