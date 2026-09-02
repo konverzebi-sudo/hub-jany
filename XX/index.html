@@ -66,6 +66,16 @@
     </div>
   </div>
 
+  <div id="jd-chatlog-wrap" style="display:none;padding:14px 14px 0;">
+    <div class="jd-card">
+      <div class="jd-row" style="justify-content:space-between;margin-bottom:8px;">
+        <div class="jd-h" style="margin:0;">Conversación</div>
+        <button id="jd-chatlog-cancel" style="background:transparent;border:none;color:#8B9186;font-size:11px;cursor:pointer;text-decoration:underline;">Cancelar</button>
+      </div>
+      <div id="jd-chatlog" style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow-y:auto;"></div>
+    </div>
+  </div>
+
   <div style="padding:14px 14px 0;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
     <button id="jd-card-links" class="jd-card" style="text-align:left;cursor:pointer;padding:10px;">
       <div class="jd-sub">Links</div>
@@ -1264,7 +1274,7 @@
       if(item.time){
         var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
         var start = new Date(item.startDate + 'T' + item.time + ':00');
-        var end = new Date(start.getTime() + 30*60000);
+        var end = new Date(start.getTime() + (item.durationMinutes || 30)*60000);
         body = {
           summary: item.text,
           start: { dateTime: item.startDate + 'T' + item.time + ':00', timeZone: tz },
@@ -1341,20 +1351,152 @@
     return true;
   }
 
-  document.getElementById('jd-note-add').addEventListener('click', function(){
+  var CHAT_API_URL = 'https://hub-jany-api.konverze-bi.workers.dev/';
+  var pendingConversation = null;
+
+  function renderChatLog(){
+    var wrap = document.getElementById('jd-chatlog-wrap');
+    var box = document.getElementById('jd-chatlog');
+    if(!pendingConversation || pendingConversation.history.length === 0){ wrap.style.display = 'none'; return; }
+    wrap.style.display = 'block';
+    box.innerHTML = '';
+    pendingConversation.history.forEach(function(m){
+      var row = document.createElement('div');
+      var isUser = m.role === 'user';
+      row.style.cssText = 'font-size:12.5px;line-height:1.5;padding:8px 10px;border-radius:10px;max-width:90%;'+
+        (isUser ? 'align-self:flex-end;background:#1B2117;color:#F2F5EC;' : 'align-self:flex-start;background:#C6FF4B;color:#12210A;');
+      row.textContent = m.text;
+      box.appendChild(row);
+    });
+    box.scrollTop = box.scrollHeight;
+  }
+
+  document.getElementById('jd-chatlog-cancel').addEventListener('click', function(){
+    pendingConversation = null;
+    renderChatLog();
+  });
+
+  async function askAssistant(history){
+    var projectNames = data.products.map(function(p){ return p.name; }).join(', ');
+    var today = new Date();
+    var todayISO = today.toISOString().slice(0,10);
+    var weekday = today.toLocaleDateString('es-MX', {weekday:'long'});
+    var systemPrompt = 'Eres el asistente del dashboard personal de Jany. Tu trabajo es entender que quiere agregar '+
+      '(un evento con fecha/hora, un pendiente suelto, un gasto o ahorro, un habito nuevo, o una tarea de un proyecto) '+
+      'y, si falta informacion clave para un evento (el dia, o si es a una hora especifica o todo el dia, o cuanto dura), '+
+      'preguntarla de forma breve y natural, UNA sola pregunta a la vez, en espanol de Mexico.\n'+
+      'Hoy es '+todayISO+' ('+weekday+'). Proyectos existentes: '+(projectNames||'ninguno')+'.\n\n'+
+      'Responde SIEMPRE con un JSON valido, sin texto extra ni markdown, en una de estas dos formas:\n'+
+      '{"status":"ask","question":"..."}\n'+
+      '{"status":"done","action":{"type":"evento|reto|gasto|habito|proyecto","text":"...","date":"YYYY-MM-DD","endDate":"YYYY-MM-DD o null","time":"HH:MM 24h o null","durationMinutes":numero o null,"project":"nombre EXACTO de la lista o null","amount":numero o null,"isExpense":true o false}}\n\n'+
+      'Reglas: type=evento siempre necesita al menos "date". Si no dijo hora, pregunta si es a una hora especifica o todo el dia; '+
+      'si responde que es todo el dia o no importa la hora, usa time:null. No preguntes duracion si suena a evento de todo el dia '+
+      'o de varios dias (viaje, vacaciones) — en ese caso solo llena date y endDate. Si ya tienes fecha y (hora o "todo el dia" confirmado), responde status:done sin seguir preguntando. '+
+      'type=proyecto es una tarea que pertenece claramente a uno de los proyectos existentes (pon el nombre EXACTO en "project"). '+
+      'type=gasto/ahorro: isExpense:true si gasto, false si ahorro/ingreso. Si no da el monto, pregunta el monto. '+
+      'type=reto es un pendiente suelto sin proyecto ni fecha clara. type=habito es un habito diario nuevo a trackear.';
+    var messages = history.map(function(m){ return {role: m.role, content: m.text}; });
+    try{
+      var res = await fetch(CHAT_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 400,
+          system: systemPrompt,
+          messages: messages
+        })
+      });
+      var json = await res.json();
+      var textBlocks = (json.content || []).filter(function(b){ return b.type === 'text'; }).map(function(b){ return b.text; }).join('\n');
+      var clean = textBlocks.replace(/```json|```/g, '').trim();
+      return JSON.parse(clean);
+    }catch(e){
+      return null;
+    }
+  }
+
+  function executeAssistantAction(action){
+    if(!action) return;
+    if(action.type === 'evento' && action.date){
+      scheduleAgendaItem({
+        id: uid('a'), text: action.text || 'Evento',
+        startDate: action.date, endDate: action.endDate || action.date,
+        time: action.time || undefined,
+        durationMinutes: action.durationMinutes || undefined
+      });
+    } else if(action.type === 'gasto'){
+      var amount = (typeof action.amount === 'number') ? action.amount : null;
+      var signed = amount===null ? null : (action.isExpense===false ? Math.abs(amount) : -Math.abs(amount));
+      var dateLabel = new Date().toLocaleDateString('es-MX', {day:'numeric', month:'short'});
+      data.movements.unshift({id:uid('m'), date:dateLabel, text:action.text, amount:signed});
+      if(data.movements.length > 30) data.movements.length = 30;
+      save(); renderFinance();
+    } else if(action.type === 'habito'){
+      data.habits.push({id:uid('h'), text: action.text, daily:true});
+      save(); renderHabits();
+    } else if(action.type === 'proyecto' && action.project && data.products.some(function(p){ return p.name===action.project; })){
+      var product = data.products.find(function(p){ return p.name === action.project; });
+      product.tasks.push({id:uid('pt'), text: action.text, done:false});
+      bumpAreaTotal(action.text);
+      save(); renderProducts(); renderProgressMini(); renderBalance();
+    } else {
+      data.tasks.push({id:uid('t'), text: action.text, color:'amarillo'});
+      bumpAreaTotal(action.text);
+      save(); renderTasks(); renderBalance();
+    }
+  }
+
+  async function continueConversation(){
+    var btn = document.getElementById('jd-note-add');
+    var originalLabel = btn.textContent;
+    btn.textContent = '...';
+    btn.disabled = true;
+    var result = await askAssistant(pendingConversation.history);
+    btn.textContent = originalLabel;
+    btn.disabled = false;
+
+    if(!result){
+      pendingConversation.history.push({role:'assistant', text:'No pude conectarme. Intenta de nuevo en un momento.'});
+      renderChatLog();
+      return;
+    }
+    if(result.status === 'ask' && result.question){
+      pendingConversation.history.push({role:'assistant', text: result.question});
+      renderChatLog();
+      return;
+    }
+    if(result.status === 'done'){
+      executeAssistantAction(result.action);
+      pendingConversation = null;
+      renderChatLog();
+    }
+  }
+
+  document.getElementById('jd-note-add').addEventListener('click', async function(){
     var input = document.getElementById('jd-note');
     var text = input.value.trim();
     if(!text) return;
     input.value = '';
-    var handled = tryMarkDone(text) || tryLogFinance(text) || tryScheduleAgenda(text) || tryFutureAgenda(text) || tryCreateProject(text) || tryAddToProject(text);
-    if(!handled){
-      data.tasks.push({id:uid('t'), text:text, color:'amarillo'});
-      bumpAreaTotal(text);
-      save(); renderTasks(); renderBalance();
+
+    if(pendingConversation){
+      pendingConversation.history.push({role:'user', text:text});
+      renderChatLog();
+      await continueConversation();
+      return;
     }
-    var original = input.placeholder;
-    input.placeholder = 'Registrado ✓';
-    setTimeout(function(){ input.placeholder = original; }, 2500);
+
+    var handled = tryMarkDone(text) || tryLogFinance(text) || tryScheduleAgenda(text) || tryFutureAgenda(text) || tryCreateProject(text) || tryAddToProject(text);
+    if(handled){
+      var original = input.placeholder;
+      input.placeholder = 'Registrado ✓';
+      setTimeout(function(){ input.placeholder = original; }, 2500);
+      return;
+    }
+
+    pendingConversation = { history: [{role:'user', text:text}] };
+    renderChatLog();
+    await continueConversation();
   });
 
   (function setupVoice(){
