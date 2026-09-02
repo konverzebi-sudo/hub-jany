@@ -104,6 +104,8 @@
     .bubble.local-warning { align-self: center; background: rgba(239, 68, 68, .1); border: 1px solid #EF4444; color: #EF4444; font-size: 12.5px; max-width: 95%; }
     .bubble.error { align-self: flex-start; background: #3B1B1B; border: 1px solid #EF4444; color: #FCA5A5; }
     .builder-doc-save { margin-top: 4px; }
+    .chat-msg-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .chat-msg-actions .builder-doc-save { margin-top: 4px; }
     .builder-controls { display: flex; align-items: center; gap: 10px; }
     .builder-input { flex: 1; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; color: var(--text); padding: 11px 14px; font-family: Inter, sans-serif; font-size: 14px; outline: none; }
     .builder-input:focus { border-color: var(--accent); }
@@ -458,21 +460,6 @@
     </details>
   </section>
 
-  <!-- ─── REVISIÓN DEL DOCUMENTO MAESTRO ─── -->
-  <div class="builder-box">
-    <p class="builder-title">🔎 Revisión del Documento Maestro</p>
-    <p class="builder-sub">Te doy un resumen completo de tu estrategia leyendo directo lo que ya guardaste arriba en tus Notas — no de esta conversación. Si algo no está bien, dímelo y lo platicamos; si hace falta un ajuste, te digo exactamente en qué sección de Notas corregirlo, tú lo haces manual.</p>
-    <div class="builder-chat" id="docMaestroChat"></div>
-    <div class="builder-start-wrap" id="docMaestroStartWrap">
-      <button class="ask-btn" id="docMaestroStartBtn" onclick="iniciarDocMaestro()">📋 Generar Documento Maestro</button>
-    </div>
-    <div class="builder-controls" id="docMaestroControls" style="display:none">
-      <textarea rows="1" class="builder-input" id="docMaestroInput" placeholder="Escribe tu respuesta... (Shift+Enter para salto de línea)" onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();enviarMensajeDocMaestro();}" oninput="autoAlturaTextarea(this)"></textarea>
-      <button class="ask-btn" id="docMaestroSendBtn" onclick="enviarMensajeDocMaestro()">Enviar</button>
-      <button class="builder-reset" onclick="reiniciarDocMaestro()">Reiniciar</button>
-    </div>
-  </div>
-
   <!-- ─── 2. IDEAS DE CONTENIDO ─── -->
   <section>
     <div class="section-header">
@@ -545,6 +532,21 @@
     </div>
     <a class="wa-link-btn" id="waLinkBtn" href="/consultor-whatsapp">→ Ir al Jefe WhatsApp y Ventas</a>
   </section>
+
+  <!-- ─── REVISIÓN DEL DOCUMENTO MAESTRO ─── -->
+  <div class="builder-box">
+    <p class="builder-title">🔎 Revisión del Documento Maestro</p>
+    <p class="builder-sub">Te doy un resumen completo de tu estrategia leyendo directo lo que ya guardaste arriba en tus Notas — no de esta conversación. Si algo no está bien, dímelo y lo platicamos; si hace falta un ajuste, te digo exactamente en qué sección de Notas corregirlo, tú lo haces manual.</p>
+    <div class="builder-chat" id="docMaestroChat"></div>
+    <div class="builder-start-wrap" id="docMaestroStartWrap">
+      <button class="ask-btn" id="docMaestroStartBtn" onclick="iniciarDocMaestro()">📋 Generar Documento Maestro</button>
+    </div>
+    <div class="builder-controls" id="docMaestroControls" style="display:none">
+      <textarea rows="1" class="builder-input" id="docMaestroInput" placeholder="Escribe tu respuesta... (Shift+Enter para salto de línea)" onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();enviarMensajeDocMaestro();}" oninput="autoAlturaTextarea(this)"></textarea>
+      <button class="ask-btn" id="docMaestroSendBtn" onclick="enviarMensajeDocMaestro()">Enviar</button>
+      <button class="builder-reset" onclick="reiniciarDocMaestro()">Reiniciar</button>
+    </div>
+  </div>
 
 </main>
 
@@ -1052,9 +1054,31 @@ function renderDocMaestroChat() {
       return `<div class="bubble user">${escaparHtmlBuilder(m.content)}</div>`;
     }
     return `<div class="bubble assistant">${escaparHtmlBuilder(m.content)}</div>
-      <button class="copy-btn builder-doc-save" onclick="copyText(this, \`${m.content.replace(/`/g, "'")}\`)">Copiar</button>`;
+      <div class="chat-msg-actions">
+        <button class="copy-btn builder-doc-save" onclick="copyText(this, \`${m.content.replace(/`/g, "'")}\`)">Copiar</button>
+        <button class="copy-btn builder-doc-save" onclick="descargarDocMaestro(\`${m.content.replace(/`/g, "'")}\`)">📥 Descargar</button>
+      </div>`;
   }).join('');
   chat.scrollTop = chat.scrollHeight;
+}
+
+/* Descarga este mensaje como archivo .doc (HTML simple que Word abre directo, sin necesitar
+   ninguna librería) -- para que la usuaria se pueda llevar el Documento Maestro fuera de la
+   plataforma, además de poder copiarlo. */
+function descargarDocMaestro(texto) {
+  const parrafos = texto.split('\n').map((l) => l.trim() ? `<p>${escaparHtmlBuilder(l)}</p>` : '<p>&nbsp;</p>').join('\n');
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Documento Maestro 366</title>
+<style>body{font-family:Calibri,Arial,sans-serif;font-size:12pt;line-height:1.5;} p{margin:0 0 8px;}</style>
+</head><body>${parrafos}</body></html>`;
+  const blob = new Blob(['﻿', html], { type: 'application/msword' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'Documento Maestro 366.doc';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function persistirDocMaestro() {
