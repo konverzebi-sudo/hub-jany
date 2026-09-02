@@ -1600,14 +1600,13 @@ function addGrupoNegocio(){
   crearPestanas366ParaGrupo(id, nombre);
 }
 
-// Al crear un grupo de negocio nuevo (Publicidad, Torneo, etc.), Jefe 366 necesita su propio
-// Perfil de Cliente, Producto y Sistema para poder trabajarlo separado del resto -- en vez de
-// obligar a la usuaria a darle "+ Agregar" 3 veces en Jefe 366, se crean solas ya asignadas a
-// este grupo (en blanco, listas para llenar). Comunicación 366 no participa: es siempre una sola
-// compartida para todo el negocio.
+// Al crear un grupo de negocio nuevo (Publicidad, Torneo, etc.), Jefe 366 necesita su propia
+// estrategia completa -- Perfil de Cliente, Producto, Sistema y Comunicación -- para poder
+// trabajarlo separado del resto. En vez de obligar a la usuaria a darle "+ Agregar" 4 veces en
+// Jefe 366, se crean solas ya asignadas a este grupo (en blanco, listas para llenar).
 async function crearPestanas366ParaGrupo(id, nombre){
   const status = document.getElementById('grupos-status');
-  for (const suffix of ['audiencias', '366-producto', '366-sistema']) {
+  for (const suffix of ['audiencias', '366-producto', '366-sistema', '366-comunicacion']) {
     try {
       const data = await loadObj(suffix);
       let lista;
@@ -1618,11 +1617,11 @@ async function crearPestanas366ParaGrupo(id, nombre){
       await window.storage.set(storageKey('brand-book.' + suffix), JSON.stringify({ lista }));
     } catch (e) {}
   }
-  if (status) status.textContent = `Guardado — se crearon Perfil, Producto y Sistema en blanco para "${nombre}" en Jefe 366.`;
+  if (status) status.textContent = `Guardado — se creó Perfil, Producto, Sistema y Comunicación en blanco para "${nombre}" en Jefe 366.`;
 }
 
 // Botón "↻" de cada chip: para grupos que ya existían antes de que esto se creara solo, o a los
-// que se les borró por error su Perfil/Producto/Sistema -- completa SOLO lo que de verdad falte
+// que se les borró por error alguno de sus 4 módulos -- completa SOLO lo que de verdad falte
 // (nunca duplica uno que ya tenga asignado).
 async function completarPestanas366ParaGrupo(id){
   const grupo = gruposState.find(g=>g.id===id);
@@ -1630,7 +1629,7 @@ async function completarPestanas366ParaGrupo(id){
   const status = document.getElementById('grupos-status');
   if (status) status.textContent = `Revisando "${grupo.nombre}"...`;
   const creados = [];
-  for (const suffix of ['audiencias', '366-producto', '366-sistema']) {
+  for (const suffix of ['audiencias', '366-producto', '366-sistema', '366-comunicacion']) {
     try {
       const data = await loadObj(suffix);
       let lista = Array.isArray(data.lista) ? data.lista.slice() : (data && Object.keys(data).length ? [Object.assign({ nombre: 'Principal' }, data)] : []);
@@ -1640,10 +1639,10 @@ async function completarPestanas366ParaGrupo(id){
       creados.push(suffix);
     } catch (e) {}
   }
-  const nombres = { audiencias: 'Perfil', '366-producto': 'Producto', '366-sistema': 'Sistema' };
+  const nombres = { audiencias: 'Perfil', '366-producto': 'Producto', '366-sistema': 'Sistema', '366-comunicacion': 'Comunicación' };
   if (status) status.textContent = creados.length
     ? `Se creó ${creados.map(s => nombres[s]).join(', ')} en blanco para "${grupo.nombre}" en Jefe 366.`
-    : `"${grupo.nombre}" ya tenía Perfil, Producto y Sistema propios -- nada que crear.`;
+    : `"${grupo.nombre}" ya tenía Perfil, Producto, Sistema y Comunicación propios -- nada que crear.`;
 }
 function deleteGrupoNegocio(id){
   gruposState = gruposState.filter(g=>g.id!==id);

@@ -379,9 +379,9 @@ async function builderLeerComunicaciones366(clienteId) {
 function builderFormatearComunicaciones366(items) {
   if (!Array.isArray(items) || items.length === 0) return null;
   const bloques = items
-    .filter((p) => p && p.posicionamiento)
-    .map((p) => {
-      const l = [];
+    .filter((p) => p && (p.nombre || p.posicionamiento))
+    .map((p, i) => {
+      const l = [`Comunicación ${i + 1}${p.nombre ? ': ' + p.nombre : ''}`];
       if (p.posicionamiento) l.push(`  Posicionamiento: ${p.posicionamiento}`);
       if (p.diferenciador) l.push(`  Diferenciador principal: ${p.diferenciador}`);
       if (p.que_no_es) l.push(`  Qué NO es la oferta: ${p.que_no_es}`);
@@ -394,7 +394,7 @@ function builderFormatearComunicaciones366(items) {
       return l.join('\n');
     });
   if (bloques.length === 0) return null;
-  return 'COMUNICACIÓN 366:\n' + bloques.join('\n\n');
+  return 'COMUNICACIÓN 366 (puede haber varias guardadas, una por grupo de negocio):\n' + bloques.join('\n\n');
 }
 
 // Producto 366 también funciona con pestañas (varias ofertas) -- misma migración de 3 niveles
