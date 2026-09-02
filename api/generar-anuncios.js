@@ -246,12 +246,11 @@ function formatearTabla(filas, columnas, titulo) {
   return titulo + ':\n' + lineas.map((l) => '- ' + l).join('\n');
 }
 
-// ---------- CONTEXTO 366: las Notas guardadas por el Jefe 366 (Producto, Comunicación, Sistema)
-// ---------- Mismo patrón genérico que api/jefe-estrategia-whatsapp.js (formatearValorNota/
-// GRUPOS_366): aplana cualquier campo (texto, tabla, objeto) sin necesitar conocer su forma
-// exacta. El Perfil de Cliente (dolores, deseos, miedos, objeciones) ya NO vive aquí -- se movió
-// a brand-book.audiencias (mismos perfiles que Jefe 366 y ADN comparten) y se inyecta vía
-// formatearAudiencias más abajo, no lo dupliques agregándolo de vuelta a este arreglo.
+// ---------- CONTEXTO 366: las Notas guardadas por el Jefe 366 (Producto, Sistema, Comunicación)
+// ---------- Producto 366, Sistema 366 y Comunicación 366 funcionan todos con pestañas (varias
+// ofertas/sistemas/comunicaciones posibles) -- cada uno con su propio leer+formatear dedicado más
+// abajo, mismo patrón que formatearAudiencias para Perfil de Cliente (que vive en
+// brand-book.audiencias, compartido con el ADN, no lo dupliques agregándolo aquí).
 
 function formatearValorNota(valor) {
   if (valor == null) return '';
@@ -270,17 +269,67 @@ function formatearValorNota(valor) {
   return valor.toString().trim() ? '  ' + valor.toString().trim() : '';
 }
 
-const GRUPOS_366 = [
-  { suffix: '366-comunicacion', suffixViejo: 'evergreen-comunicacion', titulo: 'COMUNICACIÓN 366 (incluye ángulos y frases maestras)' },
-  { suffix: '366-sistema', suffixViejo: 'evergreen-sistema', titulo: 'SISTEMA 366' },
-];
+// Sistema 366 y Comunicación 366 también funcionan con pestañas (varios sistemas/comunicaciones
+// -- uno compartido para todo el negocio, u otros independientes por grupo/producto). Misma
+// migración de 3 niveles que Producto 366 y Perfil de Cliente.
+async function leerSistemas366(clienteId) {
+  const nuevo = await leerJSON(`${clienteId}:brand-book.366-sistema`).catch(() => null);
+  if (nuevo && Array.isArray(nuevo.lista) && nuevo.lista.length) return nuevo.lista;
+  if (nuevo && Object.keys(nuevo).length) return [Object.assign({ nombre: 'Sistema Principal' }, nuevo)];
+  const viejo = await leerJSON(`${clienteId}:brand-book.evergreen-sistema`).catch(() => null);
+  if (viejo && Object.keys(viejo).length) return [Object.assign({ nombre: 'Sistema Principal' }, viejo)];
+  return [];
+}
 
-// Migración de storage: estas llaves vivían bajo el nombre "evergreen-*" -- si la nueva viene
-// vacía, se cae a la vieja (solo lectura, el cliente es quien migra escribiendo hacia adelante).
-async function leerJSONConMigracion(clienteId, sufijoNuevo, sufijoViejo) {
-  const nuevo = await leerJSON(`${clienteId}:brand-book.${sufijoNuevo}`).catch(() => null);
-  if (nuevo) return nuevo;
-  return await leerJSON(`${clienteId}:brand-book.${sufijoViejo}`).catch(() => null);
+function formatearSistemas366(items) {
+  if (!Array.isArray(items) || items.length === 0) return null;
+  const bloques = items
+    .filter((p) => p && (p.nombre || p.contexto_general || (p.customer_journey && Object.keys(p.customer_journey).length)))
+    .map((p, i) => {
+      const l = [`Sistema ${i + 1}${p.nombre ? ': ' + p.nombre : ''}`];
+      if (p.contexto_general) l.push(`  Contexto general: ${p.contexto_general}`);
+      const cj = formatearValorNota(p.customer_journey);
+      if (cj) l.push(`  Tu Sistema 366 (qué hacemos por etapa):\n${cj}`);
+      ['plan_implementacion', 'secuencia_seguimiento', 'oportunidades_iniciales'].forEach((campo) => {
+        const f = formatearValorNota(p[campo]);
+        if (f) l.push(`  ${campo}:\n${f}`);
+      });
+      if (p.info_faltante) l.push(`  Información faltante: ${p.info_faltante}`);
+      if (p.reglas_equipo_ia) l.push(`  Reglas para el Equipo de Marketing IA: ${p.reglas_equipo_ia}`);
+      return l.join('\n');
+    });
+  if (bloques.length === 0) return null;
+  return 'SISTEMA 366 (puede haber varios sistemas guardados):\n' + bloques.join('\n\n');
+}
+
+async function leerComunicaciones366(clienteId) {
+  const nuevo = await leerJSON(`${clienteId}:brand-book.366-comunicacion`).catch(() => null);
+  if (nuevo && Array.isArray(nuevo.lista) && nuevo.lista.length) return nuevo.lista;
+  if (nuevo && Object.keys(nuevo).length) return [Object.assign({ nombre: 'Comunicación Principal' }, nuevo)];
+  const viejo = await leerJSON(`${clienteId}:brand-book.evergreen-comunicacion`).catch(() => null);
+  if (viejo && Object.keys(viejo).length) return [Object.assign({ nombre: 'Comunicación Principal' }, viejo)];
+  return [];
+}
+
+function formatearComunicaciones366(items) {
+  if (!Array.isArray(items) || items.length === 0) return null;
+  const bloques = items
+    .filter((p) => p && (p.nombre || p.posicionamiento))
+    .map((p, i) => {
+      const l = [`Comunicación ${i + 1}${p.nombre ? ': ' + p.nombre : ''}`];
+      if (p.posicionamiento) l.push(`  Posicionamiento: ${p.posicionamiento}`);
+      if (p.diferenciador) l.push(`  Diferenciador principal: ${p.diferenciador}`);
+      if (p.que_no_es) l.push(`  Qué NO es la oferta: ${p.que_no_es}`);
+      if (p.resultado_entender) l.push(`  Resultado que el cliente debe entender: ${p.resultado_entender}`);
+      if (p.por_que_elegirnos) l.push(`  Por qué elegirnos: ${p.por_que_elegirnos}`);
+      ['frases_maestras', 'frases_objeciones', 'frases_conexion', 'angulos_evergreen'].forEach((campo) => {
+        const f = formatearValorNota(p[campo]);
+        if (f) l.push(`  ${campo}:\n${f}`);
+      });
+      return l.join('\n');
+    });
+  if (bloques.length === 0) return null;
+  return 'COMUNICACIÓN 366 (puede haber varias guardadas):\n' + bloques.join('\n\n');
 }
 
 // Producto 366 también funciona con pestañas (varias ofertas) -- misma migración de 3 niveles
@@ -315,25 +364,18 @@ function formatearProductos366(items) {
 }
 
 async function construirContexto366Notas(clienteId) {
-  const [datos, productos] = await Promise.all([
-    Promise.all(GRUPOS_366.map((g) => leerJSONConMigracion(clienteId, g.suffix, g.suffixViejo))),
+  const [productos, sistemas, comunicaciones] = await Promise.all([
     leerProductos366(clienteId).catch(() => []),
+    leerSistemas366(clienteId).catch(() => []),
+    leerComunicaciones366(clienteId).catch(() => []),
   ]);
-  const bloques = GRUPOS_366.map((g, i) => {
-    const d = datos[i];
-    if (!d) return null;
-    const campos = Object.entries(d)
-      .filter(([campo]) => !campo.startsWith('_'))
-      .map(([campo, valor]) => {
-        const formateado = formatearValorNota(valor);
-        return formateado ? `${campo}:\n${formateado}` : null;
-      })
-      .filter(Boolean);
-    if (campos.length === 0) return null;
-    return g.titulo + ':\n' + campos.join('\n');
-  }).filter(Boolean);
+  const bloques = [];
   const productosBloque = formatearProductos366(productos);
-  if (productosBloque) bloques.unshift(productosBloque);
+  if (productosBloque) bloques.push(productosBloque);
+  const sistemasBloque = formatearSistemas366(sistemas);
+  if (sistemasBloque) bloques.push(sistemasBloque);
+  const comunicacionesBloque = formatearComunicaciones366(comunicaciones);
+  if (comunicacionesBloque) bloques.push(comunicacionesBloque);
 
   if (bloques.length === 0) return null;
   return bloques.join('\n\n');
