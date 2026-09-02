@@ -252,16 +252,25 @@
     if(msg) document.getElementById('jd-auth-msg').textContent = msg;
   }
 
+  var googleAccessToken = null;
+
   supabaseClient.auth.getSession().then(function(res){
-    if(res.data.session) showApp(); else showGate();
+    if(res.data.session){ googleAccessToken = res.data.session.provider_token || null; showApp(); } else showGate();
   });
 
   supabaseClient.auth.onAuthStateChange(function(event, session){
-    if(session) showApp(); else showGate();
+    if(session){ googleAccessToken = session.provider_token || googleAccessToken; showApp(); } else { googleAccessToken = null; showGate(); }
   });
 
   document.getElementById('jd-auth-google').addEventListener('click', function(){
-    supabaseClient.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.href } });
+    supabaseClient.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.href,
+        scopes: 'https://www.googleapis.com/auth/calendar.events',
+        queryParams: { access_type: 'offline', prompt: 'consent' }
+      }
+    });
   });
 
   document.getElementById('jd-auth-submit').addEventListener('click', async function(){
@@ -650,7 +659,11 @@
         var rangeLabel = sd.getDate() + (a.endDate && a.endDate!==a.startDate ? '–'+ed.getDate() : '') + ' ' + monthNames[ed.getMonth()].slice(0,3);
         dateChip = '<span class="jd-chip" style="background:#1B2117;color:#C6FF4B;margin-right:6px;">'+rangeLabel+'</span>';
       }
-      row.innerHTML = '<span>'+dateChip+a.text+'</span>';
+      var gcalIcon = '';
+      if(a.gcalStatus === 'synced') gcalIcon = ' <span title="En Google Calendar" style="color:#8FE39E;">📅</span>';
+      else if(a.gcalStatus === 'pending') gcalIcon = ' <span title="Sincronizando..." style="color:#9BA294;">📅</span>';
+      else if(a.gcalStatus === 'failed') gcalIcon = ' <span title="No se pudo sincronizar con Google Calendar" style="color:#F08C82;">📅</span>';
+      row.innerHTML = '<span>'+dateChip+a.text+gcalIcon+'</span>';
       var del = document.createElement('button');
       del.className = 'jd-btn'; del.textContent = '×'; del.style.padding = '1px 8px';
       del.addEventListener('click', function(){
@@ -1216,11 +1229,43 @@
     return {startISO:startISO, endISO:endISO, desc: desc || text};
   }
 
+  function nextDayISO(iso){
+    var d = new Date(iso + 'T00:00:00');
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().slice(0,10);
+  }
+
+  async function createGoogleCalendarEvent(item){
+    if(!googleAccessToken) return false;
+    try{
+      var res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + googleAccessToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          summary: item.text,
+          start: { date: item.startDate },
+          end: { date: nextDayISO(item.endDate || item.startDate) }
+        })
+      });
+      if(!res.ok) return false;
+      var json = await res.json();
+      return json.id || false;
+    }catch(e){
+      return false;
+    }
+  }
+
   function tryScheduleAgenda(text){
     var parsed = parseDateRange(text);
     if(!parsed) return false;
-    data.agenda.push({id:uid('a'), text:parsed.desc, startDate:parsed.startISO, endDate:parsed.endISO});
+    var item = {id:uid('a'), text:parsed.desc, startDate:parsed.startISO, endDate:parsed.endISO, gcalStatus:'pending'};
+    data.agenda.push(item);
     save(); renderAgenda(); renderCalendar();
+    createGoogleCalendarEvent(item).then(function(eventId){
+      item.gcalStatus = eventId ? 'synced' : 'failed';
+      item.gcalEventId = eventId || null;
+      save(); renderAgenda();
+    });
     return true;
   }
 
