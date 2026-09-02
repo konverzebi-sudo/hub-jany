@@ -61,9 +61,12 @@
     <div class="jd-row" style="margin-top:14px;background:#B4EE2F;border:1px solid #12210A;border-radius:12px;padding:9px 12px;">
       <span style="color:#12210A;font-size:14px;">›</span>
       <input class="jd-input" id="jd-note" placeholder="Escribe lo que necesitas..." style="background:transparent;border:none;color:#12210A;">
+      <input type="file" accept="image/*" id="jd-note-image-input" style="display:none;">
+      <button id="jd-note-image-btn" type="button" aria-label="Adjuntar foto" style="background:transparent;border:1px solid #12210A;color:#12210A;border-radius:8px;width:32px;height:32px;font-size:14px;cursor:pointer;">📷</button>
       <button id="jd-mic-btn" type="button" aria-label="Dictar por voz" style="background:transparent;border:1px solid #12210A;color:#12210A;border-radius:8px;width:32px;height:32px;font-size:14px;cursor:pointer;">🎤</button>
       <button id="jd-note-add" style="padding:6px 12px;border-radius:8px;background:#0B0F0C;border:1px solid #0B0F0C;color:#FFFFFF;font-weight:600;font-family:'Inter',sans-serif;font-size:12.5px;cursor:pointer;">Agregar</button>
     </div>
+    <div id="jd-note-image-preview" style="display:none;margin-top:6px;"></div>
     <div id="jd-token-usage" style="color:#3C4A2E;font-size:10.5px;margin-top:6px;"></div>
   </div>
 
@@ -1693,6 +1696,7 @@
 
   var CHAT_API_URL = 'https://hub-jany-api.konverze-bi.workers.dev/';
   var pendingConversation = null;
+  var pendingImage = null;
 
   function renderChatLog(){
     var wrap = document.getElementById('jd-chatlog-wrap');
@@ -1705,11 +1709,35 @@
       var isUser = m.role === 'user';
       row.style.cssText = 'font-size:12.5px;line-height:1.5;padding:8px 10px;border-radius:10px;max-width:90%;'+
         (isUser ? 'align-self:flex-end;background:#1B2117;color:#F2F5EC;' : 'align-self:flex-start;background:#C6FF4B;color:#12210A;');
-      row.textContent = m.text;
+      row.textContent = (m.image ? '📷 ' : '') + m.text;
       box.appendChild(row);
     });
     box.scrollTop = box.scrollHeight;
   }
+
+  document.getElementById('jd-note-image-btn').addEventListener('click', function(){
+    document.getElementById('jd-note-image-input').click();
+  });
+
+  document.getElementById('jd-note-image-input').addEventListener('change', function(e){
+    var file = e.target.files[0];
+    if(!file) return;
+    var reader = new FileReader();
+    reader.onload = function(){
+      var dataUrl = reader.result;
+      pendingImage = { mediaType: file.type, data: dataUrl.split(',')[1] };
+      var preview = document.getElementById('jd-note-image-preview');
+      preview.style.display = 'block';
+      preview.innerHTML = '<div class="jd-row" style="gap:6px;"><img src="'+dataUrl+'" style="width:36px;height:36px;object-fit:cover;border-radius:6px;"><span class="jd-sub" style="color:#12210A;">Foto lista — escribe algo (o solo dale Agregar) y se envía con el mensaje</span><button id="jd-note-image-cancel" style="background:transparent;border:none;color:#12210A;cursor:pointer;font-weight:600;">×</button></div>';
+      document.getElementById('jd-note-image-cancel').addEventListener('click', function(){
+        pendingImage = null;
+        preview.style.display = 'none';
+        preview.innerHTML = '';
+        document.getElementById('jd-note-image-input').value = '';
+      });
+    };
+    reader.readAsDataURL(file);
+  });
 
   document.getElementById('jd-chatlog-cancel').addEventListener('click', function(){
     pendingConversation = null;
@@ -1774,8 +1802,19 @@
       'type=movimiento es cualquier compra, ingreso, o ahorro (corto o largo plazo): llena "finType" (compra|ingreso|ahorro_corto|ahorro_largo), '+
       '"paymentType" (unico|plazos — pregunta si no es obvio si fue de un solo pago o a plazos), "account" (banco/cuenta si lo menciono, o null), '+
       'y "amount" (numero). Si no da el monto, pregunta el monto antes de responder status:done. '+
-      'type=reto es un pendiente suelto sin proyecto ni fecha clara. type=habito es un habito diario nuevo a trackear.';
-    var messages = history.map(function(m){ return {role: m.role, content: m.text}; });
+      'type=reto es un pendiente suelto sin proyecto ni fecha clara. type=habito es un habito diario nuevo a trackear.\n'+
+      'Si el mensaje incluye una foto (de un recibo, ticket, estado de cuenta o pantalla de compra), leela para identificar el monto, '+
+      'el comercio o banco, y la fecha si se ve. Trata esto como type="movimiento" con finType="compra" salvo que el texto o la imagen '+
+      'claramente indiquen otra cosa (pago/ingreso, ahorro). Si no puedes leer el monto con confianza, pregunta el monto en vez de adivinar.';
+    var messages = history.map(function(m){
+      if(m.image){
+        return {role: m.role, content: [
+          {type:'image', source:{type:'base64', media_type: m.image.mediaType, data: m.image.data}},
+          {type:'text', text: m.text}
+        ]};
+      }
+      return {role: m.role, content: m.text};
+    });
     try{
       var res = await fetch(CHAT_API_URL, {
         method: 'POST',
@@ -1894,28 +1933,40 @@
     }
   });
 
+  function clearPendingImage(){
+    pendingImage = null;
+    var preview = document.getElementById('jd-note-image-preview');
+    preview.style.display = 'none';
+    preview.innerHTML = '';
+    document.getElementById('jd-note-image-input').value = '';
+  }
+
   document.getElementById('jd-note-add').addEventListener('click', async function(){
     var input = document.getElementById('jd-note');
     var text = input.value.trim();
-    if(!text) return;
+    var image = pendingImage;
+    if(!text && !image) return;
     input.value = '';
+    clearPendingImage();
 
     if(pendingConversation){
-      pendingConversation.history.push({role:'user', text:text});
+      pendingConversation.history.push({role:'user', text: text || 'Foto adjunta', image: image});
       renderChatLog();
       await continueConversation();
       return;
     }
 
-    var handled = tryMarkDone(text) || tryLogFinance(text) || tryScheduleAgenda(text) || tryFutureAgenda(text) || tryCreateProject(text) || tryAddToProject(text);
-    if(handled){
-      var original = input.placeholder;
-      input.placeholder = 'Registrado ✓';
-      setTimeout(function(){ input.placeholder = original; }, 2500);
-      return;
+    if(!image){
+      var handled = tryMarkDone(text) || tryLogFinance(text) || tryScheduleAgenda(text) || tryFutureAgenda(text) || tryCreateProject(text) || tryAddToProject(text);
+      if(handled){
+        var original = input.placeholder;
+        input.placeholder = 'Registrado ✓';
+        setTimeout(function(){ input.placeholder = original; }, 2500);
+        return;
+      }
     }
 
-    pendingConversation = { history: [{role:'user', text:text}] };
+    pendingConversation = { history: [{role:'user', text: text || 'Foto adjunta', image: image}] };
     renderChatLog();
     await continueConversation();
   });
