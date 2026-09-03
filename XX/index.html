@@ -207,6 +207,10 @@
     </div>
     <div class="jd-card">
       <div class="jd-h">Agenda y pendientes</div>
+      <div id="jd-gcal-reconnect" style="display:none;background:#3B211E;border:1px solid #5C2E2A;border-radius:9px;padding:8px 10px;margin-bottom:8px;font-size:12px;color:#F08C82;">
+        📅 Se perdió la conexión con Google Calendar (pasa después de un rato sin usar el dashboard).
+        <button class="jd-btn" style="margin-top:6px;width:100%;" id="jd-gcal-reconnect-btn">Reconectar Google Calendar</button>
+      </div>
       <div id="jd-agenda"></div>
       <input class="jd-input" id="jd-agenda-text" placeholder="Nuevo pendiente..." style="margin-top:8px;">
       <button class="jd-btn" style="margin-top:8px;width:100%;" id="jd-agenda-add">Agregar</button>
@@ -296,15 +300,7 @@
 
   var googleAccessToken = null;
 
-  supabaseClient.auth.getSession().then(function(res){
-    if(res.data.session){ googleAccessToken = res.data.session.provider_token || googleAccessToken; showApp(); } else showGate();
-  });
-
-  supabaseClient.auth.onAuthStateChange(function(event, session){
-    if(session){ googleAccessToken = session.provider_token || googleAccessToken; showApp(); } else { googleAccessToken = null; showGate(); }
-  });
-
-  document.getElementById('jd-auth-google').addEventListener('click', function(){
+  function connectGoogle(){
     supabaseClient.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -313,7 +309,24 @@
         queryParams: { access_type: 'offline', prompt: 'consent' }
       }
     });
+  }
+
+  supabaseClient.auth.getSession().then(function(res){
+    if(res.data.session){ googleAccessToken = res.data.session.provider_token || googleAccessToken; showApp(); } else showGate();
   });
+
+  supabaseClient.auth.onAuthStateChange(function(event, session){
+    if(session){
+      var hadToken = !!googleAccessToken;
+      googleAccessToken = session.provider_token || googleAccessToken;
+      showApp();
+      if(!hadToken && googleAccessToken && typeof window.retryFailedGcalSyncs === 'function'){
+        window.retryFailedGcalSyncs();
+      }
+    } else { googleAccessToken = null; showGate(); }
+  });
+
+  document.getElementById('jd-auth-google').addEventListener('click', connectGoogle);
 
   document.getElementById('jd-auth-submit').addEventListener('click', async function(){
     var email = document.getElementById('jd-auth-email').value.trim();
@@ -326,6 +339,9 @@
   document.addEventListener('click', function(e){
     if(e.target && e.target.id === 'jd-auth-logout'){
       supabaseClient.auth.signOut();
+    }
+    if(e.target && e.target.id === 'jd-gcal-reconnect-btn'){
+      connectGoogle();
     }
   });
 </script>
@@ -778,6 +794,11 @@
   function renderAgenda(){
     var box = document.getElementById('jd-agenda');
     box.innerHTML = '';
+    var reconnectBanner = document.getElementById('jd-gcal-reconnect');
+    if(reconnectBanner){
+      var needsReconnect = !googleAccessToken && data.agenda.some(function(a){ return a.gcalStatus === 'failed'; });
+      reconnectBanner.style.display = needsReconnect ? 'block' : 'none';
+    }
     data.agenda.forEach(function(a){
       var row = document.createElement('div');
       row.style.cssText = 'padding:6px 0;border-bottom:1px solid #232A1E;font-size:12.5px;';
@@ -1576,7 +1597,7 @@
   }
 
   async function createGoogleCalendarEvent(item){
-    if(!googleAccessToken) return {ok:false, reason:'sin permiso de Calendar en esta sesión — cierra sesión y vuelve a entrar con Google'};
+    if(!googleAccessToken) return {ok:false, reason:'sin permiso de Calendar en esta sesión — usa el botón de reconectar arriba'};
     try{
       var body;
       if(item.time){
@@ -1626,7 +1647,7 @@
 
   async function updateGoogleCalendarEvent(item){
     if(!item.gcalEventId) return createGoogleCalendarEvent(item);
-    if(!googleAccessToken) return {ok:false, reason:'sin permiso de Calendar en esta sesión — cierra sesión y vuelve a entrar con Google'};
+    if(!googleAccessToken) return {ok:false, reason:'sin permiso de Calendar en esta sesión — usa el botón de reconectar arriba'};
     try{
       var body;
       if(item.time){
@@ -1672,6 +1693,20 @@
       save(); renderAgenda();
     });
   }
+
+  window.retryFailedGcalSyncs = function(){
+    data.agenda.filter(function(a){ return a.gcalStatus === 'failed'; }).forEach(function(item){
+      item.gcalStatus = 'pending';
+      var promise = item.gcalEventId ? updateGoogleCalendarEvent(item) : createGoogleCalendarEvent(item);
+      promise.then(function(result){
+        item.gcalStatus = result.ok ? 'synced' : 'failed';
+        if(result.ok) item.gcalEventId = result.id;
+        item.gcalError = result.ok ? null : result.reason;
+        save(); renderAgenda();
+      });
+    });
+    save(); renderAgenda();
+  };
 
   function tryScheduleAgenda(text){
     var range = parseDateRange(text);
