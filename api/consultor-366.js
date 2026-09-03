@@ -346,6 +346,27 @@ async function builderLeerSistemas366(clienteId) {
   return [];
 }
 
+// Nombre EXACTO de ⚠️GUARDAR y columnas EXACTAS (deben calzar con CAMPO_LOOKUP/TABLA_CONFIGS de
+// consultor-366.html) para las 3 tablas de Sistema 366 -- si aquí se le muestra a la IA el
+// contenido ya guardado con nombres de campo internos (ej. "mes", "titulo") en vez de estos
+// nombres reales, la IA no sabe cómo reproducirlos al querer agregar o ajustar filas y se
+// atora o inventa un formato que el parser de CONFIRMO JEFE no reconoce.
+const TABLAS_SISTEMA_366 = {
+  plan_implementacion: { nombreGuardar: 'Plan de Implementación', columnas: [['plazo', 'Plazo'], ['cuando', 'Semana / Mes'], ['fecha', 'Fecha objetivo'], ['que_se_implementa', 'Qué se implementa'], ['estado', 'Estado']] },
+  secuencia_seguimiento: { nombreGuardar: 'Secuencia de Seguimiento', columnas: [['mes', 'Día'], ['titulo', 'Título del ciclo'], ['mensaje', 'Mensaje / contenido']] },
+  oportunidades_iniciales: { nombreGuardar: 'Oportunidades iniciales', columnas: [['oportunidad', 'Oportunidad'], ['como', 'Por qué / cómo aprovecharla']] },
+};
+
+function builderFormatearFilasConLabel(filas, columnas) {
+  if (!Array.isArray(filas)) return '';
+  const vivas = filas.filter((f) => f && columnas.some(([key]) => (f[key] || '').toString().trim()));
+  if (vivas.length === 0) return '';
+  return vivas
+    .map((f) => columnas.map(([key, label]) => `${label}: ${(f[key] || '').toString().trim()}`).filter((s) => !s.endsWith(': ')).join(' | '))
+    .map((l) => '  - ' + l)
+    .join('\n');
+}
+
 function builderFormatearSistemas366(items) {
   if (!Array.isArray(items) || items.length === 0) return null;
   const bloques = items
@@ -355,9 +376,9 @@ function builderFormatearSistemas366(items) {
       if (p.contexto_general) l.push(`  Contexto general: ${p.contexto_general}`);
       const cj = builderFormatearValorNota(p.customer_journey);
       if (cj) l.push(`  Tu Sistema 366 (qué hacemos por etapa):\n${cj}`);
-      ['plan_implementacion', 'secuencia_seguimiento', 'oportunidades_iniciales'].forEach((campo) => {
-        const f = builderFormatearValorNota(p[campo]);
-        if (f) l.push(`  ${campo}:\n${f}`);
+      Object.entries(TABLAS_SISTEMA_366).forEach(([campo, { nombreGuardar, columnas }]) => {
+        const f = builderFormatearFilasConLabel(p[campo], columnas);
+        if (f) l.push(`  ${nombreGuardar} (nombre exacto para ⚠️GUARDAR -- si agregas o ajustas filas, reentrega la tabla COMPLETA con estas filas ya incluidas más las nuevas, usando el nombre EXACTO de columna que ves aquí):\n${f}`);
       });
       if (p.info_faltante) l.push(`  Información faltante: ${p.info_faltante}`);
       if (p.reglas_equipo_ia) l.push(`  Reglas para el Equipo de Marketing IA: ${p.reglas_equipo_ia}`);
