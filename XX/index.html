@@ -211,6 +211,10 @@
         📅 Se perdió la conexión con Google Calendar (pasa después de un rato sin usar el dashboard).
         <button class="jd-btn" style="margin-top:6px;width:100%;" id="jd-gcal-reconnect-btn">Reconectar Google Calendar</button>
       </div>
+      <div id="jd-gcal-retry" style="display:none;background:#232A1E;border:1px solid #2A3324;border-radius:9px;padding:8px 10px;margin-bottom:8px;font-size:12px;color:#DDE3D4;">
+        📅 Hay eventos que no se sincronizaron con Google Calendar.
+        <button class="jd-btn" style="margin-top:6px;width:100%;" id="jd-gcal-retry-btn">Reintentar sincronización</button>
+      </div>
       <div id="jd-agenda"></div>
       <input class="jd-input" id="jd-agenda-text" placeholder="Nuevo pendiente..." style="margin-top:8px;">
       <button class="jd-btn" style="margin-top:8px;width:100%;" id="jd-agenda-add">Agregar</button>
@@ -311,18 +315,25 @@
     });
   }
 
+  function onFreshGoogleToken(){
+    if(typeof window.retryFailedGcalSyncs === 'function') window.retryFailedGcalSyncs();
+  }
+
   supabaseClient.auth.getSession().then(function(res){
-    if(res.data.session){ googleAccessToken = res.data.session.provider_token || googleAccessToken; showApp(); } else showGate();
+    if(res.data.session){
+      var freshToken = res.data.session.provider_token;
+      googleAccessToken = freshToken || googleAccessToken;
+      showApp();
+      if(freshToken) onFreshGoogleToken();
+    } else showGate();
   });
 
   supabaseClient.auth.onAuthStateChange(function(event, session){
     if(session){
-      var hadToken = !!googleAccessToken;
-      googleAccessToken = session.provider_token || googleAccessToken;
+      var freshToken = session.provider_token;
+      googleAccessToken = freshToken || googleAccessToken;
       showApp();
-      if(!hadToken && googleAccessToken && typeof window.retryFailedGcalSyncs === 'function'){
-        window.retryFailedGcalSyncs();
-      }
+      if(freshToken) onFreshGoogleToken();
     } else { googleAccessToken = null; showGate(); }
   });
 
@@ -795,10 +806,10 @@
     var box = document.getElementById('jd-agenda');
     box.innerHTML = '';
     var reconnectBanner = document.getElementById('jd-gcal-reconnect');
-    if(reconnectBanner){
-      var needsReconnect = !googleAccessToken && data.agenda.some(function(a){ return a.gcalStatus === 'failed'; });
-      reconnectBanner.style.display = needsReconnect ? 'block' : 'none';
-    }
+    var retryBanner = document.getElementById('jd-gcal-retry');
+    var hasFailed = data.agenda.some(function(a){ return a.gcalStatus === 'failed'; });
+    if(reconnectBanner) reconnectBanner.style.display = (!googleAccessToken && hasFailed) ? 'block' : 'none';
+    if(retryBanner) retryBanner.style.display = (googleAccessToken && hasFailed) ? 'block' : 'none';
     data.agenda.forEach(function(a){
       var row = document.createElement('div');
       row.style.cssText = 'padding:6px 0;border-bottom:1px solid #232A1E;font-size:12.5px;';
@@ -1489,6 +1500,10 @@
     data.agenda.push({id:uid('a'), text:text});
     document.getElementById('jd-agenda-text').value='';
     save(); renderAgenda();
+  });
+
+  document.getElementById('jd-gcal-retry-btn').addEventListener('click', function(){
+    window.retryFailedGcalSyncs();
   });
 
   function parseMinutes(lower){
