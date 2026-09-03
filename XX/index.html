@@ -816,12 +816,16 @@
       row.style.cssText = 'padding:6px 0;border-bottom:1px solid #232A1E;font-size:12.5px;';
 
       if(editingAgendaId === a.id){
+        var projectOptions = '<option value="">Sin negocio</option>' + data.products.map(function(p){
+          return '<option value="'+p.name.replace(/"/g,'&quot;')+'"'+(a.project===p.name?' selected':'')+'>'+p.name+'</option>';
+        }).join('');
         row.innerHTML = '<input class="jd-input" id="jd-edit-text" value="'+a.text.replace(/"/g,'&quot;')+'" style="margin-bottom:6px;">'+
           '<div class="jd-row" style="gap:6px;flex-wrap:wrap;margin-bottom:6px;">'+
             '<input class="jd-input" type="date" id="jd-edit-date" value="'+(a.startDate||'')+'" style="width:132px;">'+
             '<input class="jd-input" type="time" id="jd-edit-time" value="'+(a.time||'')+'" style="width:95px;">'+
             '<input class="jd-input" type="number" id="jd-edit-duration" placeholder="min" value="'+(a.durationMinutes||'')+'" style="width:70px;">'+
           '</div>'+
+          '<select class="jd-input" id="jd-edit-project" style="margin-bottom:6px;">'+projectOptions+'</select>'+
           '<div class="jd-row" style="gap:6px;">'+
             '<button class="jd-btn jd-btn-lima" id="jd-edit-save" style="flex:1;">Guardar</button>'+
             '<button class="jd-btn" id="jd-edit-cancel">Cancelar</button>'+
@@ -832,10 +836,12 @@
           var newDate = document.getElementById('jd-edit-date').value;
           var newTime = document.getElementById('jd-edit-time').value;
           var newDur = parseInt(document.getElementById('jd-edit-duration').value, 10);
+          var newProject = document.getElementById('jd-edit-project').value;
           if(newText) a.text = newText;
           if(newDate){ if(a.endDate === a.startDate || !a.endDate || a.endDate < newDate) a.endDate = newDate; a.startDate = newDate; }
           a.time = newTime || undefined;
           a.durationMinutes = isNaN(newDur) ? undefined : newDur;
+          a.project = newProject || undefined;
           editingAgendaId = null;
           resyncAgendaItem(a);
         });
@@ -1174,7 +1180,8 @@
     var dateLabel = d.toLocaleDateString('es-MX', {weekday:'long', day:'numeric', month:'long'});
     var agendaItems = agendaItemsForDay(iso);
     var agendaHtml = agendaItems.length ? ('<div style="margin-bottom:8px;">' + agendaItems.map(function(a){
-      return '<div class="jd-row" style="gap:5px;font-size:11.5px;color:#EAFFC8;padding:2px 0;"><span style="width:8px;height:8px;border-radius:50%;background:#FF9F43;display:inline-block;"></span>'+a.text+'</div>';
+      var dotColor = a.project ? projectColor(a.project) : '#FF9F43';
+      return '<div class="jd-row" style="gap:5px;font-size:11.5px;color:#EAFFC8;padding:2px 0;"><span style="width:8px;height:8px;border-radius:50%;background:'+dotColor+';display:inline-block;"></span>'+a.text+'</div>';
     }).join('') + '</div>') : '';
     if(!info || info.entries.length === 0){
       panel.innerHTML = '<div style="border-top:1px solid #232A1E;padding-top:10px;">'+
@@ -1870,6 +1877,8 @@
       'si responde que es todo el dia o no importa la hora, usa time:null. Si es a una hora especifica y no dijo cuanto dura, '+
       'PREGUNTA cuanto dura (en minutos u horas) antes de responder status:done. No preguntes duracion si es evento de todo el dia '+
       'o de varios dias (viaje, vacaciones) — en ese caso solo llena date y endDate. Si ya tienes fecha, y (hora + duracion) o "todo el dia" confirmado, responde status:done sin seguir preguntando. '+
+      'Si el evento pertenece claramente a uno de los proyectos/negocios existentes (lo menciono por nombre, o es obvio por el cliente/tema), '+
+      'llena tambien "project" con el nombre EXACTO de la lista, aunque el type sea evento (no solo proyecto). Si no es claro o es un pendiente personal, deja "project" en null, no lo inventes. '+
       'type=proyecto es una tarea que pertenece claramente a uno de los proyectos existentes (pon el nombre EXACTO en "project"). '+
       'type=movimiento es cualquier compra, ingreso, o ahorro (corto o largo plazo): llena "finType" (compra|ingreso|ahorro_corto|ahorro_largo), '+
       '"paymentType" (unico|plazos — pregunta si no es obvio si fue de un solo pago o a plazos), "account" (banco/cuenta si lo menciono, o null), '+
@@ -1956,17 +1965,20 @@
         if(action.endDate) existing.endDate = action.endDate;
         if(action.time) existing.time = action.time;
         if(typeof action.durationMinutes === 'number') existing.durationMinutes = action.durationMinutes;
+        if(action.project && data.products.some(function(p){ return p.name === action.project; })) existing.project = action.project;
         resyncAgendaItem(existing);
         return;
       }
       // no matching id: cae al flujo de creacion normal como evento nuevo
     }
     if(action.type === 'evento' && action.date){
+      var eventProject = (action.project && data.products.some(function(p){ return p.name === action.project; })) ? action.project : undefined;
       scheduleAgendaItem({
         id: uid('a'), text: action.text || 'Evento',
         startDate: action.date, endDate: action.endDate || action.date,
         time: action.time || undefined,
-        durationMinutes: action.durationMinutes || undefined
+        durationMinutes: action.durationMinutes || undefined,
+        project: eventProject
       });
     } else if(action.type === 'historial'){
       var histDateISO = action.date || todayKey;
