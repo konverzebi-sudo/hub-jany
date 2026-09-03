@@ -167,9 +167,9 @@ function formatearAudiencias(items) {
       if (a.problema_resuelve) l.push(`  Problema que resuelve: ${a.problema_resuelve}`);
       if (a.que_convenceria) l.push(`  Qué lo convencería: ${a.que_convenceria}`);
       if (a.insight_estrategico) l.push(`  Insight estratégico: ${a.insight_estrategico}`);
-      ['dolores', 'miedos', 'deseos', 'objeciones', 'frases_reales'].forEach((campo) => {
-        const f = formatearValorNota(a[campo]);
-        if (f) l.push(`  ${campo}:\n${f}`);
+      Object.entries(TABLAS_AUDIENCIAS_366).forEach(([campo, { nombreGuardar, columnas }]) => {
+        const f = formatearFilasConLabel(a[campo], columnas);
+        if (f) l.push(`  ${nombreGuardar}:\n${f}`);
       });
       return l.join('\n');
     });
@@ -234,6 +234,49 @@ function formatearValorNota(valor) {
   return valor.toString().trim() ? '  ' + valor.toString().trim() : '';
 }
 
+// Columnas EXACTAS (deben calzar con CAMPO_LOOKUP/TABLA_CONFIGS de consultor-366.html) para las
+// tablas de las 4 secciones de Notas 366 -- sin esto, formatearValorNota mostraría las claves
+// internas del objeto (ej. "mes", "titulo") en vez de los nombres de columna reales.
+function formatearFilasConLabel(filas, columnas) {
+  if (!Array.isArray(filas)) return '';
+  const vivas = filas.filter((f) => f && columnas.some((c) => (f[c.key] || '').toString().trim()));
+  if (vivas.length === 0) return '';
+  return vivas
+    .map((f) => columnas.map((c) => `${c.label}: ${(f[c.key] || '').toString().trim()}`).filter((s) => !s.endsWith(': ')).join(' | '))
+    .map((l) => '  - ' + l)
+    .join('\n');
+}
+
+const TABLAS_AUDIENCIAS_366 = {
+  dolores: { nombreGuardar: 'Dolores (visibles y ocultos)', columnas: [{ key: 'visible', label: 'Visible' }, { key: 'oculto', label: 'Oculto' }] },
+  miedos: { nombreGuardar: 'Miedos', columnas: [{ key: 'miedo', label: 'Miedo' }, { key: 'frena', label: 'Cómo puede frenar la compra' }] },
+  deseos: { nombreGuardar: 'Deseos (visibles y secretos)', columnas: [{ key: 'visible', label: 'Visible' }, { key: 'secreto', label: 'Secreto' }] },
+  objeciones: { nombreGuardar: 'Objeciones', columnas: [{ key: 'tipo', label: 'Tipo' }, { key: 'objecion', label: 'Objeción' }, { key: 'porque', label: 'Por qué la tiene' }, { key: 'resuelve', label: 'Cómo podemos resolverla' }] },
+  frases_reales: { nombreGuardar: 'Frases reales del cliente', columnas: [{ key: 'frase', label: 'Frase real' }, { key: 'revela', label: 'Qué revela' }, { key: 'respuesta', label: 'Respuesta estratégica' }, { key: 'tono', label: 'Tono recomendado' }] },
+};
+
+const TABLAS_PRODUCTO_366 = {
+  pilar_deseo: { nombreGuardar: '🔥 Deseo', columnas: [{ key: 'pregunta', label: '¿Qué desea lograr / sentir?' }, { key: 'resolucion', label: '¿Cómo lo resolvemos con nuestra oferta?' }] },
+  pilar_confianza: { nombreGuardar: '🟢 Confianza', columnas: [{ key: 'pregunta', label: '¿Qué duda / miedo tiene?' }, { key: 'resolucion', label: '¿Cómo lo resolvemos dentro de la oferta?' }] },
+  pilar_facilidad: { nombreGuardar: '🔵 Facilidad', columnas: [{ key: 'pregunta', label: '¿Qué frena la compra?' }, { key: 'resolucion', label: '¿Cómo hacemos más fácil que compre hoy?' }] },
+  frases_enfatizar: { nombreGuardar: 'Frases que debo enfatizar al vender', columnas: [{ key: 'frase', label: 'Frase real' }, { key: 'revela', label: 'Qué revela' }] },
+  frases_evitar: { nombreGuardar: 'Frases que debo evitar al vender', columnas: [{ key: 'frase', label: 'Frase real' }, { key: 'revela', label: 'Qué revela' }] },
+  sistema_productos: { nombreGuardar: 'Sistema de Productos 366', columnas: [{ key: 'tipo', label: 'Tipo' }, { key: 'producto', label: 'Producto' }, { key: 'incluye', label: 'Qué incluye' }, { key: 'precio', label: 'Precio' }, { key: 'porque_funciona', label: 'Por qué funciona' }, { key: 'dato_estrategico', label: 'Dato estratégico' }] },
+};
+
+const TABLAS_COMUNICACION_366 = {
+  frases_maestras: { nombreGuardar: 'Frases maestras', columnas: [{ key: 'frase', label: 'Frase' }, { key: 'activa', label: 'Qué activa en el cliente' }, { key: 'donde', label: 'Dónde usarla' }] },
+  frases_objeciones: { nombreGuardar: 'Frases para objeciones', columnas: [{ key: 'objecion', label: 'Objeción' }, { key: 'frase', label: 'Frase para responderla' }] },
+  frases_conexion: { nombreGuardar: 'Frases para conectar la oferta al resultado emocional', columnas: [{ key: 'frase', label: 'Frase' }, { key: 'resultado', label: 'Resultado emocional que busca el cliente' }] },
+  angulos_evergreen: { nombreGuardar: 'Ángulos 366', columnas: [{ key: 'angulo', label: 'Ángulo' }, { key: 'accion', label: 'Acción' }, { key: 'emocion', label: 'Qué emoción activa' }, { key: 'conecta', label: 'Cómo conecta con la venta' }, { key: 'ejemplo', label: 'Ejemplo de mensaje' }] },
+};
+
+const TABLAS_SISTEMA_366 = {
+  plan_implementacion: { nombreGuardar: 'Plan de Implementación', columnas: [{ key: 'plazo', label: 'Plazo' }, { key: 'cuando', label: 'Semana / Mes' }, { key: 'fecha', label: 'Fecha objetivo' }, { key: 'que_se_implementa', label: 'Qué se implementa' }, { key: 'estado', label: 'Estado' }] },
+  secuencia_seguimiento: { nombreGuardar: 'Secuencia de Seguimiento', columnas: [{ key: 'mes', label: 'Día' }, { key: 'titulo', label: 'Título del ciclo' }, { key: 'mensaje', label: 'Mensaje / contenido' }] },
+  oportunidades_iniciales: { nombreGuardar: 'Oportunidades iniciales', columnas: [{ key: 'oportunidad', label: 'Oportunidad' }, { key: 'como', label: 'Por qué / cómo aprovecharla' }] },
+};
+
 // Sistema 366 y Comunicación 366 también funcionan con pestañas (varios sistemas/comunicaciones
 // -- uno compartido para todo el negocio, u otros independientes por grupo/producto). Misma
 // migración de 3 niveles que Producto 366 y Perfil de Cliente.
@@ -255,9 +298,9 @@ function formatearSistemas366(items) {
       if (p.contexto_general) l.push(`  Contexto general: ${p.contexto_general}`);
       const cj = formatearValorNota(p.customer_journey);
       if (cj) l.push(`  Tu Sistema 366 (qué hacemos por etapa):\n${cj}`);
-      ['plan_implementacion', 'secuencia_seguimiento', 'oportunidades_iniciales'].forEach((campo) => {
-        const f = formatearValorNota(p[campo]);
-        if (f) l.push(`  ${campo}:\n${f}`);
+      Object.entries(TABLAS_SISTEMA_366).forEach(([campo, { nombreGuardar, columnas }]) => {
+        const f = formatearFilasConLabel(p[campo], columnas);
+        if (f) l.push(`  ${nombreGuardar}:\n${f}`);
       });
       if (p.info_faltante) l.push(`  Información faltante: ${p.info_faltante}`);
       if (p.reglas_equipo_ia) l.push(`  Reglas para el Equipo de Marketing IA: ${p.reglas_equipo_ia}`);
@@ -287,9 +330,9 @@ function formatearComunicaciones366(items) {
       if (p.que_no_es) l.push(`  Qué NO es la oferta: ${p.que_no_es}`);
       if (p.resultado_entender) l.push(`  Resultado que el cliente debe entender: ${p.resultado_entender}`);
       if (p.por_que_elegirnos) l.push(`  Por qué elegirnos: ${p.por_que_elegirnos}`);
-      ['frases_maestras', 'frases_objeciones', 'frases_conexion', 'angulos_evergreen'].forEach((campo) => {
-        const f = formatearValorNota(p[campo]);
-        if (f) l.push(`  ${campo}:\n${f}`);
+      Object.entries(TABLAS_COMUNICACION_366).forEach(([campo, { nombreGuardar, columnas }]) => {
+        const f = formatearFilasConLabel(p[campo], columnas);
+        if (f) l.push(`  ${nombreGuardar}:\n${f}`);
       });
       return l.join('\n');
     });
@@ -318,9 +361,9 @@ function formatearProductos366(items) {
       if (p.por_que_potencial) l.push(`  Por qué tiene potencial 366: ${p.por_que_potencial}`);
       if (p.oferta_irresistible) l.push(`  Oferta Irresistible 366: ${p.oferta_irresistible}`);
       if (p.insight_estrategico) l.push(`  Insight estratégico: ${p.insight_estrategico}`);
-      ['pilar_deseo', 'pilar_confianza', 'pilar_facilidad', 'frases_enfatizar', 'frases_evitar', 'sistema_productos'].forEach((campo) => {
-        const f = formatearValorNota(p[campo]);
-        if (f) l.push(`  ${campo}:\n${f}`);
+      Object.entries(TABLAS_PRODUCTO_366).forEach(([campo, { nombreGuardar, columnas }]) => {
+        const f = formatearFilasConLabel(p[campo], columnas);
+        if (f) l.push(`  ${nombreGuardar}:\n${f}`);
       });
       return l.join('\n');
     });
@@ -528,3 +571,4 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ error: 'Error de conexión con el Agente.' });
   }
 };
+

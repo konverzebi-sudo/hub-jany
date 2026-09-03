@@ -217,9 +217,9 @@ function builderFormatearAudiencias(items) {
       if (a.emocion_impulsa) l.push(`  Emoción que lo impulsa: ${a.emocion_impulsa}`);
       if (a.que_convenceria) l.push(`  Qué lo convencería: ${a.que_convenceria}`);
       if (a.insight_estrategico) l.push(`  Insight estratégico: ${a.insight_estrategico}`);
-      ['caracteristicas', 'dolores', 'miedos', 'deseos', 'objeciones', 'frases_reales'].forEach((campo) => {
-        const f = builderFormatearValorNota(a[campo]);
-        if (f) l.push(`  ${campo}:\n${f}`);
+      Object.entries(TABLAS_AUDIENCIAS_366).forEach(([campo, { nombreGuardar, columnas }]) => {
+        const f = builderFormatearFilasConLabel(a[campo], columnas);
+        if (f) l.push(`  ${nombreGuardar} (nombre exacto para ⚠️GUARDAR -- si agregas o ajustas filas, reentrega la tabla COMPLETA con estas filas ya incluidas más las nuevas, usando el nombre EXACTO de columna que ves aquí):\n${f}`);
       });
       return l.join('\n');
     });
@@ -347,14 +347,39 @@ async function builderLeerSistemas366(clienteId) {
 }
 
 // Nombre EXACTO de ⚠️GUARDAR y columnas EXACTAS (deben calzar con CAMPO_LOOKUP/TABLA_CONFIGS de
-// consultor-366.html) para las 3 tablas de Sistema 366 -- si aquí se le muestra a la IA el
-// contenido ya guardado con nombres de campo internos (ej. "mes", "titulo") en vez de estos
-// nombres reales, la IA no sabe cómo reproducirlos al querer agregar o ajustar filas y se
+// consultor-366.html) para TODAS las tablas de las 4 secciones de Notas -- si aquí se le muestra
+// a la IA el contenido ya guardado con nombres de campo internos (ej. "mes", "titulo") en vez de
+// estos nombres reales, la IA no sabe cómo reproducirlos al querer agregar o ajustar filas y se
 // atora o inventa un formato que el parser de CONFIRMO JEFE no reconoce.
 const TABLAS_SISTEMA_366 = {
   plan_implementacion: { nombreGuardar: 'Plan de Implementación', columnas: [['plazo', 'Plazo'], ['cuando', 'Semana / Mes'], ['fecha', 'Fecha objetivo'], ['que_se_implementa', 'Qué se implementa'], ['estado', 'Estado']] },
   secuencia_seguimiento: { nombreGuardar: 'Secuencia de Seguimiento', columnas: [['mes', 'Día'], ['titulo', 'Título del ciclo'], ['mensaje', 'Mensaje / contenido']] },
   oportunidades_iniciales: { nombreGuardar: 'Oportunidades iniciales', columnas: [['oportunidad', 'Oportunidad'], ['como', 'Por qué / cómo aprovecharla']] },
+};
+
+const TABLAS_AUDIENCIAS_366 = {
+  caracteristicas: { nombreGuardar: 'Características clave', columnas: [['caracteristica', 'Característica'], ['importa', 'Por qué importa para venderle']] },
+  dolores: { nombreGuardar: 'Dolores (visibles y ocultos)', columnas: [['visible', 'Visible'], ['oculto', 'Oculto']] },
+  miedos: { nombreGuardar: 'Miedos', columnas: [['miedo', 'Miedo'], ['frena', 'Cómo puede frenar la compra']] },
+  deseos: { nombreGuardar: 'Deseos (visibles y secretos)', columnas: [['visible', 'Visible'], ['secreto', 'Secreto']] },
+  objeciones: { nombreGuardar: 'Objeciones', columnas: [['tipo', 'Tipo'], ['objecion', 'Objeción'], ['porque', 'Por qué la tiene'], ['resuelve', 'Cómo podemos resolverla']] },
+  frases_reales: { nombreGuardar: 'Frases reales del cliente', columnas: [['frase', 'Frase real'], ['revela', 'Qué revela'], ['respuesta', 'Respuesta estratégica'], ['tono', 'Tono recomendado']] },
+};
+
+const TABLAS_PRODUCTO_366 = {
+  pilar_deseo: { nombreGuardar: '🔥 Deseo', columnas: [['pregunta', '¿Qué desea lograr / sentir?'], ['resolucion', '¿Cómo lo resolvemos con nuestra oferta?']] },
+  pilar_confianza: { nombreGuardar: '🟢 Confianza', columnas: [['pregunta', '¿Qué duda / miedo tiene?'], ['resolucion', '¿Cómo lo resolvemos dentro de la oferta?']] },
+  pilar_facilidad: { nombreGuardar: '🔵 Facilidad', columnas: [['pregunta', '¿Qué frena la compra?'], ['resolucion', '¿Cómo hacemos más fácil que compre hoy?']] },
+  frases_enfatizar: { nombreGuardar: 'Frases que debo enfatizar al vender', columnas: [['frase', 'Frase real'], ['revela', 'Qué revela']] },
+  frases_evitar: { nombreGuardar: 'Frases que debo evitar al vender', columnas: [['frase', 'Frase real'], ['revela', 'Qué revela']] },
+  sistema_productos: { nombreGuardar: 'Sistema de Productos 366', columnas: [['tipo', 'Tipo'], ['producto', 'Producto'], ['incluye', 'Qué incluye'], ['precio', 'Precio'], ['porque_funciona', 'Por qué funciona'], ['dato_estrategico', 'Dato estratégico']] },
+};
+
+const TABLAS_COMUNICACION_366 = {
+  frases_maestras: { nombreGuardar: 'Frases maestras', columnas: [['frase', 'Frase'], ['activa', 'Qué activa en el cliente'], ['donde', 'Dónde usarla']] },
+  frases_objeciones: { nombreGuardar: 'Frases para objeciones', columnas: [['objecion', 'Objeción'], ['frase', 'Frase para responderla']] },
+  frases_conexion: { nombreGuardar: 'Frases para conectar la oferta al resultado emocional', columnas: [['frase', 'Frase'], ['resultado', 'Resultado emocional que busca el cliente']] },
+  angulos_evergreen: { nombreGuardar: 'Ángulos 366', columnas: [['angulo', 'Ángulo'], ['accion', 'Acción'], ['emocion', 'Qué emoción activa'], ['conecta', 'Cómo conecta con la venta'], ['ejemplo', 'Ejemplo de mensaje']] },
 };
 
 function builderFormatearFilasConLabel(filas, columnas) {
@@ -408,9 +433,9 @@ function builderFormatearComunicaciones366(items) {
       if (p.que_no_es) l.push(`  Qué NO es la oferta: ${p.que_no_es}`);
       if (p.resultado_entender) l.push(`  Resultado que el cliente debe entender: ${p.resultado_entender}`);
       if (p.por_que_elegirnos) l.push(`  Por qué elegirnos: ${p.por_que_elegirnos}`);
-      ['frases_maestras', 'frases_objeciones', 'frases_conexion', 'angulos_evergreen'].forEach((campo) => {
-        const f = builderFormatearValorNota(p[campo]);
-        if (f) l.push(`  ${campo}:\n${f}`);
+      Object.entries(TABLAS_COMUNICACION_366).forEach(([campo, { nombreGuardar, columnas }]) => {
+        const f = builderFormatearFilasConLabel(p[campo], columnas);
+        if (f) l.push(`  ${nombreGuardar} (nombre exacto para ⚠️GUARDAR -- si agregas o ajustas filas, reentrega la tabla COMPLETA con estas filas ya incluidas más las nuevas, usando el nombre EXACTO de columna que ves aquí):\n${f}`);
       });
       return l.join('\n');
     });
@@ -439,9 +464,9 @@ function builderFormatearProductos366(items) {
       if (p.por_que_potencial) l.push(`  Por qué tiene potencial 366: ${p.por_que_potencial}`);
       if (p.oferta_irresistible) l.push(`  Oferta Irresistible 366: ${p.oferta_irresistible}`);
       if (p.insight_estrategico) l.push(`  Insight estratégico: ${p.insight_estrategico}`);
-      ['pilar_deseo', 'pilar_confianza', 'pilar_facilidad', 'frases_enfatizar', 'frases_evitar', 'sistema_productos'].forEach((campo) => {
-        const f = builderFormatearValorNota(p[campo]);
-        if (f) l.push(`  ${campo}:\n${f}`);
+      Object.entries(TABLAS_PRODUCTO_366).forEach(([campo, { nombreGuardar, columnas }]) => {
+        const f = builderFormatearFilasConLabel(p[campo], columnas);
+        if (f) l.push(`  ${nombreGuardar} (nombre exacto para ⚠️GUARDAR -- si agregas o ajustas filas, reentrega la tabla COMPLETA con estas filas ya incluidas más las nuevas, usando el nombre EXACTO de columna que ves aquí):\n${f}`);
       });
       return l.join('\n');
     });
@@ -579,6 +604,29 @@ const TEMPORADA_CAMPO_LABEL = {
   ads_creativos: 'Creativos de ads', calendario: 'Calendario final de ejecución',
 };
 
+// Columnas EXACTAS de las tablas editables de Jefe de Temporada (deben calzar con TEMPORADA_TABLAS
+// de jefe-temporada.html) -- mismo motivo que TABLAS_SISTEMA_366: si aquí se le muestra a la IA
+// el contenido ya guardado con claves internas en vez de los labels reales, la IA describe mal lo
+// que ya está lleno y puede confundir al usuario sobre qué falta.
+const TABLAS_TEMPORADA_366 = {
+  prod_incentivos: [['objetivo', 'Objetivo'], ['incentivo', 'Incentivo'], ['resultado_esperado', 'Resultado esperado']],
+  cliente_diferencias: [['aspecto', 'Aspecto'], ['respuesta', 'Respuesta']],
+  com_mensajes_opciones: [['mensaje', 'Mensaje principal'], ['por_que', 'Por qué funciona']],
+  com_mensaje_elegido: [['pregunta', 'Pregunta'], ['respuesta', 'Respuesta']],
+  com_razon_ahora: [['elemento', 'Elemento'], ['respuesta', 'Respuesta']],
+  com_mensajes_clave: [['mensaje', 'Mensaje clave'], ['que_entender', 'Qué debe entender'], ['emocion', 'Emoción que activa'], ['conecta', 'Cómo conecta con la venta']],
+  com_frases_maestras: [['tipo', 'Tipo de frase'], ['frases', 'Frases']],
+  com_objeciones: [['objecion', 'Objeción'], ['que_piensa', 'Qué está pensando'], ['que_necesita', 'Qué necesita escuchar'], ['respuesta', 'Respuesta corta'], ['como_usarlo', 'Cómo usarlo en contenido']],
+  com_angulos: [['angulo', 'Ángulo'], ['enfoque', 'Enfoque'], ['emocion', 'Emoción'], ['idea_principal', 'Idea principal'], ['hook', 'Ejemplo de hook']],
+  com_ctas: [['momento', 'Momento'], ['suave', 'CTA suave'], ['directo', 'CTA directo'], ['urgente', 'CTA urgente']],
+  pre_calentamiento: [['dia', 'Día'], ['canal', 'Canal'], ['contenido', 'Tipo de contenido'], ['mensaje', 'Mensaje clave'], ['objetivo', 'Objetivo']],
+  activa_fases: [['fase', 'Fase'], ['objetivo', 'Objetivo'], ['contenido_organico', 'Contenido orgánico'], ['ads', 'Ads'], ['base_datos', 'Base de datos'], ['mensaje_urgencia', 'Mensaje de urgencia'], ['cta', 'CTA']],
+  bd_segmentos: [['publico', 'Público'], ['de_donde_sale', 'De dónde sale'], ['mensaje', 'Qué mensaje recibirá'], ['cuando_contactar', 'Cuándo contactarlo'], ['objetivo', 'Objetivo']],
+  post_acciones: [['accion', 'Acción'], ['estrategia', 'Estrategia'], ['mensaje', 'Mensaje sugerido'], ['momento', 'Momento']],
+  ads_creativos: [['creativo', 'Creativo'], ['tipo', 'Tipo'], ['que_mostrar', 'Qué mostrar'], ['hook', 'Hook primeros 3 segundos'], ['etapa', 'Etapa']],
+  calendario: [['fecha', 'Fecha'], ['fase', 'Fase'], ['accion', 'Acción']],
+};
+
 function temporadaFormatearProducto(camp) {
   if (camp.producto_origen === 'nuevo' && camp.producto_nuevo) return `Producto/oferta NUEVO de esta temporada (no está en Evergreen): ${camp.producto_nuevo}`;
   if (camp.producto_origen === 'evergreen' && camp.producto_nombre) return `Producto evergreen elegido como base: ${camp.producto_nombre}`;
@@ -611,8 +659,8 @@ function temporadaFormatearCampana(camp) {
   if (prod) lineas.push(prod);
   if (camp.fecha_inicio_activa || camp.fecha_fin_activa) lineas.push(`Fecha de campaña activa: ${camp.fecha_inicio_activa || '?'} a ${camp.fecha_fin_activa || '?'}`);
   Object.keys(TEMPORADA_CAMPO_LABEL).forEach((campo) => {
-    const valor = camp[campo];
-    const formateado = builderFormatearValorNota(valor);
+    const columnas = TABLAS_TEMPORADA_366[campo];
+    const formateado = columnas ? builderFormatearFilasConLabel(camp[campo], columnas) : builderFormatearValorNota(camp[campo]);
     if (formateado) lineas.push(`${TEMPORADA_CAMPO_LABEL[campo]}:\n${formateado}`);
   });
   return 'CAMPAÑA DE TEMPORADA EN CURSO (esto es lo real, ya guardado por el usuario en el Documento de esta campaña -- tu trabajo es completar lo que falte, no repetir lo que ya está):\n\n' + truncar(lineas.join('\n'), BUILDER_NOTAS_CHAR_LIMIT);

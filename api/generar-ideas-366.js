@@ -118,15 +118,16 @@ async function leerAudiencias(clienteId) {
   return [];
 }
 
-function formatearFilasEpc(valor) {
-  if (!Array.isArray(valor)) return '';
-  const filas = valor.filter((f) => f && Object.values(f).some((v) => (v || '').toString().trim()));
-  if (filas.length === 0) return '';
-  return filas
-    .map((f) => Object.entries(f).filter(([k, v]) => k !== '_marcada' && (v || '').toString().trim()).map(([k, v]) => `${k}: ${v}`).join(' | '))
-    .map((l) => '  - ' + l)
-    .join('\n');
-}
+// Columnas EXACTAS (deben calzar con CAMPO_LOOKUP de consultor-366.html) para las tablas de
+// Perfil de Cliente 366 -- sin esto se mostrarían las claves internas del objeto en vez de los
+// nombres de columna reales.
+const TABLAS_AUDIENCIAS_366 = [
+  { campo: 'dolores', titulo: 'Dolores (visibles y ocultos)', columnas: [{ key: 'visible', label: 'Visible' }, { key: 'oculto', label: 'Oculto' }] },
+  { campo: 'miedos', titulo: 'Miedos', columnas: [{ key: 'miedo', label: 'Miedo' }, { key: 'frena', label: 'Cómo puede frenar la compra' }] },
+  { campo: 'deseos', titulo: 'Deseos (visibles y secretos)', columnas: [{ key: 'visible', label: 'Visible' }, { key: 'secreto', label: 'Secreto' }] },
+  { campo: 'objeciones', titulo: 'Objeciones', columnas: [{ key: 'tipo', label: 'Tipo' }, { key: 'objecion', label: 'Objeción' }, { key: 'porque', label: 'Por qué la tiene' }, { key: 'resuelve', label: 'Cómo podemos resolverla' }] },
+  { campo: 'frases_reales', titulo: 'Frases reales del cliente', columnas: [{ key: 'frase', label: 'Frase real' }, { key: 'revela', label: 'Qué revela' }, { key: 'respuesta', label: 'Respuesta estratégica' }, { key: 'tono', label: 'Tono recomendado' }] },
+];
 
 function formatearAudiencias(items) {
   if (!Array.isArray(items) || items.length === 0) return null;
@@ -140,9 +141,9 @@ function formatearAudiencias(items) {
       if (a.frases) l.push(`  Frases reales de clientes: ${a.frases}`);
       if (a.que_convenceria) l.push(`  Qué lo convencería: ${a.que_convenceria}`);
       if (a.insight_estrategico) l.push(`  Insight estratégico: ${a.insight_estrategico}`);
-      ['dolores', 'miedos', 'deseos', 'objeciones', 'frases_reales'].forEach((campo) => {
-        const f = formatearFilasEpc(a[campo]);
-        if (f) l.push(`  ${campo}:\n${f}`);
+      TABLAS_AUDIENCIAS_366.forEach(({ campo, titulo, columnas }) => {
+        const f = formatearTabla(a[campo], columnas, `  ${titulo}`);
+        if (f) l.push(f);
       });
       return l.join('\n');
     });
@@ -385,3 +386,4 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ error: 'Error de conexión con el Agente.' });
   }
 };
+
