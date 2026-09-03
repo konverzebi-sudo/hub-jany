@@ -192,12 +192,23 @@ async function builderLeerAudiencias(clienteId) {
   return [];
 }
 
-function builderFormatearAudiencias(items) {
+// Busca el nombre real de un grupo de negocio (Publicidad, Torneo...) por su id -- usado para
+// etiquetar cada Perfil/Producto/Sistema/Comunicación con a qué grupo pertenece, porque sin esta
+// etiqueta la IA solo sabe a qué grupo pertenece cada item por lo que se haya dicho en la
+// conversación (frágil: se pierde si el chat reinicia o si el módulo cambia de tema).
+function builderNombreGrupo(grupos, grupoId) {
+  if (!grupoId || !Array.isArray(grupos)) return '';
+  const g = grupos.find((x) => x && x.id === grupoId);
+  return g ? g.nombre : '';
+}
+
+function builderFormatearAudiencias(items, grupos) {
   if (!Array.isArray(items) || items.length === 0) return null;
   const bloques = items
     .filter((a) => a && (a.nombre || a.ocupacion || a.descripcion_breve))
     .map((a, i) => {
-      const l = [`Perfil ${i + 1}${a.nombre ? ': ' + a.nombre : ''} (prioridad de compra ${i + 1} de ${items.length})`];
+      const nombreG = builderNombreGrupo(grupos, a.grupo_id);
+      const l = [`Perfil ${i + 1}${a.nombre ? ': ' + a.nombre : ''}${nombreG ? ` [Grupo: ${nombreG}]` : ''} (prioridad de compra ${i + 1} de ${items.length})`];
       if (a.producto_relacionado) l.push(`  Producto/oferta que más probablemente compra: ${a.producto_relacionado}`);
       if (a.ocupacion) l.push(`  Ocupación: ${a.ocupacion}`);
       if (a.edad) l.push(`  Edad: ${a.edad}`);
@@ -224,7 +235,7 @@ function builderFormatearAudiencias(items) {
       return l.join('\n');
     });
   if (bloques.length === 0) return null;
-  return 'PERFILES DE CLIENTE (ordenados de mayor a menor probabilidad de compra -- si el producto/ángulo en cuestión coincide con el "producto relacionado" de un perfil, prioriza ese; si no, usa el primero de la lista):\n' + bloques.join('\n\n');
+  return 'PERFILES DE CLIENTE (ordenados de mayor a menor probabilidad de compra -- si el producto/ángulo en cuestión coincide con el "producto relacionado" de un perfil, prioriza ese; si no, usa el primero de la lista. Si el negocio tiene varios grupos de negocio, cada perfil trae "[Grupo: nombre]" -- usa SOLO los perfiles del grupo con el que se está trabajando, nunca mezcles perfiles de grupos distintos):\n' + bloques.join('\n\n');
 }
 
 function builderFormatearGrupos(grupos) {
@@ -304,7 +315,7 @@ async function builderConstruirContextoNegocio(clienteId) {
   const bloques = [
     builderFormatearIdentidad(identidad),
     builderFormatearTono(tono),
-    builderFormatearAudiencias(audiencia),
+    builderFormatearAudiencias(audiencia, grupos),
     builderFormatearGrupos(grupos),
     builderFormatearCatalogo(catalogo, grupos),
     builderFormatearJourney(journey),
@@ -392,12 +403,13 @@ function builderFormatearFilasConLabel(filas, columnas) {
     .join('\n');
 }
 
-function builderFormatearSistemas366(items) {
+function builderFormatearSistemas366(items, grupos) {
   if (!Array.isArray(items) || items.length === 0) return null;
   const bloques = items
     .filter((p) => p && (p.nombre || p.contexto_general || (p.customer_journey && Object.keys(p.customer_journey).length)))
     .map((p, i) => {
-      const l = [`Sistema ${i + 1}${p.nombre ? ': ' + p.nombre : ''}`];
+      const nombreG = builderNombreGrupo(grupos, p.grupo_id);
+      const l = [`Sistema ${i + 1}${p.nombre ? ': ' + p.nombre : ''}${nombreG ? ` [Grupo: ${nombreG}]` : ''}`];
       if (p.contexto_general) l.push(`  Contexto general: ${p.contexto_general}`);
       const cj = builderFormatearValorNota(p.customer_journey);
       if (cj) l.push(`  Tu Sistema 366 (qué hacemos por etapa):\n${cj}`);
@@ -410,7 +422,7 @@ function builderFormatearSistemas366(items) {
       return l.join('\n');
     });
   if (bloques.length === 0) return null;
-  return 'SISTEMA 366 (puede haber varios sistemas guardados):\n' + bloques.join('\n\n');
+  return 'SISTEMA 366 (puede haber varios sistemas guardados. Si el negocio tiene varios grupos de negocio, cada sistema trae "[Grupo: nombre]" -- usa SOLO el del grupo con el que se está trabajando):\n' + bloques.join('\n\n');
 }
 
 async function builderLeerComunicaciones366(clienteId) {
@@ -422,12 +434,13 @@ async function builderLeerComunicaciones366(clienteId) {
   return [];
 }
 
-function builderFormatearComunicaciones366(items) {
+function builderFormatearComunicaciones366(items, grupos) {
   if (!Array.isArray(items) || items.length === 0) return null;
   const bloques = items
     .filter((p) => p && (p.nombre || p.posicionamiento))
     .map((p, i) => {
-      const l = [`Comunicación ${i + 1}${p.nombre ? ': ' + p.nombre : ''}`];
+      const nombreG = builderNombreGrupo(grupos, p.grupo_id);
+      const l = [`Comunicación ${i + 1}${p.nombre ? ': ' + p.nombre : ''}${nombreG ? ` [Grupo: ${nombreG}]` : ''}`];
       if (p.posicionamiento) l.push(`  Posicionamiento: ${p.posicionamiento}`);
       if (p.diferenciador) l.push(`  Diferenciador principal: ${p.diferenciador}`);
       if (p.que_no_es) l.push(`  Qué NO es la oferta: ${p.que_no_es}`);
@@ -440,7 +453,7 @@ function builderFormatearComunicaciones366(items) {
       return l.join('\n');
     });
   if (bloques.length === 0) return null;
-  return 'COMUNICACIÓN 366 (puede haber varias guardadas, una por grupo de negocio):\n' + bloques.join('\n\n');
+  return 'COMUNICACIÓN 366 (puede haber varias guardadas, una por grupo de negocio -- cada una trae "[Grupo: nombre]" si aplica, usa SOLO la del grupo con el que se está trabajando):\n' + bloques.join('\n\n');
 }
 
 // Producto 366 también funciona con pestañas (varias ofertas) -- misma migración de 3 niveles
@@ -454,12 +467,13 @@ async function builderLeerProductos366(clienteId) {
   return [];
 }
 
-function builderFormatearProductos366(items) {
+function builderFormatearProductos366(items, grupos) {
   if (!Array.isArray(items) || items.length === 0) return null;
   const bloques = items
     .filter((p) => p && (p.nombre || p.que_vendemos))
     .map((p, i) => {
-      const l = [`Oferta ${i + 1}${p.nombre ? ': ' + p.nombre : ''}`];
+      const nombreG = builderNombreGrupo(grupos, p.grupo_id);
+      const l = [`Oferta ${i + 1}${p.nombre ? ': ' + p.nombre : ''}${nombreG ? ` [Grupo: ${nombreG}]` : ''}`];
       if (p.que_vendemos) l.push(`  Qué vendemos: ${p.que_vendemos}`);
       if (p.por_que_potencial) l.push(`  Por qué tiene potencial 366: ${p.por_que_potencial}`);
       if (p.oferta_irresistible) l.push(`  Oferta Irresistible 366: ${p.oferta_irresistible}`);
@@ -471,27 +485,28 @@ function builderFormatearProductos366(items) {
       return l.join('\n');
     });
   if (bloques.length === 0) return null;
-  return 'PRODUCTO 366 (puede haber varias ofertas guardadas):\n' + bloques.join('\n\n');
+  return 'PRODUCTO 366 (puede haber varias ofertas guardadas. Si el negocio tiene varios grupos de negocio, cada oferta trae "[Grupo: nombre]" -- usa SOLO la del grupo con el que se está trabajando):\n' + bloques.join('\n\n');
 }
 
 async function builderFormatearNotasGuardadas(clienteId) {
-  const [perfiles, productos, sistemas, comunicaciones] = await Promise.all([
+  const [perfiles, productos, sistemas, comunicaciones, grupos] = await Promise.all([
     builderLeerAudiencias(clienteId).catch(() => []),
     builderLeerProductos366(clienteId).catch(() => []),
     builderLeerSistemas366(clienteId).catch(() => []),
     builderLeerComunicaciones366(clienteId).catch(() => []),
+    leerJSON(`${clienteId}:grupos-negocio`).catch(() => null),
   ]);
   const bloques = [];
   // Perfil de Cliente 366 ya no vive en su propio grupo de Notas -- vive en brand-book.audiencias
   // (los mismos perfiles que Jefe 366 y el ADN comparten), se agrega aquí para que la regla de
   // "revisa lo ya guardado antes de proponer" también aplique a estos campos.
-  const perfilesBloque = builderFormatearAudiencias(perfiles);
+  const perfilesBloque = builderFormatearAudiencias(perfiles, grupos);
   if (perfilesBloque) bloques.push('PERFIL DE CLIENTE 366:\n' + perfilesBloque);
-  const productosBloque = builderFormatearProductos366(productos);
+  const productosBloque = builderFormatearProductos366(productos, grupos);
   if (productosBloque) bloques.push(productosBloque);
-  const sistemasBloque = builderFormatearSistemas366(sistemas);
+  const sistemasBloque = builderFormatearSistemas366(sistemas, grupos);
   if (sistemasBloque) bloques.push(sistemasBloque);
-  const comunicacionesBloque = builderFormatearComunicaciones366(comunicaciones);
+  const comunicacionesBloque = builderFormatearComunicaciones366(comunicaciones, grupos);
   if (comunicacionesBloque) bloques.push(comunicacionesBloque);
 
   if (bloques.length === 0) {

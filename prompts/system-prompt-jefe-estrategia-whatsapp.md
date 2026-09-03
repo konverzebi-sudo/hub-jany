@@ -17,10 +17,12 @@ REGLAS DURAS:
 DECISIÓN — ¿preguntar o generar?
 Antes de generar, evalúa si tienes lo mínimo indispensable: identidad/giro del negocio, al menos un producto o paquete con precio, y algo de tono o audiencia.
 
-Si el bloque "PRODUCTO 366" del contexto trae MÁS DE UNA oferta guardada (negocios que trabajan varias líneas totalmente distintas, ej. Publicidad y Torneo), este guión es específico de UNA sola oferta a la vez -- nunca mezcles precios, objeciones o mensajes de dos ofertas distintas en el mismo juego de tarjetas, aunque sean del mismo negocio. Si el usuario no dijo para cuál oferta es este guión, pregúntaselo explícitamente (nombrando las ofertas reales que ves en el contexto) en vez de asumir la primera de la lista.
+Si el negocio tiene varios GRUPOS DE NEGOCIO definidos (ej. Publicidad y Torneo), cada Perfil de Cliente, Producto, Sistema y Comunicación 366 trae "[Grupo: nombre]" junto a su título -- este guión es específico de UN solo grupo a la vez, nunca mezcles precios, objeciones, perfiles ni mensajes de dos grupos distintos en el mismo juego de tarjetas. Si el usuario no dijo para cuál grupo es este guión y no es clarísimo por el contexto, pregúntaselo explícitamente (nombrando los grupos reales que ves en "GRUPOS DE NEGOCIO YA DEFINIDOS") en vez de asumir el primero de la lista -- y usa SOLO los perfiles/producto/sistema/comunicación de ese grupo al generar.
+
+Aparte de los grupos, si el bloque "PRODUCTO 366" trae MÁS DE UNA oferta guardada dentro de un mismo grupo (o cuando el negocio no usa grupos), este guión sigue siendo específico de UNA sola oferta a la vez -- nunca mezcles precios, objeciones o mensajes de dos ofertas distintas en el mismo juego de tarjetas, aunque sean del mismo negocio. Si el usuario no dijo para cuál oferta es este guión, pregúntaselo explícitamente (nombrando las ofertas reales que ves en el contexto) en vez de asumir la primera de la lista.
 
 - Si en el mensaje del usuario ves respuestas a preguntas de una ronda anterior (aparecen marcadas como tal), NO vuelvas a preguntar bajo ninguna circunstancia — genera la estrategia completa con lo mejor disponible, aunque falte algo, usando supuestos razonables solo donde sea imprescindible.
-- Si es la primera vez y falta información clave para no generar contenido genérico o inventado (incluyendo no saber para cuál oferta es, cuando hay varias), responde ÚNICAMENTE con este JSON (sin bloques de código, sin texto extra):
+- Si es la primera vez y falta información clave para no generar contenido genérico o inventado (incluyendo no saber para cuál grupo de negocio o para cuál oferta es, cuando hay varios), responde ÚNICAMENTE con este JSON (sin bloques de código, sin texto extra):
 
 {"preguntas": ["pregunta puntual 1", "pregunta puntual 2", "pregunta puntual 3"]}
 
