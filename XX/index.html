@@ -363,7 +363,7 @@
   var defaultData = {
     chatLog: [],
     history: [
-      Object.assign({id:'hist1', project:'Rancho Seco', text:'Diseño de los 4 banners (Carnes El Mirador)', minutes:90}, {date:new Date().toLocaleDateString('es-MX',{day:'numeric',month:'short'}), dateISO:new Date().toISOString().slice(0,10), time:new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})})
+      Object.assign({id:'hist1', project:'Rancho Seco', text:'Diseño de los 4 banners (Carnes El Mirador)', minutes:90}, {date:new Date().toLocaleDateString('es-MX',{day:'numeric',month:'short'}), dateISO:localISO(), time:new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})})
     ],
     debts: [
       {id:'d1', name:'BBVA Oro ****9972', amount:36807.07},
@@ -463,7 +463,11 @@
   ];
 
   var data = null;
-  var todayKey = new Date().toISOString().slice(0,10);
+  function localISO(d){
+    d = d || new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+  var todayKey = localISO();
 
   function fmt(n){ return '$' + Number(n||0).toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2}); }
   function uid(p){ return p + Date.now() + Math.floor(Math.random()*1000); }
@@ -471,7 +475,7 @@
     var d = new Date();
     return {
       date: d.toLocaleDateString('es-MX',{day:'numeric',month:'short'}),
-      dateISO: d.toISOString().slice(0,10),
+      dateISO: localISO(d),
       time: d.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})
     };
   }
@@ -621,7 +625,7 @@
   function dateStrOffset(offset){
     var d = new Date();
     d.setDate(d.getDate()-offset);
-    return d.toISOString().slice(0,10);
+    return localISO(d);
   }
 
   function getHabitStats(habitId){
@@ -1024,11 +1028,11 @@
     }
 
     var dayLabels = ['L','M','M','J','V','S','D'];
-    var todayISO = new Date().toISOString().slice(0,10);
+    var todayISO = localISO();
     for(var dayIdx=0; dayIdx<7; dayIdx++){
       var lbl = document.createElement('div');
       var dISO = new Date(weekStart); dISO.setDate(dISO.getDate() + dayIdx);
-      var isToday = dISO.toISOString().slice(0,10) === todayISO;
+      var isToday = localISO(dISO) === todayISO;
       lbl.style.cssText = 'font-size:10px;color:'+(isToday?'#C6FF4B':'#B9C0AF')+';display:flex;align-items:center;';
       lbl.textContent = dayLabels[dayIdx];
       grid.appendChild(lbl);
@@ -1095,7 +1099,7 @@
     var firstDay = new Date(year, month, 1);
     var startOffset = (firstDay.getDay() + 6) % 7;
     var daysInMonth = new Date(year, month+1, 0).getDate();
-    var todayISO = new Date().toISOString().slice(0,10);
+    var todayISO = localISO();
 
     for(var i=0; i<startOffset; i++){ grid.appendChild(document.createElement('div')); }
 
@@ -1414,7 +1418,7 @@
     var firstDay = new Date(year, month, 1);
     var startOffset = (firstDay.getDay() + 6) % 7;
     var daysInMonth = new Date(year, month+1, 0).getDate();
-    var todayISO = new Date().toISOString().slice(0,10);
+    var todayISO = localISO();
     for(var i=0; i<startOffset; i++){ grid.appendChild(document.createElement('div')); }
     for(var day=1; day<=daysInMonth; day++){
       var iso = year + '-' + String(month+1).padStart(2,'0') + '-' + String(day).padStart(2,'0');
@@ -1589,7 +1593,7 @@
   function nextDayISO(iso){
     var d = new Date(iso + 'T00:00:00');
     d.setDate(d.getDate() + 1);
-    return d.toISOString().slice(0,10);
+    return localISO(d);
   }
 
   function parseSingleSchedule(text){
@@ -1608,7 +1612,7 @@
     var dayRef = (m[5]||'').toLowerCase();
     var d = new Date();
     if(dayRef === 'mañana') d.setDate(d.getDate() + 1);
-    var iso = d.toISOString().slice(0,10);
+    var iso = localISO(d);
     var timeLabel = String(hour).padStart(2,'0') + ':' + String(minute).padStart(2,'0');
     var desc = text.replace(m[0], '')
       .replace(/\bde\s+la\s+(mañana|tarde|noche)\b/i, '')
@@ -1840,7 +1844,7 @@
   async function askAssistant(history){
     var projectNames = data.products.map(function(p){ return p.name; }).join(', ');
     var today = new Date();
-    var todayISO = today.toISOString().slice(0,10);
+    var todayISO = localISO(today);
     var weekday = today.toLocaleDateString('es-MX', {weekday:'long'});
     var agendaList = data.agenda.map(function(a){
       return a.id+': "'+a.text+'"'+(a.startDate ? ' ('+a.startDate+(a.endDate&&a.endDate!==a.startDate?' a '+a.endDate:'')+(a.time?' '+a.time:'')+(a.durationMinutes?', '+a.durationMinutes+' min':'')+')' : '');
