@@ -49,6 +49,17 @@
   }
   .back-link{position:fixed;top:14px;left:18px;z-index:50;max-width:calc(100vw - 36px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.13em;color:#F2C230;text-decoration:none;padding:6px 16px;border:1px solid rgba(242,194,48,0.3);border-radius:100px;background:var(--surface);transition:.15s;}
   .back-link:hover{border-color:var(--accent);color:var(--accent);}
+
+  /* GRUPOS DE NEGOCIO (mismo patron visual que Jefe 366) */
+  .group-tabs{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:14px;}
+  .group-tab{font-family:'JetBrains Mono',monospace;font-size:12px;padding:8px 18px;border-radius:20px;border:1.5px solid var(--line);background:transparent;color:var(--text-dim);cursor:pointer;transition:all .15s;}
+  .group-tab.active{border-color:var(--accent);color:var(--accent);background:var(--accent-soft);font-weight:700;}
+  .group-tab:not(.active):hover{border-color:var(--text-dim);color:var(--text);}
+  .group-tabs-hint{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-dim);text-decoration:none;border-bottom:1px dashed var(--text-dim);}
+  .group-tabs-hint:hover{color:var(--accent);border-color:var(--accent);}
+  .mostrar-todas-btn{display:block;margin:10px auto 0;background:transparent;border:none;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--text-dim);text-decoration:none;border-bottom:1px dashed var(--text-dim);cursor:pointer;padding:2px 0;}
+  .mostrar-todas-btn:hover{color:var(--accent);border-color:var(--accent);}
+  .mostrar-todas-btn.activo{color:var(--accent);border-color:var(--accent);}
   header h1{
     font-size:clamp(26px,4vw,38px);
     font-weight:800;
@@ -423,6 +434,8 @@
   <a href="/rancho-seco" class="back-link">&lt;&lt; Hub de Jefes <span style="opacity:.4;">//</span> Rancho Seco</a>
   <h1>Jefe WhatsApp y Ventas</h1>
   <p>¡Vamos a cerrar esas ventas y sacarle provecho a cada conversación! Tu manual de ventas por mensaje, listo para copiar y pegar. Sube o baja por el termómetro según qué tan caliente esté la conversación.</p>
+  <div class="group-tabs" id="groupTabs"></div>
+  <button type="button" class="mostrar-todas-btn" id="mostrarTodasBtn" onclick="toggleMostrarTodas()" hidden>Ver todas las pestañas (sin filtrar por grupo)</button>
 </header>
 
 <div class="search-wrap">
@@ -812,7 +825,7 @@ async function askAgent(){
     const response = await fetch("/api/jefe-conversion", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ mensaje: input, imagen: liveImageData, cliente: "rancho-seco" })
+      body: JSON.stringify({ mensaje: input, imagen: liveImageData, cliente: "rancho-seco", grupo: grupoActivoParaEnvio() })
     });
     const data = await response.json();
     if(!response.ok){
@@ -898,7 +911,79 @@ reactivacion.forEach((r) => {
   });
 });
 
-function tarjetasKey(){ return 'rancho-seco:whatsapp-estrategia-tarjetas'; }
+// ---------- GRUPOS DE NEGOCIO (mismo patrón que Jefe 366 -- Publicidad, Torneo, etc.) ----------
+// Cada grupo tiene su propio manual de WhatsApp (tarjetas + guion derivado), separado del de los
+// demás grupos, para que nunca se mezcle info de un producto con la de otro. Un negocio sin grupos
+// definidos en el ADN se comporta exactamente igual que antes (una sola llave, sin pestañas).
+let gruposNegocioState = [];
+let grupoActivo = null;
+let mostrarTodasLasPestanas = false;
+
+function escGrupoHtml(str){
+  const d = document.createElement('div');
+  d.textContent = str == null ? '' : String(str);
+  return d.innerHTML;
+}
+
+async function cargarGruposNegocio(){
+  try{
+    const r = await window.storage.get('rancho-seco:grupos-negocio');
+    gruposNegocioState = r && r.value ? JSON.parse(r.value) : [];
+  }catch(e){ gruposNegocioState = []; }
+  renderGroupTabs();
+}
+
+function renderGroupTabs(){
+  const wrap = document.getElementById('groupTabs');
+  const btnTodas = document.getElementById('mostrarTodasBtn');
+  if(!gruposNegocioState.length){
+    grupoActivo = null;
+    wrap.innerHTML = '';
+    btnTodas.hidden = true;
+    return;
+  }
+  if(!grupoActivo || !gruposNegocioState.some((g) => g.id === grupoActivo.id)) grupoActivo = gruposNegocioState[0];
+  wrap.innerHTML = gruposNegocioState.map((g, i) => `<button type="button" class="group-tab${(!mostrarTodasLasPestanas && g.id === grupoActivo.id) ? ' active' : ''}" data-idx="${i}">${escGrupoHtml(g.nombre)}</button>`).join('');
+  wrap.querySelectorAll('.group-tab').forEach((btn) => {
+    btn.addEventListener('click', () => switchGroup(+btn.dataset.idx));
+  });
+  btnTodas.hidden = false;
+}
+
+function toggleMostrarTodas(){
+  mostrarTodasLasPestanas = !mostrarTodasLasPestanas;
+  const btn = document.getElementById('mostrarTodasBtn');
+  btn.classList.toggle('activo', mostrarTodasLasPestanas);
+  btn.textContent = mostrarTodasLasPestanas ? 'Volver a filtrar por grupo' : 'Ver todas las pestañas (sin filtrar por grupo)';
+  renderGroupTabs();
+  estPreguntasPendientes = null;
+  renderEstPreguntas(null);
+  cargarTarjetas();
+}
+
+function switchGroup(idx){
+  mostrarTodasLasPestanas = false;
+  const btnTodas = document.getElementById('mostrarTodasBtn');
+  btnTodas.classList.remove('activo');
+  btnTodas.textContent = 'Ver todas las pestañas (sin filtrar por grupo)';
+  grupoActivo = gruposNegocioState[idx];
+  renderGroupTabs();
+  estPreguntasPendientes = null;
+  renderEstPreguntas(null);
+  cargarTarjetas();
+}
+
+// El id de grupo que hay que mandarle al backend en cada request -- null si el negocio no tiene
+// grupos o si se está viendo "todas las pestañas sin filtrar".
+function grupoActivoParaEnvio(){
+  return (!mostrarTodasLasPestanas && grupoActivo) ? { id: grupoActivo.id, nombre: grupoActivo.nombre } : null;
+}
+
+function sufijoGrupo(){
+  return (!mostrarTodasLasPestanas && grupoActivo) ? ':' + grupoActivo.id : '';
+}
+
+function tarjetasKey(){ return 'rancho-seco:whatsapp-estrategia-tarjetas' + sufijoGrupo(); }
 
 function pintarTarjetas(data){
   TARJETAS_CAMPOS.forEach((campo) => {
@@ -1040,7 +1125,7 @@ async function generarEstrategia(){
     const response = await fetch('/api/jefe-estrategia-whatsapp', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ cliente: 'rancho-seco', imagenes: estImagenes, txtConversacion: estTxtConversacion, qa, tarjetasActuales: leerTarjetasDelDOM() })
+      body: JSON.stringify({ cliente: 'rancho-seco', imagenes: estImagenes, txtConversacion: estTxtConversacion, qa, tarjetasActuales: leerTarjetasDelDOM(), grupo: grupoActivoParaEnvio() })
     });
     const data = await response.json();
     if(!response.ok){
@@ -1141,7 +1226,7 @@ document.getElementById('logInput').addEventListener('keydown', (e) => {
 // El Jefe 366 lee esta misma llave para su sección "Guión de WhatsApp". Antes se llenaba a mano
 // en un modulo aparte (redundante con las Tarjetas de arriba); ahora se deriva automático de las
 // Tarjetas cada vez que se guardan, para que no haya que llenar lo mismo dos veces ni se desincronicen.
-function waGuionesKey(){ return 'rancho-seco:brand-book.whatsapp-guiones'; }
+function waGuionesKey(){ return 'rancho-seco:brand-book.whatsapp-guiones' + sufijoGrupo(); }
 
 function unirNoVacios(...partes){
   return partes.filter((p) => p && p.trim()).join('\n\n');
@@ -1268,7 +1353,12 @@ document.getElementById('reactivacionList').innerHTML = reactivacion.map(r => `
 document.querySelectorAll('[data-field]').forEach((el) => {
   el.addEventListener('input', scheduleGuardarTarjetas);
 });
-cargarTarjetas();
+// Los grupos de negocio deben quedar resueltos (grupoActivo) antes de cargar las tarjetas, porque
+// tarjetasKey()/waGuionesKey() dependen de saber con cuál grupo se está trabajando.
+(async () => {
+  await cargarGruposNegocio();
+  await cargarTarjetas();
+})();
 </script>
 </body>
 </html>

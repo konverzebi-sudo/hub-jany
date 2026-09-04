@@ -178,19 +178,21 @@ function formatearAudiencias(items, grupos) {
   return 'PERFILES DE CLIENTE (de Jefe 366, ordenados de mayor a menor probabilidad de compra -- si el producto que se está trabajando coincide con el "producto relacionado" de un perfil, prioriza ese perfil; si no, usa el primero de la lista. Si el negocio tiene varios grupos de negocio, cada perfil trae "[Grupo: nombre]" -- usa SOLO los del grupo con el que se está trabajando):\n' + bloques.join('\n\n');
 }
 
-function formatearCatalogo(items) {
+function formatearCatalogo(items, grupos) {
   if (!Array.isArray(items) || items.length === 0) return null;
   const lineas = items
     .filter((p) => p && p.nombre)
     .map((p) => {
+      const nombreG = nombreGrupo(grupos, p.grupo_id);
       const partes = [p.nombre];
       if (p.tipo) partes.push(p.tipo);
       if (p.precio != null && p.precio !== '') partes.push(`precio $${p.precio}`);
       if (p.notas) partes.push(`notas: ${p.notas}`);
+      if (nombreG) partes.push(`[Grupo: ${nombreG}]`);
       return '- ' + partes.join(' · ');
     });
   if (lineas.length === 0) return null;
-  return 'CATÁLOGO DE PRODUCTOS (precios reales — úsalos siempre que pregunten precio):\n' + lineas.join('\n');
+  return 'CATÁLOGO DE PRODUCTOS (precios reales — úsalos siempre que pregunten precio. Si el negocio tiene varios grupos de negocio, cada producto trae "[Grupo: nombre]" -- usa SOLO los del grupo con el que se está trabajando):\n' + lineas.join('\n');
 }
 
 // Busca el nombre real de un grupo de negocio (Publicidad, Torneo...) por su id -- sin esta
@@ -222,7 +224,7 @@ async function construirContextoNegocio(clienteId) {
     formatearTono(tono),
     formatearGrupos(grupos),
     formatearAudiencias(audiencia, grupos),
-    formatearCatalogo(catalogo),
+    formatearCatalogo(catalogo, grupos),
   ].filter(Boolean);
 
   if (bloques.length === 0) {
@@ -496,6 +498,7 @@ module.exports = async function handler(req, res) {
   const txtConversacion = typeof body.txtConversacion === 'string' ? truncar(body.txtConversacion, TXT_CONVERSACION_LIMIT) : '';
   const qa = Array.isArray(body.qa) ? body.qa.filter((x) => x && x.pregunta) : null;
   const tarjetasActuales = body.tarjetasActuales && typeof body.tarjetasActuales === 'object' ? body.tarjetasActuales : null;
+  const grupo = body.grupo && typeof body.grupo === 'object' && body.grupo.nombre ? body.grupo : null;
 
   try {
     const promptFijo = cargarPromptFijo();
@@ -513,6 +516,11 @@ module.exports = async function handler(req, res) {
     });
 
     const partesUsuario = [];
+    if (grupo) {
+      partesUsuario.push(
+        `GRUPO DE NEGOCIO SELECCIONADO POR EL USUARIO (desde las pestañas de arriba): "${grupo.nombre}". Usa ÚNICAMENTE la información etiquetada [Grupo: ${grupo.nombre}] (o sin etiqueta de grupo, si aplica al negocio en general) -- NO uses información de otros grupos, y NO preguntes cuál grupo es, ya se te dijo explícitamente.`
+      );
+    }
     if (tarjetasActuales) {
       const llenas = TARJETAS_CAMPOS
         .filter((campo) => tarjetasActuales[campo] && tarjetasActuales[campo].toString().trim())

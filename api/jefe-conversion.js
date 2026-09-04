@@ -120,12 +120,28 @@ async function leerAudiencias(clienteId) {
   return [];
 }
 
-function formatearAudiencias(items) {
+// Busca el nombre real de un grupo de negocio (Publicidad, Torneo...) por su id -- sin esta
+// etiqueta por item, la IA solo sabe a qué grupo pertenece cada Perfil/Producto/Sistema/
+// Comunicación/producto de catálogo por lo que se haya dicho en la conversación (frágil).
+function nombreGrupo(grupos, grupoId) {
+  if (!grupoId || !Array.isArray(grupos)) return '';
+  const g = grupos.find((x) => x && x.id === grupoId);
+  return g ? g.nombre : '';
+}
+
+function formatearGrupos(grupos) {
+  if (!Array.isArray(grupos) || grupos.length === 0) return null;
+  return 'GRUPOS DE NEGOCIO YA DEFINIDOS (líneas de producto/servicio -- si el negocio tiene más de uno, cada Perfil/Producto/Sistema/Comunicación de Jefe 366 y cada producto del catálogo más abajo trae "[Grupo: nombre]"; usa SOLO la información del grupo con el que se está trabajando, nunca mezcles información de dos grupos distintos en la misma respuesta):\n' +
+    grupos.map((g) => `- ${g.nombre}`).join('\n');
+}
+
+function formatearAudiencias(items, grupos) {
   if (!Array.isArray(items) || items.length === 0) return null;
   const bloques = items
     .filter((a) => a && (a.nombre || a.ocupacion || a.descripcion_breve))
     .map((a, i) => {
-      const l = [`Perfil ${i + 1}${a.nombre ? ': ' + a.nombre : ''} (prioridad de compra ${i + 1} de ${items.length})`];
+      const nombreG = nombreGrupo(grupos, a.grupo_id);
+      const l = [`Perfil ${i + 1}${a.nombre ? ': ' + a.nombre : ''}${nombreG ? ` [Grupo: ${nombreG}]` : ''} (prioridad de compra ${i + 1} de ${items.length})`];
       if (a.producto_relacionado) l.push(`  Producto/oferta que más probablemente compra: ${a.producto_relacionado}`);
       if (a.miedo_deseo) l.push(`  Miedo/deseo: ${a.miedo_deseo}`);
       if (a.objecion_comun) l.push(`  Objeción más común: ${a.objecion_comun}`);
@@ -142,22 +158,24 @@ function formatearAudiencias(items) {
       return l.join('\n');
     });
   if (bloques.length === 0) return null;
-  return 'PERFILES DE CLIENTE (de Jefe 366, ordenados de mayor a menor probabilidad de compra -- si el producto que se está trabajando coincide con el "producto relacionado" de un perfil, prioriza ese perfil; si no, usa el primero de la lista):\n' + bloques.join('\n\n');
+  return 'PERFILES DE CLIENTE (de Jefe 366, ordenados de mayor a menor probabilidad de compra -- si el producto que se está trabajando coincide con el "producto relacionado" de un perfil, prioriza ese perfil; si no, usa el primero de la lista. Si el negocio tiene varios grupos de negocio, cada perfil trae "[Grupo: nombre]" -- usa SOLO los del grupo con el que se está trabajando):\n' + bloques.join('\n\n');
 }
 
-function formatearCatalogo(items) {
+function formatearCatalogo(items, grupos) {
   if (!Array.isArray(items) || items.length === 0) return null;
   const lineas = items
     .filter((p) => p && p.nombre)
     .map((p) => {
+      const nombreG = nombreGrupo(grupos, p.grupo_id);
       const partes = [p.nombre];
       if (p.tipo) partes.push(p.tipo);
       if (p.precio != null && p.precio !== '') partes.push(`precio $${p.precio}`);
       if (p.notas) partes.push(`notas: ${p.notas}`);
+      if (nombreG) partes.push(`[Grupo: ${nombreG}]`);
       return '- ' + partes.join(' · ');
     });
   if (lineas.length === 0) return null;
-  return 'CATÁLOGO DE PRODUCTOS (precios reales — úsalos siempre que pregunten precio):\n' + lineas.join('\n');
+  return 'CATÁLOGO DE PRODUCTOS (precios reales — úsalos siempre que pregunten precio. Si el negocio tiene varios grupos de negocio, cada producto trae "[Grupo: nombre]" -- usa SOLO los del grupo con el que se está trabajando):\n' + lineas.join('\n');
 }
 
 function formatearGuionesGuardados(d) {
@@ -177,19 +195,21 @@ function formatearGuionesGuardados(d) {
 }
 
 async function construirContextoNegocio(clienteId) {
-  const [identidad, tono, audiencia, catalogo, guiones] = await Promise.all([
+  const [identidad, tono, audiencia, catalogo, guiones, grupos] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
     leerAudiencias(clienteId).catch(() => []),
     leerJSON(`${clienteId}:catalogo-productos`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.whatsapp-guiones`).catch(() => null),
+    leerJSON(`${clienteId}:grupos-negocio`).catch(() => null),
   ]);
 
   const bloques = [
     formatearIdentidad(identidad),
     formatearTono(tono),
-    formatearAudiencias(audiencia),
-    formatearCatalogo(catalogo),
+    formatearGrupos(grupos),
+    formatearAudiencias(audiencia, grupos),
+    formatearCatalogo(catalogo, grupos),
     formatearGuionesGuardados(guiones),
   ].filter(Boolean);
 
@@ -273,12 +293,13 @@ async function leerSistemas366(clienteId) {
   return [];
 }
 
-function formatearSistemas366(items) {
+function formatearSistemas366(items, grupos) {
   if (!Array.isArray(items) || items.length === 0) return null;
   const bloques = items
     .filter((p) => p && (p.nombre || p.contexto_general || (p.customer_journey && Object.keys(p.customer_journey).length)))
     .map((p, i) => {
-      const l = [`Sistema ${i + 1}${p.nombre ? ': ' + p.nombre : ''}`];
+      const nombreG = nombreGrupo(grupos, p.grupo_id);
+      const l = [`Sistema ${i + 1}${p.nombre ? ': ' + p.nombre : ''}${nombreG ? ` [Grupo: ${nombreG}]` : ''}`];
       if (p.contexto_general) l.push(`  Contexto general: ${p.contexto_general}`);
       const cj = formatearValorNota(p.customer_journey);
       if (cj) l.push(`  Tu Sistema 366 (qué hacemos por etapa):\n${cj}`);
@@ -291,7 +312,7 @@ function formatearSistemas366(items) {
       return l.join('\n');
     });
   if (bloques.length === 0) return null;
-  return 'SISTEMA 366 (puede haber varios sistemas guardados):\n' + bloques.join('\n\n');
+  return 'SISTEMA 366 (puede haber varios sistemas guardados. Si el negocio tiene varios grupos de negocio, cada sistema trae "[Grupo: nombre]" -- usa SOLO el del grupo con el que se está trabajando):\n' + bloques.join('\n\n');
 }
 
 async function leerComunicaciones366(clienteId) {
@@ -303,12 +324,13 @@ async function leerComunicaciones366(clienteId) {
   return [];
 }
 
-function formatearComunicaciones366(items) {
+function formatearComunicaciones366(items, grupos) {
   if (!Array.isArray(items) || items.length === 0) return null;
   const bloques = items
     .filter((p) => p && (p.nombre || p.posicionamiento))
     .map((p, i) => {
-      const l = [`Comunicación ${i + 1}${p.nombre ? ': ' + p.nombre : ''}`];
+      const nombreG = nombreGrupo(grupos, p.grupo_id);
+      const l = [`Comunicación ${i + 1}${p.nombre ? ': ' + p.nombre : ''}${nombreG ? ` [Grupo: ${nombreG}]` : ''}`];
       if (p.posicionamiento) l.push(`  Posicionamiento: ${p.posicionamiento}`);
       if (p.diferenciador) l.push(`  Diferenciador principal: ${p.diferenciador}`);
       if (p.que_no_es) l.push(`  Qué NO es la oferta: ${p.que_no_es}`);
@@ -321,7 +343,7 @@ function formatearComunicaciones366(items) {
       return l.join('\n');
     });
   if (bloques.length === 0) return null;
-  return 'COMUNICACIÓN 366 (puede haber varias guardadas):\n' + bloques.join('\n\n');
+  return 'COMUNICACIÓN 366 (puede haber varias guardadas, una por grupo de negocio -- cada una trae "[Grupo: nombre]" si aplica, usa SOLO la del grupo con el que se está trabajando):\n' + bloques.join('\n\n');
 }
 
 // Producto 366 también funciona con pestañas (varias ofertas) -- misma migración de 3 niveles
@@ -335,12 +357,13 @@ async function leerProductos366(clienteId) {
   return [];
 }
 
-function formatearProductos366(items) {
+function formatearProductos366(items, grupos) {
   if (!Array.isArray(items) || items.length === 0) return null;
   const bloques = items
     .filter((p) => p && (p.nombre || p.que_vendemos))
     .map((p, i) => {
-      const l = [`Oferta ${i + 1}${p.nombre ? ': ' + p.nombre : ''}`];
+      const nombreG = nombreGrupo(grupos, p.grupo_id);
+      const l = [`Oferta ${i + 1}${p.nombre ? ': ' + p.nombre : ''}${nombreG ? ` [Grupo: ${nombreG}]` : ''}`];
       if (p.que_vendemos) l.push(`  Qué vendemos: ${p.que_vendemos}`);
       if (p.por_que_potencial) l.push(`  Por qué tiene potencial 366: ${p.por_que_potencial}`);
       if (p.oferta_irresistible) l.push(`  Oferta Irresistible 366: ${p.oferta_irresistible}`);
@@ -352,7 +375,7 @@ function formatearProductos366(items) {
       return l.join('\n');
     });
   if (bloques.length === 0) return null;
-  return 'PRODUCTO 366 (puede haber varias ofertas guardadas):\n' + bloques.join('\n\n');
+  return 'PRODUCTO 366 (puede haber varias ofertas guardadas. Si el negocio tiene varios grupos de negocio, cada oferta trae "[Grupo: nombre]" -- usa SOLO la del grupo con el que se está trabajando):\n' + bloques.join('\n\n');
 }
 
 async function formatearConversacion366NoGuardada(clienteId) {
@@ -386,17 +409,18 @@ async function formatearBancoConversacionesWhatsApp(clienteId) {
 }
 
 async function construirContexto366(clienteId) {
-  const [productos, sistemas, comunicaciones] = await Promise.all([
+  const [productos, sistemas, comunicaciones, grupos] = await Promise.all([
     leerProductos366(clienteId).catch(() => []),
     leerSistemas366(clienteId).catch(() => []),
     leerComunicaciones366(clienteId).catch(() => []),
+    leerJSON(`${clienteId}:grupos-negocio`).catch(() => null),
   ]);
   const bloques = [];
-  const productosBloque = formatearProductos366(productos);
+  const productosBloque = formatearProductos366(productos, grupos);
   if (productosBloque) bloques.push(productosBloque);
-  const sistemasBloque = formatearSistemas366(sistemas);
+  const sistemasBloque = formatearSistemas366(sistemas, grupos);
   if (sistemasBloque) bloques.push(sistemasBloque);
-  const comunicacionesBloque = formatearComunicaciones366(comunicaciones);
+  const comunicacionesBloque = formatearComunicaciones366(comunicaciones, grupos);
   if (comunicacionesBloque) bloques.push(comunicacionesBloque);
 
   const conversacionReciente = await formatearConversacion366NoGuardada(clienteId).catch(() => null);
@@ -433,12 +457,13 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ error: 'Falta configurar ANTHROPIC_API_KEY en el servidor.' });
   }
 
-  const { mensaje, imagen, cliente } = req.body || {};
+  const { mensaje, imagen, cliente, grupo } = req.body || {};
   if (!mensaje && !imagen) {
     return res.status(400).json({ error: 'Falta mensaje o imagen.' });
   }
 
   const clienteId = (cliente || DEFAULT_CLIENTE).toString();
+  const grupoSeleccionado = grupo && typeof grupo === 'object' && grupo.nombre ? grupo : null;
 
   try {
     const promptFijo = cargarPromptFijo();
@@ -452,9 +477,14 @@ module.exports = async function handler(req, res) {
     if (imagen && imagen.mediaType && imagen.data) {
       content.push({ type: 'image', source: { type: 'base64', media_type: imagen.mediaType, data: imagen.data } });
     }
+    const partesTexto = [];
+    if (grupoSeleccionado) {
+      partesTexto.push(`GRUPO DE NEGOCIO SELECCIONADO POR EL USUARIO (desde las pestañas de arriba): "${grupoSeleccionado.nombre}". Responde usando ÚNICAMENTE la información etiquetada [Grupo: ${grupoSeleccionado.nombre}] (o sin etiqueta de grupo, si aplica al negocio en general) -- no uses precios ni datos de otros grupos.`);
+    }
+    partesTexto.push('Mensaje del cliente / captura a analizar:\n' + (mensaje || '(ver captura adjunta)'));
     content.push({
       type: 'text',
-      text: 'Mensaje del cliente / captura a analizar:\n' + (mensaje || '(ver captura adjunta)'),
+      text: partesTexto.join('\n\n'),
     });
 
     const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
