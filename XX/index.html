@@ -757,22 +757,29 @@
     var anyPoints = false;
     data.habits.forEach(function(hb, hi){
       var color = HABIT_PALETTE[hi % HABIT_PALETTE.length];
-      var points = [];
+      var segments = [];
+      var current = null;
       days.forEach(function(ds,i){
         var entry = data.habitChecks[ds] && data.habitChecks[ds][hb.id];
         var time = entry && entry.time;
-        if(time){
-          var m = /^(\d{1,2}):(\d{2})/.exec(time);
-          if(m){ points.push({x: xFor(i), y: yFor(parseInt(m[1],10) + parseInt(m[2],10)/60)}); }
+        var m = time && /^(\d{1,2}):(\d{2})/.exec(time);
+        if(m){
+          var pt = {x: xFor(i), y: yFor(parseInt(m[1],10) + parseInt(m[2],10)/60)};
+          if(!current){ current = []; segments.push(current); }
+          current.push(pt);
+        } else {
+          current = null;
         }
       });
-      if(points.length){
+      if(segments.length){
         anyPoints = true;
-        if(points.length > 1){
-          var path = points.map(function(p,idx){ return (idx===0?'M':'L')+p.x+','+p.y; }).join(' ');
-          svg += '<path d="'+path+'" fill="none" stroke="'+color+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
-        }
-        points.forEach(function(p){ svg += '<circle cx="'+p.x+'" cy="'+p.y+'" r="3" fill="'+color+'"/>'; });
+        segments.forEach(function(seg){
+          if(seg.length > 1){
+            var path = seg.map(function(p,idx){ return (idx===0?'M':'L')+p.x+','+p.y; }).join(' ');
+            svg += '<path d="'+path+'" fill="none" stroke="'+color+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
+          }
+          seg.forEach(function(p){ svg += '<circle cx="'+p.x+'" cy="'+p.y+'" r="3" fill="'+color+'"/>'; });
+        });
       }
     });
     svg += '</svg>';
@@ -1398,7 +1405,9 @@
 
   document.getElementById('jd-card-finance').addEventListener('click', function(){
     var dr = document.getElementById('jd-finance-drawer');
-    dr.style.display = dr.style.display === 'none' ? 'block' : 'none';
+    var opening = dr.style.display === 'none';
+    dr.style.display = opening ? 'block' : 'none';
+    if(opening) dr.scrollIntoView({behavior:'smooth', block:'start'});
   });
 
   document.getElementById('jd-fin-toggle').addEventListener('click', function(){
