@@ -576,7 +576,23 @@
       data.products.forEach(function(p){ p.tasks.forEach(function(t){ bumpAreaTotal(t.text); if(t.done) bumpAreaDone(t.text); }); });
       saveLocalOnly();
     }
+    processSubscriptionBillings();
     renderAll();
+  }
+
+  function processSubscriptionBillings(){
+    var today = new Date();
+    var todayDay = today.getDate();
+    var daysInMonth = new Date(today.getFullYear(), today.getMonth()+1, 0).getDate();
+    var monthKey = todayKey.slice(0,7);
+    data.subscriptions.forEach(function(s){
+      if(!s.billingDay) return;
+      var effectiveDay = Math.min(s.billingDay, daysInMonth);
+      if(effectiveDay !== todayDay) return;
+      if(s.lastChargedMonth === monthKey) return;
+      s.lastChargedMonth = monthKey;
+      addFinMovement(s.name, 'compra', 'unico', null, s.amount, todayKey);
+    });
   }
 
   function renderAll(){
@@ -712,26 +728,49 @@
       data.movements.slice(0,8).forEach(function(m){
         var row = document.createElement('div');
         if(editingMovementId === m.id){
-          var isGasto = m.amount < 0;
+          var curType = m.finType || (m.amount < 0 ? 'compra' : 'ingreso');
+          var accountNames = data.debts.map(function(d){ return d.name; });
+          var accountOptions = accountNames.map(function(n){
+            return '<option value="'+n.replace(/"/g,'&quot;')+'"'+(m.account===n?' selected':'')+'>'+n+'</option>';
+          }).join('') + '<option value="__other__"'+(accountNames.indexOf(m.account)===-1?' selected':'')+'>+ Otra cuenta...</option>';
           row.style.cssText = 'padding:6px 0;border-bottom:1px solid #232A1E;';
           row.innerHTML = '<input class="jd-input" id="jd-mov-edit-text" value="'+(m.text||'').replace(/"/g,'&quot;')+'" style="margin-bottom:6px;">'+
-            '<div class="jd-row" style="gap:6px;">'+
-              '<select class="jd-input" id="jd-mov-edit-sign" style="flex:1;"><option value="gasto"'+(isGasto?' selected':'')+'>Gasto</option><option value="ingreso"'+(!isGasto?' selected':'')+'>Ingreso</option></select>'+
+            '<div class="jd-row" style="gap:6px;margin-bottom:6px;">'+
+              '<select class="jd-input" id="jd-mov-edit-type" style="flex:1;">'+
+                '<option value="compra"'+(curType==='compra'?' selected':'')+'>Compra</option>'+
+                '<option value="ingreso"'+(curType==='ingreso'?' selected':'')+'>Ingreso</option>'+
+                '<option value="pago_deuda"'+(curType==='pago_deuda'?' selected':'')+'>Pago de deuda</option>'+
+              '</select>'+
               '<input class="jd-input" id="jd-mov-edit-amount" type="number" value="'+Math.abs(m.amount||0)+'" style="width:100px;">'+
             '</div>'+
-            '<div class="jd-row" style="gap:6px;margin-top:6px;">'+
+            '<select class="jd-input" id="jd-mov-edit-account" style="margin-bottom:6px;">'+accountOptions+'</select>'+
+            '<input class="jd-input" id="jd-mov-edit-account-other" placeholder="Nombre de la cuenta" value="'+(accountNames.indexOf(m.account)===-1&&m.account?m.account.replace(/"/g,'&quot;'):'')+'" style="margin-bottom:6px;'+(accountNames.indexOf(m.account)===-1?'':'display:none;')+'">'+
+            '<div class="jd-row" style="gap:6px;">'+
               '<button class="jd-btn jd-btn-lima" id="jd-mov-edit-save" style="flex:1;">Guardar</button>'+
               '<button class="jd-btn" id="jd-mov-edit-cancel">Cancelar</button>'+
             '</div>';
           movList.appendChild(row);
+          document.getElementById('jd-mov-edit-account').addEventListener('change', function(){
+            document.getElementById('jd-mov-edit-account-other').style.display = this.value === '__other__' ? 'block' : 'none';
+          });
           document.getElementById('jd-mov-edit-save').addEventListener('click', function(){
             var newText = document.getElementById('jd-mov-edit-text').value.trim();
             var newAmount = parseFloat(document.getElementById('jd-mov-edit-amount').value);
-            var sign = document.getElementById('jd-mov-edit-sign').value;
-            if(newText) m.text = newText;
-            if(!isNaN(newAmount)) m.amount = sign === 'gasto' ? -Math.abs(newAmount) : Math.abs(newAmount);
+            var newType = document.getElementById('jd-mov-edit-type').value;
+            var accSelect = document.getElementById('jd-mov-edit-account').value;
+            var newAccount = accSelect === '__other__' ? document.getElementById('jd-mov-edit-account-other').value.trim() : accSelect;
+            if(isNaN(newAmount)) newAmount = Math.abs(m.amount||0);
+            reverseDebtEffect(m.debtId, m.debtDelta);
+            var debt = findDebtByAccount(newAccount);
+            var effect = applyDebtEffect(debt, newType, newAmount);
+            m.text = newText || m.text;
+            m.amount = newType === 'ingreso' ? Math.abs(newAmount) : -Math.abs(newAmount);
+            m.account = newAccount || null;
+            m.finType = newType;
+            m.debtId = effect.debtId;
+            m.debtDelta = effect.debtDelta;
             editingMovementId = null;
-            save(); renderFinance();
+            save(); renderFinance(); renderDebt();
           });
           document.getElementById('jd-mov-edit-cancel').addEventListener('click', function(){
             editingMovementId = null;
@@ -753,8 +792,9 @@
           renderFinance();
         });
         row.querySelector('button').addEventListener('click', function(){
+          reverseDebtEffect(m.debtId, m.debtDelta);
           data.movements = data.movements.filter(function(x){ return x.id !== m.id; });
-          save(); renderFinance();
+          save(); renderFinance(); renderDebt();
         });
         movList.appendChild(row);
       });
@@ -1476,6 +1516,25 @@
     this.textContent = open ? '+ Nuevo movimiento' : '− Nuevo movimiento';
   });
 
+  function findDebtByAccount(account){
+    if(!account) return null;
+    return data.debts.find(function(d){ return d.name.toLowerCase().indexOf(account.toLowerCase())>-1 || account.toLowerCase().indexOf(d.name.toLowerCase())>-1; }) || null;
+  }
+
+  function applyDebtEffect(debt, type, amount){
+    if(!debt) return {debtId:null, debtDelta:0};
+    var rawDelta = (type === 'compra') ? Math.abs(amount) : -Math.abs(amount);
+    var before = debt.amount;
+    debt.amount = Math.max(0, debt.amount + rawDelta);
+    return {debtId: debt.id, debtDelta: debt.amount - before};
+  }
+
+  function reverseDebtEffect(debtId, debtDelta){
+    if(!debtId || !debtDelta) return;
+    var debt = data.debts.find(function(d){ return d.id === debtId; });
+    if(debt) debt.amount = Math.max(0, debt.amount - debtDelta);
+  }
+
   function addFinMovement(name, type, paymentType, account, amount, dateISO){
     if(!name || isNaN(amount)) return false;
     var iso = dateISO || todayKey;
@@ -1483,10 +1542,10 @@
     data.finMovements.push({id:uid('fm'), name:name, type:type, paymentType:paymentType, account:account||null, amount:amount, date:iso});
     if(type === 'compra' || type === 'ingreso' || type === 'pago_deuda'){
       var signed = type === 'ingreso' ? Math.abs(amount) : -Math.abs(amount);
-      data.movements.unshift({id:uid('m'), date:dateLabel, text:name+(account?' ('+account+')':''), amount:signed});
+      var debt = findDebtByAccount(account);
+      var effect = applyDebtEffect(debt, type, amount);
+      data.movements.unshift({id:uid('m'), date:dateLabel, text:name+(account?' ('+account+')':''), amount:signed, account:account||null, finType:type, debtId:effect.debtId, debtDelta:effect.debtDelta});
       if(data.movements.length > 30) data.movements.length = 30;
-      var debt = account ? data.debts.find(function(d){ return d.name.toLowerCase().indexOf(account.toLowerCase())>-1 || account.toLowerCase().indexOf(d.name.toLowerCase())>-1; }) : null;
-      if(debt) debt.amount = Math.max(0, debt.amount + (type==='compra' ? Math.abs(amount) : -Math.abs(amount)));
     } else if(type === 'ahorro_corto' || type === 'ahorro_largo'){
       var label = name + (type==='ahorro_largo' ? ' (largo plazo)' : ' (corto plazo)');
       var existingSaving = data.savings.find(function(s){ return s.name === label; });
@@ -2026,6 +2085,9 @@
       return a.id+': "'+a.text+'"'+(a.startDate ? ' ('+a.startDate+(a.endDate&&a.endDate!==a.startDate?' a '+a.endDate:'')+(a.time?' '+a.time:'')+(a.durationMinutes?', '+a.durationMinutes+' min':'')+')' : '');
     }).join('; ');
     var retosList = data.tasks.map(function(t){ return '"'+t.text+'" ('+t.color+')'; }).join('; ');
+    var movementsList = data.movements.slice(0,15).map(function(m){
+      return m.id+': "'+m.text+'" ('+m.date+')'+(m.amount!==null&&m.amount!==undefined ? ' '+(m.amount<0?'-':'+')+fmt(Math.abs(m.amount)) : '');
+    }).join('; ');
     var projectsSummary = data.products.map(function(p){
       var pend = p.tasks.filter(function(t){ return !t.done; });
       return p.name+': '+pend.length+' pendiente(s)'+(pend.length ? ' — '+pend.slice(0,5).map(function(t){return t.text;}).join(', ') : '');
@@ -2039,11 +2101,12 @@
       'Hoy es '+todayISO+' ('+weekday+').\n'+
       'Proyectos y sus pendientes: '+(projectsSummary||'ninguno')+'.\n'+
       'Retos del dia (pendientes sueltos): '+(retosList||'ninguno')+'.\n'+
-      'Pendientes de Agenda existentes (id: "texto" (fecha hora, duracion)): '+(agendaList||'ninguno')+'.\n\n'+
+      'Pendientes de Agenda existentes (id: "texto" (fecha hora, duracion)): '+(agendaList||'ninguno')+'.\n'+
+      'Movimientos financieros recientes (id: "texto" (fecha) monto): '+(movementsList||'ninguno')+'.\n\n'+
       'Responde SIEMPRE con UN SOLO objeto JSON valido (nunca varios seguidos, nunca uno por cada cosa que menciono), sin texto extra ni markdown, en una de estas tres formas:\n'+
       '{"status":"ask","question":"..."}\n'+
       '{"status":"respond","reply":"..."}\n'+
-      '{"status":"done","action":{"type":"evento|editar|historial|movimiento|reto|habito|proyecto","editId":"id EXACTO de la lista de Agenda o null","text":"...","date":"YYYY-MM-DD","endDate":"YYYY-MM-DD o null","time":"HH:MM 24h o null","durationMinutes":numero o null,"project":"nombre EXACTO de la lista o null","amount":numero o null,"finType":"compra|ingreso|pago_deuda|ahorro_corto|ahorro_largo","paymentType":"unico|plazos","account":"nombre de banco/cuenta o null"}}\n\n'+
+      '{"status":"done","action":{"type":"evento|editar|historial|movimiento|eliminar_movimiento|reto|habito|proyecto","editId":"id EXACTO de la lista de Agenda o null","movementId":"id EXACTO de la lista de Movimientos o null","text":"...","date":"YYYY-MM-DD","endDate":"YYYY-MM-DD o null","time":"HH:MM 24h o null","durationMinutes":numero o null,"project":"nombre EXACTO de la lista o null","amount":numero o null,"finType":"compra|ingreso|pago_deuda|ahorro_corto|ahorro_largo","paymentType":"unico|plazos","account":"nombre de banco/cuenta o null"}}\n\n'+
       'Reglas: si el mensaje es una pregunta, pide consejo, o quiere ayuda para organizar/priorizar sus proyectos y pendientes '+
       '(sin ser claramente algo para agregar a una lista), usa status="respond" con una respuesta util, especifica a su situacion real, y breve (maximo 5 lineas). '+
       'Si el mensaje describe algo que YA HIZO (tiempo pasado: "trabajé en", "agregué", "terminé", "estuve haciendo"), usa type="historial" '+
@@ -2064,7 +2127,9 @@
       '"paymentType" (unico|plazos — pregunta si no es obvio si fue de un solo pago o a plazos), "account" (banco/cuenta si lo menciono, o null), '+
       'y "amount" (numero). Usa finType="pago_deuda" cuando menciona que pago, abono, o liquido una tarjeta/deuda/prestamo existente (distinto de una compra nueva o un ingreso). '+
       'Si no da el monto, pregunta el monto antes de responder status:done. '+
-      'type=reto es un pendiente suelto sin proyecto ni fecha clara. type=habito es un habito diario nuevo a trackear.\n'+
+      'type=reto es un pendiente suelto sin proyecto ni fecha clara. type=habito es un habito diario nuevo a trackear. '+
+      'Si el mensaje pide eliminar/borrar/quitar un movimiento financiero que coincide claramente con uno de la lista de Movimientos, '+
+      'usa type="eliminar_movimiento" con "movementId" = ese id EXACTO. Si no hay ninguna coincidencia clara, usa status="ask" para confirmar cual, no inventes un id.\n'+
       'Si el mensaje incluye una foto (de un recibo, ticket, estado de cuenta o pantalla de compra), leela para identificar el monto, '+
       'el comercio o banco, y la fecha si se ve. Trata esto como type="movimiento" con finType="compra" salvo que el texto o la imagen '+
       'claramente indiquen otra cosa (pago/ingreso, ahorro). Si no puedes leer el monto con confianza, pregunta el monto en vez de adivinar.';
@@ -2178,6 +2243,11 @@
       save(); renderHistory(); renderCalendar(); renderWeekGrid(); renderBalance();
     } else if(action.type === 'movimiento' && typeof action.amount === 'number'){
       addFinMovement(action.text, action.finType || 'compra', action.paymentType || 'unico', action.account || null, action.amount, action.date);
+    } else if(action.type === 'eliminar_movimiento' && action.movementId){
+      var targetMov = data.movements.find(function(m){ return m.id === action.movementId; });
+      if(targetMov) reverseDebtEffect(targetMov.debtId, targetMov.debtDelta);
+      data.movements = data.movements.filter(function(m){ return m.id !== action.movementId; });
+      save(); renderFinance(); renderDebt();
     } else if(action.type === 'habito'){
       data.habits.push({id:uid('h'), text: action.text, daily:true});
       save(); renderHabits();
