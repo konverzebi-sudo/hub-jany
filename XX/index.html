@@ -863,7 +863,7 @@
         var time = entry && entry.time;
         var m = time && /^(\d{1,2}):(\d{2})/.exec(time);
         if(m){
-          var pt = {x: xFor(i), y: yFor(parseInt(m[1],10) + parseInt(m[2],10)/60)};
+          var pt = {x: xFor(i), y: yFor(parseInt(m[1],10) + parseInt(m[2],10)/60), label: m[1]+':'+m[2]};
           if(!current){ current = []; segments.push(current); }
           current.push(pt);
         } else {
@@ -877,7 +877,10 @@
             var path = seg.map(function(p,idx){ return (idx===0?'M':'L')+p.x+','+p.y; }).join(' ');
             svg += '<path d="'+path+'" fill="none" stroke="'+color+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
           }
-          seg.forEach(function(p){ svg += '<circle cx="'+p.x+'" cy="'+p.y+'" r="3" fill="'+color+'"/>'; });
+          seg.forEach(function(p){
+            svg += '<circle cx="'+p.x+'" cy="'+p.y+'" r="3" fill="'+color+'"/>';
+            svg += '<text x="'+p.x+'" y="'+(p.y-6)+'" font-size="8" fill="'+color+'" text-anchor="middle">'+p.label+'</text>';
+          });
         });
       }
     });
@@ -888,9 +891,27 @@
       return '<div class="jd-row" style="gap:4px;"><span style="width:8px;height:8px;border-radius:50%;background:'+color+';display:inline-block;"></span><span class="jd-sub">'+hb.text+'</span></div>';
     }).join('') + '</div>';
 
-    box.innerHTML = '<div class="jd-h" style="margin-bottom:8px;">Tu avance por hábito</div>'+
+    box.innerHTML = '<div class="jd-row" style="justify-content:space-between;align-items:center;margin-bottom:8px;">'+
+        '<div class="jd-h" style="margin:0;">Tu avance por hábito</div>'+
+        '<button id="jd-startdate-edit-btn" class="jd-sub" style="background:transparent;border:none;cursor:pointer;padding:0;text-decoration:underline;">Fecha de inicio</button>'+
+      '</div>'+
+      '<div id="jd-startdate-edit-form" style="display:none;margin-bottom:8px;">'+
+        '<div class="jd-row" style="gap:6px;">'+
+          '<input class="jd-input" id="jd-startdate-edit-input" type="date" value="'+data.startDate+'" style="flex:1;">'+
+          '<button class="jd-btn jd-btn-lima" id="jd-startdate-edit-save">Guardar</button>'+
+        '</div>'+
+        '<div class="jd-sub" style="margin-top:4px;">Desde este dia se cuentan los "Dias activo" y este grafico.</div>'+
+      '</div>'+
       '<div style="overflow-x:auto;">'+svg+'</div>'+
       (anyPoints ? legend : '<div class="jd-sub" style="margin-top:8px;">Todavía no hay horarios registrados.</div>');
+    document.getElementById('jd-startdate-edit-btn').addEventListener('click', function(){
+      var form = document.getElementById('jd-startdate-edit-form');
+      form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    });
+    document.getElementById('jd-startdate-edit-save').addEventListener('click', function(){
+      var newDate = document.getElementById('jd-startdate-edit-input').value;
+      if(newDate){ data.startDate = newDate; save(); renderProgressMini(); renderHabitsStats(); }
+    });
   }
 
   function renderHabits(){
@@ -2226,6 +2247,12 @@
         durationMinutes: action.durationMinutes || undefined,
         project: eventProject
       });
+      if(eventProject){
+        var eventProduct = data.products.find(function(p){ return p.name === eventProject; });
+        eventProduct.tasks.push({id:uid('pt'), text: action.text || 'Evento', done:false});
+        bumpAreaTotal(action.text || 'Evento');
+        save(); renderProducts(); renderProgressMini(); renderBalance();
+      }
     } else if(action.type === 'historial'){
       var histDateISO = action.date || todayKey;
       var histDateObj = new Date(histDateISO + 'T00:00:00');
@@ -2325,7 +2352,8 @@
       return;
     }
 
-    if(!image){
+    var mentionsProject = data.products.some(function(p){ return text.toLowerCase().indexOf(p.name.toLowerCase()) > -1; });
+    if(!image && !mentionsProject){
       var handled = tryMarkDone(text) || tryLogFinance(text) || tryScheduleAgenda(text) || tryFutureAgenda(text) || tryCreateProject(text) || tryAddToProject(text);
       if(handled){
         var original = input.placeholder;
