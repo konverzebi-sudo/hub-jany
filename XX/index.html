@@ -612,6 +612,7 @@
   }
 
   var editingDebtId = null;
+  var editingMovementId = null;
 
   function renderDebt(){
     var total = data.debts.reduce(function(s,d){ return s + Number(d.amount); }, 0);
@@ -710,14 +711,51 @@
       }
       data.movements.slice(0,8).forEach(function(m){
         var row = document.createElement('div');
+        if(editingMovementId === m.id){
+          var isGasto = m.amount < 0;
+          row.style.cssText = 'padding:6px 0;border-bottom:1px solid #232A1E;';
+          row.innerHTML = '<input class="jd-input" id="jd-mov-edit-text" value="'+(m.text||'').replace(/"/g,'&quot;')+'" style="margin-bottom:6px;">'+
+            '<div class="jd-row" style="gap:6px;">'+
+              '<select class="jd-input" id="jd-mov-edit-sign" style="flex:1;"><option value="gasto"'+(isGasto?' selected':'')+'>Gasto</option><option value="ingreso"'+(!isGasto?' selected':'')+'>Ingreso</option></select>'+
+              '<input class="jd-input" id="jd-mov-edit-amount" type="number" value="'+Math.abs(m.amount||0)+'" style="width:100px;">'+
+            '</div>'+
+            '<div class="jd-row" style="gap:6px;margin-top:6px;">'+
+              '<button class="jd-btn jd-btn-lima" id="jd-mov-edit-save" style="flex:1;">Guardar</button>'+
+              '<button class="jd-btn" id="jd-mov-edit-cancel">Cancelar</button>'+
+            '</div>';
+          movList.appendChild(row);
+          document.getElementById('jd-mov-edit-save').addEventListener('click', function(){
+            var newText = document.getElementById('jd-mov-edit-text').value.trim();
+            var newAmount = parseFloat(document.getElementById('jd-mov-edit-amount').value);
+            var sign = document.getElementById('jd-mov-edit-sign').value;
+            if(newText) m.text = newText;
+            if(!isNaN(newAmount)) m.amount = sign === 'gasto' ? -Math.abs(newAmount) : Math.abs(newAmount);
+            editingMovementId = null;
+            save(); renderFinance();
+          });
+          document.getElementById('jd-mov-edit-cancel').addEventListener('click', function(){
+            editingMovementId = null;
+            renderFinance();
+          });
+          return;
+        }
         row.className = 'jd-row';
         row.style.cssText = 'justify-content:space-between;padding:6px 0;border-bottom:1px solid #232A1E;font-size:12.5px;';
-        if(m.amount === null || m.amount === undefined){
-          row.innerHTML = '<span style="color:#9BA294;">'+m.date+' · '+m.text+'</span>';
-        } else {
+        var amountHtml = '';
+        if(m.amount !== null && m.amount !== undefined){
           var color = m.amount < 0 ? '#F08C82' : '#8FE39E';
-          row.innerHTML = '<span style="color:#9BA294;">'+m.date+' · '+m.text+'</span><span style="font-weight:600;color:'+color+';">'+(m.amount<0?'-':'+')+fmt(Math.abs(m.amount))+'</span>';
+          amountHtml = '<span style="font-weight:600;color:'+color+';">'+(m.amount<0?'-':'+')+fmt(Math.abs(m.amount))+'</span>';
         }
+        row.innerHTML = '<span style="color:#9BA294;cursor:pointer;">'+m.date+' · '+m.text+'</span>'+
+          '<span class="jd-row" style="gap:6px;">'+amountHtml+'<button class="jd-btn" style="padding:1px 8px;">×</button></span>';
+        row.querySelector('span').addEventListener('click', function(){
+          editingMovementId = m.id;
+          renderFinance();
+        });
+        row.querySelector('button').addEventListener('click', function(){
+          data.movements = data.movements.filter(function(x){ return x.id !== m.id; });
+          save(); renderFinance();
+        });
         movList.appendChild(row);
       });
     }
