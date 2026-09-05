@@ -81,8 +81,9 @@ UGC casual · Oferta directa · Autoridad educativa · Reactivación
    este anuncio, no una idea genérica desconectada de lo que se está anunciando. **Nunca** pongas
    aquí gráficos, animaciones, countdowns, overlays de texto animado ni nada que no se pueda filmar
    con una cámara de celular tal cual — eso va en `prompt_video`, no en este campo.
-7. **duracion_sugerida** — duración recomendada para el FORMATO (ej. "15-30 segundos" para reel,
-   "estático, sin duración" para imagen estática).
+7. **duracion_sugerida** — duración recomendada para el FORMATO (ej. "15-20 segundos" para reel,
+   "estático, sin duración" para imagen estática) — debe coincidir con la duración que se pide en
+   `prompt_video`, nunca un rango distinto.
 8. **copy_publicacion** — el texto para publicar el anuncio (no el guion hablado): con emojis,
    mismo esqueleto Hook→Problema→Solución→Prueba→Costo de la inacción→CTA pero redactado como
    copy de post/anuncio, listo para pegar. El cierre debe usar el MISMO CTA de conversión directa
@@ -106,12 +107,29 @@ UGC casual · Oferta directa · Autoridad educativa · Reactivación
    - Además, adapta el contenido al FORMATO: si es "carrusel", describe cada slide por separado
      (numeradas); si es "imagen estática", describe la pieza única completa; si es "reel",
      describe el thumbnail/portada del video.
-10. **prompt_video** — un prompt para un generador de video IA, con las mismas reglas de arriba
-    (dimensiones 9:16 para reel, colores/tipografía reales de la marca si existen, nunca inventar
-    un logo, máximo ~70 palabras). Aquí SÍ va cualquier elemento animado o gráfico que el anuncio
-    necesite (countdown, texto animado en pantalla, transiciones, animación de logo, overlays) —
-    descríbelo explícitamente en este prompt, nunca en `visual_sugerido`. Si el FORMATO es "imagen
-    estática", responde literalmente "No aplica — formato estático."
+10. **prompt_video** — un prompt para un generador de video IA (tipo Veo/Gemini), con las mismas
+    reglas de arriba (colores/tipografía reales de la marca si existen, nunca inventar un logo).
+    Aquí SÍ va cualquier elemento animado o gráfico que el anuncio necesite (countdown, texto
+    animado en pantalla, transiciones, animación de logo, overlays) — descríbelo explícitamente en
+    este prompt, nunca en `visual_sugerido`. El usuario solo tiene 1-2 generaciones de video
+    gratis al día, así que un video que sale mal (audio cortado, dato inventado, duración
+    equivocada) le cuesta un intento real — por eso estas reglas son OBLIGATORIAS, no sugerencias:
+    - **Duración exacta**: pide explícitamente "15 a 20 segundos" — nunca más, nunca "15-25" ni un
+      rango más amplio (un video más largo se corta o falla en el generador).
+    - **Audio, nunca ambiguo** (esto es lo que más causa videos con la voz cortada a media frase
+      cuando se deja implícito): decide y especifica UNA de estas dos opciones siempre, explícitas
+      en el texto del prompt:
+      (a) si el anuncio lleva voz hablada, escribe el diálogo EXACTO, palabra por palabra, dentro
+      del prompt (corto, que quepa cómodo hablado a ritmo natural en 15-20 segundos) y pide
+      literalmente algo como "la persona dice exactamente: '...'" — nunca dejes que el generador
+      improvise el diálogo, porque cuando lo hace es cuando sale cortado.
+      (b) si no lleva voz, dilo explícitamente: "sin diálogo ni voz en off, solo música o sonido
+      ambiente" — así el generador no intenta meter una voz que después sale mal.
+    - **Teléfono/WhatsApp**: solo incluye un número de teléfono en el prompt si aparece un número
+      REAL en el bloque CONTACTO Y REDES del contexto — cópialo tal cual, dígito por dígito. Si ese
+      bloque no trae un número real, NUNCA inventes uno ni pongas un formato placeholder (nada de
+      "XXX-XXX-XXXX" ni similares) — omite el teléfono por completo del prompt en vez de inventarlo.
+    Si el FORMATO es "imagen estática", responde literalmente "No aplica — formato estático."
 11. **caption_whatsapp** — un mensaje corto (2-4 líneas) para recompartir esta idea en un status o
     grupo de WhatsApp, tono cercano, con CTA.
 
@@ -144,6 +162,8 @@ ellos el anuncio no se puede publicar. Complétalos siempre:
 - ¿El guion completo (los 6 campos juntos) suena a 40-60 segundos leído en voz alta, y la
   `version_15s` suena a 15 segundos de verdad, no a una copia recortada a la mitad?
 - ¿Usaste las frases maestras del CONTEXTO 366 tal cual, en vez de reinventarlas?
+- ¿`prompt_video` pide explícitamente 15-20 segundos, deja clarísimo si hay diálogo (con el texto
+  exacto) o si no lo hay, y solo menciona un teléfono si es uno real del contexto?
 
 Si una idea no cumple alguno de estos puntos, ajústala antes de responder.
 
