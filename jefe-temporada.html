@@ -24,11 +24,18 @@
   body{margin:0;background:radial-gradient(1200px 600px at 50% -10%,#241733 0%,var(--bg) 55%);color:var(--text);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;padding:28px 16px 80px;}
   h1,.display{font-family:'Sora',sans-serif;}
   .wrap{max-width:1100px;margin:0 auto;}
-  .page-header{text-align:center;padding-top:40px;}
+  .page-header{text-align:center;padding-top:46px;}
   h1{font-size:clamp(26px,4vw,38px);font-weight:800;margin:0 0 8px;line-height:1.15;}
   .sub{color:var(--text-dim);font-size:15px;margin:0 auto 22px;line-height:1.5;max-width:680px;}
-  .back-link{position:fixed;top:14px;left:18px;z-index:50;max-width:calc(100vw - 36px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.13em;color:var(--text-dim);text-decoration:none;padding:6px 16px;border:1px solid var(--line);border-radius:100px;background:var(--surface);transition:.15s;}
+  .topbar{position:fixed;top:0;left:0;right:0;height:52px;z-index:60;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:10px;padding:0 18px;background:var(--surface);border-bottom:1px solid var(--line);}
+  .topbar-title{justify-self:center;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+  .back-link{justify-self:start;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.13em;color:var(--text-dim);text-decoration:none;padding:6px 16px;border:1px solid var(--line);border-radius:100px;background:rgba(255,255,255,.03);transition:.15s;}
   .back-link:hover{border-color:var(--accent);color:var(--accent);}
+  *{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.18) transparent;}
+  *::-webkit-scrollbar{width:8px;height:8px;}
+  *::-webkit-scrollbar-track{background:transparent;}
+  *::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:8px;}
+  *::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.32);}
 
   .btn{font-family:'Inter',sans-serif;font-weight:700;font-size:13px;padding:10px 16px;border-radius:9px;cursor:pointer;border:none;transition:.15s;}
   .btn-solid{background:var(--accent);color:#0F0B16;}
@@ -56,12 +63,12 @@
   /* VISTA DIVIDIDA (calcado del Jefe 366): chat general fijo/sticky en escritorio */
   /* En pantallas angostas es un botón normal en el flujo (nunca se tapa ni se pierde);
      en escritorio (>=1000px, donde de verdad cabe la vista dividida) pasa a fijo en la esquina. */
-  .view-toggle-btn{display:inline-flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--line);color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:11px;padding:7px 14px;border-radius:20px;cursor:pointer;margin-bottom:14px;}
+  .view-toggle-btn{justify-self:end;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--line);color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:11px;padding:7px 14px;border-radius:20px;cursor:pointer;}
   .view-toggle-btn:hover{border-color:var(--accent);color:var(--accent);}
-  @media (min-width:1000px){ .view-toggle-btn{ position:fixed; top:14px; right:18px; z-index:50; margin-bottom:0; } }
+  @media (max-width:999px){ .view-toggle-btn{ display:none; } }
   @media (min-width:1000px){
     #temporada-main.split-view{ display:grid; grid-template-columns:400px 1fr; align-items:start; gap:20px; max-width:1400px; }
-    #temporada-main.split-view #general-chat-box{ position:sticky; top:20px; max-height:calc(100vh - 40px); overflow-y:auto; }
+    #temporada-main.split-view #general-chat-box{ position:sticky; top:62px; max-height:calc(100vh - 82px); overflow-y:auto; }
   }
 
   .empty-row{padding:24px;text-align:center;color:var(--text-dim);font-size:13px;background:var(--surface);border:1px dashed var(--line);border-radius:12px;}
@@ -149,8 +156,12 @@
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="topbar">
   <a id="back-hub" href="/" class="back-link">&lt;&lt; Hub de Jefes <span style="opacity:.4;">//</span> <span id="brand-marca-label">—</span></a>
+  <span class="topbar-title">Jefe de Temporada</span>
+  <button type="button" class="view-toggle-btn" id="viewToggleBtn" onclick="toggleVistaDividida()">🔀 Vista dividida</button>
+</div>
+<div class="wrap">
   <script>(function(){var p=location.pathname;var b=p.indexOf('/rancho-seco/')!==-1||p.endsWith('/rancho-seco')?'/rancho-seco':p.indexOf('/rim/')!==-1||p.endsWith('/rim')?'/rim':p.indexOf('/optica-one/')!==-1||p.endsWith('/optica-one')?'/optica-one':null;if(b)document.getElementById('back-hub').href=b;})();</script>
   <script src="/js/storage-client.js"></script>
   <script>(async function(){
@@ -187,8 +198,6 @@
     <button type="button" class="btn-danger-outline" id="btn-eliminar" onclick="eliminarCampana()" disabled>Eliminar</button>
     <button type="button" class="btn btn-solid" id="btn-nueva" onclick="nuevaCampana()" disabled>+ Nueva campaña</button>
   </div>
-
-  <button type="button" class="view-toggle-btn" id="viewToggleBtn" onclick="toggleVistaDividida()">🔀 Vista dividida</button>
 
   <div id="content"></div>
 </div>
