@@ -983,7 +983,15 @@ function sufijoGrupo(){
   return (!mostrarTodasLasPestanas && grupoActivo) ? ':' + grupoActivo.id : '';
 }
 
+// El primer grupo de la lista es, por convención, el que ya existía antes de que este negocio
+// definiera grupos -- es el único candidato válido para heredar el contenido de la llave vieja
+// sin sufijo (ver cargarTarjetas). Los demás grupos son nuevos de verdad, nunca deben heredar nada.
+function esGrupoOriginal(){
+  return !mostrarTodasLasPestanas && grupoActivo && gruposNegocioState[0] && grupoActivo.id === gruposNegocioState[0].id;
+}
+
 function tarjetasKey(){ return 'rancho-seco:whatsapp-estrategia-tarjetas' + sufijoGrupo(); }
+function tarjetasKeyVieja(){ return 'rancho-seco:whatsapp-estrategia-tarjetas'; }
 
 function pintarTarjetas(data){
   TARJETAS_CAMPOS.forEach((campo) => {
@@ -995,7 +1003,17 @@ function pintarTarjetas(data){
 async function cargarTarjetas(){
   const data = Object.assign({}, DEFAULT_TARJETAS);
   try{
-    const r = await window.storage.get(tarjetasKey());
+    let r = await window.storage.get(tarjetasKey());
+    if((!r || !r.value) && esGrupoOriginal()){
+      // Migración: antes de que existieran grupos de negocio, todo vivía en la llave sin sufijo.
+      // Si la llave nueva del primer grupo todavía está vacía, recuperamos de ahí y la migramos
+      // -- así el contenido real generado antes no se queda "escondido" detrás de "Ver todas".
+      const viejo = await window.storage.get(tarjetasKeyVieja());
+      if(viejo && viejo.value){
+        r = viejo;
+        window.storage.set(tarjetasKey(), viejo.value).catch(() => {});
+      }
+    }
     if(r && r.value){
       const guardado = JSON.parse(r.value);
       TARJETAS_CAMPOS.forEach((c) => { if(guardado[c] != null) data[c] = guardado[c]; });
