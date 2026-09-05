@@ -134,6 +134,26 @@
     .graph-node .node-label{ font-size: 9px; }
     .graph-node .node-emoji{ font-size: 18px; }
   }
+
+  /* Guía de bienvenida (solo primera vez) */
+  .guia-overlay{
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(15,11,22,0.82); backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .guia-card{
+    max-width: 420px; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 16px; padding: 28px; text-align: center;
+  }
+  .guia-titulo{ font-family:'Oswald',sans-serif; font-size: 20px; font-weight: 600; margin-bottom: 14px; }
+  .guia-texto{ font-size: 14px; line-height: 1.55; color: var(--chalk-dim); margin-bottom: 22px; }
+  .guia-texto strong{ color: var(--accent); }
+  .guia-btn{
+    background: var(--accent); color: #241733; border: none; border-radius: 100px;
+    padding: 11px 26px; font-family:'Inter',sans-serif; font-weight: 700; font-size: 13px;
+    cursor: pointer;
+  }
 </style>
 </head>
 <body>
@@ -154,6 +174,14 @@
 
 <a class="fab-adn" href="/rim/adn">✦ Editar ADN del negocio</a>
 
+<div class="guia-overlay" id="guiaOverlay" hidden>
+  <div class="guia-card">
+    <p class="guia-titulo">👋 Bienvenido a tu Hub de Jefes</p>
+    <p class="guia-texto">Empieza por <strong>Jefe 366</strong> — ahí vas a construir tu estrategia completa, paso a paso. Conforme avances, los demás Jefes se van desbloqueando solos, en el orden correcto, hasta que llegues a vender los 366 días del año.</p>
+    <button class="guia-btn" onclick="cerrarGuiaHub()">Entendido, empezar</button>
+  </div>
+</div>
+
 <div class="footer-overlay">
   Red Impulso Mujer<br>
   Equipo de Marketing IA por <a href="https://jefeshub.com">JefesHub</a>
@@ -161,23 +189,87 @@
 
 <script src="/js/storage-client.js"></script>
 <script>
-(function initHubGraph(){
+// Guía de bienvenida: solo la primera vez que este navegador entra al hub de este cliente.
+const GUIA_KEY = 'jefeshub_guia_vista_rim';
+function cerrarGuiaHub(){
+  try{ localStorage.setItem(GUIA_KEY, '1'); }catch(e){}
+  document.getElementById('guiaOverlay').hidden = true;
+}
+(function mostrarGuiaSiEsPrimeraVez(){
+  try{
+    if(!localStorage.getItem(GUIA_KEY)) document.getElementById('guiaOverlay').hidden = false;
+  }catch(e){}
+})();
+
+// Requisito para desbloquear cada Jefe -- null = siempre activo, 'nunca' = siempre bloqueado
+// (placeholder "próximamente"). El resto se resuelve en tiempo real contra lo que el negocio
+// ya tiene guardado (ver calcularProgreso), siguiendo la ruta que ya guía Jefe 366 al terminar
+// cada módulo: Documento Maestro -> primer contenido -> WhatsApp/Finanzas/Anuncios -> primer
+// anuncio -> optimización.
+const JEFES_BASE = [
+  {id:0, num:'01', icono:'jefe-366', nombre:'Jefe 366', href:'/rim/consultor-366', requisito:null},
+  {id:5, num:'02', icono:'jefe-contenido', nombre:'Jefe de Contenido', href:'/rim/consultor-contenido', requisito:'jefe366'},
+  {id:3, num:'03', icono:'jefe-whatsapp', nombre:'WhatsApp y Ventas', href:'/rim/consultor-whatsapp', requisito:'contenido'},
+  {id:1, num:'04', icono:'jefe-finanzas', nombre:'Jefe de Finanzas', href:'/rim/consultor-financiero', requisito:'contenido'},
+  {id:4, num:'05', icono:'jefe-radar', nombre:'Jefe del Faro', href:'/rim/consultor-radar', requisito:null},
+  {id:6, num:'06', icono:'jefe-anuncios', nombre:'Jefe de Anuncios', href:'/rim/consultor-anuncios', requisito:'contenido'},
+  {id:7, num:'07', icono:'jefe-produccion-video', nombre:'Jefe Productor IA', href:'/rim/consultor-produccion-video', requisito:null},
+  {id:2, num:'08', icono:'jefe-conversion', nombre:'Jefe de Conversión', href:'/rim/consultor-cierre', requisito:null},
+  {id:8, num:'09', icono:'jefe-optimizacion', nombre:'Jefe de Mejora Constante', href:'/rim/consultor-optimizacion', requisito:'anuncios'},
+  {id:9, num:'10', icono:'jefe-temporada', nombre:'Campañas de Temporada', href:'/rim/consultor-temporada', requisito:null},
+  {id:10, num:'11', icono:'jefe-agenda', nombre:'Jefe de Agenda', href:'/rim/consultor-agenda', requisito:null},
+  {id:11, num:'12', emoji:'🛠️', nombre:'Jefe de Herramientas', href:null, requisito:'nunca'},
+];
+const REQUISITO_TEXTO = {
+  jefe366: 'Termina el Documento Maestro en Jefe 366 para desbloquear',
+  contenido: 'Crea tu primer post en Jefe de Contenido para desbloquear',
+  anuncios: 'Crea tu primer anuncio en Jefe de Anuncios para desbloquear',
+  nunca: 'Próximamente',
+};
+
+async function calcularProgreso(clienteId){
+  const leerJSON = async (key) => {
+    try{
+      const r = await window.storage.get(clienteId + ':' + key);
+      return r && r.value ? JSON.parse(r.value) : null;
+    }catch(e){ return null; }
+  };
+  const tieneLista = (d) => !!(d && Array.isArray(d.lista) && d.lista.length > 0);
+  try{
+    const [perfiles, productos, sistemas, comunicaciones, contenido, anuncios] = await Promise.all([
+      leerJSON('brand-book.audiencias'),
+      leerJSON('brand-book.366-producto'),
+      leerJSON('brand-book.366-sistema'),
+      leerJSON('brand-book.366-comunicacion'),
+      leerJSON('agente-contenido'),
+      leerJSON('agente-anuncios'),
+    ]);
+    return {
+      jefe366Completo: tieneLista(perfiles) && tieneLista(productos) && tieneLista(sistemas) && tieneLista(comunicaciones),
+      primerContenido: !!(contenido && Array.isArray(contenido.contenido) && contenido.contenido.length > 0),
+      primerAnuncio: Array.isArray(anuncios) && anuncios.length > 0,
+    };
+  }catch(e){
+    return { jefe366Completo: true, primerContenido: true, primerAnuncio: true };
+  }
+}
+function requisitoCumplido(requisito, progreso){
+  if (requisito === null) return true;
+  if (requisito === 'nunca') return false;
+  if (requisito === 'jefe366') return progreso.jefe366Completo;
+  if (requisito === 'contenido') return progreso.primerContenido;
+  if (requisito === 'anuncios') return progreso.primerAnuncio;
+  return true;
+}
+
+(async function initHubGraph(){
   const CLIENTE_ID = 'rim';
 
-  const jefes = [
-    {id:0, num:'01', icono:'jefe-366', nombre:'Jefe 366', activo:true, href:'/rim/consultor-366'},
-    {id:5, num:'02', icono:'jefe-contenido', nombre:'Jefe de Contenido', activo:true, href:'/rim/consultor-contenido'},
-    {id:3, num:'03', icono:'jefe-whatsapp', nombre:'WhatsApp y Ventas', activo:true, href:'/rim/consultor-whatsapp'},
-    {id:1, num:'04', icono:'jefe-finanzas', nombre:'Jefe de Finanzas', activo:true, href:'/rim/consultor-financiero'},
-    {id:4, num:'05', icono:'jefe-radar', nombre:'Jefe del Faro', activo:true, href:'/rim/consultor-radar'},
-    {id:6, num:'06', icono:'jefe-anuncios', nombre:'Jefe de Anuncios', activo:true, href:'/rim/consultor-anuncios'},
-    {id:7, num:'07', icono:'jefe-produccion-video', nombre:'Jefe Productor IA', activo:true, href:'/rim/consultor-produccion-video'},
-    {id:2, num:'08', icono:'jefe-conversion', nombre:'Jefe de Conversión', activo:true, href:'/rim/consultor-cierre'},
-    {id:8, num:'09', icono:'jefe-optimizacion', nombre:'Jefe de Mejora Constante', activo:false, href:null},
-    {id:9, num:'10', icono:'jefe-temporada', nombre:'Campañas de Temporada', activo:true, href:'/rim/consultor-temporada'},
-    {id:10, num:'11', icono:'jefe-agenda', nombre:'Jefe de Agenda', activo:true, href:'/rim/consultor-agenda'},
-    {id:11, num:'12', emoji:'🛠️', nombre:'Jefe de Herramientas', activo:false, href:null},
-  ];
+  const progreso = await calcularProgreso(CLIENTE_ID);
+  const jefes = JEFES_BASE.map((j) => {
+    const activo = requisitoCumplido(j.requisito, progreso);
+    return Object.assign({}, j, { activo, href: activo ? j.href : null });
+  });
   // Nodo central: el ADN del negocio. Todos los Jefes conectan hacia el
   // (hub-and-spoke) -- la conexion es decorativa/tematica, no representa
   // paso de datos real entre Jefes.
@@ -295,7 +387,7 @@
   nodePrincipal.append('text').attr('class','node-num').attr('y', d=>d.activo?-26:-22).text(d=>d.num);
   nodePrincipal.filter(d=>!d.activo).append('text').attr('class','node-lock').attr('y',18).text('🔒');
   nodePrincipal.append('text').attr('class','node-label').attr('y', d=>radioDe(d)+18).text(d=>d.nombre);
-  nodePrincipal.append('title').text(d => d.activo ? d.nombre : d.nombre + ' — Próximamente');
+  nodePrincipal.append('title').text(d => d.activo ? d.nombre : d.nombre + ' — ' + (REQUISITO_TEXTO[d.requisito] || 'Próximamente'));
 
   // Nodo ADN: emoji, nombre del negocio (o "ADN pendiente"), y estado.
   // El nombre del negocio no tiene largo fijo -- si no encoge la letra,
