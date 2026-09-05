@@ -500,33 +500,75 @@
     };
   }
 
-  async function save(){
+  var DASHBOARD_TABLE = 'dashboard_data';
+  var cloudSyncTimer = null;
+
+  function queueCloudSync(){
+    clearTimeout(cloudSyncTimer);
+    cloudSyncTimer = setTimeout(async function(){
+      try{
+        var sessionRes = await supabaseClient.auth.getSession();
+        var userId = sessionRes.data.session && sessionRes.data.session.user.id;
+        if(!userId) return;
+        await supabaseClient.from(DASHBOARD_TABLE).upsert({ user_id: userId, data: data, updated_at: new Date().toISOString() });
+      }catch(e){ console.error('cloud sync error', e); }
+    }, 800);
+  }
+
+  async function fetchCloudData(){
+    try{
+      var sessionRes = await supabaseClient.auth.getSession();
+      var userId = sessionRes.data.session && sessionRes.data.session.user.id;
+      if(!userId) return {status:'no-auth'};
+      var result = await supabaseClient.from(DASHBOARD_TABLE).select('data').eq('user_id', userId).maybeSingle();
+      if(result.error) return {status:'error'};
+      if(!result.data) return {status:'empty'};
+      return {status:'ok', data: result.data.data};
+    }catch(e){
+      return {status:'error'};
+    }
+  }
+
+  async function saveLocalOnly(){
     try{ await window.storage.set('jany-dashboard-v2', JSON.stringify(data)); }
     catch(e){ console.error('storage error', e); }
   }
 
+  async function save(){
+    await saveLocalOnly();
+    queueCloudSync();
+  }
+
   async function load(){
-    try{
-      var r = await window.storage.get('jany-dashboard-v2');
-      data = r && r.value ? JSON.parse(r.value) : JSON.parse(JSON.stringify(defaultData));
-    }catch(e){
-      data = JSON.parse(JSON.stringify(defaultData));
+    var cloud = await fetchCloudData();
+    if(cloud.status === 'ok'){
+      data = cloud.data;
+      window.storage.set('jany-dashboard-v2', JSON.stringify(data));
+    } else {
+      try{
+        var r = await window.storage.get('jany-dashboard-v2');
+        data = r && r.value ? JSON.parse(r.value) : JSON.parse(JSON.stringify(defaultData));
+      }catch(e){
+        data = JSON.parse(JSON.stringify(defaultData));
+      }
+      if(cloud.status === 'empty') queueCloudSync();
     }
     if(!data.habitChecks) data.habitChecks = {};
     fixHabitCheckTimes();
-    save();
+    saveLocalOnly();
+    if(cloud.status === 'ok') queueCloudSync();
     if(!data.chatLog) data.chatLog = [];
     if(!data.history) data.history = [];
     if(!data.tokenUsage) data.tokenUsage = {inputTokens:0, outputTokens:0};
     if(!data.finMovements) data.finMovements = [];
     if(!data.subscriptions) data.subscriptions = [];
     if(!data.habitChecks[todayKey]) data.habitChecks[todayKey] = {};
-    if(!data.startDate){ data.startDate = todayKey; save(); }
+    if(!data.startDate){ data.startDate = todayKey; saveLocalOnly(); }
     if(!data.areaStats){
       data.areaStats = {espiritualidad:{done:0,total:0}, ejercicio:{done:0,total:0}, trabajo:{done:0,total:0}, familia:{done:0,total:0}, disfrute:{done:0,total:0}};
       data.tasks.forEach(function(t){ bumpAreaTotal(t.text); });
       data.products.forEach(function(p){ p.tasks.forEach(function(t){ bumpAreaTotal(t.text); if(t.done) bumpAreaDone(t.text); }); });
-      save();
+      saveLocalOnly();
     }
     renderAll();
   }
