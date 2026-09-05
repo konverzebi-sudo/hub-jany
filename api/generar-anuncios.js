@@ -21,7 +21,6 @@ const PROMPT_PATH_DETALLE = path.join(__dirname, '..', 'prompts', 'system-prompt
 const PROMPT_PATH_TARGETING = path.join(__dirname, '..', 'prompts', 'system-prompt-targeting-anuncios.md');
 const PROMPT_PATH_CAMPOS_META = path.join(__dirname, '..', 'prompts', 'system-prompt-campos-meta.md');
 const PROMPT_PATH_CHAT = path.join(__dirname, '..', 'prompts', 'system-prompt-chat-anuncios.md');
-const PROMPT_PATH_DETALLE_IMAGEN = path.join(__dirname, '..', 'prompts', 'system-prompt-detalle-imagen.md');
 const CHAT_MAX_MESSAGES = 40;
 const CONTEXT_CHAR_LIMIT = 10000;
 const MAX_IDEAS_POR_LOTE = 9;
@@ -120,6 +119,40 @@ function formatearIdentidad(d) {
   if (d.producto_estrella) lineas.push(`Producto estrella: ${d.producto_estrella}`);
   if (lineas.length === 0) return null;
   return 'IDENTIDAD DEL NEGOCIO:\n' + lineas.join('\n');
+}
+
+// Debe reflejar los mismos ids/fuentes que FONT_COMBOS en ADN.html (paso "Logo y Colores") -- si
+// se agrega una combinación nueva ahí, agregarla aquí también para que los prompts de imagen/video
+// puedan describirla en vez de inventar una tipografía genérica.
+const FONT_COMBOS_AI = {
+  'bold-impact': { nombre: 'Bold Impact', fuente: 'Bebas Neue' },
+  'modern-clean': { nombre: 'Modern Clean', fuente: 'Montserrat' },
+  'elegant-luxury': { nombre: 'Elegant Luxury', fuente: 'Playfair Display' },
+  'sporty-dynamic': { nombre: 'Sporty Dynamic', fuente: 'Oswald' },
+  'varsity-sport': { nombre: 'Varsity Sport', fuente: 'Anton' },
+  'western-rustic': { nombre: 'Western Rustic', fuente: 'Rye' },
+  'friendly-rounded': { nombre: 'Friendly Rounded', fuente: 'Quicksand' },
+  'tech-digital': { nombre: 'Tech Digital', fuente: 'Space Grotesk' },
+};
+
+// Datos reales del paso "Logo y Colores" del ADN (brand-book.visual) -- sin esto los prompts de
+// imagen/video salen genéricos (sin colores ni tipografía de la marca) e incluso inventan un logo
+// que no existe. Nunca se inventa un color o fuente que no venga aquí.
+function formatearVisual(d) {
+  if (!d) return null;
+  const lineas = [];
+  if (Array.isArray(d.paleta) && d.paleta.length) {
+    lineas.push(`Paleta de colores real de la marca (usa EXACTAMENTE estos colores en prompt_imagen y prompt_video, no inventes otros): ${d.paleta.join(', ')}`);
+  }
+  const combo = d.tipografia_combo && FONT_COMBOS_AI[d.tipografia_combo];
+  if (combo) {
+    lineas.push(`Tipografía real de la marca: ${combo.fuente} (estilo "${combo.nombre}") -- si prompt_imagen describe texto en pantalla, pide que se vea en esta tipografía.`);
+  }
+  if (d.logo) {
+    lineas.push('La marca YA tiene un logo real definido -- en prompt_imagen y prompt_video nunca describas ni inventes un logo, símbolo o ícono de marca nuevo; en vez de eso, si el anuncio lo pide, indica dejar un espacio limpio para pegar el logo real después.');
+  }
+  if (lineas.length === 0) return null;
+  return 'IDENTIDAD VISUAL DE LA MARCA:\n' + lineas.join('\n');
 }
 
 function formatearTono(d) {
@@ -503,7 +536,7 @@ async function formatearBancoConversacionesWhatsApp(clienteId) {
 }
 
 async function construirContexto(clienteId, grupoId) {
-  const [identidad, tono, audiencia, catalogo, grupos, bloque366, radarHistorial, conversacionReciente, bloqueRetroalimentacion, bancoConversaciones, redes] = await Promise.all([
+  const [identidad, tono, audiencia, catalogo, grupos, bloque366, radarHistorial, conversacionReciente, bloqueRetroalimentacion, bancoConversaciones, redes, visual] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
     leerAudiencias(clienteId).catch(() => []),
@@ -515,6 +548,7 @@ async function construirContexto(clienteId, grupoId) {
     formatearRetroalimentacion(clienteId).catch(() => null),
     formatearBancoConversacionesWhatsApp(clienteId).catch(() => null),
     leerJSON(`${clienteId}:brand-book.redes`).catch(() => null),
+    leerJSON(`${clienteId}:brand-book.visual`).catch(() => null),
   ]);
 
   const bloquesNegocio = [
@@ -523,6 +557,7 @@ async function construirContexto(clienteId, grupoId) {
     formatearAudiencias(audiencia),
     formatearCatalogo(catalogo, grupos, grupoId),
     formatearRedes(redes),
+    formatearVisual(visual),
   ].filter(Boolean);
 
   const bloqueRadar = formatearRadar(radarHistorial);
@@ -755,84 +790,6 @@ async function manejarModoDetalle(body, res) {
   return res.status(200).json({ detalles, formato, usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 } });
 }
 
-// ---------- modo: detalle_imagen (analiza una imagen/fotograma de un anuncio ya hecho) ----------
-
-async function manejarModoDetalleImagen(body, res) {
-  const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
-  const grupoId = body.grupo_id ? body.grupo_id.toString() : '';
-  const productoId = body.producto_id ? body.producto_id.toString() : '';
-  const notas = (body.notas || '').toString().trim().slice(0, 4000);
-  const formatoForzado = FORMATOS_VALIDOS.includes(body.formato) ? body.formato : '';
-  const imagenBase64 = (body.imagen_base64 || '').toString();
-  const mediaType = MEDIA_TYPES_IMAGEN_VALIDOS.includes(body.imagen_media_type) ? body.imagen_media_type : 'image/jpeg';
-
-  if (!imagenBase64) {
-    return res.status(400).json({ error: 'Falta la imagen a analizar.' });
-  }
-  if (imagenBase64.length > MAX_IMAGEN_BASE64_CHARS) {
-    return res.status(400).json({ error: 'La imagen es demasiado grande. Usa una imagen más ligera o un fotograma más pequeño.' });
-  }
-
-  const promptFijo = cargarPrompt(PROMPT_PATH_DETALLE_IMAGEN);
-  const { contexto, catalogo } = await construirContexto(clienteId, grupoId);
-  const bloqueProducto = formatearProducto(catalogo, productoId, 'el análisis debe conectar con este producto puntual si aplica');
-
-  const instruccion = 'INSTRUCCIÓN DE ESTA GENERACIÓN:\n' +
-    'Analiza la imagen adjunta (un anuncio ya hecho o el fotograma de un video de anuncio) y entrega su ficha completa en el formato JSON indicado.' +
-    (formatoForzado ? `\nFORMATO YA CONFIRMADO POR EL USUARIO (respeta este, no lo redetectes): ${formatoForzado}\n` : '\n') +
-    (notas ? `\nNOTAS DEL USUARIO (contexto extra, prioridad alta -- por ejemplo el guion o texto que se dice en el video):\n${notas}\n` : '') +
-    (bloqueProducto ? '\n' + bloqueProducto : '');
-
-  const system = [promptFijo, contexto, instruccion].join('\n\n');
-  const userContent = [
-    { type: 'image', source: { type: 'base64', media_type: mediaType, data: imagenBase64 } },
-    { type: 'text', text: 'Analiza esta imagen y entrega su ficha completa, en el formato JSON indicado.' },
-  ];
-  const { ok, status, data } = await llamarClaudeConHistorial(system, [{ role: 'user', content: userContent }], 3000);
-  if (!ok) {
-    return res.status(status).json({ error: data?.error?.message || 'Error al llamar a la API.' });
-  }
-
-  const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
-  const d = extractJson(text);
-  if (!d) {
-    return res.status(502).json({ error: data.stop_reason === 'max_tokens' ? 'La respuesta quedó incompleta (muy larga). Intenta de nuevo.' : 'No se pudo interpretar la respuesta del modelo.' });
-  }
-
-  const etapaDetectada = ETAPAS.includes(d.etapa) ? d.etapa : 'consideracion';
-  const detalle = {
-    titulo: d.titulo || '',
-    hook: d.hook || '',
-    etapa: etapaDetectada,
-    formato: formatoForzado || (FORMATOS_VALIDOS.includes(d.formato_detectado) ? d.formato_detectado : 'imagen estática'),
-    objetivo: d.objetivo || '',
-    angulo: d.angulo || '',
-    audiencia: AUDIENCIA_POR_ETAPA[etapaDetectada] || '',
-    guion: (d.guion && typeof d.guion === 'object') ? {
-      hook: d.guion.hook || '',
-      problema: d.guion.problema || '',
-      solucion: d.guion.solucion || '',
-      prueba: d.guion.prueba || '',
-      costo_inaccion: d.guion.costo_inaccion || '',
-      cta: d.guion.cta || '',
-    } : { hook: '', problema: '', solucion: '', prueba: '', costo_inaccion: '', cta: '' },
-    version_15s: d.version_15s || '',
-    hooks_alternativos: Array.isArray(d.hooks_alternativos) ? d.hooks_alternativos.filter(Boolean).map((h) => h.toString()) : [],
-    visual_sugerido: d.visual_sugerido || '',
-    duracion_sugerida: d.duracion_sugerida || '',
-    copy_publicacion: d.copy_publicacion || '',
-    prompt_imagen: d.prompt_imagen || '',
-    prompt_video: d.prompt_video || '',
-    caption_whatsapp: d.caption_whatsapp || '',
-    titulo_anuncio: d.titulo_anuncio || '',
-    descripcion_anuncio: d.descripcion_anuncio || '',
-    cta_boton: validarCta(d.cta_boton) || 'Más información',
-  };
-
-  await registrarUsoTokens(clienteId, 'generar-anuncios-detalle-imagen', data.usage);
-  return res.status(200).json({ detalle, usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 } });
-}
-
 // ---------- modo: targeting (perfil de segmentación sugerido para un Conjunto de Anuncios) ----------
 
 async function manejarModoTargeting(body, res) {
@@ -945,15 +902,35 @@ async function manejarModoCompletarMeta(body, res) {
 
 const cargarPromptChat = () => cargarPrompt(PROMPT_PATH_CHAT);
 
+// El chat acepta adjuntar una imagen (o el fotograma de un video) en el mensaje del usuario --
+// content llega como array de bloques [{type:'image',...}, {type:'text',...}] en vez de string.
+// Solo se resenvía en la llamada donde se adjuntó (el cliente ya la vuelve texto en los turnos
+// siguientes), pero se valida igual por si acaso.
+function sanitizarContenidoChat(content) {
+  if (typeof content === 'string') return content.trim() ? content : null;
+  if (!Array.isArray(content) || !content.length) return null;
+  const bloques = content.map((block) => {
+    if (block && block.type === 'text') return { type: 'text', text: (block.text || '').toString() };
+    if (block && block.type === 'image' && block.source && block.source.type === 'base64') {
+      const mediaType = MEDIA_TYPES_IMAGEN_VALIDOS.includes(block.source.media_type) ? block.source.media_type : 'image/jpeg';
+      const data = (block.source.data || '').toString();
+      if (!data || data.length > MAX_IMAGEN_BASE64_CHARS) return null;
+      return { type: 'image', source: { type: 'base64', media_type: mediaType, data } };
+    }
+    return null;
+  }).filter(Boolean);
+  return bloques.length ? bloques : null;
+}
+
 async function manejarModoChat(body, res) {
   const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
   const grupoId = body.grupo_id ? body.grupo_id.toString() : '';
   const productoId = body.producto_id ? body.producto_id.toString() : '';
   const messagesRaw = Array.isArray(body.messages) ? body.messages : [];
   const historial = messagesRaw
-    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
-    .slice(-CHAT_MAX_MESSAGES)
-    .map((m) => ({ role: m.role, content: m.content }));
+    .map((m) => (m && (m.role === 'user' || m.role === 'assistant')) ? { role: m.role, content: sanitizarContenidoChat(m.content) } : null)
+    .filter((m) => m && m.content)
+    .slice(-CHAT_MAX_MESSAGES);
 
   if (!historial.length || historial[historial.length - 1].role !== 'user') {
     return res.status(400).json({ error: 'Falta el mensaje del usuario.' });
@@ -1004,11 +981,10 @@ module.exports = async function handler(req, res) {
   try {
     if (modo === 'ideas') return await manejarModoIdeas(body, res);
     if (modo === 'detalle') return await manejarModoDetalle(body, res);
-    if (modo === 'detalle_imagen') return await manejarModoDetalleImagen(body, res);
     if (modo === 'targeting') return await manejarModoTargeting(body, res);
     if (modo === 'completar_meta') return await manejarModoCompletarMeta(body, res);
     if (modo === 'chat') return await manejarModoChat(body, res);
-    return res.status(400).json({ error: 'Falta o es inválido el campo "modo" (usa "ideas", "detalle", "detalle_imagen", "targeting", "completar_meta" o "chat").' });
+    return res.status(400).json({ error: 'Falta o es inválido el campo "modo" (usa "ideas", "detalle", "targeting", "completar_meta" o "chat").' });
   } catch (err) {
     return res.status(500).json({ error: 'Error de conexión con el Agente.' });
   }

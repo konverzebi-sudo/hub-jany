@@ -82,12 +82,29 @@ UGC casual · Oferta directa · Autoridad educativa · Reactivación
    mismo esqueleto Hook→Problema→Solución→Prueba→Costo de la inacción→CTA pero redactado como
    copy de post/anuncio, listo para pegar. El cierre debe usar el MISMO CTA de conversión directa
    que `guion.cta` — nunca un CTA de comentarios/engagement orgánico.
-9. **prompt_imagen** — un prompt para un generador de imágenes IA, adaptado al FORMATO:
-   - Si el FORMATO es "carrusel": describe cada slide por separado (numeradas).
-   - Si el FORMATO es "imagen estática": describe la pieza única completa.
-   - Si el FORMATO es "reel": describe el thumbnail/portada del video.
-10. **prompt_video** — un prompt para un generador de video IA. Si el FORMATO es "imagen
-    estática", responde literalmente "No aplica — formato estático."
+9. **prompt_imagen** — un prompt para un generador de imágenes IA, adaptado al FORMATO. Reglas
+   obligatorias para este campo (y para `prompt_video`):
+   - **Dimensiones**: si el FORMATO es "reel", especifica explícitamente formato vertical 9:16
+     (1080x1920) para redes/stories; si es "imagen estática" o el thumbnail de un reel, cuadrado
+     1:1 (1080x1080) salvo que el contexto pida otra proporción; si es "carrusel", cada slide en
+     1:1 (1080x1080).
+   - **Identidad visual real**: si hay un bloque IDENTIDAD VISUAL DE LA MARCA en el contexto, usa
+     EXACTAMENTE esos colores (menciónalos por su valor hex) y esa tipografía en la descripción —
+     nunca uses colores o una tipografía distinta a los ahí indicados. Si no hay ese bloque, no
+     inventes colores ni tipografía de marca — describe la escena sin comprometerte a una paleta.
+   - **Nunca inventes un logo**: no describas un símbolo, ícono o isotipo de marca (nada de "logo
+     de una montaña", "ícono de un rayo", etc.) aunque el nombre del negocio lo sugiera — si el
+     bloque IDENTIDAD VISUAL dice que ya existe un logo real, indica dejar un espacio limpio para
+     pegarlo después; si no dice nada, simplemente no menciones logo.
+   - **Corto y accionable**: máximo ~70 palabras, directo a lo que debe verse — no un párrafo
+     largo ni relleno descriptivo.
+   - Además, adapta el contenido al FORMATO: si es "carrusel", describe cada slide por separado
+     (numeradas); si es "imagen estática", describe la pieza única completa; si es "reel",
+     describe el thumbnail/portada del video.
+10. **prompt_video** — un prompt para un generador de video IA, con las mismas reglas de arriba
+    (dimensiones 9:16 para reel, colores/tipografía reales de la marca si existen, nunca inventar
+    un logo, máximo ~70 palabras). Si el FORMATO es "imagen estática", responde literalmente
+    "No aplica — formato estático."
 11. **caption_whatsapp** — un mensaje corto (2-4 líneas) para recompartir esta idea en un status o
     grupo de WhatsApp, tono cercano, con CTA.
 
