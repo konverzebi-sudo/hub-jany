@@ -120,6 +120,11 @@
       </div>
       <div class="jd-h" style="margin-top:14px;">Desglose de deuda</div>
       <div id="jd-debt-list"></div>
+      <div class="jd-row" style="margin-top:6px;">
+        <input class="jd-input" id="jd-debt-add-name" placeholder="Banco o tarjeta (ej. Santander)">
+        <input class="jd-input" id="jd-debt-add-amount" placeholder="Monto" type="number" style="max-width:90px;">
+      </div>
+      <button class="jd-btn" style="margin-top:8px;width:100%;" id="jd-debt-add">Agregar deuda</button>
       <div class="jd-h" style="margin-top:14px;">Por banco</div>
       <div id="jd-bank-list"></div>
     </div>
@@ -131,6 +136,7 @@
           <select class="jd-input" id="jd-fin-type" style="flex:1;">
             <option value="compra">Compra</option>
             <option value="ingreso">Ingreso</option>
+            <option value="pago_deuda">Pago de deuda</option>
             <option value="ahorro_corto">Ahorro corto plazo</option>
             <option value="ahorro_largo">Ahorro largo plazo</option>
           </select>
@@ -369,7 +375,7 @@
     debts: [
       {id:'d1', name:'BanBajío Oro ****9972', amount:36807.07},
       {id:'d2', name:'BBVA Azul ****8827', amount:26402.83},
-      {id:'d3', name:'Banamex', amount:10000}
+      {id:'d3', name:'BANAMEX', amount:10000}
     ],
     savings: [],
     movements: [],
@@ -635,16 +641,31 @@
         });
         return;
       }
-      row.innerHTML = '<span style="cursor:pointer;"><span class="jd-dot" style="background:'+debtColor(d.name)+';"></span>'+d.name+'</span><span style="font-weight:600;">'+fmt(d.amount)+'</span>';
+      row.innerHTML = '<span style="cursor:pointer;"><span class="jd-dot" style="background:'+debtColor(d.name)+';"></span>'+d.name+'</span>'+
+        '<span class="jd-row" style="gap:6px;"><span style="font-weight:600;">'+fmt(d.amount)+'</span><button class="jd-btn" style="padding:1px 8px;">×</button></span>';
       row.querySelector('span').addEventListener('click', function(){
         editingDebtId = d.id;
         renderDebt();
+      });
+      row.querySelector('button').addEventListener('click', function(){
+        data.debts = data.debts.filter(function(x){ return x.id !== d.id; });
+        save(); renderDebt();
       });
       list.appendChild(row);
     });
     renderBankBreakdown();
     populateFinAccountSelect();
   }
+
+  document.getElementById('jd-debt-add').addEventListener('click', function(){
+    var name = document.getElementById('jd-debt-add-name').value.trim();
+    var amount = parseFloat(document.getElementById('jd-debt-add-amount').value);
+    if(!name || isNaN(amount)) return;
+    data.debts.push({id:uid('d'), name:name, amount:amount});
+    document.getElementById('jd-debt-add-name').value='';
+    document.getElementById('jd-debt-add-amount').value='';
+    save(); renderDebt();
+  });
 
   function renderBankBreakdown(){
     var box = document.getElementById('jd-bank-list');
@@ -1422,8 +1443,8 @@
     var iso = dateISO || todayKey;
     var dateLabel = new Date(iso+'T00:00:00').toLocaleDateString('es-MX', {day:'numeric', month:'short'});
     data.finMovements.push({id:uid('fm'), name:name, type:type, paymentType:paymentType, account:account||null, amount:amount, date:iso});
-    if(type === 'compra' || type === 'ingreso'){
-      var signed = type === 'compra' ? -Math.abs(amount) : Math.abs(amount);
+    if(type === 'compra' || type === 'ingreso' || type === 'pago_deuda'){
+      var signed = type === 'ingreso' ? Math.abs(amount) : -Math.abs(amount);
       data.movements.unshift({id:uid('m'), date:dateLabel, text:name+(account?' ('+account+')':''), amount:signed});
       if(data.movements.length > 30) data.movements.length = 30;
       var debt = account ? data.debts.find(function(d){ return d.name.toLowerCase().indexOf(account.toLowerCase())>-1 || account.toLowerCase().indexOf(d.name.toLowerCase())>-1; }) : null;
@@ -1549,7 +1570,7 @@
       var cell = document.createElement('div');
       var bg = '#1B2117';
       if(items.length){
-        bg = items.some(function(m){ return m.type==='compra'; }) ? '#3B211E' : items.some(function(m){ return m.type==='ingreso'; }) ? '#1E3B24' : items.some(function(m){ return m.type==='suscripcion'; }) ? '#2A1E3B' : '#1E2A3B';
+        bg = items.some(function(m){ return m.type==='compra'; }) ? '#3B211E' : items.some(function(m){ return m.type==='ingreso'; }) ? '#1E3B24' : items.some(function(m){ return m.type==='pago_deuda'; }) ? '#3B2E1E' : items.some(function(m){ return m.type==='suscripcion'; }) ? '#2A1E3B' : '#1E2A3B';
       }
       cell.style.cssText = 'aspect-ratio:1;border-radius:6px;background:'+bg+';display:flex;align-items:center;justify-content:center;font-size:11px;color:#B9C0AF;cursor:pointer;'+(isToday?'box-shadow:0 0 0 1.5px #C6FF4B inset;':'');
       cell.textContent = day;
@@ -1571,7 +1592,7 @@
       return;
     }
     var html = '<div style="border-top:1px solid #232A1E;padding-top:10px;"><div style="font-size:12.5px;font-weight:600;color:#EDEFEA;margin-bottom:6px;text-transform:capitalize;">'+dateLabel+'</div>';
-    var typeLabels = {compra:'compra', ingreso:'ingreso', ahorro_corto:'ahorro corto plazo', ahorro_largo:'ahorro largo plazo', suscripcion:'app mensual'};
+    var typeLabels = {compra:'compra', ingreso:'ingreso', pago_deuda:'pago de deuda', ahorro_corto:'ahorro corto plazo', ahorro_largo:'ahorro largo plazo', suscripcion:'app mensual'};
     items.forEach(function(m){
       html += '<div style="padding:5px 0;border-bottom:1px solid #232A1E;font-size:11.5px;color:#9BA294;">'+m.name+(m.account?' · '+m.account:'')+' — '+fmt(Math.abs(m.amount))+' <span class="jd-sub">('+(typeLabels[m.type]||m.type)+')</span></div>';
     });
@@ -1984,7 +2005,7 @@
       'Responde SIEMPRE con UN SOLO objeto JSON valido (nunca varios seguidos, nunca uno por cada cosa que menciono), sin texto extra ni markdown, en una de estas tres formas:\n'+
       '{"status":"ask","question":"..."}\n'+
       '{"status":"respond","reply":"..."}\n'+
-      '{"status":"done","action":{"type":"evento|editar|historial|movimiento|reto|habito|proyecto","editId":"id EXACTO de la lista de Agenda o null","text":"...","date":"YYYY-MM-DD","endDate":"YYYY-MM-DD o null","time":"HH:MM 24h o null","durationMinutes":numero o null,"project":"nombre EXACTO de la lista o null","amount":numero o null,"finType":"compra|ingreso|ahorro_corto|ahorro_largo","paymentType":"unico|plazos","account":"nombre de banco/cuenta o null"}}\n\n'+
+      '{"status":"done","action":{"type":"evento|editar|historial|movimiento|reto|habito|proyecto","editId":"id EXACTO de la lista de Agenda o null","text":"...","date":"YYYY-MM-DD","endDate":"YYYY-MM-DD o null","time":"HH:MM 24h o null","durationMinutes":numero o null,"project":"nombre EXACTO de la lista o null","amount":numero o null,"finType":"compra|ingreso|pago_deuda|ahorro_corto|ahorro_largo","paymentType":"unico|plazos","account":"nombre de banco/cuenta o null"}}\n\n'+
       'Reglas: si el mensaje es una pregunta, pide consejo, o quiere ayuda para organizar/priorizar sus proyectos y pendientes '+
       '(sin ser claramente algo para agregar a una lista), usa status="respond" con una respuesta util, especifica a su situacion real, y breve (maximo 5 lineas). '+
       'Si el mensaje describe algo que YA HIZO (tiempo pasado: "trabajé en", "agregué", "terminé", "estuve haciendo"), usa type="historial" '+
@@ -2001,9 +2022,10 @@
       'Si el evento pertenece claramente a uno de los proyectos/negocios existentes (lo menciono por nombre, o es obvio por el cliente/tema), '+
       'llena tambien "project" con el nombre EXACTO de la lista, aunque el type sea evento (no solo proyecto). Si no es claro o es un pendiente personal, deja "project" en null, no lo inventes. '+
       'type=proyecto es una tarea que pertenece claramente a uno de los proyectos existentes (pon el nombre EXACTO en "project"). '+
-      'type=movimiento es cualquier compra, ingreso, o ahorro (corto o largo plazo): llena "finType" (compra|ingreso|ahorro_corto|ahorro_largo), '+
+      'type=movimiento es cualquier compra, ingreso, pago de deuda, o ahorro (corto o largo plazo): llena "finType" (compra|ingreso|pago_deuda|ahorro_corto|ahorro_largo), '+
       '"paymentType" (unico|plazos — pregunta si no es obvio si fue de un solo pago o a plazos), "account" (banco/cuenta si lo menciono, o null), '+
-      'y "amount" (numero). Si no da el monto, pregunta el monto antes de responder status:done. '+
+      'y "amount" (numero). Usa finType="pago_deuda" cuando menciona que pago, abono, o liquido una tarjeta/deuda/prestamo existente (distinto de una compra nueva o un ingreso). '+
+      'Si no da el monto, pregunta el monto antes de responder status:done. '+
       'type=reto es un pendiente suelto sin proyecto ni fecha clara. type=habito es un habito diario nuevo a trackear.\n'+
       'Si el mensaje incluye una foto (de un recibo, ticket, estado de cuenta o pantalla de compra), leela para identificar el monto, '+
       'el comercio o banco, y la fecha si se ve. Trata esto como type="movimiento" con finType="compra" salvo que el texto o la imagen '+
