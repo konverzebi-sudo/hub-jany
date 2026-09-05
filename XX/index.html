@@ -140,9 +140,10 @@
           </select>
         </div>
         <div class="jd-row" style="gap:6px;margin-bottom:6px;">
-          <input class="jd-input" id="jd-fin-account" placeholder="Cuenta (ej. BBVA Oro)" style="flex:1;">
+          <select class="jd-input" id="jd-fin-account-select" style="flex:1;"></select>
           <input class="jd-input" id="jd-fin-amount" placeholder="Monto" type="number" style="width:90px;">
         </div>
+        <input class="jd-input" id="jd-fin-account-other" placeholder="Nombre de la cuenta" style="margin-bottom:6px;display:none;">
         <div class="jd-row" style="gap:6px;margin-bottom:6px;">
           <input class="jd-input" id="jd-fin-date" type="date" style="flex:1;">
         </div>
@@ -366,7 +367,7 @@
       Object.assign({id:'hist1', project:'Rancho Seco', text:'Diseño de los 4 banners (Carnes El Mirador)', minutes:90}, {date:new Date().toLocaleDateString('es-MX',{day:'numeric',month:'short'}), dateISO:localISO(), time:new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})})
     ],
     debts: [
-      {id:'d1', name:'BBVA Oro ****9972', amount:36807.07},
+      {id:'d1', name:'BanBajío Oro ****9972', amount:36807.07},
       {id:'d2', name:'BBVA Azul ****8827', amount:26402.83},
       {id:'d3', name:'Banamex', amount:10000}
     ],
@@ -469,6 +470,25 @@
   }
   var todayKey = localISO();
 
+  function time24(d){
+    d = d || new Date();
+    return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  }
+
+  function fixHabitCheckTimes(){
+    Object.keys(data.habitChecks).forEach(function(day){
+      Object.keys(data.habitChecks[day]).forEach(function(habitId){
+        var entry = data.habitChecks[day][habitId];
+        var m = entry && entry.time && /^(\d{1,2}):(\d{2})\s*([ap])\.?\s*m\.?/i.exec(entry.time);
+        if(m){
+          var hour = parseInt(m[1],10) % 12;
+          if(m[3].toLowerCase() === 'p') hour += 12;
+          entry.time = String(hour).padStart(2,'0') + ':' + m[2];
+        }
+      });
+    });
+  }
+
   function fmt(n){ return '$' + Number(n||0).toLocaleString('es-MX', {minimumFractionDigits:2, maximumFractionDigits:2}); }
   function uid(p){ return p + Date.now() + Math.floor(Math.random()*1000); }
   function historyStamp(){
@@ -493,6 +513,8 @@
       data = JSON.parse(JSON.stringify(defaultData));
     }
     if(!data.habitChecks) data.habitChecks = {};
+    fixHabitCheckTimes();
+    save();
     if(!data.chatLog) data.chatLog = [];
     if(!data.history) data.history = [];
     if(!data.tokenUsage) data.tokenUsage = {inputTokens:0, outputTokens:0};
@@ -541,6 +563,8 @@
     }, 7000);
   }
 
+  var editingDebtId = null;
+
   function renderDebt(){
     var total = data.debts.reduce(function(s,d){ return s + Number(d.amount); }, 0);
     var totalEl = document.getElementById('jd-debt-total');
@@ -553,10 +577,31 @@
       var row = document.createElement('div');
       row.className = 'jd-row';
       row.style.cssText = 'justify-content:space-between;padding:6px 0;border-bottom:1px solid #232A1E;font-size:13px;';
-      row.innerHTML = '<span><span class="jd-dot" style="background:'+debtColor(d.name)+';"></span>'+d.name+'</span><span style="font-weight:600;">'+fmt(d.amount)+'</span>';
+      if(editingDebtId === d.id){
+        row.style.cssText = 'padding:6px 0;border-bottom:1px solid #232A1E;';
+        row.innerHTML = '<div class="jd-row" style="gap:6px;"><input class="jd-input" id="jd-debt-edit-name" value="'+d.name.replace(/"/g,'&quot;')+'" style="flex:1;"><button class="jd-btn jd-btn-lima" id="jd-debt-edit-save">✓</button><button class="jd-btn" id="jd-debt-edit-cancel">×</button></div>';
+        list.appendChild(row);
+        document.getElementById('jd-debt-edit-save').addEventListener('click', function(){
+          var newName = document.getElementById('jd-debt-edit-name').value.trim();
+          if(newName) d.name = newName;
+          editingDebtId = null;
+          save(); renderDebt();
+        });
+        document.getElementById('jd-debt-edit-cancel').addEventListener('click', function(){
+          editingDebtId = null;
+          renderDebt();
+        });
+        return;
+      }
+      row.innerHTML = '<span style="cursor:pointer;"><span class="jd-dot" style="background:'+debtColor(d.name)+';"></span>'+d.name+'</span><span style="font-weight:600;">'+fmt(d.amount)+'</span>';
+      row.querySelector('span').addEventListener('click', function(){
+        editingDebtId = d.id;
+        renderDebt();
+      });
       list.appendChild(row);
     });
     renderBankBreakdown();
+    populateFinAccountSelect();
   }
 
   function renderBankBreakdown(){
@@ -725,7 +770,7 @@
       row.querySelector('input').addEventListener('change', function(e){
         if(!data.habitChecks[todayKey]) data.habitChecks[todayKey] = {};
         if(e.target.checked){
-          data.habitChecks[todayKey][h.id] = {done:true, time: new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})};
+          data.habitChecks[todayKey][h.id] = {done:true, time: time24()};
         } else {
           delete data.habitChecks[todayKey][h.id];
         }
@@ -1342,16 +1387,37 @@
     return true;
   }
 
+  function populateFinAccountSelect(){
+    var sel = document.getElementById('jd-fin-account-select');
+    if(!sel) return;
+    var prevValue = sel.value;
+    var names = data.debts.map(function(d){ return d.name; });
+    sel.innerHTML = names.map(function(n){
+      return '<option value="'+n.replace(/"/g,'&quot;')+'">'+n+'</option>';
+    }).join('') + '<option value="__other__">+ Otra cuenta...</option>';
+    if(names.indexOf(prevValue) > -1) sel.value = prevValue;
+  }
+
+  document.getElementById('jd-fin-account-select').addEventListener('change', function(){
+    var otherInput = document.getElementById('jd-fin-account-other');
+    var isOther = this.value === '__other__';
+    otherInput.style.display = isOther ? 'block' : 'none';
+    if(isOther) otherInput.focus();
+  });
+
   document.getElementById('jd-fin-add').addEventListener('click', function(){
     var name = document.getElementById('jd-fin-name').value.trim();
     var type = document.getElementById('jd-fin-type').value;
     var paymentType = document.getElementById('jd-fin-payment').value;
-    var account = document.getElementById('jd-fin-account').value.trim();
+    var accountSelect = document.getElementById('jd-fin-account-select').value;
+    var account = accountSelect === '__other__' ? document.getElementById('jd-fin-account-other').value.trim() : accountSelect;
     var amount = parseFloat(document.getElementById('jd-fin-amount').value);
     var dateISO = document.getElementById('jd-fin-date').value;
     if(addFinMovement(name, type, paymentType, account, amount, dateISO)){
       document.getElementById('jd-fin-name').value='';
-      document.getElementById('jd-fin-account').value='';
+      document.getElementById('jd-fin-account-other').value='';
+      document.getElementById('jd-fin-account-other').style.display='none';
+      document.getElementById('jd-fin-account-select').value = data.debts.length ? data.debts[0].name : '__other__';
       document.getElementById('jd-fin-amount').value='';
       document.getElementById('jd-fin-date').value='';
     }
