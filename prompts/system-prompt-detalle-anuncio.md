@@ -73,9 +73,14 @@ UGC casual · Oferta directa · Autoridad educativa · Reactivación
    guion largo.
 5. **hooks_alternativos** — un array de EXACTAMENTE 3 hooks alternativos al de la idea original,
    distintos entre sí en enfoque (ej. uno de curiosidad, uno de identificación, uno de contraste).
-6. **visual_sugerido** — 1-2 líneas describiendo qué se debe mostrar en cámara/pantalla (no es el
-   prompt de IA, es la idea de producción: "screen recording del antes/después", "testimonio a
-   cámara con el producto en mano", etc.).
+6. **visual_sugerido** — 1-2 líneas con una idea de grabación REAL que el dueño del negocio pueda
+   filmar él mismo con su celular, en su negocio, con lo que ya tiene a la mano (ej. "graba el
+   balón entrando a la portería en cámara lenta", "graba al equipo llegando y saludándose en la
+   cancha", "testimonio a cámara de un cliente real con el producto en mano", "recorrido corto
+   mostrando el espacio del negocio"). Tiene que ser específico al negocio y al momento real de
+   este anuncio, no una idea genérica desconectada de lo que se está anunciando. **Nunca** pongas
+   aquí gráficos, animaciones, countdowns, overlays de texto animado ni nada que no se pueda filmar
+   con una cámara de celular tal cual — eso va en `prompt_video`, no en este campo.
 7. **duracion_sugerida** — duración recomendada para el FORMATO (ej. "15-30 segundos" para reel,
    "estático, sin duración" para imagen estática).
 8. **copy_publicacion** — el texto para publicar el anuncio (no el guion hablado): con emojis,
@@ -103,8 +108,10 @@ UGC casual · Oferta directa · Autoridad educativa · Reactivación
      describe el thumbnail/portada del video.
 10. **prompt_video** — un prompt para un generador de video IA, con las mismas reglas de arriba
     (dimensiones 9:16 para reel, colores/tipografía reales de la marca si existen, nunca inventar
-    un logo, máximo ~70 palabras). Si el FORMATO es "imagen estática", responde literalmente
-    "No aplica — formato estático."
+    un logo, máximo ~70 palabras). Aquí SÍ va cualquier elemento animado o gráfico que el anuncio
+    necesite (countdown, texto animado en pantalla, transiciones, animación de logo, overlays) —
+    descríbelo explícitamente en este prompt, nunca en `visual_sugerido`. Si el FORMATO es "imagen
+    estática", responde literalmente "No aplica — formato estático."
 11. **caption_whatsapp** — un mensaje corto (2-4 líneas) para recompartir esta idea en un status o
     grupo de WhatsApp, tono cercano, con CTA.
 
