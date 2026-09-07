@@ -805,7 +805,19 @@
     var box = document.getElementById('jd-progress-mini');
     if(!box) return;
     var days = Math.floor((new Date(todayKey) - new Date(data.startDate)) / 86400000) + 1;
-    box.innerHTML = '<span class="jd-disp" style="font-size:20px;">'+days+'</span> <span class="jd-sub">día'+(days===1?'':'s')+'</span>';
+    box.innerHTML = '<span class="jd-disp" style="font-size:20px;">'+days+'</span> <span class="jd-sub">día'+(days===1?'':'s')+'</span> '+
+      '<span id="jd-progress-edit-link" class="jd-sub" style="cursor:pointer;text-decoration:underline;font-size:10.5px;">editar</span>';
+    document.getElementById('jd-progress-edit-link').addEventListener('click', function(e){
+      e.stopPropagation();
+      var statsBox = document.getElementById('jd-habits-stats');
+      statsBox.style.display = 'block';
+      statsBox.scrollIntoView({behavior:'smooth', block:'start'});
+      var form = document.getElementById('jd-startdate-edit-form');
+      if(form){
+        form.style.display = 'block';
+        document.getElementById('jd-startdate-edit-input').focus();
+      }
+    });
   }
 
   function dateStrOffset(offset){
@@ -826,13 +838,23 @@
 
   var HABIT_PALETTE = ['#8FE39E','#BB6BD9','#56CCF2','#F2C94C','#EB5757','#6FCF97','#F2994A','#9B8CFF'];
 
+  function dayHasActivity(ds){
+    var dayChecks = data.habitChecks[ds];
+    return !!(dayChecks && Object.keys(dayChecks).length > 0);
+  }
+
   function renderHabitsStats(){
     var box = document.getElementById('jd-habits-stats');
     if(!box) return;
-    var totalDays = Math.floor((new Date(todayKey) - new Date(data.startDate)) / 86400000) + 1;
+    var activityDates = Object.keys(data.habitChecks).filter(dayHasActivity).sort();
+    var firstActivity = activityDates.length ? activityDates[0] : data.startDate;
+    var rangeStart = firstActivity < data.startDate ? data.startDate : firstActivity;
+    var totalDays = Math.floor((new Date(todayKey) - new Date(rangeStart)) / 86400000) + 1;
     var daysToShow = Math.min(totalDays, 14);
-    var days = [];
-    for(var i=daysToShow-1; i>=0; i--){ days.push(dateStrOffset(i)); }
+    var allDays = [];
+    for(var i=daysToShow-1; i>=0; i--){ allDays.push(dateStrOffset(i)); }
+    var days = allDays.filter(dayHasActivity);
+    if(days.length === 0) days = allDays;
 
     var w = Math.max(280, days.length*38 + 46);
     var h = 190;
@@ -854,6 +876,15 @@
     });
 
     var anyPoints = false;
+    var placedLabels = [];
+    function labelY(x, y){
+      var ly = y - 6;
+      while(placedLabels.some(function(p){ return Math.abs(p.x-x) < 22 && Math.abs(p.y-ly) < 9; })){
+        ly -= 9;
+      }
+      placedLabels.push({x:x, y:ly});
+      return ly;
+    }
     data.habits.forEach(function(hb, hi){
       var color = HABIT_PALETTE[hi % HABIT_PALETTE.length];
       var segments = [];
@@ -879,7 +910,7 @@
           }
           seg.forEach(function(p){
             svg += '<circle cx="'+p.x+'" cy="'+p.y+'" r="3" fill="'+color+'"/>';
-            svg += '<text x="'+p.x+'" y="'+(p.y-6)+'" font-size="8" fill="'+color+'" text-anchor="middle">'+p.label+'</text>';
+            svg += '<text x="'+p.x+'" y="'+labelY(p.x, p.y)+'" font-size="8" fill="'+color+'" text-anchor="middle">'+p.label+'</text>';
           });
         });
       }
@@ -900,7 +931,7 @@
           '<input class="jd-input" id="jd-startdate-edit-input" type="date" value="'+data.startDate+'" style="flex:1;">'+
           '<button class="jd-btn jd-btn-lima" id="jd-startdate-edit-save">Guardar</button>'+
         '</div>'+
-        '<div class="jd-sub" style="margin-top:4px;">Desde este dia se cuentan los "Dias activo" y este grafico.</div>'+
+        '<div class="jd-sub" style="margin-top:4px;">Desde este dia se cuentan los "Dias activo". El grafico ya ajusta solo al primer dia con actividad real.</div>'+
       '</div>'+
       '<div style="overflow-x:auto;">'+svg+'</div>'+
       (anyPoints ? legend : '<div class="jd-sub" style="margin-top:8px;">Todavía no hay horarios registrados.</div>');
