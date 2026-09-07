@@ -22,7 +22,12 @@ const PROMPT_PATH_TARGETING = path.join(__dirname, '..', 'prompts', 'system-prom
 const PROMPT_PATH_CAMPOS_META = path.join(__dirname, '..', 'prompts', 'system-prompt-campos-meta.md');
 const PROMPT_PATH_CHAT = path.join(__dirname, '..', 'prompts', 'system-prompt-chat-anuncios.md');
 const CHAT_MAX_MESSAGES = 40;
-const CONTEXT_CHAR_LIMIT = 10000;
+// 10000 se quedaba corto para negocios con ADN/audiencias/catálogo detallados (ej. Rancho Seco):
+// el corte caía a mitad de "CONTEXTO DEL NEGOCIO", cortando por completo Redes/Contacto, Identidad
+// Visual, y las 4 Notas 366 (ángulos, frases maestras, perfil de cliente) que son el contexto más
+// importante de este Jefe. Claude Sonnet soporta un contexto enorme -- no hay razón real para un
+// límite tan chico aquí.
+const CONTEXT_CHAR_LIMIT = 60000;
 const MAX_IDEAS_POR_LOTE = 9;
 const MAX_CAMPOS_META_POR_LOTE = 12;
 const FORMATOS_VALIDOS = ['reel', 'imagen estática', 'carrusel'];
