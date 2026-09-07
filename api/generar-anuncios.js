@@ -985,6 +985,21 @@ module.exports = async function handler(req, res) {
       const raw = await leerJSON(key);
       return res.status(200).json({ key, tipo: typeof raw, esArray: Array.isArray(raw), valor: raw });
     }
+    if (modo === 'debug_contexto') {
+      const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
+      const grupoId = body.grupo_id ? body.grupo_id.toString() : '';
+      const redesRaw = await leerJSON(`${clienteId}:brand-book.redes`);
+      const bloqueRedes = formatearRedes(redesRaw);
+      const { contexto } = await construirContexto(clienteId, grupoId);
+      return res.status(200).json({
+        redesEsNull: redesRaw === null,
+        bloqueRedesEsNull: bloqueRedes === null,
+        bloqueRedes,
+        contextoLength: contexto.length,
+        contextoIncluyeRedes: contexto.includes('CONTACTO Y REDES'),
+        contextoIncluyeNumero: contexto.includes('8442043991'),
+      });
+    }
     if (modo === 'ideas') return await manejarModoIdeas(body, res);
     if (modo === 'detalle') return await manejarModoDetalle(body, res);
     if (modo === 'targeting') return await manejarModoTargeting(body, res);
