@@ -151,13 +151,9 @@
   .carpeta-box-collapsed .carpeta-collapsed-hint{font-size:10.5px;color:var(--text-dim);opacity:.6;}
   .carpeta-box-collapsed:hover{border-color:#7CB9E8;}
 
-  /* CTA "Consulta con el Jefe" -- entra a la pestaña Consulta en vivo (texto o imagen) desde el Generador */
-  .chat-cta-box{background:var(--accent);border-radius:16px;padding:22px 26px;margin-bottom:20px;color:#0F0B16;}
-  .chat-cta-title{display:flex;align-items:center;gap:8px;font-family:'Sora',sans-serif;font-weight:800;font-size:17px;margin-bottom:8px;}
-  .chat-cta-title .live-dot-mini{width:9px;height:9px;border-radius:50%;background:#0F0B16;display:inline-block;}
-  .chat-cta-desc{font-size:13.5px;line-height:1.55;margin:0 0 16px;max-width:640px;opacity:.9;}
-  .chat-cta-box .btn-empezar-chat{background:#0F0B16;color:var(--accent);border:none;border-radius:10px;padding:11px 20px;font-family:'Inter',sans-serif;font-weight:700;font-size:13.5px;cursor:pointer;transition:.15s;}
-  .chat-cta-box .btn-empezar-chat:hover{filter:brightness(1.3);}
+  /* "Consulta con el Jefe" -- ahora vive inline dentro del Generador, no en su propia pestaña */
+  .chat-cta-title{display:flex;align-items:center;gap:8px;font-family:'Sora',sans-serif;font-weight:800;font-size:17px;margin:4px 0 10px;color:var(--accent);}
+  .chat-cta-title .live-dot-mini{width:9px;height:9px;border-radius:50%;background:var(--accent);display:inline-block;}
 
   /* Adjuntar imagen en el chat -- mismo pipeline de compresión que antes, ahora dentro de Consulta en vivo */
   .chat-adjunto-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;}
@@ -239,7 +235,6 @@
     <div class="tab active" data-tab="generador">✨ Generador con AI</div>
     <div class="tab" data-tab="guardadas">Campañas guardadas <span class="count" id="count-cards">0</span></div>
     <div class="tab" data-tab="estructura">🏗️ Estructura de Ads</div>
-    <div class="tab" data-tab="chat">💬 Consulta en vivo</div>
   </div>
 
   <div id="content"></div>
@@ -451,7 +446,6 @@ function render(){
   contentEl.innerHTML='';
   if(currentTab==='generador') renderGenerador(contentEl);
   else if(currentTab==='estructura') renderEstructura(contentEl);
-  else if(currentTab==='chat') renderChat(contentEl);
   else renderGuardadas(contentEl);
 }
 document.querySelectorAll('.tab').forEach(t=>{
@@ -532,21 +526,15 @@ function renderGenerador(container){
     </details>
   `;
   wrap.appendChild(toolbar);
+  // Se adjunta ya aquí (no hasta el final) porque renderChat() busca sus elementos por id vía
+  // document.getElementById -- necesita que `wrap` ya esté en el DOM real, no solo en memoria.
+  container.appendChild(wrap);
 
-  const chatCtaBox = document.createElement('div');
-  chatCtaBox.className = 'chat-cta-box';
-  chatCtaBox.innerHTML = `
-    <div class="chat-cta-title"><span class="live-dot-mini"></span> Consulta con el Jefe</div>
-    <p class="chat-cta-desc">Dime qué idea tienes, o sube una imagen del anuncio (ya hecho o un mockup) y te voy a ayudar con todo lo que necesitas para configurarlo en campañas. ¿Con qué arrancamos?</p>
-    <button class="btn-empezar-chat" id="ir-a-chat-btn" type="button">🚀 Empezar</button>
-  `;
-  wrap.appendChild(chatCtaBox);
-  document.addEventListener('DOMContentLoaded',()=>{}); // no-op, evita warnings de linters estrictos
-  chatCtaBox.querySelector('#ir-a-chat-btn').addEventListener('click', ()=>{
-    currentTab = 'chat';
-    document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active', x.dataset.tab==='chat'));
-    render();
-  });
+  const chatHeading = document.createElement('div');
+  chatHeading.className = 'chat-cta-title';
+  chatHeading.innerHTML = `<span class="live-dot-mini"></span> Consulta con el Jefe`;
+  wrap.appendChild(chatHeading);
+  renderChat(wrap);
 
   const selBar = document.createElement('div');
   selBar.className='anuncios-selection-bar';
@@ -591,7 +579,6 @@ function renderGenerador(container){
     wrap.appendChild(box);
   });
 
-  container.appendChild(wrap);
   updateSelCount();
 
   document.getElementById('anuncios-grupo-sel').addEventListener('change',(e)=>{ grupoId=e.target.value; productoId=''; render(); });
@@ -1311,7 +1298,8 @@ function pintarChatThread(){
       const tagImagen = m.imagenNombre ? `<div class="chat-msg-imagen-tag">📎 ${escHtml(m.imagenNombre)}</div>` : '';
       return `<div class="chat-msg chat-msg-user">${tagImagen}${escHtml(m.content)}</div>`;
     }
-    return `<div class="chat-msg chat-msg-assistant">${escHtml(m.content)}
+    const badgeEtapa = m.etapa ? `<span class="badge badge-${m.etapa}" style="margin-bottom:6px;">${ETAPA_LABEL[m.etapa]||m.etapa}</span><br>` : '';
+    return `<div class="chat-msg chat-msg-assistant">${badgeEtapa}${escHtml(m.content)}
       <div class="chat-msg-actions">
         <button type="button" data-copy-idx="${i}">📋 Copiar</button>
         <button type="button" data-usar-idx="${i}" class="${m.usada?'done':''}">${m.usada?'✅ Agregado a Campañas guardadas':'✅ Guardar como campaña'}</button>
@@ -1368,7 +1356,14 @@ async function enviarMensajeChat(){
     });
     const data = await res.json();
     if(!res.ok) throw new Error(data.error || 'Error al consultar al Jefe.');
-    chatMessages.push({role:'assistant', content:data.text||''});
+    // Cuando el Jefe entrega un guion completo, la 1a línea trae "ETAPA: adquisicion|consideracion|
+    // conversion" (metadata para clasificar la tarjeta si se guarda como campaña) -- se separa del
+    // texto que se muestra/copia, nunca se le enseña esa línea cruda al usuario.
+    const textoCrudo = data.text || '';
+    const matchEtapa = textoCrudo.match(/^\s*ETAPA:\s*(adquisicion|consideracion|conversion)\s*\n?/i);
+    const etapaDetectada = matchEtapa ? matchEtapa[1].toLowerCase() : '';
+    const textoLimpio = matchEtapa ? textoCrudo.slice(matchEtapa[0].length) : textoCrudo;
+    chatMessages.push({role:'assistant', content:textoLimpio, etapa: etapaDetectada});
     chatStatus = '✅ Listo';
   }catch(err){
     chatMessages.pop();
@@ -1385,7 +1380,7 @@ function usarRespuestaChatComoCampana(idx){
   const primeraLinea = (msg.content.split('\n').find(l=>l.trim())||'').slice(0,140);
   cards.unshift({
     id: mkCardId(),
-    etapa: 'consideracion',
+    etapa: (msg.etapa && ETAPAS.some(e=>e.key===msg.etapa)) ? msg.etapa : 'consideracion',
     formato: 'reel',
     grupo_id: grupoId || '',
     producto_id: productoId || '',
