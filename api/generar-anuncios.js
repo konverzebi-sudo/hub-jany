@@ -993,16 +993,39 @@ module.exports = async function handler(req, res) {
     if (modo === 'debug_contexto') {
       const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
       const grupoId = body.grupo_id ? body.grupo_id.toString() : '';
-      const redesRaw = await leerJSON(`${clienteId}:brand-book.redes`);
-      const bloqueRedes = formatearRedes(redesRaw);
+      const [identidadD, tonoD, audienciaD, catalogoD, gruposD, bloque366D, radarD, convD, retroD, bancoD, redesD, visualD] = await Promise.all([
+        leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
+        leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
+        leerAudiencias(clienteId).catch(() => []),
+        leerJSON(`${clienteId}:catalogo-productos`).catch(() => null),
+        leerJSON(`${clienteId}:grupos-negocio`).catch(() => null),
+        construirContexto366Notas(clienteId).catch(() => null),
+        leerJSON(`${clienteId}:radar-historial`).catch(() => null),
+        formatearConversacion366NoGuardada(clienteId).catch(() => null),
+        formatearRetroalimentacion(clienteId).catch(() => null),
+        formatearBancoConversacionesWhatsApp(clienteId).catch(() => null),
+        leerJSON(`${clienteId}:brand-book.redes`).catch(() => null),
+        leerJSON(`${clienteId}:brand-book.visual`).catch(() => null),
+      ]);
+      const len = (x) => (x ? x.toString().length : 0);
       const { contexto } = await construirContexto(clienteId, grupoId);
       return res.status(200).json({
-        redesEsNull: redesRaw === null,
-        bloqueRedesEsNull: bloqueRedes === null,
-        bloqueRedes,
         contextoLength: contexto.length,
         contextoIncluyeRedes: contexto.includes('CONTACTO Y REDES'),
-        contextoIncluyeNumero: contexto.includes('8442043991'),
+        contextoIncluye366: contexto.includes('CONTEXTO 366'),
+        partes: {
+          identidad: len(formatearIdentidad(identidadD)),
+          tono: len(formatearTono(tonoD)),
+          audiencia: len(formatearAudiencias(audienciaD)),
+          catalogo: len(formatearCatalogo(catalogoD, gruposD, grupoId)),
+          redes: len(formatearRedes(redesD)),
+          visual: len(formatearVisual(visualD)),
+          bloque366: len(bloque366D),
+          radar: len(formatearRadar(radarD)),
+          conversacionReciente: len(convD),
+          retroalimentacion: len(retroD),
+          bancoConversaciones: len(bancoD),
+        },
       });
     }
     if (modo === 'ideas') return await manejarModoIdeas(body, res);
