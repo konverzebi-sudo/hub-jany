@@ -979,6 +979,12 @@ module.exports = async function handler(req, res) {
   const modo = (body.modo || '').toString();
 
   try {
+    if (modo === 'debug_leer') {
+      const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
+      const key = `${clienteId}:${(body.key || '').toString()}`;
+      const raw = await leerJSON(key);
+      return res.status(200).json({ key, tipo: typeof raw, esArray: Array.isArray(raw), valor: raw });
+    }
     if (modo === 'ideas') return await manejarModoIdeas(body, res);
     if (modo === 'detalle') return await manejarModoDetalle(body, res);
     if (modo === 'targeting') return await manejarModoTargeting(body, res);
