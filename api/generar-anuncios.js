@@ -22,12 +22,15 @@ const PROMPT_PATH_TARGETING = path.join(__dirname, '..', 'prompts', 'system-prom
 const PROMPT_PATH_CAMPOS_META = path.join(__dirname, '..', 'prompts', 'system-prompt-campos-meta.md');
 const PROMPT_PATH_CHAT = path.join(__dirname, '..', 'prompts', 'system-prompt-chat-anuncios.md');
 const CHAT_MAX_MESSAGES = 40;
-// 10000 se quedaba corto para negocios con ADN/audiencias/catálogo detallados (ej. Rancho Seco):
-// el corte caía a mitad de "CONTEXTO DEL NEGOCIO", cortando por completo Redes/Contacto, Identidad
-// Visual, y las 4 Notas 366 (ángulos, frases maestras, perfil de cliente) que son el contexto más
-// importante de este Jefe. Claude Sonnet soporta un contexto enorme -- no hay razón real para un
-// límite tan chico aquí.
-const CONTEXT_CHAR_LIMIT = 60000;
+// 10000 se quedaba corto para negocios con ADN/audiencias/catálogo detallados (ej. Rancho Seco,
+// donde solo el bloque de Audiencias ya mide ~55000 caracteres y las 4 Notas 366 ~85000): el
+// corte caía a mitad de "CONTEXTO DEL NEGOCIO", tumbando por completo Redes/Contacto, Identidad
+// Visual, y casi todo el CONTEXTO 366 (ángulos, frases maestras, perfil de cliente) -- el contexto
+// más importante de este Jefe. Medido con modo debug_contexto: el total real de todos los bloques
+// juntos ronda los 150000 caracteres para un cliente con ADN completo. Claude Sonnet soporta un
+// contexto enorme (~150k caracteres son ~35-40k tokens, nada comparado a su ventana de 200k
+// tokens) -- se sube el límite para que quepa todo con margen, en vez de truncar contenido real.
+const CONTEXT_CHAR_LIMIT = 200000;
 const MAX_IDEAS_POR_LOTE = 9;
 const MAX_CAMPOS_META_POR_LOTE = 12;
 const FORMATOS_VALIDOS = ['reel', 'imagen estática', 'carrusel'];
@@ -984,50 +987,6 @@ module.exports = async function handler(req, res) {
   const modo = (body.modo || '').toString();
 
   try {
-    if (modo === 'debug_leer') {
-      const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
-      const key = `${clienteId}:${(body.key || '').toString()}`;
-      const raw = await leerJSON(key);
-      return res.status(200).json({ key, tipo: typeof raw, esArray: Array.isArray(raw), valor: raw });
-    }
-    if (modo === 'debug_contexto') {
-      const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
-      const grupoId = body.grupo_id ? body.grupo_id.toString() : '';
-      const [identidadD, tonoD, audienciaD, catalogoD, gruposD, bloque366D, radarD, convD, retroD, bancoD, redesD, visualD] = await Promise.all([
-        leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
-        leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
-        leerAudiencias(clienteId).catch(() => []),
-        leerJSON(`${clienteId}:catalogo-productos`).catch(() => null),
-        leerJSON(`${clienteId}:grupos-negocio`).catch(() => null),
-        construirContexto366Notas(clienteId).catch(() => null),
-        leerJSON(`${clienteId}:radar-historial`).catch(() => null),
-        formatearConversacion366NoGuardada(clienteId).catch(() => null),
-        formatearRetroalimentacion(clienteId).catch(() => null),
-        formatearBancoConversacionesWhatsApp(clienteId).catch(() => null),
-        leerJSON(`${clienteId}:brand-book.redes`).catch(() => null),
-        leerJSON(`${clienteId}:brand-book.visual`).catch(() => null),
-      ]);
-      const len = (x) => (x ? x.toString().length : 0);
-      const { contexto } = await construirContexto(clienteId, grupoId);
-      return res.status(200).json({
-        contextoLength: contexto.length,
-        contextoIncluyeRedes: contexto.includes('CONTACTO Y REDES'),
-        contextoIncluye366: contexto.includes('CONTEXTO 366'),
-        partes: {
-          identidad: len(formatearIdentidad(identidadD)),
-          tono: len(formatearTono(tonoD)),
-          audiencia: len(formatearAudiencias(audienciaD)),
-          catalogo: len(formatearCatalogo(catalogoD, gruposD, grupoId)),
-          redes: len(formatearRedes(redesD)),
-          visual: len(formatearVisual(visualD)),
-          bloque366: len(bloque366D),
-          radar: len(formatearRadar(radarD)),
-          conversacionReciente: len(convD),
-          retroalimentacion: len(retroD),
-          bancoConversaciones: len(bancoD),
-        },
-      });
-    }
     if (modo === 'ideas') return await manejarModoIdeas(body, res);
     if (modo === 'detalle') return await manejarModoDetalle(body, res);
     if (modo === 'targeting') return await manejarModoTargeting(body, res);
