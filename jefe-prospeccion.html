@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jefe de Prospección — JefesHub</title>
+<link rel="icon" type="image/png" href="/img/favicon-32.png">
+<link rel="apple-touch-icon" href="/img/favicon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#0F0B16; --surface:#181120; --surface-2:#211829; --line:#332A3D;
+    --text:#F3EEF9; --text-dim:#B6A9C7;
+    --accent:#B8F725; --accent-ink:#3B0764; --accent-panel:#241733;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:radial-gradient(1200px 600px at 50% -10%,#241733 0%,var(--bg) 55%);color:var(--text);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;padding:28px 16px 80px;}
+  h1,h2,h3,.display{font-family:'Sora',sans-serif;}
+  .wrap{max-width:1400px;margin:0 auto;}
+  .page-header{text-align:center;padding-top:62px;}
+  h1{font-size:clamp(26px,4vw,38px);font-weight:800;margin:0 0 8px;line-height:1.15;}
+  .sub{color:var(--text-dim);font-size:15px;margin:0 auto 22px;line-height:1.5;max-width:680px;}
+  .topbar{position:fixed;top:0;left:0;right:0;height:70px;z-index:60;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:10px;padding:0 18px;background:var(--surface);border-bottom:1px solid var(--line);}
+  .topbar h1{justify-self:center;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;font-size:19px;}
+  .back-link{justify-self:start;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.13em;color:var(--text-dim);text-decoration:none;padding:6px 16px;border:1px solid var(--line);border-radius:100px;background:rgba(255,255,255,.03);transition:.15s;}
+  .back-link:hover{border-color:var(--accent);color:var(--accent);}
+  *{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.18) transparent;}
+  *::-webkit-scrollbar{width:8px;height:8px;}
+  *::-webkit-scrollbar-track{background:transparent;}
+  *::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:8px;}
+  *::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.32);}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px 20px;margin-bottom:16px;}
+  .card-label{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin-bottom:10px;}
+
+  .btn{font-family:'Inter',sans-serif;font-weight:700;font-size:13px;padding:10px 16px;border-radius:9px;cursor:pointer;border:none;transition:.15s;}
+  .btn-ai{background:var(--accent);color:var(--accent-ink);}
+  .btn-ai:hover{filter:brightness(1.08);}
+  .btn:disabled{opacity:.5;cursor:wait;}
+  .btn-outline{font-family:'Inter',sans-serif;font-weight:600;font-size:12px;padding:8px 14px;border-radius:8px;cursor:pointer;border:1px solid var(--line);background:transparent;color:var(--text-dim);transition:.15s;}
+  .btn-outline:hover{border-color:var(--accent);color:var(--accent);}
+  .btn-outline:disabled{opacity:.4;cursor:wait;}
+  .btn-wa{font-family:'Inter',sans-serif;font-weight:700;font-size:12.5px;padding:8px 14px;border-radius:8px;cursor:pointer;border:1px solid #25D366;background:rgba(37,211,102,.08);color:#4ADE80;text-decoration:none;display:inline-flex;align-items:center;gap:6px;transition:.15s;}
+  .btn-wa:hover{background:rgba(37,211,102,.18);}
+  .btn-wa.disabled{opacity:.35;pointer-events:none;border-color:var(--line);color:var(--text-dim);background:transparent;}
+  .btn-danger-icon{background:transparent;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;padding:4px 7px;border-radius:6px;opacity:.55;transition:.15s;}
+  .btn-danger-icon:hover{color:#EF4444;opacity:1;background:rgba(239,68,68,.1);}
+
+  .field{display:flex;flex-direction:column;gap:4px;}
+  .field label{font-size:10.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em;font-family:'JetBrains Mono',monospace;}
+  .field input[type=text],.field textarea,.field select{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:9px 12px;outline:none;width:100%;}
+  .field input[type=text]:focus,.field textarea:focus,.field select:focus{border-color:var(--accent);}
+  .field input::placeholder,.field textarea::placeholder{color:var(--text-dim);opacity:.7;}
+  .status-msg{font-size:12px;font-family:'JetBrains Mono',monospace;color:var(--text-dim);}
+  .status-msg.error{color:#F87171;}
+  .status-msg.ok{color:#4ADE80;}
+
+  /* ── Config (oferta/tono) ── */
+  details.config-box{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 20px;margin-bottom:16px;}
+  details.config-box summary{cursor:pointer;font-family:'Sora',sans-serif;font-weight:700;font-size:14.5px;color:var(--text);list-style:none;display:flex;align-items:center;justify-content:space-between;}
+  details.config-box summary::-webkit-details-marker{display:none;}
+  details.config-box summary::before{content:'▶ ';font-size:11px;color:var(--accent);}
+  details.config-box[open] summary::before{content:'▼ ';}
+  .config-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:14px;}
+  .config-grid textarea{min-height:110px;resize:vertical;}
+  .config-hint{font-size:11.5px;color:var(--text-dim);margin:8px 0 0;line-height:1.5;}
+
+  /* ── Listas (levantamientos) ── */
+  .listas-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px;}
+  .lista-pill{font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:700;padding:8px 16px;border-radius:100px;border:1px solid var(--line);background:var(--surface);color:var(--text-dim);cursor:pointer;white-space:nowrap;transition:.15s;}
+  .lista-pill:hover{border-color:var(--accent);color:var(--text);}
+  .lista-pill.active{background:var(--accent-panel);border-color:var(--accent);color:var(--accent);}
+  .lista-nueva{display:flex;gap:6px;align-items:center;}
+  .lista-nueva input{width:180px;}
+  .lista-acciones{display:flex;gap:4px;margin-left:4px;}
+
+  /* ── Import ── */
+  .import-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+  .import-tab{font-family:'Inter',sans-serif;font-weight:700;font-size:12.5px;padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--text-dim);cursor:pointer;}
+  .import-tab.active{border-color:var(--accent);color:var(--accent);background:var(--accent-panel);}
+  .import-panel{display:none;}
+  .import-panel.active{display:block;}
+  .import-panel textarea{min-height:140px;font-family:'JetBrains Mono',monospace;font-size:12px;resize:vertical;}
+  .dropzone-mini{border:2px dashed var(--line);border-radius:12px;padding:22px;text-align:center;cursor:pointer;background:var(--surface-2);transition:.15s;}
+  .dropzone-mini:hover,.dropzone-mini.dragover{border-color:var(--accent);background:var(--accent-panel);}
+  .manual-form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:end;}
+  .import-preview{margin-top:16px;border-top:1px dashed var(--line);padding-top:14px;}
+  .import-preview-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;margin:10px 0;}
+  table.preview-table{width:100%;border-collapse:collapse;min-width:600px;}
+  table.preview-table th{padding:8px;background:var(--surface-2);border-bottom:1px solid var(--line);text-align:left;}
+  table.preview-table th select{width:100%;font-size:11px;}
+  table.preview-table td{padding:7px 8px;border-bottom:1px solid var(--line);font-size:12px;color:var(--text-dim);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+  /* ── Métricas ── */
+  .metricas-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:18px;}
+  .metrica-tile{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;text-align:center;}
+  .metrica-num{font-family:'Sora',sans-serif;font-weight:800;font-size:22px;color:var(--accent);}
+  .metrica-label{font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.03em;color:var(--text-dim);margin-top:2px;}
+
+  /* ── Filtro por potencial ── */
+  .filtro-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:18px;}
+  .filtro-label{font-size:11px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;text-transform:uppercase;}
+  .filtro-pill{font-family:'Inter',sans-serif;font-weight:700;font-size:12px;padding:6px 14px;border-radius:100px;border:1px solid var(--line);background:transparent;color:var(--text-dim);cursor:pointer;}
+  .filtro-pill.active{border-color:var(--accent);color:var(--accent);background:var(--accent-panel);}
+
+  /* ── Dashboard por etapas ── */
+  .etapa-seccion{margin-bottom:26px;}
+  .etapa-seccion-title{font-family:'Sora',sans-serif;font-weight:700;font-size:14px;margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line);}
+  .empty-row{padding:18px;text-align:center;color:var(--text-dim);font-size:13px;background:var(--surface);border:1px dashed var(--line);border-radius:12px;}
+  .cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;}
+
+  .badge{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-family:'JetBrains Mono',monospace;font-weight:700;padding:3px 9px;border-radius:100px;letter-spacing:.02em;border:1px solid transparent;white-space:nowrap;}
+  .badge-alto{background:#052E16;color:#4ADE80;border-color:#14532D;}
+  .badge-medio{background:#332708;color:#F5C84C;border-color:#6B4F14;}
+  .badge-bajo{background:#3A1414;color:#F87171;border-color:#7A2020;}
+
+  .lead-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:10px;border-left:4px solid var(--line);}
+  .lead-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
+  .lead-nombre{font-family:'Sora',sans-serif;font-weight:700;font-size:15.5px;line-height:1.3;}
+  .lead-giro{font-size:11.5px;color:var(--text-dim);margin-top:2px;}
+  .lead-tel{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-dim);}
+  .lead-motivo{font-size:12.5px;color:var(--text-dim);font-style:italic;background:var(--surface-2);border-radius:8px;padding:8px 10px;line-height:1.5;}
+  select.estado-select{font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:6px 10px;border-radius:100px;border:1px solid transparent;cursor:pointer;width:100%;}
+  .lead-mensaje textarea{width:100%;min-height:76px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:8px 10px;font-family:'Inter',sans-serif;font-size:12.5px;line-height:1.5;outline:none;resize:vertical;}
+  .lead-mensaje textarea:focus{border-color:var(--accent);}
+  .lead-mensaje textarea::placeholder{color:var(--text-dim);opacity:.6;font-style:italic;}
+  .lead-acciones{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between;}
+  .lead-acciones-izq{display:flex;gap:8px;flex-wrap:wrap;}
+  .lead-contactado{font-size:10.5px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;}
+
+  .toolbar-import-btn{display:flex;justify-content:flex-end;margin-bottom:14px;}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <a href="/jefes.html" class="back-link">&lt;&lt; Hub de Jefes</a>
+  <h1>Jefe de Prospección</h1>
+</div>
+
+<div class="wrap">
+  <div class="page-header">
+    <p class="sub">Sube tu levantamiento de negocios locales (con giro, potencial y motivo), deja que la IA arme el mensaje de apertura de WhatsApp de cada uno, y contáctalos en un clic. Da seguimiento por etapa hasta que cierres.</p>
+  </div>
+
+  <details class="config-box" id="configBox">
+    <summary>⚙️ Tu oferta y tono (se usa para generar todos los mensajes)</summary>
+    <div class="config-grid">
+      <div class="field">
+        <label>Oferta / paquete que estás vendiendo</label>
+        <textarea id="cfgOferta" placeholder="Ej: Paquete de publicidad digital + manejo de redes por $2,500/mes, incluye 12 posts, 1 campaña de ads y reporte mensual."></textarea>
+      </div>
+      <div class="field">
+        <label>Tono deseado / ejemplos de mensajes buenos</label>
+        <textarea id="cfgTono" placeholder="Ej: Casual, directo, como si le escribiera un conocido. Ejemplo bueno: '...'"></textarea>
+      </div>
+    </div>
+    <p class="config-hint">Esto se guarda solo en este hub y se manda junto con cada negocio al generar su mensaje. Si lo dejas vacío, la IA usa un beneficio genérico -- llénalo para mensajes realmente tuyos.</p>
+    <p class="status-msg" id="cfgStatus"></p>
+  </details>
+
+  <div class="listas-bar" id="listasBar"></div>
+
+  <div class="card">
+    <div class="card-label">Cargar leads</div>
+    <div class="import-tabs">
+      <button type="button" class="import-tab active" data-tab="pegar">📋 Pegar texto</button>
+      <button type="button" class="import-tab" data-tab="archivo">📁 Subir archivo</button>
+      <button type="button" class="import-tab" data-tab="manual">✍️ Agregar manual</button>
+    </div>
+
+    <div class="import-panel active" id="panel-pegar">
+      <p class="config-hint" style="margin:0 0 10px;">Pega una tabla en HTML, Markdown, o texto separado por comas/tabs -- lo detectamos solo.</p>
+      <textarea id="pegarTexto" placeholder="Pega aquí la tabla de negocios..."></textarea>
+      <div style="margin-top:10px;"><button type="button" class="btn btn-outline" id="btnAnalizarPegado">Analizar texto</button></div>
+    </div>
+
+    <div class="import-panel" id="panel-archivo">
+      <div class="dropzone-mini" id="dropzoneArchivo">
+        <div style="font-weight:700;margin-bottom:4px;">Arrastra o haz clic para subir</div>
+        <div class="config-hint" style="margin:0;">.csv o .xlsx</div>
+        <input type="file" id="inputArchivo" accept=".csv,.xlsx" hidden>
+      </div>
+    </div>
+
+    <div class="import-panel" id="panel-manual">
+      <div class="manual-form-grid">
+        <div class="field"><label>Nombre</label><input type="text" id="manualNombre" placeholder="Nombre del negocio"></div>
+        <div class="field"><label>Teléfono</label><input type="text" id="manualTelefono" placeholder="10 dígitos"></div>
+        <div class="field"><label>Giro</label><input type="text" id="manualGiro" placeholder="Ej: taquería"></div>
+        <div class="field">
+          <label>Potencial</label>
+          <select id="manualPotencial"><option value="alto">Alto</option><option value="medio" selected>Medio</option><option value="bajo">Bajo</option></select>
+        </div>
+      </div>
+      <div class="field" style="margin-top:10px;"><label>Motivo</label><textarea id="manualMotivo" style="min-height:60px;" placeholder="Ej: Solo 98 reseñas, sin presencia digital sólida"></textarea></div>
+      <div style="margin-top:10px;"><button type="button" class="btn btn-ai" id="btnAgregarManual">+ Agregar lead</button></div>
+    </div>
+
+    <div class="import-preview" id="importPreview" style="display:none;"></div>
+    <p class="status-msg" id="importStatus"></p>
+  </div>
+
+  <div class="metricas-bar" id="metricasBar"></div>
+
+  <div class="filtro-bar">
+    <span class="filtro-label">Potencial:</span>
+    <button type="button" class="filtro-pill active" data-pot="todos">Todos</button>
+    <button type="button" class="filtro-pill" data-pot="alto">🟢 Alto</button>
+    <button type="button" class="filtro-pill" data-pot="medio">🟡 Medio</button>
+    <button type="button" class="filtro-pill" data-pot="bajo">🔴 Bajo</button>
+    <span style="flex:1;"></span>
+    <button type="button" class="btn btn-outline" id="btnGenerarPendientes">✨ Generar mensajes pendientes</button>
+  </div>
+
+  <div id="dashboard"></div>
+</div>
+
+<script src="/js/storage-client.js"></script>
+<script>
+// ─── CONSTANTES ─────────────────────────────────────────────────────────
+const LISTAS_KEY = 'jefe-prospeccion:listas';
+const LEADS_KEY = 'jefe-prospeccion:leads';
+const CONFIG_KEY = 'jefe-prospeccion:config';
+const MAX_LEADS_POR_LOTE = 15;
+
+const ETAPAS = [
+  { key:'contacto1', label:'📨 Contacto 1', color:'#A8B4F0', bg:'#1B2142', border:'#3A4380' },
+  { key:'prospecto_real', label:'🔎 Prospecto Real', color:'#7DD3FC', bg:'#0C2A3A', border:'#0E7490' },
+  { key:'proximo_pagar', label:'💰 Próximo a Pagar', color:'#F5C84C', bg:'#332708', border:'#6B4F14' },
+  { key:'cliente', label:'✅ Cliente', color:'#4ADE80', bg:'#052E16', border:'#14532D' },
+  { key:'seguimiento1', label:'🔁 Seguimiento 1', color:'#C4B5FD', bg:'#2E1065', border:'#4C1D95' },
+];
+const ETAPA_KEYS = ETAPAS.map(e=>e.key);
+function etapaInfo(key){ return ETAPAS.find(e=>e.key===key) || ETAPAS[0]; }
+
+const POTENCIAL_LABEL = { alto:'🟢 Alto', medio:'🟡 Medio', bajo:'🔴 Bajo' };
+
+// ─── ESTADO ──────────────────────────────────────────────────────────────
+let listas = [];
+let listaActivaId = null;
+let leads = [];
+let config = { oferta:'', tono:'' };
+let potencialFiltro = 'todos';
+let importParsed = null; // {headers:[...], rows:[[...]]}
+let generandoPendientes = false;
+
+function mkId(prefijo){ return prefijo+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+
+// ─── CARGA INICIAL ──────────────────────────────────────────────────────
+async function cargarInicial(){
+  try{ const r = await window.storage.get(LISTAS_KEY); listas = r&&r.value ? JSON.parse(r.value) : []; }catch(e){ listas=[]; }
+  try{ const r = await window.storage.get(LEADS_KEY); leads = r&&r.value ? JSON.parse(r.value) : []; }catch(e){ leads=[]; }
+  try{ const r = await window.storage.get(CONFIG_KEY); config = r&&r.value ? JSON.parse(r.value) : { oferta:'', tono:'' }; }catch(e){ config={ oferta:'', tono:'' }; }
+
+  if(!listas.length){
+    listas.push({ id: mkId('lista'), nombre:'Mi primera lista', fecha_creacion: Date.now() });
+    scheduleListasSave();
+  }
+  listaActivaId = listas[0].id;
+
+  document.getElementById('cfgOferta').value = config.oferta || '';
+  document.getElementById('cfgTono').value = config.tono || '';
+}
+
+// ─── GUARDADO (debounced, mismo patrón que jefe-anuncios.html) ─────────
+let listasSaveTimer=null; function scheduleListasSave(){ clearTimeout(listasSaveTimer); listasSaveTimer=setTimeout(()=>guardarListas(),500); }
+async function guardarListas(opts){ try{ await window.storage.set(LISTAS_KEY, JSON.stringify(listas), opts); }catch(e){} }
+
+let leadsSaveTimer=null, leadsPendingSave=false;
+function scheduleLeadsSave(){ leadsPendingSave=true; clearTimeout(leadsSaveTimer); leadsSaveTimer=setTimeout(doGuardarLeads,500); }
+async function doGuardarLeads(opts){ clearTimeout(leadsSaveTimer); leadsSaveTimer=null; if(!leadsPendingSave) return; try{ await window.storage.set(LEADS_KEY, JSON.stringify(leads), opts); leadsPendingSave=false; }catch(e){} }
+
+let cfgSaveTimer=null;
+function scheduleConfigSave(){
+  clearTimeout(cfgSaveTimer);
+  const statusEl = document.getElementById('cfgStatus');
+  statusEl.textContent = 'Guardando...'; statusEl.className='status-msg';
+  cfgSaveTimer = setTimeout(async ()=>{
+    try{ await window.storage.set(CONFIG_KEY, JSON.stringify(config)); statusEl.textContent='✅ Guardado'; statusEl.className='status-msg ok'; }
+    catch(e){ statusEl.textContent='Error al guardar.'; statusEl.className='status-msg error'; }
+  }, 600);
+}
+
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden'){ if(leadsPendingSave) doGuardarLeads({keepalive:true}); guardarListas({keepalive:true}); } });
+window.addEventListener('pagehide', ()=>{ if(leadsPendingSave) doGuardarLeads({keepalive:true}); guardarListas({keepalive:true}); });
+
+// ─── LISTAS (levantamientos) ────────────────────────────────────────────
+function renderListasBar(){
+  const bar = document.getElementById('listasBar');
+  bar.innerHTML = '';
+  listas.forEach(l=>{
+    const n = leads.filter(le=>le.lista_id===l.id).length;
+    const pill = document.createElement('button');
+    pill.type='button';
+    pill.className = 'lista-pill' + (l.id===listaActivaId ? ' active' : '');
+    pill.textContent = `${l.nombre} (${n})`;
+    pill.addEventListener('click', ()=>{ listaActivaId=l.id; renderAll(); });
+    bar.appendChild(pill);
+  });
+
+  const nueva = document.createElement('div');
+  nueva.className='lista-nueva';
+  nueva.innerHTML = `<input type="text" id="nuevaListaInput" placeholder="Nombre de la nueva lista (ej. Blvd. Solidaridad)"><button type="button" class="btn btn-outline" id="btnNuevaLista">+ Nueva lista</button>`;
+  bar.appendChild(nueva);
+  document.getElementById('btnNuevaLista').addEventListener('click', ()=>{
+    const input = document.getElementById('nuevaListaInput');
+    const nombre = (input.value||'').trim();
+    if(!nombre) return;
+    const l = { id: mkId('lista'), nombre, fecha_creacion: Date.now() };
+    listas.push(l);
+    listaActivaId = l.id;
+    scheduleListasSave();
+    renderAll();
+  });
+
+  const activa = listas.find(l=>l.id===listaActivaId);
+  if(activa){
+    const acciones = document.createElement('div');
+    acciones.className='lista-acciones';
+    acciones.innerHTML = `<button type="button" class="btn-danger-icon" id="btnRenombrarLista" title="Renombrar">✏️</button>` +
+      (listas.length>1 ? `<button type="button" class="btn-danger-icon" id="btnBorrarLista" title="Borrar lista">🗑️</button>` : '');
+    bar.appendChild(acciones);
+    document.getElementById('btnRenombrarLista').addEventListener('click', ()=>{
+      const nuevo = window.prompt('Nuevo nombre de la lista:', activa.nombre);
+      if(nuevo && nuevo.trim()){ activa.nombre = nuevo.trim(); scheduleListasSave(); renderAll(); }
+    });
+    const btnBorrar = document.getElementById('btnBorrarLista');
+    if(btnBorrar) btnBorrar.addEventListener('click', ()=>{
+      if(!window.confirm(`¿Borrar "${activa.nombre}" y todos sus leads? Esto no se puede deshacer.`)) return;
+      leads = leads.filter(le=>le.lista_id!==activa.id);
+      listas = listas.filter(l=>l.id!==activa.id);
+      listaActivaId = listas[0].id;
+      scheduleListasSave(); scheduleLeadsSave();
+      renderAll();
+    });
+  }
+}
+
+// ─── IMPORTACIÓN: detección y parseo ────────────────────────────────────
+function quitarAcentos(s){ return (s||'').toString().normalize('NFD').replace(/[̀-ͯ]/g,''); }
+
+function matchColumn(header){
+  const h = quitarAcentos(header).toLowerCase();
+  if(/nombre|negocio|empresa|business/.test(h)) return 'nombre';
+  if(/telefono|whatsapp|celular|phone|numero|tel\b/.test(h)) return 'telefono';
+  if(/giro|categor|rubro/.test(h)) return 'giro';
+  if(/potencial|prioridad|temperatura/.test(h)) return 'potencial';
+  if(/motivo|razon|nota|comentario/.test(h)) return 'motivo';
+  return 'ignorar';
+}
+
+function normalizarPotencial(v){
+  const h = quitarAcentos(v).toLowerCase();
+  if(/alt/.test(h)) return 'alto';
+  if(/baj/.test(h)) return 'bajo';
+  if(/medi/.test(h)) return 'medio';
+  return 'medio';
+}
+
+function parseHtmlTable(html){
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const table = doc.querySelector('table');
+  if(!table) return null;
+  const filas = Array.from(table.querySelectorAll('tr')).map(tr =>
+    Array.from(tr.querySelectorAll('th,td')).map(td => td.textContent.trim())
+  ).filter(f => f.length && f.some(c=>c));
+  if(filas.length < 2) return null;
+  return { headers: filas[0], rows: filas.slice(1) };
+}
+
+function parseMarkdownTable(text){
+  const lineas = text.split('\n').map(l=>l.trim()).filter(l=>l.startsWith('|'));
+  if(lineas.length < 2) return null;
+  const partir = l => l.replace(/^\||\|$/g,'').split('|').map(c=>c.trim());
+  const headers = partir(lineas[0]);
+  const filas = lineas.slice(1).filter(l=>!/^\|?[\s:|-]+\|?$/.test(l)).map(partir);
+  if(!filas.length) return null;
+  return { headers, rows: filas };
+}
+
+function parseCsvTexto(text){
+  const lineas = text.split('\n').map(l=>l.replace(/\r$/,'')).filter(l=>l.trim());
+  if(lineas.length < 2) return null;
+  const delim = (lineas[0].match(/\t/g)||[]).length >= (lineas[0].match(/,/g)||[]).length ? '\t' : ',';
+  const partirLinea = (l) => {
+    const out=[]; let actual=''; let enComillas=false;
+    for(let i=0;i<l.length;i++){
+      const c=l[i];
+      if(c==='"'){ enComillas=!enComillas; continue; }
+      if(c===delim && !enComillas){ out.push(actual.trim()); actual=''; continue; }
+      actual+=c;
+    }
+    out.push(actual.trim());
+    return out;
+  };
+  const headers = partirLinea(lineas[0]);
+  const rows = lineas.slice(1).map(partirLinea);
+  return { headers, rows };
+}
+
+function detectarYParsear(texto){
+  if(/<table/i.test(texto)) return parseHtmlTable(texto);
+  if(texto.trim().startsWith('|')) return parseMarkdownTable(texto);
+  return parseCsvTexto(texto);
+}
+
+function mostrarImportPreview(parsed){
+  importParsed = parsed;
+  const box = document.getElementById('importPreview');
+  const statusEl = document.getElementById('importStatus');
+  if(!parsed || !parsed.rows.length){
+    box.style.display='none';
+    statusEl.textContent = 'No se pudo detectar una tabla en ese contenido.';
+    statusEl.className = 'status-msg error';
+    return;
+  }
+  statusEl.textContent = '';
+  box.style.display='block';
+  const campos = ['ignorar','nombre','telefono','giro','potencial','motivo'];
+  const labelCampo = { ignorar:'(ignorar)', nombre:'Nombre', telefono:'Teléfono', giro:'Giro', potencial:'Potencial', motivo:'Motivo' };
+  let html = `<p class="config-hint" style="margin:0 0 8px;">${parsed.rows.length} fila(s) detectadas. Revisa que cada columna esté bien mapeada:</p>`;
+  html += `<div class="import-preview-wrap"><table class="preview-table"><thead><tr>`;
+  parsed.headers.forEach((h,i)=>{
+    html += `<th>${escapeHtml(h)}<br><select data-col="${i}" class="col-map">`;
+    campos.forEach(c=> html += `<option value="${c}"${matchColumn(h)===c?' selected':''}>${labelCampo[c]}</option>`);
+    html += `</select></th>`;
+  });
+  html += `</tr></thead><tbody>`;
+  parsed.rows.slice(0,5).forEach(fila=>{
+    html += '<tr>' + fila.map(c=>`<td>${escapeHtml(c)}</td>`).join('') + '</tr>';
+  });
+  html += `</tbody></table></div>`;
+  html += `<button type="button" class="btn btn-ai" id="btnConfirmarImport">Importar ${parsed.rows.length} lead(s)</button>`;
+  box.innerHTML = html;
+  document.getElementById('btnConfirmarImport').addEventListener('click', confirmarImport);
+}
+
+function confirmarImport(){
+  if(!importParsed) return;
+  const mapping = {};
+  document.querySelectorAll('#importPreview .col-map').forEach(sel=>{ mapping[sel.dataset.col] = sel.value; });
+  let agregados = 0;
+  importParsed.rows.forEach(fila=>{
+    const lead = { id: mkId('lead'), lista_id: listaActivaId, nombre:'', telefono:'', giro:'', potencial:'medio', motivo:'', mensaje:'', estado:'contacto1', fecha_creacion: Date.now(), fecha_contacto: null };
+    fila.forEach((valor,i)=>{
+      const campo = mapping[i];
+      if(!campo || campo==='ignorar') return;
+      if(campo==='potencial') lead.potencial = normalizarPotencial(valor);
+      else lead[campo] = (valor||'').toString().trim();
+    });
+    if(!lead.nombre && !lead.telefono) return;
+    leads.push(lead);
+    agregados++;
+  });
+  scheduleLeadsSave();
+  document.getElementById('importPreview').style.display='none';
+  document.getElementById('importStatus').textContent = `✅ ${agregados} lead(s) importados a "${listas.find(l=>l.id===listaActivaId).nombre}".`;
+  document.getElementById('importStatus').className = 'status-msg ok';
+  document.getElementById('pegarTexto').value = '';
+  importParsed = null;
+  renderAll();
+}
+
+function escapeHtml(str){
+  return (str||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─── EVENTOS DE IMPORTACIÓN ──────────────────────────────────────────────
+document.querySelectorAll('.import-tab').forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    document.querySelectorAll('.import-tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.import-panel').forEach(p=>p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-'+tab.dataset.tab).classList.add('active');
+  });
+});
+
+document.getElementById('btnAnalizarPegado').addEventListener('click', ()=>{
+  const texto = document.getElementById('pegarTexto').value;
+  if(!texto.trim()){ document.getElementById('importStatus').textContent='Pega algo de texto primero.'; document.getElementById('importStatus').className='status-msg error'; return; }
+  mostrarImportPreview(detectarYParsear(texto));
+});
+
+const dropzoneArchivo = document.getElementById('dropzoneArchivo');
+const inputArchivo = document.getElementById('inputArchivo');
+dropzoneArchivo.addEventListener('click', ()=>inputArchivo.click());
+dropzoneArchivo.addEventListener('dragover', e=>{ e.preventDefault(); dropzoneArchivo.classList.add('dragover'); });
+dropzoneArchivo.addEventListener('dragleave', ()=>dropzoneArchivo.classList.remove('dragover'));
+dropzoneArchivo.addEventListener('drop', e=>{ e.preventDefault(); dropzoneArchivo.classList.remove('dragover'); if(e.dataTransfer.files[0]) manejarArchivo(e.dataTransfer.files[0]); });
+inputArchivo.addEventListener('change', e=>{ if(e.target.files[0]) manejarArchivo(e.target.files[0]); });
+
+function manejarArchivo(file){
+  const nombre = file.name.toLowerCase();
+  if(nombre.endsWith('.csv')){
+    const reader = new FileReader();
+    reader.onload = () => mostrarImportPreview(parseCsvTexto(reader.result));
+    reader.readAsText(file, 'utf-8');
+    return;
+  }
+  if(nombre.endsWith('.xlsx')){
+    const reader = new FileReader();
+    reader.onload = () => {
+      try{
+        const wb = XLSX.read(new Uint8Array(reader.result), { type:'array' });
+        const hoja = wb.Sheets[wb.SheetNames[0]];
+        const filas = XLSX.utils.sheet_to_json(hoja, { header:1, defval:'' }).filter(f=>f.some(c=>(c||'').toString().trim()));
+        if(filas.length < 2){ mostrarImportPreview(null); return; }
+        mostrarImportPreview({ headers: filas[0].map(String), rows: filas.slice(1).map(f=>f.map(c=>(c==null?'':c.toString()))) });
+      }catch(e){
+        document.getElementById('importStatus').textContent = 'No se pudo leer el archivo .xlsx.';
+        document.getElementById('importStatus').className = 'status-msg error';
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    return;
+  }
+  document.getElementById('importStatus').textContent = 'Sube un archivo .csv o .xlsx válido.';
+  document.getElementById('importStatus').className = 'status-msg error';
+}
+
+document.getElementById('btnAgregarManual').addEventListener('click', ()=>{
+  const nombre = document.getElementById('manualNombre').value.trim();
+  const telefono = document.getElementById('manualTelefono').value.trim();
+  if(!nombre && !telefono){ document.getElementById('importStatus').textContent='Escribe al menos el nombre o el teléfono.'; document.getElementById('importStatus').className='status-msg error'; return; }
+  leads.push({
+    id: mkId('lead'), lista_id: listaActivaId, nombre, telefono,
+    giro: document.getElementById('manualGiro').value.trim(),
+    potencial: document.getElementById('manualPotencial').value,
+    motivo: document.getElementById('manualMotivo').value.trim(),
+    mensaje:'', estado:'contacto1', fecha_creacion: Date.now(), fecha_contacto: null,
+  });
+  scheduleLeadsSave();
+  ['manualNombre','manualTelefono','manualGiro','manualMotivo'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('manualPotencial').value='medio';
+  document.getElementById('importStatus').textContent = `✅ Lead agregado a "${listas.find(l=>l.id===listaActivaId).nombre}".`;
+  document.getElementById('importStatus').className = 'status-msg ok';
+  renderAll();
+});
+
+// ─── CONFIG (oferta/tono) ────────────────────────────────────────────────
+document.getElementById('cfgOferta').addEventListener('input', e=>{ config.oferta = e.target.value; scheduleConfigSave(); });
+document.getElementById('cfgTono').addEventListener('input', e=>{ config.tono = e.target.value; scheduleConfigSave(); });
+
+// ─── WHATSAPP ────────────────────────────────────────────────────────────
+function limpiarTelefono(raw){
+  let d = (raw||'').toString().replace(/\D/g,'');
+  d = d.replace(/^00/,'');
+  if(d.length===10) d = '52'+d;
+  return d;
+}
+function linkWhatsapp(lead){
+  const tel = limpiarTelefono(lead.telefono);
+  if(!tel || !lead.mensaje || !lead.mensaje.trim()) return '';
+  return 'https://wa.me/'+tel+'?text='+encodeURIComponent(lead.mensaje);
+}
+
+// ─── GENERACIÓN DE MENSAJES ──────────────────────────────────────────────
+async function llamarGenerarLote(loteLeads){
+  const res = await fetch('/api/generar-prospeccion', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      leads: loteLeads.map(l=>({ id:l.id, nombre:l.nombre, giro:l.giro, motivo:l.motivo, potencial:l.potencial })),
+      oferta: config.oferta, tono: config.tono,
+    }),
+  });
+  const data = await res.json();
+  if(!res.ok) throw new Error(data.error || 'Error al generar mensajes.');
+  return data.mensajes || [];
+}
+
+async function generarMensajeIndividual(leadId){
+  const lead = leads.find(l=>l.id===leadId);
+  if(!lead) return;
+  const btn = document.querySelector(`.lead-card[data-id="${leadId}"] .btn-generar-uno`);
+  if(btn){ btn.disabled = true; btn.textContent = 'Generando...'; }
+  try{
+    const resultados = await llamarGenerarLote([lead]);
+    const r = resultados.find(m=>m.id===leadId);
+    if(r && r.mensaje){ lead.mensaje = r.mensaje; scheduleLeadsSave(); }
+  }catch(e){
+    alert(e.message || 'Error al generar el mensaje.');
+  }
+  renderAll();
+}
+
+async function generarPendientes(){
+  if(generandoPendientes) return;
+  const pendientes = leadsFiltrados().filter(l=>!l.mensaje || !l.mensaje.trim());
+  if(!pendientes.length){ alert('No hay leads pendientes de mensaje en esta vista.'); return; }
+  generandoPendientes = true;
+  const btn = document.getElementById('btnGenerarPendientes');
+  btn.disabled = true;
+  let hechos = 0;
+  for(let i=0;i<pendientes.length;i+=MAX_LEADS_POR_LOTE){
+    const lote = pendientes.slice(i, i+MAX_LEADS_POR_LOTE);
+    btn.textContent = `Generando ${hechos+1}-${Math.min(hechos+lote.length,pendientes.length)} de ${pendientes.length}...`;
+    try{
+      const resultados = await llamarGenerarLote(lote);
+      const porId = {}; resultados.forEach(r=>porId[r.id]=r.mensaje);
+      lote.forEach(l=>{ if(porId[l.id]){ l.mensaje = porId[l.id]; hechos++; } });
+      scheduleLeadsSave();
+    }catch(e){
+      alert(e.message || 'Error al generar mensajes.');
+      break;
+    }
+  }
+  btn.textContent = '✨ Generar mensajes pendientes';
+  btn.disabled = false;
+  generandoPendientes = false;
+  renderAll();
+}
+document.getElementById('btnGenerarPendientes').addEventListener('click', generarPendientes);
+
+// ─── FILTROS ─────────────────────────────────────────────────────────────
+document.querySelectorAll('.filtro-pill').forEach(p=>{
+  p.addEventListener('click', ()=>{
+    document.querySelectorAll('.filtro-pill').forEach(x=>x.classList.remove('active'));
+    p.classList.add('active');
+    potencialFiltro = p.dataset.pot;
+    renderDashboard();
+  });
+});
+
+function leadsFiltrados(){
+  return leads.filter(l=>l.lista_id===listaActivaId && (potencialFiltro==='todos' || l.potencial===potencialFiltro));
+}
+
+// ─── MÉTRICAS ────────────────────────────────────────────────────────────
+function renderMetricas(){
+  const deLista = leads.filter(l=>l.lista_id===listaActivaId);
+  const bar = document.getElementById('metricasBar');
+  const contactados = deLista.filter(l=>l.fecha_contacto).length;
+  let html = `<div class="metrica-tile"><div class="metrica-num">${deLista.length}</div><div class="metrica-label">Total leads</div></div>`;
+  html += `<div class="metrica-tile"><div class="metrica-num">${contactados}</div><div class="metrica-label">Contactados</div></div>`;
+  ETAPAS.forEach(e=>{
+    const n = deLista.filter(l=>l.estado===e.key).length;
+    html += `<div class="metrica-tile"><div class="metrica-num" style="color:${e.color}">${n}</div><div class="metrica-label">${e.label}</div></div>`;
+  });
+  bar.innerHTML = html;
+}
+
+// ─── TARJETA DE LEAD ─────────────────────────────────────────────────────
+function buildLeadCard(lead){
+  const el = document.createElement('div');
+  el.className = 'lead-card';
+  el.dataset.id = lead.id;
+  el.style.borderLeftColor = etapaInfo(lead.estado).border;
+
+  const wa = linkWhatsapp(lead);
+  const contactadoTxt = lead.fecha_contacto ? `✓ Contactado el ${new Date(lead.fecha_contacto).toLocaleDateString('es-MX',{day:'numeric',month:'short'})}` : '';
+
+  el.innerHTML = `
+    <div class="lead-top">
+      <div>
+        <div class="lead-nombre">${escapeHtml(lead.nombre||'(sin nombre)')}</div>
+        <div class="lead-giro">${escapeHtml(lead.giro||'—')}</div>
+        <div class="lead-tel">${escapeHtml(lead.telefono||'sin teléfono')}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+        <span class="badge badge-${lead.potencial}">${POTENCIAL_LABEL[lead.potencial]||lead.potencial}</span>
+        <button type="button" class="btn-danger-icon btn-borrar-lead" title="Borrar">🗑️</button>
+      </div>
+    </div>
+    ${lead.motivo ? `<div class="lead-motivo">"${escapeHtml(lead.motivo)}"</div>` : ''}
+    <select class="estado-select" style="background:${etapaInfo(lead.estado).bg};color:${etapaInfo(lead.estado).color};border-color:${etapaInfo(lead.estado).border};">
+      ${ETAPAS.map(e=>`<option value="${e.key}"${lead.estado===e.key?' selected':''}>${e.label}</option>`).join('')}
+    </select>
+    <div class="lead-mensaje"><textarea placeholder="Aún no se ha generado un mensaje...">${escapeHtml(lead.mensaje)}</textarea></div>
+    <div class="lead-acciones">
+      <div class="lead-acciones-izq">
+        <button type="button" class="btn btn-ai btn-generar-uno">✨ ${lead.mensaje ? 'Regenerar' : 'Generar mensaje'}</button>
+        <a class="btn-wa${wa?'':' disabled'}" href="${wa||'#'}" target="_blank" rel="noopener">💬 WhatsApp</a>
+      </div>
+      <span class="lead-contactado">${contactadoTxt}</span>
+    </div>
+  `;
+
+  el.querySelector('.estado-select').addEventListener('change', e=>{
+    lead.estado = e.target.value;
+    scheduleLeadsSave();
+    renderAll();
+  });
+  el.querySelector('.lead-mensaje textarea').addEventListener('input', e=>{
+    lead.mensaje = e.target.value;
+    scheduleLeadsSave();
+  });
+  el.querySelector('.btn-generar-uno').addEventListener('click', ()=>generarMensajeIndividual(lead.id));
+  el.querySelector('.btn-borrar-lead').addEventListener('click', ()=>{
+    if(!window.confirm(`¿Borrar el lead "${lead.nombre}"?`)) return;
+    leads = leads.filter(l=>l.id!==lead.id);
+    scheduleLeadsSave();
+    renderAll();
+  });
+  const waLink = el.querySelector('.btn-wa');
+  if(wa) waLink.addEventListener('click', ()=>{
+    if(!lead.fecha_contacto){ lead.fecha_contacto = Date.now(); scheduleLeadsSave(); renderAll(); }
+  });
+
+  return el;
+}
+
+// ─── DASHBOARD POR ETAPAS ────────────────────────────────────────────────
+function renderDashboard(){
+  const container = document.getElementById('dashboard');
+  container.innerHTML = '';
+  const items = leadsFiltrados();
+  if(!items.length){
+    const empty = document.createElement('div');
+    empty.className = 'empty-row';
+    empty.textContent = 'Todavía no hay leads en esta lista. Pega tu levantamiento, sube un archivo, o agrega uno a mano arriba.';
+    container.appendChild(empty);
+    return;
+  }
+  ETAPAS.forEach(etapa=>{
+    const delEtapa = items.filter(l=>l.estado===etapa.key);
+    if(!delEtapa.length) return;
+    const seccion = document.createElement('div');
+    seccion.className = 'etapa-seccion';
+    const titulo = document.createElement('p');
+    titulo.className = 'etapa-seccion-title';
+    titulo.style.color = etapa.color;
+    titulo.textContent = `${etapa.label} (${delEtapa.length})`;
+    seccion.appendChild(titulo);
+    const grid = document.createElement('div');
+    grid.className = 'cards-grid';
+    delEtapa.forEach(l=>grid.appendChild(buildLeadCard(l)));
+    seccion.appendChild(grid);
+    container.appendChild(seccion);
+  });
+}
+
+// ─── RENDER GENERAL ──────────────────────────────────────────────────────
+function renderAll(){
+  renderListasBar();
+  renderMetricas();
+  renderDashboard();
+}
+
+// ─── INIT ────────────────────────────────────────────────────────────────
+cargarInicial().then(renderAll);
+</script>
+</body>
+</html>
