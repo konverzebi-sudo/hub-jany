@@ -804,7 +804,7 @@
   function renderProgressMini(){
     var box = document.getElementById('jd-progress-mini');
     if(!box) return;
-    var days = Math.floor((new Date(todayKey) - new Date(data.startDate)) / 86400000) + 1;
+    var days = Math.floor((new Date(todayKey) - new Date(data.startDate)) / 86400000);
     box.innerHTML = '<span class="jd-disp" style="font-size:20px;">'+days+'</span> <span class="jd-sub">día'+(days===1?'':'s')+'</span> '+
       '<span id="jd-progress-edit-link" class="jd-sub" style="cursor:pointer;text-decoration:underline;font-size:10.5px;">editar</span>';
     document.getElementById('jd-progress-edit-link').addEventListener('click', function(e){
@@ -834,6 +834,21 @@
       if(data.habitChecks[ds] && data.habitChecks[ds][habitId]) count++;
     }
     return {count:count, total:totalDays};
+  }
+
+  function getHabitStreak(habitId){
+    var streak = 0;
+    var offset = (data.habitChecks[todayKey] && data.habitChecks[todayKey][habitId]) ? 0 : 1;
+    while(true){
+      var ds = dateStrOffset(offset);
+      if(data.habitChecks[ds] && data.habitChecks[ds][habitId]){
+        streak++;
+        offset++;
+      } else {
+        break;
+      }
+    }
+    return streak;
   }
 
   var HABIT_PALETTE = ['#8FE39E','#BB6BD9','#56CCF2','#F2C94C','#EB5757','#6FCF97','#F2994A','#9B8CFF'];
@@ -959,11 +974,12 @@
     }
     pending.forEach(function(h){
       var s = getHabitStats(h.id);
+      var streak = getHabitStreak(h.id);
       var row = document.createElement('label');
       row.className = 'jd-row';
       row.style.cssText = 'padding:6px 0;font-size:13px;cursor:pointer;justify-content:space-between;';
       row.innerHTML = '<span class="jd-row" style="gap:8px;"><input type="checkbox" style="width:16px;height:16px;accent-color:#C6FF4B;"> <span>'+h.text+'</span></span>'+
-        '<span class="jd-sub">('+s.count+'/'+s.total+')</span>';
+        '<span class="jd-sub">('+s.count+'/'+s.total+')'+(streak>0?' 🔥'+streak:'')+'</span>';
       row.querySelector('input').addEventListener('change', function(e){
         if(!data.habitChecks[todayKey]) data.habitChecks[todayKey] = {};
         if(e.target.checked){
