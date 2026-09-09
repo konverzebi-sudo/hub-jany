@@ -258,7 +258,7 @@ let campanaActivaId = null;
 let catalogoProductos = [];
 let perfilesCliente366 = [];
 let campanasLoaded = false;
-let chatMessages = []; // chat general, efímero -- se reinicia al cambiar de campaña
+let chatMessages = []; // chat general -- copia de trabajo de camp.chat_general, se persiste (ver guardarChatsEnCampana)
 let chatBusy = false;
 let miniChats = { producto:[], 'perfil-cliente':[], comunicacion:[] };
 let miniChatBusy = { producto:false, 'perfil-cliente':false, comunicacion:false };
@@ -271,6 +271,9 @@ function filasFijas(labelKey, valores){ return valores.map(v=>({ id:newId(), [la
 function mkCampana(){
   return {
     id:newId(), nombre:'Nueva campaña', estado:'borrador', creadoEn:new Date().toISOString(),
+    // Chats guardados (general + los 3 mini-chats) -- se persisten con el resto de la campaña,
+    // nunca se borran solos (solo si el usuario le da "Reiniciar" a propósito).
+    chat_general:[], chat_producto:[], chat_perfil_cliente:[], chat_comunicacion:[],
     // 1. Definición
     temporada:'', producto_origen:'evergreen', producto_id:'', producto_nombre:'', producto_nuevo:'',
     objetivo_principal:'', fecha_inicio_activa:'', fecha_fin_activa:'', incentivo:'',
@@ -349,6 +352,7 @@ async function cargarInicial(){
   }catch(e){ perfilesCliente366=[]; }
   campanasLoaded = true;
   if(campanas.length) campanaActivaId = campanas[0].id;
+  sincronizarChatsDesdeCampana();
   ['campana-select','btn-duplicar','btn-eliminar','btn-nueva'].forEach(id=>{ document.getElementById(id).disabled=false; });
   if(localStorage.getItem('temporada-vista-dividida')==='1'){
     document.getElementById('viewToggleBtn').textContent='☰ Vista normal';
@@ -426,11 +430,26 @@ function renderToolbar(){
   estadoSel.className='estado-pill '+(camp?camp.estado||'borrador':'borrador');
   estadoSel.disabled = !camp;
 }
-function resetChats(){
-  chatMessages=[];
-  miniChats={ producto:[], 'perfil-cliente':[], comunicacion:[] };
+// Los chats (general + los 3 mini-chats) viven guardados en la propia campaña (camp.chat_*), no
+// se borran solos -- cambiar de campaña solo cambia CUÁL conversación se muestra.
+function sincronizarChatsDesdeCampana(){
+  const camp=activeCampana();
+  chatMessages = camp ? (camp.chat_general||[]) : [];
+  miniChats = {
+    producto: camp ? (camp.chat_producto||[]) : [],
+    'perfil-cliente': camp ? (camp.chat_perfil_cliente||[]) : [],
+    comunicacion: camp ? (camp.chat_comunicacion||[]) : [],
+  };
 }
-function cambiarCampana(id){ campanaActivaId=id||null; resetChats(); render(); renderToolbar(); }
+function guardarChatsEnCampana(){
+  const camp=activeCampana(); if(!camp) return;
+  camp.chat_general = chatMessages.slice(-60);
+  camp.chat_producto = miniChats.producto.slice(-60);
+  camp.chat_perfil_cliente = miniChats['perfil-cliente'].slice(-60);
+  camp.chat_comunicacion = miniChats.comunicacion.slice(-60);
+  scheduleGuardarCampanas();
+}
+function cambiarCampana(id){ campanaActivaId=id||null; sincronizarChatsDesdeCampana(); render(); renderToolbar(); }
 function actualizarNombreCampana(valor){
   const camp=activeCampana(); if(!camp) return;
   camp.nombre=valor;
@@ -442,7 +461,7 @@ function nuevaCampana(){
   const camp=mkCampana();
   campanas.unshift(camp);
   campanaActivaId=camp.id;
-  resetChats();
+  sincronizarChatsDesdeCampana();
   renderToolbar(); render();
   scheduleGuardarCampanas();
 }
@@ -451,9 +470,11 @@ function duplicarCampana(){
   const copia=JSON.parse(JSON.stringify(camp));
   copia.id=newId(); copia.nombre=(camp.nombre||'Campaña')+' (copia)'; copia.estado='borrador'; copia.creadoEn=new Date().toISOString();
   copia.calendario=(copia.calendario||[]).map(r=>({...r,id:newId()}));
+  // Una campaña duplicada arranca sus propias conversaciones -- las del original no se copian.
+  copia.chat_general=[]; copia.chat_producto=[]; copia.chat_perfil_cliente=[]; copia.chat_comunicacion=[];
   campanas.unshift(copia);
   campanaActivaId=copia.id;
-  resetChats();
+  sincronizarChatsDesdeCampana();
   renderToolbar(); render();
   scheduleGuardarCampanas();
 }
@@ -462,7 +483,7 @@ function eliminarCampana(){
   if(!confirm('¿Eliminar la campaña "'+(camp.nombre||'sin nombre')+'"? No se puede deshacer, y sus fechas desaparecerán del Jefe de Agenda.')) return;
   campanas = campanas.filter(c=>c.id!==camp.id);
   campanaActivaId = campanas.length?campanas[0].id:null;
-  resetChats();
+  sincronizarChatsDesdeCampana();
   renderToolbar(); render();
   scheduleGuardarCampanas();
 }
@@ -623,19 +644,45 @@ function parsearBloquesGuardar(texto){
   if(!texto) return [];
   const lineas=texto.split('\n');
   const resultados=[];
-  let inicioContenido=null;
+  let inicioContenido=null; // índice justo después de un ⚠️INICIO explícito; null si no se abrió
+  let inicioParrafo=0; // índice del párrafo actual (desde la última línea en blanco o el último ⚠️GUARDAR)
   for(let i=0;i<lineas.length;i++){
     const linea=lineas[i].trim();
     if(/^⚠️\s*INICIO\s*:?\s*$/.test(linea)){ inicioContenido=i+1; continue; }
     const m=linea.match(/^⚠️\s*GUARDAR\s*:\s*(.+?)\s*$/);
-    if(!m) continue;
-    const nombre=m[1].trim();
-    const contenido = inicioContenido!=null ? lineas.slice(inicioContenido,i).join('\n').trim() : '';
-    resultados.push({ nombre, contenido });
-    inicioContenido=null;
+    if(m){
+      const nombre=m[1].trim();
+      // Camino feliz: el modelo sí puso ⚠️INICIO. Si se le olvidó, en vez de perder el bloque
+      // entero, cae al párrafo justo antes del ⚠️GUARDAR (desde la última línea en blanco) --
+      // suele ser exactamente el contenido que se quería guardar.
+      const desde = inicioContenido!=null ? inicioContenido : inicioParrafo;
+      const contenido = lineas.slice(desde,i).join('\n').trim();
+      resultados.push({ nombre, contenido });
+      inicioContenido=null;
+      inicioParrafo=i+1;
+      continue;
+    }
+    if(linea==='') inicioParrafo=i+1;
   }
   return resultados;
 }
+// Tolera variaciones menores del modelo en el nombre del campo (mayúsculas, acentos, signos de
+// puntuación tipo ¿?¡! o comillas) -- si el match exacto contra TEMPORADA_CAMPO_LOOKUP falla,
+// reintenta con ambos nombres normalizados antes de descartar el bloque.
+function normalizarNombreCampo(s){
+  return (s||'').toString().trim().toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/[¿?¡!."'`:]/g,'')
+    .replace(/\s+/g,' ').trim();
+}
+const TEMPORADA_CAMPO_LOOKUP_NORM={};
+function construirLookupNormalizado(){
+  Object.keys(TEMPORADA_CAMPO_LOOKUP).forEach(k=>{ TEMPORADA_CAMPO_LOOKUP_NORM[normalizarNombreCampo(k)]=TEMPORADA_CAMPO_LOOKUP[k]; });
+}
+function buscarLookupCampo(nombre){
+  return TEMPORADA_CAMPO_LOOKUP[nombre] || TEMPORADA_CAMPO_LOOKUP_NORM[normalizarNombreCampo(nombre)];
+}
+construirLookupNormalizado();
 function parsearFilasTabla(contenido, columnas){
   const items=contenido.split(/\n\s*\n/).map(b=>b.trim()).filter(Boolean);
   return items.map(item=>{
@@ -659,7 +706,7 @@ function procesarConfirmoTemporada(mensajes){
   if(!bloques.length) return false;
   let aplicoAlgo=false;
   bloques.forEach(({nombre,contenido})=>{
-    const lookup=TEMPORADA_CAMPO_LOOKUP[nombre];
+    const lookup=buscarLookupCampo(nombre);
     if(!lookup || !contenido) return;
     if(lookup.tipo==='texto'){
       camp[lookup.campo]=contenido;
@@ -705,6 +752,8 @@ function confirmarChat(tipo){
   if(aplicado){
     scheduleGuardarCampanas();
     render();
+  } else {
+    alert('Ese mensaje no traía contenido reconocible para aplicar al Documento. Puede ser solo una explicación, o el nombre de campo no calzó -- usa "Copiar" y pégalo a mano, o pídele al Jefe la versión final de ese bloque.');
   }
 }
 
@@ -760,6 +809,45 @@ function renderRecaps(){
   const camp=activeCampana(); if(!camp) return;
   const el=document.getElementById('recap-producto');
   if(el) el.innerHTML = `Producto elegido: <b>${escHtml(nombreProductoActual(camp))}</b> · Objetivo: <b>${escHtml(camp.objetivo_principal||'(sin definir)')}</b>`;
+}
+
+// ─── CONECTAR CON OTROS JEFES (Contenido / Anuncios) ─────────────────────────
+// No se toca el código de esos Jefes -- se les manda el resumen por copiar/pegar en su propio
+// chat "Consulta en vivo", igual patrón de handoff manual que ya usa toda la plataforma.
+function rutaJefe(nombre){
+  const MAPA = {
+    contenido: { jefeshub:'/consultor-contenido', 'rancho-seco':'/rancho-seco/consultor-contenido', rim:'/rim/consultor-contenido', 'optica-one':'/optica-one/consultor-contenido' },
+    anuncios: { jefeshub:'/consultor-anuncios', 'rancho-seco':'/rancho-seco/consultor-anuncios', rim:'/rim/consultor-anuncios', 'optica-one':'/optica-one/consultor-anuncios' },
+  };
+  const m = MAPA[nombre] || {};
+  return m[CLIENTE_ID] || m.jefeshub || '#';
+}
+function resumenCampanaParaOtrosJefes(camp){
+  const lineas=['CAMPAÑA DE TEMPORADA: '+(camp.nombre||'(sin nombre)')];
+  if(camp.temporada) lineas.push('Temporada/evento: '+camp.temporada);
+  const producto = camp.producto_origen==='nuevo' ? camp.producto_nuevo : camp.producto_nombre;
+  if(producto) lineas.push('Producto: '+producto);
+  if(camp.objetivo_principal) lineas.push('Objetivo de la campaña: '+camp.objetivo_principal);
+  if(camp.incentivo) lineas.push('Incentivo / urgencia real: '+camp.incentivo);
+  if(camp.fecha_inicio_activa || camp.fecha_fin_activa) lineas.push('Campaña activa: '+(camp.fecha_inicio_activa||'?')+' a '+(camp.fecha_fin_activa||'?'));
+  let mensaje = camp.dm_mensaje_principal;
+  if(!mensaje && Array.isArray(camp.com_mensaje_elegido)){
+    const fila = camp.com_mensaje_elegido.find(r=>r.pregunta==='Mensaje principal final');
+    if(fila && fila.respuesta) mensaje = fila.respuesta;
+  }
+  if(mensaje) lineas.push('Mensaje principal: '+mensaje);
+  const clienteIdeal = camp.dm_cliente_ideal_temporada || camp.cliente_que_pasa;
+  if(clienteIdeal) lineas.push('Cliente ideal de esta temporada: '+clienteIdeal);
+  if(camp.dm_frases_clave) lineas.push('Frases clave: '+camp.dm_frases_clave);
+  if(camp.dm_canal_conversion) lineas.push('Canal de conversión: '+camp.dm_canal_conversion);
+  return lineas.join('\n');
+}
+function copiarResumenParaOtrosJefes(btn){
+  const camp=activeCampana(); if(!camp) return;
+  navigator.clipboard.writeText(resumenCampanaParaOtrosJefes(camp)).then(()=>{
+    const orig=btn.textContent; btn.textContent='Copiado ✓ — pégalo en el chat del otro Jefe';
+    setTimeout(()=>{ btn.textContent=orig; },2500);
+  }).catch(()=>{ alert('No se pudo copiar. Selecciona el texto manualmente.'); });
 }
 
 // ─── METAS: cálculo de ventas y leads necesarios (no se guarda, se recalcula) ──
@@ -842,6 +930,14 @@ function miniChatHtml(modulo){
 
 function renderDocumento(container, camp){
   container.innerHTML = `
+    <div class="nota-box" style="display:flex;flex-direction:column;gap:10px;">
+      <p><b>Conecta esta campaña con otros Jefes:</b> copia el resumen y pégalo en el chat de Contenido o de Anuncios para que generen piezas ya alineadas a esta temporada — no hace falta volver a explicar nada.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button type="button" class="btn-outline" onclick="copiarResumenParaOtrosJefes(this)">📋 Copiar resumen de campaña</button>
+        <a class="btn btn-solid" style="text-decoration:none;" href="${rutaJefe('contenido')}" target="_blank" rel="noopener">→ Ir a Jefe de Contenido</a>
+        <a class="btn btn-solid" style="text-decoration:none;" href="${rutaJefe('anuncios')}" target="_blank" rel="noopener">→ Ir a Jefe de Anuncios</a>
+      </div>
+    </div>
     <div class="doc-section">
       <div class="doc-section-head"><span class="doc-num">1</span><h3 class="doc-title">Definición de campaña</h3></div>
       <div class="fields-grid">
@@ -1117,6 +1213,7 @@ async function enviarMensajeChat(){
   chatMessages.push({role:'user',content:texto});
   ocultarBanner('general');
   renderChatThread();
+  guardarChatsEnCampana();
   chatBusy=true;
   document.getElementById('chat-send-btn').disabled=true;
   try{
@@ -1139,6 +1236,7 @@ async function enviarMensajeChat(){
     document.getElementById('chat-send-btn').disabled=false;
     renderChatThread();
     actualizarBanner('general');
+    guardarChatsEnCampana();
   }
 }
 function reiniciarChat(){
@@ -1146,6 +1244,7 @@ function reiniciarChat(){
   chatMessages=[];
   ocultarBanner('general');
   renderChatThread();
+  guardarChatsEnCampana();
 }
 
 // ─── MINI-CHATS (uno por módulo profundo: producto / perfil-cliente / comunicacion) ──
@@ -1169,6 +1268,7 @@ function iniciarMiniChat(modulo){
   if(miniChats[modulo].length && !confirm('Ya hay una conversación en este módulo. ¿Reiniciarla?')) return;
   miniChats[modulo]=[{role:'user',content:'Hola, ayúdame a trabajar el módulo de '+MODULO_LABEL[modulo]+' de esta campaña.'}];
   renderMiniChat(modulo);
+  guardarChatsEnCampana();
   llamarMiniChat(modulo);
 }
 function reiniciarMiniChat(modulo){
@@ -1176,6 +1276,7 @@ function reiniciarMiniChat(modulo){
   miniChats[modulo]=[];
   ocultarBanner(modulo);
   renderMiniChat(modulo);
+  guardarChatsEnCampana();
 }
 function enviarMiniChat(modulo){
   if(miniChatBusy[modulo]) return;
@@ -1188,6 +1289,7 @@ function enviarMiniChat(modulo){
   miniChats[modulo].push({role:'user',content:texto});
   ocultarBanner(modulo);
   renderMiniChat(modulo);
+  guardarChatsEnCampana();
   llamarMiniChat(modulo);
 }
 async function llamarMiniChat(modulo){
@@ -1213,6 +1315,7 @@ async function llamarMiniChat(modulo){
     document.querySelectorAll('.mchat-send-'+modulo).forEach(b=>b.disabled=false);
     renderMiniChat(modulo);
     actualizarBanner(modulo);
+    guardarChatsEnCampana();
   }
 }
 
