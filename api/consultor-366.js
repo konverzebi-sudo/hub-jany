@@ -667,6 +667,22 @@ async function temporadaFormatearClienteRecurrente(clienteId, productoNombre) {
   return 'CLIENTE RECURRENTE (Perfil de Cliente 366 ya construido' + (porProducto ? ', elegido por coincidir con el producto de esta campaña' : '') + ' -- nunca lo recrees desde cero):\n' + lineas.join('\n');
 }
 
+// Contexto liviano de las demás campañas ya guardadas (nombre/temporada/estado/fechas), para que
+// el Jefe no proponga algo que contradiga o duplique exactamente una campaña ya hecha -- nunca el
+// detalle completo de cada una (serían demasiados tokens y no aporta para la campaña en curso).
+function temporadaFormatearOtrasCampanas(campanas, campanaActualId) {
+  const otras = (campanas || []).filter((c) => c && c.id !== campanaActualId);
+  if (otras.length === 0) return null;
+  const lineas = otras.slice(0, 15).map((c) => {
+    const partes = [c.nombre || '(sin nombre)'];
+    if (c.temporada) partes.push(c.temporada);
+    if (c.estado) partes.push('estado: ' + c.estado);
+    if (c.fecha_inicio_activa || c.fecha_fin_activa) partes.push(`activa ${c.fecha_inicio_activa || '?'} a ${c.fecha_fin_activa || '?'}`);
+    return '- ' + partes.join(' · ');
+  });
+  return 'OTRAS CAMPAÑAS DE TEMPORADA DE ESTE NEGOCIO (ya guardadas -- no las repitas ni las contradigas, es solo para que tengas contexto de qué más ha hecho el negocio):\n' + lineas.join('\n');
+}
+
 function temporadaFormatearCampana(camp) {
   if (!camp) return 'CAMPAÑA DE TEMPORADA EN CURSO: todavía no hay campaña seleccionada -- si el usuario no ha dicho qué campaña quiere trabajar, pregúntaselo primero.';
   const lineas = [`Nombre de campaña: ${camp.nombre || '(sin nombre todavía)'}`, `Estado: ${camp.estado || 'borrador'}`];
@@ -704,6 +720,19 @@ async function manejarChatTemporada(req, res) {
     return res.status(400).json({ error: 'El último mensaje debe ser del usuario.' });
   }
 
+  const imagenes = Array.isArray(body.imagenes) ? body.imagenes.filter((img) => img && img.mediaType && img.data).slice(0, 6) : [];
+  const txtConversacion = typeof body.txtConversacion === 'string' ? body.txtConversacion : '';
+  if (imagenes.length || txtConversacion.trim()) {
+    const ultimo = limpio[limpio.length - 1];
+    const partes = imagenes.map((img) => ({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.data } }));
+    let texto = ultimo.content;
+    if (txtConversacion.trim()) {
+      texto += '\n\n--- Conversación(es) o notas adjuntas por el usuario ---\n' + truncar(txtConversacion.trim(), 90000);
+    }
+    partes.push({ type: 'text', text: texto });
+    ultimo.content = partes;
+  }
+
   const modulo = TEMPORADA_PROMPTS_POR_MODULO[body.modulo] ? body.modulo.toString() : 'plan';
 
   try {
@@ -718,12 +747,14 @@ async function manejarChatTemporada(req, res) {
     ]);
     const partesSystem = [cargarPromptTemporada(modulo), contextoNegocio, notasEvergreen];
     if (clienteRecurrente) partesSystem.push(clienteRecurrente);
+    const otrasCampanas = temporadaFormatearOtrasCampanas(campanas, campanaId);
+    if (otrasCampanas) partesSystem.push(otrasCampanas);
     partesSystem.push(temporadaFormatearCampana(campana));
     const system = partesSystem.join('\n\n');
 
     const { ok, status, data } = await llamarClaude(system, {
       model: 'claude-sonnet-4-6',
-      max_tokens: modulo === 'plan' ? 1500 : 2200,
+      max_tokens: modulo === 'plan' ? 1500 : modulo === 'comunicacion' ? 3200 : 2200,
       system,
       messages: limpio,
     });
