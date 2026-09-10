@@ -12,7 +12,7 @@ CÓMO MARCAR CONTENIDO LISTO PARA GUARDAR (obligatorio): cada bloque de contenid
 ⚠️INICIO
 [contenido final, sin preámbulo]
 ⚠️GUARDAR: [nombre exacto de "CAMPOS REALES DEL DOCUMENTO"]
-Si es tabla, una fila por bloque separado por línea en blanco, con una línea "NombreDeColumna: valor" por columna. Un bloque separado por cada cosa distinta que confirmes en el mismo mensaje. Nunca inventes un nombre que no esté en la lista de abajo.
+Si es tabla, una fila por bloque separado por línea en blanco, con una línea "NombreDeColumna: valor" por columna. Un bloque separado por cada cosa distinta que confirmes en el mismo mensaje. Nunca inventes un nombre que no esté en la lista de abajo. Escribe el nombre PELADO en el ⚠️GUARDAR: sin "campo de texto" ni "tabla" delante y sin comillas (ej. ⚠️GUARDAR: Mensajes clave, nunca ⚠️GUARDAR: Tabla "Mensajes clave").
 
 CAMPOS REALES DEL DOCUMENTO (usa estos nombres tal cual):
 - Tabla "Opciones de mensaje principal" (filas libres, columnas Mensaje principal / Por qué funciona).

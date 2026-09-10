@@ -621,6 +621,18 @@ const TEMPORADA_CAMPO_LOOKUP = {
   '¿Qué está pasando en su vida en este momento?': { campo:'cliente_que_pasa', tipo:'texto' },
   '¿Qué haría que compre hoy?': { campo:'cliente_que_haria_hoy', tipo:'texto' },
   '¿Qué cambió vs el cliente recurrente?': { campo:'cliente_que_cambio', tipo:'texto' },
+  'Cliente ideal de temporada': { campo:'dm_cliente_ideal_temporada', tipo:'texto' },
+  'Qué cambia en este cliente por la temporada': { campo:'dm_que_cambia', tipo:'texto' },
+  'Dolor principal de temporada': { campo:'dm_dolor', tipo:'texto' },
+  'Deseo principal de temporada': { campo:'dm_deseo', tipo:'texto' },
+  'Objeciones específicas de temporada': { campo:'dm_objeciones', tipo:'texto' },
+  'Oferta principal': { campo:'dm_oferta', tipo:'texto' },
+  'Incentivo': { campo:'dm_incentivo', tipo:'texto' },
+  'Urgencia real': { campo:'dm_urgencia', tipo:'texto' },
+  'Mensaje principal': { campo:'dm_mensaje_principal', tipo:'texto' },
+  'Frases clave de comunicación': { campo:'dm_frases_clave', tipo:'texto' },
+  'Canal principal de conversión': { campo:'dm_canal_conversion', tipo:'texto' },
+  'Acción que queremos que tome el cliente': { campo:'dm_accion_cliente', tipo:'texto' },
 
   'Incentivos de producto': { campo:'prod_incentivos', tipo:'tabla', tablaId:'tabla-prod-incentivos' },
   'Diferencias clave': { campo:'cliente_diferencias', tipo:'tabla', tablaId:'tabla-cliente-diferencias', columnaClave:'aspecto' },
@@ -640,6 +652,17 @@ const TEMPORADA_CAMPO_LOOKUP = {
   'Calendario final de ejecución': { campo:'calendario', tipo:'tabla', tablaId:'tabla-calendario' },
 };
 
+// El modelo a veces copia literal la forma en que "CAMPOS REALES DEL DOCUMENTO" describe el campo
+// en el prompt (ej. ⚠️GUARDAR: Campo de texto "Objetivo principal" o Tabla "Incentivos de
+// producto") en vez de solo el nombre limpio -- se quita el prefijo descriptivo y las comillas
+// antes de buscarlo en el lookup, así funciona sin importar cuál de las dos formas use.
+function limpiarNombreGuardar(nombre){
+  let n=(nombre||'').toString().trim();
+  n=n.replace(/^(campo de texto|campo|tabla)\s*[:\-]?\s*/i,'').trim();
+  const m=n.match(/^["“'](.+)["”']$/);
+  if(m) n=m[1].trim();
+  return n;
+}
 function parsearBloquesGuardar(texto){
   if(!texto) return [];
   const lineas=texto.split('\n');
@@ -651,7 +674,7 @@ function parsearBloquesGuardar(texto){
     if(/^⚠️\s*INICIO\s*:?\s*$/.test(linea)){ inicioContenido=i+1; continue; }
     const m=linea.match(/^⚠️\s*GUARDAR\s*:\s*(.+?)\s*$/);
     if(m){
-      const nombre=m[1].trim();
+      const nombre=limpiarNombreGuardar(m[1]);
       // Camino feliz: el modelo sí puso ⚠️INICIO. Si se le olvidó, en vez de perder el bloque
       // entero, cae al párrafo justo antes del ⚠️GUARDAR (desde la última línea en blanco) --
       // suele ser exactamente el contenido que se quería guardar.
