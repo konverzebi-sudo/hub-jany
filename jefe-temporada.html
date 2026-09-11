@@ -59,6 +59,8 @@
   select.estado-pill.activa{background:var(--temp-soft);color:var(--temp);border-color:#6B4F14;}
   select.estado-pill.cerrada{background:var(--surface-2);color:var(--text-dim);border-color:var(--line);}
   .save-status{font-size:11.5px;font-family:'JetBrains Mono',monospace;color:#22c55e;min-width:70px;}
+  .chat-inline-status{font-size:11.5px;font-family:'JetBrains Mono',monospace;font-weight:700;color:#0F0B16;}
+  .chat-inline-status.error{color:#B00020;}
 
   /* VISTA DIVIDIDA (calcado del Jefe 366): chat general fijo/sticky en escritorio */
   /* En pantallas angostas es un botón normal en el flujo (nunca se tapa ni se pierde);
@@ -76,7 +78,12 @@
   /* SECCIONES DEL DOCUMENTO */
   .doc-section{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px 22px;margin-bottom:16px;}
   .doc-section.destaca{border-color:var(--temp);}
-  .doc-section-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+  .doc-section.collapsed{padding-bottom:20px;}
+  .doc-section.collapsed>*:not(.doc-section-head){display:none;}
+  .doc-section-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;cursor:pointer;user-select:none;}
+  .doc-section.collapsed .doc-section-head{margin-bottom:0;}
+  .doc-section-head::after{content:'▾';margin-left:auto;color:var(--text-dim);font-size:13px;flex-shrink:0;transition:transform .15s;}
+  .doc-section.collapsed .doc-section-head::after{transform:rotate(-90deg);}
   .doc-num{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;flex-shrink:0;}
   .doc-section.destaca .doc-num{background:var(--temp-soft);color:var(--temp);}
   .doc-title{font-family:'Sora',sans-serif;font-weight:700;font-size:16px;margin:0;}
@@ -151,15 +158,6 @@
   .file-btn:hover{border-color:var(--accent);}
   .file-name{font-size:11px;color:#3B0764;font-weight:600;}
 
-  /* MINI-CHAT (embebido dentro de cada módulo profundo) */
-  .mini-chat-box{background:var(--surface-2);border:1px dashed var(--line);border-radius:12px;padding:14px 16px;margin:14px 0;display:flex;flex-direction:column;gap:10px;}
-  .mini-chat-title{font-family:'JetBrains Mono',monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);margin:0;}
-  .mini-chat-thread{display:flex;flex-direction:column;gap:8px;max-height:280px;overflow-y:auto;}
-  .mini-chat-thread .chat-msg{font-size:12.5px;padding:9px 11px;}
-  .mini-chat-input-row{display:flex;gap:8px;}
-  .mini-chat-input-row input[type=text]{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:8px 10px;font-family:'Inter',sans-serif;font-size:13px;outline:none;}
-  .mini-chat-input-row input[type=text]:focus{border-color:var(--accent);}
-  .mini-chat-actions{display:flex;gap:8px;flex-wrap:wrap;}
   .quick-links{display:flex;gap:14px;flex-wrap:wrap;margin:-8px 0 20px;}
   .quick-links a{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--text-dim);text-decoration:none;border-bottom:1px dashed var(--line);}
   .quick-links a:hover{color:var(--accent);border-color:var(--accent);}
@@ -189,6 +187,7 @@
   </div>
 
   <div class="quick-links">
+    <a id="linkADN" href="/adn" target="_blank" rel="noopener">→ Ver ADN del negocio</a>
     <a id="link366" href="/jefe-366" target="_blank" rel="noopener">→ Ver Sistema de Productos 366</a>
     <a id="linkAgenda" href="/jefe-agenda" target="_blank" rel="noopener">→ Ver en el Jefe de Agenda</a>
   </div>
@@ -225,8 +224,10 @@ const TEMPORADA_KEY = CLIENTE_ID + ':temporada-campanas';
 const AGENDA_KEY = CLIENTE_ID + ':agenda-eventos';
 
 (function(){
+  const RUTA_ADN = { 'rancho-seco': '/rancho-seco/adn', rim: '/rim/adn', 'optica-one': '/optica-one/adn', jefeshub: '/adn' };
   const RUTA_366 = { 'rancho-seco': '/rancho-seco/jefe-366', rim: '/rim/jefe-366', 'optica-one': '/optica-one/jefe-366', jefeshub: '/jefe-366' };
   const RUTA_AGENDA = { 'rancho-seco': '/rancho-seco/jefe-agenda', rim: '/rim/jefe-agenda', 'optica-one': '/optica-one/jefe-agenda', jefeshub: '/jefe-agenda' };
+  document.getElementById('linkADN').href = RUTA_ADN[CLIENTE_ID] || RUTA_ADN.jefeshub;
   document.getElementById('link366').href = RUTA_366[CLIENTE_ID] || RUTA_366.jefeshub;
   document.getElementById('linkAgenda').href = RUTA_AGENDA[CLIENTE_ID] || RUTA_AGENDA.jefeshub;
 })();
@@ -260,9 +261,6 @@ let perfilesCliente366 = [];
 let campanasLoaded = false;
 let chatMessages = []; // chat general -- copia de trabajo de camp.chat_general, se persiste (ver guardarChatsEnCampana)
 let chatBusy = false;
-let miniChats = { producto:[], 'perfil-cliente':[], comunicacion:[] };
-let miniChatBusy = { producto:false, 'perfil-cliente':false, comunicacion:false };
-const MODULO_LABEL = { producto:'Producto para campaña', 'perfil-cliente':'Perfil de Cliente de Campaña', comunicacion:'Estrategia de Comunicación' };
 
 function activeCampana(){ return campanas.find(c=>c.id===campanaActivaId) || null; }
 
@@ -271,9 +269,9 @@ function filasFijas(labelKey, valores){ return valores.map(v=>({ id:newId(), [la
 function mkCampana(){
   return {
     id:newId(), nombre:'Nueva campaña', estado:'borrador', creadoEn:new Date().toISOString(),
-    // Chats guardados (general + los 3 mini-chats) -- se persisten con el resto de la campaña,
-    // nunca se borran solos (solo si el usuario le da "Reiniciar" a propósito).
-    chat_general:[], chat_producto:[], chat_perfil_cliente:[], chat_comunicacion:[],
+    // Chat guardado -- se persiste con el resto de la campaña, nunca se borra solo (solo si el
+    // usuario le da "Reiniciar" a propósito).
+    chat_general:[],
     // 1. Definición
     temporada:'', producto_origen:'evergreen', producto_id:'', producto_nombre:'', producto_nuevo:'',
     objetivo_principal:'', fecha_inicio_activa:'', fecha_fin_activa:'', incentivo:'',
@@ -362,11 +360,20 @@ async function cargarInicial(){
 }
 
 // ─── GUARDADO (debounced) + SYNC CON EL JEFE DE AGENDA ───────────────────────
+// El estado se refleja en 2 lugares: el toolbar de arriba (save-status) y, si está visible, un
+// texto pegado al chat (chat-inline-status) -- así un error de guardado (ej. token vencido) no
+// pasa desapercibido solo porque el usuario tiene la vista scrolleada al chat.
 let saveTimer=null, savePending=false;
+function mostrarEstadoGuardado(texto, esError){
+  const a=document.getElementById('save-status');
+  if(a) a.textContent=texto;
+  const b=document.getElementById('chat-inline-status');
+  if(b){ b.textContent=texto; b.classList.toggle('error', !!esError); }
+}
 function scheduleGuardarCampanas(){
   if(!campanasLoaded) return;
   savePending=true;
-  document.getElementById('save-status').textContent='Guardando...';
+  mostrarEstadoGuardado('Guardando...', false);
   clearTimeout(saveTimer);
   saveTimer=setTimeout(()=>doGuardarCampanas(),600);
 }
@@ -375,11 +382,11 @@ async function doGuardarCampanas(opts){
   try{
     await window.storage.set(TEMPORADA_KEY, JSON.stringify(campanas), opts);
     savePending=false;
-    document.getElementById('save-status').textContent='Guardado ✓';
-    setTimeout(()=>{ if(!savePending) document.getElementById('save-status').textContent=''; },1800);
+    mostrarEstadoGuardado('Guardado ✓', false);
+    setTimeout(()=>{ if(!savePending) mostrarEstadoGuardado('', false); },1800);
     scheduleAgendaSync();
   }catch(e){
-    document.getElementById('save-status').textContent = e.status===401 ? 'Token incorrecto.' : 'No se pudo guardar.';
+    mostrarEstadoGuardado(e.status===401 ? '⚠️ Token incorrecto — vuelve a intentar para que te lo vuelva a pedir.' : '⚠️ No se pudo guardar. Revisa tu conexión e intenta de nuevo.', true);
   }
 }
 
@@ -430,23 +437,19 @@ function renderToolbar(){
   estadoSel.className='estado-pill '+(camp?camp.estado||'borrador':'borrador');
   estadoSel.disabled = !camp;
 }
-// Los chats (general + los 3 mini-chats) viven guardados en la propia campaña (camp.chat_*), no
-// se borran solos -- cambiar de campaña solo cambia CUÁL conversación se muestra.
+// El chat vive guardado en la propia campaña (camp.chat_general), no se borra solo -- cambiar de
+// campaña solo cambia CUÁL conversación se muestra. (Antes también sincronizaba 3 mini-chats por
+// módulo -- se quitaron, ver system-prompt-temporada.md PASO 2A/2B/2C: todo vive en un solo chat
+// ahora. camp.chat_producto/chat_perfil_cliente/chat_comunicacion pueden seguir existiendo en
+// campañas viejas guardadas antes de este cambio -- se dejan ahí sin tocar, ya no se leen ni
+// escriben.)
 function sincronizarChatsDesdeCampana(){
   const camp=activeCampana();
   chatMessages = camp ? (camp.chat_general||[]) : [];
-  miniChats = {
-    producto: camp ? (camp.chat_producto||[]) : [],
-    'perfil-cliente': camp ? (camp.chat_perfil_cliente||[]) : [],
-    comunicacion: camp ? (camp.chat_comunicacion||[]) : [],
-  };
 }
 function guardarChatsEnCampana(){
   const camp=activeCampana(); if(!camp) return;
   camp.chat_general = chatMessages.slice(-60);
-  camp.chat_producto = miniChats.producto.slice(-60);
-  camp.chat_perfil_cliente = miniChats['perfil-cliente'].slice(-60);
-  camp.chat_comunicacion = miniChats.comunicacion.slice(-60);
   scheduleGuardarCampanas();
 }
 function cambiarCampana(id){ campanaActivaId=id||null; sincronizarChatsDesdeCampana(); render(); renderToolbar(); }
@@ -470,8 +473,8 @@ function duplicarCampana(){
   const copia=JSON.parse(JSON.stringify(camp));
   copia.id=newId(); copia.nombre=(camp.nombre||'Campaña')+' (copia)'; copia.estado='borrador'; copia.creadoEn=new Date().toISOString();
   copia.calendario=(copia.calendario||[]).map(r=>({...r,id:newId()}));
-  // Una campaña duplicada arranca sus propias conversaciones -- las del original no se copian.
-  copia.chat_general=[]; copia.chat_producto=[]; copia.chat_perfil_cliente=[]; copia.chat_comunicacion=[];
+  // Una campaña duplicada arranca su propia conversación -- la del original no se copia.
+  copia.chat_general=[];
   campanas.unshift(copia);
   campanaActivaId=copia.id;
   sincronizarChatsDesdeCampana();
@@ -759,19 +762,16 @@ function procesarConfirmoTemporada(mensajes){
   return aplicoAlgo;
 }
 
-function mensajesDe(tipo){ return tipo==='general' ? chatMessages : miniChats[tipo]; }
-function bannerElId(tipo){ return tipo==='general' ? 'chat-confirmo-banner' : 'mchat-confirmo-'+tipo; }
 function esConfirmoJefe(texto){ return (texto||'').trim().toUpperCase()==='CONFIRMO JEFE'; }
-function ocultarBanner(tipo){ const el=document.getElementById(bannerElId(tipo)); if(el) el.style.display='none'; }
-function actualizarBanner(tipo){
-  const el=document.getElementById(bannerElId(tipo)); if(!el) return;
-  const msgs=mensajesDe(tipo);
-  const ultimo=[...msgs].reverse().find(m=>m.role==='assistant');
+function ocultarBanner(){ const el=document.getElementById('chat-confirmo-banner'); if(el) el.style.display='none'; }
+function actualizarBanner(){
+  const el=document.getElementById('chat-confirmo-banner'); if(!el) return;
+  const ultimo=[...chatMessages].reverse().find(m=>m.role==='assistant');
   el.style.display = (ultimo && parsearBloquesGuardar(ultimo.content).length>0) ? 'flex' : 'none';
 }
-function confirmarChat(tipo){
-  const aplicado=procesarConfirmoTemporada(mensajesDe(tipo));
-  ocultarBanner(tipo);
+function confirmarChat(){
+  const aplicado=procesarConfirmoTemporada(chatMessages);
+  ocultarBanner();
   if(aplicado){
     scheduleGuardarCampanas();
     render();
@@ -900,11 +900,11 @@ function render(){
     <div id="temporada-main">
       <div id="general-chat-box" class="chat-box">
         <h3 class="chat-box-title">💬 Chat con el Jefe de Temporada</h3>
-        <p class="chat-box-desc">Te va guiando paso a paso (definición, metas, precampaña, campaña activa, base de datos, postcampaña, ads y calendario). Para Producto, Perfil de Cliente y Comunicación usa los mini-chats de sus propias secciones — son más profundos.</p>
+        <p class="chat-box-desc">Te va guiando paso a paso todo el documento -- definición, producto, perfil de cliente, comunicación, metas, precampaña, campaña activa, base de datos, postcampaña, ads y calendario -- todo aquí mismo, sin cambiar de chat.</p>
         <div class="chat-thread" id="chat-thread"></div>
         <div class="confirmo-banner" id="chat-confirmo-banner" style="display:none">
           <span>✅ Hay contenido listo para aplicar al Documento.</span>
-          <button type="button" class="btn" onclick="confirmarChat('general')">Aplicar (CONFIRMO JEFE)</button>
+          <button type="button" class="btn" onclick="confirmarChat()">Aplicar (CONFIRMO JEFE)</button>
         </div>
         <div class="chat-uploads">
           <label class="file-btn">📎 Subir capturas<input type="file" id="chat-capturas" accept="image/*" multiple hidden onchange="onArchivosChat('general')"></label>
@@ -912,7 +912,8 @@ function render(){
           <span id="chat-files-name" class="file-name"></span>
         </div>
         <textarea id="chat-input" placeholder="Escribe aquí..." onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();enviarMensajeChat();}"></textarea>
-        <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <div style="display:flex;align-items:center;gap:10px;justify-content:flex-end;">
+          <span id="chat-inline-status" class="chat-inline-status"></span>
           <button type="button" class="btn-outline" onclick="reiniciarChat()">Reiniciar</button>
           <button type="button" class="btn btn-solid" id="chat-send-btn" onclick="enviarMensajeChat()">Enviar</button>
         </div>
@@ -925,32 +926,29 @@ function render(){
   }
   renderChatThread();
   renderDocumento(document.getElementById('doc-sections'), camp);
+  bindSeccionesColapsables(document.getElementById('doc-sections'));
+}
+
+// Cada módulo se puede compactar dando clic en su título, para que solo quede el encabezado
+// visible -- útil una vez que ya se llenó y no hace falta seguir viéndolo. El estado (qué
+// secciones están colapsadas) vive en memoria mientras dura la sesión, no se guarda.
+let seccionesColapsadas = new Set();
+function bindSeccionesColapsables(container){
+  container.querySelectorAll('.doc-section').forEach((sec, idx)=>{
+    const num = idx + 1;
+    if(seccionesColapsadas.has(num)) sec.classList.add('collapsed');
+    const head = sec.querySelector('.doc-section-head');
+    if(!head) return;
+    head.addEventListener('click', ()=>{
+      const colapsado = sec.classList.toggle('collapsed');
+      if(colapsado) seccionesColapsadas.add(num); else seccionesColapsadas.delete(num);
+    });
+  });
 }
 
 function campoTexto(campo,label,tipo){
   return `<div class="field"><label>${label}</label>${tipo==='textarea'?`<textarea id="f-${campo}" oninput="actualizarCampo('${campo}',this.value);autoAlturaTextarea(this)"></textarea>`:`<input type="${tipo||'text'}" id="f-${campo}" oninput="actualizarCampo('${campo}',this.value)">`}</div>`;
 }
-function miniChatHtml(modulo){
-  return `
-    <div class="mini-chat-box">
-      <p class="mini-chat-title">🤖 Chat guiado de este módulo</p>
-      <div class="mini-chat-thread" id="mchat-thread-${modulo}"></div>
-      <div class="confirmo-banner" id="mchat-confirmo-${modulo}" style="display:none">
-        <span>✅ Hay contenido listo para aplicar al Documento.</span>
-        <button type="button" class="btn" onclick="confirmarChat('${modulo}')">Aplicar (CONFIRMO JEFE)</button>
-      </div>
-      <div class="mini-chat-input-row">
-        <input type="text" id="mchat-input-${modulo}" placeholder="Escribe aquí para responder al Jefe..." onkeydown="if(event.key==='Enter'){event.preventDefault();enviarMiniChat('${modulo}');}">
-        <button type="button" class="btn-outline mchat-send-${modulo}" onclick="enviarMiniChat('${modulo}')">Enviar</button>
-      </div>
-      <div class="mini-chat-actions">
-        <button type="button" class="btn btn-solid mchat-send-${modulo}" onclick="iniciarMiniChat('${modulo}')">🤖 Empezar con el Jefe</button>
-        <button type="button" class="btn-outline mchat-send-${modulo}" onclick="reiniciarMiniChat('${modulo}')">Reiniciar</button>
-      </div>
-    </div>
-  `;
-}
-
 function renderDocumento(container, camp){
   container.innerHTML = `
     <div class="nota-box" style="display:flex;flex-direction:column;gap:10px;">
@@ -995,7 +993,6 @@ function renderDocumento(container, camp){
     <div class="doc-section">
       <div class="doc-section-head"><span class="doc-num">2</span><h3 class="doc-title">Producto para campaña</h3></div>
       <div class="recap-line" id="recap-producto"></div>
-      ${miniChatHtml('producto')}
       ${campoTexto('prod_por_que','¿Por qué este producto hace sentido para esta temporada?','textarea')}
       <p class="doc-desc" style="margin:14px 0 8px 0;">Incentivos evaluados</p>
       <div id="tabla-prod-incentivos" class="tabla-notas-container"></div>
@@ -1004,7 +1001,6 @@ function renderDocumento(container, camp){
     <div class="doc-section">
       <div class="doc-section-head"><span class="doc-num">3</span><h3 class="doc-title">Perfil de Cliente de Campaña</h3></div>
       <div class="jefe366-ref-box" id="cliente-recurrente-box"></div>
-      ${miniChatHtml('perfil-cliente')}
       ${campoTexto('cliente_que_pasa','¿Qué está pasando en su vida en este momento?','textarea')}
       <p class="doc-desc" style="margin:14px 0 8px 0;">Diferencias clave vs el cliente recurrente</p>
       <div id="tabla-cliente-diferencias" class="tabla-notas-container"></div>
@@ -1016,7 +1012,6 @@ function renderDocumento(container, camp){
 
     <div class="doc-section">
       <div class="doc-section-head"><span class="doc-num">4</span><h3 class="doc-title">Estrategia de Comunicación</h3></div>
-      ${miniChatHtml('comunicacion')}
       <p class="doc-desc" style="margin:0 0 8px 0;">Opciones de mensaje principal</p>
       <div id="tabla-com-mensajes-opciones" class="tabla-notas-container"></div>
       <p class="doc-desc" style="margin:14px 0 8px 0;">Mensaje elegido</p>
@@ -1159,7 +1154,6 @@ function renderDocumento(container, camp){
 
   renderRecaps();
   renderClienteRecurrenteBox();
-  ['producto','perfil-cliente','comunicacion'].forEach(renderMiniChat);
 }
 
 // Si la campaña activa ya tiene un producto elegido, usa el perfil cuyo "producto relacionado"
@@ -1232,9 +1226,9 @@ async function enviarMensajeChat(){
   if(!texto) return;
   const camp=activeCampana(); if(!camp) return;
   input.value='';
-  if(esConfirmoJefe(texto)) confirmarChat('general');
+  if(esConfirmoJefe(texto)) confirmarChat();
   chatMessages.push({role:'user',content:texto});
-  ocultarBanner('general');
+  ocultarBanner();
   renderChatThread();
   guardarChatsEnCampana();
   chatBusy=true;
@@ -1258,88 +1252,16 @@ async function enviarMensajeChat(){
     chatBusy=false;
     document.getElementById('chat-send-btn').disabled=false;
     renderChatThread();
-    actualizarBanner('general');
+    actualizarBanner();
     guardarChatsEnCampana();
   }
 }
 function reiniciarChat(){
   if(chatMessages.length && !confirm('¿Reiniciar la conversación? Se perderá lo que llevas platicado (no lo que ya guardaste en el Documento).')) return;
   chatMessages=[];
-  ocultarBanner('general');
+  ocultarBanner();
   renderChatThread();
   guardarChatsEnCampana();
-}
-
-// ─── MINI-CHATS (uno por módulo profundo: producto / perfil-cliente / comunicacion) ──
-function renderMiniChat(modulo){
-  const thread=document.getElementById('mchat-thread-'+modulo);
-  if(!thread) return;
-  const msgs=miniChats[modulo];
-  if(!msgs.length){
-    thread.innerHTML='<div class="chat-empty">Dale "Empezar con el Jefe" para que abra este módulo.</div>';
-    return;
-  }
-  thread.innerHTML = msgs.map(m=>{
-    if(m.role==='user') return `<div class="chat-msg chat-msg-user">${escHtml(m.content)}</div>`;
-    const visible=limpiarMarcadoresGuardar(m.content);
-    return `<div class="chat-msg chat-msg-assistant">${escHtml(visible)}</div>
-      <div class="chat-msg-actions"><button onclick="copyText(this,\`${visible.replace(/`/g,"'")}\`)">Copiar</button></div>`;
-  }).join('');
-  thread.scrollTop = thread.scrollHeight;
-}
-function iniciarMiniChat(modulo){
-  if(miniChats[modulo].length && !confirm('Ya hay una conversación en este módulo. ¿Reiniciarla?')) return;
-  miniChats[modulo]=[{role:'user',content:'Hola, ayúdame a trabajar el módulo de '+MODULO_LABEL[modulo]+' de esta campaña.'}];
-  renderMiniChat(modulo);
-  guardarChatsEnCampana();
-  llamarMiniChat(modulo);
-}
-function reiniciarMiniChat(modulo){
-  if(miniChats[modulo].length && !confirm('¿Reiniciar este mini-chat?')) return;
-  miniChats[modulo]=[];
-  ocultarBanner(modulo);
-  renderMiniChat(modulo);
-  guardarChatsEnCampana();
-}
-function enviarMiniChat(modulo){
-  if(miniChatBusy[modulo]) return;
-  const input=document.getElementById('mchat-input-'+modulo);
-  const texto=input.value.trim();
-  if(!texto) return;
-  const camp=activeCampana(); if(!camp) return;
-  input.value='';
-  if(esConfirmoJefe(texto)) confirmarChat(modulo);
-  miniChats[modulo].push({role:'user',content:texto});
-  ocultarBanner(modulo);
-  renderMiniChat(modulo);
-  guardarChatsEnCampana();
-  llamarMiniChat(modulo);
-}
-async function llamarMiniChat(modulo){
-  const camp=activeCampana(); if(!camp) return;
-  miniChatBusy[modulo]=true;
-  document.querySelectorAll('.mchat-send-'+modulo).forEach(b=>b.disabled=true);
-  try{
-    const res=await fetch('/api/consultor-366',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ messages:miniChats[modulo], cliente:CLIENTE_ID, campanaId:camp.id, agente:'temporada', modulo }),
-    });
-    const data=await res.json();
-    if(!res.ok){
-      miniChats[modulo].push({role:'assistant',content:'⚠️ '+(data.error||'No se pudo generar respuesta. Intenta de nuevo.')});
-    } else {
-      miniChats[modulo].push({role:'assistant',content:data.text});
-    }
-  }catch(e){
-    miniChats[modulo].push({role:'assistant',content:'⚠️ Hubo un error de conexión. Intenta de nuevo en un momento.'});
-  }finally{
-    miniChatBusy[modulo]=false;
-    document.querySelectorAll('.mchat-send-'+modulo).forEach(b=>b.disabled=false);
-    renderMiniChat(modulo);
-    actualizarBanner(modulo);
-    guardarChatsEnCampana();
-  }
 }
 
 cargarInicial();

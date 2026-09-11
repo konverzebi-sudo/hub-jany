@@ -93,22 +93,18 @@ const BUILDER_PROMPTS_POR_MODO = {
 // archivo por el mismo límite de 12 Serverless Functions: reutiliza el contexto de negocio y
 // las Notas Evergreen ya construidas aquí (builderConstruirContextoNegocio /
 // builderFormatearNotasGuardadas) en vez de duplicarlas.
-// "plan" es el chat guiado general (Definición + Metas..Calendario); los otros 3 son los
-// mini-chats dedicados de cada módulo profundo (más detallados que el flujo general, calcados
-// de las sub-páginas del Notion "Día 6 — Campaña de Temporada").
-const TEMPORADA_PROMPTS_POR_MODULO = {
-  plan: path.join(__dirname, '..', 'prompts', 'system-prompt-temporada.md'),
-  producto: path.join(__dirname, '..', 'prompts', 'system-prompt-temporada-producto.md'),
-  'perfil-cliente': path.join(__dirname, '..', 'prompts', 'system-prompt-temporada-perfil-cliente.md'),
-  comunicacion: path.join(__dirname, '..', 'prompts', 'system-prompt-temporada-comunicacion.md'),
-};
-const temporadaPromptCache = new Map();
-function cargarPromptTemporada(modulo) {
-  const ruta = TEMPORADA_PROMPTS_POR_MODULO[modulo] || TEMPORADA_PROMPTS_POR_MODULO.plan;
-  if (temporadaPromptCache.has(ruta)) return temporadaPromptCache.get(ruta);
-  const contenido = fs.readFileSync(ruta, 'utf-8');
-  temporadaPromptCache.set(ruta, contenido);
-  return contenido;
+// Un solo chat guiado general (Definición → Producto → Perfil de Cliente → Comunicación →
+// Documento Maestro → Metas..Calendario) -- antes existían 3 mini-chats aparte para Producto/
+// Perfil de Cliente/Comunicación, pero eran una conversación redundante y desconectada de la
+// principal (el chat general ya podía guardar en cualquier campo del documento vía
+// procesarConfirmoTemporada, no estaba limitado). Se fusionaron dentro de
+// system-prompt-temporada.md como PASO 2A/2B/2C.
+const TEMPORADA_PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-temporada.md');
+let temporadaPromptCache = null;
+function cargarPromptTemporada() {
+  if (temporadaPromptCache) return temporadaPromptCache;
+  temporadaPromptCache = fs.readFileSync(TEMPORADA_PROMPT_PATH, 'utf-8');
+  return temporadaPromptCache;
 }
 const BUILDER_CONTEXT_CHAR_LIMIT = 6000;
 const BUILDER_NOTAS_CHAR_LIMIT = 6000;
@@ -648,11 +644,11 @@ function temporadaFormatearProducto(camp) {
   return null;
 }
 
-// Solo lo usa el módulo "perfil-cliente" -- ahí el prompt pide explícitamente no recrear al
-// cliente recurrente desde cero, así que se le manda el Perfil de Cliente 366 ya guardado. Los
-// perfiles viven en brand-book.audiencias (varios, en orden de prioridad de compra); si la
-// campaña ya tiene un producto elegido se usa el perfil cuyo "producto relacionado" coincida,
-// si no hay coincidencia (o no hay producto elegido) se usa el primero de la lista.
+// El PASO 2B del prompt pide explícitamente no recrear al cliente recurrente desde cero, así que
+// siempre se le manda el Perfil de Cliente 366 ya guardado. Los perfiles viven en
+// brand-book.audiencias (varios, en orden de prioridad de compra); si la campaña ya tiene un
+// producto elegido se usa el perfil cuyo "producto relacionado" coincida, si no hay coincidencia
+// (o no hay producto elegido) se usa el primero de la lista.
 async function temporadaFormatearClienteRecurrente(clienteId, productoNombre) {
   const perfiles = await builderLeerAudiencias(clienteId).catch(() => []);
   if (!perfiles.length) return 'CLIENTE RECURRENTE (Perfil de Cliente 366): todavía no está guardado -- pregúntale al usuario lo mínimo indispensable antes de seguir.';
@@ -733,19 +729,20 @@ async function manejarChatTemporada(req, res) {
     ultimo.content = partes;
   }
 
-  const modulo = TEMPORADA_PROMPTS_POR_MODULO[body.modulo] ? body.modulo.toString() : 'plan';
-
   try {
     const campanas = (await leerJSON(`${clienteId}:temporada-campanas`).catch(() => null)) || [];
     const campanaId = (body.campanaId || '').toString();
     const campana = campanaId ? campanas.find((c) => c && c.id === campanaId) : null;
 
+    // clienteRecurrente se manda siempre (no solo para un modulo puntual): el chat único ahora
+    // cubre Producto/Perfil de Cliente/Comunicación dentro de la misma conversación (PASO 2A/2B/2C
+    // de system-prompt-temporada.md), y el PASO 2B lo necesita.
     const [contextoNegocio, notasEvergreen, clienteRecurrente] = await Promise.all([
       builderConstruirContextoNegocio(clienteId),
       builderFormatearNotasGuardadas(clienteId),
-      modulo === 'perfil-cliente' ? temporadaFormatearClienteRecurrente(clienteId, campana && (campana.producto_nombre || campana.producto_nuevo)) : Promise.resolve(null),
+      temporadaFormatearClienteRecurrente(clienteId, campana && (campana.producto_nombre || campana.producto_nuevo)),
     ]);
-    const partesSystem = [cargarPromptTemporada(modulo), contextoNegocio, notasEvergreen];
+    const partesSystem = [cargarPromptTemporada(), contextoNegocio, notasEvergreen];
     if (clienteRecurrente) partesSystem.push(clienteRecurrente);
     const otrasCampanas = temporadaFormatearOtrasCampanas(campanas, campanaId);
     if (otrasCampanas) partesSystem.push(otrasCampanas);
@@ -754,7 +751,7 @@ async function manejarChatTemporada(req, res) {
 
     const { ok, status, data } = await llamarClaude(system, {
       model: 'claude-sonnet-4-6',
-      max_tokens: modulo === 'plan' ? 1500 : modulo === 'comunicacion' ? 3200 : 2200,
+      max_tokens: 3200,
       system,
       messages: limpio,
     });
@@ -766,7 +763,7 @@ async function manejarChatTemporada(req, res) {
     if (!text) {
       return res.status(502).json({ error: 'Respuesta vacía del modelo.' });
     }
-    await registrarUsoTokens(clienteId, 'consultor-temporada-chat-' + modulo, data.usage);
+    await registrarUsoTokens(clienteId, 'consultor-temporada-chat', data.usage);
     return res.status(200).json({
       text,
       usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 },
