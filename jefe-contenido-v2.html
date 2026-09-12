@@ -1356,7 +1356,12 @@ function renderAgente(){
     const host=document.createElement('div');
     host.id='agente-guionorg-host';
     wrap.appendChild(host);
-    pintarGuionOrganico(host);
+    if(guionOrgChatLoaded){
+      pintarGuionOrganico(host);
+    } else {
+      host.innerHTML='<p class="status">Cargando conversación...</p>';
+      ensureGuionOrgChatLoaded().then(()=>pintarGuionOrganico(host));
+    }
     return;
   }
 
@@ -1473,6 +1478,22 @@ let guionOrgPreguntaDraft = '';
 let guionOrgPreguntaStatus = '';
 let guionOrgImagenesAdjuntas = []; // {mediaType, data (base64 sin prefijo), previewUrl}
 
+// La conversación se guarda para que salir de la página (o cambiar de pestaña) no la borre --
+// antes vivía solo en memoria y se perdía al salir.
+const POST_IA_CHAT_KEY = CLIENTE_ID + ':post-ia-chat';
+let guionOrgChatLoaded = false;
+let guionOrgChatSaveTimer = null;
+async function ensureGuionOrgChatLoaded(){
+  if(guionOrgChatLoaded) return;
+  guionOrgChatLoaded = true;
+  try{
+    const r = await window.storage.get(POST_IA_CHAT_KEY);
+    guionOrgChat = r && r.value ? JSON.parse(r.value) : [];
+  }catch(e){ guionOrgChat = []; }
+}
+function scheduleGuionOrgChatSave(){ clearTimeout(guionOrgChatSaveTimer); guionOrgChatSaveTimer=setTimeout(guardarGuionOrgChat,500); }
+async function guardarGuionOrgChat(opts){ try{ await window.storage.set(POST_IA_CHAT_KEY, JSON.stringify(guionOrgChat), opts); }catch(e){} }
+
 function pintarGuionOrganico(container){
   const wrap = document.createElement('div');
   wrap.className='evergreen-panel';
@@ -1576,6 +1597,7 @@ function pintarGuionOrganico(container){
   const chatResetBtn=document.getElementById('go-chat-reset-btn');
   if(chatResetBtn) chatResetBtn.addEventListener('click', ()=>{
     guionOrgChat=[]; guionOrgPreguntaStatus=''; guionOrgPreguntaDraft=''; guionOrgImagenesAdjuntas=[];
+    scheduleGuionOrgChatSave();
     pintarGuionOrganico(document.getElementById('agente-guionorg-host'));
   });
   if(guionOrgIdeas.length){
@@ -1686,6 +1708,7 @@ async function preguntarAgentePostIA(){
   guionOrgChat.push({role:'user', content: pregunta || '(revisa la imagen adjunta)', imagenes: previewsParaMostrar});
   guionOrgPreguntaDraft = '';
   guionOrgImagenesAdjuntas = [];
+  scheduleGuionOrgChatSave();
   pintarGuionOrgChat();
   pintarGuionOrgImgPreview();
   try{
@@ -1701,8 +1724,10 @@ async function preguntarAgentePostIA(){
     if(!resp.ok) throw new Error(data.error || 'Error al consultar al Agente.');
     guionOrgChat.push({role:'assistant', content:data.text||''});
     guionOrgPreguntaStatus = '✅ Listo';
+    scheduleGuionOrgChatSave();
   }catch(err){
     guionOrgChat.pop();
+    scheduleGuionOrgChatSave();
     guionOrgPreguntaDraft = pregunta;
     guionOrgImagenesAdjuntas = imagenesParaEnviar.map((img,i)=>({...img, previewUrl:previewsParaMostrar[i]}));
     guionOrgPreguntaStatus = '❌ ' + (err.message || 'Error al consultar al Agente.');
@@ -1767,6 +1792,7 @@ function usarRespuestaChatEnContenido(idx){
   msg.usada = true;
   msg.contenidoId = newId;
   msg.contenidoGancho = gancho;
+  scheduleGuionOrgChatSave();
   document.getElementById('count-contenido').textContent = state.contenido.length;
   scheduleSave();
   guionOrgPreguntaStatus = '✅ Se agregó a Contenido (en proceso).';
@@ -2303,8 +2329,8 @@ async function doSave(opts){
     statusEl.textContent=e.status===401?'Token incorrecto.':'No se pudo guardar.';
   }
 }
-document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'){ if(pendingSave) doSave({keepalive:true}); guardarCarpeta({keepalive:true}); } });
-window.addEventListener('pagehide',()=>{ if(pendingSave) doSave({keepalive:true}); guardarCarpeta({keepalive:true}); });
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'){ if(pendingSave) doSave({keepalive:true}); guardarCarpeta({keepalive:true}); if(guionOrgChatLoaded) guardarGuionOrgChat({keepalive:true}); } });
+window.addEventListener('pagehide',()=>{ if(pendingSave) doSave({keepalive:true}); guardarCarpeta({keepalive:true}); if(guionOrgChatLoaded) guardarGuionOrgChat({keepalive:true}); });
 
 // ─── SYNC CON EL JEFE DE AGENDA ─────────────────────────────────────────────
 // Espeja las historias/contenido con fecha al calendario cruzado de Jefes
