@@ -1672,12 +1672,39 @@ async function leerImagenComoDataURL(file){
   });
 }
 
+// Fotos de celular pueden pesar varios MB -- sin achicarlas, el request se pasa del límite de
+// tamaño de Vercel y el servidor lo rechaza antes de llegar al agente (respuesta no-JSON tipo
+// "Request Entity Too Large"). Se re-codifica a JPEG y se limita el lado más largo a 1600px.
+async function comprimirImagenParaChat(file){
+  const MAX_DIM=1600, CALIDAD=0.82;
+  const dataUrlOriginal = await leerImagenComoDataURL(file);
+  try{
+    const img = await new Promise((resolve,reject)=>{
+      const im=new Image();
+      im.onload=()=>resolve(im);
+      im.onerror=reject;
+      im.src=dataUrlOriginal;
+    });
+    let {width,height}=img;
+    if(width>MAX_DIM||height>MAX_DIM){
+      const escala=MAX_DIM/Math.max(width,height);
+      width=Math.round(width*escala); height=Math.round(height*escala);
+    }
+    const canvas=document.createElement('canvas');
+    canvas.width=width; canvas.height=height;
+    canvas.getContext('2d').drawImage(img,0,0,width,height);
+    return { dataUrl: canvas.toDataURL('image/jpeg',CALIDAD), mediaType:'image/jpeg' };
+  }catch(e){
+    return { dataUrl: dataUrlOriginal, mediaType: file.type };
+  }
+}
+
 async function agregarImagenesAdjuntasPostIA(e){
   const files = Array.from(e.target.files||[]);
   if(!files.length) return;
   for(const file of files){
-    const dataUrl = await leerImagenComoDataURL(file);
-    guionOrgImagenesAdjuntas.push({ mediaType:file.type, data:dataUrl.split(',')[1], previewUrl:dataUrl });
+    const {dataUrl,mediaType} = await comprimirImagenParaChat(file);
+    guionOrgImagenesAdjuntas.push({ mediaType, data:dataUrl.split(',')[1], previewUrl:dataUrl });
   }
   e.target.value='';
   pintarGuionOrgImgPreview();
@@ -1690,8 +1717,8 @@ async function agregarImagenesPegadasPostIA(e){
   for(const item of items){
     const file = item.getAsFile();
     if(!file) continue;
-    const dataUrl = await leerImagenComoDataURL(file);
-    guionOrgImagenesAdjuntas.push({ mediaType:file.type, data:dataUrl.split(',')[1], previewUrl:dataUrl });
+    const {dataUrl,mediaType} = await comprimirImagenParaChat(file);
+    guionOrgImagenesAdjuntas.push({ mediaType, data:dataUrl.split(',')[1], previewUrl:dataUrl });
   }
   pintarGuionOrgImgPreview();
 }
@@ -1720,8 +1747,13 @@ async function preguntarAgentePostIA(){
         imagenes: imagenesParaEnviar,
       }),
     });
-    const data = await resp.json();
-    if(!resp.ok) throw new Error(data.error || 'Error al consultar al Agente.');
+    const rawText = await resp.text();
+    let data = null;
+    try{ data = JSON.parse(rawText); }catch(e){ /* respuesta no-JSON, ver abajo */ }
+    if(!resp.ok || !data){
+      if(resp.status===413) throw new Error('La imagen es muy pesada para enviarla. Intenta con una más ligera o con una captura de pantalla en vez de la foto original.');
+      throw new Error((data && data.error) || `Error al consultar al Agente (código ${resp.status}).`);
+    }
     guionOrgChat.push({role:'assistant', content:data.text||''});
     guionOrgPreguntaStatus = '✅ Listo';
     scheduleGuionOrgChatSave();
