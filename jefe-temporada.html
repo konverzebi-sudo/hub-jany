@@ -1197,15 +1197,27 @@ function renderClienteRecurrenteBox(){
 }
 
 // ─── CHAT GENERAL (guiado, definición + metas..calendario) ──────────────────
-// Los marcadores ⚠️INICIO/⚠️GUARDAR quedan intactos en chatMessages (los necesita
-// procesarConfirmoTemporada) pero se ocultan al mostrar el mensaje -- el usuario ve el contenido
-// listo para copiar, no la sintaxis interna de guardado.
+// Los bloques ⚠️INICIO...⚠️GUARDAR quedan intactos en chatMessages (los necesita
+// procesarConfirmoTemporada para leer fila por fila / campo por campo) pero se OCULTAN COMPLETOS
+// al mostrar el mensaje -- ese contenido es formato técnico para la máquina (ej. "Pregunta: X /
+// Respuesta: Y" fila por fila), no algo que el usuario necesite leer; lo único visible es el
+// texto normal que el Jefe escribe fuera de esos bloques.
 function limpiarMarcadoresGuardar(texto){
   if(!texto) return texto;
-  return texto.split('\n').filter(l=>{
-    const t=l.trim();
-    return !/^⚠️\s*INICIO\s*:?\s*$/.test(t) && !/^⚠️\s*GUARDAR\s*:/.test(t);
-  }).join('\n').replace(/\n{3,}/g,'\n\n').trim();
+  const lineas=texto.split('\n');
+  const resultado=[];
+  let dentroBloque=false;
+  for(const linea of lineas){
+    const t=linea.trim();
+    if(/^⚠️\s*INICIO\s*:?\s*$/.test(t)){ dentroBloque=true; continue; }
+    if(dentroBloque){
+      if(/^⚠️\s*GUARDAR\s*:/.test(t)) dentroBloque=false;
+      continue;
+    }
+    if(/^⚠️\s*GUARDAR\s*:/.test(t)) continue; // camino tolerante sin ⚠️INICIO: solo oculta el marcador
+    resultado.push(linea);
+  }
+  return resultado.join('\n').replace(/\n{3,}/g,'\n\n').trim();
 }
 function renderChatThread(){
   const thread=document.getElementById('chat-thread');
