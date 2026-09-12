@@ -302,6 +302,7 @@
   </div>
 
   <div id="carpeta-box-host"></div>
+  <div id="fb-scheduler-box-host"></div>
 
   <div class="tabs">
     <div class="tab tab-agente active" data-tab="agente">✨ Agente <span class="count">IA</span></div>
@@ -2256,36 +2257,67 @@ async function guardarIdeasEvergreen(opts){
   }catch(e){}
 }
 
-// ─── CARPETA DE DOCUMENTOS (link fijo en la barra superior) ────────────────────
+// ─── LINKS FIJOS EN LA BARRA SUPERIOR (Carpeta de documentos, Programar en Facebook) ────────────
 function carpetaLinkHref(link){
   const v=(link||'').trim();
   if(!v) return '';
   return /^https?:\/\//i.test(v) ? v : 'https://'+v;
 }
+// Caja reutilizable: si ya hay link guardado, lo esconde y solo deja "Abrir" + "Editar" para no
+// ocupar espacio -- el input solo se muestra mientras no hay link o mientras se está editando.
+function renderLinkBoxHTML(idPrefix, emoji, label, link, editando, placeholder){
+  const mostrarInput = !link || editando;
+  const acciones = link ? `<div style="display:flex;gap:10px;align-items:center;">
+      <a class="btn-guion" href="${escHtml(carpetaLinkHref(link))}" target="_blank" rel="noopener">Abrir ↗</a>
+      <button type="button" class="btn-guion" data-toggle-link="${idPrefix}">${mostrarInput?'Ocultar':'✎ Editar'}</button>
+    </div>` : '';
+  return `
+    <div class="carpeta-box">
+      <div class="detail-field-head"><label>${emoji} ${label}</label>${acciones}</div>
+      ${mostrarInput?`<input type="text" data-link-input="${idPrefix}" placeholder="${escHtml(placeholder)}" value="${escHtml(link)}">`:''}
+    </div>
+  `;
+}
+
+let carpetaEditando = false;
 function pintarCarpetaBox(){
   const host=document.getElementById('carpeta-box-host');
   if(!host) return;
-  host.innerHTML=`
-    <div class="carpeta-box">
-      <div class="detail-field-head"><label>📁 Carpeta de documentos (Drive u otro)</label>${linkCarpeta?`<a class="btn-guion" href="${escHtml(carpetaLinkHref(linkCarpeta))}" target="_blank" rel="noopener">Abrir ↗</a>`:''}</div>
-      <input type="text" id="carpeta-link-input" placeholder="https://drive.google.com/..." value="${escHtml(linkCarpeta)}">
-    </div>
-  `;
-  document.getElementById('carpeta-link-input').addEventListener('input',(e)=>{
-    linkCarpeta=e.target.value;
-    scheduleCarpetaSave();
-    const link=host.querySelector('.btn-guion');
-    const head=host.querySelector('.detail-field-head');
-    const nuevoLink=linkCarpeta?`<a class="btn-guion" href="${escHtml(carpetaLinkHref(linkCarpeta))}" target="_blank" rel="noopener">Abrir ↗</a>`:'';
-    if(link) link.outerHTML=nuevoLink;
-    else if(nuevoLink) head.insertAdjacentHTML('beforeend',nuevoLink);
-  });
+  host.innerHTML = renderLinkBoxHTML('carpeta','📁','Carpeta de documentos (Drive u otro)', linkCarpeta, carpetaEditando, 'https://drive.google.com/...');
+  const input=host.querySelector('[data-link-input="carpeta"]');
+  if(input){
+    input.addEventListener('input',(e)=>{ linkCarpeta=e.target.value; scheduleCarpetaSave(); });
+    input.addEventListener('blur',()=>{ if(linkCarpeta.trim()){ carpetaEditando=false; pintarCarpetaBox(); } });
+  }
+  const toggleBtn=host.querySelector('[data-toggle-link="carpeta"]');
+  if(toggleBtn) toggleBtn.addEventListener('click',()=>{ carpetaEditando=!carpetaEditando; pintarCarpetaBox(); });
 }
 pintarCarpetaBox();
 
 let carpetaSaveTimer=null;
 function scheduleCarpetaSave(){ clearTimeout(carpetaSaveTimer); carpetaSaveTimer=setTimeout(guardarCarpeta,600); }
 async function guardarCarpeta(opts){ try{ await window.storage.set(CARPETA_KEY, JSON.stringify(linkCarpeta), opts); }catch(e){} }
+
+const FB_SCHEDULER_KEY = CLIENTE_ID + ':contenido-fb-scheduler-link';
+let linkFbScheduler = '';
+let fbSchedulerEditando = false;
+function pintarFbSchedulerBox(){
+  const host=document.getElementById('fb-scheduler-box-host');
+  if(!host) return;
+  host.innerHTML = renderLinkBoxHTML('fbsched','📅','Programar en Administrador de Facebook', linkFbScheduler, fbSchedulerEditando, 'https://business.facebook.com/latest/...');
+  const input=host.querySelector('[data-link-input="fbsched"]');
+  if(input){
+    input.addEventListener('input',(e)=>{ linkFbScheduler=e.target.value; scheduleFbSchedulerSave(); });
+    input.addEventListener('blur',()=>{ if(linkFbScheduler.trim()){ fbSchedulerEditando=false; pintarFbSchedulerBox(); } });
+  }
+  const toggleBtn=host.querySelector('[data-toggle-link="fbsched"]');
+  if(toggleBtn) toggleBtn.addEventListener('click',()=>{ fbSchedulerEditando=!fbSchedulerEditando; pintarFbSchedulerBox(); });
+}
+pintarFbSchedulerBox();
+
+let fbSchedulerSaveTimer=null;
+function scheduleFbSchedulerSave(){ clearTimeout(fbSchedulerSaveTimer); fbSchedulerSaveTimer=setTimeout(guardarFbScheduler,600); }
+async function guardarFbScheduler(opts){ try{ await window.storage.set(FB_SCHEDULER_KEY, JSON.stringify(linkFbScheduler), opts); }catch(e){} }
 
 // ─── STORAGE ──────────────────────────────────────────────────────────────────
 async function loadStorage(){
@@ -2311,6 +2343,11 @@ async function loadStorage(){
     linkCarpeta = r&&r.value?JSON.parse(r.value):'';
   }catch(e){ linkCarpeta=''; }
   pintarCarpetaBox();
+  try{
+    const rfb=await window.storage.get(FB_SCHEDULER_KEY);
+    linkFbScheduler = rfb&&rfb.value?JSON.parse(rfb.value):'';
+  }catch(e){ linkFbScheduler=''; }
+  pintarFbSchedulerBox();
   document.getElementById('count-historias').textContent=state.historias.length;
   document.getElementById('count-contenido').textContent=state.contenido.length;
   document.getElementById('count-banco').textContent=state.banco.length;
@@ -2361,8 +2398,8 @@ async function doSave(opts){
     statusEl.textContent=e.status===401?'Token incorrecto.':'No se pudo guardar.';
   }
 }
-document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'){ if(pendingSave) doSave({keepalive:true}); guardarCarpeta({keepalive:true}); if(guionOrgChatLoaded) guardarGuionOrgChat({keepalive:true}); } });
-window.addEventListener('pagehide',()=>{ if(pendingSave) doSave({keepalive:true}); guardarCarpeta({keepalive:true}); if(guionOrgChatLoaded) guardarGuionOrgChat({keepalive:true}); });
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'){ if(pendingSave) doSave({keepalive:true}); guardarCarpeta({keepalive:true}); guardarFbScheduler({keepalive:true}); if(guionOrgChatLoaded) guardarGuionOrgChat({keepalive:true}); } });
+window.addEventListener('pagehide',()=>{ if(pendingSave) doSave({keepalive:true}); guardarCarpeta({keepalive:true}); guardarFbScheduler({keepalive:true}); if(guionOrgChatLoaded) guardarGuionOrgChat({keepalive:true}); });
 
 // ─── SYNC CON EL JEFE DE AGENDA ─────────────────────────────────────────────
 // Espeja las historias/contenido con fecha al calendario cruzado de Jefes
