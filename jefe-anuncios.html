@@ -734,6 +734,7 @@ async function generarDetalleSeleccionadas(){
         titulo_anuncio: det.titulo_anuncio || '',
         descripcion_anuncio: det.descripcion_anuncio || '',
         cta_boton: det.cta_boton || '',
+        link_destino: det.link_destino || '',
         estado: 'idea',
         fecha: '',
         retroalimentacion: '',
@@ -913,12 +914,12 @@ function renderGuardadas(container){
   }));
 
   if(cards.length){
-    const faltantes = cards.filter(c=>!c.titulo_anuncio || !c.cta_boton);
+    const faltantes = cards.filter(c=>!c.titulo_anuncio || !c.cta_boton || !c.link_destino);
     const completarBar = document.createElement('div');
     completarBar.className = 'carpeta-box';
     completarBar.style.cssText = 'flex-direction:row;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;';
     completarBar.innerHTML = `
-      <span class="mode-status" id="completar-meta-status">${faltantes.length ? `${faltantes.length} campaña(s) sin Título/CTA de Meta Ads Manager.` : '✅ Todas las campañas tienen sus campos de Meta completos.'}</span>
+      <span class="mode-status" id="completar-meta-status">${faltantes.length ? `${faltantes.length} campaña(s) sin Título/CTA/Link de Meta Ads Manager.` : '✅ Todas las campañas tienen sus campos de Meta completos.'}</span>
       <button class="btn btn-outline" id="completar-meta-btn" type="button"${faltantes.length?'':' disabled'}>✨ Completar campos de Meta Ads</button>
     `;
     container.appendChild(completarBar);
@@ -965,40 +966,50 @@ function renderGuardadas(container){
 async function completarCamposMeta(){
   const statusEl = document.getElementById('completar-meta-status');
   const btn = document.getElementById('completar-meta-btn');
-  const faltantes = cards.filter(c=>!c.titulo_anuncio || !c.cta_boton);
+  const faltantes = cards.filter(c=>!c.titulo_anuncio || !c.cta_boton || !c.link_destino);
   if(!faltantes.length) return;
   btn.disabled = true;
+  // Se agrupa por grupo_id antes de lotear -- el link_destino depende del grupo de negocio de
+  // cada tarjeta (cada Comunicación 366 puede tener su propio número/mensaje de WhatsApp), así
+  // que una misma llamada a la API no puede mezclar tarjetas de distintos grupos.
+  const porGrupo = {};
+  faltantes.forEach(c=>{ const g = c.grupo_id || ''; (porGrupo[g] = porGrupo[g] || []).push(c); });
   let hechos = 0;
-  for(let i=0;i<faltantes.length;i+=MAX_CAMPOS_META_POR_LOTE){
-    const lote = faltantes.slice(i, i+MAX_CAMPOS_META_POR_LOTE);
-    statusEl.className = 'mode-status';
-    statusEl.textContent = `⏳ Completando ${hechos+1}-${Math.min(hechos+lote.length, faltantes.length)} de ${faltantes.length}...`;
-    try{
-      const res = await fetch('/api/generar-anuncios', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({
-          modo:'completar_meta', cliente: CLIENTE_ID,
-          cards: lote.map(c=>({ id:c.id, titulo:c.titulo, hook:c.hook, objetivo:c.objetivo, guion:c.guion, copy_publicacion:c.copy_publicacion })),
-        }),
-      });
-      const data = await res.json();
-      if(!res.ok || !data.campos){ statusEl.textContent='Error: '+(data.error||'No se pudo completar.'); statusEl.classList.add('error'); btn.disabled=false; return; }
-      const porId = {};
-      data.campos.forEach(c=>{ porId[c.id]=c; });
-      lote.forEach(c=>{
-        const campos = porId[c.id];
-        if(!campos) return;
-        c.titulo_anuncio = campos.titulo_anuncio || c.titulo_anuncio;
-        c.descripcion_anuncio = campos.descripcion_anuncio || c.descripcion_anuncio;
-        c.cta_boton = campos.cta_boton || c.cta_boton;
-        hechos++;
-      });
-      scheduleCardsSave();
-    }catch(err){
-      statusEl.textContent = 'Error de conexión.'; statusEl.classList.add('error'); btn.disabled=false; return;
+  const total = faltantes.length;
+  for(const grupoIdLote of Object.keys(porGrupo)){
+    const cardsDelGrupo = porGrupo[grupoIdLote];
+    for(let i=0;i<cardsDelGrupo.length;i+=MAX_CAMPOS_META_POR_LOTE){
+      const lote = cardsDelGrupo.slice(i, i+MAX_CAMPOS_META_POR_LOTE);
+      statusEl.className = 'mode-status';
+      statusEl.textContent = `⏳ Completando ${hechos+1}-${Math.min(hechos+lote.length, total)} de ${total}...`;
+      try{
+        const res = await fetch('/api/generar-anuncios', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({
+            modo:'completar_meta', cliente: CLIENTE_ID, grupo_id: grupoIdLote,
+            cards: lote.map(c=>({ id:c.id, titulo:c.titulo, hook:c.hook, objetivo:c.objetivo, guion:c.guion, copy_publicacion:c.copy_publicacion })),
+          }),
+        });
+        const data = await res.json();
+        if(!res.ok || !data.campos){ statusEl.textContent='Error: '+(data.error||'No se pudo completar.'); statusEl.classList.add('error'); btn.disabled=false; return; }
+        const porId = {};
+        data.campos.forEach(c=>{ porId[c.id]=c; });
+        lote.forEach(c=>{
+          const campos = porId[c.id];
+          if(!campos) return;
+          c.titulo_anuncio = campos.titulo_anuncio || c.titulo_anuncio;
+          c.descripcion_anuncio = campos.descripcion_anuncio || c.descripcion_anuncio;
+          c.cta_boton = campos.cta_boton || c.cta_boton;
+          c.link_destino = c.link_destino || campos.link_destino || '';
+          hechos++;
+        });
+        scheduleCardsSave();
+      }catch(err){
+        statusEl.textContent = 'Error de conexión.'; statusEl.classList.add('error'); btn.disabled=false; return;
+      }
     }
   }
-  statusEl.textContent = `✅ ${hechos} campaña(s) completadas con Título/Descripción/CTA de Meta.`;
+  statusEl.textContent = `✅ ${hechos} campaña(s) completadas con Título/Descripción/CTA/Link de Meta.`;
   render();
 }
 
@@ -1403,7 +1414,7 @@ function usarRespuestaChatComoCampana(idx){
     version_15s: '', hooks_alternativos: [], visual_sugerido: '', duracion_sugerida: '',
     copy_publicacion: msg.content,
     prompt_imagen: '', prompt_video: '', caption_whatsapp: '',
-    titulo_anuncio: '', descripcion_anuncio: '', cta_boton: '',
+    titulo_anuncio: '', descripcion_anuncio: '', cta_boton: '', link_destino: '',
     estado: 'idea', fecha: '',
     retroalimentacion: preguntaPrevia ? `Pregunta original en el chat: ${preguntaPrevia}` : '',
     link_archivo_final: '',
@@ -1474,6 +1485,10 @@ function metaFieldsHtml(item){
           <option value="">— Selecciona —</option>
           ${CTA_OPTIONS.map(c=>`<option value="${c}"${item.cta_boton===c?' selected':''}>${c}</option>`).join('')}
         </select>
+      </div>
+      <div class="detail-field">
+        <div class="detail-field-head"><label>Link de destino (sitio web del CTA)</label>${item.link_destino ? `<button type="button" class="btn-guion copy-field-btn" data-copy-target="link_destino" data-id="${item.id}">📋 Copiar</button>` : ''}</div>
+        <input type="text" data-id="${item.id}" data-field="link_destino" placeholder="Ej: link de WhatsApp de la Comunicación 366 de este grupo, o pégalo tú si falta" value="${escHtml(item.link_destino)}">
       </div>
     </div>
   `;

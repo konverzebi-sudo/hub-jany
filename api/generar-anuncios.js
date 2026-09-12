@@ -396,7 +396,16 @@ async function leerComunicaciones366(clienteId) {
   return [];
 }
 
-function formatearComunicaciones366(items) {
+// Arma un link de wa.me a mano (mismo mecanismo que ADN > Redes y Canales): nunca genera un link
+// corto real, eso lo hace la usuaria en crear.wa.link y lo pega en whatsapp_link_corto.
+function construirLinkWa(numero, mensaje) {
+  if (!numero) return '';
+  const num = numero.toString().replace(/[^\d+]/g, '');
+  const base = `https://wa.me/${num}`;
+  return mensaje ? base + '?text=' + encodeURIComponent(mensaje) : base;
+}
+
+function formatearComunicaciones366(items, numeroWhatsappGeneral) {
   if (!Array.isArray(items) || items.length === 0) return null;
   const bloques = items
     .filter((p) => p && (p.nombre || p.posicionamiento))
@@ -407,6 +416,11 @@ function formatearComunicaciones366(items) {
       if (p.que_no_es) l.push(`  Qué NO es la oferta: ${p.que_no_es}`);
       if (p.resultado_entender) l.push(`  Resultado que el cliente debe entender: ${p.resultado_entender}`);
       if (p.por_que_elegirnos) l.push(`  Por qué elegirnos: ${p.por_que_elegirnos}`);
+      if (p.mensaje_whatsapp && p.mensaje_whatsapp.toString().trim()) {
+        const numero = (p.numero_whatsapp && p.numero_whatsapp.toString().trim()) || numeroWhatsappGeneral || '';
+        const link = (p.whatsapp_link_corto && p.whatsapp_link_corto.toString().trim()) || construirLinkWa(numero, p.mensaje_whatsapp.toString().trim());
+        if (link) l.push(`  WhatsApp de contacto para esta comunicación: ${link}`);
+      }
       Object.entries(TABLAS_COMUNICACION_366).forEach(([campo, { nombreGuardar, columnas }]) => {
         const f = formatearFilasConLabel(p[campo], columnas);
         if (f) l.push(`  ${nombreGuardar}:\n${f}`);
@@ -415,6 +429,35 @@ function formatearComunicaciones366(items) {
     });
   if (bloques.length === 0) return null;
   return 'COMUNICACIÓN 366 (puede haber varias guardadas):\n' + bloques.join('\n\n');
+}
+
+// Resuelve el link que va en el CTA de la campaña: prioriza el mensaje/número propio de la
+// Comunicación 366 del grupo de negocio de este anuncio (ej. "Torneo" con su propio número si lo
+// tiene guardado); si esa comunicación no tiene mensaje propio, cae al mensaje general de
+// WhatsApp de ADN > Redes y Canales. Se arma en código -- nunca se le pide al modelo que
+// reproduzca un link, para que no lo trunque ni invente uno.
+function resolverLinkContacto(grupoId, comunicaciones, redes) {
+  const numeroGeneral = (redes && redes.whatsapp && redes.whatsapp.numero) ? redes.whatsapp.numero.toString().trim() : '';
+  const lista = Array.isArray(comunicaciones) ? comunicaciones : [];
+  const delGrupo = grupoId ? lista.filter((c) => c && c.grupo_id === grupoId) : [];
+  const conMensaje = [...delGrupo, ...lista].find((c) => c && c.mensaje_whatsapp && c.mensaje_whatsapp.toString().trim());
+  if (conMensaje) {
+    const numero = (conMensaje.numero_whatsapp && conMensaje.numero_whatsapp.toString().trim()) || numeroGeneral;
+    if (numero) {
+      const link = (conMensaje.whatsapp_link_corto && conMensaje.whatsapp_link_corto.toString().trim())
+        || construirLinkWa(numero, conMensaje.mensaje_whatsapp.toString().trim());
+      if (link) return link;
+    }
+  }
+  const wa = redes && redes.whatsapp;
+  if (wa && numeroGeneral) {
+    if (Array.isArray(wa.ctas) && wa.ctas.length) {
+      const cta = wa.ctas[0];
+      return cta.shortLink || cta.link || construirLinkWa(numeroGeneral, cta.mensaje || '');
+    }
+    return wa.link || construirLinkWa(numeroGeneral, '');
+  }
+  return '';
 }
 
 // Producto 366 también funciona con pestañas (varias ofertas) -- misma migración de 3 niveles
@@ -448,7 +491,7 @@ function formatearProductos366(items) {
   return 'PRODUCTO 366 (puede haber varias ofertas guardadas):\n' + bloques.join('\n\n');
 }
 
-async function construirContexto366Notas(clienteId) {
+async function construirContexto366Notas(clienteId, numeroWhatsappGeneral) {
   const [productos, sistemas, comunicaciones] = await Promise.all([
     leerProductos366(clienteId).catch(() => []),
     leerSistemas366(clienteId).catch(() => []),
@@ -459,11 +502,10 @@ async function construirContexto366Notas(clienteId) {
   if (productosBloque) bloques.push(productosBloque);
   const sistemasBloque = formatearSistemas366(sistemas);
   if (sistemasBloque) bloques.push(sistemasBloque);
-  const comunicacionesBloque = formatearComunicaciones366(comunicaciones);
+  const comunicacionesBloque = formatearComunicaciones366(comunicaciones, numeroWhatsappGeneral);
   if (comunicacionesBloque) bloques.push(comunicacionesBloque);
 
-  if (bloques.length === 0) return null;
-  return bloques.join('\n\n');
+  return { texto: bloques.length ? bloques.join('\n\n') : null, comunicaciones };
 }
 
 function formatearRadar(historial) {
@@ -544,13 +586,13 @@ async function formatearBancoConversacionesWhatsApp(clienteId) {
 }
 
 async function construirContexto(clienteId, grupoId) {
-  const [identidad, tono, audiencia, catalogo, grupos, bloque366, radarHistorial, conversacionReciente, bloqueRetroalimentacion, bancoConversaciones, redes, visual] = await Promise.all([
+  const [identidad, tono, audiencia, catalogo, grupos, contexto366, radarHistorial, conversacionReciente, bloqueRetroalimentacion, bancoConversaciones, redes, visual] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
     leerAudiencias(clienteId).catch(() => []),
     leerJSON(`${clienteId}:catalogo-productos`).catch(() => null),
     leerJSON(`${clienteId}:grupos-negocio`).catch(() => null),
-    construirContexto366Notas(clienteId).catch(() => null),
+    construirContexto366Notas(clienteId).catch(() => ({ texto: null, comunicaciones: [] })),
     leerJSON(`${clienteId}:radar-historial`).catch(() => null),
     formatearConversacion366NoGuardada(clienteId).catch(() => null),
     formatearRetroalimentacion(clienteId).catch(() => null),
@@ -558,6 +600,9 @@ async function construirContexto(clienteId, grupoId) {
     leerJSON(`${clienteId}:brand-book.redes`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.visual`).catch(() => null),
   ]);
+
+  const bloque366 = contexto366 ? contexto366.texto : null;
+  const linkContacto = resolverLinkContacto(grupoId, contexto366 ? contexto366.comunicaciones : [], redes);
 
   const bloquesNegocio = [
     formatearIdentidad(identidad),
@@ -584,7 +629,7 @@ async function construirContexto(clienteId, grupoId) {
   if (bloqueRetroalimentacion) partes.push(bloqueRetroalimentacion);
   if (bancoConversaciones) partes.push(bancoConversaciones);
 
-  return { contexto: truncar(partes.join('\n\n---\n\n'), CONTEXT_CHAR_LIMIT), catalogo };
+  return { contexto: truncar(partes.join('\n\n---\n\n'), CONTEXT_CHAR_LIMIT), catalogo, linkContacto };
 }
 
 function extractJson(text) {
@@ -735,7 +780,7 @@ async function manejarModoDetalle(body, res) {
   }));
 
   const promptFijo = cargarPrompt(PROMPT_PATH_DETALLE);
-  const { contexto, catalogo } = await construirContexto(clienteId, grupoId);
+  const { contexto, catalogo, linkContacto } = await construirContexto(clienteId, grupoId);
   const bloqueProducto = formatearProducto(catalogo, productoId, 'el detalle debe girar en torno a este producto puntual');
 
   const listaIdeas = ideas.map((idea, i) =>
@@ -791,6 +836,7 @@ async function manejarModoDetalle(body, res) {
       titulo_anuncio: (d && d.titulo_anuncio) || '',
       descripcion_anuncio: (d && d.descripcion_anuncio) || '',
       cta_boton: validarCta(d && d.cta_boton) || 'Más información',
+      link_destino: linkContacto || '',
     };
   });
 
@@ -866,7 +912,7 @@ async function manejarModoCompletarMeta(body, res) {
   }));
 
   const promptFijo = cargarPrompt(PROMPT_PATH_CAMPOS_META);
-  const { contexto } = await construirContexto(clienteId, grupoId);
+  const { contexto, linkContacto } = await construirContexto(clienteId, grupoId);
 
   const listaAnuncios = tarjetas.map((t, i) =>
     `${i + 1}. id="${t.id}"\n   Título: ${t.titulo}\n   Hook: ${t.hook}\n   Objetivo: ${t.objetivo || 'sin especificar'}\n   CTA del guion: ${t.cta || 'sin especificar'}\n   Copy: ${t.copy_publicacion || '(sin copy)'}`
@@ -896,6 +942,7 @@ async function manejarModoCompletarMeta(body, res) {
     titulo_anuncio: (d && d.titulo_anuncio) || '',
     descripcion_anuncio: (d && d.descripcion_anuncio) || '',
     cta_boton: validarCta(d && d.cta_boton) || 'Más información',
+    link_destino: linkContacto || '',
   }));
 
   await registrarUsoTokens(clienteId, 'generar-anuncios-completar-meta', data.usage);

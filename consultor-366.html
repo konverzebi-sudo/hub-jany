@@ -245,6 +245,9 @@
     .field:last-child { margin-bottom: 0; }
     .field label { display: block; font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .05em; font-family: "JetBrains Mono", monospace; margin-bottom: 6px; }
     .field textarea { width: 100%; min-height: 64px; background: var(--surface-2); border: 1.5px solid var(--line); border-radius: 9px; color: var(--text); padding: 10px 12px; font-family: Inter, sans-serif; font-size: 13.5px; resize: vertical; }
+    .wa-link-preview { font-size: 12px; color: var(--text-dim); background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px; line-height: 1.5; word-break: break-all; }
+    .wa-link-preview code { color: var(--text); background: transparent; }
+    .wa-link-preview a { color: inherit; text-decoration: underline; }
     .field select { width: 100%; background: var(--surface-2); border: 1.5px solid var(--line); border-radius: 9px; color: var(--text); padding: 10px 12px; font-family: Inter, sans-serif; font-size: 13.5px; }
     .field select:focus { outline: none; border-color: var(--accent); }
     .grupo-mini { display: flex; align-items: center; gap: 8px; margin: -6px 0 14px; }
@@ -2268,11 +2271,12 @@ async function cargarSistemas() {
 function COMUNICACION_TEMPLATE() {
   return {
     nombre: '', grupo_id: '', posicionamiento: '', diferenciador: '', que_no_es: '', resultado_entender: '', por_que_elegirnos: '',
+    numero_whatsapp: '', mensaje_whatsapp: '', whatsapp_link_corto: '',
     frases_maestras: [], frases_objeciones: [], frases_conexion: [], angulos_evergreen: [],
     _importantes: {},
   };
 }
-const CAMPOS_TEXTO_EC = ['nombre', 'posicionamiento', 'diferenciador', 'que_no_es', 'resultado_entender', 'por_que_elegirnos'];
+const CAMPOS_TEXTO_EC = ['nombre', 'posicionamiento', 'diferenciador', 'que_no_es', 'resultado_entender', 'por_que_elegirnos', 'numero_whatsapp', 'mensaje_whatsapp', 'whatsapp_link_corto'];
 const CAMPOS_TABLA_EC = ['frases_maestras', 'frases_objeciones', 'frases_conexion', 'angulos_evergreen'];
 
 let comunicacionesState = [];
@@ -2328,7 +2332,13 @@ function renderEcTabs() {
 }
 
 function panelHtmlEc(p, i) {
-  const ta = (campo, label, placeholder, minH) => `<div class="field"><label>${escaparHtmlBuilder(label)}</label><textarea id="ec-${campo}-${i}"${minH ? ` style="min-height:${minH}px;"` : ''} placeholder="${escaparAttrBuilder(placeholder || '')}" oninput="${campo === 'nombre' ? `sincronizarNombreComunicacion(${i},this.value)` : ''}">${escaparHtmlBuilder(p[campo] || '')}</textarea></div>`;
+  const refrescoCampos = ['numero_whatsapp', 'mensaje_whatsapp', 'whatsapp_link_corto'];
+  const ta = (campo, label, placeholder, minH) => {
+    const oninput = campo === 'nombre' ? `sincronizarNombreComunicacion(${i},this.value)`
+      : refrescoCampos.includes(campo) ? `refrescarPreviewWhatsapp366(${i})`
+      : '';
+    return `<div class="field"><label>${escaparHtmlBuilder(label)}</label><textarea id="ec-${campo}-${i}"${minH ? ` style="min-height:${minH}px;"` : ''} placeholder="${escaparAttrBuilder(placeholder || '')}" oninput="${oninput}">${escaparHtmlBuilder(p[campo] || '')}</textarea></div>`;
+  };
   const tabla = (campo, label) => `<div class="field"><label>${escaparHtmlBuilder(label)}</label><div id="ec-${campo}-${i}" class="tabla-notas-container"></div></div>`;
   return `
     <div class="card">
@@ -2340,6 +2350,13 @@ function panelHtmlEc(p, i) {
       ${ta('que_no_es', 'Qué NO es la oferta', '')}
       ${ta('resultado_entender', 'Resultado que el cliente debe entender', '')}
       ${ta('por_que_elegirnos', 'Por qué elegirnos', '')}
+    </div>
+    <div class="card">
+      <p class="card-label">Link de contacto para campañas de esta comunicación</p>
+      ${ta('numero_whatsapp', 'Número de WhatsApp para esta comunicación (opcional)', 'Déjalo vacío para usar el número general de ADN → Redes y Canales', 40)}
+      ${ta('mensaje_whatsapp', 'Mensaje que se pre-llena al dar clic (ej. "Hola, quiero información sobre el Torneo 25")', '', 60)}
+      <div class="field"><label>Link largo generado</label><div class="wa-link-preview" id="ec-wa-preview-${i}"></div></div>
+      ${ta('whatsapp_link_corto', 'Pega aquí tu link corto de crear.wa.link (si no, se usa el largo de arriba)', 'https://wa.link/xxxxx', 40)}
     </div>
     <div class="card">
       ${tabla('frases_maestras', 'Frases maestras')}
@@ -2369,8 +2386,48 @@ function renderEcPanels() {
         if (el) aplicarImportanteCampo(el, true);
       }
     });
+    refrescarPreviewWhatsapp366(i);
   });
   inicializarMarcadoImportante();
+}
+
+/* Link de contacto por comunicación: mismo mecanismo que ADN > Redes y Canales (wa.me armado a
+   mano, sin generar short link real -- eso lo hace la usuaria en crear.wa.link y pega el
+   resultado). Si no hay número propio para esta comunicación, cae al número general del ADN, para
+   no pedirle capturarlo dos veces. */
+function buildWaLink366(numero, mensaje) {
+  if (!numero) return '';
+  const num = numero.replace(/[^\d+]/g, '');
+  const base = `https://wa.me/${num}`;
+  return mensaje ? base + '?text=' + encodeURIComponent(mensaje) : base;
+}
+
+let numeroWhatsappAdnCache = null;
+async function obtenerNumeroWhatsappADN() {
+  if (numeroWhatsappAdnCache !== null) return numeroWhatsappAdnCache;
+  try {
+    const r = await window.storage.get(key366('redes'));
+    const d = r && r.value ? JSON.parse(r.value) : null;
+    numeroWhatsappAdnCache = (d && d.whatsapp && d.whatsapp.numero) || '';
+  } catch (e) { numeroWhatsappAdnCache = ''; }
+  return numeroWhatsappAdnCache;
+}
+
+async function refrescarPreviewWhatsapp366(i) {
+  const preview = document.getElementById('ec-wa-preview-' + i);
+  if (!preview) return;
+  const elNum = document.getElementById('ec-numero_whatsapp-' + i);
+  const elMsg = document.getElementById('ec-mensaje_whatsapp-' + i);
+  const mensaje = elMsg ? elMsg.value.trim() : '';
+  let numero = elNum ? elNum.value.trim() : '';
+  let esNumeroGeneral = false;
+  if (!numero) { numero = await obtenerNumeroWhatsappADN(); esNumeroGeneral = true; }
+  if (!numero) {
+    preview.innerHTML = 'Escribe un número arriba, o guarda uno general en ADN → Redes y Canales, para generar el link.';
+    return;
+  }
+  const link = buildWaLink366(numero, mensaje);
+  preview.innerHTML = `<code>${escaparHtmlBuilder(link)}</code>${esNumeroGeneral ? ' <span style="opacity:.75">(usando el número general de ADN)</span>' : ''}<br>¿Lo quieres más corto? Créalo en <a href="https://crear.wa.link/" target="_blank" rel="noopener noreferrer">crear.wa.link</a> pegando este link, y guarda el resultado abajo.`;
 }
 
 function moverComunicacion(i, dir) {
