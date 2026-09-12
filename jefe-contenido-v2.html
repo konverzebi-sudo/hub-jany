@@ -1703,21 +1703,41 @@ async function preguntarAgentePostIA(){
   pintarGuionOrganico(document.getElementById('agente-guionorg-host'));
 }
 
+// El chat etiqueta "CAPTION:" (texto del post) aparte de "GUION:" (lo que se dice en el video) --
+// ver prompts/system-prompt-post-ia-preguntas.md. Si no encuentra la etiqueta (respuestas simples
+// tipo "dame 5 frases"), usa toda la respuesta como caption, igual que antes.
+const SECCIONES_RESPUESTA_CHAT = ['CAPTION','GUI[OÓ]N','GANCHO','DESARROLLO','CIERRE(?:\\s*\\+\\s*CTA)?','NOTAS?(?:\\s+DE\\s+GRABACI[OÓ]N)?','DURACI[OÓ]N'];
+function extraerSeccionRespuestaChat(texto, etiqueta){
+  const otras=SECCIONES_RESPUESTA_CHAT.filter(s=>s!==etiqueta).join('|');
+  const re=new RegExp('(?:^|\\n)\\s*'+etiqueta+'\\s*:?\\s*\\n?([\\s\\S]*?)(?:\\n\\s*(?:-{2,}\\s*$|(?:'+otras+')\\s*:)|$)','i');
+  const m=texto.match(re);
+  return m ? m[1].trim() : null;
+}
+function limpiarPreambuloChat(linea){
+  const preambulo=/^(listo|claro|perfecto|ok(?:ay)?|aqu[ií]\s+(?:tienes|va[ns]?|te dejo|est[aá][ns]?)|te comparto|por supuesto|de acuerdo|entendido|hecho)\b[^.:\n]*[:.]\s*/i;
+  return (linea||'').replace(preambulo,'').trim();
+}
 function usarRespuestaChatEnContenido(idx){
   const msg = guionOrgChat[idx];
   if(!msg || msg.role!=='assistant' || msg.usada) return;
   const preguntaPrevia = (guionOrgChat[idx-1] && guionOrgChat[idx-1].role==='user') ? guionOrgChat[idx-1].content : '';
   const newId = 'c_chat'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
-  const primeraLinea = (msg.content.split('\n').find(l=>l.trim())||'').slice(0,140);
+  const captionExtraida = extraerSeccionRespuestaChat(msg.content,'CAPTION');
+  const lineasTitulo = (captionExtraida||msg.content).split('\n').map(l=>l.trim()).filter(Boolean);
+  const primeraLinea = lineasTitulo.map(limpiarPreambuloChat).find(Boolean) || '';
+  const gancho = (primeraLinea || 'Idea desde Consulta en vivo').replace(/^["“]|["”]$/g,'').slice(0,140);
+  const notasPartes=[];
+  if(preguntaPrevia) notasPartes.push(`Pregunta original: ${preguntaPrevia}`);
+  if(captionExtraida) notasPartes.push(`RESPUESTA COMPLETA:\n${msg.content}`);
   state.contenido.push({
     id:newId,
     orden:state.contenido.length+1,
     fase:'Semana 1',
-    gancho: primeraLinea || 'Idea desde Consulta en vivo',
+    gancho,
     descripcion: preguntaPrevia,
     ganchoIdea:'',
-    caption: msg.content,
-    notas: preguntaPrevia ? `Pregunta original: ${preguntaPrevia}` : '',
+    caption: captionExtraida || msg.content,
+    notas: notasPartes.join('\n\n'),
     linkRef:'', linkArchivo:'',
     fecha:'', estado:'proceso'
   });
