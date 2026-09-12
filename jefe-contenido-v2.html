@@ -1600,6 +1600,7 @@ function pintarGuionOrgChat(){
       <div class="chat-msg-actions">
         <button type="button" data-copy-idx="${i}">📋 Copiar</button>
         <button type="button" data-usar-idx="${i}" class="${m.usada?'done':''}">${m.usada?'✅ Agregado a Contenido':'✅ Usar en Contenido (en proceso)'}</button>
+        ${m.usada&&m.contenidoId?`<button type="button" data-ver-idx="${i}">→ Ver publicación</button>`:''}
       </div>
     </div>`;
   }).join('');
@@ -1611,6 +1612,12 @@ function pintarGuionOrgChat(){
         const prev=btn.textContent; btn.textContent='✅ Copiado';
         setTimeout(()=>{ btn.textContent=prev; },1500);
       });
+    });
+  });
+  box.querySelectorAll('[data-ver-idx]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const m=guionOrgChat[+btn.dataset.verIdx];
+      if(m && m.contenidoId) irACalendarioItem('contenido', m.contenidoId, m.contenidoGancho);
     });
   });
   box.querySelectorAll('[data-usar-idx]').forEach(btn=>{
@@ -1707,15 +1714,31 @@ async function preguntarAgentePostIA(){
 // ver prompts/system-prompt-post-ia-preguntas.md. Si no encuentra la etiqueta (respuestas simples
 // tipo "dame 5 frases"), usa toda la respuesta como caption, igual que antes.
 const SECCIONES_RESPUESTA_CHAT = ['CAPTION','GUI[OÓ]N','GANCHO','DESARROLLO','CIERRE(?:\\s*\\+\\s*CTA)?','NOTAS?(?:\\s+DE\\s+GRABACI[OÓ]N)?','DURACI[OÓ]N'];
+// Decoradores que a veces mete el modelo alrededor de la etiqueta pese a pedirle texto plano
+// (negritas markdown, guiones, ">" de cita, etc.) -- se ignoran al buscar/limpiar la etiqueta.
+const DECORADORES_ETIQUETA = '[\\s*_#>\\-]*';
 function extraerSeccionRespuestaChat(texto, etiqueta){
   const otras=SECCIONES_RESPUESTA_CHAT.filter(s=>s!==etiqueta).join('|');
-  const re=new RegExp('(?:^|\\n)\\s*'+etiqueta+'\\s*:?\\s*\\n?([\\s\\S]*?)(?:\\n\\s*(?:-{2,}\\s*$|(?:'+otras+')\\s*:)|$)','i');
+  const re=new RegExp('(?:^|\\n)'+DECORADORES_ETIQUETA+etiqueta+DECORADORES_ETIQUETA+':?'+DECORADORES_ETIQUETA+'\\n?([\\s\\S]*?)(?:\\n'+DECORADORES_ETIQUETA+'(?:-{2,}\\s*$|(?:'+otras+')'+DECORADORES_ETIQUETA+':)|$)','i');
   const m=texto.match(re);
   return m ? m[1].trim() : null;
 }
 function limpiarPreambuloChat(linea){
   const preambulo=/^(listo|claro|perfecto|ok(?:ay)?|aqu[ií]\s+(?:tienes|va[ns]?|te dejo|est[aá][ns]?)|te comparto|por supuesto|de acuerdo|entendido|hecho)\b[^.:\n]*[:.]\s*/i;
   return (linea||'').replace(preambulo,'').trim();
+}
+// Respaldo: si por lo que sea la extracción de arriba no encontró la etiqueta, al menos quita
+// cualquier línea de saludo/preámbulo o de etiqueta suelta ("CAPTION:", "Aquí va:"...) que haya
+// quedado pegada al inicio del texto final.
+function quitarLineasIntroChat(texto){
+  if(!texto) return texto;
+  const etiquetaSuelta=new RegExp('^'+DECORADORES_ETIQUETA+'(?:'+SECCIONES_RESPUESTA_CHAT.join('|')+')'+DECORADORES_ETIQUETA+':?'+DECORADORES_ETIQUETA+'$','i');
+  const preambuloSuelto=/^(listo|claro|perfecto|ok(?:ay)?|aqu[ií]\s+(?:tienes|va[ns]?|te dejo|est[aá][ns]?)|te comparto|por supuesto|de acuerdo|entendido|hecho)\b.*[:.]\s*$/i;
+  const lineas=texto.split('\n');
+  while(lineas.length && (lineas[0].trim()===''||etiquetaSuelta.test(lineas[0].trim())||preambuloSuelto.test(lineas[0].trim()))){
+    lineas.shift();
+  }
+  return lineas.join('\n').trim() || texto.trim();
 }
 function usarRespuestaChatEnContenido(idx){
   const msg = guionOrgChat[idx];
@@ -1736,12 +1759,14 @@ function usarRespuestaChatEnContenido(idx){
     gancho,
     descripcion: preguntaPrevia,
     ganchoIdea:'',
-    caption: captionExtraida || msg.content,
+    caption: quitarLineasIntroChat(captionExtraida || msg.content),
     notas: notasPartes.join('\n\n'),
     linkRef:'', linkArchivo:'',
     fecha:'', estado:'proceso'
   });
   msg.usada = true;
+  msg.contenidoId = newId;
+  msg.contenidoGancho = gancho;
   document.getElementById('count-contenido').textContent = state.contenido.length;
   scheduleSave();
   guionOrgPreguntaStatus = '✅ Se agregó a Contenido (en proceso).';
