@@ -742,7 +742,12 @@ async function manejarChatTemporada(req, res) {
       builderFormatearNotasGuardadas(clienteId),
       temporadaFormatearClienteRecurrente(clienteId, campana && (campana.producto_nombre || campana.producto_nuevo)),
     ]);
-    const partesSystem = [cargarPromptTemporada(), contextoNegocio, notasEvergreen];
+    // Sin esto el modelo no tiene forma de saber qué día es "hoy" de verdad -- puede proponer
+    // fechas ya pasadas o no notar que una fecha crítica ya venció sin que se haya ejecutado esa
+    // fase. Se manda como fecha real del servidor, no la que diga el navegador del usuario.
+    const hoyISO = new Date().toISOString().slice(0, 10);
+    const fechaHoyContexto = `FECHA DE HOY: ${hoyISO} (fecha real, no la calcules ni la asumas de otra forma). Usa esto como referencia para TODAS las fechas: si vas a proponer o calcular una fecha, nunca propongas una que ya sea anterior a hoy. Si alguna fecha ya guardada en CAMPAÑA DE TEMPORADA EN CURSO (fecha de campaña activa, del calendario final, de precampaña, etc.) ya pasó y no hay indicio de que esa fase ya se ejecutó, dilo explícito ANTES de seguir (ej. "la fecha de precampaña que tenías ya pasó, ¿quieres recalcular las fechas o ya arrancaste?") en vez de asumir que sigue vigente o de ignorarlo.`;
+    const partesSystem = [cargarPromptTemporada(), fechaHoyContexto, contextoNegocio, notasEvergreen];
     if (clienteRecurrente) partesSystem.push(clienteRecurrente);
     const otrasCampanas = temporadaFormatearOtrasCampanas(campanas, campanaId);
     if (otrasCampanas) partesSystem.push(otrasCampanas);
