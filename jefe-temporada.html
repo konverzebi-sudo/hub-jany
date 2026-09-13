@@ -390,9 +390,18 @@ async function doGuardarCampanas(opts){
   }
 }
 
-// Espeja el Calendario final de ejecución (paso 12) de TODAS las campañas al calendario cruzado
-// de Jefes ({cliente}:agenda-eventos), sin tocar los eventos de otros Jefes (Contenido, Anuncios)
-// ni las temporadas creadas manualmente en la Agenda. Mismo mecanismo que ya usan esos dos Jefes.
+// Espeja al calendario cruzado de Jefes ({cliente}:agenda-eventos) las 2 tablas de TODAS las
+// campañas que sí tienen fecha real por fila: el Calendario final de ejecución (Módulo 12) y el
+// Plan de calentamiento de precampaña (Módulo 7, columna Fecha) -- así el usuario ve en la Agenda
+// qué hacer cada día, no solo el calendario final. Sin tocar los eventos de otros Jefes (Contenido,
+// Anuncios) ni las temporadas creadas manualmente en la Agenda. Mismo mecanismo que ya usan esos
+// dos Jefes. origenId lleva el nombre del campo (calendario / pre_calentamiento) para que la
+// Agenda sepa en qué array de la campaña escribir de vuelta si el usuario edita ahí.
+const TEMPORADA_TABLAS_CON_FECHA = [
+  { campo:'calendario', tituloCampo:r=>r.accion||r.fase },
+  { campo:'pre_calentamiento', tituloCampo:r=>'Precampaña: '+(r.contenido||r.mensaje||r.canal||r.dia) },
+  { campo:'post_acciones', tituloCampo:r=>'Postcampaña: '+(r.accion||r.momento) },
+];
 let agendaSyncTimer=null, agendaSyncPending=false;
 function scheduleAgendaSync(){ agendaSyncPending=true; clearTimeout(agendaSyncTimer); agendaSyncTimer=setTimeout(syncAgendaEventos,1500); }
 async function syncAgendaEventos(opts){
@@ -403,13 +412,15 @@ async function syncAgendaEventos(opts){
     const otros=(data.eventos||[]).filter(e=>e.origen!=='temporada');
     const propios=[];
     campanas.forEach(camp=>{
-      (camp.calendario||[]).forEach(row=>{
-        if(!/^\d{4}-\d{2}-\d{2}$/.test(row.fecha||'')) return;
-        propios.push({
-          id:'temporada-'+camp.id+'-'+row.id,
-          origen:'temporada', origenId:camp.id+':'+row.id,
-          fecha:row.fecha, titulo:(camp.nombre?camp.nombre+' · ':'')+(row.accion||row.fase||'(sin título)'),
-          estado:row.estado||'idea',
+      TEMPORADA_TABLAS_CON_FECHA.forEach(({campo,tituloCampo})=>{
+        (camp[campo]||[]).forEach(row=>{
+          if(!/^\d{4}-\d{2}-\d{2}$/.test(row.fecha||'')) return;
+          propios.push({
+            id:'temporada-'+camp.id+'-'+campo+'-'+row.id,
+            origen:'temporada', origenId:camp.id+':'+campo+':'+row.id,
+            fecha:row.fecha, titulo:(camp.nombre?camp.nombre+' · ':'')+(tituloCampo(row)||'(sin título)'),
+            estado:row.estado||'idea',
+          });
         });
       });
     });
@@ -531,7 +542,7 @@ const TEMPORADA_TABLAS = {
     {key:'momento',label:'Momento'},{key:'suave',label:'CTA suave'},{key:'directo',label:'CTA directo'},{key:'urgente',label:'CTA urgente'}
   ]},
   'tabla-calentamiento': { campo:'pre_calentamiento', columnas:[
-    {key:'dia',label:'Día'},{key:'canal',label:'Canal'},{key:'contenido',label:'Tipo de contenido'},{key:'mensaje',label:'Mensaje clave'},{key:'objetivo',label:'Objetivo'}
+    {key:'fecha',label:'Fecha',tipo:'fecha'},{key:'dia',label:'Día'},{key:'canal',label:'Canal'},{key:'contenido',label:'Tipo de contenido'},{key:'mensaje',label:'Mensaje clave'},{key:'objetivo',label:'Objetivo'}
   ]},
   'tabla-fases': { campo:'activa_fases', columnas:[
     {key:'fase',label:'Fase'},{key:'objetivo',label:'Objetivo'},{key:'contenido_organico',label:'Contenido orgánico'},{key:'ads',label:'Ads'},{key:'base_datos',label:'Base de datos'},{key:'mensaje_urgencia',label:'Mensaje de urgencia'},{key:'cta',label:'CTA'}
@@ -540,7 +551,7 @@ const TEMPORADA_TABLAS = {
     {key:'publico',label:'Público'},{key:'de_donde_sale',label:'De dónde sale'},{key:'mensaje',label:'Qué mensaje recibirá'},{key:'cuando_contactar',label:'Cuándo contactarlo'},{key:'objetivo',label:'Objetivo'}
   ]},
   'tabla-post': { campo:'post_acciones', columnas:[
-    {key:'accion',label:'Acción'},{key:'estrategia',label:'Estrategia'},{key:'mensaje',label:'Mensaje sugerido'},{key:'momento',label:'Momento'}
+    {key:'fecha',label:'Fecha',tipo:'fecha'},{key:'accion',label:'Acción'},{key:'estrategia',label:'Estrategia'},{key:'mensaje',label:'Mensaje sugerido'},{key:'momento',label:'Momento'}
   ]},
   'tabla-creativos': { campo:'ads_creativos', columnas:[
     {key:'creativo',label:'Creativo'},{key:'tipo',label:'Tipo'},{key:'que_mostrar',label:'Qué mostrar'},{key:'hook',label:'Hook primeros 3 segundos'},{key:'etapa',label:'Etapa'}
@@ -1073,7 +1084,7 @@ function renderDocumento(container, camp){
         ${campoTexto('pre_incentivo_registro','Incentivo de registro')}
         ${campoTexto('pre_duracion','Duración de precampaña')}
       </div>
-      <p class="doc-desc" style="margin:14px 0 8px 0;">Plan de calentamiento</p>
+      <p class="doc-desc" style="margin:14px 0 8px 0;">Plan de calentamiento — cada fila con fecha aparece sola en tu Jefe de Agenda.</p>
       <div id="tabla-calentamiento" class="tabla-notas-container"></div>
     </div>
 
@@ -1091,6 +1102,7 @@ function renderDocumento(container, camp){
 
     <div class="doc-section">
       <div class="doc-section-head"><span class="doc-num">10</span><h3 class="doc-title">Postcampaña</h3></div>
+      <p class="doc-desc" style="margin:0 0 8px 0;">Cada fila con fecha aparece sola en tu Jefe de Agenda.</p>
       <div id="tabla-post" class="tabla-notas-container"></div>
     </div>
 
