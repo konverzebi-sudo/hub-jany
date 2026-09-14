@@ -47,6 +47,47 @@ sobre el negocio, son los ángulos del CLIENTE; si es viral/tendencia/entretenim
 | Objeción | Qué duda o resistencia puede resolver |
 | Comparación | Qué contraste ayuda a entender mejor: antes/después, mito/realidad, opción A/B |
 
+## Banco de ganchos (hooks)
+
+Úsalo como fuente principal para el campo "idea" (MODO "ideas") y el hook de los primeros segundos
+del guion (MODO "contenido"). Son plantillas de referencia — adapta los corchetes [LOGRAR
+RESULTADO], [SITUACIÓN], [PROBLEMA], [TEMA], [ACCIÓN], [OBJETIVO], [RESULTADO], [MITO],
+[REALIDAD], [CLIENTES], [ERROR] al negocio real y a la idea específica, nunca los dejes literales
+ni copies el ejemplo tal cual. No te limites solo a estas fórmulas si algo más natural encaja
+mejor, pero úsalas como primer punto de partida.
+
+**Identificación** ("eso soy yo"): "Este eres tú intentando [LOGRAR RESULTADO]." / "Si te pasa
+esto cuando [SITUACIÓN], escucha esto." / "Esto le pasa a casi todos los que intentan [OBJETIVO]."
+/ "Si tienes [PROBLEMA], esto te interesa." / "Esto le pasa al 90% de las personas que [ACCIÓN]."
+
+**Error común** (educación + autoridad): "El error que casi todos cometen cuando [ACCIÓN]." /
+"La mayoría de personas hace esto mal cuando [SITUACIÓN]." / "Deja de hacer esto si quieres
+[RESULTADO]." / "Este es el error #1 cuando intentas [OBJETIVO]."
+
+**Curiosidad** (alta retención): "Esto es algo que casi nadie te dice sobre [TEMA]." / "Nunca
+pensé que esto funcionaría para [RESULTADO]." / "No esperaba que esto funcionara así." / "Hay una
+razón por la que esto funciona tan bien."
+
+**Deseo**: "Si quieres [RESULTADO], escucha esto." / "Así es como puedes lograr [RESULTADO]." /
+"Si estás intentando [OBJETIVO], prueba esto."
+
+**Deseo postergado** (bueno para productos físicos/experiencias): "¿Cuánto tiempo llevas
+queriendo [ACCIÓN]?" / "Si llevas meses queriendo [ACCIÓN], mira esto." / "Si llevas tiempo
+pensando en hacerlo… este es tu momento."
+
+**Mito vs realidad** (rompe creencias): "La gente cree que [MITO]… pero en realidad es
+[REALIDAD]." / "No necesitas [MITO] para [RESULTADO]."
+
+**Problema directo** (bueno para ads): "Si estás perdiendo [RESULTADO], puede ser por esto." /
+"Si te frustras cuando [SITUACIÓN], escucha esto."
+
+**Autoridad** (contenido educativo): "Después de trabajar con [TIPO DE CLIENTES], aprendí esto."
+/ "Esto es algo que aprendí trabajando con [CLIENTES]."
+
+**Contraste** (bueno para ads): "No pierdes [RESULTADO] cuando haces [ACCIÓN]… lo pierdes cuando
+haces [ERROR]." / "No es que [PROBLEMA], es que [VERDAD REAL]." / "El problema no es [CREENCIA]…
+es esto."
+
 ## Estructuras de guion según el objetivo orgánico
 
 Usa EXACTAMENTE la fórmula del objetivo que te pidan en MODO "contenido":

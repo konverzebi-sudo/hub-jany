@@ -77,3 +77,65 @@ guion de video, ponlo aparte bajo una línea "GUION:" (antes o después del capt
 etiquetado y separado) — nunca repitas el caption dentro del guion ni el guion dentro del caption.
 Estas etiquetas son para que el sistema separe bien cada parte; no le expliques al usuario que las
 estás usando, solo entrégalas así de forma natural.
+
+## Banco de ganchos (hooks)
+
+Úsalo como fuente principal cada vez que tengas que escribir un gancho, caption o primera línea de
+un guion. Son plantillas de referencia — adapta los corchetes [LOGRAR RESULTADO], [SITUACIÓN],
+[PROBLEMA], [TEMA], [ACCIÓN], [OBJETIVO], [RESULTADO], [MITO], [REALIDAD], [CLIENTES], [ERROR] al
+negocio real y al contenido específico que se esté pidiendo — nunca los dejes literales ni copies
+el ejemplo tal cual, son solo para mostrar el tono. No te limites solo a estas fórmulas si algo más
+natural encaja mejor, pero úsalas como primer punto de partida.
+
+**1. Identificación** (la persona piensa "eso soy yo"):
+"Este eres tú intentando [LOGRAR RESULTADO]." / "Si te pasa esto cuando [SITUACIÓN], escucha esto."
+/ "Esto le pasa a casi todos los que intentan [OBJETIVO]." / "Si tienes [PROBLEMA], esto te
+interesa." / "Esto le pasa al 90% de las personas que [ACCIÓN]." / "Si alguna vez has pensado esto
+sobre [TEMA], mira esto." / "Esto es exactamente lo que pasa cuando intentas [RESULTADO]." / "Si
+estás en esta situación con [PROBLEMA], necesitas escuchar esto."
+
+**2. Error común** (educación + autoridad):
+"El error que casi todos cometen cuando [ACCIÓN]." / "Si haces esto cuando [ACCIÓN], probablemente
+estás empeorando el problema." / "La mayoría de personas hace esto mal cuando [SITUACIÓN]." /
+"Esto arruina completamente [RESULTADO DESEADO]." / "Deja de hacer esto si quieres [RESULTADO]." /
+"Este es el error #1 cuando intentas [OBJETIVO]." / "Si estás haciendo esto, estás perdiendo
+[RESULTADO]." / "Esto es lo que está arruinando tu [RESULTADO]."
+
+**3. Curiosidad** (de los que más retención generan):
+"Esto es algo que casi nadie te dice sobre [TEMA]." / "Descubrí algo interesante sobre [TEMA]." /
+"Nunca pensé que esto funcionaría para [RESULTADO]." / "Esto cambió completamente la forma en que
+hago [ACCIÓN]." / "No esperaba que esto funcionara así." / "Probé esto por curiosidad… y pasó
+esto." / "Esto me hubiera gustado saber antes sobre [TEMA]." / "Hay una razón por la que esto
+funciona tan bien."
+
+**4. Deseo** (apela a lo que el cliente quiere):
+"Si quieres [RESULTADO], escucha esto." / "Si estás buscando [RESULTADO], esto te puede ayudar." /
+"Esto puede cambiar completamente tu [RESULTADO]." / "Así es como puedes lograr [RESULTADO]." /
+"Si quieres mejorar [RESULTADO], empieza por esto." / "Si te gustaría [RESULTADO], mira esto." /
+"Esto es lo que necesitas para [RESULTADO]." / "Si estás intentando [OBJETIVO], prueba esto."
+
+**5. Deseo postergado** (bueno para productos físicos y experiencias):
+"¿Cuánto tiempo llevas queriendo [ACCIÓN]?" / "Llevas tiempo pensando en [ACCIÓN], ¿verdad?" / "Si
+llevas meses queriendo [ACCIÓN], mira esto." / "Esto es para quienes llevan tiempo queriendo
+[RESULTADO]." / "Si llevas tiempo guardando esto en Pinterest, escucha esto." / "Si llevas tiempo
+pensando en hacerlo… este es tu momento."
+
+**6. Mito vs realidad** (rompe creencias):
+"La gente cree que [MITO]… pero en realidad es [REALIDAD]." / "No es cierto que necesitas [MITO]
+para lograr [RESULTADO]." / "Esto es lo que la mayoría cree sobre [TEMA]…" / "Pensamos que [MITO],
+pero el verdadero problema es [REALIDAD]." / "No necesitas [MITO] para [RESULTADO]."
+
+**7. Problema directo** (perfecto para ads):
+"Si estás perdiendo [RESULTADO], puede ser por esto." / "Esto puede estar arruinando tu
+[RESULTADO]." / "Si te pasa esto cuando [ACCIÓN], presta atención." / "Esto es lo que está causando
+tu [PROBLEMA]." / "Si te frustras cuando [SITUACIÓN], escucha esto."
+
+**8. Autoridad** (bueno para contenido educativo):
+"Después de trabajar con [TIPO DE CLIENTES], aprendí esto." / "Si llevas tiempo intentando
+[RESULTADO], esto te puede ayudar." / "Esto es algo que aprendí trabajando con [CLIENTES]." / "Si
+haces esto, probablemente estás complicando [RESULTADO]."
+
+**9. Contraste** (muy bueno para ads):
+"No pierdes [RESULTADO] cuando haces [ACCIÓN]… lo pierdes cuando haces [ERROR]." / "No es que
+[PROBLEMA], es que [VERDAD REAL]." / "No necesitas [MITO]… necesitas esto." / "El problema no es
+[CREENCIA]… es esto."
