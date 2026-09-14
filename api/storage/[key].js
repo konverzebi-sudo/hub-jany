@@ -44,6 +44,14 @@ async function ensureLeadsTable() {
     tarea_tiempo TEXT,
     competidor_url TEXT
   )`;
+  // La tabla ya existía en producción antes de agregar el mini-resumen del
+  // diagnóstico -- ADD COLUMN IF NOT EXISTS la pone al día sin perder los leads
+  // que ya se habían guardado.
+  await sql`ALTER TABLE diagnostico_leads
+    ADD COLUMN IF NOT EXISTS resumen_areas_criticas TEXT,
+    ADD COLUMN IF NOT EXISTS resumen_top_oportunidad TEXT,
+    ADD COLUMN IF NOT EXISTS resumen_top_accion TEXT
+  `;
 }
 
 // Corta cualquier campo absurdamente largo antes de guardarlo (evita payloads gigantes)
@@ -61,11 +69,33 @@ async function manejarLeads(req, res) {
 
   if (req.method === 'POST') {
     const b = req.body || {};
+
+    // Actualiza solo el mini-resumen de un lead ya registrado (se manda cuando
+    // Jany visualiza el diagnóstico completo, un rato después del registro inicial).
+    if (b.id !== undefined) {
+      const id = parseInt(b.id, 10);
+      if (!Number.isInteger(id) || id <= 0) {
+        return res.status(400).json({ error: 'id inválido.' });
+      }
+      try {
+        await sql`
+          UPDATE diagnostico_leads SET
+            resumen_areas_criticas = ${limitar(b.resumenAreasCriticas, 300)},
+            resumen_top_oportunidad = ${limitar(b.resumenTopOportunidad, 200)},
+            resumen_top_accion = ${limitar(b.resumenTopAccion, 200)}
+          WHERE id = ${id}
+        `;
+        return res.status(200).json({ ok: true });
+      } catch (err) {
+        return res.status(500).json({ error: 'Error actualizando el resumen.' });
+      }
+    }
+
     if (!b.nombreEmpresario || typeof b.nombreEmpresario !== 'string' || !b.nombreEmpresario.trim()) {
       return res.status(400).json({ error: 'Falta nombreEmpresario.' });
     }
     try {
-      await sql`
+      const { rows } = await sql`
         INSERT INTO diagnostico_leads (
           nombre_empresario, whatsapp_prospecto, giro, que_vende, a_quien_vende,
           canales, link_canal1, link_canal2, ventas_mes, dolor, tarea_tiempo, competidor_url
@@ -75,8 +105,9 @@ async function manejarLeads(req, res) {
           ${limitar(b.linkCanal1, 300)}, ${limitar(b.linkCanal2, 300)}, ${limitar(b.ventasMes, 50)},
           ${limitar(b.dolor, 500)}, ${limitar(b.tareaTiempo, 500)}, ${limitar(b.competidorUrl, 300)}
         )
+        RETURNING id
       `;
-      return res.status(200).json({ ok: true });
+      return res.status(200).json({ ok: true, id: rows[0].id });
     } catch (err) {
       return res.status(500).json({ error: 'Error guardando el lead.' });
     }

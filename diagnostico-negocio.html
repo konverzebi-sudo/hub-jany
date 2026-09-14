@@ -646,6 +646,7 @@ if(LOGO_URL){
    ============================================================ */
 let clienteData = null;      // datos capturados en pantalla 1
 let diagnosticoParsed = null; // resultado parseado de la respuesta de Claude
+let leadId = null;            // id del lead ya registrado, para luego agregarle el mini-resumen
 const STORAGE_KEY = 'diagnostico_exprés_cliente';
 
 /* ============================================================
@@ -662,6 +663,7 @@ function reiniciarApp(){
   if(!confirm('¿Reiniciar y empezar un nuevo diagnóstico? Se perderán los datos actuales.')) return;
   clienteData = null;
   diagnosticoParsed = null;
+  leadId = null;
   document.getElementById('formCliente').reset();
   document.querySelectorAll('#canalesGroup .chip').forEach(c => c.classList.remove('active'));
   actualizarGiroOtro();
@@ -774,7 +776,39 @@ function registrarLead(d){
         tareaTiempo: d.tareaTiempo,
         competidorUrl: d.competidorUrl,
       }),
-    }).catch(() => { /* sin conexión o API caída: el diagnóstico sigue igual */ });
+    })
+      .then(r => r.json())
+      .then(data => { if(data && data.id) leadId = data.id; })
+      .catch(() => { /* sin conexión o API caída: el diagnóstico sigue igual */ });
+  }catch(e){ /* nunca debe interrumpir el flujo en vivo */ }
+}
+
+// Agrega el mini-resumen del diagnóstico ya visualizado al lead que se registró
+// en Pantalla 1, para que Jany tenga puntos concretos con qué darle seguimiento
+// a la venta. Si el registro inicial falló (sin leadId), simplemente no hay
+// nada que actualizar — no rompe el flujo del diagnóstico.
+function actualizarLeadConResumen(){
+  if(!leadId) return;
+
+  const areasCriticas = diagnosticoParsed.areas
+    .filter(a => a.estado.clase === 'rojo')
+    .map(a => a.nombre)
+    .filter(Boolean)
+    .join(', ');
+  const topOportunidad = diagnosticoParsed.oportunidades[0] ? diagnosticoParsed.oportunidades[0].nombre : '';
+  const topAccion = diagnosticoParsed.acciones[0] ? diagnosticoParsed.acciones[0].nombre : '';
+
+  try{
+    fetch(LEADS_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: leadId,
+        resumenAreasCriticas: areasCriticas,
+        resumenTopOportunidad: topOportunidad,
+        resumenTopAccion: topAccion,
+      }),
+    }).catch(() => { /* sin conexión: el dashboard en pantalla sigue mostrando todo igual */ });
   }catch(e){ /* nunca debe interrumpir el flujo en vivo */ }
 }
 
@@ -1184,6 +1218,7 @@ function visualizarDiagnostico(){
 
   diagnosticoParsed = parseClaudeResponse(texto);
   renderDashboard();
+  actualizarLeadConResumen();
   irAPantalla(3);
 }
 
