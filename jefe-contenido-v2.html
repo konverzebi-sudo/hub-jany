@@ -43,7 +43,7 @@
 
   /* TABS */
   .tabs{display:flex;gap:6px;margin-bottom:18px;border-bottom:1px solid var(--line);flex-wrap:wrap;}
-  .tab{padding:10px 16px;cursor:pointer;font-size:14px;font-weight:600;color:var(--text-dim);border-bottom:2px solid transparent;user-select:none;font-family:'Sora',sans-serif;}
+  .tab{padding:10px 16px;cursor:pointer;font-size:14px;font-weight:600;color:var(--text-dim);border-bottom:2px solid transparent;user-select:none;font-family:'Sora',sans-serif;text-decoration:none;display:inline-block;}
   .tab.active{color:var(--accent);border-bottom-color:var(--accent);}
   .tab .count{display:inline-block;margin-left:6px;background:var(--surface-2);color:var(--text-dim);border-radius:10px;padding:1px 8px;font-size:11px;font-family:'JetBrains Mono',monospace;}
   .tab.tab-agente .count{background:var(--accent-soft);color:var(--accent);}
@@ -305,11 +305,11 @@
   <div id="fb-scheduler-box-host"></div>
 
   <div class="tabs">
-    <div class="tab tab-agente active" data-tab="agente">✨ Agente <span class="count">IA</span></div>
-    <div class="tab" data-tab="calendario">📅 Calendario</div>
-    <div class="tab" data-tab="historias">Historias <span class="count" id="count-historias">50</span></div>
-    <div class="tab" data-tab="contenido">Contenido <span class="count" id="count-contenido">10</span></div>
-    <div class="tab" data-tab="banco">💭 Banco <span class="count" id="count-banco">0</span></div>
+    <a class="tab tab-agente active" href="#agente" data-tab="agente">✨ Agente <span class="count">IA</span></a>
+    <a class="tab" href="#calendario" data-tab="calendario">📅 Calendario</a>
+    <a class="tab" href="#historias" data-tab="historias">Historias <span class="count" id="count-historias">50</span></a>
+    <a class="tab" href="#contenido" data-tab="contenido">Contenido <span class="count" id="count-contenido">10</span></a>
+    <a class="tab" href="#banco" data-tab="banco">💭 Banco <span class="count" id="count-banco">0</span></a>
   </div>
 
   <div id="stats-bar" class="stats-bar" style="display:none;"></div>
@@ -1347,7 +1347,7 @@ function renderAgente(){
     host.id='agente-evergreen-host';
     host.innerHTML='<p class="status">Cargando...</p>';
     wrap.appendChild(host);
-    ensureEvergreenLoaded().then(()=>pintarEvergreenIdeas(host));
+    ensureEvergreenLoaded().then(()=>{ if(document.body.contains(host)) pintarEvergreenIdeas(host); });
     return;
   }
 
@@ -1361,7 +1361,7 @@ function renderAgente(){
       pintarGuionOrganico(host);
     } else {
       host.innerHTML='<p class="status">Cargando conversación...</p>';
-      ensureGuionOrgChatLoaded().then(()=>pintarGuionOrganico(host));
+      ensureGuionOrgChatLoaded().then(()=>{ if(document.body.contains(host)) pintarGuionOrganico(host); });
     }
     return;
   }
@@ -2431,9 +2431,19 @@ document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==
 window.addEventListener('pagehide',()=>{ if(agendaSyncPending) syncAgendaEventos({keepalive:true}); });
 
 loadStorage().then(()=>{
-  if(location.hash==='#366'){
+  const hash = location.hash.replace('#','');
+  if(hash==='366'){
     agenteMode='ideas';
     const tabEl=document.querySelector('.tab[data-tab="agente"]');
+    if(tabEl) tabEl.click();
+    return;
+  }
+  // Las pestañas son <a href="#historias">, etc. -- así el clic derecho ofrece "abrir en pestaña
+  // nueva" (necesita un href real). Al abrir esa pestaña nueva, aterriza directo ahí en vez de
+  // siempre en Agente IA (que ya es el default si no hay hash o es "#agente").
+  const TAB_KEYS = ['calendario','historias','contenido','banco'];
+  if(TAB_KEYS.includes(hash)){
+    const tabEl=document.querySelector(`.tab[data-tab="${hash}"]`);
     if(tabEl) tabEl.click();
   }
 });
