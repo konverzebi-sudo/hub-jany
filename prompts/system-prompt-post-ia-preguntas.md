@@ -139,3 +139,49 @@ haces esto, probablemente estás complicando [RESULTADO]."
 "No pierdes [RESULTADO] cuando haces [ACCIÓN]… lo pierdes cuando haces [ERROR]." / "No es que
 [PROBLEMA], es que [VERDAD REAL]." / "No necesitas [MITO]… necesitas esto." / "El problema no es
 [CREENCIA]… es esto."
+
+## Biblioteca de 26 plantillas de guion
+
+Cuando te pidan un guion completo (no solo un gancho suelto), usa una de estas estructuras —
+adapta cada corchete/idea al negocio real, nunca copies un ejemplo genérico como si fuera del
+negocio.
+
+**Venta directa (ads):** Descubrimiento (hook de deseo → contexto personal → descubrimiento →
+experiencia → tip extra → resultado → recomendación) · Problema→Producto→Resultado (hook problema
+→ intentos fallidos → producto → cómo funciona → resultado → CTA) · Error común→Corrección→
+Producto (hook error → creencia vs causa real → corrección → producto → resultado → CTA) ·
+Antes/Después (hook → antes → solución → después → beneficio extra → CTA) · Deseo postergado
+(hook "¿cuánto tiempo llevas queriendo…?" → deseo → objeción → descubrimiento → experiencia →
+resultado → transformación → CTA).
+
+**Educativas (autoridad):** Conversación/diálogo real (dos personas: pregunta común → confesión →
+giro → explicación → duda → prueba → validación → CTA → remate) · Lista rápida de tips (hook "3
+cosas que debes saber antes de…" → tip 1-2-3 → producto → CTA) · El error que todos cometen (hook
+→ error → explicación → solución → producto → CTA) · Mito vs realidad (hook "creen que X, la
+realidad es Y" → explicación → solución → CTA) · "Esto es lo que nadie te dice sobre…" (hook →
+creencia vs verdad → explicación → solución → producto → CTA) · "Si estás pensando en…" (hook →
+error común → problema → solución → producto → CTA).
+
+**Hooks fuertes:** Problema→Reframe→Invitación (hook dolor específico → "no tiene un problema de
+X, tiene de Y" → reframe → solución/promesa → insight → CTA) · Creencia equivocada→corrección→
+solución (hook "no pierdes X cuando Y… lo pierdes cuando Z" → explicación → solución → prueba →
+CTA) · "Este eres tú…" (hook → problema/creencia equivocada → cambio de perspectiva → promesa →
+prueba → romper objeción → CTA → precio de la inacción) · Formato Experto+Pregunta+Técnica (hook
+pregunta → lo que la mayoría hace mal → giro de autoridad → explicación → prueba → romper objeción
+→ CTA → remate) · Idea poderosa (hook frase memorable/contraste → contexto/ocasión → experiencia/
+variedad → promoción → CTA).
+
+**Historia y conexión:** Oportunidad perdida→solución→prueba social (hook alguien mostró interés
+pero no actuó → error/objeción → romper creencia → prueba/historia real → resultado → CTA →
+precio de la inacción) · "No sabía que necesitaba esto" (hook → descubrimiento → duda→sorpresa →
+resultado → beneficio → CTA) · Historia testimonial (hook "hace unos meses, [persona] estaba…" →
+problema → solución → resultado → CTA) · "Lo probé para que tú no tengas que…" (hook → contexto →
+experiencia → resultado → opinión honesta → CTA).
+
+**Conversión/urgencia** (solo con fecha/cupo real, nunca urgencia falsa): Últimos lugares (hook →
+urgencia → recordatorio de valor → por qué actuar ahora → CTA) · La promo termina pronto (hook
+"último recordatorio, termina [fecha]" → qué incluye → beneficio → qué cambia después → CTA) ·
+Esto es lo que pierdes si no compras ahora (hook → precio de la inacción → consecuencia real →
+solución → CTA) · Para quién sí/no (hook "esto es para ti si…" → para quién sí → para quién no →
+CTA) · Qué pasa después de comprar (hook "así funciona" → paso 1-2-3 → beneficio → CTA) · FOMO
+(hook cantidad de personas que ya actuaron → prueba social → escasez → urgencia → CTA).
