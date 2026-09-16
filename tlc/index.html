@@ -371,6 +371,7 @@
     editingTeacherId: null,
     editingProductId: null,
     showFondoPendienteDetalle: false,
+    showCajaDetalle: false,
     showAddStudent: false,
     showAddProduct: false,
     paymentFormFor: null,
@@ -646,7 +647,7 @@
     const descuento = Number(payload.descuento)||0;
     const montoTotal = Math.max(0, precioLista - descuento);
     const anticipo = Number(payload.anticipoMonto)||0;
-    const pagos = anticipo > 0 ? [{ monto: anticipo, fecha: payload.anticipoFecha || todayISO(), nota: "Anticipo" }] : [];
+    const pagos = anticipo > 0 ? [{ monto: anticipo, fecha: payload.anticipoFecha || todayISO(), nota: "Anticipo", cuenta: payload.anticipoCuenta || "" }] : [];
     const enrRef = await db.collection("enrollments").add({
       studentId,
       studentNombre: payload.nombreAlumno,
@@ -714,10 +715,10 @@
     toast(fechas.length + " clase(s) agendadas automáticamente en el calendario");
   }
 
-  async function addPayment(enrollmentId, monto, fecha){
+  async function addPayment(enrollmentId, monto, fecha, cuenta){
     const enr = enrollmentById(enrollmentId);
     if(!enr) return;
-    const nuevoPago = { monto: Number(monto)||0, fecha: fecha || todayISO(), nota: "Abono" };
+    const nuevoPago = { monto: Number(monto)||0, fecha: fecha || todayISO(), nota: "Abono", cuenta: cuenta || "" };
     const pagos = (enr.pagos||[]).concat([nuevoPago]);
     await db.doc("enrollments/"+enr.id).update({ pagos });
     toast("Pago registrado");
@@ -742,6 +743,17 @@
       creadoEn: new Date().toISOString()
     });
     toast("Clase agendada");
+  }
+
+  function cuentasConocidas(){
+    const set = new Set(["Efectivo"]);
+    state.enrollments.forEach(e => (e.pagos||[]).forEach(p => { if(p.cuenta) set.add(p.cuenta); }));
+    state.expenses.forEach(g => { if(g.cuenta) set.add(g.cuenta); });
+    state.fixedExpenses.forEach(fx => { if(fx.cuenta) set.add(fx.cuenta); });
+    return [...set].sort();
+  }
+  function cuentaDatalistHtml(){
+    return `<datalist id="lista-cuentas">${cuentasConocidas().map(c=>`<option value="${esc(c)}">`).join("")}</datalist>`;
   }
 
   function fondoContribucionDeClase(cls){
@@ -831,6 +843,7 @@
       monto: Number(payload.monto),
       fecha: payload.fecha,
       categoria: payload.categoria || "General",
+      cuenta: payload.cuenta || "",
       creadoEn: new Date().toISOString()
     });
     toast("Gasto registrado");
@@ -844,6 +857,7 @@
       descripcion: payload.descripcion,
       monto: Number(payload.monto),
       diaPago: Number(payload.diaPago),
+      cuenta: payload.cuenta || "",
       activo: true,
       creadoEn: new Date().toISOString()
     });
@@ -931,9 +945,9 @@
         <div class="field">
           <label>Horario de las clases</label>
           <select name="horarioTipo" id="sel-horario-tipo">
-            <option value="variable" ${editing && (!p.horarioTipo || p.horarioTipo==="variable") ? "selected" : ""}>Variable (se agenda cada clase a mano)</option>
-            <option value="fechas" ${editing && p.horarioTipo==="fechas" ? "selected" : ""}>Fechas fijas (las mismas fechas para quien se inscriba)</option>
-            <option value="semanal" ${editing && p.horarioTipo==="semanal" ? "selected" : ""}>Día(s) fijos de la semana (se repite automático)</option>
+            <option value="variable" ${editing && (!p.horarioTipo || p.horarioTipo==="variable") ? "selected" : ""}>Variable (a selección libre de hora y día)</option>
+            <option value="fechas" ${editing && p.horarioTipo==="fechas" ? "selected" : ""}>Fechas fijas (evento, curso o taller que se lleva en la misma fecha y horario para todos)</option>
+            <option value="semanal" ${editing && p.horarioTipo==="semanal" ? "selected" : ""}>Día / hora fijo por semana (cada semana el mismo horario y día)</option>
           </select>
         </div>
 
@@ -1043,9 +1057,10 @@
               <div class="grid-3" style="align-items:end;">
                 <div class="field"><label>Monto del abono</label><input type="number" name="monto" min="0" step="0.01" required></div>
                 <div class="field"><label>Fecha</label><input type="date" name="fecha" value="${todayISO()}" required></div>
-                <button class="btn gold" type="submit">Guardar abono</button>
+                <div class="field"><label>Cuenta</label><input type="text" name="cuenta" list="lista-cuentas" placeholder="Efectivo, banco..."></div>
               </div>
               <div class="hint">Saldo por cobrar actual: ${fmtMoney(cobrar)}</div>
+              <button class="btn gold" type="submit">Guardar abono</button>
             </form>
           </td>
         </tr>
@@ -1133,8 +1148,9 @@
               <div class="field"><label>Total a pagar</label><input type="text" id="display-total" readonly value="$0.00" style="font-family:var(--mono);font-weight:600;background:var(--bg-2);"></div>
               <div class="field"><label>Anticipo entregado (opcional)</label><input type="number" name="anticipoMonto" min="0" step="0.01" value="0"></div>
             </div>
-            <div class="grid-2">
+            <div class="grid-3">
               <div class="field" style="max-width:220px;"><label>Fecha del anticipo</label><input type="date" name="anticipoFecha" value="${todayISO()}"></div>
+              <div class="field" style="max-width:220px;"><label>Cuenta del anticipo</label><input type="text" name="anticipoCuenta" list="lista-cuentas" placeholder="Efectivo, banco..."></div>
               <div class="field" style="max-width:220px;"><label>Fecha de inicio de clases</label><input type="date" name="fechaInicio" value="${todayISO()}"></div>
             </div>
             ${state.teachers.length === 0 || state.products.length === 0 ? '<div class="hint">Primero agrega al menos una maestra y un producto arriba.</div>' : ""}
@@ -1142,6 +1158,7 @@
           </form>
         </div>
         ` : ""}
+        ${cuentaDatalistHtml()}
       </div>
 
       <div class="section">
@@ -1453,6 +1470,35 @@
     const ahorroIdealTotal = state.fondoMovimientos.reduce((s,m)=>s+(m.ahorroIdealMonto||0), 0);
     const ahorroRealTotal = state.ahorros.reduce((s,a)=>s+(a.monto||0), 0);
     const cajaHistorica = totalCobradoHistorico - totalGastosVariablesHistorico - totalGastosFijosHistorico - ahorroRealTotal;
+
+    const cuentasMap = {};
+    const ensureCuenta = (c) => { if(!cuentasMap[c]) cuentasMap[c] = {cobrado:0, gastado:0}; return cuentasMap[c]; };
+    state.enrollments.forEach(e => (e.pagos||[]).forEach(p => { ensureCuenta(p.cuenta || "Sin especificar").cobrado += p.monto||0; }));
+    state.expenses.forEach(g => { ensureCuenta(g.cuenta || "Sin especificar").gastado += g.monto||0; });
+    state.fixedExpenses.filter(f=>f.activo!==false).forEach(fx => {
+      const inicio = (fx.creadoEn||"").slice(0,10) || today;
+      const ocurrencias = fixedExpenseDatesInRange(fx, inicio, today).length;
+      ensureCuenta(fx.cuenta || "Sin especificar").gastado += ocurrencias * (fx.monto||0);
+    });
+    const cuentasRows = Object.keys(cuentasMap).sort().map(nombre => {
+      const c = cuentasMap[nombre];
+      const debeHaber = c.cobrado - c.gastado;
+      return `
+        <tr>
+          <td>${esc(nombre)}</td>
+          <td class="num">${fmtMoney(c.cobrado)}</td>
+          <td class="num">${fmtMoney(c.gastado)}</td>
+          <td class="num">${fmtMoney(debeHaber)}</td>
+        </tr>
+      `;
+    }).join("");
+    const cajaDetalleHtml = `
+      <div class="card" style="margin-top:12px;"><div class="table-wrap"><table>
+        <thead><tr><th>Cuenta</th><th>Cobrado</th><th>Gastado</th><th>Debería haber</th></tr></thead>
+        <tbody>${cuentasRows || '<tr class="empty-row"><td colspan="4">Aún no marcas cuenta en tus pagos o gastos.</td></tr>'}</tbody>
+      </table></div></div>
+      <div class="hint" style="margin-top:6px;">Esto no incluye lo guardado en ahorro — súmalo tú a la cuenta donde lo hayas movido.</div>
+    `;
     const brechaAhorro = Math.max(0, ahorroIdealTotal - ahorroRealTotal);
     const ahorrosOrdenados = [...state.ahorros].sort((a,b)=> b.fecha.localeCompare(a.fecha));
     const ahorrosRows = ahorrosOrdenados.length ? ahorrosOrdenados.map(a => `
@@ -1495,15 +1541,20 @@
       <div class="section">
         <div class="section-title">General <span class="hint" style="font-weight:400;">no depende del rango de fechas</span></div>
         <div class="grid-3">
-          <div class="card stat"><div class="label">Pagos pendientes de cobrar</div><div class="value ${totalPorCobrarGeneral>0.5?'neg':''}">${fmtMoney(totalPorCobrarGeneral)}</div></div>
+          <div class="card stat" style="cursor:pointer;" data-action="toggle-caja-detalle">
+            <div class="label">Caja: dinero que debe haber</div>
+            <div class="value ${cajaHistorica>=0?'pos':'neg'}">${fmtMoney(cajaHistorica)}</div>
+            <div class="hint" style="margin-top:2px;">${state.showCajaDetalle ? "Ocultar detalle ▲" : "Ver detalle ▼"}</div>
+          </div>
           <div class="card stat" style="cursor:pointer;" data-action="toggle-fondo-pendiente-detalle">
             <div class="label">Fondo para pagar a maestras (clases agendadas pendientes)</div>
             <div class="value">${fmtMoney(fondoPendienteMaestras)}</div>
             <div class="hint" style="margin-top:2px;">${state.showFondoPendienteDetalle ? "Ocultar detalle ▲" : "Ver detalle ▼"}</div>
           </div>
-          <div class="card stat"><div class="label">Caja: dinero que debe haber</div><div class="value ${cajaHistorica>=0?'pos':'neg'}">${fmtMoney(cajaHistorica)}</div></div>
+          <div class="card stat"><div class="label">Pagos pendientes de cobrar</div><div class="value ${totalPorCobrarGeneral>0.5?'neg':''}">${fmtMoney(totalPorCobrarGeneral)}</div></div>
         </div>
         <div class="hint" style="margin-top:6px;">Caja = todo lo cobrado a alumnos, de siempre, menos todos los gastos, menos todo lo guardado en ahorro.</div>
+        ${state.showCajaDetalle ? cajaDetalleHtml : ""}
         ${state.showFondoPendienteDetalle ? fondoPendienteRows : ""}
       </div>
 
@@ -1580,10 +1631,11 @@
         <td>${fmtDateShort(e.fecha)}</td>
         <td>${esc(e.descripcion)}</td>
         <td>${esc(e.categoria)}</td>
+        <td>${esc(e.cuenta||"—")}</td>
         <td class="num">${fmtMoney(e.monto)}</td>
         <td><button class="btn small danger" data-action="delete-expense" data-id="${e.id}">Eliminar</button></td>
       </tr>
-    `).join("") : `<tr class="empty-row"><td colspan="5">Sin gastos registrados.</td></tr>`;
+    `).join("") : `<tr class="empty-row"><td colspan="6">Sin gastos registrados.</td></tr>`;
 
     const today = todayISO();
     const fixedRows = state.fixedExpenses.length ? state.fixedExpenses.map(fx=>{
@@ -1593,11 +1645,12 @@
           <td>${esc(fx.descripcion)}</td>
           <td class="num">Día ${fx.diaPago}</td>
           <td class="num">${fmtMoney(fx.monto)}</td>
+          <td>${esc(fx.cuenta||"—")}</td>
           <td>${fmtDateShort(next)}</td>
           <td><button class="btn small danger" data-action="delete-fixed" data-id="${fx.id}">Eliminar</button></td>
         </tr>
       `;
-    }).join("") : `<tr class="empty-row"><td colspan="5">Sin gastos fijos registrados.</td></tr>`;
+    }).join("") : `<tr class="empty-row"><td colspan="6">Sin gastos fijos registrados.</td></tr>`;
 
     const totalFijosMensual = state.fixedExpenses.filter(f=>f.activo!==false).reduce((s,f)=>s+(f.monto||0),0);
     const first = new Date(); const firstIso = isoFromParts(first.getFullYear(), first.getMonth()+1, 1);
@@ -1652,12 +1705,15 @@
               <div class="field"><label>Monto</label><input type="number" name="monto" min="0" step="0.01" required></div>
               <div class="field"><label>Fecha</label><input type="date" name="fecha" value="${today}" required></div>
             </div>
-            <div class="field" style="max-width:280px;"><label>Categoría (opcional)</label><input type="text" name="categoria" placeholder="Renta, material, etc."></div>
+            <div class="grid-2">
+              <div class="field" style="max-width:280px;"><label>Categoría (opcional)</label><input type="text" name="categoria" placeholder="Renta, material, etc."></div>
+              <div class="field" style="max-width:280px;"><label>Cuenta</label><input type="text" name="cuenta" list="lista-cuentas" placeholder="Efectivo, banco..."></div>
+            </div>
             <button class="btn gold" type="submit">Agregar gasto</button>
           </form>
         </div>
         <div class="card" style="margin-top:12px;"><div class="table-wrap"><table>
-          <thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Monto</th><th></th></tr></thead>
+          <thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Cuenta</th><th>Monto</th><th></th></tr></thead>
           <tbody>${expenseRows}</tbody>
         </table></div></div>
       </div>
@@ -1671,14 +1727,16 @@
               <div class="field"><label>Monto</label><input type="number" name="monto" min="0" step="0.01" required></div>
               <div class="field"><label>Día del mes de pago</label><input type="number" name="diaPago" min="1" max="31" required></div>
             </div>
+            <div class="field" style="max-width:280px;"><label>Cuenta</label><input type="text" name="cuenta" list="lista-cuentas" placeholder="Efectivo, banco..."></div>
             <button class="btn gold" type="submit">Agregar gasto fijo</button>
           </form>
         </div>
         <div class="card" style="margin-top:12px;"><div class="table-wrap"><table>
-          <thead><tr><th>Descripción</th><th>Día de pago</th><th>Monto</th><th>Próxima fecha</th><th></th></tr></thead>
+          <thead><tr><th>Descripción</th><th>Día de pago</th><th>Monto</th><th>Cuenta</th><th>Próxima fecha</th><th></th></tr></thead>
           <tbody>${fixedRows}</tbody>
         </table></div></div>
       </div>
+      ${cuentaDatalistHtml()}
     `;
   }
 
@@ -1724,6 +1782,8 @@
         state.showAddStudent = !state.showAddStudent; render();
       } else if(action === "toggle-fondo-pendiente-detalle"){
         state.showFondoPendienteDetalle = !state.showFondoPendienteDetalle; render();
+      } else if(action === "toggle-caja-detalle"){
+        state.showCajaDetalle = !state.showCajaDetalle; render();
       } else if(action === "delete-product"){
         if(confirm("¿Eliminar este producto? Los alumnos ya inscritos con él no se ven afectados.")) await deleteProduct(btn.dataset.id);
       } else if(action === "toggle-payment"){
@@ -1947,6 +2007,7 @@
         descuento: fd.get("descuento"),
         anticipoMonto: fd.get("anticipoMonto"),
         anticipoFecha: fd.get("anticipoFecha"),
+        anticipoCuenta: fd.get("anticipoCuenta"),
         fechaInicio: fd.get("fechaInicio"),
         teacherId: fd.get("teacherId")
       });
@@ -1959,7 +2020,7 @@
     if(formPayment) formPayment.onsubmit = async (e) => {
       e.preventDefault();
       const fd = new FormData(formPayment);
-      await addPayment(formPayment.dataset.enr, fd.get("monto"), fd.get("fecha"));
+      await addPayment(formPayment.dataset.enr, fd.get("monto"), fd.get("fecha"), fd.get("cuenta"));
       state.paymentFormFor = null;
       render();
     };
@@ -1975,7 +2036,7 @@
     if(formExpense) formExpense.onsubmit = async (e) => {
       e.preventDefault();
       const fd = new FormData(formExpense);
-      await addExpense({descripcion: fd.get("descripcion"), monto: fd.get("monto"), fecha: fd.get("fecha"), categoria: fd.get("categoria")});
+      await addExpense({descripcion: fd.get("descripcion"), monto: fd.get("monto"), fecha: fd.get("fecha"), categoria: fd.get("categoria"), cuenta: fd.get("cuenta")});
       formExpense.reset();
     };
 
@@ -1983,7 +2044,7 @@
     if(formFixed) formFixed.onsubmit = async (e) => {
       e.preventDefault();
       const fd = new FormData(formFixed);
-      await addFixedExpense({descripcion: fd.get("descripcion"), monto: fd.get("monto"), diaPago: fd.get("diaPago")});
+      await addFixedExpense({descripcion: fd.get("descripcion"), monto: fd.get("monto"), diaPago: fd.get("diaPago"), cuenta: fd.get("cuenta")});
       formFixed.reset();
     };
 
