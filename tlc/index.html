@@ -363,6 +363,7 @@
     showAddTeacher: false,
     editingTeacherId: null,
     editingProductId: null,
+    showFondoPendienteDetalle: false,
     showAddStudent: false,
     showAddProduct: false,
     paymentFormFor: null,
@@ -910,6 +911,10 @@
           <div class="field" style="max-width:220px;"><label>Monto fijo por clase</label><input type="number" name="pagoMaestroMonto" min="0" step="0.01" value="${editing && p.pagoMaestroMonto ? p.pagoMaestroMonto : ""}"></div>
           <div class="hint">Este monto se le paga a la maestra por cada clase de este paquete que marques como "dada", sin importar su % general. Se va reflejando poco a poco en el Fondo Learning Club conforme se dan las clases, no todo de una vez.</div>
         </div>
+        <div id="pago-maestro-pct-fields" ${editing && p.pagoMaestroTipo==="fijo" ? "hidden" : ""}>
+          <div class="field" style="max-width:220px;"><label>% para ver el aproximado (no se guarda, solo referencia)</label><input type="number" id="input-pct-preview" min="0" max="100" step="1" placeholder="Ej. 80"></div>
+          <div class="hint" id="pago-maestro-pct-resultado">Escribe un % para ver cuánto le tocaría a la maestra por clase.</div>
+        </div>
 
         <div class="field">
           <label>Horario de las clases</label>
@@ -1340,8 +1345,24 @@
     }, 0);
 
     // Fondo para pagar a las maestras las clases ya agendadas pero que aún no se dan.
-    const fondoPendienteMaestras = state.classes.filter(c=>c.estado==="programada")
-      .reduce((s,c)=> s + fondoContribucionDeClase(c).pagoMaestra, 0);
+    const clasesPendientesFondo = state.classes.filter(c=>c.estado==="programada").map(c => {
+      const teacher = teacherById(c.teacherId);
+      return Object.assign({
+        fecha: c.fecha,
+        hora: fmtRangoHora(c),
+        teacherNombre: teacher ? teacher.nombre : "—",
+        studentNombre: c.studentNombre
+      }, fondoContribucionDeClase(c));
+    }).sort((a,b)=> a.fecha.localeCompare(b.fecha) || a.teacherNombre.localeCompare(b.teacherNombre));
+    const fondoPendienteMaestras = clasesPendientesFondo.reduce((s,c)=> s + c.pagoMaestra, 0);
+    const fondoPendienteRows = clasesPendientesFondo.length ? clasesPendientesFondo.map(c => `
+      <tr>
+        <td>${fmtDateShort(c.fecha)}${c.hora ? " · "+esc(c.hora) : ""}</td>
+        <td>${esc(c.teacherNombre)}</td>
+        <td>${esc(c.studentNombre)}</td>
+        <td class="num">${fmtMoney(c.pagoMaestra)}</td>
+      </tr>
+    `).join("") : `<tr class="empty-row"><td colspan="4">No hay clases agendadas pendientes de dar.</td></tr>`;
 
     const saldoRows = state.enrollments.length ? state.enrollments.map(e => `
       <tr>
@@ -1399,10 +1420,20 @@
         <div class="section-title">General <span class="hint" style="font-weight:400;">no depende del rango de fechas</span></div>
         <div class="grid-3">
           <div class="card stat"><div class="label">Pagos pendientes de cobrar</div><div class="value ${totalPorCobrarGeneral>0.5?'neg':''}">${fmtMoney(totalPorCobrarGeneral)}</div></div>
-          <div class="card stat"><div class="label">Fondo para pagar a maestras (clases agendadas pendientes)</div><div class="value">${fmtMoney(fondoPendienteMaestras)}</div></div>
+          <div class="card stat" style="cursor:pointer;" data-action="toggle-fondo-pendiente-detalle">
+            <div class="label">Fondo para pagar a maestras (clases agendadas pendientes)</div>
+            <div class="value">${fmtMoney(fondoPendienteMaestras)}</div>
+            <div class="hint" style="margin-top:2px;">${state.showFondoPendienteDetalle ? "Ocultar detalle ▲" : "Ver detalle ▼"}</div>
+          </div>
           <div class="card stat"><div class="label">Caja: dinero que debe haber</div><div class="value ${cajaHistorica>=0?'pos':'neg'}">${fmtMoney(cajaHistorica)}</div></div>
         </div>
         <div class="hint" style="margin-top:6px;">Caja = todo lo cobrado a alumnos, de siempre, menos todos los gastos, menos todo lo guardado en ahorro.</div>
+        ${state.showFondoPendienteDetalle ? `
+        <div class="card" style="margin-top:12px;"><div class="table-wrap"><table>
+          <thead><tr><th>Fecha</th><th>Maestra</th><th>Alumno</th><th>Monto para la maestra</th></tr></thead>
+          <tbody>${fondoPendienteRows}</tbody>
+        </table></div></div>
+        ` : ""}
       </div>
 
       <div class="section">
@@ -1620,6 +1651,8 @@
         render();
       } else if(action === "toggle-add-student"){
         state.showAddStudent = !state.showAddStudent; render();
+      } else if(action === "toggle-fondo-pendiente-detalle"){
+        state.showFondoPendienteDetalle = !state.showFondoPendienteDetalle; render();
       } else if(action === "delete-product"){
         if(confirm("¿Eliminar este producto? Los alumnos ya inscritos con él no se ven afectados.")) await deleteProduct(btn.dataset.id);
       } else if(action === "toggle-payment"){
@@ -1748,12 +1781,36 @@
     }
     const selPagoMaestroTipo = document.getElementById("sel-pago-maestro-tipo");
     const pagoMaestroFijoFields = document.getElementById("pago-maestro-fijo-fields");
+    const pagoMaestroPctFields = document.getElementById("pago-maestro-pct-fields");
     if(selPagoMaestroTipo){
       const syncPagoMaestro = () => {
-        if(pagoMaestroFijoFields) pagoMaestroFijoFields.hidden = selPagoMaestroTipo.value !== "fijo";
+        const esFijo = selPagoMaestroTipo.value === "fijo";
+        if(pagoMaestroFijoFields) pagoMaestroFijoFields.hidden = !esFijo;
+        if(pagoMaestroPctFields) pagoMaestroPctFields.hidden = esFijo;
       };
       selPagoMaestroTipo.onchange = syncPagoMaestro;
       syncPagoMaestro();
+    }
+    const inputPctPreview = document.getElementById("input-pct-preview");
+    const pagoMaestroPctResultado = document.getElementById("pago-maestro-pct-resultado");
+    if(inputPctPreview && pagoMaestroPctResultado){
+      const formProductEl = document.getElementById("form-product");
+      const syncPctPreview = () => {
+        const precio = Number(formProductEl.elements["precio"] ? formProductEl.elements["precio"].value : 0) || 0;
+        const totalClases = Number(formProductEl.elements["totalClases"] ? formProductEl.elements["totalClases"].value : 1) || 1;
+        const pct = Number(inputPctPreview.value) || 0;
+        const precioPorClase = totalClases > 0 ? precio / totalClases : 0;
+        const monto = precioPorClase * (pct/100);
+        if(inputPctPreview.value === ""){
+          pagoMaestroPctResultado.textContent = "Escribe un % para ver cuánto le tocaría a la maestra por clase.";
+        } else {
+          pagoMaestroPctResultado.textContent = `≈ ${fmtMoney(monto)} por clase para la maestra (de ${fmtMoney(precioPorClase)} por clase).`;
+        }
+      };
+      inputPctPreview.oninput = syncPctPreview;
+      formProductEl.elements["precio"].oninput = syncPctPreview;
+      formProductEl.elements["totalClases"].oninput = syncPctPreview;
+      syncPctPreview();
     }
 
     const formStudent = document.getElementById("form-student");
