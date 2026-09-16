@@ -564,17 +564,22 @@
   // ---------------------------------------------------------------
   // Mutations
   // ---------------------------------------------------------------
-  async function addTeacher(nombre, tarifa){
+  async function addTeacher(nombre, tarifa, telefono){
     const color = TEACHER_COLORS[state.teachers.length % TEACHER_COLORS.length];
     await db.collection("teachers").add({
-      nombre, tarifa: Number(tarifa)||0, color, activo:true, creadoEn: new Date().toISOString()
+      nombre, tarifa: Number(tarifa)||0, telefono: (telefono||"").trim(), color, activo:true, creadoEn: new Date().toISOString()
     });
     toast("Maestra agregada");
   }
 
-  async function updateTeacher(id, nombre, tarifa){
-    await db.doc("teachers/"+id).update({ nombre, tarifa: Math.min(100, Math.max(0, Number(tarifa)||0)) });
+  async function updateTeacher(id, nombre, tarifa, telefono){
+    await db.doc("teachers/"+id).update({ nombre, tarifa: Math.min(100, Math.max(0, Number(tarifa)||0)), telefono: (telefono||"").trim() });
     toast("Maestra actualizada");
+  }
+
+  function whatsappLink(telefono, mensaje){
+    const digits = String(telefono||"").replace(/\D/g, "");
+    return "https://wa.me/" + digits + "?text=" + encodeURIComponent(mensaje);
   }
 
   function normalizeProductPayload(payload){
@@ -973,9 +978,10 @@
       <tr>
         <td colspan="3" style="background:var(--bg-2);">
           <form class="inline-form" id="form-teacher-edit" style="margin:8px 0;" data-id="${t.id}">
-            <div class="grid-2">
+            <div class="grid-3">
               <div class="field"><label>Nombre de la maestra</label><input type="text" name="nombre" value="${esc(t.nombre)}" required></div>
               <div class="field"><label>Porcentaje que recibe por clase (%)</label><input type="number" name="tarifa" min="0" max="100" step="1" value="${t.tarifa}" required></div>
+              <div class="field"><label>WhatsApp (con código de país)</label><input type="tel" name="telefono" placeholder="521234567890" value="${esc(t.telefono||"")}"></div>
             </div>
             <div class="hint">El nuevo porcentaje solo aplica a las clases que se marquen como dadas de aquí en adelante — no cambia lo ya calculado.</div>
             <button class="btn gold" type="submit">Guardar cambios</button>
@@ -1057,10 +1063,12 @@
         </div>
         ${state.showAddTeacher ? `
           <form class="inline-form" id="form-teacher">
-            <div class="grid-2">
+            <div class="grid-3">
               <div class="field"><label>Nombre de la maestra</label><input type="text" name="nombre" value="Miss. " required></div>
               <div class="field"><label>Porcentaje que recibe por clase (%)</label><input type="number" name="tarifa" min="0" max="100" step="1" value="100" required></div>
+              <div class="field"><label>WhatsApp (con código de país)</label><input type="tel" name="telefono" placeholder="521234567890"></div>
             </div>
+            <div class="hint">El WhatsApp se usa para enviarle su corte de pago desde "Corte de caja". Incluye el código de país, ej. 52 para México.</div>
             <button class="btn gold" type="submit">Guardar maestra</button>
           </form>
         ` : ""}
@@ -1387,19 +1395,46 @@
       return Object.assign({
         fecha: c.fecha,
         hora: fmtRangoHora(c),
+        teacherId: c.teacherId,
         teacherNombre: teacher ? teacher.nombre : "—",
+        teacherTelefono: teacher ? teacher.telefono : "",
         studentNombre: c.studentNombre
       }, fondoContribucionDeClase(c));
     }).sort((a,b)=> a.fecha.localeCompare(b.fecha) || a.teacherNombre.localeCompare(b.teacherNombre));
     const fondoPendienteMaestras = clasesPendientesFondo.reduce((s,c)=> s + c.pagoMaestra, 0);
-    const fondoPendienteRows = clasesPendientesFondo.length ? clasesPendientesFondo.map(c => `
-      <tr>
-        <td>${fmtDateShort(c.fecha)}${c.hora ? " · "+esc(c.hora) : ""}</td>
-        <td>${esc(c.teacherNombre)}</td>
-        <td>${esc(c.studentNombre)}</td>
-        <td class="num">${fmtMoney(c.pagoMaestra)}</td>
-      </tr>
-    `).join("") : `<tr class="empty-row"><td colspan="4">No hay clases agendadas pendientes de dar.</td></tr>`;
+
+    const fondoPorMaestra = {};
+    clasesPendientesFondo.forEach(c => {
+      if(!fondoPorMaestra[c.teacherId]) fondoPorMaestra[c.teacherId] = {
+        teacherNombre: c.teacherNombre, teacherTelefono: c.teacherTelefono, clases: [], total: 0
+      };
+      fondoPorMaestra[c.teacherId].clases.push(c);
+      fondoPorMaestra[c.teacherId].total += c.pagoMaestra;
+    });
+    const fondoPendienteRows = Object.values(fondoPorMaestra).length ? Object.values(fondoPorMaestra).map(g => {
+      const fechaMin = g.clases[0].fecha, fechaMax = g.clases[g.clases.length-1].fecha;
+      const desglose = g.clases.map(c => `${fmtDateShort(c.fecha)}${c.hora ? " "+c.hora : ""} - ${c.studentNombre}: ${fmtMoney(c.pagoMaestra)}`).join("\n");
+      const mensaje = `${g.teacherNombre}, agradecemos tu aportación a *The Learning Club* en el periodo de:\n${fmtDateShort(fechaMin)} a ${fmtDateShort(fechaMax)}\n\n${desglose}\n\nTotal: ${fmtMoney(g.total)}\n\nTe adjunto comprobante de tu pago.\n\n¡Seguimos creciendo en equipo!`;
+      const rows = g.clases.map(c => `
+        <tr>
+          <td>${fmtDateShort(c.fecha)}${c.hora ? " · "+esc(c.hora) : ""}</td>
+          <td>${esc(c.studentNombre)}</td>
+          <td class="num">${fmtMoney(c.pagoMaestra)}</td>
+        </tr>
+      `).join("");
+      return `
+        <div class="card" style="margin-top:12px;">
+          <div class="card-pad" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;border-bottom:1px solid var(--line);">
+            <div><strong>${esc(g.teacherNombre)}</strong> <span class="hint" style="margin:0;">${g.clases.length} clase(s) · total ${fmtMoney(g.total)}</span></div>
+            ${g.teacherTelefono ? `<a class="btn small gold" href="${whatsappLink(g.teacherTelefono, mensaje)}" target="_blank" rel="noopener">Enviar por WhatsApp</a>` : `<span class="hint" style="margin:0;">Agrégale WhatsApp en Maestras para poder enviarle este corte.</span>`}
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Fecha</th><th>Alumno</th><th>Monto</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table></div>
+        </div>
+      `;
+    }).join("") : `<div class="hint">No hay clases agendadas pendientes de dar.</div>`;
 
     const saldoRows = state.enrollments.length ? state.enrollments.map(e => `
       <tr>
@@ -1469,12 +1504,7 @@
           <div class="card stat"><div class="label">Caja: dinero que debe haber</div><div class="value ${cajaHistorica>=0?'pos':'neg'}">${fmtMoney(cajaHistorica)}</div></div>
         </div>
         <div class="hint" style="margin-top:6px;">Caja = todo lo cobrado a alumnos, de siempre, menos todos los gastos, menos todo lo guardado en ahorro.</div>
-        ${state.showFondoPendienteDetalle ? `
-        <div class="card" style="margin-top:12px;"><div class="table-wrap"><table>
-          <thead><tr><th>Fecha</th><th>Maestra</th><th>Alumno</th><th>Monto para la maestra</th></tr></thead>
-          <tbody>${fondoPendienteRows}</tbody>
-        </table></div></div>
-        ` : ""}
+        ${state.showFondoPendienteDetalle ? fondoPendienteRows : ""}
       </div>
 
       <div class="section">
@@ -1788,7 +1818,7 @@
     if(formTeacher) formTeacher.onsubmit = async (e) => {
       e.preventDefault();
       const fd = new FormData(formTeacher);
-      await addTeacher(fd.get("nombre"), fd.get("tarifa"));
+      await addTeacher(fd.get("nombre"), fd.get("tarifa"), fd.get("telefono"));
       state.showAddTeacher = false;
       render();
     };
@@ -1797,7 +1827,7 @@
     if(formTeacherEdit) formTeacherEdit.onsubmit = async (e) => {
       e.preventDefault();
       const fd = new FormData(formTeacherEdit);
-      await updateTeacher(formTeacherEdit.dataset.id, fd.get("nombre"), fd.get("tarifa"));
+      await updateTeacher(formTeacherEdit.dataset.id, fd.get("nombre"), fd.get("tarifa"), fd.get("telefono"));
       state.editingTeacherId = null;
       render();
     };
