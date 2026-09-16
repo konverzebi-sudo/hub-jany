@@ -347,7 +347,10 @@
     classes: [],
     expenses: [],
     fixedExpenses: [],
-    ready: { teachers:false, students:false, products:false, enrollments:false, classes:false, expenses:false, fixedExpenses:false },
+    fondoMovimientos: [],
+    ahorros: [],
+    settings: { ahorroPct: 10 },
+    ready: { teachers:false, students:false, products:false, enrollments:false, classes:false, expenses:false, fixedExpenses:false, fondoMovimientos:false, ahorros:false },
     // ui-only
     calYear: new Date().getFullYear(),
     calMonth: new Date().getMonth(), // 0-11
@@ -442,20 +445,28 @@
   // DB wiring (versión de prueba: guarda todo en este navegador)
   // ---------------------------------------------------------------
   const LOCAL_KEY = "tlc_data_v1";
-  const COLLECTIONS = ["teachers","students","products","enrollments","classes","expenses","fixedExpenses"];
+  const COLLECTIONS = ["teachers","students","products","enrollments","classes","expenses","fixedExpenses","fondoMovimientos","ahorros"];
 
   function loadLocalStore(){
     try{
       const raw = localStorage.getItem(LOCAL_KEY);
       const parsed = raw ? JSON.parse(raw) : {};
       COLLECTIONS.forEach(c => { if(!Array.isArray(parsed[c])) parsed[c] = []; });
+      if(!parsed.settings || typeof parsed.settings !== "object") parsed.settings = { ahorroPct: 10 };
+      if(typeof parsed.settings.ahorroPct !== "number") parsed.settings.ahorroPct = 10;
       return parsed;
     }catch(e){
-      const empty = {}; COLLECTIONS.forEach(c => empty[c] = []); return empty;
+      const empty = {}; COLLECTIONS.forEach(c => empty[c] = []); empty.settings = { ahorroPct: 10 }; return empty;
     }
   }
   function saveLocalStore(store){
     localStorage.setItem(LOCAL_KEY, JSON.stringify(store));
+  }
+  async function updateSettings(patch){
+    const store = loadLocalStore();
+    store.settings = Object.assign({}, store.settings, patch);
+    saveLocalStore(store);
+    refreshFromLocalStore();
   }
 
   db = {
@@ -498,6 +509,7 @@
       state[key] = store[key];
       state.ready[key] = true;
     });
+    state.settings = store.settings;
     render();
   }
 
@@ -602,6 +614,32 @@
     toast("Clase agendada");
   }
 
+  function fondoContribucionDeClase(cls){
+    const enr = enrollmentById(cls.enrollmentId);
+    const teacher = enr ? teacherById(enr.teacherId) : null;
+    const precio = enr ? pricePerClass(enr) : 0;
+    const pagoMaestra = teacher ? precio * ((teacher.tarifa||0)/100) : 0;
+    return Math.max(0, precio - pagoMaestra);
+  }
+
+  async function registrarMovimientoFondo(cls){
+    const monto = fondoContribucionDeClase(cls);
+    const pct = (state.settings && state.settings.ahorroPct) || 0;
+    await db.collection("fondoMovimientos").add({
+      classId: cls.id,
+      fecha: cls.fecha,
+      monto,
+      ahorroIdealPct: pct,
+      ahorroIdealMonto: monto * (pct/100),
+      creadoEn: new Date().toISOString()
+    });
+  }
+
+  async function eliminarMovimientoFondo(classId){
+    const mov = state.fondoMovimientos.find(m => m.classId === classId);
+    if(mov) await db.doc("fondoMovimientos/"+mov.id).delete();
+  }
+
   async function setClassEstado(cls, estado){
     const prevEstado = cls.estado;
     await db.doc("classes/"+cls.id).update({ estado });
@@ -610,11 +648,13 @@
       if(enr){
         await db.doc("enrollments/"+enr.id).update({ clasesDadas: (enr.clasesDadas||0) + 1 });
       }
+      await registrarMovimientoFondo(cls);
     } else if(prevEstado === "dada" && estado !== "dada"){
       const enr = enrollmentById(cls.enrollmentId);
       if(enr){
         await db.doc("enrollments/"+enr.id).update({ clasesDadas: Math.max(0,(enr.clasesDadas||0) - 1) });
       }
+      await eliminarMovimientoFondo(cls.id);
     }
     toast(estado === "dada" ? "Clase marcada como dada" : estado === "cancelada" ? "Clase cancelada" : "Clase actualizada");
   }
@@ -625,6 +665,7 @@
       if(enr){
         await db.doc("enrollments/"+enr.id).update({ clasesDadas: Math.max(0,(enr.clasesDadas||0) - 1) });
       }
+      await eliminarMovimientoFondo(cls.id);
     }
     await db.doc("classes/"+cls.id).delete();
     toast("Clase eliminada");
@@ -670,6 +711,19 @@
     toast("Gasto fijo eliminado");
   }
 
+  async function registrarAhorro(monto, fecha){
+    await db.collection("ahorros").add({
+      monto: Number(monto)||0,
+      fecha: fecha || todayISO(),
+      creadoEn: new Date().toISOString()
+    });
+    toast("Ahorro registrado");
+  }
+  async function deleteAhorro(id){
+    await db.doc("ahorros/"+id).delete();
+    toast("Registro de ahorro eliminado");
+  }
+
   // ---------------------------------------------------------------
   // Render: shell
   // ---------------------------------------------------------------
@@ -701,7 +755,7 @@
     const teacherRows = state.teachers.length ? state.teachers.map(t => `
       <tr>
         <td><span class="swatch" style="background:${t.color}"></span>${esc(t.nombre)}</td>
-        <td class="num">${fmtMoney(t.tarifa)} / clase</td>
+        <td class="num">${t.tarifa}% de la clase</td>
       </tr>
     `).join("") : `<tr class="empty-row"><td colspan="2">Aún no registras maestras.</td></tr>`;
 
@@ -771,8 +825,8 @@
         ${state.showAddTeacher ? `
           <form class="inline-form" id="form-teacher">
             <div class="grid-2">
-              <div class="field"><label>Nombre de la maestra</label><input type="text" name="nombre" required></div>
-              <div class="field"><label>Pago por clase impartida</label><input type="number" name="tarifa" min="0" step="0.01" required></div>
+              <div class="field"><label>Nombre de la maestra</label><input type="text" name="nombre" value="Miss. " required></div>
+              <div class="field"><label>Porcentaje que recibe por clase (%)</label><input type="number" name="tarifa" min="0" max="100" step="1" value="100" required></div>
             </div>
             <button class="btn gold" type="submit">Guardar maestra</button>
           </form>
@@ -1044,7 +1098,7 @@
       const enr = enrollmentById(c.enrollmentId);
       const teacher = teacherById(c.teacherId);
       const precio = enr ? pricePerClass(enr) : 0;
-      const tarifa = teacher ? (teacher.tarifa||0) : 0;
+      const tarifa = teacher ? precio * ((teacher.tarifa||0)/100) : 0;
       totalIngresoAtribuible += precio;
       totalPagoMaestras += tarifa;
       if(!byTeacher[c.teacherId]) byTeacher[c.teacherId] = {teacherId:c.teacherId, nombre: teacher?teacher.nombre:"—", clases:0, pagar:0, pendientes:0, pagadas:0};
@@ -1087,6 +1141,19 @@
     const totalSaldoAlumnos = state.enrollments.reduce((s,e)=>s+saldoEnCaja(e),0);
     const totalPorCobrarGeneral = state.enrollments.reduce((s,e)=>s+saldoPorCobrar(e),0);
 
+    const fondoTotal = state.fondoMovimientos.reduce((s,m)=>s+(m.monto||0), 0);
+    const ahorroIdealTotal = state.fondoMovimientos.reduce((s,m)=>s+(m.ahorroIdealMonto||0), 0);
+    const ahorroRealTotal = state.ahorros.reduce((s,a)=>s+(a.monto||0), 0);
+    const brechaAhorro = Math.max(0, ahorroIdealTotal - ahorroRealTotal);
+    const ahorrosOrdenados = [...state.ahorros].sort((a,b)=> b.fecha.localeCompare(a.fecha));
+    const ahorrosRows = ahorrosOrdenados.length ? ahorrosOrdenados.map(a => `
+      <tr>
+        <td>${fmtDateShort(a.fecha)}</td>
+        <td class="num">${fmtMoney(a.monto)}</td>
+        <td><button class="btn small danger" data-action="delete-ahorro" data-id="${a.id}">Eliminar</button></td>
+      </tr>
+    `).join("") : `<tr class="empty-row"><td colspan="3">Aún no has registrado ahorros.</td></tr>`;
+
     return `
       <div class="section">
         <div class="card card-pad">
@@ -1113,6 +1180,38 @@
           <div class="card stat"><div class="label">Total en saldo de alumnos (reserva)</div><div class="value">${fmtMoney(totalSaldoAlumnos)}</div></div>
           <div class="card stat"><div class="label">Total pendiente de cobro a alumnos</div><div class="value ${totalPorCobrarGeneral>0.5?'neg':''}">${fmtMoney(totalPorCobrarGeneral)}</div></div>
         </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Fondo Learning Club <span class="hint" style="font-weight:400;">acumulado de siempre, no depende del rango de fechas</span></div>
+        <div class="grid-3">
+          <div class="card stat"><div class="label">Fondo acumulado</div><div class="value">${fmtMoney(fondoTotal)}</div></div>
+          <div class="card stat"><div class="label">Ahorro ideal (meta, no editable)</div><div class="value">${fmtMoney(ahorroIdealTotal)}</div></div>
+          <div class="card stat"><div class="label">Ahorro real guardado</div><div class="value ${brechaAhorro>0.5?'neg':'pos'}">${fmtMoney(ahorroRealTotal)}</div></div>
+        </div>
+        <div class="hint" style="margin-top:10px;${brechaAhorro>0.5?'color:var(--red);':'color:var(--green);'}">
+          ${brechaAhorro>0.5 ? `Te faltan ${fmtMoney(brechaAhorro)} para alcanzar la meta de ahorro ideal.` : `Vas al día con tu meta de ahorro ideal.`}
+        </div>
+
+        <div class="grid-2" style="margin-top:14px;">
+          <div class="card card-pad">
+            <form class="inline-form" id="form-ahorro-pct" style="margin:0;">
+              <div class="field"><label>% de ahorro recomendado (aplica a clases nuevas que se marquen como dadas)</label><input type="number" name="ahorroPct" min="0" max="100" step="1" value="${state.settings.ahorroPct}"></div>
+              <button class="btn secondary" type="submit">Actualizar %</button>
+            </form>
+          </div>
+          <div class="card card-pad">
+            <form class="inline-form" id="form-ahorro" style="margin:0;">
+              <div class="field"><label>Registrar ahorro real (lo que sí guardaste)</label><input type="number" name="monto" min="0" step="0.01" value="${brechaAhorro>0.5 ? brechaAhorro.toFixed(2) : ''}" placeholder="Monto guardado"></div>
+              <button class="btn gold" type="submit">Registrar ahorro</button>
+            </form>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:12px;"><div class="table-wrap"><table>
+          <thead><tr><th>Fecha</th><th>Monto guardado</th><th></th></tr></thead>
+          <tbody>${ahorrosRows}</tbody>
+        </table></div></div>
       </div>
 
       <div class="section">
@@ -1314,6 +1413,8 @@
         if(confirm("¿Eliminar este gasto?")) await deleteExpense(btn.dataset.id);
       } else if(action === "delete-fixed"){
         if(confirm("¿Eliminar este gasto fijo?")) await deleteFixedExpense(btn.dataset.id);
+      } else if(action === "delete-ahorro"){
+        if(confirm("¿Eliminar este registro de ahorro?")) await deleteAhorro(btn.dataset.id);
       }
     };
 
@@ -1418,6 +1519,23 @@
       const fd = new FormData(formFixed);
       await addFixedExpense({descripcion: fd.get("descripcion"), monto: fd.get("monto"), diaPago: fd.get("diaPago")});
       formFixed.reset();
+    };
+
+    const formAhorroPct = document.getElementById("form-ahorro-pct");
+    if(formAhorroPct) formAhorroPct.onsubmit = async (e) => {
+      e.preventDefault();
+      const fd = new FormData(formAhorroPct);
+      const pct = Math.min(100, Math.max(0, Number(fd.get("ahorroPct"))||0));
+      await updateSettings({ ahorroPct: pct });
+      toast("Porcentaje de ahorro actualizado");
+    };
+
+    const formAhorro = document.getElementById("form-ahorro");
+    if(formAhorro) formAhorro.onsubmit = async (e) => {
+      e.preventDefault();
+      const fd = new FormData(formAhorro);
+      await registrarAhorro(fd.get("monto"), todayISO());
+      formAhorro.reset();
     };
   }
 
