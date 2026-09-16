@@ -362,6 +362,7 @@
     corteTo: null,
     showAddTeacher: false,
     editingTeacherId: null,
+    editingProductId: null,
     showAddStudent: false,
     showAddProduct: false,
     paymentFormFor: null,
@@ -568,7 +569,7 @@
     toast("Maestra actualizada");
   }
 
-  async function addProduct(payload){
+  function normalizeProductPayload(payload){
     const tipo = payload.tipo;
     const totalClases = tipo === "individual" ? 1 : Number(payload.totalClases);
     const horarioTipo = payload.horarioTipo || "variable";
@@ -577,7 +578,7 @@
       : [];
     const horarioDias = horarioTipo === "semanal" ? (payload.horarioDias||[]).map(Number) : [];
     const pagoMaestroTipo = payload.pagoMaestroTipo === "fijo" ? "fijo" : "porcentaje";
-    await db.collection("products").add({
+    return {
       nombre: payload.nombre,
       tipo,
       totalClases,
@@ -590,10 +591,18 @@
       horarioFrecuencia: payload.horarioFrecuencia || "semanal",
       horarioHoraInicio: payload.horarioHoraInicio || "",
       horarioHoraFin: payload.horarioHoraFin || "",
+    };
+  }
+  async function addProduct(payload){
+    await db.collection("products").add(Object.assign(normalizeProductPayload(payload), {
       activo: true,
       creadoEn: new Date().toISOString()
-    });
+    }));
     toast("Producto agregado");
+  }
+  async function updateProduct(id, payload){
+    await db.doc("products/"+id).update(normalizeProductPayload(payload));
+    toast("Producto actualizado");
   }
   async function deleteProduct(id){
     await db.doc("products/"+id).delete();
@@ -872,6 +881,75 @@
   // ---------------------------------------------------------------
   // Tab: Alumnos y maestras
   // ---------------------------------------------------------------
+  function productFormHtml(p){
+    const editing = !!p;
+    return `
+      <form class="inline-form" id="form-product" data-mode="${editing ? "edit" : "add"}" ${editing ? `data-id="${p.id}"` : ""}>
+        <div class="grid-3">
+          <div class="field"><label>Nombre del producto</label><input type="text" name="nombre" placeholder="Pago único, Número de clases personalizado..." value="${editing ? esc(p.nombre) : ""}" required></div>
+          <div class="field">
+            <label>Tipo</label>
+            <select name="tipo" id="sel-product-tipo" required>
+              <option value="individual" ${editing && p.tipo==="individual" ? "selected" : ""}>Pago único</option>
+              <option value="mensual" ${editing && p.tipo==="mensual" ? "selected" : ""}>Pago mensual</option>
+              <option value="paquete" ${editing && p.tipo==="paquete" ? "selected" : ""}>Número de clases personalizado</option>
+            </select>
+          </div>
+          <div class="field"><label>Número de clases</label><input type="number" name="totalClases" id="input-product-clases" min="1" value="${editing ? p.totalClases : 1}" required></div>
+        </div>
+        <div class="field" style="max-width:220px;"><label>Precio de lista</label><input type="number" name="precio" min="0" step="0.01" value="${editing ? p.precio : ""}" required></div>
+
+        <div class="field">
+          <label>Pago a la maestra en este paquete</label>
+          <select name="pagoMaestroTipo" id="sel-pago-maestro-tipo">
+            <option value="porcentaje" ${editing && p.pagoMaestroTipo!=="fijo" ? "selected" : ""}>% de la tarifa de la maestra (como siempre)</option>
+            <option value="fijo" ${editing && p.pagoMaestroTipo==="fijo" ? "selected" : ""}>Monto fijo por clase (define uno abajo)</option>
+          </select>
+        </div>
+        <div id="pago-maestro-fijo-fields" ${editing && p.pagoMaestroTipo==="fijo" ? "" : "hidden"}>
+          <div class="field" style="max-width:220px;"><label>Monto fijo por clase</label><input type="number" name="pagoMaestroMonto" min="0" step="0.01" value="${editing && p.pagoMaestroMonto ? p.pagoMaestroMonto : ""}"></div>
+          <div class="hint">Este monto se le paga a la maestra por cada clase de este paquete que marques como "dada", sin importar su % general. Se va reflejando poco a poco en el Fondo Learning Club conforme se dan las clases, no todo de una vez.</div>
+        </div>
+
+        <div class="field">
+          <label>Horario de las clases</label>
+          <select name="horarioTipo" id="sel-horario-tipo">
+            <option value="variable" ${editing && (!p.horarioTipo || p.horarioTipo==="variable") ? "selected" : ""}>Variable (se agenda cada clase a mano)</option>
+            <option value="fechas" ${editing && p.horarioTipo==="fechas" ? "selected" : ""}>Fechas fijas (las mismas fechas para quien se inscriba)</option>
+            <option value="semanal" ${editing && p.horarioTipo==="semanal" ? "selected" : ""}>Día(s) fijos de la semana (se repite automático)</option>
+          </select>
+        </div>
+
+        <div id="horario-fechas-fields" ${editing && p.horarioTipo==="fechas" ? "" : "hidden"}>
+          <div class="field"><label>Fechas separadas por coma (AAAA-MM-DD)</label><input type="text" name="horarioFechas" placeholder="2026-07-05, 2026-07-12, 2026-07-19" value="${editing ? (p.horarioFechas||[]).join(", ") : ""}"></div>
+        </div>
+
+        <div id="horario-semanal-fields" ${editing && p.horarioTipo==="semanal" ? "" : "hidden"}>
+          <div class="field">
+            <label>Días de la semana</label>
+            <div class="btn-row">
+              ${["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"].map((d,i)=>`<label style="display:inline-flex;align-items:center;gap:4px;font-size:13px;"><input type="checkbox" name="horarioDias" value="${i}" ${editing && (p.horarioDias||[]).includes(i) ? "checked" : ""}> ${d}</label>`).join("")}
+            </div>
+          </div>
+          <div class="grid-3">
+            <div class="field">
+              <label>Frecuencia</label>
+              <select name="horarioFrecuencia">
+                <option value="semanal" ${editing && p.horarioFrecuencia!=="quincenal" ? "selected" : ""}>Cada semana</option>
+                <option value="quincenal" ${editing && p.horarioFrecuencia==="quincenal" ? "selected" : ""}>Cada 15 días</option>
+              </select>
+            </div>
+            <div class="field"><label>Hora de inicio</label><select name="horarioHoraInicio">${timeOptionsHtml(editing ? p.horarioHoraInicio : "")}</select></div>
+            <div class="field"><label>Hora de fin</label><select name="horarioHoraFin">${timeOptionsHtml(editing ? p.horarioHoraFin : "")}</select></div>
+          </div>
+          <div class="hint">Al inscribir a la alumna se generarán automáticamente sus clases en el calendario según este horario, hasta completar el total de clases del paquete.</div>
+        </div>
+
+        <button class="btn gold" type="submit">${editing ? "Guardar cambios" : "Guardar producto"}</button>
+      </form>
+    `;
+  }
+
   function renderAlumnos(){
     const teacherRows = state.teachers.length ? state.teachers.map(t => `
       <tr>
@@ -902,8 +980,14 @@
         <td class="num">${p.totalClases}</td>
         <td class="num">${fmtMoney(p.precio)}</td>
         <td>${p.pagoMaestroTipo === "fijo" ? fmtMoney(p.pagoMaestroMonto)+" fijo/clase" : "% de la maestra"}</td>
-        <td><button class="btn small danger" data-action="delete-product" data-id="${p.id}">Eliminar</button></td>
+        <td class="btn-row">
+          <button class="btn small secondary" data-action="toggle-edit-product" data-id="${p.id}">${state.editingProductId===p.id ? "Cancelar" : "Editar"}</button>
+          <button class="btn small danger" data-action="delete-product" data-id="${p.id}">Eliminar</button>
+        </td>
       </tr>
+      ${state.editingProductId === p.id ? `
+      <tr><td colspan="6" style="background:var(--bg-2);">${productFormHtml(p)}</td></tr>
+      ` : ""}
     `).join("") : `<tr class="empty-row"><td colspan="6">Aún no registras productos. Agrega uno, incluyendo "Pago único" si aplica.</td></tr>`;
 
     const enrolls = allEnrollmentsSorted();
@@ -981,71 +1065,7 @@
           Productos (paquetes)
           <button class="btn small secondary" data-action="toggle-add-product">${state.showAddProduct ? "Cancelar" : "+ Agregar producto"}</button>
         </div>
-        ${state.showAddProduct ? `
-          <form class="inline-form" id="form-product">
-            <div class="grid-3">
-              <div class="field"><label>Nombre del producto</label><input type="text" name="nombre" placeholder="Pago único, Número de clases personalizado..." required></div>
-              <div class="field">
-                <label>Tipo</label>
-                <select name="tipo" id="sel-product-tipo" required>
-                  <option value="individual">Pago único</option>
-                  <option value="mensual">Pago mensual</option>
-                  <option value="paquete">Número de clases personalizado</option>
-                </select>
-              </div>
-              <div class="field"><label>Número de clases</label><input type="number" name="totalClases" id="input-product-clases" min="1" value="1" required></div>
-            </div>
-            <div class="field" style="max-width:220px;"><label>Precio de lista</label><input type="number" name="precio" min="0" step="0.01" required></div>
-
-            <div class="field">
-              <label>Pago a la maestra en este paquete</label>
-              <select name="pagoMaestroTipo" id="sel-pago-maestro-tipo">
-                <option value="porcentaje">% de la tarifa de la maestra (como siempre)</option>
-                <option value="fijo">Monto fijo por clase (define uno abajo)</option>
-              </select>
-            </div>
-            <div id="pago-maestro-fijo-fields" hidden>
-              <div class="field" style="max-width:220px;"><label>Monto fijo por clase</label><input type="number" name="pagoMaestroMonto" min="0" step="0.01"></div>
-              <div class="hint">Este monto se le paga a la maestra por cada clase de este paquete que marques como "dada", sin importar su % general. Se va reflejando poco a poco en el Fondo Learning Club conforme se dan las clases, no todo de una vez.</div>
-            </div>
-
-            <div class="field">
-              <label>Horario de las clases</label>
-              <select name="horarioTipo" id="sel-horario-tipo">
-                <option value="variable">Variable (se agenda cada clase a mano)</option>
-                <option value="fechas">Fechas fijas (las mismas fechas para quien se inscriba)</option>
-                <option value="semanal">Día(s) fijos de la semana (se repite automático)</option>
-              </select>
-            </div>
-
-            <div id="horario-fechas-fields" hidden>
-              <div class="field"><label>Fechas separadas por coma (AAAA-MM-DD)</label><input type="text" name="horarioFechas" placeholder="2026-07-05, 2026-07-12, 2026-07-19"></div>
-            </div>
-
-            <div id="horario-semanal-fields" hidden>
-              <div class="field">
-                <label>Días de la semana</label>
-                <div class="btn-row">
-                  ${["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"].map((d,i)=>`<label style="display:inline-flex;align-items:center;gap:4px;font-size:13px;"><input type="checkbox" name="horarioDias" value="${i}"> ${d}</label>`).join("")}
-                </div>
-              </div>
-              <div class="grid-3">
-                <div class="field">
-                  <label>Frecuencia</label>
-                  <select name="horarioFrecuencia">
-                    <option value="semanal">Cada semana</option>
-                    <option value="quincenal">Cada 15 días</option>
-                  </select>
-                </div>
-                <div class="field"><label>Hora de inicio</label><select name="horarioHoraInicio">${timeOptionsHtml("")}</select></div>
-                <div class="field"><label>Hora de fin</label><select name="horarioHoraFin">${timeOptionsHtml("")}</select></div>
-              </div>
-              <div class="hint">Al inscribir a la alumna se generarán automáticamente sus clases en el calendario según este horario, hasta completar el total de clases del paquete.</div>
-            </div>
-
-            <button class="btn gold" type="submit">Guardar producto</button>
-          </form>
-        ` : ""}
+        ${state.showAddProduct ? productFormHtml(null) : ""}
         <div class="card" style="margin-top:12px;">
           <div class="table-wrap"><table>
             <thead><tr><th>Producto</th><th>Tipo</th><th>Clases</th><th>Precio de lista</th><th>Pago a maestra</th><th></th></tr></thead>
@@ -1405,13 +1425,6 @@
           </form>
         </div>
 
-        <div class="card card-pad" style="margin-top:14px;">
-          <form class="inline-form" id="form-ahorro-pct" style="margin:0;">
-            <div class="field"><label>% de ahorro recomendado (aplica a clases nuevas que se marquen como dadas)</label><input type="number" name="ahorroPct" min="0" max="100" step="1" value="${state.settings.ahorroPct}"></div>
-            <button class="btn secondary" type="submit">Actualizar %</button>
-          </form>
-        </div>
-
         <div class="card" style="margin-top:12px;"><div class="table-wrap"><table>
           <thead><tr><th>Fecha</th><th>Monto guardado</th><th></th></tr></thead>
           <tbody>${ahorrosRows}</tbody>
@@ -1595,7 +1608,13 @@
       } else if(action === "toggle-edit-teacher"){
         state.editingTeacherId = state.editingTeacherId === btn.dataset.id ? null : btn.dataset.id; render();
       } else if(action === "toggle-add-product"){
-        state.showAddProduct = !state.showAddProduct; render();
+        state.showAddProduct = !state.showAddProduct;
+        state.editingProductId = null;
+        render();
+      } else if(action === "toggle-edit-product"){
+        state.editingProductId = state.editingProductId === btn.dataset.id ? null : btn.dataset.id;
+        state.showAddProduct = false;
+        render();
       } else if(action === "delete-product"){
         if(confirm("¿Eliminar este producto? Los alumnos ya inscritos con él no se ven afectados.")) await deleteProduct(btn.dataset.id);
       } else if(action === "toggle-payment"){
@@ -1677,7 +1696,7 @@
     if(formProduct) formProduct.onsubmit = async (e) => {
       e.preventDefault();
       const fd = new FormData(formProduct);
-      await addProduct({
+      const payload = {
         nombre: fd.get("nombre"), tipo: fd.get("tipo"), totalClases: fd.get("totalClases"), precio: fd.get("precio"),
         horarioTipo: fd.get("horarioTipo"),
         horarioFechas: fd.get("horarioFechas"),
@@ -1687,8 +1706,14 @@
         horarioHoraFin: fd.get("horarioHoraFin"),
         pagoMaestroTipo: fd.get("pagoMaestroTipo"),
         pagoMaestroMonto: fd.get("pagoMaestroMonto")
-      });
-      state.showAddProduct = false;
+      };
+      if(formProduct.dataset.mode === "edit"){
+        await updateProduct(formProduct.dataset.id, payload);
+        state.editingProductId = null;
+      } else {
+        await addProduct(payload);
+        state.showAddProduct = false;
+      }
       render();
     };
     const selProductTipo = document.getElementById("sel-product-tipo");
@@ -1794,15 +1819,6 @@
       const fd = new FormData(formFixed);
       await addFixedExpense({descripcion: fd.get("descripcion"), monto: fd.get("monto"), diaPago: fd.get("diaPago")});
       formFixed.reset();
-    };
-
-    const formAhorroPct = document.getElementById("form-ahorro-pct");
-    if(formAhorroPct) formAhorroPct.onsubmit = async (e) => {
-      e.preventDefault();
-      const fd = new FormData(formAhorroPct);
-      const pct = Math.min(100, Math.max(0, Number(fd.get("ahorroPct"))||0));
-      await updateSettings({ ahorroPct: pct });
-      toast("Porcentaje de ahorro actualizado");
     };
 
     const formAhorro = document.getElementById("form-ahorro");
