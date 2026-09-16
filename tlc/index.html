@@ -256,6 +256,10 @@
   .cal-cell.selected{outline:2px solid var(--pink);outline-offset:-2px;}
   .cal-cell.today .daynum{color:var(--teal-bright);font-weight:700;}
   .cal-cell .daynum{font-family:var(--mono);font-size:12px;}
+  .cal-cell.compact{min-height:auto;padding:8px 4px;text-align:center;}
+  .cal-cell.in-range{background:var(--blue-bg);}
+  .cal-cell.range-endpoint{background:var(--teal-bright);}
+  .cal-cell.range-endpoint .daynum{color:#fff;font-weight:700;}
   .cal-dots{display:flex;gap:3px;flex-wrap:wrap;margin-top:5px;}
   .cal-dot{width:6px;height:6px;border-radius:50%;}
   .cal-dot.programada{background:var(--teal-bright);}
@@ -360,6 +364,9 @@
     calSelectedDate: null,
     corteFrom: null,
     corteTo: null,
+    corteCalYear: new Date().getFullYear(),
+    corteCalMonth: new Date().getMonth(),
+    corteRangeStep: 0,
     showAddTeacher: false,
     editingTeacherId: null,
     editingProductId: null,
@@ -1174,6 +1181,36 @@
     return cells;
   }
 
+  function renderCorteCalendarPicker(){
+    const cells = buildMonthCells(state.corteCalYear, state.corteCalMonth);
+    const todayIso = todayISO();
+    const from = state.corteFrom, to = state.corteTo;
+    const monthLabel = new Date(state.corteCalYear, state.corteCalMonth, 1).toLocaleDateString("es-MX", {month:"long", year:"numeric"});
+    const dow = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
+    const cellsHtml = cells.map(c => {
+      const isEndpoint = c.date === from || c.date === to;
+      const inRange = from && to && c.date > from && c.date < to;
+      const classes = ["cal-cell","compact"];
+      if(!c.inMonth) classes.push("other-month");
+      if(c.date === todayIso) classes.push("today");
+      if(isEndpoint) classes.push("range-endpoint");
+      else if(inRange) classes.push("in-range");
+      return `<div class="${classes.join(" ")}" data-action="corte-cal-day" data-date="${c.date}"><span class="daynum">${Number(c.date.slice(8,10))}</span></div>`;
+    }).join("");
+    return `
+      <div class="cal-head">
+        <button class="btn small secondary" data-action="corte-cal-prev">‹</button>
+        <span class="month-label" style="text-transform:capitalize;">${monthLabel}</span>
+        <button class="btn small secondary" data-action="corte-cal-next">›</button>
+      </div>
+      <div class="cal-grid">
+        ${dow.map(d=>`<div class="cal-dow">${d}</div>`).join("")}
+        ${cellsHtml}
+      </div>
+      <div class="hint" style="margin-top:8px;">${state.corteRangeStep === 0 ? "Toca un día para empezar el rango." : "Toca otro día para cerrar el rango."}</div>
+    `;
+  }
+
   function renderCalendario(){
     if(state.teachers.length === 0){
       return `<div class="empty-state"><div class="big">🗓️</div>Agrega primero una maestra en "Alumnos y maestras" para usar el calendario.</div>`;
@@ -1401,7 +1438,11 @@
               <button class="btn small secondary" data-action="range-hoy">Hoy</button>
               <button class="btn small secondary" data-action="range-semana">Esta semana</button>
               <button class="btn small secondary" data-action="range-mes">Este mes</button>
+              <button class="btn small secondary" data-action="range-total">Total</button>
             </div>
+          </div>
+          <div style="margin-top:16px;max-width:380px;">
+            ${renderCorteCalendarPicker()}
           </div>
         </div>
       </div>
@@ -1687,17 +1728,48 @@
           await markTeacherPaid(btn.dataset.teacher, "0001-01-01", "9999-12-31");
         }
       } else if(action === "range-hoy"){
-        state.corteFrom = todayISO(); state.corteTo = todayISO(); render();
+        state.corteFrom = todayISO(); state.corteTo = todayISO();
+        state.corteRangeStep = 0;
+        state.corteCalYear = new Date().getFullYear(); state.corteCalMonth = new Date().getMonth();
+        render();
       } else if(action === "range-semana"){
         const d = new Date();
         const day = (d.getDay()+6)%7;
         const monday = new Date(d); monday.setDate(d.getDate()-day);
         state.corteFrom = isoFromParts(monday.getFullYear(),monday.getMonth()+1,monday.getDate());
-        state.corteTo = todayISO(); render();
+        state.corteTo = todayISO();
+        state.corteRangeStep = 0;
+        state.corteCalYear = d.getFullYear(); state.corteCalMonth = d.getMonth();
+        render();
       } else if(action === "range-mes"){
         const d = new Date();
         state.corteFrom = isoFromParts(d.getFullYear(), d.getMonth()+1, 1);
-        state.corteTo = todayISO(); render();
+        state.corteTo = todayISO();
+        state.corteRangeStep = 0;
+        state.corteCalYear = d.getFullYear(); state.corteCalMonth = d.getMonth();
+        render();
+      } else if(action === "range-total"){
+        state.corteFrom = "2000-01-01";
+        state.corteTo = todayISO();
+        state.corteRangeStep = 0;
+        const d = new Date();
+        state.corteCalYear = d.getFullYear(); state.corteCalMonth = d.getMonth();
+        render();
+      } else if(action === "corte-cal-prev"){
+        state.corteCalMonth--; if(state.corteCalMonth<0){state.corteCalMonth=11; state.corteCalYear--;} render();
+      } else if(action === "corte-cal-next"){
+        state.corteCalMonth++; if(state.corteCalMonth>11){state.corteCalMonth=0; state.corteCalYear++;} render();
+      } else if(action === "corte-cal-day"){
+        const date = btn.dataset.date;
+        if(state.corteRangeStep === 0){
+          state.corteFrom = date; state.corteTo = date;
+          state.corteRangeStep = 1;
+        } else {
+          if(date < state.corteFrom){ state.corteTo = state.corteFrom; state.corteFrom = date; }
+          else { state.corteTo = date; }
+          state.corteRangeStep = 0;
+        }
+        render();
       } else if(action === "delete-expense"){
         if(confirm("¿Eliminar este gasto?")) await deleteExpense(btn.dataset.id);
       } else if(action === "delete-fixed"){
