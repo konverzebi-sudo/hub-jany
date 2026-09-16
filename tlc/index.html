@@ -566,11 +566,14 @@
       ? String(payload.horarioFechas||"").split(/[,\s]+/).map(s=>s.trim()).filter(s=>/^\d{4}-\d{2}-\d{2}$/.test(s))
       : [];
     const horarioDias = horarioTipo === "semanal" ? (payload.horarioDias||[]).map(Number) : [];
+    const pagoMaestroTipo = payload.pagoMaestroTipo === "fijo" ? "fijo" : "porcentaje";
     await db.collection("products").add({
       nombre: payload.nombre,
       tipo,
       totalClases,
       precio: Number(payload.precio),
+      pagoMaestroTipo,
+      pagoMaestroMonto: pagoMaestroTipo === "fijo" ? (Number(payload.pagoMaestroMonto)||0) : 0,
       horarioTipo,
       horarioFechas,
       horarioDias,
@@ -712,9 +715,16 @@
   function fondoContribucionDeClase(cls){
     const enr = enrollmentById(cls.enrollmentId);
     const teacher = enr ? teacherById(enr.teacherId) : null;
+    const producto = enr ? productById(enr.productoId) : null;
     const precio = enr ? pricePerClass(enr) : 0;
-    const tarifaPct = teacher ? (teacher.tarifa||0) : 0;
-    const pagoMaestra = precio * (tarifaPct/100);
+    let pagoMaestra, tarifaPct;
+    if(producto && producto.pagoMaestroTipo === "fijo"){
+      pagoMaestra = Number(producto.pagoMaestroMonto)||0;
+      tarifaPct = precio > 0 ? (pagoMaestra/precio*100) : 0;
+    } else {
+      tarifaPct = teacher ? (teacher.tarifa||0) : 0;
+      pagoMaestra = precio * (tarifaPct/100);
+    }
     return { precio, tarifaPct, pagoMaestra, monto: Math.max(0, precio - pagoMaestra) };
   }
 
@@ -881,9 +891,10 @@
         <td>${tipoLabel(p.tipo)}</td>
         <td class="num">${p.totalClases}</td>
         <td class="num">${fmtMoney(p.precio)}</td>
+        <td>${p.pagoMaestroTipo === "fijo" ? fmtMoney(p.pagoMaestroMonto)+" fijo/clase" : "% de la maestra"}</td>
         <td><button class="btn small danger" data-action="delete-product" data-id="${p.id}">Eliminar</button></td>
       </tr>
-    `).join("") : `<tr class="empty-row"><td colspan="5">Aún no registras productos. Agrega uno, incluyendo "Pago único" si aplica.</td></tr>`;
+    `).join("") : `<tr class="empty-row"><td colspan="6">Aún no registras productos. Agrega uno, incluyendo "Pago único" si aplica.</td></tr>`;
 
     const enrolls = allEnrollmentsSorted();
     const enrollRows = enrolls.length ? enrolls.map(e => {
@@ -977,6 +988,18 @@
             <div class="field" style="max-width:220px;"><label>Precio de lista</label><input type="number" name="precio" min="0" step="0.01" required></div>
 
             <div class="field">
+              <label>Pago a la maestra en este paquete</label>
+              <select name="pagoMaestroTipo" id="sel-pago-maestro-tipo">
+                <option value="porcentaje">% de la tarifa de la maestra (como siempre)</option>
+                <option value="fijo">Monto fijo por clase (define uno abajo)</option>
+              </select>
+            </div>
+            <div id="pago-maestro-fijo-fields" hidden>
+              <div class="field" style="max-width:220px;"><label>Monto fijo por clase</label><input type="number" name="pagoMaestroMonto" min="0" step="0.01"></div>
+              <div class="hint">Este monto se le paga a la maestra por cada clase de este paquete que marques como "dada", sin importar su % general. Se va reflejando poco a poco en el Fondo Learning Club conforme se dan las clases, no todo de una vez.</div>
+            </div>
+
+            <div class="field">
               <label>Horario de las clases</label>
               <select name="horarioTipo" id="sel-horario-tipo">
                 <option value="variable">Variable (se agenda cada clase a mano)</option>
@@ -1015,7 +1038,7 @@
         ` : ""}
         <div class="card" style="margin-top:12px;">
           <div class="table-wrap"><table>
-            <thead><tr><th>Producto</th><th>Tipo</th><th>Clases</th><th>Precio de lista</th><th></th></tr></thead>
+            <thead><tr><th>Producto</th><th>Tipo</th><th>Clases</th><th>Precio de lista</th><th>Pago a maestra</th><th></th></tr></thead>
             <tbody>${productRows}</tbody>
           </table></div>
         </div>
@@ -1249,22 +1272,16 @@
   function renderCorte(){
     defaultRange();
     const from = state.corteFrom, to = state.corteTo;
+    const today = todayISO();
 
     // Usa el fondo (congelado al momento de marcar cada clase como dada) en vez de
     // recalcular en vivo, para que editar el % de una maestra no altere periodos pasados.
     const inRangeMovs = state.fondoMovimientos.filter(m => m.fecha >= from && m.fecha <= to);
 
-    const byTeacher = {};
     let totalIngresoAtribuible = 0, totalPagoMaestras = 0;
     inRangeMovs.forEach(m => {
-      const teacher = teacherById(m.teacherId);
-      const cls = state.classes.find(c => c.id === m.classId);
       totalIngresoAtribuible += m.precio;
       totalPagoMaestras += m.pagoMaestra;
-      if(!byTeacher[m.teacherId]) byTeacher[m.teacherId] = {teacherId:m.teacherId, nombre: teacher?teacher.nombre:"—", clases:0, pagar:0, pendientes:0, pagadas:0};
-      byTeacher[m.teacherId].clases++;
-      byTeacher[m.teacherId].pagar += m.pagoMaestra;
-      if(cls && cls.pagada) byTeacher[m.teacherId].pagadas++; else byTeacher[m.teacherId].pendientes++;
     });
 
     const expensesInRange = state.expenses.filter(e => e.fecha >= from && e.fecha <= to);
@@ -1272,21 +1289,27 @@
 
     // fixed expenses whose "due date" falls in range, for every month touched
     const totalGastosFijos = sumFixedExpensesInRange(from, to);
+    const totalGastosPeriodo = totalGastosVariables + totalGastosFijos;
 
-    const utilidad = totalIngresoAtribuible - totalPagoMaestras - totalGastosVariables - totalGastosFijos;
+    const utilidad = totalIngresoAtribuible - totalPagoMaestras - totalGastosPeriodo;
 
-    const teacherRows = Object.values(byTeacher);
-    const teacherRowsHtml = teacherRows.length ? teacherRows.map(r => `
-      <tr>
-        <td>${esc(r.nombre)}</td>
-        <td class="num">${r.clases}</td>
-        <td class="num">${fmtMoney(r.pagar)}</td>
-        <td>${r.pendientes===0 ? '<span class="pill pagado">Pagado</span>' : r.pagadas>0 ? '<span class="pill programada">Parcial</span>' : '<span class="pill pendiente">Pendiente</span>'}</td>
-        <td>${r.pendientes>0 ? `<button class="btn small gold" data-action="mark-paid" data-teacher="${r.teacherId}">Marcar como pagado</button>` : ""}</td>
-      </tr>
-    `).join("") : `<tr class="empty-row"><td colspan="5">No hay clases dadas en este rango.</td></tr>`;
+    // "Caja de este periodo": dinero que realmente entró (pagos con fecha en el rango) menos lo gastado en el rango.
+    const cobradoEnPeriodo = state.enrollments.reduce((s,e)=> s + (e.pagos||[]).filter(p=>p.fecha>=from && p.fecha<=to).reduce((s2,p)=>s2+(p.monto||0),0), 0);
+    const cajaPeriodo = cobradoEnPeriodo - totalGastosPeriodo;
+    const sugerenciaAhorro = cajaPeriodo * ((state.settings.ahorroPct||0)/100);
 
-    const activos = activeEnrollments().concat(state.enrollments.filter(e=>classesRemaining(e)===0 && saldoEnCaja(e)>0.5));
+    // "Caja" de siempre: todo lo cobrado a alumnos, menos todo lo gastado (histórico), menos todo lo guardado en ahorro.
+    const totalCobradoHistorico = state.enrollments.reduce((s,e)=>s+montoPagado(e),0);
+    const totalGastosVariablesHistorico = state.expenses.reduce((s,e)=>s+(e.monto||0),0);
+    const totalGastosFijosHistorico = state.fixedExpenses.filter(f=>f.activo!==false).reduce((s,fx)=>{
+      const inicio = (fx.creadoEn||"").slice(0,10) || today;
+      return s + fixedExpenseDatesInRange(fx, inicio, today).length * (fx.monto||0);
+    }, 0);
+
+    // Fondo para pagar a las maestras las clases ya agendadas pero que aún no se dan.
+    const fondoPendienteMaestras = state.classes.filter(c=>c.estado==="programada")
+      .reduce((s,c)=> s + fondoContribucionDeClase(c).pagoMaestra, 0);
+
     const saldoRows = state.enrollments.length ? state.enrollments.map(e => `
       <tr>
         <td>${esc(e.studentNombre)}</td>
@@ -1298,12 +1321,12 @@
       </tr>
     `).join("") : `<tr class="empty-row"><td colspan="6">Sin paquetes registrados.</td></tr>`;
 
-    const totalSaldoAlumnos = state.enrollments.reduce((s,e)=>s+saldoEnCaja(e),0);
     const totalPorCobrarGeneral = state.enrollments.reduce((s,e)=>s+saldoPorCobrar(e),0);
 
     const fondoTotal = state.fondoMovimientos.reduce((s,m)=>s+(m.monto||0), 0);
     const ahorroIdealTotal = state.fondoMovimientos.reduce((s,m)=>s+(m.ahorroIdealMonto||0), 0);
     const ahorroRealTotal = state.ahorros.reduce((s,a)=>s+(a.monto||0), 0);
+    const cajaHistorica = totalCobradoHistorico - totalGastosVariablesHistorico - totalGastosFijosHistorico - ahorroRealTotal;
     const brechaAhorro = Math.max(0, ahorroIdealTotal - ahorroRealTotal);
     const ahorrosOrdenados = [...state.ahorros].sort((a,b)=> b.fecha.localeCompare(a.fecha));
     const ahorrosRows = ahorrosOrdenados.length ? ahorrosOrdenados.map(a => `
@@ -1330,16 +1353,25 @@
       </div>
 
       <div class="section">
+        <div class="section-title">Del periodo seleccionado</div>
         <div class="grid-3">
           <div class="card stat"><div class="label">Ingreso atribuible (clases dadas)</div><div class="value pos">${fmtMoney(totalIngresoAtribuible)}</div></div>
           <div class="card stat"><div class="label">Pago a maestras</div><div class="value neg">${fmtMoney(totalPagoMaestras)}</div></div>
-          <div class="card stat"><div class="label">Gastos del periodo</div><div class="value neg">${fmtMoney(totalGastosVariables+totalGastosFijos)}</div></div>
+          <div class="card stat"><div class="label">Total de gastos de este periodo</div><div class="value neg">${fmtMoney(totalGastosPeriodo)}</div></div>
         </div>
         <div class="grid-3" style="margin-top:14px;">
-          <div class="card stat"><div class="label">Utilidad neta del periodo</div><div class="value ${utilidad>=0?'pos':'neg'}">${fmtMoney(utilidad)}</div></div>
-          <div class="card stat"><div class="label">Total en saldo de alumnos (reserva)</div><div class="value">${fmtMoney(totalSaldoAlumnos)}</div></div>
-          <div class="card stat"><div class="label">Total pendiente de cobro a alumnos</div><div class="value ${totalPorCobrarGeneral>0.5?'neg':''}">${fmtMoney(totalPorCobrarGeneral)}</div></div>
+          <div class="card stat"><div class="label">Utilidad del periodo</div><div class="value ${utilidad>=0?'pos':'neg'}">${fmtMoney(utilidad)}</div></div>
         </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">General <span class="hint" style="font-weight:400;">no depende del rango de fechas</span></div>
+        <div class="grid-3">
+          <div class="card stat"><div class="label">Pagos pendientes de cobrar</div><div class="value ${totalPorCobrarGeneral>0.5?'neg':''}">${fmtMoney(totalPorCobrarGeneral)}</div></div>
+          <div class="card stat"><div class="label">Fondo para pagar a maestras (clases agendadas pendientes)</div><div class="value">${fmtMoney(fondoPendienteMaestras)}</div></div>
+          <div class="card stat"><div class="label">Caja: dinero que debe haber</div><div class="value ${cajaHistorica>=0?'pos':'neg'}">${fmtMoney(cajaHistorica)}</div></div>
+        </div>
+        <div class="hint" style="margin-top:6px;">Caja = todo lo cobrado a alumnos, de siempre, menos todos los gastos, menos todo lo guardado en ahorro.</div>
       </div>
 
       <div class="section">
@@ -1353,32 +1385,28 @@
           ${brechaAhorro>0.5 ? `Te faltan ${fmtMoney(brechaAhorro)} para alcanzar la meta de ahorro ideal.` : `Vas al día con tu meta de ahorro ideal.`}
         </div>
 
-        <div class="grid-2" style="margin-top:14px;">
-          <div class="card card-pad">
-            <form class="inline-form" id="form-ahorro-pct" style="margin:0;">
-              <div class="field"><label>% de ahorro recomendado (aplica a clases nuevas que se marquen como dadas)</label><input type="number" name="ahorroPct" min="0" max="100" step="1" value="${state.settings.ahorroPct}"></div>
-              <button class="btn secondary" type="submit">Actualizar %</button>
-            </form>
-          </div>
-          <div class="card card-pad">
-            <form class="inline-form" id="form-ahorro" style="margin:0;">
-              <div class="field"><label>Registrar ahorro real (lo que sí guardaste)</label><input type="number" name="monto" min="0" step="0.01" value="${brechaAhorro>0.5 ? brechaAhorro.toFixed(2) : ''}" placeholder="Monto guardado"></div>
-              <button class="btn gold" type="submit">Registrar ahorro</button>
-            </form>
-          </div>
+        <div class="card card-pad" style="margin-top:14px;">
+          <div class="hint" style="margin-bottom:8px;">Sugerencia de ahorro para el periodo seleccionado (${fmtDateShort(from)} – ${fmtDateShort(to)})</div>
+          <form class="inline-form" id="form-ahorro" style="margin:0;">
+            <div class="grid-3">
+              <div class="field"><label>Caja de este periodo</label><input type="number" name="cajaPeriodo" id="input-caja-periodo" step="0.01" value="${cajaPeriodo.toFixed(2)}"></div>
+              <div class="field"><label>% a aplicar</label><input type="number" name="pctAplicar" id="input-pct-aplicar" min="0" max="100" step="1" value="${state.settings.ahorroPct}"></div>
+              <div class="field"><label>Total a guardar</label><input type="number" name="monto" id="input-total-ahorro" step="0.01" value="${sugerenciaAhorro.toFixed(2)}"></div>
+            </div>
+            <button class="btn gold" type="submit">Aprobar y guardar</button>
+          </form>
+        </div>
+
+        <div class="card card-pad" style="margin-top:14px;">
+          <form class="inline-form" id="form-ahorro-pct" style="margin:0;">
+            <div class="field"><label>% de ahorro recomendado (aplica a clases nuevas que se marquen como dadas)</label><input type="number" name="ahorroPct" min="0" max="100" step="1" value="${state.settings.ahorroPct}"></div>
+            <button class="btn secondary" type="submit">Actualizar %</button>
+          </form>
         </div>
 
         <div class="card" style="margin-top:12px;"><div class="table-wrap"><table>
           <thead><tr><th>Fecha</th><th>Monto guardado</th><th></th></tr></thead>
           <tbody>${ahorrosRows}</tbody>
-        </table></div></div>
-      </div>
-
-      <div class="section">
-        <div class="section-title">Pago a maestras por el periodo</div>
-        <div class="card"><div class="table-wrap"><table>
-          <thead><tr><th>Maestra</th><th>Clases dadas</th><th>Monto a pagar</th><th>Estatus</th><th></th></tr></thead>
-          <tbody>${teacherRowsHtml}</tbody>
         </table></div></div>
       </div>
 
@@ -1450,6 +1478,27 @@
     const gastosVarMes = state.expenses.filter(e=>e.fecha>=firstIso && e.fecha<=today).reduce((s,e)=>s+(e.monto||0),0);
     const totalSaldoAlumnos = state.enrollments.reduce((s,e)=>s+saldoEnCaja(e),0);
 
+    const sueldosPorMaestra = state.teachers.map(t => {
+      const movs = state.fondoMovimientos.filter(m => m.teacherId === t.id);
+      const acumulado = movs.reduce((s,m)=>s+(m.pagoMaestra||0),0);
+      const pagado = movs.reduce((s,m)=>{
+        const cls = state.classes.find(c=>c.id===m.classId);
+        return s + ((cls && cls.pagada) ? (m.pagoMaestra||0) : 0);
+      }, 0);
+      return { teacherId: t.id, nombre: t.nombre, clases: movs.length, acumulado, pagado, pendiente: Math.max(0, acumulado-pagado) };
+    }).filter(r => r.clases > 0);
+    const sueldosRows = sueldosPorMaestra.length ? sueldosPorMaestra.map(r => `
+      <tr>
+        <td>${esc(r.nombre)}</td>
+        <td class="num">${r.clases}</td>
+        <td class="num">${fmtMoney(r.acumulado)}</td>
+        <td class="num">${fmtMoney(r.pagado)}</td>
+        <td class="num">${r.pendiente>0.5 ? `<span style="color:var(--red);">${fmtMoney(r.pendiente)}</span>` : fmtMoney(0)}</td>
+        <td>${r.pendiente>0.5 ? `<button class="btn small gold" data-action="mark-paid-all" data-teacher="${r.teacherId}">Marcar todo como pagado</button>` : '<span class="pill pagado">Al día</span>'}</td>
+      </tr>
+    `).join("") : `<tr class="empty-row"><td colspan="6">Aún no hay clases dadas que generen sueldo.</td></tr>`;
+    const totalSueldosPendientes = sueldosPorMaestra.reduce((s,r)=>s+r.pendiente,0);
+
     return `
       <div class="section">
         <div class="grid-3">
@@ -1457,6 +1506,15 @@
           <div class="card stat"><div class="label">Gastos variables (este mes)</div><div class="value neg">${fmtMoney(gastosVarMes)}</div></div>
           <div class="card stat"><div class="label">Reserva total de alumnos</div><div class="value">${fmtMoney(totalSaldoAlumnos)}</div></div>
         </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Sueldos <span class="hint" style="font-weight:400;">se va acumulando conforme se marcan clases como dadas</span></div>
+        <div class="hint" style="margin:-4px 0 10px 0;">Pendiente de pago en total: <strong style="color:${totalSueldosPendientes>0.5?'var(--red)':'var(--green)'};">${fmtMoney(totalSueldosPendientes)}</strong></div>
+        <div class="card"><div class="table-wrap"><table>
+          <thead><tr><th>Maestra</th><th>Clases dadas</th><th>Acumulado</th><th>Pagado</th><th>Pendiente</th><th></th></tr></thead>
+          <tbody>${sueldosRows}</tbody>
+        </table></div></div>
       </div>
 
       <div class="section">
@@ -1559,6 +1617,10 @@
         if(confirm("¿Marcar como pagadas todas las clases pendientes de esta maestra en el rango seleccionado?")){
           await markTeacherPaid(btn.dataset.teacher, state.corteFrom, state.corteTo);
         }
+      } else if(action === "mark-paid-all"){
+        if(confirm("¿Marcar como pagado TODO el sueldo pendiente de esta maestra, de todas las fechas?")){
+          await markTeacherPaid(btn.dataset.teacher, "0001-01-01", "9999-12-31");
+        }
       } else if(action === "range-hoy"){
         state.corteFrom = todayISO(); state.corteTo = todayISO(); render();
       } else if(action === "range-semana"){
@@ -1614,7 +1676,9 @@
         horarioDias: fd.getAll("horarioDias"),
         horarioFrecuencia: fd.get("horarioFrecuencia"),
         horarioHoraInicio: fd.get("horarioHoraInicio"),
-        horarioHoraFin: fd.get("horarioHoraFin")
+        horarioHoraFin: fd.get("horarioHoraFin"),
+        pagoMaestroTipo: fd.get("pagoMaestroTipo"),
+        pagoMaestroMonto: fd.get("pagoMaestroMonto")
       });
       state.showAddProduct = false;
       render();
@@ -1643,6 +1707,15 @@
       };
       selHorarioTipo.onchange = syncHorario;
       syncHorario();
+    }
+    const selPagoMaestroTipo = document.getElementById("sel-pago-maestro-tipo");
+    const pagoMaestroFijoFields = document.getElementById("pago-maestro-fijo-fields");
+    if(selPagoMaestroTipo){
+      const syncPagoMaestro = () => {
+        if(pagoMaestroFijoFields) pagoMaestroFijoFields.hidden = selPagoMaestroTipo.value !== "fijo";
+      };
+      selPagoMaestroTipo.onchange = syncPagoMaestro;
+      syncPagoMaestro();
     }
 
     const formStudent = document.getElementById("form-student");
@@ -1731,6 +1804,18 @@
       await registrarAhorro(fd.get("monto"), todayISO());
       formAhorro.reset();
     };
+    const inputCajaPeriodo = document.getElementById("input-caja-periodo");
+    const inputPctAplicar = document.getElementById("input-pct-aplicar");
+    const inputTotalAhorro = document.getElementById("input-total-ahorro");
+    if(inputCajaPeriodo && inputPctAplicar && inputTotalAhorro){
+      const recalc = () => {
+        const caja = Number(inputCajaPeriodo.value)||0;
+        const pct = Number(inputPctAplicar.value)||0;
+        inputTotalAhorro.value = (caja * (pct/100)).toFixed(2);
+      };
+      inputCajaPeriodo.oninput = recalc;
+      inputPctAplicar.oninput = recalc;
+    }
   }
 
   // ---------------------------------------------------------------
