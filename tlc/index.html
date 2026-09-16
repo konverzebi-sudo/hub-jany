@@ -359,6 +359,7 @@
     corteFrom: null,
     corteTo: null,
     showAddTeacher: false,
+    editingTeacherId: null,
     showAddStudent: false,
     showAddProduct: false,
     paymentFormFor: null,
@@ -438,7 +439,7 @@
   }
 
   function tipoLabel(tipo){
-    return tipo === "individual" ? "Clase individual" : tipo === "mensual" ? "Paquete mensual" : "Paquete por clases";
+    return tipo === "individual" ? "Pago único" : tipo === "mensual" ? "Pago mensual" : "Número de clases personalizado";
   }
 
   // ---------------------------------------------------------------
@@ -532,6 +533,11 @@
     toast("Maestra agregada");
   }
 
+  async function updateTeacher(id, nombre, tarifa){
+    await db.doc("teachers/"+id).update({ nombre, tarifa: Math.min(100, Math.max(0, Number(tarifa)||0)) });
+    toast("Maestra actualizada");
+  }
+
   async function addProduct(payload){
     const tipo = payload.tipo;
     const totalClases = tipo === "individual" ? 1 : Number(payload.totalClases);
@@ -553,12 +559,19 @@
   async function addStudentWithPackage(payload){
     let student = state.students.find(s => s.nombre.trim().toLowerCase() === payload.nombreAlumno.trim().toLowerCase());
     let studentId;
+    const datosFamilia = {
+      telefono: payload.telefono||"",
+      nombrePapa: payload.nombrePapa||"",
+      nombreMama: payload.nombreMama||"",
+      cumpleanos: payload.cumpleanos||""
+    };
     if(student){
       studentId = student.id;
+      await db.doc("students/"+studentId).update(datosFamilia);
     } else {
-      const ref = await db.collection("students").add({
-        nombre: payload.nombreAlumno, telefono: payload.telefono||"", creadoEn: new Date().toISOString()
-      });
+      const ref = await db.collection("students").add(Object.assign({
+        nombre: payload.nombreAlumno, creadoEn: new Date().toISOString()
+      }, datosFamilia));
       studentId = ref.id;
     }
     const teacher = teacherById(payload.teacherId);
@@ -618,16 +631,22 @@
     const enr = enrollmentById(cls.enrollmentId);
     const teacher = enr ? teacherById(enr.teacherId) : null;
     const precio = enr ? pricePerClass(enr) : 0;
-    const pagoMaestra = teacher ? precio * ((teacher.tarifa||0)/100) : 0;
-    return Math.max(0, precio - pagoMaestra);
+    const tarifaPct = teacher ? (teacher.tarifa||0) : 0;
+    const pagoMaestra = precio * (tarifaPct/100);
+    return { precio, tarifaPct, pagoMaestra, monto: Math.max(0, precio - pagoMaestra) };
   }
 
   async function registrarMovimientoFondo(cls){
-    const monto = fondoContribucionDeClase(cls);
+    const enr = enrollmentById(cls.enrollmentId);
+    const { precio, tarifaPct, pagoMaestra, monto } = fondoContribucionDeClase(cls);
     const pct = (state.settings && state.settings.ahorroPct) || 0;
     await db.collection("fondoMovimientos").add({
       classId: cls.id,
+      teacherId: enr ? enr.teacherId : cls.teacherId,
       fecha: cls.fecha,
+      precio,
+      tarifaPct,
+      pagoMaestra,
       monto,
       ahorroIdealPct: pct,
       ahorroIdealMonto: monto * (pct/100),
@@ -756,8 +775,23 @@
       <tr>
         <td><span class="swatch" style="background:${t.color}"></span>${esc(t.nombre)}</td>
         <td class="num">${t.tarifa}% de la clase</td>
+        <td><button class="btn small secondary" data-action="toggle-edit-teacher" data-id="${t.id}">${state.editingTeacherId===t.id ? "Cancelar" : "Editar"}</button></td>
       </tr>
-    `).join("") : `<tr class="empty-row"><td colspan="2">Aún no registras maestras.</td></tr>`;
+      ${state.editingTeacherId === t.id ? `
+      <tr>
+        <td colspan="3" style="background:var(--bg-2);">
+          <form class="inline-form" id="form-teacher-edit" style="margin:8px 0;" data-id="${t.id}">
+            <div class="grid-2">
+              <div class="field"><label>Nombre de la maestra</label><input type="text" name="nombre" value="${esc(t.nombre)}" required></div>
+              <div class="field"><label>Porcentaje que recibe por clase (%)</label><input type="number" name="tarifa" min="0" max="100" step="1" value="${t.tarifa}" required></div>
+            </div>
+            <div class="hint">El nuevo porcentaje solo aplica a las clases que se marquen como dadas de aquí en adelante — no cambia lo ya calculado.</div>
+            <button class="btn gold" type="submit">Guardar cambios</button>
+          </form>
+        </td>
+      </tr>
+      ` : ""}
+    `).join("") : `<tr class="empty-row"><td colspan="3">Aún no registras maestras.</td></tr>`;
 
     const productRows = state.products.length ? state.products.map(p => `
       <tr>
@@ -767,7 +801,7 @@
         <td class="num">${fmtMoney(p.precio)}</td>
         <td><button class="btn small danger" data-action="delete-product" data-id="${p.id}">Eliminar</button></td>
       </tr>
-    `).join("") : `<tr class="empty-row"><td colspan="5">Aún no registras productos. Agrega uno, incluyendo "Clase individual" si aplica.</td></tr>`;
+    `).join("") : `<tr class="empty-row"><td colspan="5">Aún no registras productos. Agrega uno, incluyendo "Pago único" si aplica.</td></tr>`;
 
     const enrolls = allEnrollmentsSorted();
     const enrollRows = enrolls.length ? enrolls.map(e => {
@@ -833,7 +867,7 @@
         ` : ""}
         <div class="card" style="margin-top:12px;">
           <div class="table-wrap"><table>
-            <thead><tr><th>Maestra</th><th>Tarifa</th></tr></thead>
+            <thead><tr><th>Maestra</th><th>Tarifa</th><th></th></tr></thead>
             <tbody>${teacherRows}</tbody>
           </table></div>
         </div>
@@ -847,13 +881,13 @@
         ${state.showAddProduct ? `
           <form class="inline-form" id="form-product">
             <div class="grid-3">
-              <div class="field"><label>Nombre del producto</label><input type="text" name="nombre" placeholder="Clase individual, Paquete 8 clases..." required></div>
+              <div class="field"><label>Nombre del producto</label><input type="text" name="nombre" placeholder="Pago único, Número de clases personalizado..." required></div>
               <div class="field">
                 <label>Tipo</label>
                 <select name="tipo" id="sel-product-tipo" required>
-                  <option value="individual">Clase individual</option>
-                  <option value="mensual">Paquete mensual</option>
-                  <option value="paquete">Paquete por número de clases</option>
+                  <option value="individual">Pago único</option>
+                  <option value="mensual">Pago mensual</option>
+                  <option value="paquete">Número de clases personalizado</option>
                 </select>
               </div>
               <div class="field"><label>Número de clases</label><input type="number" name="totalClases" id="input-product-clases" min="1" value="1" required></div>
@@ -879,6 +913,11 @@
             <div class="grid-2">
               <div class="field"><label>Nombre del alumno</label><input type="text" name="nombreAlumno" required></div>
               <div class="field"><label>Teléfono (opcional)</label><input type="tel" name="telefono"></div>
+            </div>
+            <div class="grid-3">
+              <div class="field"><label>Nombre del papá (opcional)</label><input type="text" name="nombrePapa"></div>
+              <div class="field"><label>Nombre de la mamá (opcional)</label><input type="text" name="nombreMama"></div>
+              <div class="field"><label>Cumpleaños (opcional)</label><input type="date" name="cumpleanos"></div>
             </div>
             <div class="grid-2">
               <div class="field">
@@ -1090,21 +1129,21 @@
     defaultRange();
     const from = state.corteFrom, to = state.corteTo;
 
-    const inRange = state.classes.filter(c => c.estado === "dada" && c.fecha >= from && c.fecha <= to);
+    // Usa el fondo (congelado al momento de marcar cada clase como dada) en vez de
+    // recalcular en vivo, para que editar el % de una maestra no altere periodos pasados.
+    const inRangeMovs = state.fondoMovimientos.filter(m => m.fecha >= from && m.fecha <= to);
 
     const byTeacher = {};
     let totalIngresoAtribuible = 0, totalPagoMaestras = 0;
-    inRange.forEach(c => {
-      const enr = enrollmentById(c.enrollmentId);
-      const teacher = teacherById(c.teacherId);
-      const precio = enr ? pricePerClass(enr) : 0;
-      const tarifa = teacher ? precio * ((teacher.tarifa||0)/100) : 0;
-      totalIngresoAtribuible += precio;
-      totalPagoMaestras += tarifa;
-      if(!byTeacher[c.teacherId]) byTeacher[c.teacherId] = {teacherId:c.teacherId, nombre: teacher?teacher.nombre:"—", clases:0, pagar:0, pendientes:0, pagadas:0};
-      byTeacher[c.teacherId].clases++;
-      byTeacher[c.teacherId].pagar += tarifa;
-      if(c.pagada) byTeacher[c.teacherId].pagadas++; else byTeacher[c.teacherId].pendientes++;
+    inRangeMovs.forEach(m => {
+      const teacher = teacherById(m.teacherId);
+      const cls = state.classes.find(c => c.id === m.classId);
+      totalIngresoAtribuible += m.precio;
+      totalPagoMaestras += m.pagoMaestra;
+      if(!byTeacher[m.teacherId]) byTeacher[m.teacherId] = {teacherId:m.teacherId, nombre: teacher?teacher.nombre:"—", clases:0, pagar:0, pendientes:0, pagadas:0};
+      byTeacher[m.teacherId].clases++;
+      byTeacher[m.teacherId].pagar += m.pagoMaestra;
+      if(cls && cls.pagada) byTeacher[m.teacherId].pagadas++; else byTeacher[m.teacherId].pendientes++;
     });
 
     const expensesInRange = state.expenses.filter(e => e.fecha >= from && e.fecha <= to);
@@ -1366,6 +1405,8 @@
 
       if(action === "toggle-add-teacher"){
         state.showAddTeacher = !state.showAddTeacher; render();
+      } else if(action === "toggle-edit-teacher"){
+        state.editingTeacherId = state.editingTeacherId === btn.dataset.id ? null : btn.dataset.id; render();
       } else if(action === "toggle-add-product"){
         state.showAddProduct = !state.showAddProduct; render();
       } else if(action === "delete-product"){
@@ -1432,6 +1473,15 @@
       render();
     };
 
+    const formTeacherEdit = document.getElementById("form-teacher-edit");
+    if(formTeacherEdit) formTeacherEdit.onsubmit = async (e) => {
+      e.preventDefault();
+      const fd = new FormData(formTeacherEdit);
+      await updateTeacher(formTeacherEdit.dataset.id, fd.get("nombre"), fd.get("tarifa"));
+      state.editingTeacherId = null;
+      render();
+    };
+
     const formProduct = document.getElementById("form-product");
     if(formProduct) formProduct.onsubmit = async (e) => {
       e.preventDefault();
@@ -1480,6 +1530,9 @@
       await addStudentWithPackage({
         nombreAlumno: fd.get("nombreAlumno"),
         telefono: fd.get("telefono"),
+        nombrePapa: fd.get("nombrePapa"),
+        nombreMama: fd.get("nombreMama"),
+        cumpleanos: fd.get("cumpleanos"),
         productoId: fd.get("productoId"),
         descuento: fd.get("descuento"),
         anticipoMonto: fd.get("anticipoMonto"),
