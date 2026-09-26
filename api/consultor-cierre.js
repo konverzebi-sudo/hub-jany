@@ -37,7 +37,7 @@ const MODOS_DIAGNOSTICO = new Set(['diagnostico-tienda', 'diagnostico-evento', '
 // solo puede leer URLs que ya aparezcan en el mensaje del usuario.
 const WEB_FETCH_TOOL = { type: 'web_fetch_20260209', name: 'web_fetch', max_uses: 3, max_content_tokens: 8000 };
 
-const CONTEXT_CHAR_LIMIT = 5000;
+const CONTEXT_CHAR_LIMIT = 7000;
 const MAX_MESSAGES = 40;
 
 const promptCache = new Map();
@@ -135,27 +135,55 @@ function formatearTono(d) {
   return 'TONO DE MARCA:\n' + lineas.join('\n');
 }
 
-function formatearAudiencias(items) {
+function nombreGrupo(grupos, grupoId) {
+  if (!grupoId || !Array.isArray(grupos)) return '';
+  const g = grupos.find((x) => x && x.id === grupoId);
+  return g ? g.nombre : '';
+}
+
+// Perfiles de cliente: misma llave y misma migración de 3 niveles que usa api/consultor-366.js
+// (brand-book.audiencias {lista:[...]} -> brand-book.audiencia vieja -> 366-perfil-cliente /
+// evergreen-perfil-cliente) -- una sola fuente de verdad, se edita solo en Jefe 366.
+async function leerAudiencias(clienteId) {
+  const nuevo = await leerJSON(`${clienteId}:brand-book.audiencias`).catch(() => null);
+  if (nuevo && Array.isArray(nuevo.lista) && nuevo.lista.length) return nuevo.lista;
+  const viejo = await leerJSON(`${clienteId}:brand-book.audiencia`).catch(() => null);
+  if (Array.isArray(viejo) && viejo.length) return viejo;
+  if (viejo && viejo.descripcion_clientes) return [{ nombre: 'Perfil Principal', quien_compra: viejo.descripcion_clientes }];
+  const perfil366 = (await leerJSON(`${clienteId}:brand-book.366-perfil-cliente`).catch(() => null))
+    || (await leerJSON(`${clienteId}:brand-book.evergreen-perfil-cliente`).catch(() => null));
+  if (perfil366 && Object.keys(perfil366).length) return [Object.assign({ nombre: 'Perfil Principal' }, perfil366)];
+  return [];
+}
+
+function formatearAudiencias(items, grupos) {
   if (!Array.isArray(items) || items.length === 0) return null;
   const bloques = items
-    .filter((a) => a && (a.nombre || a.ocupacion))
+    .filter((a) => a && (a.nombre || a.ocupacion || a.descripcion_breve || a.quien_compra))
     .map((a, i) => {
-      const l = [`Audiencia ${i + 1}: ${a.nombre || '(sin nombre)'}`];
+      const nombreG = nombreGrupo(grupos, a.grupo_id);
+      const l = [`Perfil ${i + 1}${a.nombre ? ': ' + a.nombre : ''}${nombreG ? ` [Grupo: ${nombreG}]` : ''} (prioridad de compra ${i + 1} de ${items.length})`];
+      if (a.quien_compra) l.push(`  Quién compra: ${a.quien_compra}`);
+      if (a.que_busca) l.push(`  Qué busca: ${a.que_busca}`);
       if (a.miedo_deseo) l.push(`  Miedo/deseo: ${a.miedo_deseo}`);
       if (a.objecion_comun) l.push(`  Objeción más común: ${a.objecion_comun}`);
+      if (a.descripcion_breve) l.push(`  Descripción breve: ${a.descripcion_breve}`);
       return l.join('\n');
     });
   if (bloques.length === 0) return null;
-  return 'CLIENTE IDEAL (audiencias del ADN):\n' + bloques.join('\n\n');
+  return 'CLIENTE IDEAL (perfiles ordenados de mayor a menor prioridad de compra — si hay varios grupos de negocio, cada uno trae "[Grupo: nombre]", usa solo los del grupo con el que se está trabajando):\n' + bloques.join('\n\n');
 }
 
-function formatearCatalogo(items) {
+function formatearCatalogo(items, grupos) {
   if (!Array.isArray(items) || items.length === 0) return null;
+  const nombrePorGrupo = {};
+  (grupos || []).forEach((g) => { nombrePorGrupo[g.id] = g.nombre; });
   const lineas = items
     .filter((p) => p && p.nombre)
     .map((p) => {
       const partes = [p.nombre];
       if (p.tipo) partes.push(p.tipo);
+      if (p.grupo_id && nombrePorGrupo[p.grupo_id]) partes.push(`grupo: ${nombrePorGrupo[p.grupo_id]}`);
       if (p.precio != null && p.precio !== '') partes.push(`precio $${p.precio}`);
       if (p.notas) partes.push(`notas: ${p.notas}`);
       return '- ' + partes.join(' · ');
@@ -164,25 +192,110 @@ function formatearCatalogo(items) {
   return 'CATÁLOGO DE PRODUCTOS:\n' + lineas.join('\n');
 }
 
+// Sistema 366, Producto 366 y Comunicación 366: mismas llaves y misma migración de 3 niveles
+// (lista nueva -> objeto plano 366-* -> evergreen-* viejo) que usa api/consultor-366.js. Jefe de
+// Conversión solo LEE esto -- a diferencia del builder de 366, no necesita reproducir tablas
+// exactas para poder guardarlas de vuelta, solo un resumen para que sus auditorías y manuales
+// sean consistentes con lo que ya se construyó en Jefe 366, en vez de reinventarlo.
+async function leerSistemas366(clienteId) {
+  const nuevo = await leerJSON(`${clienteId}:brand-book.366-sistema`).catch(() => null);
+  if (nuevo && Array.isArray(nuevo.lista) && nuevo.lista.length) return nuevo.lista;
+  if (nuevo && Object.keys(nuevo).length) return [Object.assign({ nombre: 'Sistema Principal' }, nuevo)];
+  const viejo = await leerJSON(`${clienteId}:brand-book.evergreen-sistema`).catch(() => null);
+  if (viejo && Object.keys(viejo).length) return [Object.assign({ nombre: 'Sistema Principal' }, viejo)];
+  return [];
+}
+
+function formatearSistemas366(items, grupos) {
+  if (!Array.isArray(items) || items.length === 0) return null;
+  const bloques = items
+    .filter((p) => p && (p.nombre || p.contexto_general))
+    .map((p, i) => {
+      const nombreG = nombreGrupo(grupos, p.grupo_id);
+      const l = [`Sistema 366 ${i + 1}${p.nombre ? ': ' + p.nombre : ''}${nombreG ? ` [Grupo: ${nombreG}]` : ''}`];
+      if (p.contexto_general) l.push(`  Contexto: ${p.contexto_general}`);
+      if (p.oportunidades_iniciales) l.push(`  Oportunidades iniciales: ${p.oportunidades_iniciales}`);
+      return l.join('\n');
+    });
+  if (bloques.length === 0) return null;
+  return 'SISTEMA 366 (las etapas de venta recurrente ya definidas para este negocio — tu auditoría y manual deben ser consistentes con esto, no reinventarlo):\n' + bloques.join('\n\n');
+}
+
+async function leerProductos366(clienteId) {
+  const nuevo = await leerJSON(`${clienteId}:brand-book.366-producto`).catch(() => null);
+  if (nuevo && Array.isArray(nuevo.lista) && nuevo.lista.length) return nuevo.lista;
+  if (nuevo && Object.keys(nuevo).length) return [Object.assign({ nombre: 'Producto Principal' }, nuevo)];
+  const viejo = await leerJSON(`${clienteId}:brand-book.evergreen-producto`).catch(() => null);
+  if (viejo && Object.keys(viejo).length) return [Object.assign({ nombre: 'Producto Principal' }, viejo)];
+  return [];
+}
+
+function formatearProductos366(items, grupos) {
+  if (!Array.isArray(items) || items.length === 0) return null;
+  const bloques = items
+    .filter((p) => p && (p.nombre || p.que_vendemos))
+    .map((p, i) => {
+      const nombreG = nombreGrupo(grupos, p.grupo_id);
+      const l = [`Oferta 366 ${i + 1}${p.nombre ? ': ' + p.nombre : ''}${nombreG ? ` [Grupo: ${nombreG}]` : ''}`];
+      if (p.que_vendemos) l.push(`  Qué vendemos: ${p.que_vendemos}`);
+      if (p.oferta_irresistible) l.push(`  Oferta Irresistible 366: ${p.oferta_irresistible}`);
+      return l.join('\n');
+    });
+  if (bloques.length === 0) return null;
+  return 'PRODUCTO / OFERTA 366 (ya definida — tu manual de página o de evento debe presentar esta oferta, no inventar una distinta):\n' + bloques.join('\n\n');
+}
+
+async function leerComunicaciones366(clienteId) {
+  const nuevo = await leerJSON(`${clienteId}:brand-book.366-comunicacion`).catch(() => null);
+  if (nuevo && Array.isArray(nuevo.lista) && nuevo.lista.length) return nuevo.lista;
+  if (nuevo && Object.keys(nuevo).length) return [Object.assign({ nombre: 'Comunicación Principal' }, nuevo)];
+  const viejo = await leerJSON(`${clienteId}:brand-book.evergreen-comunicacion`).catch(() => null);
+  if (viejo && Object.keys(viejo).length) return [Object.assign({ nombre: 'Comunicación Principal' }, viejo)];
+  return [];
+}
+
+function formatearComunicaciones366(items, grupos) {
+  if (!Array.isArray(items) || items.length === 0) return null;
+  const bloques = items
+    .filter((p) => p && (p.nombre || p.posicionamiento))
+    .map((p, i) => {
+      const nombreG = nombreGrupo(grupos, p.grupo_id);
+      const l = [`Comunicación 366 ${i + 1}${p.nombre ? ': ' + p.nombre : ''}${nombreG ? ` [Grupo: ${nombreG}]` : ''}`];
+      if (p.posicionamiento) l.push(`  Posicionamiento: ${p.posicionamiento}`);
+      if (p.diferenciador) l.push(`  Diferenciador principal: ${p.diferenciador}`);
+      if (p.por_que_elegirnos) l.push(`  Por qué elegirnos: ${p.por_que_elegirnos}`);
+      return l.join('\n');
+    });
+  if (bloques.length === 0) return null;
+  return 'COMUNICACIÓN 366 (posicionamiento y diferenciador ya definidos — úsalos, no inventes unos distintos):\n' + bloques.join('\n\n');
+}
+
 async function construirContextoNegocio(clienteId) {
-  const [identidad, tono, audiencia, catalogo] = await Promise.all([
+  const [identidad, tono, catalogo, grupos, audienciasRaw, productosRaw, sistemasRaw, comunicacionesRaw] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
-    leerJSON(`${clienteId}:brand-book.audiencia`).catch(() => null),
     leerJSON(`${clienteId}:catalogo-productos`).catch(() => null),
+    leerJSON(`${clienteId}:grupos-negocio`).catch(() => null),
+    leerAudiencias(clienteId).catch(() => []),
+    leerProductos366(clienteId).catch(() => []),
+    leerSistemas366(clienteId).catch(() => []),
+    leerComunicaciones366(clienteId).catch(() => []),
   ]);
 
   const bloques = [
     formatearIdentidad(identidad),
     formatearTono(tono),
-    formatearAudiencias(audiencia),
-    formatearCatalogo(catalogo),
+    formatearAudiencias(audienciasRaw, grupos),
+    formatearCatalogo(catalogo, grupos),
+    formatearProductos366(productosRaw, grupos),
+    formatearSistemas366(sistemasRaw, grupos),
+    formatearComunicaciones366(comunicacionesRaw, grupos),
   ].filter(Boolean);
 
   if (bloques.length === 0) {
     return 'CONTEXTO DEL NEGOCIO: todavía no hay datos guardados en el ADN de esta marca.';
   }
-  return 'CONTEXTO DEL NEGOCIO (ya cargado del ADN — no le pidas al usuario que lo repita):\n\n' + truncar(bloques.join('\n\n'), CONTEXT_CHAR_LIMIT);
+  return 'CONTEXTO DEL NEGOCIO (ya cargado del ADN y de Jefe 366 — no le pidas al usuario que lo repita):\n\n' + truncar(bloques.join('\n\n'), CONTEXT_CHAR_LIMIT);
 }
 
 // ---------- diagnóstico numérico: cálculo determinístico de tasas ----------
