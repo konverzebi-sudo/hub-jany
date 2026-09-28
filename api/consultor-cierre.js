@@ -270,8 +270,36 @@ function formatearComunicaciones366(items, grupos) {
   return 'COMUNICACIÓN 366 (posicionamiento y diferenciador ya definidos — úsalos, no inventes unos distintos):\n' + bloques.join('\n\n');
 }
 
+// Jefe de Temporada no escribe nada en brand-book.* -- sus campañas viven en su propia llave
+// (temporada-campanas, un arreglo). Si alguna está vigente hoy (fecha_inicio_activa/fin_activa),
+// se la damos a Jefe de Conversión para que la landing/manual/auditoría reflejen la promoción y
+// urgencia reales de esa campaña en vez de una genérica.
+async function leerCampanaTemporadaActiva(clienteId) {
+  const campanas = await leerJSON(`${clienteId}:temporada-campanas`).catch(() => null);
+  if (!Array.isArray(campanas) || campanas.length === 0) return null;
+  const hoy = new Date().toISOString().slice(0, 10);
+  return campanas.find((c) => c && c.fecha_inicio_activa && c.fecha_fin_activa
+    && c.fecha_inicio_activa <= hoy && hoy <= c.fecha_fin_activa) || null;
+}
+
+function formatearCampanaTemporada(c) {
+  if (!c) return null;
+  const l = [`Campaña activa ahora: ${c.nombre || '(sin nombre)'}${c.temporada ? ' — ' + c.temporada : ''}`];
+  if (c.producto_nombre) l.push(`  Producto/servicio de la campaña: ${c.producto_nombre}`);
+  if (c.fecha_inicio_activa || c.fecha_fin_activa) l.push(`  Vigencia: ${c.fecha_inicio_activa || '?'} a ${c.fecha_fin_activa || '?'}`);
+  if (c.objetivo_principal) l.push(`  Objetivo: ${c.objetivo_principal}`);
+  if (c.incentivo) l.push(`  Incentivo/promoción: ${c.incentivo}`);
+  if (c.dm_oferta) l.push(`  Oferta de campaña: ${c.dm_oferta}`);
+  if (c.dm_urgencia) l.push(`  Razón de urgencia: ${c.dm_urgencia}`);
+  if (c.dm_mensaje_principal) l.push(`  Mensaje principal: ${c.dm_mensaje_principal}`);
+  if (c.dm_frases_clave) l.push(`  Frases clave: ${c.dm_frases_clave}`);
+  if (c.dm_accion_cliente) l.push(`  Acción que debe tomar el cliente: ${c.dm_accion_cliente}`);
+  if (l.length === 1) return null;
+  return 'CAMPAÑA DE TEMPORADA ACTIVA (de Jefe de Temporada — hay una vigente hoy, tu auditoría/manual debe reflejar esta promoción y urgencia reales, no una genérica):\n' + l.join('\n');
+}
+
 async function construirContextoNegocio(clienteId) {
-  const [identidad, tono, catalogo, grupos, audienciasRaw, productosRaw, sistemasRaw, comunicacionesRaw] = await Promise.all([
+  const [identidad, tono, catalogo, grupos, audienciasRaw, productosRaw, sistemasRaw, comunicacionesRaw, campanaTemporada] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
     leerJSON(`${clienteId}:catalogo-productos`).catch(() => null),
@@ -280,6 +308,7 @@ async function construirContextoNegocio(clienteId) {
     leerProductos366(clienteId).catch(() => []),
     leerSistemas366(clienteId).catch(() => []),
     leerComunicaciones366(clienteId).catch(() => []),
+    leerCampanaTemporadaActiva(clienteId).catch(() => null),
   ]);
 
   const bloques = [
@@ -290,6 +319,7 @@ async function construirContextoNegocio(clienteId) {
     formatearProductos366(productosRaw, grupos),
     formatearSistemas366(sistemasRaw, grupos),
     formatearComunicaciones366(comunicacionesRaw, grupos),
+    formatearCampanaTemporada(campanaTemporada),
   ].filter(Boolean);
 
   if (bloques.length === 0) {
