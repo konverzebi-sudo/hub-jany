@@ -271,20 +271,35 @@ function formatearComunicaciones366(items, grupos) {
 }
 
 // Jefe de Temporada no escribe nada en brand-book.* -- sus campañas viven en su propia llave
-// (temporada-campanas, un arreglo). Si alguna está vigente hoy (fecha_inicio_activa/fin_activa),
-// se la damos a Jefe de Conversión para que la landing/manual/auditoría reflejen la promoción y
-// urgencia reales de esa campaña en vez de una genérica.
+// (temporada-campanas, un arreglo). Se la damos a Jefe de Conversión para que la landing/manual/
+// auditoría reflejen la promoción y urgencia reales de esa campaña en vez de una genérica.
+// Importante: NO se filtra solo por "ya está corriendo hoy" -- lo normal es armar la landing
+// ANTES de que arranque la campaña, no durante. Por eso se incluyen también las que todavía no
+// empiezan, y solo se descartan las que ya terminaron en fecha.
 async function leerCampanaTemporadaActiva(clienteId) {
   const campanas = await leerJSON(`${clienteId}:temporada-campanas`).catch(() => null);
   if (!Array.isArray(campanas) || campanas.length === 0) return null;
   const hoy = new Date().toISOString().slice(0, 10);
-  return campanas.find((c) => c && c.fecha_inicio_activa && c.fecha_fin_activa
-    && c.fecha_inicio_activa <= hoy && hoy <= c.fecha_fin_activa) || null;
+  const noVencidas = campanas.filter((c) => c && (!c.fecha_fin_activa || c.fecha_fin_activa >= hoy));
+  if (noVencidas.length === 0) return null;
+  // De las no vencidas, prioriza la que ya arrancó o arranca más pronto (fecha_inicio_activa
+  // más cercana). Si ninguna trae fechas todavía (se está armando recién, borrador), usa la
+  // más reciente por fecha de creación -- es la que más probablemente se está trabajando ahora.
+  const conFecha = noVencidas.filter((c) => c.fecha_inicio_activa);
+  if (conFecha.length > 0) {
+    conFecha.sort((a, b) => a.fecha_inicio_activa.localeCompare(b.fecha_inicio_activa));
+    return conFecha[0];
+  }
+  const porCreacion = [...noVencidas].sort((a, b) => (b.creadoEn || '').localeCompare(a.creadoEn || ''));
+  return porCreacion[0] || null;
 }
 
 function formatearCampanaTemporada(c) {
   if (!c) return null;
-  const l = [`Campaña activa ahora: ${c.nombre || '(sin nombre)'}${c.temporada ? ' — ' + c.temporada : ''}`];
+  const hoy = new Date().toISOString().slice(0, 10);
+  const yaArranco = c.fecha_inicio_activa && c.fecha_inicio_activa <= hoy;
+  const etiqueta = yaArranco ? 'Campaña de Temporada activa ahora' : 'Próxima campaña de Temporada (todavía no arranca, pero es la que hay que preparar)';
+  const l = [`${etiqueta}: ${c.nombre || '(sin nombre)'}${c.temporada ? ' — ' + c.temporada : ''}`];
   if (c.producto_nombre) l.push(`  Producto/servicio de la campaña: ${c.producto_nombre}`);
   if (c.fecha_inicio_activa || c.fecha_fin_activa) l.push(`  Vigencia: ${c.fecha_inicio_activa || '?'} a ${c.fecha_fin_activa || '?'}`);
   if (c.objetivo_principal) l.push(`  Objetivo: ${c.objetivo_principal}`);
@@ -295,7 +310,7 @@ function formatearCampanaTemporada(c) {
   if (c.dm_frases_clave) l.push(`  Frases clave: ${c.dm_frases_clave}`);
   if (c.dm_accion_cliente) l.push(`  Acción que debe tomar el cliente: ${c.dm_accion_cliente}`);
   if (l.length === 1) return null;
-  return 'CAMPAÑA DE TEMPORADA ACTIVA (de Jefe de Temporada — hay una vigente hoy, tu auditoría/manual debe reflejar esta promoción y urgencia reales, no una genérica):\n' + l.join('\n');
+  return 'CAMPAÑA DE TEMPORADA (de Jefe de Temporada — usa esta promoción y urgencia reales para la landing/manual, no una genérica):\n' + l.join('\n');
 }
 
 async function construirContextoNegocio(clienteId) {
