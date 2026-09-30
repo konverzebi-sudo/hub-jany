@@ -1,1 +1,0 @@
-import{E as e,T as t}from"./format-CJnBhlMd.js";function n(n,r){let i=t(),a=r?.weekStartsOn??r?.locale?.options?.weekStartsOn??i.weekStartsOn??i.locale?.options?.weekStartsOn??0,o=e(n,r?.in),s=o.getDay(),c=(s<a?-7:0)+6-(s-a);return o.setDate(o.getDate()+c),o.setHours(23,59,59,999),o}export{n as t};
