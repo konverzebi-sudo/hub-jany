@@ -859,25 +859,76 @@ function rutaJefe(nombre){
   const m = MAPA[nombre] || {};
   return m[CLIENTE_ID] || m.jefeshub || '#';
 }
+// Resumen COMPLETO (no solo 8 datos básicos) -- lleva todo lo que ya se construyó en Producto,
+// Perfil de Cliente y Comunicación (dolores, deseos, miedos, objeciones, ángulos, frases, CTAs),
+// no solo Definición/Documento Maestro. Es lo que hace falta para que Contenido/Anuncios (o una
+// landing) tengan la base real de la campaña sin tener que reconstruirla desde cero.
+function campoResumen(camp, campo, label){
+  const v=(camp[campo]||'').toString().trim();
+  return v ? label+':\n'+v : null;
+}
+function tablaResumen(tablaId, camp, titulo){
+  const cfg=TEMPORADA_TABLAS[tablaId];
+  if(!cfg) return null;
+  const filas=(camp[cfg.campo]||[]).filter(f=>cfg.columnas.some(c=>(f[c.key]||'').toString().trim()));
+  if(!filas.length) return null;
+  const texto=filas.map(f=>'- '+cfg.columnas.map(c=>{
+    const v=(f[c.key]||'').toString().trim();
+    return v ? c.label+': '+v : null;
+  }).filter(Boolean).join(' | ')).join('\n');
+  return (titulo||cfg.campo)+':\n'+texto;
+}
 function resumenCampanaParaOtrosJefes(camp){
-  const lineas=['CAMPAÑA DE TEMPORADA: '+(camp.nombre||'(sin nombre)')];
-  if(camp.temporada) lineas.push('Temporada/evento: '+camp.temporada);
+  const bloques=[];
+  const cab=['CAMPAÑA DE TEMPORADA: '+(camp.nombre||'(sin nombre)')];
+  if(camp.temporada) cab.push('Temporada/evento: '+camp.temporada);
   const producto = camp.producto_origen==='nuevo' ? camp.producto_nuevo : camp.producto_nombre;
-  if(producto) lineas.push('Producto: '+producto);
-  if(camp.objetivo_principal) lineas.push('Objetivo de la campaña: '+camp.objetivo_principal);
-  if(camp.incentivo) lineas.push('Incentivo / urgencia real: '+camp.incentivo);
-  if(camp.fecha_inicio_activa || camp.fecha_fin_activa) lineas.push('Campaña activa: '+(camp.fecha_inicio_activa||'?')+' a '+(camp.fecha_fin_activa||'?'));
-  let mensaje = camp.dm_mensaje_principal;
-  if(!mensaje && Array.isArray(camp.com_mensaje_elegido)){
-    const fila = camp.com_mensaje_elegido.find(r=>r.pregunta==='Mensaje principal final');
-    if(fila && fila.respuesta) mensaje = fila.respuesta;
-  }
-  if(mensaje) lineas.push('Mensaje principal: '+mensaje);
-  const clienteIdeal = camp.dm_cliente_ideal_temporada || camp.cliente_que_pasa;
-  if(clienteIdeal) lineas.push('Cliente ideal de esta temporada: '+clienteIdeal);
-  if(camp.dm_frases_clave) lineas.push('Frases clave: '+camp.dm_frases_clave);
-  if(camp.dm_canal_conversion) lineas.push('Canal de conversión: '+camp.dm_canal_conversion);
-  return lineas.join('\n');
+  if(producto) cab.push('Producto: '+producto);
+  if(camp.objetivo_principal) cab.push('Objetivo de la campaña: '+camp.objetivo_principal);
+  if(camp.incentivo) cab.push('Incentivo / urgencia real: '+camp.incentivo);
+  if(camp.fecha_inicio_activa || camp.fecha_fin_activa) cab.push('Campaña activa: '+(camp.fecha_inicio_activa||'?')+' a '+(camp.fecha_fin_activa||'?'));
+  bloques.push(cab.join('\n'));
+
+  const doc=[
+    campoResumen(camp,'dm_cliente_ideal_temporada','Cliente ideal de temporada'),
+    campoResumen(camp,'dm_que_cambia','Qué cambia en este cliente por la temporada'),
+    campoResumen(camp,'dm_dolor','Dolor principal de temporada'),
+    campoResumen(camp,'dm_deseo','Deseo principal de temporada'),
+    campoResumen(camp,'dm_objeciones','Objeciones específicas de temporada'),
+    campoResumen(camp,'dm_oferta','Oferta principal'),
+    campoResumen(camp,'dm_mensaje_principal','Mensaje principal'),
+    campoResumen(camp,'dm_frases_clave','Frases clave de comunicación'),
+    campoResumen(camp,'dm_canal_conversion','Canal principal de conversión'),
+    campoResumen(camp,'dm_accion_cliente','Acción que queremos que tome el cliente'),
+  ].filter(Boolean);
+  if(doc.length) bloques.push('DOCUMENTO MAESTRO (resumen ejecutivo):\n\n'+doc.join('\n\n'));
+
+  const perfil=[
+    campoResumen(camp,'cliente_que_pasa','¿Qué está pasando en su vida en este momento?'),
+    tablaResumen('tabla-cliente-diferencias', camp, 'Diferencias clave (deseo/dolor/miedo/objeción/incentivo activados en esta temporada)'),
+    campoResumen(camp,'cliente_que_haria_hoy','¿Qué haría que compre hoy?'),
+    campoResumen(camp,'cliente_que_cambio','¿Qué cambió vs el cliente recurrente?'),
+  ].filter(Boolean);
+  if(perfil.length) bloques.push('PERFIL DE CLIENTE DE CAMPAÑA:\n\n'+perfil.join('\n\n'));
+
+  const producto2=[
+    campoResumen(camp,'prod_por_que','Por qué este producto hace sentido para esta temporada'),
+    tablaResumen('tabla-prod-incentivos', camp, 'Incentivos evaluados'),
+  ].filter(Boolean);
+  if(producto2.length) bloques.push('PRODUCTO PARA CAMPAÑA:\n\n'+producto2.join('\n\n'));
+
+  const comunicacion=[
+    tablaResumen('tabla-com-mensaje-elegido', camp, 'Mensaje elegido'),
+    tablaResumen('tabla-com-razon-ahora', camp, 'Razón para comprar ahora (urgencia real)'),
+    tablaResumen('tabla-com-mensajes-clave', camp, 'Mensajes clave'),
+    tablaResumen('tabla-com-frases', camp, 'Frases maestras de campaña'),
+    tablaResumen('tabla-com-objeciones', camp, 'Objeciones de campaña y respuestas'),
+    tablaResumen('tabla-com-angulos', camp, 'Ángulos de venta de campaña'),
+    tablaResumen('tabla-com-ctas', camp, 'CTAs de campaña'),
+  ].filter(Boolean);
+  if(comunicacion.length) bloques.push('ESTRATEGIA DE COMUNICACIÓN:\n\n'+comunicacion.join('\n\n'));
+
+  return bloques.join('\n\n---\n\n');
 }
 function copiarResumenParaOtrosJefes(btn){
   const camp=activeCampana(); if(!camp) return;
