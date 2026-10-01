@@ -1,0 +1,2 @@
+import{mt as e}from"./index-DyCYPEsP.js";function t(t,n,r){let i=e=>{let t=e==null?``:String(e);return/[",\n;]/.test(t)?`"${t.replace(/"/g,`""`)}"`:t},a=[n,...r].map(e=>e.map(i).join(`,`)).join(`\r
+`);e(new Blob([`﻿`+a],{type:`text/csv;charset=utf-8`}),t)}export{t};
