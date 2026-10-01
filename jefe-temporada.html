@@ -855,9 +855,55 @@ function rutaJefe(nombre){
   const MAPA = {
     contenido: { jefeshub:'/jefe-contenido', 'rancho-seco':'/rancho-seco/jefe-contenido', rim:'/rim/jefe-contenido', 'optica-one':'/optica-one/jefe-contenido' },
     anuncios: { jefeshub:'/jefe-anuncios', 'rancho-seco':'/rancho-seco/jefe-anuncios', rim:'/rim/jefe-anuncios', 'optica-one':'/optica-one/jefe-anuncios' },
+    whatsapp: { jefeshub:'/jefe-whatsapp', 'rancho-seco':'/rancho-seco/jefe-whatsapp', rim:'/rim/jefe-whatsapp', 'optica-one':'/optica-one/jefe-whatsapp' },
   };
   const m = MAPA[nombre] || {};
   return m[CLIENTE_ID] || m.jefeshub || '#';
+}
+
+// ─── CHECKLIST DE COMPLETITUD (qué tan lleno está el Documento antes de compartirlo) ──────
+const TEMPORADA_MODULOS_CHECKLIST = [
+  { num:1, nombre:'Definición de campaña', campos:['temporada','objetivo_principal','incentivo','fecha_inicio_activa','fecha_fin_activa'], producto:true },
+  { num:2, nombre:'Producto para campaña', campos:['prod_por_que'], tablas:['prod_incentivos'] },
+  { num:3, nombre:'Perfil de Cliente de Campaña', campos:['cliente_que_pasa','cliente_que_haria_hoy','cliente_que_cambio'], tablas:['cliente_diferencias'] },
+  { num:4, nombre:'Estrategia de Comunicación', tablas:['com_mensaje_elegido','com_razon_ahora','com_mensajes_clave','com_frases_maestras','com_objeciones','com_angulos','com_ctas'] },
+  { num:5, nombre:'Documento Maestro', campos:['dm_cliente_ideal_temporada','dm_oferta','dm_mensaje_principal','dm_frases_clave','dm_canal_conversion'] },
+  { num:6, nombre:'Metas, fechas y leads necesarios', campos:['meta_ventas','ticket_promedio'] },
+  { num:7, nombre:'Precampaña', campos:['pre_objetivo','pre_captacion'], tablas:['pre_calentamiento'] },
+  { num:8, nombre:'Campaña activa', tablas:['activa_fases'] },
+  { num:9, nombre:'Estrategia de base de datos', tablas:['bd_segmentos'] },
+  { num:10, nombre:'Postcampaña', tablas:['post_acciones'] },
+  { num:11, nombre:'Esqueleto de ads', campos:['ads_objetivo','ads_publico','ads_oferta'], tablas:['ads_creativos'] },
+  { num:12, nombre:'Calendario final de ejecución', tablas:['calendario'] },
+];
+function filaTieneContenido(f){ return !!(f && Object.keys(f).some(k=>k!=='id' && (f[k]||'').toString().trim())); }
+function tablaLlena(camp, campo){ return Array.isArray(camp[campo]) && camp[campo].some(filaTieneContenido); }
+function campoLleno(camp, campo){ return !!(camp[campo]||'').toString().trim(); }
+function evaluarModuloCampana(camp, mod){
+  const faltantes=[];
+  (mod.campos||[]).forEach(c=>{ if(!campoLleno(camp,c)) faltantes.push(c); });
+  (mod.tablas||[]).forEach(t=>{ if(!tablaLlena(camp,t)) faltantes.push(t); });
+  if(mod.producto){
+    const prod = camp.producto_origen==='nuevo' ? camp.producto_nuevo : camp.producto_nombre;
+    if(!(prod||'').toString().trim()) faltantes.push('producto elegido');
+  }
+  return Object.assign({}, mod, { completo: faltantes.length===0, faltantes });
+}
+function calcularCompletitudCampana(camp){
+  return TEMPORADA_MODULOS_CHECKLIST.map(mod=>evaluarModuloCampana(camp, mod));
+}
+function renderChecklistCompletitud(camp){
+  const estado = calcularCompletitudCampana(camp);
+  const chips = estado.map(m=>`<span title="${m.completo?'Completo':'Faltan datos en este módulo'}" style="display:inline-flex;align-items:center;gap:4px;font-family:'JetBrains Mono',monospace;font-size:10.5px;padding:3px 8px;border-radius:100px;background:${m.completo?'rgba(34,197,94,.18)':'rgba(255,255,255,.08)'};color:${m.completo?'#166534':'#3B0764'};border:1px solid ${m.completo?'rgba(34,197,94,.4)':'rgba(59,7,100,.25)'};">${m.completo?'✓':'○'} ${m.num}. ${escHtml(m.nombre)}</span>`).join('');
+  return `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;">${chips}</div>`;
+}
+// Antes de compartir con otro Jefe, avisa (sin bloquear) si faltan módulos clave -- el usuario
+// decide si de todas formas quiere compartir lo que ya tiene.
+function confirmarCompletitudAntesDeCompartir(camp){
+  const incompletos = calcularCompletitudCampana(camp).filter(m=>!m.completo);
+  if(!incompletos.length) return true;
+  const lista = incompletos.map(m=>'- Módulo '+m.num+' ('+m.nombre+')').join('\n');
+  return confirm('Todavía faltan datos en estos módulos:\n\n'+lista+'\n\n¿Compartir de todas formas con lo que ya tienes?');
 }
 // Resumen COMPLETO (no solo 8 datos básicos) -- lleva todo lo que ya se construyó en Producto,
 // Perfil de Cliente y Comunicación (dolores, deseos, miedos, objeciones, ángulos, frases, CTAs),
@@ -932,10 +978,16 @@ function resumenCampanaParaOtrosJefes(camp){
 }
 function copiarResumenParaOtrosJefes(btn){
   const camp=activeCampana(); if(!camp) return;
+  if(!confirmarCompletitudAntesDeCompartir(camp)) return;
   navigator.clipboard.writeText(resumenCampanaParaOtrosJefes(camp)).then(()=>{
     const orig=btn.textContent; btn.textContent='Copiado ✓ — pégalo en el chat del otro Jefe';
     setTimeout(()=>{ btn.textContent=orig; },2500);
   }).catch(()=>{ alert('No se pudo copiar. Selecciona el texto manualmente.'); });
+}
+function irAJefe(nombre){
+  const camp=activeCampana(); if(!camp) return;
+  if(!confirmarCompletitudAntesDeCompartir(camp)) return;
+  window.open(rutaJefe(nombre), '_blank', 'noopener');
 }
 
 // ─── METAS: cálculo de ventas y leads necesarios (no se guarda, se recalcula) ──
@@ -1017,11 +1069,14 @@ function campoTexto(campo,label,tipo){
 function renderDocumento(container, camp){
   container.innerHTML = `
     <div class="nota-box" style="display:flex;flex-direction:column;gap:10px;">
-      <p><b>Conecta esta campaña con otros Jefes:</b> copia el resumen y pégalo en el chat de Contenido o de Anuncios para que generen piezas ya alineadas a esta temporada — no hace falta volver a explicar nada.</p>
+      <p><b>Conecta esta campaña con otros Jefes:</b> copia el resumen (dolores, deseos, objeciones, ángulos, frases y todo lo demás ya construido) y pégalo en el chat de Contenido, Anuncios o WhatsApp para que generen piezas o una buena conversación ya alineadas a esta temporada — no hace falta volver a explicar nada.</p>
+      <p style="margin:0;font-size:11px;color:#3B0764;font-weight:600;">¿Qué tan lleno está el Documento?</p>
+      ${renderChecklistCompletitud(camp)}
       <div style="display:flex;gap:10px;flex-wrap:wrap;">
         <button type="button" class="btn-outline" onclick="copiarResumenParaOtrosJefes(this)">📋 Copiar resumen de campaña</button>
-        <a class="btn btn-solid" style="text-decoration:none;" href="${rutaJefe('contenido')}" target="_blank" rel="noopener">→ Ir a Jefe de Contenido</a>
-        <a class="btn btn-solid" style="text-decoration:none;" href="${rutaJefe('anuncios')}" target="_blank" rel="noopener">→ Ir a Jefe de Anuncios</a>
+        <button type="button" class="btn btn-solid" onclick="irAJefe('contenido')">→ Ir a Jefe de Contenido</button>
+        <button type="button" class="btn btn-solid" onclick="irAJefe('anuncios')">→ Ir a Jefe de Anuncios</button>
+        <button type="button" class="btn btn-solid" onclick="irAJefe('whatsapp')">→ Ir a Jefe de WhatsApp</button>
       </div>
     </div>
     <div class="doc-section">
