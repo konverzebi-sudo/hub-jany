@@ -37,7 +37,10 @@ const MODOS_DIAGNOSTICO = new Set(['diagnostico-tienda', 'diagnostico-evento', '
 // solo puede leer URLs que ya aparezcan en el mensaje del usuario.
 const WEB_FETCH_TOOL = { type: 'web_fetch_20260209', name: 'web_fetch', max_uses: 3, max_content_tokens: 8000 };
 
-const CONTEXT_CHAR_LIMIT = 7000;
+// Tope de seguridad (~5k tokens), no un recorte esperado: con el contexto completo de una marca
+// (ADN + 366 + Temporada) ronda los 11,000 caracteres, así que 7000 recortaba justo lo último.
+const CONTEXT_CHAR_LIMIT = 20000;
+const BLOCK_CHAR_LIMIT = 5000;
 const MAX_MESSAGES = 40;
 
 const promptCache = new Map();
@@ -326,21 +329,27 @@ async function construirContextoNegocio(clienteId) {
     leerCampanaTemporadaActiva(clienteId).catch(() => null),
   ]);
 
+  // El orden importa: lo más específico y vigente (la campaña de Temporada y la oferta) va
+  // primero para que, si algún día el contexto de una marca crece mucho, lo que se recorte sea lo
+  // menos crítico y no la campaña. Antes iba al final con un tope global de 7000 caracteres, y el
+  // contexto real de una marca (~11,000) se cortaba justo antes de la Comunicación 366 y la
+  // campaña: el agente nunca las recibía aunque estuvieran guardadas y bien detectadas.
+  // Además cada bloque tiene su propio tope, para que uno largo no deje sin lugar a los demás.
   const bloques = [
+    formatearCampanaTemporada(campanaTemporada),
     formatearIdentidad(identidad),
-    formatearTono(tono),
+    formatearProductos366(productosRaw, grupos),
+    formatearComunicaciones366(comunicacionesRaw, grupos),
+    formatearSistemas366(sistemasRaw, grupos),
     formatearAudiencias(audienciasRaw, grupos),
     formatearCatalogo(catalogo, grupos),
-    formatearProductos366(productosRaw, grupos),
-    formatearSistemas366(sistemasRaw, grupos),
-    formatearComunicaciones366(comunicacionesRaw, grupos),
-    formatearCampanaTemporada(campanaTemporada),
-  ].filter(Boolean);
+    formatearTono(tono),
+  ].filter(Boolean).map((b) => truncar(b, BLOCK_CHAR_LIMIT));
 
   if (bloques.length === 0) {
     return 'CONTEXTO DEL NEGOCIO: todavía no hay datos guardados en el ADN de esta marca.';
   }
-  return 'CONTEXTO DEL NEGOCIO (ya cargado del ADN y de Jefe 366 — no le pidas al usuario que lo repita):\n\n' + truncar(bloques.join('\n\n'), CONTEXT_CHAR_LIMIT);
+  return 'CONTEXTO DEL NEGOCIO (ya cargado del ADN, de Jefe 366 y de Jefe de Temporada — no le pidas al usuario que lo repita):\n\n' + truncar(bloques.join('\n\n'), CONTEXT_CHAR_LIMIT);
 }
 
 // ---------- diagnóstico numérico: cálculo determinístico de tasas ----------
