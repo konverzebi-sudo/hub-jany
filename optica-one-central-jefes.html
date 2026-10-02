@@ -178,7 +178,7 @@
 <div class="guia-overlay" id="guiaOverlay" hidden>
   <div class="guia-card">
     <p class="guia-titulo">👋 Bienvenido a tu Hub de Jefes</p>
-    <p class="guia-texto">Empieza por <strong>Jefe 366</strong> — ahí vas a construir tu estrategia completa, paso a paso. Conforme avances, los demás Jefes se van desbloqueando solos, en el orden correcto, hasta que llegues a vender los 366 días del año.</p>
+    <p class="guia-texto">Empieza por <strong>Jefe 366</strong> — ahí vas a construir tu estrategia completa, paso a paso. Después puedes entrar a cualquier otro Jefe cuando quieras — todos están abiertos, y la barra de la izquierda te deja cambiar de uno a otro en un clic, hasta que llegues a vender los 366 días del año.</p>
     <button class="guia-btn" onclick="cerrarGuiaHub()">Entendido, empezar</button>
   </div>
 </div>
@@ -202,73 +202,30 @@ function cerrarGuiaHub(){
   }catch(e){}
 })();
 
-// Requisito para desbloquear cada Jefe -- null = siempre activo, 'nunca' = siempre bloqueado
-// (placeholder "próximamente"). El resto se resuelve en tiempo real contra lo que el negocio
-// ya tiene guardado (ver calcularProgreso), siguiendo la ruta que ya guía Jefe 366 al terminar
-// cada módulo: Documento Maestro -> primer contenido -> WhatsApp/Finanzas/Anuncios -> primer
-// anuncio -> optimización.
+// requisito: null = siempre activo, 'nunca' = placeholder "próximamente" (sin desbloqueo por etapas).
 const JEFES_BASE = [
   {id:0, num:'01', icono:'jefe-366', nombre:'Jefe 366', href:'/optica-one/jefe-366', requisito:null},
-  {id:5, num:'02', icono:'jefe-contenido', nombre:'Jefe de Contenido', href:'/optica-one/jefe-contenido', requisito:'jefe366'},
-  {id:3, num:'03', icono:'jefe-whatsapp', nombre:'WhatsApp y Ventas', href:'/optica-one/jefe-whatsapp', requisito:'contenido'},
-  {id:1, num:'04', icono:'jefe-finanzas', nombre:'Jefe de Finanzas', href:'/optica-one/jefe-financiero', requisito:'contenido'},
+  {id:5, num:'02', icono:'jefe-contenido', nombre:'Jefe de Contenido', href:'/optica-one/jefe-contenido', requisito:null},
+  {id:3, num:'03', icono:'jefe-whatsapp', nombre:'WhatsApp y Ventas', href:'/optica-one/jefe-whatsapp', requisito:null},
+  {id:1, num:'04', icono:'jefe-finanzas', nombre:'Jefe de Finanzas', href:'/optica-one/jefe-financiero', requisito:null},
   {id:4, num:'05', icono:'jefe-radar', nombre:'Jefe del Faro', href:'/optica-one/jefe-radar', requisito:null},
-  {id:6, num:'06', icono:'jefe-anuncios', nombre:'Jefe de Anuncios', href:'/optica-one/jefe-anuncios', requisito:'contenido'},
+  {id:6, num:'06', icono:'jefe-anuncios', nombre:'Jefe de Anuncios', href:'/optica-one/jefe-anuncios', requisito:null},
   {id:7, num:'07', icono:'jefe-produccion-video', nombre:'Jefe Productor IA', href:'/optica-one/jefe-produccion-video', requisito:null},
   {id:2, num:'08', icono:'jefe-conversion', nombre:'Jefe de Conversión', href:'/optica-one/jefe-cierre', requisito:null},
-  {id:8, num:'09', icono:'jefe-optimizacion', nombre:'Jefe de Mejora Constante', href:'/optica-one/jefe-optimizacion', requisito:'anuncios'},
+  {id:8, num:'09', icono:'jefe-optimizacion', nombre:'Jefe de Mejora Constante', href:'/optica-one/jefe-optimizacion', requisito:null},
   {id:9, num:'10', icono:'jefe-temporada', nombre:'Campañas de Temporada', href:'/optica-one/jefe-temporada', requisito:null},
   {id:10, num:'11', icono:'jefe-agenda', nombre:'Jefe de Agenda', href:'/optica-one/jefe-agenda', requisito:null},
   {id:11, num:'12', emoji:'🛠️', nombre:'Jefe de Herramientas', href:null, requisito:'nunca'},
 ];
 const REQUISITO_TEXTO = {
-  jefe366: 'Termina el Documento Maestro en Jefe 366 para desbloquear',
-  contenido: 'Crea tu primer post en Jefe de Contenido para desbloquear',
-  anuncios: 'Crea tu primer anuncio en Jefe de Anuncios para desbloquear',
   nunca: 'Próximamente',
 };
-
-async function calcularProgreso(clienteId){
-  const leerJSON = async (key) => {
-    try{
-      const r = await window.storage.get(clienteId + ':' + key);
-      return r && r.value ? JSON.parse(r.value) : null;
-    }catch(e){ return null; }
-  };
-  const tieneLista = (d) => !!(d && Array.isArray(d.lista) && d.lista.length > 0);
-  try{
-    const [perfiles, productos, sistemas, comunicaciones, contenido, anuncios] = await Promise.all([
-      leerJSON('brand-book.audiencias'),
-      leerJSON('brand-book.366-producto'),
-      leerJSON('brand-book.366-sistema'),
-      leerJSON('brand-book.366-comunicacion'),
-      leerJSON('agente-contenido'),
-      leerJSON('agente-anuncios'),
-    ]);
-    return {
-      jefe366Completo: tieneLista(perfiles) && tieneLista(productos) && tieneLista(sistemas) && tieneLista(comunicaciones),
-      primerContenido: !!(contenido && Array.isArray(contenido.contenido) && contenido.contenido.length > 0),
-      primerAnuncio: Array.isArray(anuncios) && anuncios.length > 0,
-    };
-  }catch(e){
-    return { jefe366Completo: true, primerContenido: true, primerAnuncio: true };
-  }
-}
-function requisitoCumplido(requisito, progreso){
-  if (requisito === null) return true;
-  if (requisito === 'nunca') return false;
-  if (requisito === 'jefe366') return progreso.jefe366Completo;
-  if (requisito === 'contenido') return progreso.primerContenido;
-  if (requisito === 'anuncios') return progreso.primerAnuncio;
-  return true;
-}
 
 (async function initHubGraph(){
   const CLIENTE_ID = 'optica-one';
 
-  const progreso = await calcularProgreso(CLIENTE_ID);
   const jefes = JEFES_BASE.map((j) => {
-    const activo = requisitoCumplido(j.requisito, progreso);
+    const activo = j.requisito !== 'nunca';
     return Object.assign({}, j, { activo, href: activo ? j.href : null });
   });
   // Nodo central: el ADN del negocio. Todos los Jefes conectan hacia el
