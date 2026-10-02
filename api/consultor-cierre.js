@@ -39,8 +39,11 @@ const WEB_FETCH_TOOL = { type: 'web_fetch_20260209', name: 'web_fetch', max_uses
 
 // Tope de seguridad (~5k tokens), no un recorte esperado: con el contexto completo de una marca
 // (ADN + 366 + Temporada) ronda los 11,000 caracteres, así que 7000 recortaba justo lo último.
-const CONTEXT_CHAR_LIMIT = 20000;
+const CONTEXT_CHAR_LIMIT = 40000;
 const BLOCK_CHAR_LIMIT = 5000;
+// La campaña de Temporada completa (Documento Maestro + Perfil de Cliente + Comunicación) ronda
+// los 13,000 caracteres; es lo más específico y vigente, por eso tiene un tope propio más alto.
+const CAMPANA_BLOCK_CHAR_LIMIT = 20000;
 const MAX_MESSAGES = 40;
 
 const promptCache = new Map();
@@ -297,23 +300,101 @@ async function leerCampanaTemporadaActiva(clienteId) {
   return porCreacion[0] || null;
 }
 
+// Tablas de la campaña: mismas llaves y columnas que TEMPORADA_TABLAS en jefe-temporada.html.
+// `esencial` son las columnas que traen el contenido real: las filas precargadas del documento
+// (solo con la etiqueta, p.ej. "Deseo activado") se omiten mientras esas columnas estén vacías.
+const TABLAS_CAMPANA = {
+  diferencias: { campo: 'cliente_diferencias', titulo: 'Diferencias clave vs el cliente recurrente (deseo, dolor, miedo y objeción que se activan en ESTA temporada)', cols: [['aspecto', 'Aspecto'], ['respuesta', 'Respuesta']], esencial: ['respuesta'] },
+  incentivos: { campo: 'prod_incentivos', titulo: 'Incentivos evaluados', cols: [['objetivo', 'Objetivo'], ['incentivo', 'Incentivo'], ['resultado_esperado', 'Resultado esperado']], esencial: ['incentivo'] },
+  mensajesOpciones: { campo: 'com_mensajes_opciones', titulo: 'Opciones de mensaje principal evaluadas (sirven para probar titulares del Hero)', cols: [['mensaje', 'Mensaje principal'], ['por_que', 'Por qué funciona']], esencial: ['mensaje'] },
+  mensajeElegido: { campo: 'com_mensaje_elegido', titulo: 'Mensaje elegido', cols: [['pregunta', 'Pregunta'], ['respuesta', 'Respuesta']], esencial: ['respuesta'] },
+  razonAhora: { campo: 'com_razon_ahora', titulo: 'Razón para comprar ahora (urgencia real)', cols: [['elemento', 'Elemento'], ['respuesta', 'Respuesta']], esencial: ['respuesta'] },
+  mensajesClave: { campo: 'com_mensajes_clave', titulo: 'Mensajes clave', cols: [['mensaje', 'Mensaje clave'], ['que_entender', 'Qué debe entender'], ['emocion', 'Emoción que activa'], ['conecta', 'Cómo conecta con la venta']], esencial: ['que_entender', 'emocion', 'conecta'] },
+  frases: { campo: 'com_frases_maestras', titulo: 'Frases maestras', cols: [['tipo', 'Tipo de frase'], ['frases', 'Frases']], esencial: ['frases'] },
+  objeciones: { campo: 'com_objeciones', titulo: 'Objeciones de campaña y cómo responderlas', cols: [['objecion', 'Objeción'], ['que_piensa', 'Qué está pensando'], ['que_necesita', 'Qué necesita escuchar'], ['respuesta', 'Respuesta corta']], esencial: ['que_piensa', 'que_necesita', 'respuesta'] },
+  angulos: { campo: 'com_angulos', titulo: 'Ángulos de venta', cols: [['angulo', 'Ángulo'], ['enfoque', 'Enfoque'], ['emocion', 'Emoción'], ['idea_principal', 'Idea principal'], ['hook', 'Ejemplo de hook']], esencial: ['idea_principal', 'hook'] },
+  ctas: { campo: 'com_ctas', titulo: 'CTAs por momento', cols: [['momento', 'Momento'], ['suave', 'CTA suave'], ['directo', 'CTA directo'], ['urgente', 'CTA urgente']], esencial: ['suave', 'directo', 'urgente'] },
+};
+
+function campoCampana(c, k, label) {
+  const v = (c[k] || '').toString().trim();
+  return v ? `${label}: ${v}` : null;
+}
+
+function tablaCampana(c, t) {
+  const filas = (Array.isArray(c[t.campo]) ? c[t.campo] : [])
+    .filter((f) => f && t.esencial.some((k) => (f[k] || '').toString().trim()));
+  if (filas.length === 0) return null;
+  const lineas = filas.map((f) => '- ' + t.cols
+    .map(([k, label]) => { const v = (f[k] || '').toString().trim(); return v ? `${label}: ${v}` : null; })
+    .filter(Boolean)
+    .join(' | '));
+  return `${t.titulo}:\n${lineas.join('\n')}`;
+}
+
+// Entrega TODA la campaña que sirve para armar la página o el evento (no solo un resumen):
+// definición, Documento Maestro, Perfil de Cliente de Campaña (con los deseos, dolores, miedos y
+// objeciones que se activan en esa temporada) y Estrategia de Comunicación. Se omiten las partes
+// que no cambian una landing (metas, precampaña, fases, base de datos, postcampaña, ads, calendario).
 function formatearCampanaTemporada(c) {
   if (!c) return null;
   const hoy = new Date().toISOString().slice(0, 10);
   const yaArranco = c.fecha_inicio_activa && c.fecha_inicio_activa <= hoy;
   const etiqueta = yaArranco ? 'Campaña de Temporada activa ahora' : 'Próxima campaña de Temporada (todavía no arranca, pero es la que hay que preparar)';
-  const l = [`${etiqueta}: ${c.nombre || '(sin nombre)'}${c.temporada ? ' — ' + c.temporada : ''}`];
-  if (c.producto_nombre) l.push(`  Producto/servicio de la campaña: ${c.producto_nombre}`);
-  if (c.fecha_inicio_activa || c.fecha_fin_activa) l.push(`  Vigencia: ${c.fecha_inicio_activa || '?'} a ${c.fecha_fin_activa || '?'}`);
-  if (c.objetivo_principal) l.push(`  Objetivo: ${c.objetivo_principal}`);
-  if (c.incentivo) l.push(`  Incentivo/promoción: ${c.incentivo}`);
-  if (c.dm_oferta) l.push(`  Oferta de campaña: ${c.dm_oferta}`);
-  if (c.dm_urgencia) l.push(`  Razón de urgencia: ${c.dm_urgencia}`);
-  if (c.dm_mensaje_principal) l.push(`  Mensaje principal: ${c.dm_mensaje_principal}`);
-  if (c.dm_frases_clave) l.push(`  Frases clave: ${c.dm_frases_clave}`);
-  if (c.dm_accion_cliente) l.push(`  Acción que debe tomar el cliente: ${c.dm_accion_cliente}`);
-  if (l.length === 1) return null;
-  return 'CAMPAÑA DE TEMPORADA (de Jefe de Temporada — usa esta promoción y urgencia reales para la landing/manual, no una genérica):\n' + l.join('\n');
+  const producto = c.producto_origen === 'nuevo' ? c.producto_nuevo : c.producto_nombre;
+
+  const cab = [`${etiqueta}: ${c.nombre || '(sin nombre)'}${c.temporada ? ' — ' + c.temporada : ''}`];
+  if (producto) cab.push(`Producto/servicio de la campaña: ${producto}`);
+  if (c.fecha_inicio_activa || c.fecha_fin_activa) cab.push(`Vigencia: ${c.fecha_inicio_activa || '?'} a ${c.fecha_fin_activa || '?'}`);
+  if (c.objetivo_principal) cab.push(`Objetivo: ${c.objetivo_principal}`);
+  if (c.incentivo) cab.push(`Incentivo/urgencia real: ${c.incentivo}`);
+
+  const dm = [
+    campoCampana(c, 'dm_cliente_ideal_temporada', 'Cliente ideal de temporada'),
+    campoCampana(c, 'dm_que_cambia', 'Qué cambia en este cliente por la temporada'),
+    campoCampana(c, 'dm_dolor', 'Dolor principal de temporada'),
+    campoCampana(c, 'dm_deseo', 'Deseo principal de temporada'),
+    campoCampana(c, 'dm_objeciones', 'Objeciones específicas de temporada'),
+    campoCampana(c, 'dm_oferta', 'Oferta principal'),
+    c.dm_incentivo && c.dm_incentivo !== c.incentivo ? campoCampana(c, 'dm_incentivo', 'Incentivo') : null,
+    campoCampana(c, 'dm_urgencia', 'Urgencia real'),
+    campoCampana(c, 'dm_mensaje_principal', 'Mensaje principal'),
+    campoCampana(c, 'dm_frases_clave', 'Frases clave de comunicación'),
+    campoCampana(c, 'dm_canal_conversion', 'Canal principal de conversión'),
+    campoCampana(c, 'dm_accion_cliente', 'Acción que queremos que tome el cliente'),
+  ].filter(Boolean);
+
+  const perfil = [
+    campoCampana(c, 'cliente_que_pasa', '¿Qué está pasando en su vida en este momento?'),
+    tablaCampana(c, TABLAS_CAMPANA.diferencias),
+    campoCampana(c, 'cliente_que_haria_hoy', '¿Qué haría que compre hoy?'),
+    campoCampana(c, 'cliente_que_cambio', '¿Qué cambió vs el cliente recurrente?'),
+  ].filter(Boolean);
+
+  const prod = [
+    campoCampana(c, 'prod_por_que', 'Por qué este producto hace sentido para esta temporada'),
+    tablaCampana(c, TABLAS_CAMPANA.incentivos),
+  ].filter(Boolean);
+
+  const comunicacion = [
+    tablaCampana(c, TABLAS_CAMPANA.mensajesOpciones),
+    tablaCampana(c, TABLAS_CAMPANA.mensajeElegido),
+    tablaCampana(c, TABLAS_CAMPANA.razonAhora),
+    tablaCampana(c, TABLAS_CAMPANA.mensajesClave),
+    tablaCampana(c, TABLAS_CAMPANA.frases),
+    tablaCampana(c, TABLAS_CAMPANA.objeciones),
+    tablaCampana(c, TABLAS_CAMPANA.angulos),
+    tablaCampana(c, TABLAS_CAMPANA.ctas),
+  ].filter(Boolean);
+
+  const secciones = [cab.join('\n')];
+  if (dm.length) secciones.push('DOCUMENTO MAESTRO DE LA CAMPAÑA (resumen ejecutivo):\n' + dm.join('\n'));
+  if (perfil.length) secciones.push('PERFIL DE CLIENTE DE CAMPAÑA (qué siente y qué lo frena en ESTA temporada):\n' + perfil.join('\n'));
+  if (prod.length) secciones.push('PRODUCTO PARA LA CAMPAÑA:\n' + prod.join('\n'));
+  if (comunicacion.length) secciones.push('ESTRATEGIA DE COMUNICACIÓN DE LA CAMPAÑA:\n' + comunicacion.join('\n'));
+  if (secciones.length === 1 && cab.length === 1) return null;
+
+  return 'CAMPAÑA DE TEMPORADA (de Jefe de Temporada — úsala COMPLETA y tal cual: los deseos, dolores, miedos y objeciones de esta temporada, el mensaje elegido, la urgencia real, las frases maestras, las respuestas a objeciones y los CTAs alimentan el Hero, "Problema/deseo", las FAQs y los botones de la página o el guion del evento. No la resumas ni inventes una distinta):\n' + secciones.join('\n\n');
 }
 
 async function construirContextoNegocio(clienteId) {
@@ -344,7 +425,7 @@ async function construirContextoNegocio(clienteId) {
     formatearAudiencias(audienciasRaw, grupos),
     formatearCatalogo(catalogo, grupos),
     formatearTono(tono),
-  ].filter(Boolean).map((b) => truncar(b, BLOCK_CHAR_LIMIT));
+  ].filter(Boolean).map((b) => truncar(b, b.startsWith('CAMPAÑA DE TEMPORADA') ? CAMPANA_BLOCK_CHAR_LIMIT : BLOCK_CHAR_LIMIT));
 
   if (bloques.length === 0) {
     return 'CONTEXTO DEL NEGOCIO: todavía no hay datos guardados en el ADN de esta marca.';
