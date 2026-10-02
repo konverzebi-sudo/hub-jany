@@ -39,6 +39,22 @@
   .tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);}
   .tab-panel{display:none;}
   .tab-panel.active{display:block;}
+
+  /* BIENVENIDA */
+  .adn-bienvenida[hidden],.adn-bienvenida-reabrir[hidden]{display:none!important;}
+  .adn-bienvenida{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:14px;padding:22px 24px;margin-bottom:24px;}
+  .adn-bienvenida h2{font-size:clamp(20px,2.6vw,26px);font-weight:800;line-height:1.15;margin:0 0 10px;}
+  .adn-bienvenida h2 .adn-nombre{color:var(--accent);}
+  .adn-bienvenida p{color:var(--text-dim);font-size:14px;line-height:1.6;margin:0 0 14px;}
+  .adn-bienvenida p strong{color:var(--text);}
+  .adn-pasos{list-style:none;counter-reset:paso;margin:0 0 16px;padding:0;display:grid;gap:10px;}
+  .adn-pasos li{counter-increment:paso;position:relative;padding-left:38px;font-size:13.5px;line-height:1.55;color:var(--text);}
+  .adn-pasos li::before{content:counter(paso);position:absolute;left:0;top:0;width:26px;height:26px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;}
+  .adn-pasos li span{color:var(--text-dim);}
+  .adn-tip{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:13px;line-height:1.55;color:var(--text-dim);margin-bottom:16px;}
+  .adn-tip strong{color:var(--text);}
+  .adn-bienvenida-reabrir{display:inline-flex;align-items:center;gap:8px;margin-bottom:18px;font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--text-dim);background:var(--surface);border:1px solid var(--line);border-radius:100px;padding:7px 14px;cursor:pointer;}
+  .adn-bienvenida-reabrir:hover{border-color:var(--accent);color:var(--accent);}
   .panel-head{margin-bottom:18px;}
   .panel-head h2{font-size:19px;margin:0 0 6px;}
   .panel-desc{color:var(--text-dim);font-size:13px;line-height:1.5;}
@@ -261,6 +277,21 @@
 </header>
 
 <main>
+  <button type="button" class="adn-bienvenida-reabrir" id="adn-bienvenida-reabrir" hidden onclick="mostrarBienvenidaADN()">💡 Ver instrucciones del ADN</button>
+  <section class="adn-bienvenida" id="adn-bienvenida">
+    <h2>Te damos la bienvenida al ADN de <span class="adn-nombre" id="adn-bienvenida-nombre">tu negocio</span></h2>
+    <p>El ADN es donde le <strong>enseñas a la inteligencia artificial de tus Jefes quién eres</strong>: qué vendes, cómo hablas, a quién le vendes y cómo se ve tu marca. Todo lo que escribas aquí lo leen automáticamente tus Jefes para crear contenido, anuncios y mensajes que suenen a <strong>tu negocio</strong> y no a algo genérico. Entre más completo y más real, mejores resultados.</p>
+    <ol class="adn-pasos">
+      <li><strong>Recorre las pestañas en orden</strong> <span>(de la 1 a la 9). Empieza por Identidad: es la base de todo lo demás.</span></li>
+      <li><strong>Llena lo que sepas, con tus propias palabras.</strong> <span>No hace falta tenerlo todo hoy. Lo más importante para arrancar: Identidad, Voz y Tono y Catálogo.</span></li>
+      <li><strong>Da clic en "Guardar cambios" antes de pasar a la siguiente pestaña.</strong> <span>Así no pierdes lo que escribiste.</span></li>
+      <li><strong>La pestaña Audiencia no se llena aquí.</strong> <span>Se arma con ayuda del Jefe 366, y aquí solo la ves como referencia.</span></li>
+      <li><strong>Vuelve cuando quieras a editar.</strong> <span>Tu negocio cambia y el ADN también; mientras más lo mantengas al día, mejor te conocen tus Jefes.</span></li>
+    </ol>
+    <div class="adn-tip">💬 <strong>Tip:</strong> escribe como si le explicaras tu negocio a un empleado nuevo muy listo que empieza hoy. Da ejemplos reales, evita frases vacías y no inventes datos: la IA va a tomar al pie de la letra lo que pongas.</div>
+    <button type="button" class="ask-btn" onclick="cerrarBienvenidaADN()">Entendido, empezar</button>
+  </section>
+
   <div class="tabs">
     <button class="tab-btn active" data-tab="identidad">1. Identidad</button>
     <button class="tab-btn" data-tab="visual">2. Logo y Colores</button>
@@ -890,6 +921,32 @@ if(location.hash){
   const tabDesdeHash = location.hash.slice(1);
   if(document.querySelector('.tab-btn[data-tab="' + tabDesdeHash + '"]')) irATab(tabDesdeHash);
 }
+
+// ── BIENVENIDA ───────────────────────────────────────────────
+const BIENVENIDA_KEY = 'jefeshub_adn_bienvenida_vista_' + CLIENTE_ID;
+function bienvenidaVista(){ try{ return !!localStorage.getItem(BIENVENIDA_KEY); }catch(e){ return false; } }
+function pintarBienvenidaADN(){
+  const vista = bienvenidaVista();
+  document.getElementById('adn-bienvenida').hidden = vista;
+  document.getElementById('adn-bienvenida-reabrir').hidden = !vista;
+}
+function cerrarBienvenidaADN(){
+  try{ localStorage.setItem(BIENVENIDA_KEY, '1'); }catch(e){}
+  pintarBienvenidaADN();
+}
+function mostrarBienvenidaADN(){
+  try{ localStorage.removeItem(BIENVENIDA_KEY); }catch(e){}
+  pintarBienvenidaADN();
+  document.getElementById('adn-bienvenida').scrollIntoView({behavior:'smooth',block:'start'});
+}
+pintarBienvenidaADN();
+(async function(){
+  try{
+    const r = await window.storage.get(storageKey('brand-book.identidad'));
+    const d = r && r.value ? JSON.parse(r.value) : null;
+    if(d && d.nombre) document.getElementById('adn-bienvenida-nombre').textContent = d.nombre;
+  }catch(e){}
+})();
 
 // ── HELPERS ─────────────────────────────────────────────────
 async function loadObj(suffix){
