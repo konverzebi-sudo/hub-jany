@@ -121,8 +121,8 @@
     <div class="step" id="pasoWa">
       <span class="n">1</span>
       <div style="flex:1">
-        <h3>Confírmame tu fecha por WhatsApp</h3>
-        <p>Toca la fecha a la que vas a entrar y mándame el mensaje. Ahí te doy la bienvenida y resuelvo tus dudas.</p>
+        <h3 id="waTitulo">Confírmame tu fecha por WhatsApp</h3>
+        <p id="waTexto">Toca la fecha a la que vas a entrar y mándame el mensaje. Ahí te doy la bienvenida y resuelvo tus dudas.</p>
         <div class="wa-btns" id="waBtns"></div>
       </div>
     </div>
@@ -131,7 +131,7 @@
       <span class="n">2</span>
       <div>
         <h3>Revisa tu correo</h3>
-        <p>En unos minutos te llega un <strong>correo de confirmación</strong>, y antes del taller te envío por ahí el <strong>acceso a la videollamada</strong>. Si no lo ves, revisa la carpeta de spam o promociones.</p>
+        <p>En unos minutos te llega un correo con tu <strong>acceso a la videollamada</strong>. Guárdalo para el día del taller. Si no lo ves, revisa la carpeta de spam o promociones.</p>
       </div>
     </div>
 
@@ -139,7 +139,7 @@
       <span class="n">3</span>
       <div style="flex:1">
         <h3>Apártalo en tu calendario</h3>
-        <p>Agrega la fecha a la que vas a entrar para que no se te pase.</p>
+        <p id="calTexto">Agrega la fecha a la que vas a entrar para que no se te pase.</p>
         <div class="sessions" id="sesiones"></div>
       </div>
     </div>
@@ -163,12 +163,18 @@
     whatsapp: '528442043991', // ej. 5215512345678
     bono: 'Los primeros 10 inscritos reciben un diagnóstico de marca gratis antes del taller. Si estás entre ellos, te escribo para agendarlo.',
     duracionHoras: 2,
-    // Hora en CDMX (UTC-6)
+    // Hora en CDMX (UTC-6). Cada link de pago redirige con ?fecha=<id>
+    // (ej. /taller-gracias?fecha=7oct) y la página muestra solo esa sesión.
     sesiones: [
-      { titulo: 'Miércoles 7 de octubre', fecha: '2026-10-07', hora: '17:00', horaTexto: '5:00 pm' },
-      { titulo: 'Jueves 15 de octubre',   fecha: '2026-10-15', hora: '10:00', horaTexto: '10:00 am' }
+      { id: '7oct', titulo: 'Miércoles 7 de octubre', fecha: '2026-10-07', hora: '17:00', horaTexto: '5:00 pm' },
+      { id: '15oct', titulo: 'Jueves 15 de octubre',   fecha: '2026-10-15', hora: '10:00', horaTexto: '10:00 am' }
     ]
   };
+
+  // Si el link de pago trae ?fecha=, mostrar solo esa sesión
+  const fechaParam = new URLSearchParams(location.search).get('fecha');
+  const elegida = CONFIG.sesiones.find(s => s.id === fechaParam);
+  if (elegida) CONFIG.sesiones = [elegida];
 
   document.getElementById('nombreTaller').textContent = '“' + CONFIG.nombreTaller + '”';
   document.title = '¡Ya tienes tu lugar! · ' + CONFIG.nombreTaller;
@@ -232,6 +238,13 @@
     if (!waCont.children.length) document.getElementById('pasoWa').style.display = 'none';
   } else {
     document.getElementById('pasoWa').style.display = 'none';
+  }
+
+  if (elegida) {
+    document.getElementById('waTitulo').textContent = 'Avísame por WhatsApp que ya estás dentro';
+    document.getElementById('waTexto').textContent = 'Mándame el mensaje y ahí te doy la bienvenida y resuelvo tus dudas.';
+    document.getElementById('calTexto').textContent = 'Agrégalo a tu calendario para que no se te pase.';
+    document.getElementById('sesiones').style.gridTemplateColumns = '1fr';
   }
 
   if (CONFIG.bono) document.getElementById('bonoTexto').textContent = CONFIG.bono;

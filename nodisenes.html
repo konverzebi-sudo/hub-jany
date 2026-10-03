@@ -733,7 +733,7 @@
     <div class="faq-list">
       <div class="faq-item reveal"><button class="faq-q" aria-expanded="false">¿Necesito saber diseño o tener experiencia con IA?<span class="plus"></span></button><div class="faq-a"><div><p>No. El taller está pensado para emprendedores y dueños de negocio. Si ya abriste ChatGPT o Gemini alguna vez, tienes todo lo que necesitas.</p></div></div></div>
       <div class="faq-item reveal"><button class="faq-q" aria-expanded="false">¿Tengo que pagar alguna herramienta extra?<span class="plus"></span></button><div class="faq-a"><div><p>No. Trabajamos con las herramientas que ya tienes (ChatGPT o Gemini). La idea es sacarle provecho real a lo que ya pagas.</p></div></div></div>
-      <div class="faq-item reveal"><button class="faq-q" aria-expanded="false">¿Cómo recibo el acceso al taller?<span class="plus"></span></button><div class="faq-a"><div><p>Al completar tu pago te llega un correo de confirmación, y antes del taller te envío por correo el acceso a la videollamada. Si no lo ves, revisa tu carpeta de spam o escríbeme por WhatsApp.</p></div></div></div>
+      <div class="faq-item reveal"><button class="faq-q" aria-expanded="false">¿Cómo recibo el acceso al taller?<span class="plus"></span></button><div class="faq-a"><div><p>Al completar tu pago te llega un correo con tu acceso a la videollamada. Si no lo ves, revisa tu carpeta de spam o escríbeme por WhatsApp.</p></div></div></div>
       <div class="faq-item reveal"><button class="faq-q" aria-expanded="false">¿Cómo funciona el diagnóstico de marca gratis?<span class="plus"></span></button><div class="faq-a"><div><p>Los primeros 10 inscritos reciben un diagnóstico de marca esa misma semana, antes del taller. Son lugares limitados y reales: cuando se acaben, se acaban.</p></div></div></div>
       <div class="faq-item reveal"><button class="faq-q" aria-expanded="false">¿Qué diferencia hay entre el 7 y el 15 de octubre?<span class="plus"></span></button><div class="faq-a"><div><p>Ninguna: es el mismo taller con el mismo contenido. Elige la fecha que mejor te acomode; al pagar se aparta tu lugar en esa sesión.</p></div></div></div>
     </div>
@@ -790,14 +790,17 @@
   const CONFIG = {
     whatsapp: '528442043991', // ej. 5215512345678
     mensajeWhatsapp: 'Hola Jany, quiero info del taller "No diseñes. Pídeselo a la IA."',
-    // Precio normal y precio del día del taller (el día de cada sesión, hora CDMX)
+    // Precio normal y precio del día de esa sesión (hora CDMX).
+    // Cada sesión tiene sus propios links para que GoHighLevel sepa a qué fecha va cada quien.
     precioNormal: 190,
-    linkPagoNormal: 'https://link.fastpaydirect.com/payment-link/6ac03d0e075ea22a20cdbfcc',
     precioDiaTaller: 400,
-    linkPagoDiaTaller: 'https://link.fastpaydirect.com/payment-link/6ac03c90c0e70c7fefb722ec',
     sesiones: {
-      s1: { fecha: '2026-10-07', hora: '17:00', horaTexto: '5:00 pm' },
-      s2: { fecha: '2026-10-15', hora: '10:00', horaTexto: '10:00 am' }
+      s1: { fecha: '2026-10-07', hora: '17:00', horaTexto: '5:00 pm',
+            linkNormal: 'https://link.fastpaydirect.com/payment-link/6ac03d0e075ea22a20cdbfcc',
+            linkDiaTaller: 'https://link.fastpaydirect.com/payment-link/6ac03c90c0e70c7fefb722ec' },
+      s2: { fecha: '2026-10-15', hora: '10:00', horaTexto: '10:00 am',
+            linkNormal: 'https://link.fastpaydirect.com/payment-link/6ac05f82c0e70c7fefb7233f',
+            linkDiaTaller: 'https://link.fastpaydirect.com/payment-link/6ac0601ec0e70c7fefb72342' }
     }
   };
 
@@ -820,45 +823,39 @@
     card.querySelector('[data-hora]').textContent = CONFIG.sesiones[card.dataset.session].horaTexto + ' (hora CDMX) · Videollamada';
   });
 
-  /* ---------- Precio: $400 el día de cada taller ---------- */
+  /* ---------- Precio: $400 el día de esa sesión ---------- */
   const diaCDMX = t => new Date(t).toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' });
-  let precioAplicado = null;
-  function precioActual(now) {
-    const hoy = diaCDMX(now);
-    const esDiaTaller = Object.values(CONFIG.sesiones).some(x => x.fecha === hoy);
-    return esDiaTaller
-      ? { monto: CONFIG.precioDiaTaller, link: CONFIG.linkPagoDiaTaller, dia: true }
-      : { monto: CONFIG.precioNormal, link: CONFIG.linkPagoNormal, dia: false };
-  }
-  function aplicarPrecio(pr) {
-    if (precioAplicado === pr.monto) return;
-    precioAplicado = pr.monto;
-    document.querySelectorAll('[data-price-label]').forEach(el => el.textContent = 'Quiero mi lugar a $' + pr.monto);
-    document.querySelectorAll('[data-amount]').forEach(el => el.innerHTML = '$' + pr.monto + '<sub>MXN</sub>');
-    document.querySelectorAll('[data-price-note]').forEach(el => el.textContent = pr.dia
-      ? 'Hoy es día de taller: precio de $' + CONFIG.precioDiaTaller
-      : 'El día de cada taller el precio sube a $' + CONFIG.precioDiaTaller);
+  function precioSesion(k, now) {
+    const ses = CONFIG.sesiones[k];
+    return ses.fecha === diaCDMX(now)
+      ? { monto: CONFIG.precioDiaTaller, link: ses.linkDiaTaller, dia: true }
+      : { monto: CONFIG.precioNormal, link: ses.linkNormal, dia: false };
   }
 
   function actualizarSesiones(now) {
-    const pr = precioActual(now);
-    aplicarPrecio(pr);
     const abiertas = [];
     document.querySelectorAll('[data-session]').forEach(card => {
       const k = card.dataset.session;
       const btn = card.querySelector('.js-session');
-      const cierre = inicio(k) + DURACION;
-      if (now >= cierre) {
+      if (now >= inicio(k) + DURACION) {
         card.classList.add('closed'); card.classList.remove('hot');
         card.querySelector('.s-status').textContent = 'Sesión cerrada';
         if (btn) btn.remove();
-      } else {
-        abiertas.push(k);
-        if (btn && esLink(pr.link)) { btn.href = pr.link; btn.target = '_blank'; btn.rel = 'noopener'; }
-        else if (btn) { btn.href = '#precio'; btn.removeAttribute('target'); }
+        return;
       }
+      const pr = precioSesion(k, now);
+      abiertas.push({ k, monto: pr.monto });
+      card.querySelector('[data-amount]').innerHTML = '$' + pr.monto + '<sub>MXN</sub>';
+      card.querySelector('[data-price-note]').textContent = pr.dia
+        ? 'Hoy es día de taller: precio de $' + CONFIG.precioDiaTaller
+        : 'El día del taller el precio sube a $' + CONFIG.precioDiaTaller;
+      if (btn && esLink(pr.link)) { btn.href = pr.link; btn.target = '_blank'; btn.rel = 'noopener'; }
+      else if (btn) { btn.href = '#precio'; btn.removeAttribute('target'); }
     });
-    return abiertas;
+    // Botones generales: el precio más bajo disponible
+    const minimo = abiertas.length ? Math.min(...abiertas.map(a => a.monto)) : CONFIG.precioNormal;
+    document.querySelectorAll('[data-price-label]').forEach(el => el.textContent = 'Quiero mi lugar a $' + minimo);
+    return abiertas.map(a => a.k);
   }
 
   /* ---------- Countdown al próximo taller ---------- */
