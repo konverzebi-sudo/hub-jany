@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Enlaces de ADN previo — JefesHub</title>
+<link rel="icon" type="image/png" href="/img/favicon-32.png">
+<style>
+  :root{ --bg:#0F0B16; --surface:#181120; --surface-2:#211829; --line:#332A3D; --text:#F3EEF9; --text-dim:#B6A9C7; --accent:#B8F725; }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,sans-serif;}
+  .wrap{max-width:640px;margin:0 auto;padding:32px 18px;}
+  h1{font-size:24px;margin:0 0 8px;}
+  p{color:var(--text-dim);line-height:1.55;font-size:14px;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;margin-top:18px;}
+  label{display:block;font-size:12.5px;font-weight:600;margin-bottom:6px;}
+  input{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;color:var(--text);padding:11px 12px;font-size:16px;outline:none;}
+  button{background:var(--accent);border:none;color:#0F0B16;font-weight:700;font-size:15px;padding:12px 20px;border-radius:10px;cursor:pointer;margin-top:12px;}
+  .out{margin-top:16px;word-break:break-all;font-family:monospace;font-size:13px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px;}
+  .err{color:#F87171;font-size:13px;margin-top:10px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Enlace de ADN previo</h1>
+  <p>Genera el enlace único para que una persona llene su ADN antes de la primera sesión. Lo que ella llene se carga directo en el ADN de ese cliente. Usa el mismo token de acceso que usas para guardar en la plataforma.</p>
+  <div class="card">
+    <label for="slug">Nombre del cliente en la plataforma (minúsculas, sin espacios)</label>
+    <input id="slug" type="text" placeholder="ej. rim, optica-one, mi-cliente">
+    <button id="gen">Generar enlace</button>
+    <div class="err" id="err"></div>
+    <div id="res" hidden>
+      <div class="out" id="link"></div>
+      <button id="copiar">Copiar enlace</button>
+    </div>
+  </div>
+</div>
+<script>
+function token() {
+  let t = (localStorage.getItem('jefeshub_storage_token') || '').trim();
+  if (!t) { t = (window.prompt('Token de acceso:') || '').trim(); if (t) localStorage.setItem('jefeshub_storage_token', t); }
+  return t;
+}
+document.getElementById('gen').onclick = async () => {
+  const err = document.getElementById('err'), res = document.getElementById('res');
+  err.textContent = ''; res.hidden = true;
+  const slug = document.getElementById('slug').value.trim().toLowerCase();
+  if (!/^[a-z0-9-]{2,40}$/.test(slug)) { err.textContent = 'Usa solo letras minúsculas, números y guiones (2 a 40 caracteres).'; return; }
+  const t = token(); if (!t) return;
+  try {
+    const r = await fetch('/api/storage/adn-previo?cliente=' + encodeURIComponent(slug), { headers: { 'X-Storage-Token': t }, cache: 'no-store' });
+    const d = await r.json();
+    if (r.status === 401) { localStorage.removeItem('jefeshub_storage_token'); err.textContent = 'Token incorrecto.'; return; }
+    if (!r.ok) { err.textContent = d.error || 'No se pudo generar.'; return; }
+    document.getElementById('link').textContent = location.origin + d.ruta;
+    res.hidden = false;
+  } catch (e) { err.textContent = 'Error de conexión.'; }
+};
+document.getElementById('copiar').onclick = () => {
+  navigator.clipboard.writeText(document.getElementById('link').textContent).then(() => { document.getElementById('copiar').textContent = '✅ Copiado'; });
+};
+</script>
+</body>
+</html>
