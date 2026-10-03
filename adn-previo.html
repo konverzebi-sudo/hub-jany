@@ -56,18 +56,36 @@
   .bienvenida .robot{width:140px;height:auto;display:block;margin:6px auto 14px;}
   .bienvenida h1{max-width:620px;margin-left:auto;margin-right:auto;}
   .bienvenida .desc{max-width:600px;margin-left:auto;margin-right:auto;}
-  .timeline{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 60px minmax(0,1fr);align-items:center;max-width:520px;margin:6px auto 22px;text-align:left;}
+  .timeline{position:relative;display:grid;grid-template-columns:var(--split) 0 minmax(0,1fr);align-items:center;max-width:540px;margin:6px auto 22px;text-align:left;--split:50%;}
+  .timeline::before{content:'';position:absolute;left:var(--split);top:22px;bottom:41px;border-left:3px dotted #555;transform:translateX(-50%);}
   .tl-row{display:contents;}
-  .tl-row>div{padding:15px 0;}
-  .tl-c{position:relative;display:flex;justify-content:center;align-items:center;align-self:stretch;}
-  .tl-c::before{content:'';position:absolute;left:50%;top:0;bottom:0;border-left:3px dotted #555;transform:translateX(-50%);}
-  .tl-row.first .tl-c::before{top:50%;}
-  .tl-row.last .tl-c::before{bottom:50%;}
-  .tl-r{padding-left:6px;}
-  .tl-root{position:relative;z-index:1;background:var(--accent);color:#111;font-weight:500;font-size:20px;padding:6px 14px;border-radius:10px;}
-  .tl-num{position:relative;z-index:1;width:52px;height:52px;border-radius:50%;background:var(--accent);color:#111;font-weight:800;font-size:17px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 6px #fff;}
-  .tl-label{display:inline-block;background:var(--surface-2);border-radius:12px;padding:12px 20px;font-size:19px;line-height:1.25;color:var(--text);}
-  @media(max-width:520px){.timeline{grid-template-columns:minmax(0,.55fr) 56px minmax(0,1.45fr);}.tl-label{font-size:17px;padding:11px 14px;}}
+  .tl-row>div{min-height:48px;padding:15px 0;}
+  .tl-c{position:relative;z-index:1;}
+  .tl-c>*{position:absolute;left:0;top:50%;transform:translate(-50%,-50%);}
+  .tl-row>.tl-r{padding-left:40px;}
+  .tl-root{background:var(--accent);color:#111;font-weight:500;font-size:20px;padding:6px 14px;border-radius:10px;white-space:nowrap;}
+  .tl-num{width:52px;height:52px;border-radius:50%;background:var(--accent);color:#111;font-weight:800;font-size:17px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 6px #fff;cursor:pointer;}
+  .tl-row.next .tl-num{box-shadow:0 0 0 6px #fff,0 0 0 9px #111;}
+  .tl-row.done .tl-num{background:#111;color:var(--accent);}
+  .tl-label{display:inline-block;background:var(--surface-2);border-radius:12px;padding:12px 20px;font-size:19px;line-height:1.25;color:var(--text);cursor:pointer;border:0;font-family:inherit;text-align:left;}
+  .tl-row:hover .tl-label{background:#E6E6E6;}
+  .tl-row.open .tl-label{background:var(--accent);font-weight:600;}
+  .tl-row.done .tl-label{background:#E9F9C4;}
+  .tl-panel{grid-column:1/-1;position:relative;z-index:2;margin:0 0 18px;animation:abre .22s ease both;}
+  @keyframes abre{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+  @media(max-width:520px){.timeline{--split:34%;}.tl-label{font-size:17px;padding:11px 14px;}}
+  /* Pregunta (formato cuestionario) */
+  .qcard{background:#fff;border:1px solid var(--line);border-radius:18px;padding:20px 18px;box-shadow:0 6px 24px rgba(0,0,0,.06);}
+  .qcard .progress{height:4px;background:var(--line);border-radius:99px;overflow:hidden;margin:0 0 16px;}
+  .qcard .progress>i{display:block;height:100%;background:#A6E000;transition:width .25s;}
+  .qcard .eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim);font-weight:600;}
+  .qcard h2{font-size:clamp(21px,4.6vw,26px);margin:6px 0 8px;line-height:1.2;}
+  .qcard .help{color:var(--text-dim);margin:0 0 14px;font-size:14.5px;line-height:1.5;}
+  .qcard.single .field>label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);}
+  .q-actions{display:flex;gap:8px;align-items:center;margin-top:18px;flex-wrap:wrap;}
+  .q-actions .spacer{flex:1;}
+  .btn.ghost{background:transparent;border:0;color:var(--text-dim);font-weight:600;text-decoration:underline;padding:13px 10px;}
+  .btn.sec:disabled{opacity:.35;cursor:default;}
   .tl-note{color:var(--text-dim);font-size:13px;line-height:1.7;max-width:520px;margin:0 auto 22px;}
   .tl-note strong{color:var(--text);}
 </style>
@@ -137,7 +155,7 @@ const PASOS = [
 ];
 
 let datos = {};
-let paso = -1; // -1 = bienvenida, 0..n-1 = pasos, n = enviado
+let paso = -1; // -1 = ningun paso abierto, 0..n-1 = paso abierto, n = enviado
 let enviando = false;
 
 try { const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); if (d && typeof d === 'object') datos = d; } catch (e) {}
@@ -183,13 +201,46 @@ function catalogoHtml() {
   </div>`).join('') + `<button type="button" class="btn add" id="add-prod">+ Agregar otro producto</button>`;
 }
 
+let qIdx = 0;
+function preguntas(p) {
+  if (p.tipo === 'catalogo') return [{ cat: true, label: '¿Qué productos o servicios vendes?', hint: p.desc }];
+  return p.campos.filter(c => !c.soloSi || val(p.sec, c.soloSi.id) === c.soloSi.valor);
+}
+function hechoPaso(i) { return !!(datos._hechos && datos._hechos[i]); }
+
+function panelHtml(i) {
+  const p = PASOS[i], qs = preguntas(p);
+  if (qIdx > qs.length - 1) qIdx = qs.length - 1;
+  if (qIdx < 0) qIdx = 0;
+  const q = qs[qIdx], ultimo = i === PASOS.length - 1 && qIdx === qs.length - 1;
+  const cuerpo = q.cat ? catalogoHtml() : campoHtml(p.sec, q);
+  const ayuda = q.cat ? md(q.hint) : (qIdx === 0 ? md(p.desc) : '');
+  return `<div class="tl-panel"><div class="qcard${q.cat ? '' : ' single'}">
+    <div class="progress"><i style="width:${Math.round((qIdx / qs.length) * 100)}%"></i></div>
+    <div class="eyebrow">${esc(p.titulo)} · ${qIdx + 1} de ${qs.length}</div>
+    <h2>${esc(q.label)}</h2>
+    ${ayuda ? `<p class="help">${ayuda}</p>` : ''}
+    ${cuerpo}
+    <div class="msg" id="msg"></div>
+    <div class="q-actions">
+      <button class="btn sec" id="atras" ${i === 0 && qIdx === 0 ? 'disabled' : ''}>← Atrás</button>
+      <span class="spacer"></span>
+      ${q.req ? '' : '<button class="btn ghost" id="saltar" type="button">Saltar</button>'}
+      <button class="btn" id="siguiente">${ultimo ? 'Enviar mi ADN' : 'Siguiente →'}</button>
+    </div>
+    <div class="borrador" id="borrador"></div>
+  </div></div>`;
+}
+
 function render() {
   const app = document.getElementById('app');
   if (!CLIENTE || !CODIGO) { app.innerHTML = `<div class="brand">// JefesHub</div><h1>Enlace incompleto</h1><p class="desc">Este enlace no está completo. Pídele a quien te lo compartió que te lo envíe de nuevo.</p>`; return; }
   if (paso === PASOS.length) { return renderListo(app); }
-  const barra = `<div class="progreso">${PASOS.map((_, i) => `<span class="${i < paso ? 'hecho' : i === paso ? 'actual' : ''}"></span>`).join('')}</div>`;
-  if (paso === -1) {
-    app.innerHTML = `<div class="bienvenida"><div class="brand">// JefesHub · Tu ADN del negocio</div>
+  const proximo = PASOS.findIndex((_, i) => !hechoPaso(i));
+  const filas = PASOS.map((p, i) => `<div class="tl-row${hechoPaso(i) ? ' done' : ''}${i === proximo ? ' next' : ''}${i === paso ? ' open' : ''}" data-paso="${i}">
+      <div></div><div class="tl-c"><span class="tl-num">${hechoPaso(i) ? '✓' : i + 1}</span></div>
+      <div class="tl-r"><button type="button" class="tl-label" aria-expanded="${i === paso}">${esc(p.titulo)}</button></div></div>${i === paso ? panelHtml(i) : ''}`).join('');
+  app.innerHTML = `<div class="bienvenida"><div class="brand">// JefesHub · Tu ADN del negocio</div>
       <svg class="robot" viewBox="0 0 200 200" role="img" aria-label="Asistente de JefesHub">
         <circle cx="100" cy="16" r="11" fill="#C0F800"/><path d="M97 25 L94 52 L106 52 L103 25 Z" fill="#C0F800"/>
         <rect x="64" y="46" width="72" height="34" rx="14" fill="#C0F800"/><ellipse cx="100" cy="132" rx="78" ry="62" fill="#C0F800"/>
@@ -197,30 +248,32 @@ function render() {
         <ellipse cx="100" cy="134" rx="58" ry="44" fill="#FFFFFF"/><ellipse cx="78" cy="132" rx="9" ry="14" fill="#C0F800"/><ellipse cx="122" cy="132" rx="9" ry="14" fill="#C0F800"/>
       </svg>
       <h1>Te damos la bienvenida a tu ADN</h1>
-      <p class="desc">Antes de nuestra primera sesión, cuéntanos de tu negocio. Con esto <strong>le enseñamos a la inteligencia artificial de tus Jefes quién eres</strong>, qué vendes, a quién y cómo hablas, para que desde el primer día trabaje con tu información real y no con algo genérico.</p>
+      <p class="desc">Antes de nuestra primera sesión, cuéntanos de tu negocio. Con esto <strong>le enseñamos a la inteligencia artificial de tus Jefes quién eres</strong>, qué vendes, a quién y cómo hablas, para que desde el primer día trabaje con tu información real y no con algo genérico.</p></div>
       <div class="timeline">
-        <div class="tl-row first"><div></div><div class="tl-c"><span class="tl-root">ADN</span></div><div></div></div>
-        ${PASOS.map((p, i) => `<div class="tl-row${i === PASOS.length - 1 ? ' last' : ''}"><div></div><div class="tl-c"><span class="tl-num">${i + 1}</span></div><div class="tl-r"><span class="tl-label">${esc(p.titulo)}</span></div></div>`).join('')}
+        <div class="tl-row"><div></div><div class="tl-c"><span class="tl-root">ADN</span></div><div></div></div>
+        ${filas}
       </div>
-      <p class="tl-note">⏱️ Tarda unos <strong>10 a 15 minutos</strong>. Escribe con tus palabras, como si le explicaras a alguien nuevo. Tus respuestas se guardan en este dispositivo mientras avanzas, así que puedes salir y volver. Al final das clic en <strong>Enviar</strong> y todo queda cargado en tu ADN.</p>
-      <button class="btn" id="empezar">Empezar</button></div>`;
-    document.getElementById('empezar').onclick = () => { paso = 0; render(); window.scrollTo(0, 0); };
-    return;
-  }
-  const p = PASOS[paso];
-  const ultimo = paso === PASOS.length - 1;
-  app.innerHTML = `<div class="brand">// Paso ${paso + 1} de ${PASOS.length}</div>${barra}
-    <h1>${esc(p.titulo)}</h1><p class="desc">${md(p.desc)}</p>
-    <div class="card">${p.tipo === 'catalogo' ? catalogoHtml() : camposHtml(p.sec, p.campos)}</div>
-    <div class="msg" id="msg"></div>
-    <div class="nav"><button class="btn sec" id="atras">← Atrás</button><button class="btn" id="siguiente">${ultimo ? 'Enviar mi ADN' : 'Siguiente →'}</button></div>
-    <div class="borrador" id="borrador"></div>`;
-  pintarNube();
+      <p class="tl-note" style="text-align:center">⏱️ Tarda unos <strong>10 a 15 minutos</strong>. <strong>Toca el 1 para empezar</strong>: las preguntas aparecen debajo, una por una. Puedes saltar las que no sepas, salir y volver: lo que llevas se guarda solo.</p>`;
+  document.querySelectorAll('.tl-row[data-paso]').forEach(r => {
+    r.onclick = () => { const i = +r.dataset.paso; if (paso === i) { paso = -1; } else { paso = i; qIdx = 0; } render(); if (paso === i) irAlPanel(); };
+  });
+  if (paso < 0) return;
+  const p = PASOS[paso], q = preguntas(p)[qIdx];
   // Prellenar WhatsApp con el teléfono del paso 1 si aún está vacío
-  p.campos && p.campos.forEach(c => { if (c.copiaDe && !val(p.sec, c.id)) { const v = val(c.copiaDe.sec, c.copiaDe.id); if (v) { setVal(p.sec, c.id, v); const el = document.getElementById(`f-${p.sec}-${c.id}`); if (el) el.value = v; } } });
+  if (q && q.copiaDe && !val(p.sec, q.id)) { const v = val(q.copiaDe.sec, q.copiaDe.id); if (v) { setVal(p.sec, q.id, v); const el = document.getElementById(`f-${p.sec}-${q.id}`); if (el) el.value = v; } }
   enlazar();
-  document.getElementById('atras').onclick = () => { paso--; render(); window.scrollTo(0, 0); };
-  document.getElementById('siguiente').onclick = () => avanzar(ultimo);
+  pintarNube();
+  document.getElementById('atras').onclick = atras;
+  document.getElementById('siguiente').onclick = () => avanzar(false);
+  const sal = document.getElementById('saltar'); if (sal) sal.onclick = () => avanzar(true);
+  const inp = document.querySelector('.qcard input[type=text],.qcard input[type=tel]');
+  if (inp) inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); avanzar(false); } });
+}
+function irAlPanel() {
+  const el = document.querySelector('.tl-panel'); if (!el) return;
+  el.scrollIntoView({ block: 'center' });
+  const f = el.querySelector('input[type=text],input[type=tel],textarea,select');
+  if (f && window.matchMedia('(hover:hover)').matches) f.focus({ preventScroll: true });
 }
 
 function enlazar() {
@@ -246,11 +299,22 @@ function enlazar() {
   document.querySelectorAll('[data-delcat]').forEach(b => b.onclick = () => { datos.catalogo.splice(+b.dataset.delcat, 1); guardarBorrador(); render(); });
 }
 
-function avanzar(ultimo) {
-  const p = PASOS[paso], msg = document.getElementById('msg');
-  if (p.sec === 'identidad' && !String(val('identidad', 'nombre')).trim()) { msg.className = 'msg err'; msg.textContent = 'Escribe el nombre de tu negocio para continuar.'; return; }
+function atras() {
+  if (qIdx > 0) qIdx--;
+  else if (paso > 0) { paso--; qIdx = Math.max(0, preguntas(PASOS[paso]).length - 1); }
+  else return;
+  render(); irAlPanel();
+}
+
+function avanzar(saltar) {
+  const p = PASOS[paso], q = preguntas(p)[qIdx], msg = document.getElementById('msg');
+  if (q && q.req && !String(val(p.sec, q.id)).trim()) { msg.className = 'msg err'; msg.textContent = 'Esta respuesta es obligatoria para continuar.'; return; }
   guardarPaso(p.sec);
-  if (!ultimo) { paso++; render(); window.scrollTo(0, 0); return; }
+  // Las preguntas condicionales (p. ej. "Otro" en el giro) se recalculan con lo que acaba de responder.
+  const nuevas = preguntas(p);
+  if (qIdx < nuevas.length - 1) { qIdx++; render(); irAlPanel(); return; }
+  (datos._hechos = datos._hechos || {})[paso] = true; guardarBorrador();
+  if (paso < PASOS.length - 1) { paso++; qIdx = 0; render(); irAlPanel(); return; }
   enviar();
 }
 
