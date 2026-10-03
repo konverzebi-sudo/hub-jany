@@ -26,7 +26,19 @@
   .ini{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:22px;color:#111}
   .nom{font-weight:700;font-size:18px;line-height:1.2}
   .ruta{font-size:12.5px;color:var(--dim);margin-top:2px}
-  .tok{font-size:13px;color:var(--dim);background:var(--pill);border-radius:99px;padding:5px 11px;align-self:flex-start}
+  .tok{font-size:13px;color:var(--dim);background:var(--pill);border-radius:99px;padding:5px 11px;align-self:flex-start;border:0;font-family:inherit;cursor:pointer;transition:background .15s}
+  .tok:hover{background:#E4E4E4;color:var(--text)}
+  .tok[aria-expanded=true]{background:var(--lime);color:#111}
+  .tok::after{content:' ▾';font-size:11px}
+  .tokdet{background:#FAFAFA;border:1px solid var(--line);border-radius:12px;padding:12px 13px;font-size:13px;line-height:1.5;animation:abre .18s ease both}
+  .tokdet[hidden]{display:none}
+  @keyframes abre{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+  .tokdet .gr{font-size:24px;font-weight:800;letter-spacing:-.01em}
+  .tokdet .gr small{font-size:12px;font-weight:600;color:var(--dim);margin-left:4px}
+  .tokdet table{width:100%;border-collapse:collapse;margin:8px 0 4px}
+  .tokdet td{padding:3px 0;color:var(--dim)}
+  .tokdet td:last-child{text-align:right;color:var(--text);font-variant-numeric:tabular-nums}
+  .tokdet .nota{font-size:11.5px;color:var(--dim);margin-top:6px}
   .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto}
   .btn{background:var(--lime);color:#111;font-weight:700;font-size:14px;padding:10px 16px;border-radius:11px;text-decoration:none;display:inline-block}
   .btn:hover{background:var(--lime-deep)}
@@ -97,7 +109,18 @@
     ['jefe-optimizacion', 'Jefe de Mejora Constante'], ['jefe-temporada', 'Campañas de Temporada'], ['jefe-agenda', 'Jefe de Agenda']];
   var RESERVADOS = ['adn', 'jefes', 'hubs', 'api', 'js', 'css', 'img', 'pre-hub', 'adn-previo', 'adn-previo-admin', 'nodisenes', 'herramientas', 'prospeccion',
     'taller-gracias', 'jefeshub', 'rancho-seco', 'rim', 'optica-one', 'hub', 'index', 'admin', 'login', 'terminos', 'aviso-privacidad', 'bienvenida', 'oficial'];
+  // Tarifa de Claude Sonnet (el modelo que usan los Jefes): USD por millon de tokens. Es una estimacion.
+  var USD_ENTRADA = 3, USD_SALIDA = 15, DIA = 86400000;
+  var NOMBRES_ENDPOINT = { 'consultor-366': 'Jefe 366', 'consultor-cierre': 'Jefe de Conversión', 'consultor-financiero': 'Jefe de Finanzas', 'consultor-radar': 'Jefe del Faro',
+    'generar-anuncios': 'Jefe de Anuncios', 'generar-guion-organico': 'Jefe de Contenido', 'generar-ideas-366': 'Jefe 366 (ideas)', 'jefe-conversion': 'WhatsApp y Ventas', 'jefe-estrategia-whatsapp': 'WhatsApp y Ventas' };
   var KEY = 'jefeshub_storage_token';
+  function usd(n) { return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: n < 1 ? 4 : 2 }) + ' USD'; }
+  function fechaMx(d) { return d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }); }
+  function diasTxt(desde) {
+    var n = Math.floor((Date.now() - desde.getTime()) / DIA);
+    return n <= 0 ? 'desde hoy' : n === 1 ? '1 día' : n + ' días';
+  }
+  var DATOS = {};
   var grid = document.getElementById('grid'), msg = document.getElementById('msg'), velo = document.getElementById('velo'), modal = document.getElementById('modal');
 
   function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
@@ -135,8 +158,16 @@
     var logo = res[0] && res[0].logo ? res[0].logo : '';
     var nombre = (res[1] && res[1].nombre) || h.nombre || h.slug;
     var items = Array.isArray(res[2]) ? res[2] : [];
-    var tokens = items.reduce(function (s, it) { return s + (it.inputTokens || 0) + (it.outputTokens || 0); }, 0);
-    return { logo: logo, nombre: nombre, tokens: tokens };
+    var inT = 0, outT = 0, fechas = [], por = {};
+    items.forEach(function (it) {
+      var i = it.inputTokens || 0, o = it.outputTokens || 0; inT += i; outT += o;
+      var d = it.date ? new Date(it.date) : null; if (d && !isNaN(d)) fechas.push(d.getTime());
+      var ep = it.endpoint || 'otro'; por[ep] = (por[ep] || 0) + i + o;
+    });
+    var tokens = inT + outT;
+    var primero = fechas.length ? new Date(Math.min.apply(null, fechas)) : null;
+    var desglose = Object.keys(por).map(function (k) { return [NOMBRES_ENDPOINT[k] || k, por[k]]; }).sort(function (x, y) { return y[1] - x[1]; }).slice(0, 4);
+    return { logo: logo, nombre: nombre, tokens: tokens, inT: inT, outT: outT, primero: primero, desglose: desglose, registros: items.length, creado: h.creado ? new Date(h.creado) : null };
   }
 
   function tarjeta(h, d) {
@@ -144,22 +175,52 @@
     return '<article class="card" data-slug="' + esc(h.slug) + '">' +
       '<div class="logo">' + cab + '</div>' +
       '<div><div class="nom">' + esc(d.nombre) + '</div><div class="ruta">' + (h.slug === 'jefeshub' ? 'agentes.jefeshub.com' : '/' + esc(h.slug)) + (h.fijo ? '' : ' · nuevo') + '</div></div>' +
-      '<span class="tok">🔢 ' + (d.tokens ? d.tokens.toLocaleString('es-MX') + ' tokens' : 'Sin uso todavía') + '</span>' +
+      '<button type="button" class="tok" data-tok="' + esc(h.slug) + '" aria-expanded="false" title="Ver costo y días">🔢 ' + (d.tokens ? d.tokens.toLocaleString('es-MX') + ' tokens' : 'Sin uso todavía') + '</button>' +
+      '<div class="tokdet" id="det-' + esc(h.slug) + '" hidden></div>' +
       '<div class="acts"><a class="btn" href="' + esc(h.home) + '" target="_blank" rel="noopener">Abrir hub</a>' +
       '<a class="btn sec" href="' + esc(h.adn) + '" target="_blank" rel="noopener">ADN</a>' +
       '<button class="btn sec" data-link="' + esc(h.slug) + '" title="Copiar link para que el cliente llene su ADN">🔗 Link</button></div></article>';
   }
 
+  function detalleTokens(d) {
+    if (!d || !d.tokens) return '<div>Este hub todavía no ha usado la IA.' + (d && d.creado ? '<br>Creado hace <b>' + diasTxt(d.creado) + '</b> (' + fechaMx(d.creado) + ').' : '') + '</div>';
+    var cIn = d.inT / 1e6 * USD_ENTRADA, cOut = d.outT / 1e6 * USD_SALIDA, total = cIn + cOut;
+    var inicio = d.creado || d.primero, etiqueta = d.creado ? 'Creado' : 'Primer uso';
+    var dias = inicio ? Math.max(1, Math.floor((Date.now() - inicio.getTime()) / DIA)) : 0;
+    var html = '<div class="gr">' + usd(total) + '<small>costo estimado</small></div>' +
+      '<table><tr><td>Entrada · ' + d.inT.toLocaleString('es-MX') + ' tokens</td><td>' + usd(cIn) + '</td></tr>' +
+      '<tr><td>Salida · ' + d.outT.toLocaleString('es-MX') + ' tokens</td><td>' + usd(cOut) + '</td></tr>';
+    if (inicio) {
+      html += '<tr><td>' + etiqueta + '</td><td>' + fechaMx(inicio) + '</td></tr>' +
+        '<tr><td>Lleva</td><td><b>' + diasTxt(inicio) + '</b></td></tr>' +
+        '<tr><td>Promedio por día</td><td>' + usd(total / dias) + '</td></tr>';
+    }
+    html += '</table>';
+    if (d.desglose && d.desglose.length) {
+      html += '<table>' + d.desglose.map(function (x) { return '<tr><td>' + esc(x[0]) + '</td><td>' + x[1].toLocaleString('es-MX') + '</td></tr>'; }).join('') + '</table>';
+    }
+    html += '<div class="nota">Estimado con la tarifa de Claude Sonnet ($' + USD_ENTRADA + ' entrada / $' + USD_SALIDA + ' salida por millón de tokens). El registro guarda los últimos 500 usos, así que los hubs muy activos pueden mostrar menos tokens de los reales y un "primer uso" más reciente.</div>';
+    return html;
+  }
+
   async function pintar() {
     var reg = await leerRegistro();
     var hubs = BASE.concat(reg.hubs.filter(function (h) { return !BASE.some(function (b) { return b.slug === h.slug; }); }).map(function (h) {
-      return { slug: h.slug, nombre: h.nombre, color: h.color || '#B8F725', home: '/' + h.slug, adn: '/' + h.slug + '/adn', jefes: h.jefes };
+      return { slug: h.slug, nombre: h.nombre, color: h.color || '#B8F725', home: '/' + h.slug, adn: '/' + h.slug + '/adn', jefes: h.jefes, creado: h.creado };
     }));
     var datos = await Promise.all(hubs.map(datosDe));
     grid.innerHTML = hubs.map(function (h, i) { return tarjeta(h, datos[i]); }).join('') +
       '<article class="card nuevo" id="nuevo" role="button" tabindex="0"><div class="mas">+</div><div class="nom" style="color:inherit">Crear nuevo hub</div><div class="ruta">Un cliente, su propio hub</div></article>';
     document.getElementById('nuevo').onclick = abrirModal;
     document.getElementById('nuevo').onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirModal(); } };
+    hubs.forEach(function (h, i) { DATOS[h.slug] = datos[i]; });
+    grid.querySelectorAll('[data-tok]').forEach(function (b) {
+      b.onclick = function () {
+        var slug = b.dataset.tok, panel = document.getElementById('det-' + slug), abierto = !panel.hidden;
+        if (abierto) { panel.hidden = true; b.setAttribute('aria-expanded', 'false'); return; }
+        panel.innerHTML = detalleTokens(DATOS[slug]); panel.hidden = false; b.setAttribute('aria-expanded', 'true');
+      };
+    });
     grid.querySelectorAll('[data-link]').forEach(function (b) {
       b.onclick = async function () {
         var l = await linkPreRegistro(b.dataset.link);
