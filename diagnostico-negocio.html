@@ -444,6 +444,8 @@
       <p>Llena los datos del prospecto para generar su diagnóstico personalizado.</p>
     </div>
 
+    <div class="hint" id="avisoLead" hidden role="status"><i data-lucide="info"></i><span id="avisoLeadTxt"></span></div>
+
     <form class="panel" id="formCliente">
       <div class="form-grid">
         <div class="field">
@@ -647,6 +649,9 @@ if(LOGO_URL){
 let clienteData = null;      // datos capturados en pantalla 1
 let diagnosticoParsed = null; // resultado parseado de la respuesta de Claude
 let leadId = null;            // id del lead ya registrado, para luego agregarle el mini-resumen
+let leadToken = null;         // llave de edición del lead creado desde esta pantalla
+let leadEsAdmin = false;      // true si el lead viene de una cita (se edita con la clave de administrador)
+const ADMIN_TOKEN_KEY = 'diagnostico_leads_token'; // la misma que guarda leads-viewer.html
 const STORAGE_KEY = 'diagnostico_exprés_cliente';
 
 /* ============================================================
@@ -664,6 +669,10 @@ function reiniciarApp(){
   clienteData = null;
   diagnosticoParsed = null;
   leadId = null;
+  leadToken = null;
+  leadEsAdmin = false;
+  $aviso('', false);
+  if(location.search) history.replaceState(null, '', location.pathname);
   document.getElementById('formCliente').reset();
   document.querySelectorAll('#canalesGroup .chip').forEach(c => c.classList.remove('active'));
   actualizarGiroOtro();
@@ -757,28 +766,50 @@ document.getElementById('formCliente').addEventListener('submit', function(e){
 // Registra el lead en la base de datos para seguimiento de ventas. Nunca debe
 // romper el flujo del diagnóstico en vivo si falla (sin internet, API caída, etc.).
 const LEADS_API = 'https://agentes.jefeshub.com/api/storage/leads';
+
+function adminToken(){
+  try{ return localStorage.getItem(ADMIN_TOKEN_KEY) || ''; }catch(e){ return ''; }
+}
+
+// POST al endpoint de leads con la autorización que corresponda: la clave de administrador
+// si el lead viene de una cita, o la llave de edición que devolvió el registro inicial.
+function postLead(body){
+  const headers = { 'Content-Type': 'application/json' };
+  if(body.id !== undefined){
+    if(leadEsAdmin) headers['X-Leads-Token'] = adminToken();
+    else body.token = leadToken;
+  }
+  return fetch(LEADS_API, { method: 'POST', headers, body: JSON.stringify(body) });
+}
+
+function camposLead(d){
+  return {
+    nombreEmpresario: d.nombreEmpresario,
+    whatsappProspecto: d.whatsappProspecto,
+    giro: d.giro,
+    queVende: d.queVende,
+    aQuienVende: d.aQuienVende,
+    canales: d.canales.join(', '),
+    linkCanal1: d.linkCanal1,
+    linkCanal2: d.linkCanal2,
+    ventasMes: d.ventasMes,
+    dolor: d.dolor,
+    tareaTiempo: d.tareaTiempo,
+    competidorUrl: d.competidorUrl,
+  };
+}
+
 function registrarLead(d){
   try{
-    fetch(LEADS_API, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        nombreEmpresario: d.nombreEmpresario,
-        whatsappProspecto: d.whatsappProspecto,
-        giro: d.giro,
-        queVende: d.queVende,
-        aQuienVende: d.aQuienVende,
-        canales: d.canales.join(', '),
-        linkCanal1: d.linkCanal1,
-        linkCanal2: d.linkCanal2,
-        ventasMes: d.ventasMes,
-        dolor: d.dolor,
-        tareaTiempo: d.tareaTiempo,
-        competidorUrl: d.competidorUrl,
-      }),
-    })
+    // Si ya hay un lead (cargado de una cita, o registrado antes en esta misma sesión)
+    // se actualiza con lo que se haya corregido, en vez de crear uno duplicado.
+    if(leadId){
+      postLead({ id: leadId, ...camposLead(d) }).catch(() => { /* el diagnóstico sigue igual */ });
+      return;
+    }
+    postLead(camposLead(d))
       .then(r => r.json())
-      .then(data => { if(data && data.id) leadId = data.id; })
+      .then(data => { if(data && data.id){ leadId = data.id; leadToken = data.token || null; } })
       .catch(() => { /* sin conexión o API caída: el diagnóstico sigue igual */ });
   }catch(e){ /* nunca debe interrumpir el flujo en vivo */ }
 }
@@ -799,18 +830,104 @@ function actualizarLeadConResumen(){
   const topAccion = diagnosticoParsed.acciones[0] ? diagnosticoParsed.acciones[0].nombre : '';
 
   try{
-    fetch(LEADS_API, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: leadId,
-        resumenAreasCriticas: areasCriticas,
-        resumenTopOportunidad: topOportunidad,
-        resumenTopAccion: topAccion,
-      }),
+    postLead({
+      id: leadId,
+      resumenAreasCriticas: areasCriticas,
+      resumenTopOportunidad: topOportunidad,
+      resumenTopAccion: topAccion,
     }).catch(() => { /* sin conexión: el dashboard en pantalla sigue mostrando todo igual */ });
   }catch(e){ /* nunca debe interrumpir el flujo en vivo */ }
 }
+
+/* ============================================================
+   CITAS: abrir la herramienta con los datos de una cita ya cargados
+   Uso: diagnostico-negocio.html?lead=ID  (lo abre el botón "Abrir en diagnóstico"
+   de leads-viewer.html). Los datos los llenó la persona en su pre-diagnóstico.
+   ============================================================ */
+function $aviso(texto, esError){
+  const caja = document.getElementById('avisoLead');
+  if(!caja) return;
+  caja.hidden = !texto;
+  document.getElementById('avisoLeadTxt').textContent = texto || '';
+  caja.style.borderColor = esError ? 'rgba(239,68,68,.5)' : '';
+}
+
+function llenarFormularioDeLead(l){
+  const set = (id, v) => { document.getElementById(id).value = v || ''; };
+  set('nombreEmpresario', l.nombre_empresario);
+  set('whatsappProspecto', l.whatsapp_prospecto);
+  set('queVende', l.que_vende);
+  set('aQuienVende', l.a_quien_vende);
+  set('linkCanal1', l.link_canal1);
+  set('linkCanal2', l.link_canal2);
+  set('dolor', l.dolor);
+  set('tareaTiempo', l.tarea_tiempo);
+  set('competidorUrl', l.competidor_url);
+
+  const opcionExiste = (sel, v) => Array.from(sel.options).some(o => o.value === v);
+  const ventas = document.getElementById('ventasMes');
+  ventas.value = opcionExiste(ventas, l.ventas_mes) ? l.ventas_mes : '';
+
+  if(l.giro && opcionExiste(giroSelect, l.giro)){
+    giroSelect.value = l.giro;
+    giroOtroInput.value = '';
+  }else if(l.giro){
+    giroSelect.value = 'Otro';
+    giroOtroInput.value = l.giro;
+  }else{
+    giroSelect.value = '';
+    giroOtroInput.value = '';
+  }
+  actualizarGiroOtro();
+  if(l.giro && !opcionExiste(giroSelect, l.giro)) giroOtroInput.value = l.giro;
+
+  const canales = (l.canales || '').split(',').map(s => s.trim()).filter(Boolean);
+  document.querySelectorAll('#canalesGroup .chip').forEach(chip => {
+    const input = chip.querySelector('input');
+    input.checked = canales.includes(input.value);
+    chip.classList.toggle('active', input.checked);
+  });
+}
+
+function textoCita(l){
+  if(!l.cita_fecha) return '';
+  const d = new Date(l.cita_fecha + 'T12:00:00Z');
+  const dias = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+  const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const [h, m] = (l.cita_hora || '00:00').split(':').map(Number);
+  const hora = `${((h + 11) % 12) + 1}:${String(m).padStart(2,'0')} ${h >= 12 ? 'pm' : 'am'}`;
+  return ` · cita del ${dias[d.getUTCDay()]} ${d.getUTCDate()} de ${meses[d.getUTCMonth()]}, ${hora}`;
+}
+
+async function cargarLeadDeCita(){
+  const idParam = new URLSearchParams(location.search).get('lead');
+  if(!idParam) return;
+
+  let token = adminToken();
+  if(!token) token = (window.prompt('Clave de administrador para cargar los datos de la cita:') || '').trim();
+  if(!token){ $aviso('No se cargaron los datos de la cita: falta la clave de administrador.', true); return; }
+
+  try{
+    const r = await fetch(`${LEADS_API}?id=${encodeURIComponent(idParam)}`, { headers: { 'X-Leads-Token': token } });
+    if(r.status === 401){
+      try{ localStorage.removeItem(ADMIN_TOKEN_KEY); }catch(e){}
+      $aviso('Clave de administrador incorrecta. Recarga la página para intentar de nuevo.', true);
+      return;
+    }
+    if(r.status === 404){ $aviso('No existe esa cita.', true); return; }
+    if(!r.ok) throw new Error('http ' + r.status);
+    const { lead } = await r.json();
+    try{ localStorage.setItem(ADMIN_TOKEN_KEY, token); }catch(e){}
+
+    leadId = lead.id;
+    leadEsAdmin = true;
+    llenarFormularioDeLead(lead);
+    $aviso(`Datos de ${lead.nombre_empresario || 'la persona'} cargados${textoCita(lead)}. Verifícalos con ella y pulsa "Generar Diagnóstico".`, false);
+  }catch(e){
+    $aviso('No se pudieron cargar los datos de la cita. Revisa tu conexión y recarga la página.', true);
+  }
+}
+cargarLeadDeCita();
 
 /* ============================================================
    CONSTRUCCIÓN DEL PROMPT

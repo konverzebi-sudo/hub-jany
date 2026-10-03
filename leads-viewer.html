@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow" />
 <title>Leads · Diagnóstico Exprés</title>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -11,7 +12,7 @@
     font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;
     padding:28px 20px 60px;
   }
-  .wrap{max-width:1200px;margin:0 auto;}
+  .wrap{max-width:1400px;margin:0 auto;}
   h1{font-size:24px;font-weight:800;margin-bottom:4px;}
   .sub{color:#9a9a9a;font-size:14px;margin-bottom:24px;}
 
@@ -35,9 +36,11 @@
   .toolbar button{width:auto;padding:9px 16px;font-size:13px;}
   .toolbar .salir{background:transparent;border:1px solid #2a2a2a;color:#9a9a9a;}
   .count{font-size:13px;color:#9a9a9a;}
+  .filtro{display:flex;align-items:center;gap:8px;font-size:13px;color:#d4d4d8;cursor:pointer;user-select:none;}
+  .filtro input{accent-color:#7c3aed;width:16px;height:16px;}
 
   .table-wrap{overflow-x:auto;border-radius:16px;border:1px solid #2a2a2a;}
-  table{width:100%;border-collapse:collapse;background:#151515;font-size:13px;min-width:1000px;}
+  table{width:100%;border-collapse:collapse;background:#151515;font-size:13px;min-width:1500px;}
   th{
     background:rgba(124,58,237,.14);color:#7c3aed;text-transform:uppercase;letter-spacing:.04em;
     font-size:10.5px;font-weight:700;padding:12px 14px;text-align:left;white-space:nowrap;position:sticky;top:0;
@@ -46,8 +49,26 @@
   tbody tr:nth-child(even) td{background:rgba(255,255,255,.02);}
   td.nombre{font-weight:700;white-space:nowrap;}
   td.fecha{color:#9a9a9a;white-space:nowrap;font-size:12px;}
+  td.cita{white-space:nowrap;font-weight:600;}
   .vacio{text-align:center;padding:60px 20px;color:#9a9a9a;}
   [hidden]{display:none!important;}
+
+  .badge{display:inline-block;border-radius:999px;padding:3px 10px;font-size:11.5px;font-weight:700;white-space:nowrap;}
+  .badge.pendiente_pago{background:rgba(234,179,8,.15);color:#facc15;}
+  .badge.retorno_de_pago{background:rgba(59,130,246,.18);color:#93c5fd;}
+  .badge.confirmada{background:rgba(34,197,94,.16);color:#4ade80;}
+  .badge.cancelada,.badge.expirada{background:rgba(255,255,255,.07);color:#9a9a9a;}
+
+  .acciones{display:flex;flex-direction:column;gap:6px;min-width:150px;}
+  .acciones a,.acciones button{
+    display:block;text-align:center;text-decoration:none;cursor:pointer;
+    background:#1c1c1c;border:1px solid #2a2a2a;color:#f2f2f2;border-radius:8px;
+    padding:6px 10px;font-size:12px;font-weight:600;font-family:inherit;white-space:nowrap;
+  }
+  .acciones a:hover,.acciones button:hover{border-color:#7c3aed;}
+  .acciones .abrir{background:linear-gradient(135deg,#7c3aed,#06b6d4);border:none;}
+  .acciones .ok{color:#4ade80;}
+  .acciones .no{color:#ff8f8f;}
 </style>
 </head>
 <body>
@@ -62,11 +83,14 @@
   </div>
 
   <div id="contenido" hidden>
-    <h1>Leads · Diagnóstico Exprés</h1>
-    <div class="sub">Cada fila es un negocio que generó un diagnóstico en vivo.</div>
+    <h1>Leads y citas · Diagnóstico Exprés</h1>
+    <div class="sub">Cada fila es una persona que apartó cita o generó un diagnóstico en vivo. Las citas que "volvieron del pago" hay que verificarlas en Transacciones de GoHighLevel antes de confirmarlas.</div>
 
     <div class="toolbar">
-      <div class="count" id="count"></div>
+      <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;">
+        <div class="count" id="count"></div>
+        <label class="filtro"><input type="checkbox" id="soloCitas" onchange="pintar()"> Solo citas</label>
+      </div>
       <div style="display:flex;gap:10px;">
         <button onclick="cargarLeads()" style="background:#151515;border:1px solid #2a2a2a;">Actualizar</button>
         <button class="salir" onclick="cerrarSesion()">Cambiar clave</button>
@@ -77,9 +101,13 @@
       <table>
         <thead>
           <tr>
-            <th>Fecha</th>
+            <th>Acciones</th>
+            <th>Cita</th>
+            <th>Estado</th>
+            <th>Registrado</th>
             <th>Empresario</th>
             <th>WhatsApp</th>
+            <th>Correo</th>
             <th>Giro</th>
             <th>Qué vende</th>
             <th>A quién le vende</th>
@@ -105,6 +133,18 @@
 const LEADS_API = 'https://agentes.jefeshub.com/api/storage/leads';
 const TOKEN_KEY = 'diagnostico_leads_token';
 
+const ESTADOS = {
+  pendiente_pago:  '⏳ Apartada, sin pagar',
+  retorno_de_pago: '💳 Volvió del pago · verificar',
+  confirmada:      '✓ Confirmada',
+  cancelada:       '✕ Cancelada',
+  expirada:        '⌛ Expiró sin pagar',
+};
+const DIAS = ['dom','lun','mar','mié','jue','vie','sáb'];
+const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+
+let todos = [];
+
 function escapeHtml(str){
   return String(str || '')
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -116,6 +156,14 @@ function fechaCorta(iso){
   const d = new Date(iso);
   return d.toLocaleDateString('es-MX', {day:'numeric', month:'short', year:'numeric'}) + ' ' +
          d.toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'});
+}
+
+function citaTexto(l){
+  if(!l.cita_fecha) return '';
+  const d = new Date(l.cita_fecha + 'T12:00:00Z');
+  const [h, m] = (l.cita_hora || '00:00').split(':').map(Number);
+  const hora = `${((h + 11) % 12) + 1}:${String(m).padStart(2,'0')} ${h >= 12 ? 'pm' : 'am'}`;
+  return `${DIAS[d.getUTCDay()]} ${d.getUTCDate()} ${MESES[d.getUTCMonth()]}, ${hora}`;
 }
 
 async function cargarLeads(){
@@ -144,17 +192,34 @@ async function cargarLeads(){
     localStorage.setItem(TOKEN_KEY, token);
     document.getElementById('gate').hidden = true;
     document.getElementById('contenido').hidden = false;
-    renderLeads(data.leads || []);
+    todos = data.leads || [];
+    pintar();
   }catch(e){
     errorEl.textContent = 'No se pudo conectar. Revisa tu internet e intenta de nuevo.';
     errorEl.classList.add('show');
   }
 }
 
-function renderLeads(leads){
-  document.getElementById('count').textContent = `${leads.length} lead${leads.length === 1 ? '' : 's'}`;
+function botonesDe(l){
+  const partes = [`<a class="abrir" href="diagnostico-negocio.html?lead=${l.id}" target="_blank" rel="noopener">Abrir en diagnóstico</a>`];
+  const wa = String(l.whatsapp_prospecto || '').replace(/\D/g, '');
+  if(wa) partes.push(`<a href="https://wa.me/${wa}" target="_blank" rel="noopener">WhatsApp</a>`);
+  const e = l.cita_estado;
+  if(e && e !== 'confirmada' && e !== 'cancelada') partes.push(`<button class="ok" onclick="cambiarEstado(${l.id},'confirmada')">✓ Confirmar pago</button>`);
+  if(e && e !== 'cancelada') partes.push(`<button class="no" onclick="cambiarEstado(${l.id},'cancelada')">✕ Cancelar cita</button>`);
+  return `<div class="acciones">${partes.join('')}</div>`;
+}
+
+function pintar(){
+  const soloCitas = document.getElementById('soloCitas').checked;
+  const leads = soloCitas ? todos.filter(l => l.cita_fecha) : todos;
+  const citas = todos.filter(l => l.cita_fecha).length;
+  document.getElementById('count').textContent =
+    `${leads.length} ${soloCitas ? 'cita' : 'lead'}${leads.length === 1 ? '' : 's'}` + (soloCitas ? '' : ` · ${citas} con cita`);
+
   const filas = document.getElementById('filas');
   const vacio = document.getElementById('vacio');
+  vacio.textContent = soloCitas ? 'Todavía no hay citas apartadas.' : 'Todavía no hay leads registrados.';
 
   if(leads.length === 0){
     filas.innerHTML = '';
@@ -165,9 +230,13 @@ function renderLeads(leads){
 
   filas.innerHTML = leads.map(l => `
     <tr>
+      <td>${botonesDe(l)}</td>
+      <td class="cita">${escapeHtml(citaTexto(l))}</td>
+      <td>${l.cita_estado ? `<span class="badge ${escapeHtml(l.cita_estado)}">${escapeHtml(ESTADOS[l.cita_estado] || l.cita_estado)}</span>` : ''}</td>
       <td class="fecha">${escapeHtml(fechaCorta(l.created_at))}</td>
       <td class="nombre">${escapeHtml(l.nombre_empresario)}</td>
       <td>${escapeHtml(l.whatsapp_prospecto)}</td>
+      <td>${escapeHtml(l.email)}</td>
       <td>${escapeHtml(l.giro)}</td>
       <td>${escapeHtml(l.que_vende)}</td>
       <td>${escapeHtml(l.a_quien_vende)}</td>
@@ -181,6 +250,26 @@ function renderLeads(leads){
       <td>${escapeHtml(l.resumen_top_accion)}</td>
     </tr>
   `).join('');
+}
+
+async function cambiarEstado(id, estado){
+  const token = localStorage.getItem(TOKEN_KEY) || '';
+  const mensaje = estado === 'cancelada'
+    ? '¿Cancelar esta cita? El horario quedará libre para otra persona.'
+    : '¿Ya verificaste este pago en Transacciones de GoHighLevel? La cita quedará confirmada y el horario bloqueado.';
+  if(!confirm(mensaje)) return;
+  try{
+    const r = await fetch(LEADS_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Leads-Token': token },
+      body: JSON.stringify({ id, citaEstado: estado }),
+    });
+    if(r.status === 409){ alert('Ese horario ya lo tiene otra cita. Cancela o reprograma la otra primero.'); return; }
+    if(!r.ok){ alert('No se pudo actualizar la cita. Intenta de nuevo.'); return; }
+    cargarLeads();
+  }catch(e){
+    alert('No se pudo conectar. Revisa tu internet e intenta de nuevo.');
+  }
 }
 
 function cerrarSesion(){
