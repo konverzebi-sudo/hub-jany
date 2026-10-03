@@ -238,6 +238,16 @@
   .log-item button{flex:none;background:transparent;border:1px solid var(--line);color:var(--text-dim);border-radius:7px;padding:5px 9px;font-size:11px;cursor:pointer;}
   .log-item button:hover{border-color:#EF4444;color:#EF4444;}
 
+  /* LINK DE PRE-REGISTRO (para mandarle a la persona que llena su ADN) */
+  .adn-linkprevio{display:grid;gap:8px;}
+  .adn-linkprevio .lp-titulo{font-family:'Sora',sans-serif;font-weight:700;font-size:14.5px;}
+  .adn-linkprevio .lp-sub{font-size:12.5px;color:var(--text-dim);line-height:1.5;}
+  .adn-linkprevio .lp-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  .adn-linkprevio .lp-row input{flex:1 1 260px;min-width:0;background:var(--bg);border:1px solid var(--line);border-radius:9px;color:var(--text);padding:9px 11px;font-size:12.5px;font-family:'JetBrains Mono',monospace;}
+  .adn-linkprevio .lp-msg{font-size:12px;min-height:16px;color:var(--text-dim);}
+  .adn-linkprevio .lp-msg.ok{color:#22C55E;}
+  .adn-linkprevio .lp-msg.err{color:#F87171;}
+
   footer{text-align:center;padding:30px 20px 50px;color:var(--text-dim);font-size:12px;}
 
   /* AI PROMPT TOGGLE */
@@ -283,6 +293,16 @@
 </header>
 
 <main>
+  <section class="card adn-linkprevio" id="adn-linkprevio">
+    <div class="lp-titulo">🔗 Link para que tu cliente llene este ADN</div>
+    <div class="lp-sub">Se lo mandas y solo ve el cuestionario, sin entrar al Hub. Lo que llene se carga directo en este ADN.</div>
+    <div class="lp-row">
+      <input type="text" id="lp-url" readonly placeholder="Toca «Mostrar link» (pide el token de acceso)">
+      <button type="button" class="ask-btn" id="lp-btn">Mostrar link</button>
+      <button type="button" class="ask-btn" id="lp-copy" hidden>Copiar</button>
+    </div>
+    <div class="lp-msg" id="lp-msg"></div>
+  </section>
   <button type="button" class="adn-bienvenida-reabrir" id="adn-bienvenida-reabrir" hidden onclick="mostrarBienvenidaADN()">💡 Ver instrucciones del ADN</button>
   <section class="adn-bienvenida" id="adn-bienvenida">
     <svg class="adn-robot" viewBox="0 0 200 200" role="img" aria-label="Asistente de JefesHub">
@@ -2100,6 +2120,37 @@ loadAudiencias();
 loadMetricasFinancieros();
 loadJourney();
 loadOptimizacion();
+</script>
+<script>
+// Link de pre-registro de ESTE hub: se pide al servidor (con el token de acceso) y se deja a la mano aquí.
+(function () {
+  var url = document.getElementById('lp-url'), btn = document.getElementById('lp-btn'), copy = document.getElementById('lp-copy'), msg = document.getElementById('lp-msg');
+  var KEY = 'jefeshub_storage_token';
+  function leerToken() { try { return (localStorage.getItem(KEY) || '').trim(); } catch (e) { return ''; } }
+  function aviso(t, cls) { msg.textContent = t; msg.className = 'lp-msg' + (cls ? ' ' + cls : ''); }
+  async function cargar(pedir) {
+    var t = leerToken();
+    if (!t) { if (!pedir) return; t = (window.prompt('Token de acceso:') || '').trim(); if (!t) return; }
+    aviso('Generando…');
+    try {
+      var r = await fetch('/api/storage/adn-previo?cliente=' + encodeURIComponent(CLIENTE_ID), { headers: { 'X-Storage-Token': t }, cache: 'no-store' });
+      var d = await r.json().catch(function () { return {}; });
+      if (r.status === 401) { try { localStorage.removeItem(KEY); } catch (e) {} aviso('Token incorrecto. Intenta de nuevo.', 'err'); return; }
+      if (!r.ok || !d.codigo) { aviso(d.error || 'No se pudo generar el link.', 'err'); return; }
+      try { localStorage.setItem(KEY, t); } catch (e) {}
+      url.value = location.origin + '/pre-hub?c=' + encodeURIComponent(CLIENTE_ID) + '&k=' + d.codigo;
+      btn.hidden = true; copy.hidden = false; aviso('');
+    } catch (e) { aviso('Error de conexión.', 'err'); }
+  }
+  btn.onclick = function () { cargar(true); };
+  copy.onclick = async function () {
+    try { await navigator.clipboard.writeText(url.value); }
+    catch (e) { url.select(); document.execCommand('copy'); }
+    aviso('Link copiado ✓', 'ok');
+  };
+  url.addEventListener('focus', function () { url.select(); });
+  cargar(false); // si este dispositivo ya tiene el token guardado, el link aparece solo
+})();
 </script>
 </body>
 </html>
