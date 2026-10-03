@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<script src="/js/hub-tenant.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Jefe de Temporada — JefesHub</title>
@@ -171,12 +172,12 @@
   <button type="button" class="view-toggle-btn" id="viewToggleBtn" onclick="toggleVistaDividida()">🔀 Vista dividida</button>
 </div>
 <div class="wrap">
-  <script>(function(){var p=location.pathname;var b=p.indexOf('/rancho-seco/')!==-1||p.endsWith('/rancho-seco')?'/rancho-seco':p.indexOf('/rim/')!==-1||p.endsWith('/rim')?'/rim':p.indexOf('/optica-one/')!==-1||p.endsWith('/optica-one')?'/optica-one':null;if(b)document.getElementById('back-hub').href=b;})();</script>
+  <script>(function(){var p=location.pathname;var b=window.__hub.slug!=='jefeshub'?'/'+window.__hub.slug:null;if(b)document.getElementById('back-hub').href=b;})();</script>
   <script src="/js/storage-client.js"></script>
   <script>(async function(){
-    var BRANDS={'rancho-seco':{fallback:'Rancho Seco',color:'#F2C230'},'rim':{fallback:'RIM',color:'#F472B6'},'optica-one':{fallback:'Óptica One',color:'#38BDF8'},'jefeshub':{fallback:'JefesHub',color:'#B8F725'}};
+    var BRANDS=window.__hub.marcas({'rancho-seco':{fallback:'Rancho Seco',color:'#F2C230'},'rim':{fallback:'RIM',color:'#F472B6'},'optica-one':{fallback:'Óptica One',color:'#38BDF8'},'jefeshub':{fallback:'JefesHub',color:'#B8F725'}});
     var p=location.pathname;
-    var key=/\/rancho-seco(\/|$)/.test(p)?'rancho-seco':/\/rim(\/|$)/.test(p)?'rim':/\/optica-one(\/|$)/.test(p)?'optica-one':'jefeshub';
+    var key=window.__hub.slug;
     var b=BRANDS[key];var el=document.getElementById('brand-marca-label');
     el.textContent=b.fallback;
     var bar=document.getElementById('back-hub');
@@ -213,21 +214,15 @@
 
 <script>
 // ─── CLIENTE ID (detectado por pathname — Vercel no expone ?cliente= al browser) ───
-function detectClienteId(){
-  var p=location.pathname;
-  if(/\/rancho-seco(\/|$)/.test(p)) return 'rancho-seco';
-  if(/\/rim(\/|$)/.test(p)) return 'rim';
-  if(/\/optica-one(\/|$)/.test(p)) return 'optica-one';
-  return 'jefeshub';
-}
+function detectClienteId(){ return window.__hub.slug; }
 const CLIENTE_ID = detectClienteId();
 const TEMPORADA_KEY = CLIENTE_ID + ':temporada-campanas';
 const AGENDA_KEY = CLIENTE_ID + ':agenda-eventos';
 
 (function(){
-  const RUTA_ADN = { 'rancho-seco': '/rancho-seco/adn', rim: '/rim/adn', 'optica-one': '/optica-one/adn', jefeshub: '/adn' };
-  const RUTA_366 = { 'rancho-seco': '/rancho-seco/jefe-366', rim: '/rim/jefe-366', 'optica-one': '/optica-one/jefe-366', jefeshub: '/jefe-366' };
-  const RUTA_AGENDA = { 'rancho-seco': '/rancho-seco/jefe-agenda', rim: '/rim/jefe-agenda', 'optica-one': '/optica-one/jefe-agenda', jefeshub: '/jefe-agenda' };
+  const RUTA_ADN = window.__hub.rutas('/adn');
+  const RUTA_366 = window.__hub.rutas('/jefe-366');
+  const RUTA_AGENDA = window.__hub.rutas('/jefe-agenda');
   document.getElementById('linkADN').href = RUTA_ADN[CLIENTE_ID] || RUTA_ADN.jefeshub;
   document.getElementById('link366').href = RUTA_366[CLIENTE_ID] || RUTA_366.jefeshub;
   document.getElementById('linkAgenda').href = RUTA_AGENDA[CLIENTE_ID] || RUTA_AGENDA.jefeshub;
@@ -854,9 +849,9 @@ function renderRecaps(){
 // chat "Consulta en vivo", igual patrón de handoff manual que ya usa toda la plataforma.
 function rutaJefe(nombre){
   const MAPA = {
-    contenido: { jefeshub:'/jefe-contenido', 'rancho-seco':'/rancho-seco/jefe-contenido', rim:'/rim/jefe-contenido', 'optica-one':'/optica-one/jefe-contenido' },
-    anuncios: { jefeshub:'/jefe-anuncios', 'rancho-seco':'/rancho-seco/jefe-anuncios', rim:'/rim/jefe-anuncios', 'optica-one':'/optica-one/jefe-anuncios' },
-    whatsapp: { jefeshub:'/jefe-whatsapp', 'rancho-seco':'/rancho-seco/jefe-whatsapp', rim:'/rim/jefe-whatsapp', 'optica-one':'/optica-one/jefe-whatsapp' },
+    contenido: window.__hub.rutas('/jefe-contenido'),
+    anuncios: window.__hub.rutas('/jefe-anuncios'),
+    whatsapp: window.__hub.rutas('/jefe-whatsapp'),
   };
   const m = MAPA[nombre] || {};
   return m[CLIENTE_ID] || m.jefeshub || '#';

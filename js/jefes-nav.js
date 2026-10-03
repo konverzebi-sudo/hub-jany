@@ -7,14 +7,13 @@
   if (window.__jefesNav) return;
   window.__jefesNav = true;
 
-  var TENANTS = ['rancho-seco', 'rim', 'optica-one'];
+  var SLUG = /^[a-z0-9][a-z0-9-]{1,39}$/;
   var seg = location.pathname.split('/').filter(Boolean);
-  var tenant = TENANTS.indexOf(seg[0]) >= 0 ? seg[0] : '';
+  var tenant = seg.length >= 2 && SLUG.test(seg[0]) ? seg[0] : '';
   if (!tenant) {
-    // Vista previa estatica (sin rewrites de Vercel): el archivo ya dice el tenant.
-    for (var i = 0; i < TENANTS.length; i++) {
-      if (location.pathname.indexOf(TENANTS[i]) >= 0) { tenant = TENANTS[i]; break; }
-    }
+    // Vista previa estatica (sin rewrites de Vercel): el nombre del archivo ya dice el hub.
+    var m = location.pathname.match(/-(rancho-seco|rim|optica-one)\.html$/);
+    if (m) tenant = m[1];
   }
   var prefix = tenant ? '/' + tenant : '';
 
@@ -168,6 +167,19 @@
       var a = e.target.closest && e.target.closest('.jn-item');
       if (a) a.style.setProperty('--jn-tip-top', a.getBoundingClientRect().top + 'px');
     });
+
+    // Hubs creados desde /hubs: solo se muestran los Jefes que ese hub tiene activos.
+    if (tenant && ['rancho-seco', 'rim', 'optica-one'].indexOf(tenant) < 0) {
+      fetch('/api/storage/' + encodeURIComponent('hubs:registro'), { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
+        var v = d && d.value; if (typeof v === 'string') v = JSON.parse(v);
+        var h = ((v && v.hubs) || []).filter(function (x) { return x.slug === tenant; })[0];
+        if (!h || !Array.isArray(h.jefes)) return;
+        nav.querySelectorAll('.jn-item').forEach(function (a) {
+          var slug = (a.getAttribute('href') || '').split('/').pop();
+          if (slug.indexOf('jefe-') === 0 && h.jefes.indexOf(slug) < 0) a.style.display = 'none';
+        });
+      }).catch(function () {});
+    }
 
     var activo = nav.querySelector('.is-active');
     if (activo && activo.scrollIntoView) activo.scrollIntoView({ block: 'nearest' });
