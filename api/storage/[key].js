@@ -1,6 +1,7 @@
 // Reemplaza 1:1 el window.storage.get()/set() del entorno de artifacts.
 // GET es público (lectura de datos internos no sensibles); POST exige el token compartido.
 
+const crypto = require('crypto');
 const { sql } = require('@vercel/postgres');
 
 async function ensureTable() {
@@ -131,6 +132,172 @@ async function manejarLeads(req, res) {
   return res.status(405).json({ error: 'Method not allowed' });
 }
 
+// ─── ADN previo (adn-previo.html) ───
+// Formulario que la persona llena ANTES de su primera sesión y que escribe directo en el ADN de su
+// espacio (brand-book.*). Vive aquí, como caso especial de la key "adn-previo", por el mismo límite
+// de funciones serverless del plan Hobby que explica el caso de "leads".
+// Seguridad: nunca se comparte el token maestro. Cada cliente tiene un código derivado (HMAC del
+// slug con el token maestro) que solo se puede generar con el token (GET + X-Storage-Token). Con
+// ese código solo se pueden escribir las secciones de ADN de ESE cliente, con campos permitidos,
+// y solo si la sección está vacía o sigue tal cual la dejó este formulario (firma en
+// "{cliente}:adn-previo-firmas") -- nunca pisa lo que ya se editó en el ADN.
+function codigoAdnPrevio(cliente) {
+  const secreto = (process.env.STORAGE_WRITE_TOKEN || '').trim();
+  if (!secreto) return '';
+  return crypto.createHmac('sha256', secreto).update('adn-previo:' + cliente).digest('hex').slice(0, 12);
+}
+
+function canonico(v) {
+  if (Array.isArray(v)) return '[' + v.map(canonico).join(',') + ']';
+  if (v && typeof v === 'object') return '{' + Object.keys(v).sort().map((k) => JSON.stringify(k) + ':' + canonico(v[k])).join(',') + '}';
+  return JSON.stringify(v === undefined ? null : v);
+}
+function firmaDe(v) { return crypto.createHash('sha1').update(canonico(v)).digest('hex'); }
+
+function estaVacio(v) {
+  if (v == null) return true;
+  if (typeof v === 'string') return !v.trim();
+  if (Array.isArray(v)) return v.every(estaVacio);
+  if (typeof v === 'object') return Object.values(v).every(estaVacio);
+  return false;
+}
+
+async function kvLeer(key) {
+  const { rows } = await sql`SELECT value FROM kv_store WHERE key = ${key}`;
+  if (!rows[0]) return null;
+  let v = rows[0].value;
+  if (typeof v === 'string') { try { v = JSON.parse(v); } catch (e) { /* queda como texto */ } }
+  return v;
+}
+// Mismo formato que escribe el cliente (storage-client.js): el value es un STRING con el JSON.
+async function kvEscribir(key, data) {
+  const json = JSON.stringify(JSON.stringify(data));
+  await sql`
+    INSERT INTO kv_store (key, value, updated_at) VALUES (${key}, ${json}::jsonb, now())
+    ON CONFLICT (key) DO UPDATE SET value = ${json}::jsonb, updated_at = now()
+  `;
+}
+
+const txt = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max || 1000) : '');
+const lista = (v, maxItems, maxLen) => (Array.isArray(v) ? v.map((x) => txt(x, maxLen || 80)).filter(Boolean).slice(0, maxItems || 20) : []);
+
+function handleLimpio(h) { return txt(h, 120).replace(/^@/, '').replace(/\s+/g, ''); }
+const CANALES_PREVIO = {
+  facebook: (h) => `https://facebook.com/${h}`,
+  instagram: (h) => `https://instagram.com/${h}`,
+  tiktok: (h) => `https://tiktok.com/@${h}`,
+  youtube: (h) => `https://youtube.com/@${h}`,
+  linkedin: (h) => `https://linkedin.com/in/${h}`,
+};
+
+// Cada limpiador devuelve el valor ya en el formato exacto que lee/escribe ADN.html.
+const LIMPIADORES_PREVIO = {
+  identidad: (d) => ({
+    nombre: txt(d.nombre, 200), giro_categoria: txt(d.giro_categoria, 100), giro_texto: txt(d.giro_texto, 200),
+    telefono: txt(d.telefono, 40), producto_estrella: txt(d.producto_estrella, 300),
+    objetivos: lista(d.objetivos, 8, 60), obj_otro_texto: txt(d.obj_otro_texto, 300),
+    anio_inicio: txt(d.anio_inicio, 10), meta_ventas_mensual: txt(d.meta_ventas_mensual, 40),
+    historia: txt(d.historia, 2000), objetivo_principal: txt(d.objetivo_principal, 1000), mejora_deseada: txt(d.mejora_deseada, 1000),
+  }),
+  tono: (d) => ({
+    tonos: lista(d.tonos, 8, 40), palabras_si: lista(d.palabras_si, 40, 60), palabras_no: lista(d.palabras_no, 40, 60),
+    persona: txt(d.persona, 1500), ejemplo_si: txt(d.ejemplo_si, 1500), ejemplo_no: txt(d.ejemplo_no, 1500),
+  }),
+  redes: (d) => {
+    const out = {};
+    const web = txt(d.website, 200).replace(/\s+/g, '');
+    if (web && !/^(javascript|data):/i.test(web)) out.website = { handle: web, link: /^https?:\/\//i.test(web) ? web : 'https://' + web };
+    Object.keys(CANALES_PREVIO).forEach((k) => {
+      const h = handleLimpio(d[k]);
+      if (h) out[k] = { handle: h, link: CANALES_PREVIO[k](h) };
+    });
+    const numero = txt(d.whatsapp_numero, 40).replace(/[^\d+]/g, '');
+    if (numero) {
+      const mensaje = txt(d.whatsapp_mensaje, 500);
+      out.whatsapp = { numero, ctas: [{ id: 'cta-previo', label: 'General', mensaje, link: 'https://wa.me/' + numero + (mensaje ? '?text=' + encodeURIComponent(mensaje) : '') }] };
+    }
+    const dir = txt(d.direccion, 300);
+    if (dir) out.ubicacion = { direccion: dir };
+    out._frecuencia = txt(d.frecuencia, 60);
+    out._temas = txt(d.temas, 1000);
+    out._tipos_contenido = lista(d.tipos_contenido, 12, 40);
+    return out;
+  },
+  catalogo: (d) => (Array.isArray(d) ? d : []).slice(0, 30).map((r, i) => {
+    r = r || {};
+    const tipo = ['Producto', 'Servicio', 'Paquete'].includes(r.tipo) ? r.tipo : 'Producto';
+    const vende = ['Mucho', 'Regular', 'Poco', 'No sé aún'].includes(r.que_tanto_se_vende) ? r.que_tanto_se_vende : '';
+    return {
+      id: 'previo' + (i + 1) + Date.now().toString(36), nombre: txt(r.nombre, 200), tipo, grupo_id: '',
+      precio: txt(String(r.precio == null ? '' : r.precio), 20), costo: '', margen_pct: '', que_tanto_se_vende: vende, inventario: '', notas: txt(r.notas, 400),
+    };
+  }).filter((r) => r.nombre),
+  audiencias: (d) => {
+    d = d || {};
+    return { lista: [{
+      nombre: txt(d.nombre, 120) || 'Cliente ideal', grupo_id: '',
+      descripcion_breve: txt(d.descripcion_breve, 1500), edad: txt(d.edad, 80), ubicacion: txt(d.ubicacion, 200), ocupacion: txt(d.ocupacion, 200),
+      problema_resuelve: txt(d.problema_resuelve, 1500), que_convenceria: txt(d.que_convenceria, 1500),
+      objecion_comun: txt(d.objecion_comun, 1000), frases: txt(d.frases, 1500),
+    }] };
+  },
+};
+// Llave real en kv_store de cada sección (sin el prefijo "{cliente}:").
+const LLAVES_PREVIO = {
+  identidad: 'brand-book.identidad', tono: 'brand-book.tono', redes: 'brand-book.redes',
+  catalogo: 'catalogo-productos', audiencias: 'brand-book.audiencias',
+};
+
+async function manejarAdnPrevio(req, res) {
+  const SLUG = /^[a-z0-9-]{2,40}$/;
+  try { await ensureTable(); }
+  catch (err) { return res.status(500).json({ error: 'No se pudo conectar a la base de datos.' }); }
+
+  if (req.method === 'GET') {
+    const token = (req.headers['x-storage-token'] || '').toString().trim();
+    const expected = (process.env.STORAGE_WRITE_TOKEN || '').trim();
+    if (!token || !expected || token !== expected) return res.status(401).json({ error: 'No autorizado.' });
+    const cliente = (req.query.cliente || '').toString().trim().toLowerCase();
+    if (!SLUG.test(cliente)) return res.status(400).json({ error: 'Cliente inválido (solo letras minúsculas, números y guiones).' });
+    const codigo = codigoAdnPrevio(cliente);
+    return res.status(200).json({ cliente, codigo, ruta: `/adn-previo?c=${cliente}&k=${codigo}` });
+  }
+
+  if (req.method !== 'POST') { res.setHeader('Allow', 'GET, POST'); return res.status(405).json({ error: 'Method not allowed' }); }
+
+  const b = req.body || {};
+  const cliente = (typeof b.cliente === 'string' ? b.cliente : '').trim().toLowerCase();
+  const codigo = (typeof b.codigo === 'string' ? b.codigo : '').trim();
+  const esperado = SLUG.test(cliente) ? codigoAdnPrevio(cliente) : '';
+  const okCodigo = esperado && codigo.length === esperado.length && crypto.timingSafeEqual(Buffer.from(codigo), Buffer.from(esperado));
+  if (!okCodigo) return res.status(401).json({ error: 'Enlace no válido. Pide uno nuevo.' });
+  if (JSON.stringify(b).length > 120000) return res.status(413).json({ error: 'Demasiado texto.' });
+  const secciones = b.secciones && typeof b.secciones === 'object' ? b.secciones : {};
+
+  try {
+    const firmasKey = `${cliente}:adn-previo-firmas`;
+    const firmas = (await kvLeer(firmasKey)) || {};
+    const guardadas = [];
+    const omitidas = [];
+    for (const nombre of Object.keys(LIMPIADORES_PREVIO)) {
+      if (secciones[nombre] === undefined) continue;
+      const limpio = LIMPIADORES_PREVIO[nombre](secciones[nombre]);
+      if (estaVacio(limpio)) continue;
+      const key = `${cliente}:${LLAVES_PREVIO[nombre]}`;
+      const actual = await kvLeer(key);
+      const intacta = estaVacio(actual) || (firmas[nombre] && firmaDe(actual) === firmas[nombre]);
+      if (!intacta) { omitidas.push(nombre); continue; }
+      await kvEscribir(key, limpio);
+      firmas[nombre] = firmaDe(await kvLeer(key));
+      guardadas.push(nombre);
+    }
+    await kvEscribir(firmasKey, firmas);
+    return res.status(200).json({ ok: true, guardadas, omitidas });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error guardando tu ADN.' });
+  }
+}
+
 module.exports = async function handler(req, res) {
   // Los datos cambian por dispositivo en cualquier momento: nunca cachear
   // esta respuesta (ni en el browser ni en el edge de Vercel), o un refresh
@@ -155,6 +322,10 @@ module.exports = async function handler(req, res) {
 
   if (key === 'leads') {
     return manejarLeads(req, res);
+  }
+
+  if (key === 'adn-previo') {
+    return manejarAdnPrevio(req, res);
   }
 
   try {
