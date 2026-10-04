@@ -174,6 +174,15 @@
     #jefe366ChatBox .confirmo-banner span { color: #166534; }
     #jefe366ChatBox .confirmo-banner .ask-btn { background: #FFFFFF; color: #166534; border: 1.5px solid #22C55E; }
     #jefe366ChatBox { scroll-margin-top: 92px; }
+    #jefe366ChatBox { position: relative; }
+    .chat-min-btn { position: absolute; top: 14px; right: 16px; background: #FFFFFF; border: 1px solid #D1D5DB; color: #374151; font-size: 12px; padding: 6px 12px; border-radius: 8px; cursor: pointer; }
+    .chat-min-btn:hover { border-color: #9CA3AF; color: #111827; }
+    .chat-compacto { max-width: 760px; margin: 0 auto 26px; }
+    .chat-compacto[hidden] { display: none !important; }
+    .chat-compacto button { width: 100%; display: flex; align-items: center; gap: 10px; background: #FFFFFF; border: 1px solid #E5E7EB; border-radius: 12px; padding: 12px 18px; color: #111827; font-family: Inter, sans-serif; font-size: 14px; cursor: pointer; text-align: left; box-shadow: 0 6px 20px rgba(0,0,0,.2); }
+    .chat-compacto button:hover { border-color: var(--accent); }
+    .chat-compacto-abrir { margin-left: auto; color: #4B5563; font-size: 12.5px; white-space: nowrap; }
+
     .builder-chat { display: flex; flex-direction: column; gap: 12px; max-height: 480px; overflow-y: auto; overflow-x: hidden; padding-right: 4px; margin-bottom: 12px; }
     .builder-chat:empty { display: none; }
     .bubble { max-width: 88%; padding: 12px 14px; border-radius: 12px; font-size: 14px; line-height: 1.55; white-space: pre-line; }
@@ -456,8 +465,13 @@
 <main id="publicidad-content">
 
   <!-- ─── JEFE 366 (chat guiado) ─── -->
+  <div class="chat-compacto" id="chatCompacto366" hidden>
+    <button type="button" onclick="activarChat366(true)">💬 <span id="chatCompactoTxt">Conversación con el Jefe 366</span><span class="chat-compacto-abrir">Abrir ▾</span></button>
+  </div>
+
   <div class="builder-box" id="jefe366ChatBox">
     <p class="builder-title">🧬 Chat con el Jefe 366</p>
+    <button type="button" class="chat-min-btn" onclick="ocultarChat366()">Ocultar ▴</button>
     <p class="builder-sub">Échame todas tus dudas... si no tienes por dónde empezar, ya conozco tu ADN y te voy guiando paso a paso: para diseñar tu Oferta Irresistible para vender los 366 días del año.</p>
     <div class="builder-chat" id="builderChat"></div>
     <div class="builder-start-wrap" id="builderStartWrap">
@@ -760,7 +774,7 @@ function inicializarAutoguardado366() {
 
 /* El chat del Jefe 366 vive arriba, debajo de la barra, y está oculto hasta que alguien escribe
    (o hasta que hay una conversación guardada, que se muestra con todo su historial). */
-function activarChat366() {
+function activarChat366(hacerScroll) {
   const box = document.getElementById('jefe366ChatBox');
   if (!box) return;
   box.classList.add('activo');
@@ -768,6 +782,31 @@ function activarChat366() {
   if (main) main.classList.add('chat-activo');
   document.getElementById('builderStartWrap').style.display = 'none';
   document.getElementById('builderControls').style.display = 'flex';
+  actualizarChatCompacto366();
+  if (hacerScroll === true) {
+    box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const chat = document.getElementById('builderChat');
+    if (chat) chat.scrollTop = chat.scrollHeight;
+  }
+}
+
+/* Con una conversación guardada, el chat NO sale abierto: queda una tira compacta que lo despliega. */
+function ocultarChat366() {
+  const box = document.getElementById('jefe366ChatBox');
+  if (box) box.classList.remove('activo');
+  const main = document.getElementById('publicidad-content');
+  if (main) main.classList.remove('chat-activo');
+  actualizarChatCompacto366();
+}
+
+function actualizarChatCompacto366() {
+  const tira = document.getElementById('chatCompacto366');
+  const box = document.getElementById('jefe366ChatBox');
+  if (!tira || !box) return;
+  const n = (typeof builderMessages !== 'undefined' && builderMessages.length) || 0;
+  tira.hidden = !(n > 0) || box.classList.contains('activo');
+  const txt = document.getElementById('chatCompactoTxt');
+  if (txt) txt.textContent = 'Conversación con el Jefe 366 (' + n + (n === 1 ? ' mensaje' : ' mensajes') + ')';
 }
 
 /* Barra del encabezado: es la entrada al chat. Lo que escribes se manda como tu mensaje. */
@@ -1245,8 +1284,10 @@ function enviarMensajeConstructor() {
 function continuarConstructor() {
   getConMigracion(CONVERSACION_KEY, CONVERSACION_KEY_VIEJA).then((r) => {
     builderMessages = r && r.value ? JSON.parse(r.value) : [];
-    activarChat366();
+    document.getElementById('builderStartWrap').style.display = 'none';
+    document.getElementById('builderControls').style.display = 'flex';
     renderBuilderChat();
+    actualizarChatCompacto366();
   });
 }
 
