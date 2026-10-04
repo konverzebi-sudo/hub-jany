@@ -409,9 +409,21 @@
   /* CTA fija en mobile */
   .sticky-cta { display: none; }
 
+  /* ---------- MODO LIGERO EN CELULAR (sin efectos que traban) ---------- */
+  @media (max-width: 900px), (hover: none) {
+    .orb, .hero-bg .grid, .hero-bg .neural { display: none !important; }
+    .floaty { display: none !important; }
+    .nav.scrolled { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgba(15,11,22,.96); }
+    .sticky-cta { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; background: rgba(15,11,22,.97) !important; }
+    .photo::before { animation: none; filter: blur(24px); }
+    .card:hover, .g-item:hover img { transform: none; }
+    .ticker-track { animation-duration: 45s; }
+  }
+
   /* ---------- REVEAL ---------- */
   .js .reveal { opacity: 0; transform: translateY(28px); transition: opacity .8s ease, transform .8s ease; }
   .js .reveal.in { opacity: 1; transform: none; }
+  @media (max-width: 900px), (hover: none) { .js .reveal { transform: none; transition: opacity .5s ease; } }
   .reveal.d1 { transition-delay: .08s; } .reveal.d2 { transition-delay: .16s; } .reveal.d3 { transition-delay: .24s; }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -890,6 +902,7 @@
       : { monto: CONFIG.precioNormal, link: ses.linkNormal, dia: false };
   }
 
+  const setText = (el, t) => { if (el && el.textContent !== t) el.textContent = t; };
   function actualizarSesiones(now) {
     const abiertas = [];
     document.querySelectorAll('[data-session]').forEach(card => {
@@ -903,16 +916,17 @@
       }
       const pr = precioSesion(k, now);
       abiertas.push({ k, monto: pr.monto });
-      card.querySelector('[data-amount]').innerHTML = '$' + pr.monto + '<sub>MXN</sub>';
-      card.querySelector('[data-price-note]').textContent = pr.dia
+      const amt = card.querySelector('[data-amount]');
+      if (amt.dataset.v !== String(pr.monto)) { amt.dataset.v = pr.monto; amt.innerHTML = '$' + pr.monto + '<sub>MXN</sub>'; }
+      setText(card.querySelector('[data-price-note]'), pr.dia
         ? 'Hoy es día de taller: precio de $' + CONFIG.precioDiaTaller
-        : 'El día del taller el precio sube a $' + CONFIG.precioDiaTaller;
-      if (btn && esLink(pr.link)) { btn.href = pr.link; btn.target = '_blank'; btn.rel = 'noopener'; }
+        : 'El día del taller el precio sube a $' + CONFIG.precioDiaTaller);
+      if (btn && esLink(pr.link) && btn.getAttribute('href') !== pr.link) { btn.href = pr.link; btn.target = '_blank'; btn.rel = 'noopener'; }
       else if (btn) { btn.href = '#precio'; btn.removeAttribute('target'); }
     });
     // Botones generales: el precio más bajo disponible
     const minimo = abiertas.length ? Math.min(...abiertas.map(a => a.monto)) : CONFIG.precioNormal;
-    document.querySelectorAll('[data-price-label]').forEach(el => el.textContent = 'Quiero mi lugar a $' + minimo);
+    document.querySelectorAll('[data-price-label]').forEach(el => setText(el, 'Quiero mi lugar a $' + minimo));
     return abiertas.map(a => a.k);
   }
 
