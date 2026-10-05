@@ -116,7 +116,12 @@
     .t3-q .q-skip { background: transparent; border: 0; color: var(--text-dim); font-weight: 600; text-decoration: underline; padding: 10px; cursor: pointer; font-family: Inter, sans-serif; font-size: 13.5px; }
     .t3-q .q-back { background: transparent; border: 1px solid var(--line); color: var(--text-dim); font-weight: 600; border-radius: 9px; padding: 10px 16px; cursor: pointer; font-family: Inter, sans-serif; font-size: 13.5px; }
     .t3-q .q-back:disabled { opacity: .35; cursor: default; }
-    .t3-q.simple .q-progress, .t3-q.simple .q-eyebrow, .t3-q.simple .q-title, .t3-q.simple .q-back, .t3-q.simple .q-skip { display: none; }
+    .t3-q.simple .q-progress, .t3-q.simple .q-top, .t3-q.simple .q-title, .t3-q.simple .q-back, .t3-q.simple .q-skip { display: none; }
+    .t3-q .q-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+    .t3-q .q-ver-todo { background: transparent; border: 1px solid var(--line); color: var(--text-dim); font-family: Inter, sans-serif; font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 99px; cursor: pointer; white-space: nowrap; }
+    .t3-q .q-ver-todo:hover { border-color: var(--accent-text); color: var(--text); }
+    .t3-q.completa .q-progress, .t3-q.completa .q-title, .t3-q.completa .q-help, .t3-q.completa .q-back, .t3-q.completa .q-skip { display: none; }
+    .t3-q.completa .q-body .field { margin-bottom: 18px; }
     .t3-q .q-save { font-size: 12px; color: var(--text-dim); margin-top: 12px; min-height: 16px; }
     .t3-q .q-save.ok { color: #1F9D55; }
     .t3-q .ideas-cta, .t3-q .card { margin: 0; }
@@ -796,7 +801,7 @@ function inicializarMapa366() {
     const slot = document.getElementById('t3-slot-' + p.id);
     const q = document.createElement('div');
     q.className = 't3-q' + (p.tipo === 'notas' ? '' : ' simple');
-    q.innerHTML = '<div class="q-progress"><i></i></div><div class="q-eyebrow"></div><h3 class="q-title"></h3><p class="q-help" hidden></p><div class="q-body"></div>' +
+    q.innerHTML = '<div class="q-progress"><i></i></div><div class="q-top"><div class="q-eyebrow"></div><button type="button" class="q-ver-todo">Ver sección completa</button></div><h3 class="q-title"></h3><p class="q-help" hidden></p><div class="q-body"></div>' +
       '<div class="q-actions"><button type="button" class="q-back">← Atrás</button><span class="q-sp"></span><button type="button" class="q-skip">Saltar</button><button type="button" class="ask-btn q-next">Siguiente →</button></div><div class="q-save"></div>';
     const body = q.querySelector('.q-body');
     if (p.tipo === 'texto') {
@@ -838,6 +843,12 @@ function inicializarMapa366() {
     const det = s0.det;
     if (!det) return;
     det.querySelectorAll('.q-keep, .q-scope, .q-unit').forEach((n) => n.classList.remove('q-keep', 'q-scope', 'q-unit'));
+    det.classList.remove('q-keep', 'q-scope', 'q-unit');
+    if (s0.completa) {
+      s0.q.querySelector('.q-eyebrow').textContent = p.nombre + ' · sección completa';
+      s0.q.querySelector('.q-next').textContent = 'Terminar ✓';
+      return;
+    }
     const panel = panelActivo(p);
     const us = panel ? unidades(panel) : [];
     const q = s0.q;
@@ -896,6 +907,9 @@ function inicializarMapa366() {
     if (abierto) st[abierto].slot.hidden = true;
     if (abierto === id) { abierto = null; pintarMapa(); return; }
     abierto = id; idx = 0;
+    st[id].completa = false;
+    st[id].q.classList.remove('completa');
+    st[id].q.querySelector('.q-ver-todo').textContent = 'Ver sección completa';
     st[id].slot.hidden = false;
     mostrar(id);
     pintarMapa();
@@ -915,7 +929,7 @@ function inicializarMapa366() {
       const sv = st[id].q.querySelector('.q-save');
       setTimeout(() => { sv.textContent = '✓ Guardado'; sv.className = 'q-save ok'; }, 700);
     }
-    if (p.tipo === 'notas') {
+    if (p.tipo === 'notas' && !st[id].completa) {
       const panel = panelActivo(p), us = panel ? unidades(panel) : [];
       if (idx < us.length - 1) { idx++; mostrar(id); return; }
     }
@@ -930,6 +944,12 @@ function inicializarMapa366() {
     q.querySelector('.q-next').onclick = () => avanzar(false);
     q.querySelector('.q-skip').onclick = () => avanzar(true);
     q.querySelector('.q-back').onclick = () => { if (idx > 0) { idx--; mostrar(id); } };
+    q.querySelector('.q-ver-todo').onclick = () => {
+      st[id].completa = !st[id].completa;
+      q.classList.toggle('completa', st[id].completa);
+      q.querySelector('.q-ver-todo').textContent = st[id].completa ? 'Ver pregunta por pregunta' : 'Ver sección completa';
+      mostrar(id);
+    };
     const p = st[id].cfg;
     if (p.tipo === 'notas') {
       const cont = document.getElementById(p.cont);
