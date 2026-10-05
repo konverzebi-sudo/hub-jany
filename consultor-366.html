@@ -217,6 +217,21 @@
     #jefe366ChatBox { position: relative; text-align: left; max-width: 760px; margin: -6px auto 22px; }
     #jefe366ChatBox #builderControls .builder-controls { display: none; }
     #jefe366ChatBox #builderChat { max-height: 52vh; }
+    main#publicidad-content.split-view #jefe366ChatBox { max-width: none; margin: 0 0 22px; }
+    main#publicidad-content.split-view #jefe366ChatBox #builderChat { max-height: calc(100vh - 360px); min-height: 160px; }
+    main#publicidad-content.split-view #jefe366ChatBox #builderControls .builder-controls { display: flex; }
+    main#publicidad-content.split-view #jefe366ChatBox .chat-min-btn { display: none; }
+    /* modo trabajo: la sección elegida sube hasta arriba y el resto del mapa se esconde */
+    body.t3-trabajo .hero-robot, body.t3-trabajo .hero-search, body.t3-trabajo .mostrar-todas-btn { display: none; }
+    body.t3-trabajo header { padding-top: 84px; padding-bottom: 4px; }
+    body.t3-trabajo .group-tabs { margin-bottom: 10px; }
+    body.t3-trabajo .t3-tl { --split: 34px; max-width: none; margin-top: 4px; }
+    body.t3-trabajo .t3-tl::before { display: none; }
+    body.t3-trabajo .t3-row:not(.open) > div { display: none; }
+    body.t3-trabajo .t3-row.open .t3-btn { font-size: 20px; }
+    .t3-volver { display: none; margin-left: 14px; background: transparent; border: 1px solid var(--line); border-radius: 9px; padding: 8px 14px; font-size: 13px; color: var(--text-dim); cursor: pointer; font-family: Inter, sans-serif; }
+    .t3-volver:hover { border-color: var(--accent-text); color: var(--text); }
+    body.t3-trabajo .t3-row.open .t3-volver { display: inline-block; }
     .hero-search-send { flex: 0 0 auto; background: transparent; border: none; padding: 0; cursor: pointer; display: flex; align-items: center; }
     .hero-search-send:hover .hero-search-bot { filter: brightness(.92); transform: scale(1.06); }
     .hero-search-bot { transition: transform .12s; }
@@ -714,6 +729,32 @@ async function cargarGruposNegocio() {
   renderGroupTabs(gruposNegocioState);
 }
 
+/* Al abrir un paso en pantalla ancha: la sección sube hasta arriba y la pantalla se parte en dos --
+   el chat de un lado (siempre a la vista) y la sección donde se trabaja del otro. Al cerrar el paso
+   (o si se eligió Vista dividida a mano) todo vuelve a como estaba. */
+function modoTrabajo366(on) {
+  const main = document.getElementById('publicidad-content');
+  if (!main) return;
+  const ancho = window.matchMedia('(min-width: 1000px)').matches;
+  const btn = document.getElementById('viewToggleBtn');
+  document.body.classList.toggle('t3-trabajo', !!(on && ancho));
+  if (on && ancho) {
+    if (!main.classList.contains('split-view')) {
+      main.classList.add('split-view');
+      main.dataset.autoSplit = '1';
+      if (btn) btn.textContent = '☰ Vista normal';
+      ubicarChat366();
+    }
+    activarChat366();
+  } else if (main.dataset.autoSplit === '1') {
+    main.classList.remove('split-view');
+    delete main.dataset.autoSplit;
+    if (btn) btn.textContent = '🔀 Vista dividida';
+    ubicarChat366();
+    if (typeof builderMessages !== 'undefined' && !builderMessages.length) ocultarChat366();
+  }
+}
+
 /* ═══ MAPA 366 (mismo modo que el ADN) ═══
    Los círculos numerados son el mapa. Cada paso abre su sección ahí mismo, en tarjeta blanca y
    una pregunta a la vez; lo que se escribe se guarda solo y al terminar el paso se marca. */
@@ -745,7 +786,7 @@ function inicializarMapa366() {
   let html = '';
   PASOS.forEach((p, i) => {
     html += '<div class="t3-row" data-paso="' + p.id + '" style="--i:' + (i + 1) + '"><div></div><div class="t3-c"><button type="button" class="t3-n" aria-label="' + escaparAttrBuilder(p.nombre) + '">' + (i + 1) + '</button></div>' +
-      '<div class="t3-r"><button type="button" class="t3-btn" aria-expanded="false">' + escaparHtmlBuilder(p.nombre) + '</button></div></div>' +
+      '<div class="t3-r"><button type="button" class="t3-btn" aria-expanded="false">' + escaparHtmlBuilder(p.nombre) + '</button><button type="button" class="t3-volver">← Volver al mapa</button></div></div>' +
       '<div class="t3-slot" id="t3-slot-' + p.id + '" hidden></div>';
   });
   tl.innerHTML = html;
@@ -849,6 +890,7 @@ function inicializarMapa366() {
       num.textContent = hechos[id] ? '✓' : String(orden.indexOf(id) + 1);
       r.querySelector('.t3-btn').setAttribute('aria-expanded', id === abierto ? 'true' : 'false');
     });
+    modoTrabajo366(!!abierto);
   }
   function abrir(id) {
     if (abierto) st[abierto].slot.hidden = true;
@@ -858,7 +900,7 @@ function inicializarMapa366() {
     mostrar(id);
     pintarMapa();
     const r = tl.querySelector('.t3-row[data-paso="' + id + '"]');
-    if (r && r.scrollIntoView) r.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (r && r.scrollIntoView) requestAnimationFrame(() => r.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   }
   function mostrarFin() {
     let fin = document.getElementById('t3-fin');
@@ -3181,6 +3223,7 @@ function toggleVistaDividida() {
   const main = document.getElementById('publicidad-content');
   const activo = main.classList.toggle('split-view');
   localStorage.setItem('366-vista-dividida', activo ? '1' : '0');
+  delete main.dataset.autoSplit;
   document.getElementById('viewToggleBtn').textContent = activo ? '☰ Vista normal' : '🔀 Vista dividida';
   ubicarChat366();
 }
