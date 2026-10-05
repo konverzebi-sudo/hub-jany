@@ -61,6 +61,7 @@
     '.jn-item.is-active{background:rgba(184,247,37,.1);border-color:rgba(184,247,37,.35);color:var(--text,#F3EEF9)}',
     '.jn-ico{flex:none;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:20px;line-height:1}',
     '.jn-ico img{width:28px;height:28px;border-radius:8px;object-fit:contain;display:block}',
+    '.jn-ico img[src*="jefe-366-gris"]{width:38px;height:auto;max-height:22px;border-radius:0;margin:0 -5px}',
     '.jn-txt{overflow:hidden;text-overflow:ellipsis}',
     '.jn-foot{border-top:1px solid var(--line,#332A3D);padding:8px}',
     '.jn-toggle{display:flex;align-items:center;gap:12px;width:100%;height:40px;padding:0 8px;border:0;border-radius:10px;cursor:pointer;',
