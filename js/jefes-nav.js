@@ -19,7 +19,7 @@
 
   // slug = ultimo tramo de la URL; files = archivo real por si se abre sin rewrites.
   var JEFES = [
-    { slug: 'jefe-366',              files: ['consultor-366.html'],            icono: 'jefe-366',              nombre: 'Jefe 366' },
+    { slug: 'jefe-366',              files: ['consultor-366.html'],            icono: 'jefe-366-gris',          nombre: 'Jefe 366' },
     { slug: 'jefe-contenido',        files: ['jefe-contenido-v2.html'],        icono: 'jefe-contenido',        nombre: 'Jefe de Contenido' },
     { slug: 'jefe-whatsapp',         files: ['jefe-conversion-ventas.html', 'jefe-conversion-ventas-rancho-seco.html'], icono: 'jefe-whatsapp', nombre: 'WhatsApp y Ventas' },
     { slug: 'jefe-financiero',       files: ['consultor-financiero.html'],     icono: 'jefe-finanzas',         nombre: 'Jefe de Finanzas' },
@@ -60,7 +60,7 @@
     '.jn-item:hover{background:rgba(255,255,255,.05);color:var(--text,#F3EEF9)}',
     '.jn-item.is-active{background:rgba(184,247,37,.1);border-color:rgba(184,247,37,.35);color:var(--text,#F3EEF9)}',
     '.jn-ico{flex:none;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:20px;line-height:1}',
-    '.jn-ico img{width:28px;height:28px;border-radius:8px;object-fit:cover;display:block}',
+    '.jn-ico img{width:28px;height:28px;border-radius:8px;object-fit:contain;display:block}',
     '.jn-txt{overflow:hidden;text-overflow:ellipsis}',
     '.jn-foot{border-top:1px solid var(--line,#332A3D);padding:8px}',
     '.jn-toggle{display:flex;align-items:center;gap:12px;width:100%;height:40px;padding:0 8px;border:0;border-radius:10px;cursor:pointer;',
