@@ -206,7 +206,65 @@ function preguntas(p) {
   if (p.tipo === 'catalogo') return [{ cat: true, label: '¿Qué productos o servicios vendes?', hint: p.desc }];
   return p.campos.filter(c => !c.soloSi || val(p.sec, c.soloSi.id) === c.soloSi.valor);
 }
-function hechoPaso(i) { return !!(datos._hechos && datos._hechos[i]); }
+
+// ── Lo ya guardado en el ADN es la fuente de verdad: así el formulario se ve igual en cualquier
+// navegador o celular (el de Ivan, su compu, el tuyo) y un dispositivo nuevo nunca parte de cero. ──
+const LLAVES_ADN = { identidad: 'brand-book.identidad', tono: 'brand-book.tono', redes: 'brand-book.redes', catalogo: 'catalogo-productos', audiencias: 'brand-book.audiencias' };
+function noVacio(v) {
+  if (v == null) return false;
+  if (typeof v === 'string') return v.trim() !== '';
+  if (Array.isArray(v)) return v.some(noVacio);
+  if (typeof v === 'object') return Object.values(v).some(noVacio);
+  return true;
+}
+function desdeAdn(sec, v) {
+  if (!v || typeof v !== 'object') return null;
+  const pick = (o, keys) => { const r = {}; keys.forEach(k => { if (o[k] !== undefined) r[k] = o[k]; }); return r; };
+  if (sec === 'identidad') return pick(v, ['nombre', 'giro_categoria', 'giro_texto', 'telefono', 'producto_estrella', 'objetivos', 'obj_otro_texto', 'anio_inicio', 'meta_ventas_mensual', 'historia', 'objetivo_principal', 'mejora_deseada']);
+  if (sec === 'tono') return pick(v, ['tonos', 'palabras_si', 'palabras_no', 'persona', 'ejemplo_si', 'ejemplo_no']);
+  if (sec === 'audiencias') return Array.isArray(v.lista) && v.lista[0] ? pick(v.lista[0], ['nombre', 'descripcion_breve', 'edad', 'ubicacion', 'ocupacion', 'problema_resuelve', 'que_convenceria', 'objecion_comun', 'frases']) : null;
+  if (sec === 'redes') {
+    const h = k => (v[k] && v[k].handle) || '';
+    const wa = v.whatsapp || {};
+    return { website: h('website'), instagram: h('instagram'), facebook: h('facebook'), tiktok: h('tiktok'), youtube: h('youtube'), linkedin: h('linkedin'),
+      whatsapp_numero: wa.numero || '', whatsapp_mensaje: (wa.ctas && wa.ctas[0] && wa.ctas[0].mensaje) || '',
+      direccion: (v.ubicacion && v.ubicacion.direccion) || '', frecuencia: v._frecuencia || '', temas: v._temas || '', tipos_contenido: v._tipos_contenido || [] };
+  }
+  return null;
+}
+async function leerAdn(sec) {
+  try {
+    const r = await fetch('/api/storage/' + encodeURIComponent(CLIENTE + ':' + LLAVES_ADN[sec]), { cache: 'no-store' });
+    if (!r.ok) return null;
+    const j = await r.json();
+    let v = j && j.value; if (typeof v === 'string') { try { v = JSON.parse(v); } catch (e) { return null; } }
+    return v;
+  } catch (e) { return null; }
+}
+async function cargarGuardado() {
+  if (!CLIENTE) return;
+  await Promise.all(Object.keys(LLAVES_ADN).map(async sec => {
+    const v = await leerAdn(sec); if (!v) return;
+    if (sec === 'catalogo') {
+      if (Array.isArray(v) && v.length) datos.catalogo = v.map(r => ({ nombre: r.nombre || '', tipo: r.tipo || 'Producto', precio: r.precio || '', que_tanto_se_vende: r.que_tanto_se_vende || '', notas: r.notas || '' }));
+      return;
+    }
+    const c = desdeAdn(sec, v); if (!c) return;
+    const base = (datos[sec] && typeof datos[sec] === 'object') ? Object.assign({}, datos[sec]) : {};
+    Object.keys(c).forEach(k => { if (noVacio(c[k])) base[k] = c[k]; }); // lo guardado manda; el borrador solo completa lo que falte
+    datos[sec] = base;
+  }));
+  guardarBorrador();
+}
+
+// Un paso se marca ✓ si ya lo terminaron en este navegador o si lo guardado cubre casi todas sus preguntas.
+function pasoCompleto(i) {
+  const p = PASOS[i], qs = preguntas(p);
+  if (!qs.length) return false;
+  const resp = qs.filter(q => q.cat ? (Array.isArray(datos.catalogo) && datos.catalogo.some(r => r && String(r.nombre || '').trim())) : noVacio(val(p.sec, q.id))).length;
+  return resp / qs.length >= 0.7;
+}
+function hechoPaso(i) { return !!(datos._hechos && datos._hechos[i]) || pasoCompleto(i); }
 
 function panelHtml(i) {
   const p = PASOS[i], qs = preguntas(p);
@@ -362,7 +420,7 @@ function renderListo(app) {
     <p class="desc">Guardamos esto en el ADN de tu negocio:</p><ul class="lista-ok">${g || '<li>Tu información</li>'}</ul>${o}
     <p class="desc">Nos vemos en la primera sesión. Ahí lo revisamos juntos y lo afinamos. Si recuerdas algo más, puedes volver a abrir este enlace y enviarlo otra vez.</p></div>`;
 }
-render();
+Promise.race([cargarGuardado(), new Promise(r => setTimeout(r, 3000))]).catch(() => {}).then(() => render());
 </script>
 </body>
 </html>
