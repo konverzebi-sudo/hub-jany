@@ -468,7 +468,7 @@
     <div class="estrategia-head">
       <h3>🧠 Generar Estrategia de WhatsApp</h3>
     </div>
-    <p class="estrategia-sub">La IA llena las 5 tarjetas de abajo con tu ADN de marca (identidad, tono, catálogo, audiencia) y tu Jefe 366 (comunicación, ángulos, frases) — no hace falta repetir nada. Si le falta algo clave, te hace hasta 3 preguntas antes de generar.</p>
+    <p class="estrategia-sub" id="estSubTexto">La IA llena las 5 tarjetas de abajo con tu ADN de marca (identidad, tono, catálogo, audiencia) y tu Jefe 366 (comunicación, ángulos, frases) — no hace falta repetir nada. Si le falta algo clave, te hace hasta 3 preguntas antes de generar.</p>
     <div class="estrategia-uploads">
       <label class="file-btn">📎 Subir capturas
         <input type="file" id="estCapturas" accept="image/*" multiple hidden>
@@ -948,6 +948,33 @@ async function cargarGruposNegocio(){
   renderGroupTabs();
 }
 
+// Los textos del panel de IA dicen de dónde sale la información según la pestaña elegida.
+const TEXTO_FUENTE_ORIGINAL = 'La IA llena las 5 tarjetas de abajo con tu ADN de marca (identidad, tono, catálogo, audiencia) y tu Jefe 366 (comunicación, ángulos, frases) — no hace falta repetir nada. Si le falta algo clave, te hace hasta 3 preguntas antes de generar.';
+const TEXTO_FUENTE_COLA = ' — no hace falta repetir nada. Si le falta algo clave, te hace hasta 3 preguntas antes de generar.';
+
+function fuenteContexto(){
+  if(campanaActiva){
+    const n = etiquetaCampana(campanaActiva);
+    return {
+      sub: 'La IA llena las 5 tarjetas de abajo con tu ADN de marca (identidad, tono) y la campaña «' + n + '» de tu Jefe de Temporada (su cliente, deseos, miedos, objeciones, oferta, urgencia y frases)' + TEXTO_FUENTE_COLA,
+      status: 'Leyendo tu ADN y la campaña «' + n + '» de tu Jefe de Temporada...'
+    };
+  }
+  if(!mostrarTodasLasPestanas && productoActivo){
+    const n = productoActivo.nombre;
+    return {
+      sub: 'La IA llena las 5 tarjetas de abajo con tu ADN de marca (identidad, tono, catálogo) y el producto «' + n + '» de tu Jefe 366 (su cliente, comunicación, ángulos, frases)' + TEXTO_FUENTE_COLA,
+      status: 'Leyendo tu ADN y el producto «' + n + '» de tu Jefe 366...'
+    };
+  }
+  return { sub: TEXTO_FUENTE_ORIGINAL, status: 'Leyendo tu ADN y tu Jefe 366...' };
+}
+
+function actualizarTextosFuente(){
+  const el = document.getElementById('estSubTexto');
+  if(el) el.textContent = fuenteContexto().sub;
+}
+
 function renderGroupTabs(){
   const wrap = document.getElementById('groupTabs');
   const btnTodas = document.getElementById('mostrarTodasBtn');
@@ -986,6 +1013,7 @@ function renderGroupTabs(){
   });
   btnTodas.hidden = !gruposNegocioState.length;
   hint.hidden = !campanaActiva;
+  actualizarTextosFuente();
 }
 
 function toggleMostrarTodas(){
@@ -1308,7 +1336,7 @@ async function generarEstrategia(){
   btn.disabled = true;
   btn.innerText = 'Generando...';
   status.className = 'log-status';
-  status.innerText = 'Leyendo tu ADN y tu Jefe 366...';
+  status.innerText = fuenteContexto().status;
 
   try{
     const response = await fetch('/api/jefe-estrategia-whatsapp', {
