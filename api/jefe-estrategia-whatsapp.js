@@ -626,6 +626,7 @@ module.exports = async function handler(req, res) {
             ? 'La respuesta quedó incompleta (muy larga). Intenta de nuevo.'
             : 'No se pudo interpretar la respuesta del modelo.',
           status: 502,
+          detalle: { parte: parte.campos[0], stop: data.stop_reason, inicio: text.slice(0, 160), fin: text.slice(-160) },
         };
       }
       if (Array.isArray(parsed.preguntas) && parsed.preguntas.length > 0 && !parsed.tarjetas) {
@@ -663,7 +664,7 @@ module.exports = async function handler(req, res) {
     }
     const fallo = resultados.find((r) => r.error);
     if (fallo) {
-      return res.status(fallo.status || 502).json({ error: fallo.error });
+      return res.status(fallo.status || 502).json({ error: fallo.error, detalle: fallo.detalle });
     }
     if (resultados.some((r) => !r.tarjetas)) {
       return res.status(502).json({ error: 'Respuesta del modelo en un formato inesperado.' });
