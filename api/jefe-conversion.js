@@ -458,7 +458,7 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ error: 'Falta configurar ANTHROPIC_API_KEY en el servidor.' });
   }
 
-  const { mensaje, imagen, cliente, grupo, campanaId } = req.body || {};
+  const { mensaje, imagen, cliente, grupo, campanaId, producto366 } = req.body || {};
   if (!mensaje && !imagen) {
     return res.status(400).json({ error: 'Falta mensaje o imagen.' });
   }
@@ -466,6 +466,7 @@ module.exports = async function handler(req, res) {
   const clienteId = (cliente || DEFAULT_CLIENTE).toString();
   const grupoSeleccionado = grupo && typeof grupo === 'object' && grupo.nombre ? grupo : null;
   const campanaIdSel = typeof campanaId === 'string' ? campanaId.trim() : '';
+  const productoSel = producto366 && typeof producto366 === 'object' && producto366.nombre ? producto366 : null;
 
   try {
     const promptFijo = cargarPromptFijo();
@@ -485,6 +486,9 @@ module.exports = async function handler(req, res) {
     const partesTexto = [];
     if (grupoSeleccionado) {
       partesTexto.push(`GRUPO DE NEGOCIO SELECCIONADO POR EL USUARIO (desde las pestañas de arriba): "${grupoSeleccionado.nombre}". Responde usando ÚNICAMENTE la información etiquetada [Grupo: ${grupoSeleccionado.nombre}] (o sin etiqueta de grupo, si aplica al negocio en general) -- no uses precios ni datos de otros grupos.`);
+    }
+    if (productoSel && !campanaBloque) {
+      partesTexto.push(`PRODUCTO 366 SELECCIONADO POR EL USUARIO (pestaña de arriba): "${productoSel.nombre}". Este cliente pregunta por ESE producto/servicio: responde y asesora usando únicamente su oferta, su precio y los perfiles de cliente (deseos, dolores, miedos, motivaciones) de ese producto; no mezcles datos de otros productos.`);
     }
     if (campanaBloque) {
       partesTexto.push('CAMPAÑA SELECCIONADA POR EL USUARIO (desde el selector de campaña de arriba, viene de Jefe de Temporada). Este cliente está preguntando por ESTA campaña, no por la venta de todo el año: asesora y redacta la respuesta basándote en su oferta, incentivo, fechas, urgencia real, mensaje elegido, frases, objeciones y CTAs de abajo, que mandan sobre cualquier oferta genérica del 366 o del catálogo. Si la campaña no trae un dato (por ejemplo el precio), usa el del catálogo/Producto 366 del producto de la campaña; nunca inventes descuentos, cupos ni urgencia que no estén aquí. Apóyate sobre todo en el PERFIL DE CLIENTE DE CAMPAÑA (deseos, dolores, miedos, motivaciones y objeciones de esta temporada) para entender qué siente este cliente y cómo vencer su duda.\n\n' + campanaBloque);
