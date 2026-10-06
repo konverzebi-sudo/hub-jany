@@ -1,0 +1,1 @@
+import{qt as e}from"./index-WA7KDp-u.js";function t(t,n,r){return e(t,-n,r)}export{t};
