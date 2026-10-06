@@ -1,0 +1,1 @@
+import{Jt as e}from"./index-PQoU--zo.js";function t(t,n,r){return e(t,-n,r)}export{t};
