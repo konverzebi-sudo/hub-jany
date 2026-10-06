@@ -1,0 +1,1 @@
+import{_n as e}from"./index-D3GFXQ4n.js";function t(t,n,r){return e(t,-n,r)}export{t};
