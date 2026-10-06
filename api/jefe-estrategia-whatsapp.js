@@ -211,7 +211,7 @@ function formatearGrupos(grupos) {
     grupos.map((g) => `- ${g.nombre}`).join('\n');
 }
 
-async function construirContextoNegocio(clienteId) {
+async function construirContextoNegocio(clienteId, { soloAdnBasico = false } = {}) {
   const [identidad, tono, audiencia, catalogo, grupos] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
@@ -223,8 +223,8 @@ async function construirContextoNegocio(clienteId) {
   const bloques = [
     formatearIdentidad(identidad),
     formatearTono(tono),
-    formatearGrupos(grupos),
-    formatearAudiencias(audiencia, grupos),
+    soloAdnBasico ? null : formatearGrupos(grupos),
+    soloAdnBasico ? null : formatearAudiencias(audiencia, grupos),
     formatearCatalogo(catalogo, grupos),
   ].filter(Boolean);
 
@@ -509,10 +509,12 @@ module.exports = async function handler(req, res) {
     const campanaSel = Array.isArray(campanasTemporada) ? campanasTemporada.find((c) => c && c.id === campanaId) : null;
     const campanaBloque = formatearCampanaSeleccionada(campanaSel);
     const [contextoNegocio, contexto366] = await Promise.all([
-      construirContextoNegocio(clienteId),
-      construirContexto366(clienteId),
+      construirContextoNegocio(clienteId, { soloAdnBasico: !!campanaBloque }),
+      // Con campaña seleccionada, el contexto es ADN básico + Jefe de Temporada: no se carga Jefe 366
+      // (menos tokens, más rápido y sin mezclar la venta de todo el año con la campaña).
+      campanaBloque ? Promise.resolve('') : construirContexto366(clienteId),
     ]);
-    const system = [promptFijo, contextoNegocio, contexto366].join('\n\n');
+    const system = [promptFijo, contextoNegocio, contexto366].filter(Boolean).join('\n\n');
 
     const content = [];
     imagenes.forEach((img) => {

@@ -195,7 +195,7 @@ function formatearGuionesGuardados(d) {
   return 'GUIONES DE WHATSAPP YA GUARDADOS POR EL USUARIO (úsalos como base, no los repitas tal cual si no aplican al mensaje):\n\n' + lineas.join('\n\n');
 }
 
-async function construirContextoNegocio(clienteId) {
+async function construirContextoNegocio(clienteId, { soloAdnBasico = false } = {}) {
   const [identidad, tono, audiencia, catalogo, guiones, grupos] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
@@ -208,10 +208,10 @@ async function construirContextoNegocio(clienteId) {
   const bloques = [
     formatearIdentidad(identidad),
     formatearTono(tono),
-    formatearGrupos(grupos),
-    formatearAudiencias(audiencia, grupos),
+    soloAdnBasico ? null : formatearGrupos(grupos),
+    soloAdnBasico ? null : formatearAudiencias(audiencia, grupos),
     formatearCatalogo(catalogo, grupos),
-    formatearGuionesGuardados(guiones),
+    soloAdnBasico ? null : formatearGuionesGuardados(guiones),
   ].filter(Boolean);
 
   if (bloques.length === 0) {
@@ -474,10 +474,10 @@ module.exports = async function handler(req, res) {
     const campanaSel = Array.isArray(campanasTemporada) ? campanasTemporada.find((c) => c && c.id === campanaIdSel) : null;
     const campanaBloque = formatearCampanaSeleccionada(campanaSel);
     const [contexto, contexto366] = await Promise.all([
-      construirContextoNegocio(clienteId),
-      construirContexto366(clienteId),
+      construirContextoNegocio(clienteId, { soloAdnBasico: !!campanaBloque }),
+      campanaBloque ? Promise.resolve('') : construirContexto366(clienteId),
     ]);
-    const system = [promptFijo, contexto, contexto366].join('\n\n');
+    const system = [promptFijo, contexto, contexto366].filter(Boolean).join('\n\n');
 
     const content = [];
     if (imagen && imagen.mediaType && imagen.data) {
