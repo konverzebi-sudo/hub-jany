@@ -1,0 +1,1 @@
+import{Gt as e}from"./index-BtOw3nVq.js";function t(t,n,r){return e(t,-n,r)}export{t};
