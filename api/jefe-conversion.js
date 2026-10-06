@@ -195,7 +195,21 @@ function formatearGuionesGuardados(d) {
   return 'GUIONES DE WHATSAPP YA GUARDADOS POR EL USUARIO (úsalos como base, no los repitas tal cual si no aplican al mensaje):\n\n' + lineas.join('\n\n');
 }
 
-async function construirContextoNegocio(clienteId, { soloAdnBasico = false } = {}) {
+// Con una pestaña elegida (grupo / producto 366) solo se manda el contexto de ESE producto:
+// menos tokens de entrada y sin riesgo de mezclar con otros productos.
+function filtrarPorGrupo(items, grupoId) {
+  if (!grupoId || !Array.isArray(items)) return items;
+  return items.filter((i) => i && (!i.grupo_id || i.grupo_id === grupoId));
+}
+
+function filtrarProducto(items, nombre) {
+  if (!nombre || !Array.isArray(items)) return items;
+  const n = nombre.trim().toLowerCase();
+  const sel = items.filter((i) => i && (i.nombre || '').trim().toLowerCase() === n);
+  return sel.length ? sel : items;
+}
+
+async function construirContextoNegocio(clienteId, { soloAdnBasico = false, grupoId = '' } = {}) {
   const [identidad, tono, audiencia, catalogo, guiones, grupos] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
@@ -209,8 +223,8 @@ async function construirContextoNegocio(clienteId, { soloAdnBasico = false } = {
     formatearIdentidad(identidad),
     formatearTono(tono),
     soloAdnBasico ? null : formatearGrupos(grupos),
-    soloAdnBasico ? null : formatearAudiencias(audiencia, grupos),
-    formatearCatalogo(catalogo, grupos),
+    soloAdnBasico ? null : formatearAudiencias(filtrarPorGrupo(audiencia, grupoId), grupos),
+    formatearCatalogo(filtrarPorGrupo(catalogo, grupoId), grupos),
     soloAdnBasico ? null : formatearGuionesGuardados(guiones),
   ].filter(Boolean);
 
@@ -409,7 +423,7 @@ async function formatearBancoConversacionesWhatsApp(clienteId) {
   return 'BANCO DE CONVERSACIONES REALES DE WHATSAPP (guardadas por el usuario en Jefe WhatsApp y Ventas -- son transcripciones reales de clientes, úsalas para frases reales, objeciones y tono; no las inventes ni las repitas tal cual):\n\n' + recortado;
 }
 
-async function construirContexto366(clienteId) {
+async function construirContexto366(clienteId, { grupoId = '', productoNombre = '' } = {}) {
   const [productos, sistemas, comunicaciones, grupos] = await Promise.all([
     leerProductos366(clienteId).catch(() => []),
     leerSistemas366(clienteId).catch(() => []),
@@ -417,11 +431,11 @@ async function construirContexto366(clienteId) {
     leerJSON(`${clienteId}:grupos-negocio`).catch(() => null),
   ]);
   const bloques = [];
-  const productosBloque = formatearProductos366(productos, grupos);
+  const productosBloque = formatearProductos366(filtrarProducto(filtrarPorGrupo(productos, grupoId), productoNombre), grupos);
   if (productosBloque) bloques.push(productosBloque);
-  const sistemasBloque = formatearSistemas366(sistemas, grupos);
+  const sistemasBloque = formatearSistemas366(filtrarPorGrupo(sistemas, grupoId), grupos);
   if (sistemasBloque) bloques.push(sistemasBloque);
-  const comunicacionesBloque = formatearComunicaciones366(comunicaciones, grupos);
+  const comunicacionesBloque = formatearComunicaciones366(filtrarPorGrupo(comunicaciones, grupoId), grupos);
   if (comunicacionesBloque) bloques.push(comunicacionesBloque);
 
   const conversacionReciente = await formatearConversacion366NoGuardada(clienteId).catch(() => null);
@@ -474,8 +488,8 @@ module.exports = async function handler(req, res) {
     const campanaSel = Array.isArray(campanasTemporada) ? campanasTemporada.find((c) => c && c.id === campanaIdSel) : null;
     const campanaBloque = formatearCampanaSeleccionada(campanaSel);
     const [contexto, contexto366] = await Promise.all([
-      construirContextoNegocio(clienteId, { soloAdnBasico: !!campanaBloque }),
-      campanaBloque ? Promise.resolve('') : construirContexto366(clienteId),
+      construirContextoNegocio(clienteId, { soloAdnBasico: !!campanaBloque, grupoId: !campanaBloque && grupoSeleccionado ? grupoSeleccionado.id : '' }),
+      campanaBloque ? Promise.resolve('') : construirContexto366(clienteId, { grupoId: grupoSeleccionado ? grupoSeleccionado.id : '', productoNombre: productoSel ? productoSel.nombre : '' }),
     ]);
     const system = [promptFijo, contexto, contexto366].filter(Boolean).join('\n\n');
 

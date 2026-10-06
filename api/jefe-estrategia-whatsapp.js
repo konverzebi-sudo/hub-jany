@@ -211,7 +211,21 @@ function formatearGrupos(grupos) {
     grupos.map((g) => `- ${g.nombre}`).join('\n');
 }
 
-async function construirContextoNegocio(clienteId, { soloAdnBasico = false } = {}) {
+// Con una pestaña elegida (grupo / producto 366) solo se manda el contexto de ESE producto:
+// menos tokens de entrada y sin riesgo de mezclar con otros productos.
+function filtrarPorGrupo(items, grupoId) {
+  if (!grupoId || !Array.isArray(items)) return items;
+  return items.filter((i) => i && (!i.grupo_id || i.grupo_id === grupoId));
+}
+
+function filtrarProducto(items, nombre) {
+  if (!nombre || !Array.isArray(items)) return items;
+  const n = nombre.trim().toLowerCase();
+  const sel = items.filter((i) => i && (i.nombre || '').trim().toLowerCase() === n);
+  return sel.length ? sel : items;
+}
+
+async function construirContextoNegocio(clienteId, { soloAdnBasico = false, grupoId = '' } = {}) {
   const [identidad, tono, audiencia, catalogo, grupos] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
@@ -224,8 +238,8 @@ async function construirContextoNegocio(clienteId, { soloAdnBasico = false } = {
     formatearIdentidad(identidad),
     formatearTono(tono),
     soloAdnBasico ? null : formatearGrupos(grupos),
-    soloAdnBasico ? null : formatearAudiencias(audiencia, grupos),
-    formatearCatalogo(catalogo, grupos),
+    soloAdnBasico ? null : formatearAudiencias(filtrarPorGrupo(audiencia, grupoId), grupos),
+    formatearCatalogo(filtrarPorGrupo(catalogo, grupoId), grupos),
   ].filter(Boolean);
 
   if (bloques.length === 0) {
@@ -425,7 +439,7 @@ async function formatearBancoConversacionesWhatsApp(clienteId) {
   return 'BANCO DE CONVERSACIONES REALES DE WHATSAPP (guardadas por el usuario aquí mismo -- son transcripciones reales de clientes, úsalas para frases reales, objeciones y tono; no las inventes ni las repitas tal cual):\n\n' + recortado;
 }
 
-async function construirContexto366(clienteId) {
+async function construirContexto366(clienteId, { grupoId = '', productoNombre = '' } = {}) {
   const [productos, sistemas, comunicaciones, grupos] = await Promise.all([
     leerProductos366(clienteId).catch(() => []),
     leerSistemas366(clienteId).catch(() => []),
@@ -433,11 +447,11 @@ async function construirContexto366(clienteId) {
     leerJSON(`${clienteId}:grupos-negocio`).catch(() => null),
   ]);
   const bloques = [];
-  const productosBloque = formatearProductos366(productos, grupos);
+  const productosBloque = formatearProductos366(filtrarProducto(filtrarPorGrupo(productos, grupoId), productoNombre), grupos);
   if (productosBloque) bloques.push(productosBloque);
-  const sistemasBloque = formatearSistemas366(sistemas, grupos);
+  const sistemasBloque = formatearSistemas366(filtrarPorGrupo(sistemas, grupoId), grupos);
   if (sistemasBloque) bloques.push(sistemasBloque);
-  const comunicacionesBloque = formatearComunicaciones366(comunicaciones, grupos);
+  const comunicacionesBloque = formatearComunicaciones366(filtrarPorGrupo(comunicaciones, grupoId), grupos);
   if (comunicacionesBloque) bloques.push(comunicacionesBloque);
 
   const conversacionReciente = await formatearConversacion366NoGuardada(clienteId).catch(() => null);
@@ -470,6 +484,8 @@ function extractJson(text) {
     return null;
   }
 }
+
+const TEXTO_CONTENIDO_ACTUAL = 'CONTENIDO ACTUAL DE LAS TARJETAS (ya editado o generado antes por el usuario) -- úsalo como base: conserva lo que sigue siendo bueno, complétalo o mejóralo con la información nueva que tengas, no lo descartes ni lo reescribas sin razón. Los campos que no aparezcan aquí están vacíos, genéralos desde cero:\n';
 
 // ---------- handler ----------
 
@@ -509,19 +525,12 @@ module.exports = async function handler(req, res) {
     const campanaSel = Array.isArray(campanasTemporada) ? campanasTemporada.find((c) => c && c.id === campanaId) : null;
     const campanaBloque = formatearCampanaSeleccionada(campanaSel);
     const [contextoNegocio, contexto366] = await Promise.all([
-      construirContextoNegocio(clienteId, { soloAdnBasico: !!campanaBloque }),
+      construirContextoNegocio(clienteId, { soloAdnBasico: !!campanaBloque, grupoId: !campanaBloque && grupo ? grupo.id : '' }),
       // Con campaña seleccionada, el contexto es ADN básico + Jefe de Temporada: no se carga Jefe 366
       // (menos tokens, más rápido y sin mezclar la venta de todo el año con la campaña).
-      campanaBloque ? Promise.resolve('') : construirContexto366(clienteId),
+      campanaBloque ? Promise.resolve('') : construirContexto366(clienteId, { grupoId: grupo ? grupo.id : '', productoNombre: producto366 ? producto366.nombre : '' }),
     ]);
     const system = [promptFijo, contextoNegocio, contexto366].filter(Boolean).join('\n\n');
-
-    const content = [];
-    imagenes.forEach((img) => {
-      if (img && img.mediaType && img.data) {
-        content.push({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.data } });
-      }
-    });
 
     const partesUsuario = [];
     if (grupo) {
@@ -542,17 +551,7 @@ module.exports = async function handler(req, res) {
     } else {
       partesUsuario.push('NO hay campaña de temporada seleccionada: es la venta de todo el año (Jefe 366). No menciones promociones, descuentos ni fechas límite temporales que no vengan en el contexto del negocio.');
     }
-    if (tarjetasActuales) {
-      const llenas = TARJETAS_CAMPOS
-        .filter((campo) => tarjetasActuales[campo] && tarjetasActuales[campo].toString().trim())
-        .map((campo) => `- ${campo}: ${tarjetasActuales[campo].toString().trim()}`);
-      if (llenas.length) {
-        partesUsuario.push(
-          'CONTENIDO ACTUAL DE LAS TARJETAS (ya editado o generado antes por el usuario) -- úsalo como base: conserva lo que sigue siendo bueno, complétalo o mejóralo con la información nueva que tengas, no lo descartes ni lo reescribas sin razón. Los campos que no aparezcan aquí están vacíos, genéralos desde cero:\n' +
-          llenas.join('\n')
-        );
-      }
-    }
+    // El CONTENIDO ACTUAL de las tarjetas se agrega por parte, más abajo.
     if (qa && qa.length) {
       partesUsuario.push(
         'El usuario ya contestó tus preguntas de una ronda anterior. NO vuelvas a preguntar bajo ninguna circunstancia -- genera las tarjetas ahora con lo mejor disponible:\n' +
@@ -568,58 +567,118 @@ module.exports = async function handler(req, res) {
     if (partesUsuario.length === 0) {
       partesUsuario.push('Genera la estrategia de WhatsApp por temperatura para este negocio.');
     }
-    content.push({ type: 'text', text: partesUsuario.join('\n\n') });
+    // Generación en 3 partes EN PARALELO (base / seguimiento / reactivación): cada llamada escribe
+    // menos campos, así que ya no se corta por longitud y el tiempo total baja a lo que tarda la
+    // parte más larga. Solo las capturas viajan en la parte base (las imágenes pesan mucho en tokens).
+    const PARTES = [
+      { campos: TARJETAS_CAMPOS.filter((c) => !/^(sg|rx)_/.test(c)), maxTokens: 6000 },
+      { campos: TARJETAS_CAMPOS.filter((c) => /^sg_/.test(c)), maxTokens: 5000 },
+      { campos: TARJETAS_CAMPOS.filter((c) => /^rx_/.test(c)), maxTokens: 4000 },
+    ];
+    const controller = new AbortController();
 
-    const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 7000,
-        system,
-        messages: [{ role: 'user', content }],
+    const llamarParte = async (parte, esBase) => {
+      const textos = partesUsuario.filter((t) => esBase || !t.startsWith('Se adjuntan capturas'));
+      const llenas = tarjetasActuales
+        ? parte.campos
+            .filter((campo) => tarjetasActuales[campo] && tarjetasActuales[campo].toString().trim())
+            .map((campo) => `- ${campo}: ${tarjetasActuales[campo].toString().trim()}`)
+        : [];
+      if (llenas.length) textos.push(TEXTO_CONTENIDO_ACTUAL + '\n' + llenas.join('\n'));
+      textos.push(
+        `PARTE DE ESTA LLAMADA: otra llamada genera EN PARALELO los demás campos con este mismo contexto, así que genera ÚNICAMENTE estos campos dentro de "tarjetas" y omite todos los demás: ${parte.campos.join(', ')}. Mantén exactamente la misma oferta, precios, datos y tono que usarías en el guión completo.` +
+        (esBase ? '' : ' No hagas preguntas: responde directamente con {"tarjetas":{...}}.')
+      );
+      const contenido = [];
+      if (esBase) {
+        imagenes.forEach((img) => {
+          if (img && img.mediaType && img.data) {
+            contenido.push({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.data } });
+          }
+        });
+      }
+      contenido.push({ type: 'text', text: textos.join('\n\n') });
+
+      const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': process.env.ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: parte.maxTokens,
+          system,
+          messages: [{ role: 'user', content: contenido }],
+        }),
+      });
+      const data = await anthropicRes.json();
+      if (!anthropicRes.ok) {
+        return { error: data?.error?.message || 'Error al llamar a la API.', status: anthropicRes.status };
+      }
+      const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
+      const parsed = extractJson(text);
+      if (!parsed) {
+        return {
+          error: data.stop_reason === 'max_tokens'
+            ? 'La respuesta quedó incompleta (muy larga). Intenta de nuevo.'
+            : 'No se pudo interpretar la respuesta del modelo.',
+          status: 502,
+        };
+      }
+      if (Array.isArray(parsed.preguntas) && parsed.preguntas.length > 0 && !parsed.tarjetas) {
+        return { preguntas: parsed.preguntas.slice(0, 3), usage: data.usage };
+      }
+      if (parsed.tarjetas && typeof parsed.tarjetas === 'object') {
+        return { tarjetas: parsed.tarjetas, usage: data.usage };
+      }
+      return { error: 'Respuesta del modelo en un formato inesperado.', status: 502 };
+    };
+
+    const resultados = await Promise.all(
+      PARTES.map((parte, i) =>
+        llamarParte(parte, i === 0)
+          .then((r) => {
+            // Si la parte base necesita preguntas, las otras llamadas ya no sirven: se cancelan para no gastar tokens.
+            if (i === 0 && r.preguntas) controller.abort();
+            return r;
+          })
+          .catch((err) => (err && err.name === 'AbortError' ? { abortado: true } : { error: 'Error de conexión con el Agente.', status: 500 }))
+      )
+    );
+
+    const sumaUsage = resultados.reduce(
+      (acc, r) => ({
+        input_tokens: acc.input_tokens + (r.usage?.input_tokens || 0),
+        output_tokens: acc.output_tokens + (r.usage?.output_tokens || 0),
       }),
+      { input_tokens: 0, output_tokens: 0 }
+    );
+    await registrarUsoTokens(clienteId, 'jefe-estrategia-whatsapp', sumaUsage);
+
+    if (resultados[0].preguntas) {
+      return res.status(200).json({ preguntas: resultados[0].preguntas });
+    }
+    const fallo = resultados.find((r) => r.error);
+    if (fallo) {
+      return res.status(fallo.status || 502).json({ error: fallo.error });
+    }
+    if (resultados.some((r) => !r.tarjetas)) {
+      return res.status(502).json({ error: 'Respuesta del modelo en un formato inesperado.' });
+    }
+
+    const tarjetas = {};
+    TARJETAS_CAMPOS.forEach((campo) => {
+      const origen = resultados.find((r) => typeof r.tarjetas[campo] === 'string');
+      tarjetas[campo] = origen ? origen.tarjetas[campo] : '';
     });
-
-    const data = await anthropicRes.json();
-    if (!anthropicRes.ok) {
-      return res.status(anthropicRes.status).json({ error: data?.error?.message || 'Error al llamar a la API.' });
-    }
-
-    const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
-    const parsed = extractJson(text);
-    if (!parsed) {
-      return res.status(502).json({
-        error: data.stop_reason === 'max_tokens'
-          ? 'La respuesta quedó incompleta (muy larga). Intenta de nuevo.'
-          : 'No se pudo interpretar la respuesta del modelo.',
-      });
-    }
-
-    await registrarUsoTokens(clienteId, 'jefe-estrategia-whatsapp', data.usage);
-
-    if (Array.isArray(parsed.preguntas) && parsed.preguntas.length > 0 && !parsed.tarjetas) {
-      return res.status(200).json({ preguntas: parsed.preguntas.slice(0, 3) });
-    }
-
-    if (parsed.tarjetas && typeof parsed.tarjetas === 'object') {
-      const tarjetas = {};
-      TARJETAS_CAMPOS.forEach((campo) => {
-        tarjetas[campo] = typeof parsed.tarjetas[campo] === 'string' ? parsed.tarjetas[campo] : '';
-      });
-      return res.status(200).json({
-        tarjetas,
-        usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 },
-      });
-    }
-
-    return res.status(502).json({ error: 'Respuesta del modelo en un formato inesperado.' });
+    return res.status(200).json({
+      tarjetas,
+      usage: { inputTokens: sumaUsage.input_tokens, outputTokens: sumaUsage.output_tokens },
+    });
   } catch (err) {
     return res.status(500).json({ error: 'Error de conexión con el Agente.' });
   }
 };
-
