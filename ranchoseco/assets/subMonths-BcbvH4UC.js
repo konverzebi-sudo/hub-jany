@@ -1,0 +1,1 @@
+import{un as e}from"./index-1vn9Wp_N.js";function t(t,n,r){return e(t,-n,r)}export{t};
