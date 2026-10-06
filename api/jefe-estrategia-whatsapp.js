@@ -567,11 +567,12 @@ module.exports = async function handler(req, res) {
     if (partesUsuario.length === 0) {
       partesUsuario.push('Genera la estrategia de WhatsApp por temperatura para este negocio.');
     }
-    // Generación en 3 partes EN PARALELO (base / seguimiento / reactivación): cada llamada escribe
+    // Generación en 4 partes EN PARALELO (etapas 1-3 / etapas 4-5 / seguimiento / reactivación): cada llamada escribe
     // menos campos, así que ya no se corta por longitud y el tiempo total baja a lo que tarda la
     // parte más larga. Solo las capturas viajan en la parte base (las imágenes pesan mucho en tokens).
     const PARTES = [
-      { campos: TARJETAS_CAMPOS.filter((c) => !/^(sg|rx)_/.test(c)), maxTokens: 6000 },
+      { campos: TARJETAS_CAMPOS.filter((c) => /^s[123]_/.test(c)), maxTokens: 4500 },
+      { campos: TARJETAS_CAMPOS.filter((c) => /^s[45]_/.test(c)), maxTokens: 4000 },
       { campos: TARJETAS_CAMPOS.filter((c) => /^sg_/.test(c)), maxTokens: 5000 },
       { campos: TARJETAS_CAMPOS.filter((c) => /^rx_/.test(c)), maxTokens: 4000 },
     ];
