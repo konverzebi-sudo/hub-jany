@@ -7,6 +7,7 @@
 const fs = require('fs');
 const path = require('path');
 const { sql } = require('@vercel/postgres');
+const { formatearCampanaSeleccionada } = require('./_lib/campana-temporada');
 
 const DEFAULT_CLIENTE = 'jefeshub';
 const PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-jefe-conversion.md');
@@ -457,16 +458,20 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ error: 'Falta configurar ANTHROPIC_API_KEY en el servidor.' });
   }
 
-  const { mensaje, imagen, cliente, grupo } = req.body || {};
+  const { mensaje, imagen, cliente, grupo, campanaId } = req.body || {};
   if (!mensaje && !imagen) {
     return res.status(400).json({ error: 'Falta mensaje o imagen.' });
   }
 
   const clienteId = (cliente || DEFAULT_CLIENTE).toString();
   const grupoSeleccionado = grupo && typeof grupo === 'object' && grupo.nombre ? grupo : null;
+  const campanaIdSel = typeof campanaId === 'string' ? campanaId.trim() : '';
 
   try {
     const promptFijo = cargarPromptFijo();
+    const campanasTemporada = campanaIdSel ? await leerJSON(`${clienteId}:temporada-campanas`).catch(() => null) : null;
+    const campanaSel = Array.isArray(campanasTemporada) ? campanasTemporada.find((c) => c && c.id === campanaIdSel) : null;
+    const campanaBloque = formatearCampanaSeleccionada(campanaSel);
     const [contexto, contexto366] = await Promise.all([
       construirContextoNegocio(clienteId),
       construirContexto366(clienteId),
@@ -480,6 +485,9 @@ module.exports = async function handler(req, res) {
     const partesTexto = [];
     if (grupoSeleccionado) {
       partesTexto.push(`GRUPO DE NEGOCIO SELECCIONADO POR EL USUARIO (desde las pestañas de arriba): "${grupoSeleccionado.nombre}". Responde usando ÚNICAMENTE la información etiquetada [Grupo: ${grupoSeleccionado.nombre}] (o sin etiqueta de grupo, si aplica al negocio en general) -- no uses precios ni datos de otros grupos.`);
+    }
+    if (campanaBloque) {
+      partesTexto.push('CAMPAÑA SELECCIONADA POR EL USUARIO (desde el selector de campaña de arriba, viene de Jefe de Temporada). Este cliente está preguntando por ESTA campaña, no por la venta de todo el año: asesora y redacta la respuesta basándote en su oferta, incentivo, fechas, urgencia real, mensaje elegido, frases, objeciones y CTAs de abajo, que mandan sobre cualquier oferta genérica del 366 o del catálogo. Si la campaña no trae un dato (por ejemplo el precio), usa el del catálogo/Producto 366 del producto de la campaña; nunca inventes descuentos, cupos ni urgencia que no estén aquí.\n\n' + campanaBloque);
     }
     partesTexto.push('Mensaje del cliente / captura a analizar:\n' + (mensaje || '(ver captura adjunta)'));
     content.push({

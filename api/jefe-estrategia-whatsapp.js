@@ -8,6 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 const { sql } = require('@vercel/postgres');
+const { formatearCampanaSeleccionada } = require('./_lib/campana-temporada');
 
 const DEFAULT_CLIENTE = 'rancho-seco';
 const PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-jefe-estrategia-whatsapp.md');
@@ -499,9 +500,13 @@ module.exports = async function handler(req, res) {
   const qa = Array.isArray(body.qa) ? body.qa.filter((x) => x && x.pregunta) : null;
   const tarjetasActuales = body.tarjetasActuales && typeof body.tarjetasActuales === 'object' ? body.tarjetasActuales : null;
   const grupo = body.grupo && typeof body.grupo === 'object' && body.grupo.nombre ? body.grupo : null;
+  const campanaId = typeof body.campanaId === 'string' ? body.campanaId.trim() : '';
 
   try {
     const promptFijo = cargarPromptFijo();
+    const campanasTemporada = campanaId ? await leerJSON(`${clienteId}:temporada-campanas`).catch(() => null) : null;
+    const campanaSel = Array.isArray(campanasTemporada) ? campanasTemporada.find((c) => c && c.id === campanaId) : null;
+    const campanaBloque = formatearCampanaSeleccionada(campanaSel);
     const [contextoNegocio, contexto366] = await Promise.all([
       construirContextoNegocio(clienteId),
       construirContexto366(clienteId),
@@ -520,6 +525,14 @@ module.exports = async function handler(req, res) {
       partesUsuario.push(
         `GRUPO DE NEGOCIO SELECCIONADO POR EL USUARIO (desde las pestañas de arriba): "${grupo.nombre}". Usa ÚNICAMENTE la información etiquetada [Grupo: ${grupo.nombre}] (o sin etiqueta de grupo, si aplica al negocio en general) -- NO uses información de otros grupos, y NO preguntes cuál grupo es, ya se te dijo explícitamente.`
       );
+    }
+    if (campanaBloque) {
+      partesUsuario.push(
+        'CAMPAÑA SELECCIONADA POR EL USUARIO (desde el selector de campaña de arriba, viene de Jefe de Temporada). TODAS las tarjetas de esta generación son para vender ESTA campaña, no la venta de todo el año: la oferta, el incentivo, las fechas, la urgencia real, el mensaje elegido, las frases, las objeciones y los CTAs de abajo mandan sobre cualquier oferta genérica del 366 o del catálogo. Si la campaña no trae un dato (por ejemplo el precio), usa el del catálogo/Producto 366 del producto de la campaña; nunca inventes descuentos, cupos ni urgencia que no estén aquí. NO preguntes de qué campaña es, ya se te dijo.\n\n' +
+        campanaBloque
+      );
+    } else {
+      partesUsuario.push('NO hay campaña de temporada seleccionada: es la venta de todo el año (Jefe 366). No menciones promociones, descuentos ni fechas límite temporales que no vengan en el contexto del negocio.');
     }
     if (tarjetasActuales) {
       const llenas = TARJETAS_CAMPOS
