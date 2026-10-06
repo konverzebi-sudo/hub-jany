@@ -2,7 +2,7 @@
 // en el prompt de los Jefes de WhatsApp. Las llaves/columnas de TABLAS_CAMPANA son las mismas de
 // TEMPORADA_TABLAS en jefe-temporada.html. Es solo formato: cada endpoint lee la llave por su cuenta.
 
-const CAMPANA_CHAR_LIMIT = 7000;
+const CAMPANA_CHAR_LIMIT = 16000;
 
 const TABLAS_CAMPANA = {
   diferencias: { campo: 'cliente_diferencias', titulo: 'Diferencias clave vs el cliente recurrente (deseo, dolor, miedo y objeción que se activan en ESTA temporada)', cols: [['aspecto', 'Aspecto'], ['respuesta', 'Respuesta']], esencial: ['respuesta'] },
@@ -72,18 +72,19 @@ function formatearCampanaSeleccionada(c) {
   const comunicacion = [
     tabla(c, TABLAS_CAMPANA.mensajeElegido),
     tabla(c, TABLAS_CAMPANA.razonAhora),
-    tabla(c, TABLAS_CAMPANA.mensajesClave),
-    tabla(c, TABLAS_CAMPANA.frases),
     tabla(c, TABLAS_CAMPANA.objeciones),
-    tabla(c, TABLAS_CAMPANA.angulos),
     tabla(c, TABLAS_CAMPANA.ctas),
+    tabla(c, TABLAS_CAMPANA.frases),
+    tabla(c, TABLAS_CAMPANA.mensajesClave),
+    tabla(c, TABLAS_CAMPANA.angulos),
   ].filter(Boolean);
 
+  // Orden por importancia para vender por WhatsApp: si algún día se recorta por longitud, que se pierda lo accesorio.
   const secciones = [cab.join('\n')];
   if (dm.length) secciones.push('DOCUMENTO MAESTRO DE LA CAMPAÑA (resumen ejecutivo):\n' + dm.join('\n'));
-  if (perfil.length) secciones.push('PERFIL DE CLIENTE DE CAMPAÑA (qué siente y qué lo frena en ESTA temporada):\n' + perfil.join('\n'));
-  if (prod.length) secciones.push('PRODUCTO PARA LA CAMPAÑA:\n' + prod.join('\n'));
+  if (perfil.length) secciones.push('PERFIL DE CLIENTE DE CAMPAÑA (análisis de compra: qué siente, qué desea, qué teme y qué lo frena en ESTA temporada):\n' + perfil.join('\n'));
   if (comunicacion.length) secciones.push('ESTRATEGIA DE COMUNICACIÓN DE LA CAMPAÑA:\n' + comunicacion.join('\n'));
+  if (prod.length) secciones.push('PRODUCTO PARA LA CAMPAÑA:\n' + prod.join('\n'));
 
   let texto = secciones.join('\n\n');
   if (texto.length > CAMPANA_CHAR_LIMIT) texto = texto.slice(0, CAMPANA_CHAR_LIMIT) + '\n[...recortado por longitud]';

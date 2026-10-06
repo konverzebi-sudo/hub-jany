@@ -1020,6 +1020,10 @@ function sufijoGrupo(){
 // Sin campañas vigentes en Jefe de Temporada no aparece ninguna pestaña extra y todo funciona como antes.
 let campanasState = [];
 let campanaActiva = null;
+// true solo cuando la pestaña actual tiene contenido guardado de verdad (generado o editado). El texto
+// genérico por defecto NO cuenta: si se mandara como "contenido actual", la IA lo conservaría y las
+// tarjetas de una campaña terminarían hablando de cosas generales en vez de la campaña.
+let tarjetasConContenido = false;
 
 async function cargarCampanas(){
   try{
@@ -1062,6 +1066,7 @@ function pintarTarjetas(data){
 
 async function cargarTarjetas(){
   const data = Object.assign({}, DEFAULT_TARJETAS);
+  let hayGuardado = false;
   try{
     let r = await window.storage.get(tarjetasKey());
     if((!r || !r.value) && esGrupoOriginal()){
@@ -1077,8 +1082,17 @@ async function cargarTarjetas(){
     if(r && r.value){
       const guardado = JSON.parse(r.value);
       TARJETAS_CAMPOS.forEach((c) => { if(guardado[c] != null) data[c] = guardado[c]; });
+      hayGuardado = true;
     }
   }catch(e){}
+  tarjetasConContenido = hayGuardado;
+  // Una campaña sin manual todavía arranca vacía: el texto por defecto es de la venta general.
+  if(campanaActiva && !hayGuardado){
+    const vacias = {};
+    TARJETAS_CAMPOS.forEach((c) => { vacias[c] = ''; });
+    pintarTarjetas(vacias);
+    return;
+  }
   pintarTarjetas(data);
 }
 
@@ -1096,6 +1110,7 @@ async function guardarTarjetas(){
   const data = leerTarjetasDelDOM();
   try{
     await window.storage.set(tarjetasKey(), JSON.stringify(data));
+    tarjetasConContenido = true;
     // El guión derivado alimenta a Jefe 366 (todo el año): una campaña no debe pisarlo.
     if(!campanaActiva) await window.storage.set(waGuionesKey(), JSON.stringify(tarjetasAGuiones(data)));
     if(status){ status.textContent = 'Guardado ✓'; setTimeout(() => { if(status.textContent === 'Guardado ✓') status.textContent = ''; }, 1800); }
@@ -1204,7 +1219,7 @@ async function generarEstrategia(){
     const response = await fetch('/api/jefe-estrategia-whatsapp', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ cliente: 'rancho-seco', imagenes: estImagenes, txtConversacion: estTxtConversacion, qa, tarjetasActuales: leerTarjetasDelDOM(), grupo: grupoActivoParaEnvio(), campanaId: campanaActivaParaEnvio() })
+      body: JSON.stringify({ cliente: 'rancho-seco', imagenes: estImagenes, txtConversacion: estTxtConversacion, qa, tarjetasActuales: tarjetasConContenido ? leerTarjetasDelDOM() : null, grupo: grupoActivoParaEnvio(), campanaId: campanaActivaParaEnvio() })
     });
     const data = await response.json();
     if(!response.ok){
