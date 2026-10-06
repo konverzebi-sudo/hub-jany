@@ -501,6 +501,7 @@ module.exports = async function handler(req, res) {
   const tarjetasActuales = body.tarjetasActuales && typeof body.tarjetasActuales === 'object' ? body.tarjetasActuales : null;
   const grupo = body.grupo && typeof body.grupo === 'object' && body.grupo.nombre ? body.grupo : null;
   const campanaId = typeof body.campanaId === 'string' ? body.campanaId.trim() : '';
+  const producto366 = body.producto366 && typeof body.producto366 === 'object' && body.producto366.nombre ? body.producto366 : null;
 
   try {
     const promptFijo = cargarPromptFijo();
@@ -524,6 +525,11 @@ module.exports = async function handler(req, res) {
     if (grupo) {
       partesUsuario.push(
         `GRUPO DE NEGOCIO SELECCIONADO POR EL USUARIO (desde las pestañas de arriba): "${grupo.nombre}". Usa ÚNICAMENTE la información etiquetada [Grupo: ${grupo.nombre}] (o sin etiqueta de grupo, si aplica al negocio en general) -- NO uses información de otros grupos, y NO preguntes cuál grupo es, ya se te dijo explícitamente.`
+      );
+    }
+    if (producto366 && !campanaBloque) {
+      partesUsuario.push(
+        `PRODUCTO 366 SELECCIONADO POR EL USUARIO (pestaña de arriba): "${producto366.nombre}". Este manual es SOLO de ese producto/servicio: usa únicamente su oferta (el bloque "Oferta 366" con ese nombre), su precio del catálogo y, de los perfiles de cliente, los de su grupo cuyo "producto relacionado" lo incluya (si hay varios, prioriza esos). NO mezcles datos de otros productos aunque sean del mismo grupo, y usa a fondo los deseos, dolores, miedos, motivaciones y la forma de hablar (frases) de ese producto y su cliente. NO preguntes cuál producto es, ya se te dijo.`
       );
     }
     if (campanaBloque) {
