@@ -638,9 +638,16 @@ module.exports = async function handler(req, res) {
       return { error: 'Respuesta del modelo en un formato inesperado.', status: 502 };
     };
 
+    // Si una parte vuelve cortada o ilegible (pasa de vez en cuando), se reintenta UNA vez solo esa parte.
+    const llamarParteConReintento = async (parte, esBase) => {
+      const r = await llamarParte(parte, esBase);
+      if (r.error && r.status === 502 && !controller.signal.aborted) return llamarParte(parte, esBase);
+      return r;
+    };
+
     const resultados = await Promise.all(
       PARTES.map((parte, i) =>
-        llamarParte(parte, i === 0)
+        llamarParteConReintento(parte, i === 0)
           .then((r) => {
             // Si la parte base necesita preguntas, las otras llamadas ya no sirven: se cancelan para no gastar tokens.
             if (i === 0 && r.preguntas) controller.abort();
