@@ -104,7 +104,9 @@ async function registrarUsoTokens(clienteId, endpoint, usage) {
   try {
     const key = `${clienteId}:uso-tokens-log`;
     const items = (await leerJSON(key)) || [];
-    items.push({ date: new Date().toISOString(), endpoint, inputTokens: usage?.input_tokens || 0, outputTokens: usage?.output_tokens || 0 });
+    // inputTokens = TODA la entrada (nueva + escrita en caché + leída de caché); cacheReadTokens es lo que salió barato.
+    const entrada = (usage?.input_tokens || 0) + (usage?.cache_creation_input_tokens || 0) + (usage?.cache_read_input_tokens || 0);
+    items.push({ date: new Date().toISOString(), endpoint, inputTokens: entrada, outputTokens: usage?.output_tokens || 0, cacheReadTokens: usage?.cache_read_input_tokens || 0 });
     await escribirJSON(key, items.slice(-500));
   } catch (err) {
     // No bloquear la respuesta al usuario si falla el registro de uso.
@@ -487,6 +489,55 @@ function extractJson(text) {
 
 const TEXTO_CONTENIDO_ACTUAL = 'CONTENIDO ACTUAL DE LAS TARJETAS (ya editado o generado antes por el usuario) -- úsalo como base: conserva lo que sigue siendo bueno, complétalo o mejóralo con la información nueva que tengas, no lo descartes ni lo reescribas sin razón. Los campos que no aparezcan aquí están vacíos, genéralos desde cero:\n';
 
+function sumarUsage(a, b) {
+  if (!a) return b || null;
+  if (!b) return a;
+  return {
+    input_tokens: (a.input_tokens || 0) + (b.input_tokens || 0),
+    output_tokens: (a.output_tokens || 0) + (b.output_tokens || 0),
+    cache_creation_input_tokens: (a.cache_creation_input_tokens || 0) + (b.cache_creation_input_tokens || 0),
+    cache_read_input_tokens: (a.cache_read_input_tokens || 0) + (b.cache_read_input_tokens || 0),
+  };
+}
+
+// Lee la respuesta en streaming (SSE) de Anthropic. onPrimerToken avisa cuando llega el primer texto:
+// desde ahí el prompt ya quedó en caché y las llamadas hermanas pueden leerlo barato.
+async function leerStreamAnthropic(res, onPrimerToken) {
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  let text = '';
+  let stop = null;
+  let avisado = false;
+  const usage = { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let idx;
+    while ((idx = buf.indexOf('\n\n')) >= 0) {
+      const bloque = buf.slice(0, idx);
+      buf = buf.slice(idx + 2);
+      const linea = bloque.split('\n').find((l) => l.startsWith('data:'));
+      if (!linea) continue;
+      let ev;
+      try { ev = JSON.parse(linea.slice(5).trim()); } catch (e) { continue; }
+      if (ev.type === 'message_start' && ev.message && ev.message.usage) {
+        Object.keys(usage).forEach((k) => { if (ev.message.usage[k] != null) usage[k] = ev.message.usage[k]; });
+      } else if (ev.type === 'content_block_delta' && ev.delta && ev.delta.type === 'text_delta') {
+        text += ev.delta.text;
+        if (!avisado) { avisado = true; if (onPrimerToken) onPrimerToken(); }
+      } else if (ev.type === 'message_delta') {
+        if (ev.delta && ev.delta.stop_reason) stop = ev.delta.stop_reason;
+        if (ev.usage && ev.usage.output_tokens != null) usage.output_tokens = ev.usage.output_tokens;
+      } else if (ev.type === 'error') {
+        return { error: (ev.error && ev.error.message) || 'Error en la respuesta del modelo.' };
+      }
+    }
+  }
+  return { text, stop, usage };
+}
+
 // ---------- handler ----------
 
 module.exports = async function handler(req, res) {
@@ -517,6 +568,9 @@ module.exports = async function handler(req, res) {
   const tarjetasActuales = body.tarjetasActuales && typeof body.tarjetasActuales === 'object' ? body.tarjetasActuales : null;
   const grupo = body.grupo && typeof body.grupo === 'object' && body.grupo.nombre ? body.grupo : null;
   const campanaId = typeof body.campanaId === 'string' ? body.campanaId.trim() : '';
+  const SECCIONES_VALIDAS = ['conversacion', 'seguimiento', 'reactivacion'];
+  const seccionesPedidas = Array.isArray(body.secciones) ? body.secciones.filter((x) => SECCIONES_VALIDAS.includes(x)) : [];
+  const seccionesSel = seccionesPedidas.length ? seccionesPedidas : SECCIONES_VALIDAS;
   const producto366 = body.producto366 && typeof body.producto366 === 'object' && body.producto366.nombre ? body.producto366 : null;
 
   try {
@@ -530,7 +584,11 @@ module.exports = async function handler(req, res) {
       // (menos tokens, más rápido y sin mezclar la venta de todo el año con la campaña).
       campanaBloque ? Promise.resolve('') : construirContexto366(clienteId, { grupoId: grupo ? grupo.id : '', productoNombre: producto366 ? producto366.nombre : '' }),
     ]);
-    const system = [promptFijo, contextoNegocio, contexto366].filter(Boolean).join('\n\n');
+    // Dos bloques con caché: el prompt fijo (igual para todos) y el contexto del negocio. Las llamadas
+    // en paralelo y las regeneraciones en los siguientes 5 minutos lo leen a 10% del costo.
+    const contextoTexto = [contextoNegocio, contexto366].filter(Boolean).join('\n\n');
+    const system = [{ type: 'text', text: promptFijo, cache_control: { type: 'ephemeral' } }];
+    if (contextoTexto) system.push({ type: 'text', text: contextoTexto, cache_control: { type: 'ephemeral' } });
 
     const partesUsuario = [];
     if (grupo) {
@@ -567,19 +625,22 @@ module.exports = async function handler(req, res) {
     if (partesUsuario.length === 0) {
       partesUsuario.push('Genera la estrategia de WhatsApp por temperatura para este negocio.');
     }
-    // Generación en 4 partes EN PARALELO (etapas 1-3 / etapas 4-5 / seguimiento / reactivación): cada llamada escribe
-    // menos campos, así que ya no se corta por longitud y el tiempo total baja a lo que tarda la
-    // parte más larga. Solo las capturas viajan en la parte base (las imágenes pesan mucho en tokens).
-    const PARTES = [
-      { campos: TARJETAS_CAMPOS.filter((c) => /^s[123]_/.test(c)), maxTokens: 4500 },
-      { campos: TARJETAS_CAMPOS.filter((c) => /^s[45]_/.test(c)), maxTokens: 4000 },
-      { campos: TARJETAS_CAMPOS.filter((c) => /^sg_/.test(c)), maxTokens: 5000 },
-      { campos: TARJETAS_CAMPOS.filter((c) => /^rx_/.test(c)), maxTokens: 4000 },
+    // Generación EN PARALELO por partes (etapas 1-3 / etapas 4-5 / seguimiento / reactivación): cada
+    // llamada escribe pocos campos, así que no se corta por longitud y el tiempo total es el de la
+    // parte más larga. La primera parte arranca sola para "calentar" el caché del prompt; en cuanto
+    // llega su primer token se lanzan las demás, que leen el mismo prompt desde caché (10% del costo).
+    // Solo la parte de etapas 1-3 lleva las capturas y puede hacer preguntas.
+    const TODAS_LAS_PARTES = [
+      { seccion: 'conversacion', campos: TARJETAS_CAMPOS.filter((c) => /^s[123]_/.test(c)), maxTokens: 4500, puedePreguntar: true },
+      { seccion: 'conversacion', campos: TARJETAS_CAMPOS.filter((c) => /^s[45]_/.test(c)), maxTokens: 4000 },
+      { seccion: 'seguimiento', campos: TARJETAS_CAMPOS.filter((c) => /^sg_/.test(c)), maxTokens: 5000 },
+      { seccion: 'reactivacion', campos: TARJETAS_CAMPOS.filter((c) => /^rx_/.test(c)), maxTokens: 4000 },
     ];
+    const PARTES = TODAS_LAS_PARTES.filter((p) => seccionesSel.includes(p.seccion));
     const controller = new AbortController();
 
-    const llamarParte = async (parte, esBase) => {
-      const textos = partesUsuario.filter((t) => esBase || !t.startsWith('Se adjuntan capturas'));
+    const llamarParte = async (parte, onPrimerToken) => {
+      const textos = partesUsuario.filter((t) => parte.puedePreguntar || !t.startsWith('Se adjuntan capturas'));
       const llenas = tarjetasActuales
         ? parte.campos
             .filter((campo) => tarjetasActuales[campo] && tarjetasActuales[campo].toString().trim())
@@ -588,10 +649,10 @@ module.exports = async function handler(req, res) {
       if (llenas.length) textos.push(TEXTO_CONTENIDO_ACTUAL + '\n' + llenas.join('\n'));
       textos.push(
         `PARTE DE ESTA LLAMADA: otra llamada genera EN PARALELO los demás campos con este mismo contexto, así que genera ÚNICAMENTE estos campos dentro de "tarjetas" y omite todos los demás: ${parte.campos.join(', ')}. Mantén exactamente la misma oferta, precios, datos y tono que usarías en el guión completo.` +
-        (esBase ? '' : ' No hagas preguntas: responde directamente con {"tarjetas":{...}}.')
+        (parte.puedePreguntar ? '' : ' No hagas preguntas: responde directamente con {"tarjetas":{...}}.')
       );
       const contenido = [];
-      if (esBase) {
+      if (parte.puedePreguntar) {
         imagenes.forEach((img) => {
           if (img && img.mediaType && img.data) {
             contenido.push({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.data } });
@@ -611,64 +672,74 @@ module.exports = async function handler(req, res) {
         body: JSON.stringify({
           model: 'claude-sonnet-4-6',
           max_tokens: parte.maxTokens,
+          stream: true,
           system,
           messages: [{ role: 'user', content: contenido }],
         }),
       });
-      const data = await anthropicRes.json();
       if (!anthropicRes.ok) {
-        return { error: data?.error?.message || 'Error al llamar a la API.', status: anthropicRes.status };
+        const errData = await anthropicRes.json().catch(() => ({}));
+        return { error: errData?.error?.message || 'Error al llamar a la API.', status: anthropicRes.status };
       }
-      const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
-      const parsed = extractJson(text);
+      const leido = await leerStreamAnthropic(anthropicRes, onPrimerToken);
+      if (leido.error) return { error: leido.error, status: 502 };
+      const parsed = extractJson(leido.text);
       if (!parsed) {
         return {
-          error: data.stop_reason === 'max_tokens'
+          error: leido.stop === 'max_tokens'
             ? 'La respuesta quedó incompleta (muy larga). Intenta de nuevo.'
             : 'No se pudo interpretar la respuesta del modelo.',
           status: 502,
-          detalle: { parte: parte.campos[0], stop: data.stop_reason, inicio: text.slice(0, 160), fin: text.slice(-160) },
+          usage: leido.usage,
+          detalle: { parte: parte.campos[0], stop: leido.stop, inicio: leido.text.slice(0, 160), fin: leido.text.slice(-160) },
         };
       }
       if (Array.isArray(parsed.preguntas) && parsed.preguntas.length > 0 && !parsed.tarjetas) {
-        return { preguntas: parsed.preguntas.slice(0, 3), usage: data.usage };
+        return { preguntas: parsed.preguntas.slice(0, 3), usage: leido.usage };
       }
       if (parsed.tarjetas && typeof parsed.tarjetas === 'object') {
-        return { tarjetas: parsed.tarjetas, usage: data.usage };
+        return { tarjetas: parsed.tarjetas, usage: leido.usage };
       }
-      return { error: 'Respuesta del modelo en un formato inesperado.', status: 502 };
+      return { error: 'Respuesta del modelo en un formato inesperado.', status: 502, usage: leido.usage };
     };
 
+    let lanzarResto;
+    const restoListo = new Promise((resolve) => { lanzarResto = resolve; });
+    const temporizadorSeguridad = setTimeout(() => lanzarResto(), 20000);
+
     // Si una parte vuelve cortada o ilegible (pasa de vez en cuando), se reintenta UNA vez solo esa parte.
-    const llamarParteConReintento = async (parte, esBase) => {
-      const r = await llamarParte(parte, esBase);
-      if (r.error && r.status === 502 && !controller.signal.aborted) return llamarParte(parte, esBase);
+    const conReintento = async (parte, avisoPrimerToken) => {
+      let r = await llamarParte(parte, avisoPrimerToken);
+      if (r.error && r.status === 502 && !controller.signal.aborted) {
+        const r2 = await llamarParte(parte, avisoPrimerToken);
+        r2.usage = sumarUsage(r.usage, r2.usage);
+        r = r2;
+      }
       return r;
     };
 
     const resultados = await Promise.all(
-      PARTES.map((parte, i) =>
-        llamarParteConReintento(parte, i === 0)
+      PARTES.map((parte, i) => {
+        const tarea = i === 0
+          ? conReintento(parte, () => lanzarResto()).finally(() => lanzarResto())
+          : restoListo.then(() => (controller.signal.aborted ? { abortado: true } : conReintento(parte)));
+        return tarea
           .then((r) => {
-            // Si la parte base necesita preguntas, las otras llamadas ya no sirven: se cancelan para no gastar tokens.
-            if (i === 0 && r.preguntas) controller.abort();
+            // Si la parte que puede preguntar necesita preguntas, las otras llamadas ya no sirven: se cancelan para no gastar tokens.
+            if (parte.puedePreguntar && r.preguntas) controller.abort();
             return r;
           })
-          .catch((err) => (err && err.name === 'AbortError' ? { abortado: true } : { error: 'Error de conexión con el Agente.', status: 500 }))
-      )
+          .catch((err) => (err && err.name === 'AbortError' ? { abortado: true } : { error: 'Error de conexión con el Agente.', status: 500 }));
+      })
     );
+    clearTimeout(temporizadorSeguridad);
 
-    const sumaUsage = resultados.reduce(
-      (acc, r) => ({
-        input_tokens: acc.input_tokens + (r.usage?.input_tokens || 0),
-        output_tokens: acc.output_tokens + (r.usage?.output_tokens || 0),
-      }),
-      { input_tokens: 0, output_tokens: 0 }
-    );
-    await registrarUsoTokens(clienteId, 'jefe-estrategia-whatsapp', sumaUsage);
+    const uso = resultados.reduce((acc, r) => sumarUsage(acc, r.usage), null) || {};
+    await registrarUsoTokens(clienteId, 'jefe-estrategia-whatsapp', uso);
 
-    if (resultados[0].preguntas) {
-      return res.status(200).json({ preguntas: resultados[0].preguntas });
+    const conPreguntas = resultados.find((r) => r.preguntas);
+    if (conPreguntas) {
+      return res.status(200).json({ preguntas: conPreguntas.preguntas });
     }
     const fallo = resultados.find((r) => r.error);
     if (fallo) {
@@ -678,14 +749,18 @@ module.exports = async function handler(req, res) {
       return res.status(502).json({ error: 'Respuesta del modelo en un formato inesperado.' });
     }
 
+    // Solo se devuelven los campos de las secciones pedidas: el resto de las tarjetas no se toca.
     const tarjetas = {};
-    TARJETAS_CAMPOS.forEach((campo) => {
-      const origen = resultados.find((r) => typeof r.tarjetas[campo] === 'string');
-      tarjetas[campo] = origen ? origen.tarjetas[campo] : '';
+    PARTES.forEach((parte) => {
+      parte.campos.forEach((campo) => {
+        const origen = resultados.find((r) => typeof r.tarjetas[campo] === 'string');
+        tarjetas[campo] = origen ? origen.tarjetas[campo] : '';
+      });
     });
+    const entradaTotal = (uso.input_tokens || 0) + (uso.cache_creation_input_tokens || 0) + (uso.cache_read_input_tokens || 0);
     return res.status(200).json({
       tarjetas,
-      usage: { inputTokens: sumaUsage.input_tokens, outputTokens: sumaUsage.output_tokens },
+      usage: { inputTokens: entradaTotal, outputTokens: uso.output_tokens || 0, cacheReadTokens: uso.cache_read_input_tokens || 0 },
     });
   } catch (err) {
     return res.status(500).json({ error: 'Error de conexión con el Agente.' });
