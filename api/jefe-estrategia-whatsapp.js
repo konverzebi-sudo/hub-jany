@@ -586,7 +586,9 @@ module.exports = async function handler(req, res) {
     ]);
     // Dos bloques con caché: el prompt fijo (igual para todos) y el contexto del negocio. Las llamadas
     // en paralelo y las regeneraciones en los siguientes 5 minutos lo leen a 10% del costo.
-    const contextoTexto = [contextoNegocio, contexto366].filter(Boolean).join('\n\n');
+    // La campaña seleccionada también va en el bloque con caché (es igual en las 4 llamadas y en regeneraciones).
+    const instruccionCampana = 'CAMPAÑA SELECCIONADA POR EL USUARIO (desde el selector de campaña de arriba, viene de Jefe de Temporada). TODAS las tarjetas de esta generación son para vender ESTA campaña, no la venta de todo el año: la oferta, el incentivo, las fechas, la urgencia real, el mensaje elegido, las frases, las objeciones y los CTAs de abajo mandan sobre cualquier oferta genérica del 366 o del catálogo. Si la campaña no trae un dato (por ejemplo el precio), usa el del catálogo/Producto 366 del producto de la campaña; nunca inventes descuentos, cupos ni urgencia que no estén aquí. NO preguntes de qué campaña es, ya se te dijo. Usa a fondo el PERFIL DE CLIENTE DE CAMPAÑA (deseos, dolores, miedos, motivaciones y objeciones de esta temporada) para abrir la conversación, calificar y responder objeciones. Si más abajo viene CONTENIDO ACTUAL DE LAS TARJETAS y algún campo habla de la venta general o de otro producto en vez de esta campaña, reescríbelo por completo para que sea de la campaña.\n\n';
+    const contextoTexto = [contextoNegocio, contexto366, campanaBloque ? instruccionCampana + campanaBloque : ''].filter(Boolean).join('\n\n');
     const system = [{ type: 'text', text: promptFijo, cache_control: { type: 'ephemeral' } }];
     if (contextoTexto) system.push({ type: 'text', text: contextoTexto, cache_control: { type: 'ephemeral' } });
 
@@ -601,12 +603,7 @@ module.exports = async function handler(req, res) {
         `PRODUCTO 366 SELECCIONADO POR EL USUARIO (pestaña de arriba): "${producto366.nombre}". Este manual es SOLO de ese producto/servicio: usa únicamente su oferta (el bloque "Oferta 366" con ese nombre), su precio del catálogo y, de los perfiles de cliente, los de su grupo cuyo "producto relacionado" lo incluya (si hay varios, prioriza esos). NO mezcles datos de otros productos aunque sean del mismo grupo, y usa a fondo los deseos, dolores, miedos, motivaciones y la forma de hablar (frases) de ese producto y su cliente. NO preguntes cuál producto es, ya se te dijo.`
       );
     }
-    if (campanaBloque) {
-      partesUsuario.push(
-        'CAMPAÑA SELECCIONADA POR EL USUARIO (desde el selector de campaña de arriba, viene de Jefe de Temporada). TODAS las tarjetas de esta generación son para vender ESTA campaña, no la venta de todo el año: la oferta, el incentivo, las fechas, la urgencia real, el mensaje elegido, las frases, las objeciones y los CTAs de abajo mandan sobre cualquier oferta genérica del 366 o del catálogo. Si la campaña no trae un dato (por ejemplo el precio), usa el del catálogo/Producto 366 del producto de la campaña; nunca inventes descuentos, cupos ni urgencia que no estén aquí. NO preguntes de qué campaña es, ya se te dijo. Usa a fondo el PERFIL DE CLIENTE DE CAMPAÑA (deseos, dolores, miedos, motivaciones y objeciones de esta temporada) para abrir la conversación, calificar y responder objeciones. Si más abajo viene CONTENIDO ACTUAL DE LAS TARJETAS y algún campo habla de la venta general o de otro producto en vez de esta campaña, reescríbelo por completo para que sea de la campaña.\n\n' +
-        campanaBloque
-      );
-    } else {
+    if (!campanaBloque) {
       partesUsuario.push('NO hay campaña de temporada seleccionada: es la venta de todo el año (Jefe 366). No menciones promociones, descuentos ni fechas límite temporales que no vengan en el contexto del negocio.');
     }
     // El CONTENIDO ACTUAL de las tarjetas se agrega por parte, más abajo.
