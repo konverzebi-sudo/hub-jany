@@ -494,7 +494,8 @@ module.exports = async function handler(req, res) {
       campanaBloque ? Promise.resolve('') : construirContexto366(clienteId, { grupoId: grupoSeleccionado ? grupoSeleccionado.id : '', productoNombre: productoSel ? productoSel.nombre : '' }),
     ]);
     // Con caché: cada consulta en los siguientes 5 minutos lee el prompt y el contexto a 10% del costo.
-    const contextoTexto = [contexto, contexto366].filter(Boolean).join('\n\n');
+    const instruccionCampana = 'CAMPAÑA SELECCIONADA POR EL USUARIO (desde el selector de campaña de arriba, viene de Jefe de Temporada). Este cliente está preguntando por ESTA campaña, no por la venta de todo el año: asesora y redacta la respuesta basándote en su oferta, incentivo, fechas, urgencia real, mensaje elegido, frases, objeciones y CTAs de abajo, que mandan sobre cualquier oferta genérica del 366 o del catálogo. Si la campaña no trae un dato (por ejemplo el precio), usa el del catálogo/Producto 366 del producto de la campaña; nunca inventes descuentos, cupos ni urgencia que no estén aquí. Apóyate sobre todo en el PERFIL DE CLIENTE DE CAMPAÑA (deseos, dolores, miedos, motivaciones y objeciones de esta temporada) para entender qué siente este cliente y cómo vencer su duda.\n\n';
+    const contextoTexto = [contexto, contexto366, campanaBloque ? instruccionCampana + campanaBloque : ''].filter(Boolean).join('\n\n');
     const system = [{ type: 'text', text: promptFijo, cache_control: { type: 'ephemeral' } }];
     if (contextoTexto) system.push({ type: 'text', text: contextoTexto, cache_control: { type: 'ephemeral' } });
 
@@ -508,9 +509,6 @@ module.exports = async function handler(req, res) {
     }
     if (productoSel && !campanaBloque) {
       partesTexto.push(`PRODUCTO 366 SELECCIONADO POR EL USUARIO (pestaña de arriba): "${productoSel.nombre}". Este cliente pregunta por ESE producto/servicio: responde y asesora usando únicamente su oferta, su precio y los perfiles de cliente (deseos, dolores, miedos, motivaciones) de ese producto; no mezcles datos de otros productos.`);
-    }
-    if (campanaBloque) {
-      partesTexto.push('CAMPAÑA SELECCIONADA POR EL USUARIO (desde el selector de campaña de arriba, viene de Jefe de Temporada). Este cliente está preguntando por ESTA campaña, no por la venta de todo el año: asesora y redacta la respuesta basándote en su oferta, incentivo, fechas, urgencia real, mensaje elegido, frases, objeciones y CTAs de abajo, que mandan sobre cualquier oferta genérica del 366 o del catálogo. Si la campaña no trae un dato (por ejemplo el precio), usa el del catálogo/Producto 366 del producto de la campaña; nunca inventes descuentos, cupos ni urgencia que no estén aquí. Apóyate sobre todo en el PERFIL DE CLIENTE DE CAMPAÑA (deseos, dolores, miedos, motivaciones y objeciones de esta temporada) para entender qué siente este cliente y cómo vencer su duda.\n\n' + campanaBloque);
     }
     partesTexto.push('Mensaje del cliente / captura a analizar:\n' + (mensaje || '(ver captura adjunta)'));
     content.push({
