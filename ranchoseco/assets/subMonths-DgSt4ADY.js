@@ -1,0 +1,1 @@
+import{Yt as e}from"./index-E7nrpS00.js";function t(t,n,r){return e(t,-n,r)}export{t};
