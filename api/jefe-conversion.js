@@ -72,7 +72,9 @@ async function registrarUsoTokens(clienteId, endpoint, usage) {
   try {
     const key = `${clienteId}:uso-tokens-log`;
     const items = (await leerJSON(key)) || [];
-    items.push({ date: new Date().toISOString(), endpoint, inputTokens: usage?.input_tokens || 0, outputTokens: usage?.output_tokens || 0 });
+    // inputTokens = TODA la entrada (nueva + escrita en caché + leída de caché); cacheReadTokens es lo que salió barato.
+    const entrada = (usage?.input_tokens || 0) + (usage?.cache_creation_input_tokens || 0) + (usage?.cache_read_input_tokens || 0);
+    items.push({ date: new Date().toISOString(), endpoint, inputTokens: entrada, outputTokens: usage?.output_tokens || 0, cacheReadTokens: usage?.cache_read_input_tokens || 0 });
     await escribirJSON(key, items.slice(-500));
   } catch (err) {
     // No bloquear la respuesta al usuario si falla el registro de uso.
@@ -491,7 +493,10 @@ module.exports = async function handler(req, res) {
       construirContextoNegocio(clienteId, { soloAdnBasico: !!campanaBloque, grupoId: !campanaBloque && grupoSeleccionado ? grupoSeleccionado.id : '' }),
       campanaBloque ? Promise.resolve('') : construirContexto366(clienteId, { grupoId: grupoSeleccionado ? grupoSeleccionado.id : '', productoNombre: productoSel ? productoSel.nombre : '' }),
     ]);
-    const system = [promptFijo, contexto, contexto366].filter(Boolean).join('\n\n');
+    // Con caché: cada consulta en los siguientes 5 minutos lee el prompt y el contexto a 10% del costo.
+    const contextoTexto = [contexto, contexto366].filter(Boolean).join('\n\n');
+    const system = [{ type: 'text', text: promptFijo, cache_control: { type: 'ephemeral' } }];
+    if (contextoTexto) system.push({ type: 'text', text: contextoTexto, cache_control: { type: 'ephemeral' } });
 
     const content = [];
     if (imagen && imagen.mediaType && imagen.data) {

@@ -63,6 +63,9 @@
   .group-tab.active{border-color:var(--accent);color:var(--accent);background:var(--accent-soft);font-weight:700;}
   .group-tab:not(.active):hover{border-color:var(--text-dim);color:var(--text);}
   .mostrar-todas-btn[hidden]{display:none;}
+  .est-secciones{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin:4px 0 12px;font-size:12.5px;color:var(--text-dim);}
+  .est-secciones label{display:inline-flex;align-items:center;gap:6px;cursor:pointer;}
+  .est-secciones .est-sec-titulo{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;}
   .campana-hint{font-size:12px;color:var(--text-dim);text-align:center;margin-top:8px;}
   .campana-hint[hidden]{display:none;}
   .group-tabs-hint{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-dim);text-decoration:none;border-bottom:1px dashed var(--text-dim);}
@@ -479,6 +482,12 @@
       <span id="estFilesName" class="file-name"></span>
     </div>
     <div id="estPreguntas"></div>
+    <div class="est-secciones" id="estSecciones">
+      <span class="est-sec-titulo">Qué actualizar</span>
+      <label><input type="checkbox" data-sec="conversacion" checked> Conversación (bienvenida → cierre)</label>
+      <label><input type="checkbox" data-sec="seguimiento" checked> Seguimiento</label>
+      <label><input type="checkbox" data-sec="reactivacion" checked> Reactivación</label>
+    </div>
     <button class="ask-btn" id="estBtn" onclick="generarEstrategia()">✨ Actualizar Estrategia con IA</button>
     <div id="estStatus" class="log-status"></div>
   </div>
@@ -1333,6 +1342,12 @@ async function generarEstrategia(){
     });
   }
 
+  const secciones = Array.from(document.querySelectorAll('#estSecciones input[data-sec]:checked')).map((c) => c.dataset.sec);
+  if(!secciones.length){
+    status.innerText = 'Elige al menos una sección para actualizar.';
+    return;
+  }
+
   btn.disabled = true;
   btn.innerText = 'Generando...';
   status.className = 'log-status';
@@ -1342,7 +1357,7 @@ async function generarEstrategia(){
     const response = await fetch('/api/jefe-estrategia-whatsapp', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ cliente: 'rancho-seco', imagenes: estImagenes, txtConversacion: estTxtConversacion, qa, tarjetasActuales: tarjetasConContenido ? leerTarjetasDelDOM() : null, grupo: grupoActivoParaEnvio(), campanaId: campanaActivaParaEnvio(), producto366: producto366ParaEnvio() })
+      body: JSON.stringify({ cliente: 'rancho-seco', imagenes: estImagenes, txtConversacion: estTxtConversacion, qa, tarjetasActuales: tarjetasConContenido ? leerTarjetasDelDOM() : null, grupo: grupoActivoParaEnvio(), campanaId: campanaActivaParaEnvio(), producto366: producto366ParaEnvio(), secciones })
     });
     const data = await response.json();
     if(!response.ok){
@@ -1363,7 +1378,9 @@ async function generarEstrategia(){
       await guardarTarjetas();
       estPreguntasPendientes = null;
       renderEstPreguntas(null);
-      status.innerText = '✅ Estrategia generada y guardada — revísala y ajusta lo que haga falta.';
+      const u = data.usage;
+      const tokens = u ? ' · ' + Math.round((u.inputTokens + u.outputTokens) / 1000) + 'k tokens' + (u.cacheReadTokens ? ' (' + Math.round(u.cacheReadTokens / 1000) + 'k de caché)' : '') : '';
+      status.innerText = '✅ Estrategia generada y guardada — revísala y ajusta lo que haga falta.' + tokens;
     }
   }catch(e){
     status.innerText = 'Error de conexión. Intenta de nuevo.';
