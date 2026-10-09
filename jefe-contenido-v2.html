@@ -349,10 +349,10 @@
   #go-chat-thread{width:100%;max-width:880px;margin:6px auto 14px;text-align:left;}
   #go-chat-thread[hidden]{display:none;}
   .group-tabs{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:10px;}
-  .group-tab{font-family:'Sora',sans-serif;font-size:clamp(14px,1.8vw,17px);font-weight:700;padding:10px 28px;border-radius:10px;border:1.5px solid var(--accent);background:transparent;color:var(--accent-text);cursor:pointer;transition:background .18s,transform .15s,box-shadow .18s;}
-  .group-tab:hover{background:var(--accent-soft);transform:translateY(-2px);box-shadow:var(--shadow-card);}
+    .group-tab{font-family:'Sora',sans-serif;font-size:clamp(14px,1.8vw,17px);font-weight:700;padding:11px 30px;border-radius:12px;border:1.5px solid #0F0B16;background:#0F0B16;color:#fff;cursor:pointer;transition:background .18s,color .18s,border-color .18s,transform .15s,box-shadow .18s;}
+  .group-tab:hover{background:#241C36;border-color:#241C36;color:var(--accent);transform:translateY(-2px);box-shadow:0 8px 22px rgba(15,11,22,.28);}
   .group-tab:active{transform:scale(.96);}
-  .group-tab.active{background:var(--accent);color:#1A1A1A;}
+  .group-tab.active{background:#0F0B16;border-color:var(--accent);color:var(--accent);box-shadow:0 0 0 3px rgba(192,248,0,.35);}
 
   /* despliegue suave */
   .unfold{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .32s ease,opacity .25s ease;}
@@ -522,6 +522,7 @@
       <div id="go-pregunta-img-preview" class="hero-previews"></div>
       <div class="hero-meta">
         <span class="mode-status" id="go-pregunta-status"></span>
+        <button type="button" class="link-btn" id="go-chat-toggle" hidden>Ver conversación</button>
         <button type="button" class="link-btn" id="go-chat-reset-btn" hidden>Nueva conversación</button>
       </div>
       <div id="go-chat-thread" class="chat-thread" hidden></div>
@@ -1912,7 +1913,7 @@ function pintarGuionOrgChat(){
   const box = document.getElementById('go-chat-thread');
   if(!box) return;
   if(!guionOrgChat.length){ box.hidden=true; box.innerHTML=''; return; }
-  box.hidden=false;
+  box.hidden=chatPlegado;
   box.innerHTML = guionOrgChat.map((m,i)=>{
     if(m.role==='user'){
       const thumbs = (m.imagenes&&m.imagenes.length) ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">${m.imagenes.map(src=>`<img src="${src}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--line);">`).join('')}</div>` : '';
@@ -2046,6 +2047,7 @@ async function agregarImagenesPegadasPostIA(e){
 
 async function preguntarAgentePostIA(){
   const pregunta = (guionOrgPreguntaDraft||'').trim();
+  chatPlegado=false;
   const statusEl = document.getElementById('go-pregunta-status');
   if(!pregunta && !guionOrgImagenesAdjuntas.length){ if(statusEl) statusEl.textContent='⚠️ Escribe tu mensaje o adjunta una imagen.'; return; }
   const btn = document.getElementById('go-pregunta-btn');
@@ -2751,6 +2753,8 @@ pintarIconos();
 
 // ─── HERO: barra de chat grande + 3 herramientas ───────────────────────────────
 const HERO_PLACEHOLDER = 'Hagamos contenido mamalón y estratégico para tu marca… comienza preguntando';
+let chatPlegado = false; // al entrar, la conversación guardada queda cerrada hasta que se pica la barra
+function setChatPlegado(v){ chatPlegado=v; actualizarHeroBar(); }
 function autoAlturaHero(el){ el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,150)+'px'; el.style.overflowY = el.scrollHeight>150 ? 'auto' : 'hidden'; }
 
 // Repinta lo que depende de la conversación (hilo, estado, botón, vista previa de imágenes).
@@ -2766,6 +2770,8 @@ function actualizarHeroBar(){
   if(btn) btn.disabled=false;
   const rs=document.getElementById('go-chat-reset-btn');
   if(rs) rs.hidden=!guionOrgChat.length;
+  const tg=document.getElementById('go-chat-toggle');
+  if(tg){ tg.hidden=!guionOrgChat.length; tg.textContent=chatPlegado?'Ver conversación':'Ocultar conversación'; }
   pintarGuionOrgChat();
   pintarGuionOrgImgPreview();
 }
@@ -2776,7 +2782,9 @@ function initHeroChat(){
   ta.addEventListener('keydown',e=>{
     if(e.key==='Enter' && !e.shiftKey && !e.isComposing){ e.preventDefault(); preguntarAgentePostIA(); }
   });
+  ta.addEventListener('focus',()=>{ if(chatPlegado) setChatPlegado(false); });
   ta.addEventListener('paste', agregarImagenesPegadasPostIA);
+  document.getElementById('go-chat-toggle').addEventListener('click',()=>setChatPlegado(!chatPlegado));
   document.getElementById('go-pregunta-img').addEventListener('change', agregarImagenesAdjuntasPostIA);
   document.getElementById('go-pregunta-btn').addEventListener('click', preguntarAgentePostIA);
   document.getElementById('go-chat-reset-btn').addEventListener('click',()=>{
@@ -2784,7 +2792,7 @@ function initHeroChat(){
     scheduleGuionOrgChatSave();
     actualizarHeroBar();
   });
-  ensureGuionOrgChatLoaded().then(actualizarHeroBar);
+  ensureGuionOrgChatLoaded().then(()=>{ chatPlegado=guionOrgChat.length>0; actualizarHeroBar(); });
   autoAlturaHero(ta);
   window.addEventListener('resize',()=>autoAlturaHero(ta));
 }
