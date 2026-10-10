@@ -128,6 +128,19 @@
     .t3-fin { max-width: 560px; margin: 6px auto 0; text-align: center; font-size: 14px; color: var(--text-dim); }
     .t3-fin strong { color: var(--text); }
     .t3-oculto { display: none !important; }
+    .t3-row.actualizado .t3-btn::after { content: ' · actualizado'; font-size: 12px; font-weight: 700; color: var(--accent-text); margin-left: 6px; }
+    .t3-q .rv-sec { font-family: Sora, sans-serif; font-size: 17px; margin: 22px 0 4px; }
+    .t3-q .rv-pest { font-size: 12.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--text-dim); font-weight: 600; margin: 14px 0 4px; }
+    .t3-q .rv-row { display: grid; grid-template-columns: minmax(130px, 28%) 1fr auto; gap: 10px; align-items: start; padding: 9px 0; border-top: 1px solid var(--line); }
+    .t3-q .rv-lab { font-size: 13px; color: var(--text-dim); line-height: 1.4; }
+    .t3-q .rv-val { font-size: 14.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+    .t3-q .rv-val.vacio { color: #9A9A9A; font-style: italic; }
+    .t3-q .rv-edit, .t3-q .rv-actualizar { background: transparent; border: 1px solid var(--line); color: var(--text-dim); font-family: Inter, sans-serif; font-size: 12.5px; font-weight: 600; padding: 5px 12px; border-radius: 99px; cursor: pointer; }
+    .t3-q .rv-edit:hover, .t3-q .rv-actualizar:hover { border-color: var(--accent-text); color: var(--text); }
+    .t3-q .rv-vacios summary { cursor: pointer; color: var(--text-dim); font-size: 13px; padding: 8px 0; }
+    .t3-q .rv-vacio { color: var(--text-dim); font-size: 13.5px; margin: 6px 0; }
+    .t3-q .rv-total { margin: 18px 0 0; font-size: 14px; color: var(--text-dim); }
+    @media (max-width: 700px) { .t3-q .rv-row { grid-template-columns: 1fr auto; } .t3-q .rv-lab { grid-column: 1 / -1; } }
     /* t3-renglon */
     .t3-btn { white-space: nowrap; }
     @media (max-width: 800px) { .t3-btn { white-space: normal; } }
@@ -775,6 +788,7 @@ function inicializarMapa366() {
     { id: 'producto', nombre: 'Producto 366', tipo: 'notas', el: 's366-producto', cont: 'ep-panels-container', guardar: () => guardarProductos() },
     { id: 'sistema', nombre: 'Sistema 366', tipo: 'notas', el: 's366-sistema', cont: 'es-panels-container', guardar: () => guardarSistemas() },
     { id: 'comunicacion', nombre: 'Comunicación 366', tipo: 'notas', el: 's366-comunicacion', cont: 'ec-panels-container', guardar: () => guardarComunicaciones() },
+    { id: 'resumen', nombre: 'Revisión general de lo llenado', tipo: 'resumen' },
     { id: 'contenido', nombre: 'Ideas de Contenido 366', tipo: 'bloque', sec: 's366-contenido', sel: '.ideas-cta' },
     { id: 'anuncios', nombre: 'Ideas de Anuncios de Campañas Pagadas', tipo: 'bloque', sec: 's366-anuncios', sel: '.ideas-cta' },
     { id: 'whatsapp', nombre: 'Guión de WhatsApp y Banco de Conversaciones', tipo: 'bloque', sec: 's366-whatsapp', sel: '.ideas-cta' },
@@ -787,6 +801,7 @@ function inicializarMapa366() {
   const guardarHechos = () => { try { localStorage.setItem(HECHOS_KEY, JSON.stringify(hechos)); } catch (e) {} };
   const txt = (el) => ((el && el.textContent) || '').replace(/\s+/g, ' ').trim();
   const st = {};
+  const actualizados = {};
   let abierto = null;
   let idx = 0;
 
@@ -814,6 +829,8 @@ function inicializarMapa366() {
     } else if (p.tipo === 'notas') {
       const det = document.getElementById(p.el);
       if (det) { det.open = true; body.appendChild(det); }
+    } else if (p.tipo === 'resumen') {
+      body.innerHTML = '<div id="t3-resumen"></div>';
     } else {
       const sec = document.getElementById(p.sec);
       if (sec) {
@@ -903,6 +920,7 @@ function inicializarMapa366() {
       r.classList.toggle('done', !!hechos[id]);
       r.classList.toggle('open', id === abierto);
       r.classList.toggle('next', id === prox && abierto !== id);
+      r.classList.toggle('actualizado', !!actualizados[id] && abierto !== id);
       num.textContent = hechos[id] ? '✓' : String(orden.indexOf(id) + 1);
       r.querySelector('.t3-btn').setAttribute('aria-expanded', id === abierto ? 'true' : 'false');
     });
@@ -912,11 +930,13 @@ function inicializarMapa366() {
     if (abierto) st[abierto].slot.hidden = true;
     if (abierto === id) { abierto = null; pintarMapa(); return; }
     abierto = id; idx = 0;
+    actualizados[id] = false;
     st[id].completa = false;
     st[id].q.classList.remove('completa');
     st[id].q.querySelector('.q-ver-todo').textContent = 'Ver sección completa';
     st[id].slot.hidden = false;
     mostrar(id);
+    if (st[id].cfg.tipo === 'resumen') renderResumen();
     pintarMapa();
     const r = tl.querySelector('.t3-row[data-paso="' + id + '"]');
     if (r && r.scrollIntoView) requestAnimationFrame(() => r.scrollIntoView({ behavior: 'smooth', block: 'start' }));
@@ -943,6 +963,95 @@ function inicializarMapa366() {
     if (sig) abrir(sig);
     else { st[id].slot.hidden = true; abierto = null; pintarMapa(); mostrarFin(); }
   }
+
+  // ── abrir un paso en "sección completa" (lo usa CONFIRMO JEFE y la revisión general) ──
+  function abrirCompleta(id) {
+    if (!st[id]) return;
+    if (abierto !== id) abrir(id);
+    st[id].completa = true;
+    st[id].q.classList.add('completa');
+    st[id].q.querySelector('.q-ver-todo').textContent = 'Ver pregunta por pregunta';
+    mostrar(id);
+  }
+  function alConfirmar(pasos) {
+    if (!pasos || !pasos.length) return;
+    pasos.slice(1).forEach((id) => { actualizados[id] = true; });
+    abrirCompleta(pasos[0]);
+    pintarMapa();
+  }
+
+  // ── revisión general: todo lo llenado en las 4 secciones, con botón Editar por campo ──
+  const SEC = {
+    perfil: { nombre: 'Perfil de Cliente 366', state: () => perfilesState, activar: (i) => { capturarPerfilesDesdeDOM(); perfilActivo = i; renderEpcTabs(); renderEpcPanels(); } },
+    producto: { nombre: 'Producto 366', state: () => productosState, activar: (i) => { capturarProductosDesdeDOM(); productoActivo = i; renderEpTabs(); renderEpPanels(); } },
+    sistema: { nombre: 'Sistema 366', state: () => sistemasState, activar: (i) => { capturarSistemasDesdeDOM(); sistemaActivo = i; renderEsTabs(); renderEsPanels(); } },
+    comunicacion: { nombre: 'Comunicación 366', state: () => comunicacionesState, activar: (i) => { capturarComunicacionesDesdeDOM(); comunicacionActivo = i; renderEcTabs(); renderEcPanels(); } },
+  };
+  function valorDeCampo(field) {
+    const ctrl = field.querySelector('textarea[id], .tabla-notas-container[id]');
+    if (ctrl && ctrl.classList.contains('tabla-notas-container')) {
+      const filas = (ctrl._filas || []).filter((fila) => Object.values(fila).some((v) => (v || '').toString().trim()));
+      if (!filas.length) return { id: ctrl.id, valor: '' };
+      const primeros = filas.slice(0, 4).map((fila) => (Object.values(fila).find((v) => v && v.toString().trim()) || '').toString().trim()).filter(Boolean);
+      return { id: ctrl.id, valor: filas.length + (filas.length === 1 ? ' fila' : ' filas') + (primeros.length ? ': ' + primeros.join(' · ') + (filas.length > 4 ? ' …' : '') : '') };
+    }
+    if (ctrl) return { id: ctrl.id, valor: (ctrl.value || '').trim() };
+    const marcados = [...field.querySelectorAll('input[type="checkbox"]:checked')].map((c) => txt(c.closest('label') || c.parentElement)).filter(Boolean);
+    const cualquiera = field.querySelector('input[id], select[id]');
+    return { id: cualquiera ? cualquiera.id : '', valor: marcados.join(', ') };
+  }
+  function renderResumen() {
+    const cont = document.getElementById('t3-resumen');
+    if (!cont) return;
+    let html = '<p class="q-help" style="margin:0 0 6px;font-size:14.5px;">Esto es lo que llevas lleno hasta ahorita. Revisa que cada dato esté bien y, si algo no cuadra (por ejemplo un rango que se recortó), da clic en <strong>Editar</strong> para corregirlo.</p>' +
+      '<button type="button" class="rv-actualizar" onclick="window.mapa366.actualizarResumen()">↻ Actualizar</button>';
+    let totalLlenos = 0, totalCampos = 0;
+    Object.keys(SEC).forEach((sid) => {
+      const conf = SEC[sid];
+      const lista = conf.state() || [];
+      const contenedor = document.getElementById(PASOS.filter((p) => p.id === sid)[0].cont);
+      const paneles = contenedor ? Array.prototype.slice.call(contenedor.querySelectorAll('.epc-panel')) : [];
+      html += '<h4 class="rv-sec">' + escaparHtmlBuilder(conf.nombre) + '</h4>';
+      if (!paneles.length) { html += '<p class="rv-vacio">Todavía no hay nada guardado aquí.</p>'; return; }
+      paneles.forEach((panel, i) => {
+        const p = lista[i] || {};
+        const grupoNombre = ((typeof gruposNegocioState !== 'undefined' ? gruposNegocioState : []).filter((g) => g.id === p.grupo_id)[0] || {}).nombre;
+        const campos = Array.prototype.slice.call(panel.querySelectorAll('.field')).filter((fl) => fl.style.display !== 'none' && !(fl.parentElement && fl.parentElement.closest('.field')));
+        const llenos = [], vacios = [];
+        campos.forEach((fl) => {
+          const lab = txt(fl.querySelector(':scope > label')).replace(/\s*\(.*?\)\s*$/, '');
+          const v = valorDeCampo(fl);
+          if (!lab || !v.id) return;
+          (v.valor ? llenos : vacios).push({ lab, id: v.id, valor: v.valor });
+        });
+        totalLlenos += llenos.length; totalCampos += llenos.length + vacios.length;
+        const fila = (c) => '<div class="rv-row"><div class="rv-lab">' + escaparHtmlBuilder(c.lab) + '</div><div class="rv-val' + (c.valor ? '' : ' vacio') + '">' + (c.valor ? escaparHtmlBuilder(c.valor) : 'Sin llenar') + '</div><button type="button" class="rv-edit" onclick="window.mapa366.editar(\'' + sid + '\',' + i + ',\'' + c.id + '\')">Editar</button></div>';
+        html += '<div class="rv-pest">' + escaparHtmlBuilder(p.nombre || ('Pestaña ' + (i + 1))) + (grupoNombre ? ' · ' + escaparHtmlBuilder(grupoNombre) : '') + ' · ' + llenos.length + ' de ' + (llenos.length + vacios.length) + ' campos llenos</div>';
+        html += llenos.length ? llenos.map(fila).join('') : '<p class="rv-vacio">Aún no hay campos llenos en esta pestaña.</p>';
+        if (vacios.length) html += '<details class="rv-vacios"><summary>' + vacios.length + (vacios.length === 1 ? ' campo sin llenar' : ' campos sin llenar') + '</summary>' + vacios.map(fila).join('') + '</details>';
+      });
+    });
+    html += '<p class="rv-total">En total: <strong>' + totalLlenos + ' de ' + totalCampos + '</strong> campos llenos.</p>';
+    cont.innerHTML = html;
+  }
+  function editarCampo(sid, i, fieldId) {
+    const conf = SEC[sid];
+    if (!conf) return;
+    const p = (conf.state() || [])[i];
+    if (p && p.grupo_id && typeof gruposNegocioState !== 'undefined' && gruposNegocioState.length && (!grupoActivo || grupoActivo.id !== p.grupo_id)) {
+      const gi = gruposNegocioState.findIndex((g) => g.id === p.grupo_id);
+      if (gi >= 0) switchGroup(gruposNegocioState, gi);
+    }
+    conf.activar(i);
+    abrirCompleta(sid);
+    setTimeout(() => {
+      const el = document.getElementById(fieldId);
+      if (!el) return;
+      resaltarCampoConfirmado(el, true);
+      if (el.focus) { try { el.focus({ preventScroll: true }); } catch (e) {} }
+    }, 450);
+  }
+  window.mapa366 = { abrir, abrirCompleta, alConfirmar, editar: editarCampo, actualizarResumen: renderResumen };
 
   Object.keys(st).forEach((id) => {
     const q = st[id].q;
@@ -3194,8 +3303,15 @@ function procesarConfirmoJefe(mensajes) {
     if (grupo) guardarNotasGrupo(grupo.suffix, grupo.prefix, grupo.campos, grupo.prefix + '-status');
   });
 
-  let primero = true;
-  elementosResaltar.forEach((el) => { resaltarCampoConfirmado(el, primero); primero = false; });
+  const MAPA_SUFIJO = { 'audiencias': 'perfil', '366-producto': 'producto', '366-sistema': 'sistema', '366-comunicacion': 'comunicacion' };
+  const pasosTocados = [...gruposTocados].map((sfx) => MAPA_SUFIJO[sfx]).filter(Boolean);
+  const abrioPaso = pasosTocados.length > 0 && !!window.mapa366;
+  if (abrioPaso) window.mapa366.alConfirmar(pasosTocados);
+  const resaltar = () => {
+    let primero = true;
+    elementosResaltar.forEach((el) => { resaltarCampoConfirmado(el, primero); primero = false; });
+  };
+  if (abrioPaso) setTimeout(resaltar, 500); else resaltar();
   return elementosResaltar.length > 0;
 }
 
