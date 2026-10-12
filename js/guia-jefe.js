@@ -78,8 +78,11 @@
     for (var k = i + 1; k < pasos.length; k++) if (existe(pasos[k].selector)) { ultimo = false; break; }
     var primero = true;
     for (var j = i - 1; j >= 0; j--) if (existe(pasos[j].selector)) { primero = false; break; }
+    // numera solo los pasos que sí se ven ahorita (los que no existen en pantalla se saltan)
+    var total = 0, pos = 0;
+    pasos.forEach(function (q, idx) { if (existe(q.selector)) { total++; if (idx <= i) pos++; } });
     var card = els.card;
-    card.innerHTML = '<div class="gj-n">' + esc(actual.guia.nombre || 'Guía') + ' · paso ' + (i + 1) + ' de ' + pasos.length + '</div>' +
+    card.innerHTML = '<div class="gj-n">' + esc(actual.guia.nombre || 'Guía') + ' · paso ' + pos + ' de ' + total + '</div>' +
       '<h4>' + esc(p.titulo || '') + '</h4><p>' + esc(texto || '') + '</p>' +
       '<div class="gj-row"><button type="button" class="gj-skip" data-gj="cerrar">Cerrar guía</button><span class="gj-sp"></span>' +
       '<button type="button" class="gj-btn sec" data-gj="atras"' + (primero ? ' disabled' : '') + '>← Atrás</button>' +

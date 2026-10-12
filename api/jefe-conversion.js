@@ -481,6 +481,11 @@ module.exports = async function handler(req, res) {
     if (grupoSeleccionado) {
       partesTexto.push(`GRUPO DE NEGOCIO SELECCIONADO POR EL USUARIO (desde las pestañas de arriba): "${grupoSeleccionado.nombre}". Responde usando ÚNICAMENTE la información etiquetada [Grupo: ${grupoSeleccionado.nombre}] (o sin etiqueta de grupo, si aplica al negocio en general) -- no uses precios ni datos de otros grupos.`);
     }
+    // Producto que se venía trabajando en Jefe 366 (llega en modo guiado, aunque no esté en el catálogo del ADN)
+    const productoTexto = typeof req.body.producto_texto === 'string' ? req.body.producto_texto.trim().slice(0, 1800) : '';
+    if (productoTexto) {
+      partesTexto.push('PRODUCTO QUE SE ESTÁ TRABAJANDO EN JEFE 366 (el cliente pregunta por este producto; usa estos datos tal cual, no inventes otros):\n' + productoTexto);
+    }
     partesTexto.push('Mensaje del cliente / captura a analizar:\n' + (mensaje || '(ver captura adjunta)'));
     content.push({
       type: 'text',

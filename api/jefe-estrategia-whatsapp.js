@@ -521,6 +521,13 @@ module.exports = async function handler(req, res) {
         `GRUPO DE NEGOCIO SELECCIONADO POR EL USUARIO (desde las pestañas de arriba): "${grupo.nombre}". Usa ÚNICAMENTE la información etiquetada [Grupo: ${grupo.nombre}] (o sin etiqueta de grupo, si aplica al negocio en general) -- NO uses información de otros grupos, y NO preguntes cuál grupo es, ya se te dijo explícitamente.`
       );
     }
+    // Producto que se venía trabajando en Jefe 366 (llega en modo guiado, aunque no esté en el catálogo del ADN)
+    const productoTexto = typeof body.producto_texto === 'string' ? body.producto_texto.trim().slice(0, 1800) : '';
+    if (productoTexto) {
+      partesUsuario.push(
+        'PRODUCTO QUE SE ESTÁ TRABAJANDO EN JEFE 366 (la estrategia de WhatsApp debe girar en torno a este producto; usa estos datos tal cual, no inventes otros, y prioriza el perfil de cliente relacionado con él):\n' + productoTexto
+      );
+    }
     if (tarjetasActuales) {
       const llenas = TARJETAS_CAMPOS
         .filter((campo) => tarjetasActuales[campo] && tarjetasActuales[campo].toString().trim())

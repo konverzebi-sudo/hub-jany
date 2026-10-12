@@ -59,6 +59,13 @@
 
   /* GRUPOS DE NEGOCIO (mismo patron visual que Jefe 366) */
   .group-tabs{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:14px;}
+  /* producto que se venía trabajando en Jefe 366 (solo cuando se llega desde ahí) */
+  .prod366-banner{max-width:640px;margin:16px auto 0;padding:0 20px;}
+  .prod366-banner[hidden]{display:none;}
+  .prod366-banner > div{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--accent-soft);border:1px solid var(--accent);border-radius:12px;padding:10px 14px;font-size:13.5px;color:var(--text);}
+  .prod366-banner strong{color:var(--accent);}
+  .prod366-banner button{margin-left:auto;background:transparent;border:1px solid var(--line);color:var(--text-dim);border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer;font-family:inherit;}
+  .prod366-banner button:hover{border-color:var(--accent);color:var(--text);}
   .group-tab{font-family:'JetBrains Mono',monospace;font-size:12px;padding:8px 18px;border-radius:20px;border:1.5px solid var(--line);background:transparent;color:var(--text-dim);cursor:pointer;transition:all .15s;}
   .group-tab.active{border-color:var(--accent);color:var(--accent);background:var(--accent-soft);font-weight:700;}
   .group-tab:not(.active):hover{border-color:var(--text-dim);color:var(--text);}
@@ -471,6 +478,10 @@
   <button type="button" class="mostrar-todas-btn" id="mostrarTodasBtn" onclick="toggleMostrarTodas()" hidden>Ver todas las pestañas (sin filtrar por grupo)</button>
 </header>
 
+<div class="prod366-banner" id="producto366Banner" hidden>
+  <div><span>🎯 Trabajando con el producto <strong id="producto366Nombre"></strong> (de Jefe 366). La estrategia y las respuestas del Agente van a girar en torno a él.</span><button type="button" id="producto366Quitar">✕ Quitar</button></div>
+</div>
+
 <div class="search-wrap">
   <div class="search-box">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
@@ -734,6 +745,7 @@
 <footer id="ventas-footer">Jefe WhatsApp y Ventas — construido sobre tu manual de ventas por mensaje</footer>
 
 <script src="/js/storage-client.js"></script>
+<script src="/js/guia-jefe.js"></script>
 <script>
 // ---------- DATA ----------
 const seguimiento = [
@@ -855,7 +867,7 @@ async function askAgent(){
     const response = await fetch("/api/jefe-conversion", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ mensaje: input, imagen: liveImageData, cliente: CLIENTE_ID, grupo: grupoActivoParaEnvio() })
+      body: JSON.stringify({ mensaje: input, imagen: liveImageData, cliente: CLIENTE_ID, grupo: grupoActivoParaEnvio(), producto_texto: producto366Texto })
     });
     const data = await response.json();
     if(!response.ok){
@@ -1207,7 +1219,7 @@ async function generarEstrategia(){
     const response = await fetch('/api/jefe-estrategia-whatsapp', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ cliente: CLIENTE_ID, imagenes: estImagenes, txtConversacion: estTxtConversacion, qa, tarjetasActuales: leerTarjetasDelDOM(), grupo: grupoActivoParaEnvio() })
+      body: JSON.stringify({ cliente: CLIENTE_ID, imagenes: estImagenes, txtConversacion: estTxtConversacion, qa, tarjetasActuales: leerTarjetasDelDOM(), grupo: grupoActivoParaEnvio(), producto_texto: producto366Texto })
     });
     const data = await response.json();
     if(!response.ok){
@@ -1411,9 +1423,70 @@ document.querySelectorAll('[data-field]').forEach((el) => {
 });
 // Los grupos de negocio deben quedar resueltos (grupoActivo) antes de cargar las tarjetas, porque
 // tarjetasKey()/waGuionesKey() dependen de saber con cuál grupo se está trabajando.
+// ---------- LLEGADA DESDE JEFE 366 + GUÍA DE USO ----------
+// Al darle "Ir al Jefe WhatsApp y Ventas" en el paso 9 de Jefe 366, esa página deja en localStorage el
+// producto con el que se venía trabajando. Aquí se deja el grupo de ese producto como pestaña activa,
+// se muestra el producto en un letrero y se manda a la estrategia y a la consulta en vivo. Se consume una vez.
+let producto366Texto = '';
+function leerLlegada366(){
+  try{
+    const raw = localStorage.getItem('jefeshub_366_a_whatsapp');
+    if(!raw) return null;
+    localStorage.removeItem('jefeshub_366_a_whatsapp');
+    const d = JSON.parse(raw);
+    if(!d || d.cliente !== CLIENTE_ID || Date.now() - (d.ts || 0) > 30 * 60 * 1000) return null;
+    return d;
+  }catch(e){ return null; }
+}
+function aplicarLlegada366(d){
+  const norm = (s) => (s || '').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+  const g = gruposNegocioState.find((x) => x.id === d.grupo_id) || gruposNegocioState.find((x) => norm(x.nombre) && norm(x.nombre) === norm(d.grupo_nombre));
+  if(g){ grupoActivo = g; mostrarTodasLasPestanas = false; renderGroupTabs(); }
+  if(d.producto_nombre){
+    producto366Texto = d.producto_texto || '';
+    document.getElementById('producto366Nombre').textContent = d.producto_nombre;
+    document.getElementById('producto366Banner').hidden = false;
+  }
+}
+document.getElementById('producto366Quitar').addEventListener('click', () => {
+  producto366Texto = '';
+  document.getElementById('producto366Banner').hidden = true;
+});
+
+GuiaJefe.registrar({
+  id: 'whatsapp', nombre: 'Jefe WhatsApp y Ventas',
+  pasos: [
+    { selector: '#groupTabs .group-tab', titulo: 'Grupo de negocio',
+      texto: 'Cada grupo de negocio tiene su propio manual de WhatsApp. Elige aquí el grupo con el que quieres trabajar; no se mezclan los datos entre grupos.' },
+    { selector: '#producto366Banner > div', titulo: 'Producto en el que trabajamos',
+      texto: () => 'Estás trabajando con "' + (document.getElementById('producto366Nombre').textContent || '') + '", el producto que veníamos viendo en Jefe 366. La estrategia y las respuestas del Agente giran en torno a él. Si quieres algo general, pícale "Quitar".' },
+    { selector: '#searchInput', titulo: 'Búsqueda rápida',
+      texto: 'Escribe lo que te dijo el cliente ("está caro", "no entiendo", "tarjeta"...) y te sale la respuesta lista para copiar y pegar en el chat.' },
+    { selector: '#estToggleBtn', titulo: 'Pícale aquí para armar tu estrategia',
+      texto: 'Este botón abre el generador: la IA llena las 5 tarjetas de abajo (primer contacto, calificación, oferta, objeciones y cierre) con tu ADN y tu Jefe 366. Puedes subir capturas o un .txt de conversaciones reales para que suene como tú. Si le falta algo clave, te hace hasta 3 preguntas antes.' },
+    { selector: '#liveInput', titulo: 'Consulta en vivo',
+      texto: 'Pega el último mensaje que te mandó el cliente (o adjunta una captura) y pícale "Preguntar al Agente": te aconseja la mejor respuesta estratégica según en qué punto va la venta.' },
+    { selector: '#thermoNav', titulo: 'El termómetro de la conversación',
+      texto: 'Las tarjetas van de frío a ardiendo: 1–2 primer contacto, 3–4 calificación, 5–6 oferta, 7–8 objeciones y 9–10 cierre. Pícale a un tramo para saltar a esas tarjetas según qué tan caliente esté el cliente.' },
+    { selector: '#s1 .copy-btn', titulo: 'Copiar y pegar',
+      texto: 'Cada tarjeta es un mensaje listo. Pícale "Copiar" y pégalo en WhatsApp. También puedes editar el texto directo en la tarjeta: se guarda solo unos segundos después de que dejas de escribir.' },
+    { selector: '.tarjetas-save-row .ask-btn', titulo: 'Guardar ahora',
+      texto: 'Si quieres asegurarte de que quedó guardado antes de salir, pícale aquí.' },
+    { selector: '#seguimientoList', titulo: 'Seguimiento y reactivación',
+      texto: 'Seguimiento es para conversaciones que se quedaron a medias; Reactivación es para leads que se enfriaron o clientas que podrían volver. Son mensajes aparte del termómetro.' },
+    { selector: '#logInput', titulo: 'Preguntas sin respuesta',
+      texto: 'Cuando un cliente te pregunte algo que no está en el manual, anótalo aquí. Después se revisa para completar el manual oficial.' },
+    { selector: '#convoInput', titulo: 'Banco de conversaciones',
+      texto: 'Pega aquí chats reales de WhatsApp (una objeción nueva, una frase que funcionó). Este banco alimenta tu manual y también al Jefe 366 para que sus ideas suenen a tus clientes reales.' },
+  ],
+});
+
 (async () => {
   await cargarGruposNegocio();
+  const llegada = leerLlegada366();
+  if(llegada) aplicarLlegada366(llegada);
   await cargarTarjetas();
+  if(llegada) GuiaJefe.iniciar('whatsapp');
 })();
 </script>
 </body>
