@@ -20,11 +20,11 @@
   // slug = ultimo tramo de la URL; files = archivo real por si se abre sin rewrites.
   var JEFES = [
     { slug: 'jefe-366',              files: ['consultor-366.html'],            icono: 'jefe-366-gris',          nombre: 'Jefe 366' },
-    { slug: 'jefe-contenido',        files: ['jefe-contenido-v2.html'],        icono: 'jefe-contenido-logo-negro', nombre: 'Jefe de Contenido' },
+    { slug: 'jefe-contenido',        files: ['jefe-contenido-v2.html'],        icono: 'jefe-contenido-logo-negro', iconoOscuro: 'jefe-contenido-logo-blanco', nombre: 'Jefe de Contenido' },
     { slug: 'jefe-whatsapp',         files: ['jefe-conversion-ventas.html', 'jefe-conversion-ventas-rancho-seco.html'], icono: 'jefe-whatsapp', nombre: 'WhatsApp y Ventas' },
     { slug: 'jefe-financiero',       files: ['consultor-financiero.html'],     icono: 'jefe-finanzas',         nombre: 'Jefe de Finanzas' },
     { slug: 'jefe-radar',            files: ['consultor-radar-mercado.html'],  icono: 'jefe-radar',            nombre: 'Jefe del Faro' },
-    { slug: 'jefe-anuncios',         files: ['jefe-anuncios.html'],            icono: 'jefe-anuncios',         nombre: 'Jefe de Anuncios' },
+    { slug: 'jefe-anuncios',         files: ['jefe-anuncios.html'],            icono: 'jefe-anuncios-logo-negro', iconoOscuro: 'jefe-anuncios-logo-blanco', nombre: 'Jefe de Anuncios' },
     { slug: 'jefe-produccion-video', files: ['consultor-produccion-video.html'], icono: 'jefe-produccion-video', nombre: 'Jefe Productor IA' },
     { slug: 'jefe-cierre',           files: ['consultor-cierre.html'],         icono: 'jefe-conversion',       nombre: 'Jefe de Conversión' },
     { slug: 'jefe-optimizacion',     files: ['consultor-optimizacion.html'],   icono: 'jefe-optimizacion',     nombre: 'Jefe de Mejora Constante' },
@@ -55,6 +55,9 @@
     '}',
     '.jn-list{flex:1;overflow-y:auto;overflow-x:hidden;padding:10px 8px;display:flex;flex-direction:column;gap:2px;scrollbar-width:thin}',
     '.jn-sep{height:1px;background:var(--line,#332A3D);margin:6px 6px}',
+    '.jn-spacer{flex:1;min-height:18px}',
+    '.jn-sec{padding:4px 12px 2px;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim,#B6A9C7);opacity:.7;white-space:nowrap}',
+    '.jn-min .jn-sec{display:none}',
     '.jn-item{position:relative;display:flex;align-items:center;gap:12px;height:44px;padding:0 8px;border-radius:10px;',
     'color:var(--text-dim,#B6A9C7);text-decoration:none;font-size:13.5px;font-weight:500;white-space:nowrap;border:1px solid transparent}',
     '.jn-item:hover{background:rgba(255,255,255,.05);color:var(--text,#F3EEF9)}',
@@ -108,20 +111,29 @@
     st.textContent = css;
     document.head.appendChild(st);
 
-    var html = '<div class="jn-list">' +
-      item(prefix || '/', '🏠', 'Inicio · Mis Jefes', false) +
-      item(prefix + '/adn', '🧬', 'ADN del negocio', false) +
-      '<div class="jn-sep"></div>';
-    JEFES.forEach(function (j) {
-      var ico = j.icono ? '<img src="/img/' + j.icono + '.webp" alt="" loading="lazy">' : j.emoji;
-      html += item(prefix + '/' + j.slug, ico, j.nombre, esActivo(j));
-    });
-    html += '</div><div class="jn-foot"><button type="button" class="jn-toggle" aria-label="Mostrar u ocultar la barra de Jefes">' +
-      chevron() + '<span>Ocultar barra</span></button></div>';
-
     var nav = document.createElement('nav');
     nav.className = 'jn';
     nav.setAttribute('aria-label', 'Cambiar de Jefe');
+    document.body.appendChild(nav);
+
+    // Logos sin fondo: el negro se ve sobre paginas claras; sobre paginas oscuras se usa el blanco.
+    var rgb = (getComputedStyle(nav).backgroundColor.match(/[0-9.]+/g) || []).map(Number);
+    var claro = rgb.length >= 3 && (rgb.length < 4 || rgb[3] > 0) && (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) > 150;
+
+    var html = '<div class="jn-list">' +
+      item(prefix || '/', '🏠', 'Mis Jefes', false) +
+      '<div class="jn-sep"></div>';
+    JEFES.forEach(function (j) {
+      var archivo = (!claro && j.iconoOscuro) ? j.iconoOscuro : j.icono;
+      var ico = archivo ? '<img src="/img/' + archivo + '.webp" alt="" loading="lazy">' : j.emoji;
+      html += item(prefix + '/' + j.slug, ico, j.nombre, esActivo(j));
+    });
+    // Configuracion: ADN al final de la lista, con un espacio antes.
+    html += '<div class="jn-spacer"></div><div class="jn-sep"></div><div class="jn-sec">Configuración</div>' +
+      item(prefix + '/adn', '🧬', 'ADN del negocio', false);
+    html += '</div><div class="jn-foot"><button type="button" class="jn-toggle" aria-label="Mostrar u ocultar la barra de Jefes">' +
+      chevron() + '<span>Ocultar barra</span></button></div>';
+
     nav.innerHTML = html;
 
     var fab = document.createElement('button');
@@ -132,7 +144,6 @@
     var scrim = document.createElement('div');
     scrim.className = 'jn-scrim';
 
-    document.body.appendChild(nav);
     document.body.appendChild(fab);
     document.body.appendChild(scrim);
     document.body.classList.add('jn-on');
