@@ -538,6 +538,19 @@
     .ed-head{padding:18px 18px 12px;} .ed-bar{padding:10px 18px;} .ed-foot{padding:12px 18px;}
     .ed-two{grid-template-columns:1fr;}
   }
+
+  /* material final visible */
+  .wthumb video.wmat,.wthumb img.wmat{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+  .wlink{position:absolute;left:8px;bottom:8px;background:rgba(15,11,22,.82);color:#fff;font:700 12px 'Inter',sans-serif;padding:4px 10px;border-radius:100px;text-decoration:none;transition:.15s;}
+  .wlink:hover{background:#0F0B16;color:var(--accent);}
+  .ed-screen{overflow:hidden;}
+  .ed-base{position:absolute;inset:0;background:linear-gradient(135deg,var(--thumb-a,#EDEDED),var(--thumb-b,#D8D8D8)) center/cover no-repeat;display:flex;align-items:center;justify-content:center;}
+  .ed-media-box{position:absolute;inset:0;}
+  .ed-media{position:absolute;inset:0;width:100%;height:100%;border:0;object-fit:cover;background:#000;}
+  .ed-ui{position:absolute;inset:0;pointer-events:none;}
+  .ed-screen.interactivo .ed-ui{display:none;}
+  .ed-prev-mat{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;}
+  .ed-prev-mat .wnote{font-size:13px;}
 </style>
 <link rel="stylesheet" href="/css/plataforma-dash.css">
 </head>
@@ -2745,6 +2758,7 @@ function pintarEditor(){
           <div class="ed-prev-nets" id="ed-prev-nets"></div>
           <div class="ed-phone" id="ed-phone"><div class="ed-screen" id="ed-screen"></div></div>
           <div class="ed-prev-cap" id="ed-prev-cap"></div>
+          <div class="ed-prev-mat" id="ed-prev-mat"></div>
         </aside>
       </div>
       <div class="ed-foot">
@@ -2772,19 +2786,36 @@ function actualizarPreviewEditor(){
   if(phone) phone.className='ed-phone '+alto;
   const marca=(document.getElementById('brand-marca-label')||{}).textContent||'';
   const scr=document.getElementById('ed-screen');
+  const mi=infoMaterial(draft.linkArchivo);
   if(scr){
+    if(!scr.firstElementChild){ scr.innerHTML='<div class="ed-base" id="ed-base"></div><div class="ed-media-box" id="ed-media-box"></div><div class="ed-ui" id="ed-ui"></div>'; }
     scr.style.setProperty('--thumb-a',fm.a); scr.style.setProperty('--thumb-b',fm.b);
-    scr.style.backgroundImage=draft.miniatura?`url('${draft.miniatura}')`:'';
-    scr.classList.toggle('con-img',!!draft.miniatura);
+    const base=document.getElementById('ed-base');
+    base.style.backgroundImage=draft.miniatura?`url('${draft.miniatura}')`:'';
+    base.innerHTML=draft.miniatura?'':`<span class="ed-screen-ico">${fm.ico}</span>`;
+    // El material solo se vuelve a montar si cambió el link (para no reiniciar videos/iframes al escribir).
+    const box=document.getElementById('ed-media-box');
+    const llave=mi?mi.abrir:'';
+    if(box.dataset.mat!==llave){
+      box.dataset.mat=llave;
+      if(!mi || mi.tipo==='link') box.innerHTML='';
+      else if(mi.tipo==='img') box.innerHTML=`<img class="ed-media" src="${mi.src}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">`;
+      else if(mi.tipo==='video') box.innerHTML=`<video class="ed-media" src="${mi.src}" controls playsinline preload="metadata"></video>`;
+      else box.innerHTML=`<iframe class="ed-media" src="${mi.src}" loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="no-referrer"></iframe>`;
+    }
+    const interactivo=!!mi && (mi.tipo==='video'||mi.tipo==='embed');
+    scr.classList.toggle('interactivo',interactivo);
     const cap=(draft.caption||draft.gancho||'').trim();
-    scr.innerHTML=`${draft.miniatura?'':`<span class="ed-screen-ico">${fm.ico}</span>`}
-      <span class="wchip">${fm.label}</span>${fm.play?'<span class="wplay"></span>':''}
+    document.getElementById('ed-ui').innerHTML=`<span class="wchip">${fm.label}</span>${fm.play&&!interactivo?'<span class="wplay"></span>':''}
       <div class="ed-screen-txt"><b>${escHtml(marca)}</b><span>${escHtml(cap.slice(0,140))}${cap.length>140?'…':''}</span></div>`;
   }
   const nets=document.getElementById('ed-prev-nets');
   if(nets) nets.innerHTML=draft.redes.length ? draft.redes.map(k=>`<span class="wnet">${{ig:'Instagram',tt:'TikTok',fb:'Facebook'}[k]||k}</span>`).join('') : '<span class="wnote">Elige al menos una red</span>';
   const pc=document.getElementById('ed-prev-cap');
   if(pc) pc.textContent=`${fm.label} · ${alto==='tall'?'9:16':'4:5'}${draft.hora?' · '+draft.hora:''}`;
+  const pm=document.getElementById('ed-prev-mat');
+  if(pm) pm.innerHTML = !mi ? '<span class="wnote">Pega el link de tu material final y aquí lo verás.</span>'
+    : `<a class="wcal-link" href="${mi.abrir}" target="_blank" rel="noopener">🔗 Abrir material</a>${mi.tipo==='link'?`<span class="wnote">${escHtml(mi.host||'')} no se puede mostrar aquí dentro; ábrelo con el botón.</span>`:''}`;
   const pill=document.getElementById('ed-estado-pill');
   if(pill){ pill.className='wpill '+draft.estado; pill.textContent=ESTADO_LABEL[draft.estado]||''; }
 }
@@ -2794,8 +2825,14 @@ function enlazarEditor(ov){
   ov.querySelectorAll('[data-ed]').forEach(el=>{
     const f=el.dataset.ed;
     const upd=()=>{ draft[f]=el.value; actualizarPreviewEditor(); };
-    el.addEventListener('input',upd);
-    el.addEventListener('change',upd);
+    if(f==='linkArchivo'){
+      let t=null;
+      el.addEventListener('input',()=>{ draft[f]=el.value; clearTimeout(t); t=setTimeout(actualizarPreviewEditor,600); });
+      el.addEventListener('change',upd);
+    } else {
+      el.addEventListener('input',upd);
+      el.addEventListener('change',upd);
+    }
   });
   ov.querySelector('#ed-formatos').addEventListener('click',e=>{
     const b=e.target.closest('[data-formato]'); if(!b) return;
@@ -2901,6 +2938,46 @@ function formatoDeItem(r, tab){
 }
 function porHora(a,b){ return (a.hora||'99:99').localeCompare(b.hora||'99:99'); }
 
+// ─── MATERIAL FINAL: qué se puede mostrar a partir del "Link de material" ───────
+// Imagen o video directo, YouTube, Google Drive, Instagram y TikTok se ven dentro de la tarjeta y
+// del celular; cualquier otro link (p. ej. Google Photos) queda como botón "Abrir material".
+function infoMaterial(url){
+  let u=(url||'').trim();
+  if(!u) return null;
+  if(!/^https?:\/\//i.test(u)) u='https://'+u;
+  let L; try{ L=new URL(u); }catch(e){ return null; }
+  const h=L.hostname.replace(/^www\./,'').toLowerCase();
+  const ext=((L.pathname.match(/\.([a-z0-9]+)$/i)||[])[1]||'').toLowerCase();
+  if(h.endsWith('dropbox.com')){ L.searchParams.delete('dl'); L.searchParams.set('raw','1'); }
+  const limpio=x=>x.replace(/"/g,'%22').replace(/'/g,'%27').replace(/</g,'%3C').replace(/>/g,'%3E');
+  const abrir=limpio(L.toString());
+  let m, id=null;
+  if(['jpg','jpeg','png','gif','webp','avif','bmp'].includes(ext) || h.endsWith('googleusercontent.com')) return {tipo:'img',src:abrir,thumb:abrir,abrir,host:h};
+  if(['mp4','webm','mov','m4v','ogv'].includes(ext)) return {tipo:'video',src:abrir,thumb:null,abrir,host:h};
+  if(h==='youtu.be') id=L.pathname.slice(1).split('/')[0];
+  else if(h.endsWith('youtube.com')){
+    if(L.pathname.startsWith('/watch')) id=L.searchParams.get('v');
+    else if((m=L.pathname.match(/^\/(?:shorts|embed|live)\/([\w-]{6,})/))) id=m[1];
+  }
+  if(id && /^[\w-]{6,}$/.test(id)) return {tipo:'embed',src:'https://www.youtube.com/embed/'+id,thumb:'https://img.youtube.com/vi/'+id+'/hqdefault.jpg',abrir,host:h};
+  if(h==='drive.google.com'){
+    m=L.pathname.match(/\/file\/d\/([\w-]+)/); id=m?m[1]:L.searchParams.get('id');
+    if(id && /^[\w-]+$/.test(id)) return {tipo:'embed',src:'https://drive.google.com/file/d/'+id+'/preview',thumb:'https://drive.google.com/thumbnail?id='+id+'&sz=w640',abrir,host:h};
+  }
+  if(h.endsWith('instagram.com') && (m=L.pathname.match(/^\/(?:[\w.]+\/)?(p|reel|reels|tv)\/([\w-]+)/)))
+    return {tipo:'embed',src:'https://www.instagram.com/'+(m[1]==='reels'?'reel':m[1])+'/'+m[2]+'/embed',thumb:null,abrir,host:h};
+  if(h.endsWith('tiktok.com') && (m=L.pathname.match(/\/video\/(\d+)/)))
+    return {tipo:'embed',src:'https://www.tiktok.com/embed/v2/'+m[1],thumb:null,abrir,host:h};
+  return {tipo:'link',abrir,host:h};
+}
+// Capa de material sobre la miniatura (si el material no carga, se quita y se ve la miniatura).
+function materialCapaHTML(mi){
+  if(!mi) return '';
+  if(mi.tipo==='video') return `<video class="wmat" src="${mi.src}#t=0.5" muted preload="metadata" playsinline></video>`;
+  if(mi.thumb) return `<img class="wmat" src="${mi.thumb}" alt="" loading="lazy" draggable="false" referrerpolicy="no-referrer" onerror="this.remove()">`;
+  return '';
+}
+
 function fechaCorta(r){
   const d=parseFecha(r.fecha);
   return d ? `${d.getDate()} ${MESES_CORTOS[d.getMonth()]}` : 'Sin fecha';
@@ -2909,10 +2986,13 @@ function wcardPost(r, i, conFecha){
   const f=formatoDeItem(r,'contenido'), fm=FORMATOS_META[f];
   const redes=Array.isArray(r.redes)?r.redes:REDES_DEFAULT;
   const est=ESTADO_LABEL[r.estado]?r.estado:'idea';
+  const mi=infoMaterial(r.linkArchivo);
   return `<article class="wcard" tabindex="0" role="button" ${conFecha?'':'draggable="true"'} data-id="${escHtml(r.id)}" data-tab="contenido" style="--i:${i}" aria-label="${escHtml(r.gancho||'Post')}">
     <div class="wthumb" style="--thumb-a:${fm.a};--thumb-b:${fm.b};">
       ${r.miniatura?`<img src="${r.miniatura}" alt="" loading="lazy" draggable="false">`:`<span class="wthumb-ico">${fm.ico}</span>`}
+      ${materialCapaHTML(mi)}
       <span class="wchip">${fm.label}</span>${fm.play?'<span class="wplay"></span>':''}
+      ${mi?`<a class="wlink" href="${mi.abrir}" target="_blank" rel="noopener" title="Abrir material" onclick="event.stopPropagation()">🔗 Material</a>`:''}
     </div>
     <div class="wbody">
       <div class="wtitle">${escHtml(r.gancho||'(sin título)')}</div>
@@ -2923,7 +3003,9 @@ function wcardPost(r, i, conFecha){
 }
 function wcardHistoria(r, i, conFecha){
   const est=ESTADO_LABEL[r.estado]?r.estado:'idea';
-  const ring = r.miniatura ? `<span style="background-image:url('${r.miniatura}')"></span>` : '<span>⭕</span>';
+  const mi=infoMaterial(r.linkArchivo);
+  const fondos=[mi&&(mi.tipo==='img'||mi.thumb)?mi.thumb:null, r.miniatura||null].filter(Boolean).map(u=>`url('${u}')`).join(',');
+  const ring = fondos ? `<span style="background-image:${fondos}"></span>` : '<span>⭕</span>';
   return `<article class="wcard mini" tabindex="0" role="button" ${conFecha?'':'draggable="true"'} data-id="${escHtml(r.id)}" data-tab="historias" style="--i:${i}" aria-label="${escHtml(r.gancho||'Historia')}">
     <div class="wmini-ring">${ring}</div>
     <div class="wbody">
