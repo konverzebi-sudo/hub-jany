@@ -88,6 +88,29 @@ async function fetchConTimeout(url, opts, ms) {
   }
 }
 
+// Miniatura de un post de Instagram (?ig=<codigo>) para las tarjetas de Jefe de Contenido.
+// El CDN de Instagram manda la imagen con "cross-origin-resource-policy: same-origin", así que el
+// navegador no la deja mostrar en otra página; se pide desde aquí y se devuelve con caché de un día.
+// Solo se consulta instagram.com con un código validado, no sirve para pedir otras direcciones.
+async function miniaturaInstagram(req, res) {
+  const code = String(req.query.ig || '');
+  if (!/^[\w-]{5,30}$/.test(code)) return res.status(400).end('código inválido');
+  try {
+    const r = await fetch('https://www.instagram.com/p/' + code + '/media/?size=l', {
+      redirect: 'follow',
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36' },
+    });
+    const tipo = r.headers.get('content-type') || '';
+    if (!r.ok || !tipo.startsWith('image/')) return res.status(404).end('sin imagen');
+    const buf = Buffer.from(await r.arrayBuffer());
+    res.setHeader('Content-Type', tipo);
+    res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800');
+    return res.status(200).send(buf);
+  } catch (err) {
+    return res.status(502).end('no se pudo pedir la imagen');
+  }
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
 
@@ -95,6 +118,8 @@ module.exports = async function handler(req, res) {
     res.setHeader('Allow', 'GET');
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
+
+  if (req.query.ig) return miniaturaInstagram(req, res);
 
   const ip = (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown')
     .toString()
