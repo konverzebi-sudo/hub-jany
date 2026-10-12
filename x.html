@@ -264,6 +264,30 @@ body {
   .main { padding: 24px 16px 60px; }
   .grid, .grid-2 { grid-template-columns: 1fr; }
 }
+
+/* ── PÁGINAS EN MI CONTROL (accesos directos que se agregan a mano) ── */
+.pc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 14px; margin-bottom: 8px; }
+.pc-tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 9px; padding: 14px 8px 12px; background: var(--negro3); border: 1px solid var(--gris2); border-radius: 14px; color: var(--text); text-decoration: none; text-align: center; transition: transform .18s ease, border-color .18s ease, background .18s ease; }
+.pc-tile:hover { transform: translateY(-3px); border-color: var(--verde); background: var(--verde-dim); color: var(--verde); }
+.pc-ico { width: 46px; height: 46px; border-radius: 12px; background: var(--negro4); display: flex; align-items: center; justify-content: center; overflow: hidden; font-weight: 700; font-size: 20px; color: var(--verde); }
+.pc-ico img { width: 30px; height: 30px; object-fit: contain; display: block; }
+.pc-name { font-size: 11.5px; font-weight: 600; line-height: 1.25; letter-spacing: .02em; max-width: 100%; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; }
+.pc-del { position: absolute; top: -7px; right: -7px; width: 22px; height: 22px; border-radius: 50%; border: 0; background: #e5484d; color: #fff; font-size: 12px; font-weight: 700; line-height: 22px; cursor: pointer; display: none; }
+.pc-editando .pc-del { display: block; }
+.pc-editando .pc-tile { animation: pcTiembla .35s ease-in-out infinite alternate; }
+@keyframes pcTiembla { from { transform: rotate(-1.2deg); } to { transform: rotate(1.2deg); } }
+.pc-add { cursor: pointer; border-style: dashed; background: transparent; font-family: inherit; }
+.pc-add .pc-ico { background: var(--verde); color: #0a0a0a; font-size: 26px; }
+.pc-form { display: none; gap: 10px; flex-wrap: wrap; align-items: center; background: var(--negro3); border: 1px solid var(--verde-border); border-radius: 14px; padding: 14px; margin-bottom: 14px; }
+.pc-form.on { display: flex; }
+.pc-form input { flex: 1 1 200px; min-width: 0; background: var(--negro); border: 1px solid var(--gris2); border-radius: 10px; color: var(--blanco); padding: 11px 12px; font: inherit; font-size: 14px; outline: none; }
+.pc-form input:focus { border-color: var(--verde); }
+.pc-btn { background: var(--verde); color: #0a0a0a; border: 0; border-radius: 10px; padding: 11px 18px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.pc-btn.sec { background: var(--negro4); color: var(--text); font-weight: 600; }
+.pc-barra { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; font-size: 12px; color: var(--gris); }
+.pc-barra button { background: none; border: 1px solid var(--gris2); color: var(--text); border-radius: 8px; padding: 5px 11px; font: inherit; font-size: 12px; cursor: pointer; }
+.pc-barra button:hover { border-color: var(--verde); color: var(--verde); }
+.pc-vacio { font-size: 13px; color: var(--gris); margin: 4px 0 12px; }
 </style>
 </head>
 <body>
@@ -330,6 +354,25 @@ body {
     <a class="page-btn" href="https://jefeshub.com/diagnostico-negocio.html" target="_blank"><span class="dot"></span> Diagnóstico Exprés</a>
     <a class="page-btn" href="https://jefeshub.com/leads-viewer.html" target="_blank"><span class="dot"></span> Leads del Diagnóstico</a>
   </div>
+
+  <!-- ── PÁGINAS EN MI CONTROL ── -->
+  <div class="section-header">
+    <span class="section-icon">📌</span>
+    <span class="section-title">Páginas en mi control</span>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="pc-barra">
+    <span id="pc-estado">Tus accesos directos</span>
+    <button type="button" id="pc-editar">Editar</button>
+  </div>
+  <div class="pc-form" id="pc-form">
+    <input type="text" id="pc-nombre" placeholder="Nombre (opcional)" autocomplete="off">
+    <input type="text" id="pc-url" placeholder="Dirección de la página, ej. mi-sitio.com" autocomplete="off" inputmode="url">
+    <button type="button" class="pc-btn" id="pc-ok">Agregar</button>
+    <button type="button" class="pc-btn sec" id="pc-cancel">Cancelar</button>
+  </div>
+  <div class="pc-grid" id="pc-grid"></div>
 
   <!-- ── ANÁLISIS ── -->
   <div class="section-header">
@@ -533,6 +576,87 @@ body {
   const d = new Date();
   const opciones = { weekday: 'long', day: 'numeric', month: 'long' };
   document.getElementById('fecha').textContent = d.toLocaleDateString('es-MX', opciones);
+</script>
+
+<script>
+// Páginas en mi control: accesos directos con el icono de cada página. Se agregan a mano y se guardan
+// en este dispositivo y (si hay token) en el servidor, para verlos igual desde cualquier dispositivo.
+(function () {
+  var API = location.hostname === 'agentes.jefeshub.com' ? '' : 'https://agentes.jefeshub.com';
+  var KEY = 'x:paginas-control', LS = 'x_paginas_control', TK = 'jefeshub_storage_token';
+  var grid = document.getElementById('pc-grid'), form = document.getElementById('pc-form'), estado = document.getElementById('pc-estado'), btnEd = document.getElementById('pc-editar');
+  var items = [], pidioToken = false;
+
+  function esc(t) { var d = document.createElement('div'); d.textContent = t == null ? '' : String(t); return d.innerHTML; }
+  function leerLocal() { try { var v = JSON.parse(localStorage.getItem(LS) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
+  function guardarLocal() { try { localStorage.setItem(LS, JSON.stringify(items)); } catch (e) {} }
+  function normalizar(u) {
+    u = String(u || '').trim(); if (!u) return '';
+    if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(u)) u = 'https://' + u;
+    try { var x = new URL(u); return /^https?:$/.test(x.protocol) ? x.href : ''; } catch (e) { return ''; }
+  }
+  function hostDe(u) { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return u; } }
+
+  function pintar() {
+    var html = items.map(function (it, i) {
+      var h = hostDe(it.url), ini = esc((it.nombre || h).charAt(0).toUpperCase());
+      return '<a class="pc-tile" href="' + esc(it.url) + '" target="_blank" rel="noopener" title="' + esc(it.nombre) + '" data-i="' + i + '">' +
+        '<span class="pc-ico"><img src="https://www.google.com/s2/favicons?domain=' + encodeURIComponent(h) + '&sz=64" alt="" data-ini="' + ini + '"></span>' +
+        '<span class="pc-name">' + esc(it.nombre) + '</span><button type="button" class="pc-del" data-del="' + i + '" aria-label="Quitar ' + esc(it.nombre) + '">✕</button></a>';
+    }).join('');
+    html += '<button type="button" class="pc-tile pc-add" id="pc-mas"><span class="pc-ico">+</span><span class="pc-name">Agregar página</span></button>';
+    grid.innerHTML = html;
+    grid.querySelectorAll('img[data-ini]').forEach(function (img) {
+      img.onerror = function () { img.parentNode.textContent = img.dataset.ini; };
+    });
+    grid.querySelectorAll('[data-del]').forEach(function (b) {
+      b.onclick = function (e) { e.preventDefault(); e.stopPropagation(); items.splice(+b.dataset.del, 1); cambio(); };
+    });
+    grid.querySelector('#pc-mas').onclick = abrirForm;
+    // en modo edición los accesos no abren la página
+    grid.querySelectorAll('a.pc-tile').forEach(function (a) { a.onclick = function (e) { if (grid.classList.contains('pc-editando')) e.preventDefault(); }; });
+  }
+
+  function aviso(t) { estado.textContent = t; }
+  async function guardarServidor() {
+    var t = ''; try { t = (localStorage.getItem(TK) || '').trim(); } catch (e) {}
+    if (!t && !pidioToken) { pidioToken = true; t = (window.prompt('Token de acceso (para ver tus accesos en todos tus dispositivos). Cancela para guardarlos solo aquí:') || '').trim(); }
+    if (!t) { aviso('Guardado solo en este dispositivo'); return; }
+    try {
+      var r = await fetch(API + '/api/storage/' + encodeURIComponent(KEY), { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Storage-Token': t }, body: JSON.stringify({ value: JSON.stringify(items) }) });
+      if (r.status === 401) { try { localStorage.removeItem(TK); } catch (e) {} pidioToken = false; aviso('Token incorrecto: guardado solo en este dispositivo'); return; }
+      if (!r.ok) { aviso('Guardado solo en este dispositivo'); return; }
+      try { localStorage.setItem(TK, t); } catch (e) {}
+      aviso('Guardado en todos tus dispositivos ✓');
+    } catch (e) { aviso('Guardado solo en este dispositivo'); }
+  }
+  function cambio() { guardarLocal(); pintar(); guardarServidor(); }
+
+  function abrirForm() { form.classList.add('on'); document.getElementById('pc-url').focus(); }
+  function cerrarForm() { form.classList.remove('on'); document.getElementById('pc-nombre').value = ''; document.getElementById('pc-url').value = ''; }
+  function agregar() {
+    var url = normalizar(document.getElementById('pc-url').value);
+    if (!url) { aviso('Escribe una dirección válida, ej. mi-sitio.com'); return; }
+    var nombre = document.getElementById('pc-nombre').value.trim() || hostDe(url);
+    items.push({ nombre: nombre.slice(0, 40), url: url });
+    cerrarForm(); cambio();
+  }
+  document.getElementById('pc-ok').onclick = agregar;
+  document.getElementById('pc-cancel').onclick = cerrarForm;
+  form.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); agregar(); } });
+  btnEd.onclick = function () { var on = grid.classList.toggle('pc-editando'); btnEd.textContent = on ? 'Listo' : 'Editar'; };
+
+  async function cargar() {
+    items = leerLocal(); pintar();
+    try {
+      var r = await fetch(API + '/api/storage/' + encodeURIComponent(KEY), { cache: 'no-store' });
+      if (!r.ok) return;
+      var j = await r.json(), v = j && j.value; if (typeof v === 'string') v = JSON.parse(v);
+      if (Array.isArray(v) && v.length) { items = v.filter(function (x) { return x && normalizar(x.url); }); guardarLocal(); pintar(); }
+    } catch (e) {}
+  }
+  cargar();
+})();
 </script>
 
 </body>
