@@ -236,6 +236,7 @@
     #jefe366ChatBox { scroll-margin-top: 92px; }
     #jefe366ChatBox { position: relative; text-align: left; max-width: 760px; margin: -6px auto 22px; }
     #jefe366ChatBox #builderControls .builder-controls { display: none; }
+    .hero-search.en-chat { max-width: none; margin: 4px 0 12px; box-shadow: 0 4px 16px rgba(0,0,0,.10); min-height: 52px; }
     #jefe366ChatBox #builderChat { max-height: 52vh; }
     main#publicidad-content.split-view #jefe366ChatBox { max-width: none; margin: 0 0 22px; }
     main#publicidad-content.split-view #jefe366ChatBox #builderChat { max-height: calc(100vh - 360px); min-height: 160px; }
@@ -524,6 +525,7 @@
     <ellipse cx="100" cy="134" rx="58" ry="44" fill="#FFFFFF"/><ellipse cx="78" cy="132" rx="9" ry="14" fill="#C0F800"/><ellipse cx="122" cy="132" rx="9" ry="14" fill="#C0F800"/>
   </symbol></svg>
   <svg class="hero-robot" role="img" aria-label="Jefe 366"><use href="#robot366"/></svg>
+  <span id="heroBarraHome" hidden></span>
   <label class="hero-search" for="heroSearchInput">
     <svg class="hero-search-lupa" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>
     <span class="hero-search-sep"></span>
@@ -1130,6 +1132,7 @@ function activarChat366() {
   if (inp) inp.placeholder = 'Escribe tu respuesta al Jefe 366...';
   const chat = document.getElementById('builderChat');
   if (chat) chat.scrollTop = chat.scrollHeight;
+  acomodarBarra366();
 }
 
 function ocultarChat366() {
@@ -1139,6 +1142,7 @@ function ocultarChat366() {
   if (main) main.classList.remove('chat-activo');
   const inp = document.getElementById('heroSearchInput');
   if (inp) inp.placeholder = 'Estoy para asesorarte para vender los 366/365 días del año';
+  acomodarBarra366();
 }
 
 /* Al empezar a escribir en la barra se muestra el chat (con su historial si ya había conversación). */
@@ -1154,9 +1158,43 @@ function ubicarChat366() {
   const box = document.getElementById('jefe366ChatBox');
   const main = document.getElementById('publicidad-content');
   const barra = document.querySelector('.hero-search');
-  if (!box || !main || !barra) return;
+  const home = document.getElementById('heroBarraHome');
+  if (!box || !main || !barra || !home) return;
   if (main.classList.contains('split-view')) main.insertBefore(box, main.firstChild);
-  else if (box.previousElementSibling !== barra) barra.insertAdjacentElement('afterend', box);
+  else {
+    const ancla = barra.parentElement === home.parentElement ? barra : home;
+    if (box.previousElementSibling !== ancla) ancla.insertAdjacentElement('afterend', box);
+  }
+  acomodarBarra366();
+}
+
+/* Con el chat abierto, la barra para responder baja y queda debajo de la última respuesta (como
+   WhatsApp o ChatGPT); sin chat (o en Vista dividida, que ya trae su propia caja) vuelve arriba. */
+function acomodarBarra366() {
+  const box = document.getElementById('jefe366ChatBox');
+  const main = document.getElementById('publicidad-content');
+  const barra = document.querySelector('.hero-search');
+  const home = document.getElementById('heroBarraHome');
+  const controles = document.getElementById('builderControls');
+  if (!box || !main || !barra || !home || !controles) return;
+  const enChat = box.classList.contains('activo') && !main.classList.contains('split-view');
+  const inp = document.getElementById('heroSearchInput');
+  const tenia = !!inp && document.activeElement === inp;
+  const pos = tenia ? inp.selectionStart : null;
+  if (enChat && barra.parentElement !== controles) {
+    controles.insertBefore(barra, controles.firstChild);
+    barra.classList.add('en-chat');
+  } else if (!enChat && barra.parentElement === controles) {
+    home.insertAdjacentElement('afterend', barra);
+    barra.classList.remove('en-chat');
+  } else {
+    return;
+  }
+  if (tenia && inp) {
+    inp.focus();
+    try { inp.setSelectionRange(pos, pos); } catch (e) {}
+  }
+  if (enChat && barra.scrollIntoView) barra.scrollIntoView({ block: 'nearest' });
 }
 
 /* Barra del encabezado: es la entrada al chat. Lo que escribes se manda como tu mensaje. */
@@ -1169,6 +1207,8 @@ function heroBuscar() {
   dest.value = texto;
   inp.value = '';
   enviarMensajeConstructor();
+  const barraEl = document.querySelector('.hero-search');
+  if (barraEl && barraEl.scrollIntoView) barraEl.scrollIntoView({ block: 'nearest' });
 }
 
 function renderGroupTabs(grupos) {
