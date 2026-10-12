@@ -375,21 +375,6 @@
   .wnav button:active{transform:scale(.92);}
   .wnav .hoy-btn{width:auto;padding:0 16px;border-radius:100px;font:700 14px 'Sora',sans-serif;}
   .wstrip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;}
-  .wday{display:flex;flex-direction:column;gap:10px;min-width:0;border-radius:16px;transition:background .15s,box-shadow .15s;}
-  .wday.dragover{background:var(--accent-soft);box-shadow:0 0 0 2px var(--accent);}
-  .wday-head{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;background:var(--surface-2);transition:.18s;}
-  .wday-num{font:800 26px/1 'Sora',sans-serif;}
-  .wday-meta{display:flex;flex-direction:column;line-height:1.2;min-width:0;}
-  .wday-wd{font:700 15px 'Sora',sans-serif;}
-  .wday-mes{font-size:13px;color:var(--text-dim);text-transform:capitalize;}
-  .wday-count{margin-left:auto;min-width:26px;height:26px;border-radius:100px;background:var(--surface);border:1px solid var(--line);font:700 13px/24px 'Inter',sans-serif;text-align:center;padding:0 7px;color:var(--text-dim);}
-  .wday.hoy .wday-head{background:var(--accent);box-shadow:0 0 0 4px rgba(192,248,0,.30);}
-  .wday.hoy .wday-head .wday-mes{color:#3B3B3B;}
-  .wday.hoy .wday-count{background:#1A1A1A;border-color:#1A1A1A;color:#fff;}
-  .wday-list{display:flex;flex-direction:column;gap:10px;min-height:44px;}
-  .wday-add{border:1.5px dashed var(--line);background:transparent;color:var(--text-dim);font:600 14px 'Inter',sans-serif;padding:9px;border-radius:12px;cursor:pointer;transition:.15s;opacity:0;}
-  .wday:hover .wday-add,.wday-add:focus-visible,.wday-add.solo{opacity:1;}
-  .wday-add:hover{border-color:var(--accent);color:var(--accent-text);background:var(--accent-soft);}
   .wcard{background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;box-shadow:var(--shadow-card);transition:transform .2s ease,box-shadow .2s ease,border-color .2s;text-align:left;font-family:inherit;color:inherit;padding:0;width:100%;}
   .wcard:hover{transform:translateY(-3px);box-shadow:var(--shadow-pop);border-color:#D2D2D2;}
   .wcard:active{transform:scale(.985);}
@@ -420,11 +405,14 @@
   .wmini-ring>span{width:100%;height:100%;border-radius:50%;background:var(--surface-2) center/cover no-repeat;display:flex;align-items:center;justify-content:center;font-size:16px;border:2px solid #fff;}
   .wfoot-links{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
   .wnote{font-size:14px;color:var(--text-dim);}
+  .wnav .wadd-btn{width:auto;height:auto;border:1.5px dashed var(--line);background:transparent;color:var(--text-dim);font:700 13.5px 'Sora',sans-serif;padding:8px 16px;border-radius:100px;cursor:pointer;transition:.15s;white-space:nowrap;}
+  .wnav .wadd-btn:hover{border-color:var(--accent);color:var(--accent-text);background:var(--accent-soft);}
+  .wvacio{grid-column:1/-1;padding:18px 0;margin:0;}
   .wsec-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:14px;}
   .wcal-link{display:inline-flex;align-items:center;gap:8px;font:700 13.5px 'Sora',sans-serif;color:var(--accent-text);background:var(--accent-soft);border:1.5px solid var(--accent);border-radius:10px;padding:8px 16px;cursor:pointer;transition:.18s;}
   .wcal-link:hover{background:var(--accent);color:#1A1A1A;transform:translateY(-2px);box-shadow:var(--shadow-card);}
   .wcal-link:active{transform:scale(.96);}
-  .anim .wcard,.anim .wday-head{animation:cxRise .45s ease both;animation-delay:calc(var(--i,0)*55ms);}
+  .anim .wcard{animation:cxRise .45s ease both;animation-delay:calc(var(--i,0)*55ms);}
   @keyframes cxRise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 
   /* dashboard */
@@ -449,8 +437,7 @@
 
   @media (max-width:1240px){
     .wstrip{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:10px;}
-    .wday{flex:0 0 min(78vw,236px);scroll-snap-align:start;}
-    .wday-add{opacity:1;}
+    .wstrip>.wcard{flex:0 0 min(78vw,236px);scroll-snap-align:start;}
   }
   @media (max-width:900px){
     .wstrip{margin:0 -16px;padding-left:16px;padding-right:16px;}
@@ -2778,9 +2765,8 @@ const REDES_DEFAULT = ['ig','tt','fb'];
 const ESTADO_LABEL = {idea:'Idea', proceso:'En proceso', programado:'Programado', publicado:'Publicado'};
 // Degradado de la miniatura según el estado: idea = rojo, en proceso = amarillo, programado = azul, publicado = verde.
 const ESTADO_GRAD = {idea:['#FFE3E3','#F4A0A0'], proceso:['#FFF8D6','#FBE48E'], programado:['#E6F2FF','#A9D0F5'], publicado:['#EAFBB8','#C6F04E']};
-const WIDGET_DIAS = 5;
+const WIDGET_MAX = 5; // tarjetas por sección en la pantalla principal
 
-let widgetInicio = null;       // Date (medianoche) del primer día visible
 let widgetAnimar = true;       // la animación de entrada solo corre al abrir o al cambiar de días
 let widgetTimer = null;
 
@@ -2870,7 +2856,7 @@ function wcardHistoria(r, i, conFecha){
   const fuH=fuenteElegida(r); const mi=fuH?fuH.mi:null;
   const fondos=[mi&&(mi.tipo==='img'||mi.thumb)?mi.thumb:null, r.miniatura||null].filter(Boolean).map(u=>`url('${u}')`).join(',');
   const ring = fondos ? `<span style="background-image:${fondos}"></span>` : '<span>⭕</span>';
-  return `<article class="wcard mini" tabindex="0" role="button" ${conFecha?'':'draggable="true"'} data-id="${escHtml(r.id)}" data-tab="historias" style="--i:${i}" aria-label="${escHtml(r.gancho||'Historia')}">
+  return `<article class="wcard mini" tabindex="0" role="button" ${conFecha?'':'draggable="true"'} data-id="${escHtml(r.id)}" data-tab="historias" style="--i:${i};--horizon:${ESTADO_GRAD[est][1]}" aria-label="${escHtml(r.gancho||'Historia')}">
     <div class="wmini-ring">${ring}</div>
     <div class="wbody">
       <div class="wtitle">${escHtml(r.gancho||'(sin título)')}</div>
@@ -2879,62 +2865,52 @@ function wcardHistoria(r, i, conFecha){
   </article>`;
 }
 
-function wstripHTML(dias, hoyIso, lista, tab){
-  const porDia={};
-  lista.forEach(r=>{ if(/^\d{4}-\d{2}-\d{2}$/.test(r.fecha||'')) (porDia[r.fecha]=porDia[r.fecha]||[]).push(r); });
-  return `<div class="wstrip">${dias.map((d,di)=>{
-    const iso=isoDeDate(d);
-    const items=(porDia[iso]||[]).slice().sort(porHora);
-    return `<div class="wday${iso===hoyIso?' hoy':''}" data-iso="${iso}" data-tab="${tab}">
-      <div class="wday-head" style="--i:${di}">
-        <span class="wday-num">${d.getDate()}</span>
-        <span class="wday-meta"><span class="wday-wd">${DIAS_CORTOS[d.getDay()]}</span><span class="wday-mes">${MESES_CORTOS[d.getMonth()]}</span></span>
-        <span class="wday-count" title="${items.length} en este día">${items.length}</span>
-      </div>
-      <div class="wday-list">${items.map((r,i)=> tab==='contenido' ? wcardPost(r,di+i) : wcardHistoria(r,di+i)).join('')}</div>
-      <button type="button" class="wday-add${items.length?'':' solo'}" data-add="${tab}" data-iso="${iso}">+ Añadir</button>
-    </div>`;
-  }).join('')}</div>`;
+// Los "siguientes" de cada sección: primero lo programado (azul, por fecha), si faltan se completa con
+// lo que está en proceso (amarillo) y al final con ideas (rojo), hasta WIDGET_MAX tarjetas.
+function proximosPorEstado(lista){
+  const hoy=isoDeDate(hoyMedianoche());
+  const rank={programado:0,proceso:1,idea:2};
+  const estDe=r=>ESTADO_LABEL[r.estado]?r.estado:'idea';
+  const grupoFecha=r=>{ const f=r.fecha||''; if(!/^\d{4}-\d{2}-\d{2}$/.test(f)) return 1; return f>=hoy?0:2; }; // con fecha próxima, sin fecha, ya pasada
+  return lista.filter(r=>estDe(r)!=='publicado').slice().sort((a,b)=>{
+    const d=rank[estDe(a)]-rank[estDe(b)]; if(d) return d;
+    const g=grupoFecha(a)-grupoFecha(b); if(g) return g;
+    return (a.fecha||'').localeCompare(b.fecha||'') || porHora(a,b);
+  }).slice(0,WIDGET_MAX);
+}
+function wresumenEstados(items){
+  const n={programado:0,proceso:0,idea:0};
+  items.forEach(r=>{ n[ESTADO_LABEL[r.estado]?r.estado:'idea']++; });
+  return [['programado','programado','programados'],['proceso','en proceso','en proceso'],['idea','idea','ideas']]
+    .filter(([k])=>n[k]).map(([k,uno,varios])=>`${n[k]} ${n[k]>1?varios:uno}`).join(' · ');
+}
+function wstripHTML(lista, tab){
+  const items=proximosPorEstado(lista);
+  const tarjetas=items.map((r,i)=> tab==='contenido' ? wcardPost(r,i,true) : wcardHistoria(r,i,true)).join('');
+  return `<div class="wstrip">${tarjetas}${items.length?'':`<p class="wnote wvacio">Todavía no hay ${tab==='contenido'?'posts':'historias'}. Agrega el primero con “+ Añadir”.</p>`}</div>`;
 }
 
 function renderWidget(){
   const host=document.getElementById('widget-host');
   if(!host) return;
-  if(!widgetInicio) widgetInicio=hoyMedianoche();
-  const dias=[];
-  for(let k=0;k<WIDGET_DIAS;k++){ const d=new Date(widgetInicio); d.setDate(d.getDate()+k); dias.push(d); }
-  const hoyIso=isoDeDate(hoyMedianoche());
-  const ult=dias[dias.length-1];
-  const rango=`${dias[0].getDate()} ${MESES_CORTOS[dias[0].getMonth()]} – ${ult.getDate()} ${MESES_CORTOS[ult.getMonth()]}`;
-  const sinFecha=[...state.historias,...state.contenido].filter(r=>!/^\d{4}-\d{2}-\d{2}$/.test(r.fecha||'') && r.estado!=='publicado' && r.estado!=='idea').length;
-
-  host.innerHTML=`
-    <div class="wsec">
+  const sec=(tab,titulo,textoCal)=>{
+    const items=proximosPorEstado(tab==='contenido'?state.contenido:state.historias);
+    return `<div class="wsec">
       <div class="wsec-head">
-        <button type="button" class="wsec-title" data-abrir="contenido">Próximos posts <span class="arrow">→</span></button>
-        <div class="wnav" aria-label="Cambiar de días">
-          <span class="wnote">${rango}</span>
-          <button type="button" data-nav="-${WIDGET_DIAS}" aria-label="Días anteriores">‹</button>
-          <button type="button" class="hoy-btn" data-nav="hoy">Hoy</button>
-          <button type="button" data-nav="${WIDGET_DIAS}" aria-label="Días siguientes">›</button>
+        <button type="button" class="wsec-title" data-abrir="${tab}">${titulo} <span class="arrow">→</span></button>
+        <div class="wnav">
+          <span class="wnote">${escHtml(wresumenEstados(items))}</span>
+          <button type="button" class="wadd-btn" data-add="${tab}">+ Añadir</button>
         </div>
       </div>
-      ${wstripHTML(dias,hoyIso,state.contenido,'contenido')}
-      <div class="wsec-foot">
-        <span class="wnote">${sinFecha?`${sinFecha} pieza${sinFecha>1?'s':''} en proceso o programada${sinFecha>1?'s':''} sin fecha`:''}</span>
-        <button type="button" class="wcal-link" data-cal-abrir="contenido">📅 Ver calendario de posts</button>
-      </div>
-    </div>
-    <div class="wsec">
-      <div class="wsec-head">
-        <button type="button" class="wsec-title" data-abrir="historias">Historias <span class="arrow">→</span></button>
-      </div>
-      ${wstripHTML(dias,hoyIso,state.historias,'historias')}
+      ${wstripHTML(tab==='contenido'?state.contenido:state.historias,tab)}
       <div class="wsec-foot">
         <span></span>
-        <button type="button" class="wcal-link" data-cal-abrir="historias">📅 Ver calendario de historias</button>
+        <button type="button" class="wcal-link" data-cal-abrir="${tab}">📅 ${textoCal}</button>
       </div>
     </div>`;
+  };
+  host.innerHTML=sec('contenido','Próximos posts','Ver calendario de posts')+sec('historias','Próximas historias','Ver calendario de historias');
 
   if(widgetAnimar){
     host.classList.add('anim');
@@ -2944,49 +2920,16 @@ function renderWidget(){
   enlazarWidget(host);
 }
 
-function moverItemAFechaWidget(tab,id,iso){
-  const item=(state[tab]||[]).find(r=>r.id===id);
-  if(!item || item.fecha===iso) return;
-  item.fecha=iso;
-  if(item.estado==='idea') item.estado='proceso';
-  scheduleSave();
-  renderWidget();
-  if(dashHostEl.classList.contains('open')) render();
-}
-
 function enlazarWidget(host){
   host.querySelectorAll('[data-abrir]').forEach(b=>b.addEventListener('click',()=>abrirDashboard(b.dataset.abrir)));
   host.querySelectorAll('[data-cal-abrir]').forEach(b=>b.addEventListener('click',()=>abrirDashboard(b.dataset.calAbrir)));
-  host.querySelectorAll('[data-nav]').forEach(b=>b.addEventListener('click',()=>{
-    const n=b.dataset.nav;
-    if(n==='hoy') widgetInicio=hoyMedianoche();
-    else { const d=new Date(widgetInicio); d.setDate(d.getDate()+(+n)); widgetInicio=d; }
-    widgetAnimar=true;
-    renderWidget();
-  }));
   host.querySelectorAll('.wcard').forEach(c=>{
     const abrir=()=>abrirEditor(c.dataset.tab, c.dataset.id);
     c.addEventListener('click',abrir);
     c.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); abrir(); } });
-    c.addEventListener('dragstart',e=>{
-      e.dataTransfer.effectAllowed='move';
-      e.dataTransfer.setData('text/plain', JSON.stringify({tab:c.dataset.tab,id:c.dataset.id}));
-      c.classList.add('dragging');
-    });
-    c.addEventListener('dragend',()=>c.classList.remove('dragging'));
-  });
-  host.querySelectorAll('.wday').forEach(day=>{
-    day.addEventListener('dragover',e=>{ e.preventDefault(); e.dataTransfer.dropEffect='move'; day.classList.add('dragover'); });
-    day.addEventListener('dragleave',e=>{ if(!day.contains(e.relatedTarget)) day.classList.remove('dragover'); });
-    day.addEventListener('drop',e=>{
-      e.preventDefault(); day.classList.remove('dragover');
-      let data; try{ data=JSON.parse(e.dataTransfer.getData('text/plain')); }catch(err){ return; }
-      if(!data||!data.tab||!data.id) return;
-      moverItemAFechaWidget(data.tab,data.id,day.dataset.iso);
-    });
   });
   host.querySelectorAll('[data-add]').forEach(b=>b.addEventListener('click',()=>{
-    abrirEditor(b.dataset.add, null, {fecha:b.dataset.iso});
+    abrirEditor(b.dataset.add, null);
   }));
 }
 
