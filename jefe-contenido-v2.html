@@ -82,7 +82,8 @@
   .section-head.publicado{background:var(--st-publicado-bg);color:var(--st-publicado-fg);}
   .section-head .scount{font-weight:400;opacity:.7;font-size:12px;font-family:'JetBrains Mono',monospace;}
   .empty-row{padding:18px;text-align:center;color:var(--text-dim);font-size:13px;background:var(--surface);border:1px dashed var(--line);border-radius:12px;}
-  .cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;align-items:start;}
+  .cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(236px,1fr));gap:16px;align-items:start;}
+  .cards-grid .wcard.mini{border-left:4px solid var(--accent);}
   .item-card{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--horizon,var(--t1));border-radius:14px;padding:18px 20px;display:flex;flex-direction:column;gap:12px;touch-action:pan-y;box-shadow:var(--shadow-card);transition:transform .2s ease,box-shadow .2s ease;}
   .item-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-pop);}
   .item-top{display:flex;align-items:center;gap:8px;justify-content:space-between;flex-wrap:wrap;}
@@ -806,13 +807,10 @@ function abrirDashboard(vista, id, opts){
   setTimeout(()=>{
     let card=null;
     if(id){
-      card=[...contentEl.querySelectorAll('.item-card')].find(c=>c.querySelector('select.estado-select')?.dataset.id===id);
+      card=[...contentEl.querySelectorAll('.wcard')].find(c=>c.dataset.id===id);
     }
     if(card){
-      const det=card.querySelector('.item-details');
-      if(det) det.open=true;
       card.scrollIntoView({behavior:'smooth',block:'center'});
-      if(opts.editar){ const gh=card.querySelector('.gancho-input'); if(gh){ gh.focus(); gh.select(); } }
     } else if(abriendo){
       dashHostEl.scrollIntoView({behavior:'smooth',block:'start'});
     }
@@ -855,37 +853,16 @@ filterFaseEl.addEventListener('change',()=>{ filterFase=filterFaseEl.value; rend
 filterEtapaEl.addEventListener('change',()=>{ filterEtapa=filterEtapaEl.value; render(); });
 filterTipoEl.addEventListener('change',()=>{ filterTipo=filterTipoEl.value; render(); });
 
-function crearItemNuevo(tab, fechaIso){
-  const list=state[tab];
-  const newId=(tab==='historias'?'h':'c')+'_new'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
-  const nuevaFase=tab==='historias' ? 'Semana 1 · Atraer/Conexión' : 'Semana 1';
-  list.unshift({
-    id:newId, orden:list.length+1, fase:nuevaFase,
-    gancho:'Nueva idea — escribe el gancho aquí',
-    descripcion:'', ganchoIdea:'', caption:'', notas:'',
-    linkRef:'', linkArchivo:'', fecha:fechaIso||'', estado:'idea'
-  });
-  actualizarContadores();
-  scheduleSave();
-  return newId;
-}
-
+contentEl.addEventListener('click',e=>{
+  const c=e.target.closest('.wcard'); if(c) abrirEditor(c.dataset.tab,c.dataset.id);
+});
+contentEl.addEventListener('keydown',e=>{
+  if(e.key!=='Enter' && e.key!==' ') return;
+  const c=e.target.closest('.wcard'); if(c){ e.preventDefault(); abrirEditor(c.dataset.tab,c.dataset.id); }
+});
 btnNuevaIdeaEl.addEventListener('click',()=>{
-  // En "Historias" crea una historia; en cualquier otra vista (Contenido, ambos) crea contenido.
-  const tab = currentTab==='historias' ? 'historias' : 'contenido';
-  const newId=crearItemNuevo(tab,'');
-  filterFase=''; filterEtapa=''; filterTipo=''; searchTerm='';
-  filterFaseEl.value=''; filterEtapaEl.value=''; filterTipoEl.value=''; searchEl.value='';
-  render();
-  renderStats();
-  const card=[...contentEl.querySelectorAll('.item-card')].find(c=>c.querySelector('select.estado-select')?.dataset.id===newId);
-  if(card){
-    const det=card.querySelector('.item-details');
-    if(det) det.open=true;
-    card.scrollIntoView({behavior:'smooth',block:'center'});
-    const gh=card.querySelector('.gancho-input');
-    if(gh){ gh.focus(); gh.select(); }
-  }
+  // En "Historias" crea una historia; en cualquier otra vista (Posts, ambos) crea un post.
+  abrirEditor(currentTab==='historias' ? 'historias' : 'contenido', null);
 });
 
 // ─── DATE / HORIZON ─────────────────────────────────────────────────────────
@@ -1029,251 +1006,18 @@ function render(){
     } else {
       const grid=document.createElement('div');
       grid.className='cards-grid';
-      secRows.forEach(r=>{ grid.appendChild(buildCard(r)); });
+      grid.innerHTML=secRows.map((r,i)=> tabDeItem(r)==='historias' ? wcardHistoria(r,i,true) : wcardPost(r,i,true)).join('');
       section.appendChild(grid);
     }
     contentEl.appendChild(section);
   });
 
-  bindCardEvents();
   if(currentTab==='historias' && totalRows>HIST_MAX){
     const notice=document.createElement('p');
     notice.className='hist-limit-notice';
     notice.textContent=`Mostrando ${Math.min(HIST_MAX,rows.length)} de ${totalRows} historias · Usa los filtros para encontrar las demás`;
     contentEl.appendChild(notice);
   }
-}
-
-function buildCard(r){
-  const d=getDefaults(r);
-  const etapa = r.etapa||d.etapa;
-  const tipo = r.tipo||d.tipo;
-  const audiencia = r.audiencia||d.audiencia;
-  const uso = r.uso||d.uso;
-  const objetivo = r.objetivo||d.objetivo;
-  const semana = semanaDeFase(r.fase);
-  const notasValue = (r.notas!=null && r.notas!=='') ? r.notas : [r.instrucciones,r.recomendacion].filter(Boolean).join('\n\n');
-  const em = ETAPA_META[etapa]||ETAPA_META.adquisicion;
-  const hColor = horizonColorVar(r);
-
-  const tabItem=tabDeItem(r);
-  const formatoSel=formatoDeItem(r,tabItem);
-  const redesSel=Array.isArray(r.redes)?r.redes:REDES_DEFAULT;
-  const card=document.createElement('div');
-  card.className='item-card';
-  card.style.setProperty('--horizon',hColor);
-  card.innerHTML=`
-    ${currentTab==='ambos'?`<span class="item-origen">${tabItem==='historias'?'⭕ Historia':'🎬 Contenido'}</span>`:''}
-    <div class="item-top">
-      <select class="estado-select ${r.estado}" data-id="${r.id}" data-field="estado">
-        <option value="idea" ${r.estado==='idea'?'selected':''}>💡 Idea</option>
-        <option value="proceso" ${r.estado==='proceso'?'selected':''}>⚙️ En proceso</option>
-        <option value="programado" ${r.estado==='programado'?'selected':''}>📅 Programado</option>
-        <option value="publicado" ${r.estado==='publicado'?'selected':''}>🔥 Publicado</option>
-      </select>
-      <div class="item-top-right">
-        <input type="date" class="fecha-input" value="${r.fecha||''}" data-id="${r.id}" data-field="fecha">
-        <input type="time" class="fecha-input hora-input" value="${escHtml(r.hora||'')}" data-id="${r.id}" data-field="hora" title="Hora de publicación" aria-label="Hora de publicación">
-        <button type="button" class="item-del" data-id="${r.id}" title="Eliminar idea">✕</button>
-      </div>
-    </div>
-    <textarea class="gancho-input" data-id="${r.id}" data-field="gancho">${escHtml(r.gancho)}</textarea>
-    <div class="badges-row">
-      <span class="badge badge-${etapa}">${em.label}</span>
-      <span class="badge badge-tipo">${TIPO_LABELS[tipo]||tipo}</span>
-      <span class="badge badge-${audiencia}">${AUDIENCIA_LABELS[audiencia]||audiencia}</span>
-    </div>
-    <div class="item-fase">${escHtml(r.fase)}</div>
-    <details class="item-details">
-      <summary>Ver detalles <button class="btn-guion" data-id="${r.id}" title="Generar guión con IA">✨ Guión</button></summary>
-      <div class="detail-grid">
-        <div class="detail-meta-row">
-          <div class="detail-field">
-            <label>Etapa del cliente</label>
-            <select data-id="${r.id}" data-field="etapa">
-              <option value="adquisicion" ${etapa==='adquisicion'?'selected':''}>📢 Adquisición</option>
-              <option value="consideracion" ${etapa==='consideracion'?'selected':''}>🔵 Consideración</option>
-              <option value="conversion" ${etapa==='conversion'?'selected':''}>🟢 Conversión</option>
-            </select>
-          </div>
-          <div class="detail-field">
-            <label># de Semana</label>
-            <select data-id="${r.id}" data-field="semana">
-              <option value="1" ${semana===1?'selected':''}>Semana 1</option>
-              <option value="2" ${semana===2?'selected':''}>Semana 2</option>
-              <option value="3" ${semana===3?'selected':''}>Semana 3</option>
-              <option value="4" ${semana===4?'selected':''}>Semana 4</option>
-            </select>
-          </div>
-        </div>
-        <div class="field-row">
-          <div class="detail-field">
-            <label>Formato</label>
-            <select data-id="${r.id}" data-field="formato">
-              ${Object.keys(FORMATOS_META).map(k=>`<option value="${k}" ${formatoSel===k?'selected':''}>${FORMATOS_META[k].ico} ${FORMATOS_META[k].label}</option>`).join('')}
-            </select>
-          </div>
-          <div class="detail-field">
-            <label>Redes donde se publica</label>
-            <div class="redes-check">
-              ${[['ig','Instagram'],['tt','TikTok'],['fb','Facebook']].map(([k,n])=>`<label><input type="checkbox" data-id="${r.id}" data-field="red" data-red="${k}" ${redesSel.includes(k)?'checked':''}> ${n}</label>`).join('')}
-            </div>
-          </div>
-        </div>
-        <div class="detail-field">
-          <label>Miniatura (se ve en Próximos posts)</label>
-          <div class="mini-edit">
-            ${r.miniatura?`<img src="${r.miniatura}" alt="Miniatura">`:''}
-            <label class="btn-guion" style="cursor:pointer;">📷 ${r.miniatura?'Cambiar imagen':'Subir imagen'}<input type="file" accept="image/*" class="mini-file" data-mini-id="${r.id}" style="display:none;"></label>
-            ${r.miniatura?`<button type="button" class="btn-guion mini-quitar" data-mini-id="${r.id}">Quitar</button>`:''}
-          </div>
-        </div>
-        <div class="detail-field"><label>Idea</label><textarea data-id="${r.id}" data-field="descripcion">${escHtml(r.descripcion)}</textarea></div>
-        <div class="detail-field"><label>Gancho idea</label><textarea data-id="${r.id}" data-field="ganchoIdea">${escHtml(r.ganchoIdea)}</textarea></div>
-        <div class="detail-field">
-          <div class="detail-field-head"><label>Caption</label><button type="button" class="copy-field-btn" data-copy-id="cap-${r.id}" title="Copiar caption">📋 Copiar</button></div>
-          <textarea id="cap-${r.id}" placeholder="Texto para redes: dinámico, con personalidad, potencial viral, emojis, CTA claro y breve — cierra con 5 hashtags." data-id="${r.id}" data-field="caption">${escHtml(r.caption)}</textarea>
-        </div>
-        <div class="detail-field">
-          <div class="detail-field-head"><label>Link de material</label><button type="button" class="copy-field-btn open-link-btn" data-open-id="mat-${r.id}" title="Abrir link">🔗 Abrir</button></div>
-          <input type="text" id="mat-${r.id}" class="link-input" placeholder="https://..." value="${escHtml(r.linkArchivo)}" data-id="${r.id}" data-field="linkArchivo">
-        </div>
-        <div class="detail-field">
-          <div class="detail-field-head"><label>Link de referencia</label><button type="button" class="copy-field-btn open-link-btn" data-open-id="ref-${r.id}" title="Abrir link">🔗 Abrir</button></div>
-          <input type="text" id="ref-${r.id}" class="link-input" placeholder="https://..." value="${escHtml(r.linkRef)}" data-id="${r.id}" data-field="linkRef">
-        </div>
-        <div class="detail-field"><label>Notas</label><textarea data-id="${r.id}" data-field="notas">${escHtml(notasValue)}</textarea></div>
-      </div>
-    </details>
-    <div id="guion-${r.id}" class="guion-result" hidden></div>
-  `;
-  return card;
-}
-
-function bindCardEvents(){
-  contentEl.querySelectorAll('select.estado-select,.fecha-input').forEach(sel=>sel.addEventListener('change',onFieldChange));
-  contentEl.querySelectorAll('.gancho-input,.detail-field input,.detail-field textarea,.detail-field select:not(.estado-select)').forEach(inp=>{
-    inp.addEventListener('input',onFieldChange);
-    if(inp.tagName==='TEXTAREA'){ autoGrow(inp); inp.addEventListener('input',()=>autoGrow(inp)); }
-  });
-  contentEl.querySelectorAll('.btn-guion').forEach(btn=>{
-    btn.addEventListener('click',e=>{ e.preventDefault(); e.stopPropagation(); generateGuion(btn.dataset.id); });
-  });
-  contentEl.querySelectorAll('.copy-field-btn').forEach(btn=>{
-    btn.addEventListener('click',e=>{
-      e.preventDefault(); e.stopPropagation();
-      const target=document.getElementById(btn.dataset.copyId);
-      if(!target||!target.value) return;
-      navigator.clipboard.writeText(target.value).then(()=>{
-        const prev=btn.textContent;
-        btn.textContent='✅ Copiado';
-        setTimeout(()=>{btn.textContent=prev;},1500);
-      });
-    });
-  });
-  contentEl.querySelectorAll('.open-link-btn').forEach(btn=>{
-    btn.addEventListener('click',e=>{
-      e.preventDefault(); e.stopPropagation();
-      const target=document.getElementById(btn.dataset.openId);
-      let url=(target&&target.value||'').trim();
-      if(!url) return;
-      if(!/^https?:\/\//i.test(url)) url='https://'+url;
-      window.open(url,'_blank','noopener,noreferrer');
-    });
-  });
-  contentEl.querySelectorAll('.item-del').forEach(btn=>{
-    btn.addEventListener('click',e=>{
-      e.preventDefault(); e.stopPropagation();
-      if(!confirm('¿Eliminar esta idea? No se puede deshacer.')) return;
-      const id=btn.dataset.id;
-      const hit=findItem(id);
-      if(!hit) return;
-      state[hit.tab]=state[hit.tab].filter(r=>r.id!==id);
-      actualizarContadores();
-      scheduleSave();
-      render();
-      renderStats();
-    });
-  });
-  contentEl.querySelectorAll('.mini-file').forEach(inp=>{
-    inp.addEventListener('change',async()=>{
-      const f=inp.files&&inp.files[0];
-      const hit=findItem(inp.dataset.miniId);
-      if(!f||!hit) return;
-      hit.row.miniatura=await comprimirMiniatura(f);
-      scheduleSave();
-      render(); reabrirTarjeta(hit.row.id);
-    });
-  });
-  contentEl.querySelectorAll('.mini-quitar').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      const hit=findItem(btn.dataset.miniId);
-      if(!hit) return;
-      delete hit.row.miniatura;
-      scheduleSave();
-      render(); reabrirTarjeta(hit.row.id);
-    });
-  });
-  contentEl.querySelectorAll('.item-card').forEach(card=>{
-    attachSwipe(card,card.querySelector('.item-details'));
-  });
-}
-function reabrirTarjeta(id){
-  const card=[...contentEl.querySelectorAll('.item-card')].find(c=>c.querySelector('select.estado-select')?.dataset.id===id);
-  const det=card&&card.querySelector('.item-details');
-  if(det) det.open=true;
-}
-
-function autoGrow(el){ el.style.height='auto'; el.style.height=el.scrollHeight+'px'; }
-
-function onFieldChange(e){
-  const id=e.target.dataset.id;
-  const field=e.target.dataset.field;
-  const hit=findItem(id);
-  if(!hit) return;
-  const row=hit.row;
-  if(field==='semana'){
-    const suffix = hit.tab==='historias' ? FASE_SUFFIJOS[+e.target.value]||'' : '';
-    row.fase = suffix ? `Semana ${e.target.value} · ${suffix}` : `Semana ${e.target.value}`;
-  } else if(field==='fecha'){
-    row.fecha = e.target.value;
-  } else if(field==='red'){
-    const set=new Set(Array.isArray(row.redes)?row.redes:REDES_DEFAULT);
-    if(e.target.checked) set.add(e.target.dataset.red); else set.delete(e.target.dataset.red);
-    row.redes=[...set];
-  } else {
-    row[field]=e.target.value;
-  }
-  if(field==='estado'||field==='fecha'||field==='hora'){
-    render();
-    renderStats();
-  } else if(field==='etapa'||field==='semana'){
-    updateCardChrome(row);
-    renderStats();
-  }
-  scheduleSave();
-}
-
-function updateCardChrome(row){
-  const card=[...contentEl.querySelectorAll('.item-card')].find(c=>{
-    const sel=c.querySelector('select.estado-select');
-    return sel && sel.dataset.id===row.id;
-  });
-  if(!card) return;
-  const d=getDefaults(row);
-  const etapa=row.etapa||d.etapa;
-  const tipo=row.tipo||d.tipo;
-  const audiencia=row.audiencia||d.audiencia;
-  const em=ETAPA_META[etapa]||ETAPA_META.adquisicion;
-  const badgesRow=card.querySelector('.badges-row');
-  if(badgesRow) badgesRow.innerHTML=`
-    <span class="badge badge-${etapa}">${em.label}</span>
-    <span class="badge badge-tipo">${TIPO_LABELS[tipo]||tipo}</span>
-    <span class="badge badge-${audiencia}">${AUDIENCIA_LABELS[audiencia]||audiencia}</span>`;
-  const faseEl=card.querySelector('.item-fase');
-  if(faseEl) faseEl.textContent=row.fase;
-  const hColor=horizonColorVar(row);
-  card.style.setProperty('--horizon',hColor);
 }
 
 // ─── GUIÓN GENERATOR ─────────────────────────────────────────────────────────
@@ -1317,26 +1061,6 @@ NOTAS DE GRABACIÓN: …`;
   }catch(e){
     el.textContent='Error de conexión. Intenta de nuevo.';
   }
-}
-
-// ─── SWIPE (mobile) ──────────────────────────────────────────────────────────
-function attachSwipe(card,detailsEl){
-  if(!detailsEl) return;
-  const THRESH=46;
-  let sx=0,sy=0,ldx=0,dragging=false,horiz=false;
-  card.addEventListener('touchstart',e=>{
-    if(e.target.closest('input,textarea,select,button,a,summary')){ dragging=false; return; }
-    const t=e.touches[0]; sx=t.clientX; sy=t.clientY; ldx=0; dragging=true; horiz=false;
-  },{passive:true});
-  card.addEventListener('touchmove',e=>{
-    if(!dragging) return;
-    const t=e.touches[0],dx=t.clientX-sx,dy=t.clientY-sy;
-    if(!horiz){ if(Math.abs(dx)<8&&Math.abs(dy)<8) return; horiz=Math.abs(dx)>Math.abs(dy)*1.3; if(!horiz){dragging=false;return;} }
-    if(dx>0){ e.preventDefault(); ldx=dx; card.style.transform=`translateX(${Math.min(dx*.35,40)}px)`; }
-  },{passive:false});
-  function end(){ if(!dragging) return; dragging=false; card.style.transition='transform .2s ease'; card.style.transform=''; setTimeout(()=>{card.style.transition='';},220); if(horiz&&ldx>THRESH) detailsEl.open=true; horiz=false; ldx=0; }
-  card.addEventListener('touchend',end);
-  card.addEventListener('touchcancel',end);
 }
 
 // ─── BANCO DE IDEAS v2 ───────────────────────────────────────────────────────
@@ -3177,11 +2901,15 @@ function formatoDeItem(r, tab){
 }
 function porHora(a,b){ return (a.hora||'99:99').localeCompare(b.hora||'99:99'); }
 
-function wcardPost(r, i){
+function fechaCorta(r){
+  const d=parseFecha(r.fecha);
+  return d ? `${d.getDate()} ${MESES_CORTOS[d.getMonth()]}` : 'Sin fecha';
+}
+function wcardPost(r, i, conFecha){
   const f=formatoDeItem(r,'contenido'), fm=FORMATOS_META[f];
   const redes=Array.isArray(r.redes)?r.redes:REDES_DEFAULT;
   const est=ESTADO_LABEL[r.estado]?r.estado:'idea';
-  return `<article class="wcard" tabindex="0" role="button" draggable="true" data-id="${escHtml(r.id)}" data-tab="contenido" style="--i:${i}" aria-label="${escHtml(r.gancho||'Post')}">
+  return `<article class="wcard" tabindex="0" role="button" ${conFecha?'':'draggable="true"'} data-id="${escHtml(r.id)}" data-tab="contenido" style="--i:${i}" aria-label="${escHtml(r.gancho||'Post')}">
     <div class="wthumb" style="--thumb-a:${fm.a};--thumb-b:${fm.b};">
       ${r.miniatura?`<img src="${r.miniatura}" alt="" loading="lazy" draggable="false">`:`<span class="wthumb-ico">${fm.ico}</span>`}
       <span class="wchip">${fm.label}</span>${fm.play?'<span class="wplay"></span>':''}
@@ -3189,18 +2917,18 @@ function wcardPost(r, i){
     <div class="wbody">
       <div class="wtitle">${escHtml(r.gancho||'(sin título)')}</div>
       <div class="wnets">${redes.map(x=>`<span class="wnet">${REDES_META[x]||x}</span>`).join('')}</div>
-      <div class="wfoot"><span class="wpill ${est}">${ESTADO_LABEL[est]}</span><span class="whora">${escHtml(r.hora||'')}</span></div>
+      <div class="wfoot"><span class="wpill ${est}">${ESTADO_LABEL[est]}</span><span class="whora">${conFecha?escHtml(fechaCorta(r)+(r.hora?' · '+r.hora:'')):escHtml(r.hora||'')}</span></div>
     </div>
   </article>`;
 }
-function wcardHistoria(r, i){
+function wcardHistoria(r, i, conFecha){
   const est=ESTADO_LABEL[r.estado]?r.estado:'idea';
   const ring = r.miniatura ? `<span style="background-image:url('${r.miniatura}')"></span>` : '<span>⭕</span>';
-  return `<article class="wcard mini" tabindex="0" role="button" draggable="true" data-id="${escHtml(r.id)}" data-tab="historias" style="--i:${i}" aria-label="${escHtml(r.gancho||'Historia')}">
+  return `<article class="wcard mini" tabindex="0" role="button" ${conFecha?'':'draggable="true"'} data-id="${escHtml(r.id)}" data-tab="historias" style="--i:${i}" aria-label="${escHtml(r.gancho||'Historia')}">
     <div class="wmini-ring">${ring}</div>
     <div class="wbody">
       <div class="wtitle">${escHtml(r.gancho||'(sin título)')}</div>
-      <div class="wfoot"><span class="wpill ${est}">${ESTADO_LABEL[est]}</span><span class="whora">${escHtml(r.hora||'')}</span></div>
+      <div class="wfoot"><span class="wpill ${est}">${ESTADO_LABEL[est]}</span><span class="whora">${conFecha?escHtml(fechaCorta(r)+(r.hora?' · '+r.hora:'')):escHtml(r.hora||'')}</span></div>
     </div>
   </article>`;
 }
