@@ -246,6 +246,9 @@
     body.t3-trabajo .hero-robot, body.t3-trabajo .hero-search, body.t3-trabajo .mostrar-todas-btn { display: none; }
     body.t3-trabajo header { padding-top: 84px; padding-bottom: 4px; }
     body.t3-trabajo .group-tabs { margin-bottom: 10px; }
+    /* letrero con el producto que se está trabajando (solo en modo trabajo) */
+    .t3-prod-activo { display: none; }
+    body.t3-trabajo .t3-prod-activo:not([hidden]) { display: block; width: fit-content; max-width: 92%; margin: 6px auto 0; padding: 9px 26px; border-radius: 99px; background: #0F0B3A; color: #fff; font-family: Inter, sans-serif; font-size: 17px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; line-height: 1.25; }
     body.t3-trabajo .t3-tl { --split: 34px; max-width: none; margin-top: 4px; }
     body.t3-trabajo .t3-tl::before { display: none; }
     /* los demás pasos quedan debajo de la tarjeta abierta, más chicos, y se pueden tocar para saltar a ellos */
@@ -565,6 +568,7 @@
   </div>
   <div class="group-tabs" id="groupTabs"></div>
   <button type="button" class="mostrar-todas-btn" id="mostrarTodasBtn" onclick="toggleMostrarTodas()">Ver todas las pestañas (sin filtrar por grupo)</button>
+  <div class="t3-prod-activo" id="t3-prod-activo" hidden></div>
 </header>
 
 <!-- ═══════════════════════════════════════════════ -->
@@ -764,7 +768,17 @@ async function cargarGruposNegocio() {
 /* Al abrir un paso en pantalla ancha: la sección sube hasta arriba y la pantalla se parte en dos --
    el chat de un lado (siempre a la vista) y la sección donde se trabaja del otro. Al cerrar el paso
    (o si se eligió Vista dividida a mano) todo vuelve a como estaba. */
+function actualizarProductoActivo366() {
+  const el = document.getElementById('t3-prod-activo');
+  if (!el) return;
+  const p = (typeof productosState !== 'undefined' && productosState[productoActivo]) || null;
+  const nombre = p ? ((p.nombre || '').trim() || ('Producto ' + (productoActivo + 1))) : '';
+  el.textContent = nombre;
+  el.hidden = !nombre;
+}
+
 function modoTrabajo366(on) {
+  actualizarProductoActivo366();
   const main = document.getElementById('publicidad-content');
   if (!main) return;
   const ancho = window.matchMedia('(min-width: 1000px)').matches;
@@ -2483,6 +2497,7 @@ function renderEpTabs() {
   const nav = document.getElementById('ep-tabs-nav');
   if (!nav) return;
   actualizarTituloActivo('ep-titulo-activo', 'Producto 366', (productosState[productoActivo] || {}).nombre);
+  actualizarProductoActivo366();
   nav.innerHTML = '';
   const indices = indicesDelGrupoActivo(productosState);
   indices.forEach((i, pos) => {
