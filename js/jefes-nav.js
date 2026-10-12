@@ -20,7 +20,7 @@
   // slug = ultimo tramo de la URL; files = archivo real por si se abre sin rewrites.
   var JEFES = [
     { slug: 'jefe-366',              files: ['consultor-366.html'],            icono: 'jefe-366-gris',          nombre: 'Jefe 366' },
-    { slug: 'jefe-contenido',        files: ['jefe-contenido-v2.html'],        icono: 'jefe-contenido',        nombre: 'Jefe de Contenido' },
+    { slug: 'jefe-contenido',        files: ['jefe-contenido-v2.html'],        icono: 'jefe-contenido-logo-negro', nombre: 'Jefe de Contenido' },
     { slug: 'jefe-whatsapp',         files: ['jefe-conversion-ventas.html', 'jefe-conversion-ventas-rancho-seco.html'], icono: 'jefe-whatsapp', nombre: 'WhatsApp y Ventas' },
     { slug: 'jefe-financiero',       files: ['consultor-financiero.html'],     icono: 'jefe-finanzas',         nombre: 'Jefe de Finanzas' },
     { slug: 'jefe-radar',            files: ['consultor-radar-mercado.html'],  icono: 'jefe-radar',            nombre: 'Jefe del Faro' },
