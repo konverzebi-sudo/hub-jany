@@ -888,6 +888,7 @@ function inicializarMapa366() {
     if (s0.completa) {
       s0.q.querySelector('.q-eyebrow').textContent = p.nombre + ' · sección completa';
       s0.q.querySelector('.q-next').textContent = 'Terminar ✓';
+      ajustarAlturasVisibles366(det);
       return;
     }
     const panel = panelActivo(p);
@@ -925,6 +926,7 @@ function inicializarMapa366() {
     q.querySelector('.q-back').disabled = idx === 0;
     q.querySelector('.q-next').textContent = idx === us.length - 1 ? 'Terminar ✓' : 'Siguiente →';
     q.querySelector('.q-save').textContent = ''; q.querySelector('.q-save').className = 'q-save';
+    ajustarAlturasVisibles366(det);
   }
 
   const orden = PASOS.map((p) => p.id);
@@ -1986,12 +1988,56 @@ function renderTablaNotas(id) {
     </div>
     <button type="button" class="tabla-notas-add" onclick="agregarFilaTabla('${id}')">+ Agregar fila</button>
   `;
-  container.querySelectorAll('table.tabla-notas textarea').forEach(autoAlturaTextarea);
+  ajustarAlturasTabla(container);
+  observarFilasTabla(container);
 }
 
 function autoAlturaTextarea(ta) {
+  const tabla = ta.closest && ta.closest('.tabla-notas-container');
+  if (tabla) { ajustarAlturasTabla(tabla); return; }
   ta.style.height = 'auto';
   ta.style.height = (ta.scrollHeight + 2) + 'px';
+}
+
+/* Cada fila de una tabla de Notas queda a la misma altura: la de su celda con más texto, para que
+   los textos de toda la fila se lean completos y al mismo nivel. Si la tabla está oculta (paso
+   cerrado) no se puede medir: se vuelve a llamar cuando el paso se muestra. */
+function ajustarAlturasTabla(container) {
+  if (!container || container.offsetParent === null) return;
+  container.querySelectorAll('table.tabla-notas tbody tr').forEach((tr) => {
+    const tas = Array.prototype.slice.call(tr.querySelectorAll('textarea'));
+    if (!tas.length) return;
+    tas.forEach((ta) => { ta.style.height = 'auto'; });
+    const h = Math.max(34, ...tas.map((ta) => ta.scrollHeight + 2));
+    tas.forEach((ta) => { ta.style.height = h + 'px'; });
+  });
+}
+
+/* Si se agranda o se encoge una celda a mano (la manija de la esquina), las demás de su fila la siguen. */
+const observadorFilasTabla = (typeof ResizeObserver !== 'undefined') ? new ResizeObserver((entradas) => {
+  if (observadorFilasTabla.ocupado) return;
+  for (const en of entradas) {
+    const ta = en.target;
+    if (ta.offsetParent === null) continue;
+    const h = Math.round(ta.getBoundingClientRect().height);
+    if (h < 20) continue;
+    const tr = ta.closest('tr');
+    if (!tr) continue;
+    const otras = Array.prototype.slice.call(tr.querySelectorAll('textarea')).filter((o) => o !== ta && Math.abs(o.getBoundingClientRect().height - h) > 1);
+    if (!otras.length) continue;
+    observadorFilasTabla.ocupado = true;
+    otras.forEach((o) => { o.style.height = h + 'px'; });
+    setTimeout(() => { observadorFilasTabla.ocupado = false; }, 0);
+    break;
+  }
+}) : null;
+function observarFilasTabla(container) {
+  if (!observadorFilasTabla) return;
+  container.querySelectorAll('table.tabla-notas textarea').forEach((ta) => observadorFilasTabla.observe(ta));
+}
+function ajustarAlturasVisibles366(det) {
+  if (!det) return;
+  det.querySelectorAll('.tabla-notas-container').forEach(ajustarAlturasTabla);
 }
 
 function actualizarCeldaTabla(id, i, key, value) {
