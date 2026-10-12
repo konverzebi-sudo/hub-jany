@@ -1476,31 +1476,8 @@ function irACalendarioItem(tab,id,gancho){
 
 // ─── AGENTE TAB ───────────────────────────────────────────────────────────────
 const AGENTE_MODES = [
-  {key:'guion-org',label:'Post IA',  desc:'Genera un banco de ideas con sus 7 ángulos, selecciona las mejores y crea caption+guion listos — lee tu ADN, tu Sistema 366 y tu Radar de Mercado en vivo.',
-   custom:'guion-organico',
-  },
   {key:'ideas',  label:'Estrategia 366',  desc:'Banco de ideas por categoría (viral, educativo, venta, entretenimiento, testimonio) listo para mandar a Historias/Contenido.',
    custom:'evergreen-ideas'
-  },
-  {key:'auditoria-post',label:'Auditoría de Post',  desc:'Pega el link del post, tu objetivo y lo que quieras que considere — arma un prompt para que la extensión de Claude investigue el post real y te dé el diagnóstico.',
-   instant:true,
-   fields:[
-     {id:'ag-link-audit',label:'Link del post',type:'text',placeholder:'https://www.instagram.com/p/...'},
-     {id:'ag-objetivo-post-audit',label:'¿Cuál era tu objetivo con este post?',type:'text',placeholder:'ej. alcance, generar confianza, venta directa'},
-     {id:'ag-notas-audit',label:'Notas importantes a considerar (opcional)',type:'textarea',placeholder:'Algo de contexto que la IA no pueda ver solo con el link... (ej. fue parte de una serie, se promocionó con ads, etc.)'},
-   ],
-   buildPrompt: f=>`Actúa como Auditor de Posts para redes sociales. Ya conoces mi marca, mi cliente ideal, mi tono y mi Sistema 366 — no me los vuelvas a preguntar.
-
-Abre este link y analiza el post real directamente ahí — plataforma, tipo de contenido, copy, gancho y métricas reales (likes, comentarios, guardados/compartidos). No me preguntes estos datos, investígalos tú mismo en el link:
-${f['ag-link-audit']||'(sin link)'}
-
-Mi objetivo con este post era: ${f['ag-objetivo-post-audit']||'no especificado'}
-${f['ag-notas-audit']?`Notas importantes a considerar: ${f['ag-notas-audit']}`:''}
-
-Dame tu análisis en este orden exacto:
-SITUACIÓN ACTUAL: qué encontraste (plataforma, tipo, gancho, copy, métricas) y cómo se lee ese desempeño contra el objetivo que te di.
-MEJORAS: qué no funcionó o se puede afinar (gancho, comunicación, CTA, formato).
-ACCIONES A TOMAR: 3 pasos concretos para el próximo post similar, incluyendo una versión mejorada del copy.`
   },
   {key:'post-de-post',label:'Hacer post de un post',  desc:'Pega el link de un post (tuyo o de referencia), lo que quieres lograr y lo que quieras que considere — arma un prompt para que la extensión de Claude investigue ese post real y te escriba uno nuevo para tu marca.',
    instant:true,
@@ -1568,15 +1545,6 @@ function renderAgente(){
     hostBa.id='agente-banco-host';
     wrap.appendChild(hostBa);
     renderBanco(hostBa);
-    return;
-  }
-
-  if(mode.custom==='guion-organico'){
-    host.appendChild(wrap);
-    const hostGo=document.createElement('div');
-    hostGo.id='agente-guionorg-host';
-    wrap.appendChild(hostGo);
-    pintarGuionOrganico(hostGo);
     return;
   }
 
@@ -1680,14 +1648,7 @@ function renderAgente(){
   });
 }
 
-// ─── GUIONISTA ORGÁNICO (banco de ideas + crear contenido) ─────────────────────
-const GUIONORG_FORMATOS = ['reel','tiktok','historia','carrusel','post estático'];
-
-let guionOrgIdeas = [];
-let guionOrgObjetivo = 'alcance';
-let guionOrgFormato = 'reel';
-let guionOrgTema = '';
-let guionOrgStatus = '';
+// ─── CHAT DEL AGENTE (barra grande de arriba) ──────────────────────────────────
 let guionOrgChat = []; // {role:'user'|'assistant', content, imagenes?:string[] (dataURLs, solo para mostrar), usada?:boolean}
 let guionOrgPreguntaDraft = '';
 let guionOrgPreguntaStatus = '';
@@ -1708,84 +1669,6 @@ async function ensureGuionOrgChatLoaded(){
 }
 function scheduleGuionOrgChatSave(){ clearTimeout(guionOrgChatSaveTimer); guionOrgChatSaveTimer=setTimeout(guardarGuionOrgChat,500); }
 async function guardarGuionOrgChat(opts){ try{ await window.storage.set(POST_IA_CHAT_KEY, JSON.stringify(guionOrgChat), opts); }catch(e){} }
-
-function pintarGuionOrganico(container){
-  if(!container) return;
-  const wrap = document.createElement('div');
-  wrap.className='evergreen-panel';
-
-  const linkBox = document.createElement('div');
-  linkBox.className='evergreen-toolbar';
-  linkBox.style.marginTop='14px';
-  linkBox.innerHTML = `
-    <div class="mode-field" style="min-width:260px;flex:1;">
-      <label>🔗 O analiza un video de referencia (cualquier industria)</label>
-      <input type="text" id="go-link" placeholder="Pega el link del video que te llamó la atención...">
-    </div>
-    <button class="btn btn-ghost" id="go-link-btn" type="button">📋 Armar prompt de análisis</button>
-  `;
-  wrap.appendChild(linkBox);
-  const linkOutputBox = document.createElement('div');
-  linkOutputBox.id='go-link-output-box';
-  linkOutputBox.style.display='none';
-  wrap.appendChild(linkOutputBox);
-
-  const toolbar = document.createElement('div');
-  toolbar.className='evergreen-toolbar';
-  toolbar.style.marginTop='14px';
-  toolbar.innerHTML = `
-    <div class="mode-field" style="min-width:150px;">
-      <label>Formato</label>
-      <select id="go-formato">${GUIONORG_FORMATOS.map(f=>`<option value="${f}"${guionOrgFormato===f?' selected':''}>${f.charAt(0).toUpperCase()+f.slice(1)}</option>`).join('')}</select>
-    </div>
-    <div class="mode-field" style="min-width:220px;flex:1;">
-      <label>Tema o contexto (opcional)</label>
-      <input type="text" id="go-tema" placeholder="ej. dudas frecuentes sobre el precio" value="${escHtml(guionOrgTema)}">
-    </div>
-    <button class="btn btn-solid" id="go-gen-btn">✨ Generar ideas</button>
-    <span class="mode-status" id="go-status">${escHtml(guionOrgStatus)}</span>
-  `;
-  wrap.appendChild(toolbar);
-
-  if(guionOrgIdeas.length){
-    const selBar = document.createElement('div');
-    selBar.className='evergreen-selection-bar';
-    selBar.innerHTML = `
-      <span id="go-sel-count" class="mode-status">0 idea(s) seleccionada(s)</span>
-      <button class="btn-outline to-historias" id="go-crear-historias" type="button">✨ Crear contenido → Historias</button>
-      <button class="btn-outline to-contenido" id="go-crear-contenido" type="button">✨ Crear contenido → Contenido</button>
-    `;
-    wrap.appendChild(selBar);
-
-    const tableWrap = document.createElement('div');
-    tableWrap.className='evergreen-table-wrap';
-    tableWrap.innerHTML = `
-      <table class="ideas-table">
-        <thead><tr>
-          <th></th><th>Idea</th><th>Problema</th><th>Error</th><th>Deseo</th><th>Historia</th>
-          <th>Descubrimiento</th><th>Objeción</th><th>Comparación</th><th>Uso</th><th>Prioridad</th><th></th>
-        </tr></thead>
-        <tbody id="go-tbody"></tbody>
-      </table>
-    `;
-    wrap.appendChild(tableWrap);
-  }
-
-  container.innerHTML='';
-  container.appendChild(wrap);
-
-  if(guionOrgIdeas.length) pintarGuionOrgTabla();
-  actualizarGuionOrgSelCount();
-
-  document.getElementById('go-formato').addEventListener('change', e=>{ guionOrgFormato=e.target.value; });
-  document.getElementById('go-tema').addEventListener('input', e=>{ guionOrgTema=e.target.value; });
-  document.getElementById('go-gen-btn').addEventListener('click', generarGuionOrgIdeas);
-  document.getElementById('go-link-btn').addEventListener('click', armarPromptLinkReferencia);
-  if(guionOrgIdeas.length){
-    document.getElementById('go-crear-historias').addEventListener('click', ()=>crearContenidoDesdeGuionOrg('historias'));
-    document.getElementById('go-crear-contenido').addEventListener('click', ()=>crearContenidoDesdeGuionOrg('contenido'));
-  }
-}
 
 function pintarGuionOrgChat(){
   const box = document.getElementById('go-chat-thread');
@@ -2042,137 +1925,6 @@ function usarRespuestaChatEnContenido(idx){
   }
   guionOrgPreguntaStatus = '✅ Se agregó a Contenido (en proceso). Asígnale fecha para verlo en Próximos posts.';
   actualizarHeroBar();
-}
-
-function guionOrgRowHTML(item, i){
-  const priCls={alta:'pri-alta',media:'pri-media',baja:'pri-baja'}[(item.prioridad||'').toLowerCase()]||'pri-media';
-  return `<tr data-goi="${i}">
-    <td style="text-align:center;"><input type="checkbox" class="go-check" data-goi="${i}"${item.selected?' checked':''}></td>
-    <td class="idea-cell">${escHtml(item.idea)}</td>
-    <td class="angle-cell">${escHtml(item.problema)}</td>
-    <td class="angle-cell">${escHtml(item.error)}</td>
-    <td class="angle-cell">${escHtml(item.deseo)}</td>
-    <td class="angle-cell">${escHtml(item.historia)}</td>
-    <td class="angle-cell">${escHtml(item.descubrimiento)}</td>
-    <td class="angle-cell">${escHtml(item.objecion)}</td>
-    <td class="angle-cell">${escHtml(item.comparacion)}</td>
-    <td class="uso-cell">${escHtml(item.uso_sugerido)}</td>
-    <td class="pri-cell"><span class="${priCls}">${escHtml(item.prioridad)}</span></td>
-    <td><button class="row-del" data-goi="${i}" title="Eliminar">✕</button></td>
-  </tr>`;
-}
-
-function pintarGuionOrgTabla(){
-  const tbody=document.getElementById('go-tbody');
-  if(!tbody) return;
-  tbody.innerHTML = guionOrgIdeas.map(guionOrgRowHTML).join('');
-  tbody.querySelectorAll('.go-check').forEach(cb=>{
-    cb.addEventListener('change', e=>{
-      const i=+e.target.dataset.goi;
-      guionOrgIdeas[i].selected = e.target.checked;
-      actualizarGuionOrgSelCount();
-    });
-  });
-  tbody.querySelectorAll('.row-del').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const i=+btn.dataset.goi;
-      guionOrgIdeas.splice(i,1);
-      pintarGuionOrganico(document.getElementById('agente-guionorg-host'));
-    });
-  });
-}
-
-function actualizarGuionOrgSelCount(){
-  const el=document.getElementById('go-sel-count');
-  if(!el) return;
-  el.textContent = `${guionOrgIdeas.filter(i=>i.selected).length} idea(s) seleccionada(s)`;
-}
-
-async function generarGuionOrgIdeas(){
-  const btn=document.getElementById('go-gen-btn');
-  const stEl=document.getElementById('go-status');
-  btn.disabled=true; btn.textContent='Generando...';
-  stEl.className='mode-status'; stEl.textContent='⏳ Analizando ADN + Brandbook + IA + Estrategia para darte la mejor respuesta...';
-  try{
-    const res = await fetch('/api/generar-guion-organico', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ cliente: CLIENTE_ID, modo:'ideas', objetivo: guionOrgObjetivo, tema: guionOrgTema, cantidad: 6 })
-    });
-    const data = await res.json();
-    if(!res.ok){ stEl.textContent='Error: '+(data.error||'No se pudo generar.'); stEl.classList.add('error'); return; }
-    const nuevas = (data.ideas||[]).map(o=>({...o, selected:false}));
-    guionOrgIdeas = [...nuevas, ...guionOrgIdeas];
-    guionOrgStatus = `✅ ${nuevas.length} idea(s) generadas — revísalas y selecciona las que quieras convertir en contenido.`;
-    pintarGuionOrganico(document.getElementById('agente-guionorg-host'));
-  }catch(e){
-    stEl.textContent='Error de conexión.'; stEl.classList.add('error');
-  }finally{
-    btn.disabled=false; btn.textContent='✨ Generar ideas';
-  }
-}
-
-async function crearContenidoDesdeGuionOrg(targetTab){
-  const seleccionadas = guionOrgIdeas.filter(i=>i.selected);
-  const stEl=document.getElementById('go-status');
-  if(!seleccionadas.length){ stEl.className='mode-status error'; stEl.textContent='Selecciona al menos una idea primero.'; return; }
-  const btnH=document.getElementById('go-crear-historias');
-  const btnC=document.getElementById('go-crear-contenido');
-  if(btnH) btnH.disabled=true;
-  if(btnC) btnC.disabled=true;
-  let creadas=0;
-  for(let n=0;n<seleccionadas.length;n++){
-    const idea=seleccionadas[n];
-    stEl.className='mode-status';
-    stEl.textContent=`⏳ Creando contenido ${n+1}/${seleccionadas.length}...`;
-    try{
-      const res = await fetch('/api/generar-guion-organico', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ cliente: CLIENTE_ID, modo:'contenido', objetivo: guionOrgObjetivo, formato: guionOrgFormato, idea })
-      });
-      const data = await res.json();
-      if(!res.ok){ continue; }
-      const newId=(targetTab==='historias'?'h':'c')+'_go'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
-      const notasPartes=[anguloToNotas(idea), '', 'GUION:', data.guion||''];
-      if(data.notas_grabacion) notasPartes.push(`\nNotas de grabación: ${data.notas_grabacion}`);
-      if(data.duracion_aproximada) notasPartes.push(`Duración aproximada: ${data.duracion_aproximada}`);
-      state[targetTab].push({
-        id:newId,
-        orden:state[targetTab].length+1,
-        fase:targetTab==='historias'?'Semana 1 · Atraer/Conexión':'Semana 1',
-        gancho:idea.idea,
-        descripcion:idea.descubrimiento||'',
-        ganchoIdea:'',
-        caption:data.caption||'',
-        notas:notasPartes.join('\n'),
-        linkRef:'',linkArchivo:'',
-        fecha:'',estado:'idea'
-      });
-      creadas++;
-    }catch(e){ /* sigue con la siguiente idea */ }
-  }
-  document.getElementById(`count-${targetTab}`).textContent=state[targetTab].length;
-  scheduleSave();
-  guionOrgIdeas.forEach(i=>{ i.selected=false; });
-  guionOrgStatus = `✅ ${creadas} de ${seleccionadas.length} idea(s) creadas en ${targetTab==='historias'?'Historias':'Contenido'}.`;
-  pintarGuionOrganico(document.getElementById('agente-guionorg-host'));
-}
-
-function armarPromptLinkReferencia(){
-  const link = document.getElementById('go-link').value.trim();
-  const box = document.getElementById('go-link-output-box');
-  if(!link){ box.style.display='none'; return; }
-  const prompt = `Abre este link y analiza el video o contenido que hay ahí: ${link}\n\nQuiero usarlo como REFERENCIA para crear contenido nuevo — no es mi contenido, es solo inspiración de formato (puede ser de cualquier industria). Ya conoces mi marca, mi cliente ideal, mi tono y mi Sistema 366, no me los preguntes de nuevo.\n\nHaz esto:\n1. Mira o lee el contenido completo del link.\n2. Transcribe su estructura identificando: HOOK, CONTEXTO, DESARROLLO/ARGUMENTO, GIRO O CIERRE, CTA.\n3. Conviértela en una PLANTILLA reutilizable (con espacios en blanco tipo [problema], [beneficio], etc.) que yo pueda rellenar para cualquier idea futura.\n4. Dame un ejemplo de cómo se vería esa plantilla ya rellena con mi marca y mi oferta.\n\nEntrega en este orden: ESTRUCTURA IDENTIFICADA, PLANTILLA REUTILIZABLE, EJEMPLO CON MI MARCA.`;
-  box.style.display='block';
-  box.innerHTML = `<div class="mode-output" style="margin-top:10px;">${escHtml(prompt)}</div>
-    <div style="margin-top:8px;display:flex;gap:12px;">
-      <button class="mode-add-banco" id="go-link-copiar">📋 Copiar</button>
-    </div>`;
-  document.getElementById('go-link-copiar').addEventListener('click',(e)=>{
-    navigator.clipboard.writeText(prompt).then(()=>{
-      const b=e.currentTarget; const prev=b.textContent;
-      b.textContent='✅ Copiado'; setTimeout(()=>{b.textContent=prev;},1500);
-    });
-  });
 }
 
 // ─── IDEAS DE CONTENIDO 366 ──────────────────────────────────────────────
@@ -3022,7 +2774,6 @@ const FORMATOS_META = {
   imagen:  {label:'Imagen',   ico:'🖼️', a:'#FFF1D6', b:'#F8D9A0'},
   historia:{label:'Historia', ico:'⭕', a:'#F1ECF9', b:'#DCCFF2'},
 };
-const REDES_META = {ig:'Ins', tt:'Tik', fb:'Fac'};
 const REDES_DEFAULT = ['ig','tt','fb'];
 const ESTADO_LABEL = {idea:'Idea', proceso:'En proceso', programado:'Programado', publicado:'Publicado'};
 // Degradado de la miniatura según el estado: idea = rojo, en proceso = amarillo, programado = azul, publicado = verde.
@@ -3098,7 +2849,6 @@ function fechaCorta(r){
 }
 function wcardPost(r, i, conFecha){
   const f=formatoDeItem(r,'contenido'), fm=FORMATOS_META[f];
-  const redes=Array.isArray(r.redes)?r.redes:REDES_DEFAULT;
   const est=ESTADO_LABEL[r.estado]?r.estado:'idea';
  const fu=fuenteElegida(r); const mi=fu?fu.mi:null; const gr=ESTADO_GRAD[est];
   return `<article class="wcard" tabindex="0" role="button" ${conFecha?'':'draggable="true"'} data-id="${escHtml(r.id)}" data-tab="contenido" style="--i:${i}" aria-label="${escHtml(r.gancho||'Post')}">
@@ -3110,7 +2860,7 @@ function wcardPost(r, i, conFecha){
     </div>
     <div class="wbody">
       <div class="wtitle">${escHtml(r.gancho||'(sin título)')}</div>
-      <div class="wnets">${r.productoNombre?`<span class="wnet wprod">◆ ${escHtml(r.productoNombre)}</span>`:''}${redes.map(x=>`<span class="wnet">${REDES_META[x]||x}</span>`).join('')}</div>
+      ${r.productoNombre?`<div class="wnets"><span class="wnet wprod">◆ ${escHtml(r.productoNombre)}</span></div>`:''}
       <div class="wfoot"><span class="wpill ${est}">${ESTADO_LABEL[est]}</span><span class="whora">${conFecha?escHtml(fechaCorta(r)+(r.hora?' · '+r.hora:'')):escHtml(r.hora||'')}</span></div>
     </div>
   </article>`;
@@ -3206,7 +2956,7 @@ function moverItemAFechaWidget(tab,id,iso){
 
 function enlazarWidget(host){
   host.querySelectorAll('[data-abrir]').forEach(b=>b.addEventListener('click',()=>abrirDashboard(b.dataset.abrir)));
-  host.querySelectorAll('[data-cal-abrir]').forEach(b=>b.addEventListener('click',()=>abrirDashboard('calendario',null,{cal:b.dataset.calAbrir})));
+  host.querySelectorAll('[data-cal-abrir]').forEach(b=>b.addEventListener('click',()=>abrirDashboard(b.dataset.calAbrir)));
   host.querySelectorAll('[data-nav]').forEach(b=>b.addEventListener('click',()=>{
     const n=b.dataset.nav;
     if(n==='hoy') widgetInicio=hoyMedianoche();
