@@ -406,6 +406,11 @@
     .catalogo-check-list { display: flex; flex-direction: column; gap: 6px; background: var(--surface-2); border: 1.5px solid var(--line); border-radius: 9px; padding: 10px 12px; margin-bottom: 8px; max-height: 180px; overflow-y: auto; overflow-x: hidden; }
     .catalogo-check-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); cursor: pointer; }
     .catalogo-check-item input { accent-color: var(--accent); cursor: pointer; }
+    .catalogo-aviso { font-size: 13px; color: var(--text-dim); margin: 10px 0 0; line-height: 1.6; }
+    .catalogo-aviso a { color: var(--accent-text); font-weight: 700; }
+    .catalogo-vacio { font-size: 13.5px; color: var(--text-dim); background: var(--surface-2); border: 1.5px dashed var(--line); border-radius: 10px; padding: 12px 14px; line-height: 1.5; }
+    .catalogo-refrescar { background: transparent; border: 1px solid var(--line); color: var(--text-dim); font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 99px; cursor: pointer; margin-left: 4px; }
+    .catalogo-refrescar:hover { border-color: var(--accent-text); color: var(--text); }
     .importante-toggle { position: absolute; top: 0; right: 0; background: transparent; border: none; cursor: pointer; font-size: 15px; color: var(--text-dim); padding: 2px 4px; line-height: 1; }
     .importante-toggle:hover { color: #22C55E; }
     .importante-toggle.activo { color: #22C55E; }
@@ -1071,7 +1076,7 @@ function inicializarMapa366() {
     if (p.tipo === 'notas') {
       const cont = document.getElementById(p.cont);
       // al cambiar de pestaña (perfil/producto/...) o recargar los datos, el panel se vuelve a pintar
-      if (cont) new MutationObserver(() => { if (abierto === id) requestAnimationFrame(() => mostrar(id)); }).observe(cont, { childList: true });
+      if (cont) new MutationObserver(() => { if (abierto === id) setTimeout(() => mostrar(id), 0); }).observe(cont, { childList: true });
       if (st[id].det) st[id].det.addEventListener('change', () => { if (abierto === id) mostrar(id); });
     }
   });
@@ -2259,7 +2264,21 @@ function listaProductosCatalogoHtml(valorActual, i) {
     const marcado = lineasActuales.includes(p.nombre.toString().trim().toLowerCase());
     const detalle = p.precio != null && p.precio !== '' ? ` — $${p.precio}` : '';
     return `<label class="catalogo-check-item"><input type="checkbox" data-perfil="${i}" data-nombre="${escaparAttrBuilder(p.nombre)}"${marcado ? ' checked' : ''} onchange="toggleProductoDelCatalogo(this)"> ${escaparHtmlBuilder(p.nombre)}${escaparHtmlBuilder(detalle)}</label>`;
-  }).join('') + `</div>`;
+  }).join('') + `</div>` + avisoAgregarProductoHtml();
+}
+
+/* Si el producto no sale en la lista, hay que agregarlo en el catálogo del ADN. */
+function rutaAdnCatalogo366() {
+  const rutas = (window.__hub && window.__hub.rutas) ? window.__hub.rutas('/adn') : {};
+  return (rutas[CLIENTE_ID] || '/adn') + '#catalogo';
+}
+function avisoAgregarProductoHtml() {
+  return '<p class="catalogo-aviso">¿No ves tu producto? <a href="' + rutaAdnCatalogo366() + '" target="_blank" rel="noopener">Agrégalo en el ADN → Catálogo</a> y vuelve aquí. <button type="button" class="catalogo-refrescar" onclick="refrescarCatalogoDesdeADN()">↻ Actualizar lista</button></p>';
+}
+async function refrescarCatalogoDesdeADN() {
+  await cargarCatalogoProductosADN();
+  capturarPerfilesDesdeDOM();
+  renderEpcPanels();
 }
 
 function toggleProductoDelCatalogo(checkbox) {
@@ -2281,7 +2300,7 @@ function panelHtmlEpc(p, i) {
     <div class="card">
       ${ta('nombre', 'Nombre de este perfil', 'Ej. Mamás de 30-40, Dueños de PyME...')}
       ${grupoMiniHtml('perfil', i, p.grupo_id)}
-      ${hayCatalogo ? `<div class="field"><label>Marca del catálogo del ADN los que le vende este perfil</label>${listaProductosCatalogoHtml(p.producto_relacionado, i)}</div>` : ''}
+      ${hayCatalogo ? `<div class="field"><label>Marca del catálogo del ADN los que le vende este perfil</label>${listaProductosCatalogoHtml(p.producto_relacionado, i)}</div>` : `<div class="field"><label>Productos de tu catálogo del ADN</label><div class="catalogo-vacio">Todavía no hay productos en tu catálogo del ADN. Agrégalos para poder marcar cuál le vende este perfil.</div>${avisoAgregarProductoHtml()}</div>`}
       ${ta('producto_relacionado', 'Productos u ofertas 366 a los que le vende este perfil (uno por línea)', 'Ej. Capacitaciones\nConsultoría 1 a 1', 60, hayCatalogo)}
     </div>
     <div class="card">
