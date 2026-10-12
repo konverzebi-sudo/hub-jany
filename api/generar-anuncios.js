@@ -537,6 +537,13 @@ function formatearProducto(items, productoId, etiqueta) {
   return `PRODUCTO ESPECÍFICO A ENFOCAR (${etiqueta}):\n- ` + partes.join(' · ');
 }
 
+// Datos del producto que se venía trabajando en Jefe 366 (llegan en modo guiado, aunque el producto
+// no esté en el catálogo del ADN). Texto plano ya armado por el cliente; solo se limita el largo.
+function formatearProductoTexto(body, etiqueta) {
+  const t = ((body && body.producto_texto) || '').toString().trim().slice(0, 1800);
+  return t ? `PRODUCTO QUE SE ESTÁ TRABAJANDO EN JEFE 366 (${etiqueta}; usa estos datos tal cual, no inventes otros):\n` + t : null;
+}
+
 // Retroalimentación que el usuario dejó escrita en tarjetas ya guardadas (campo "retroalimentacion"
 // en {cliente}:agente-anuncios) -- son correcciones puntuales sobre piezas concretas (no datos de
 // marca permanentes, esos van en el ADN/366), así que se inyectan como señales a corregir en
@@ -719,13 +726,15 @@ async function manejarModoIdeas(body, res) {
   const promptFijo = cargarPrompt(PROMPT_PATH_IDEAS);
   const { contexto, catalogo } = await construirContexto(clienteId, grupoId);
   const bloqueProducto = formatearProducto(catalogo, productoId, 'las ideas deben girar en torno a este producto puntual, no al grupo completo');
+  const bloqueTexto = formatearProductoTexto(body, 'las ideas deben girar en torno a este producto');
 
   const instruccion = 'INSTRUCCIÓN DE ESTA GENERACIÓN:\n' +
     (anguloTexto
       ? `Ángulo 366 elegido (enfócate SOLO en este, no mezcles con otros ángulos): ${anguloTexto}\n`
       : 'No se eligió un ángulo específico -- explora libremente los ángulos 366 disponibles, mezclando varios si aplica.\n') +
     `Genera ${cantidadPorEtapa} idea(s) por cada una de las 3 etapas (adquisicion, consideracion, conversion) = ${cantidadPorEtapa * 3} en total, en el formato JSON indicado.` +
-    (bloqueProducto ? '\n\n' + bloqueProducto : '');
+    (bloqueProducto ? '\n\n' + bloqueProducto : '') +
+    (bloqueTexto ? '\n\n' + bloqueTexto : '');
 
   const system = [promptFijo, contexto, instruccion].join('\n\n');
   const { ok, status, data } = await llamarClaude(
@@ -782,6 +791,7 @@ async function manejarModoDetalle(body, res) {
   const promptFijo = cargarPrompt(PROMPT_PATH_DETALLE);
   const { contexto, catalogo, linkContacto } = await construirContexto(clienteId, grupoId);
   const bloqueProducto = formatearProducto(catalogo, productoId, 'el detalle debe girar en torno a este producto puntual');
+  const bloqueTexto = formatearProductoTexto(body, 'el detalle debe girar en torno a este producto');
 
   const listaIdeas = ideas.map((idea, i) =>
     `${i + 1}. id="${idea.id}" (etapa: ${idea.etapa || 'sin especificar'})\n   Título: ${idea.titulo}\n   Hook: ${idea.hook}`
@@ -790,7 +800,8 @@ async function manejarModoDetalle(body, res) {
   const instruccion = 'INSTRUCCIÓN DE ESTA GENERACIÓN:\n' +
     `FORMATO ELEGIDO PARA TODO EL LOTE: ${formato}\n\n` +
     `IDEAS YA APROBADAS A DESARROLLAR (${ideas.length}):\n${listaIdeas}` +
-    (bloqueProducto ? '\n\n' + bloqueProducto : '');
+    (bloqueProducto ? '\n\n' + bloqueProducto : '') +
+    (bloqueTexto ? '\n\n' + bloqueTexto : '');
 
   const system = [promptFijo, contexto, instruccion].join('\n\n');
   const { ok, status, data } = await llamarClaude(

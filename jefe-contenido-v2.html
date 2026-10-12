@@ -561,6 +561,7 @@
 <div class="wrap">
   <script>(function(){var p=location.pathname;var b=window.__hub.slug!=='jefeshub'?'/'+window.__hub.slug:null;if(b)document.getElementById('back-hub').href=b;})();</script>
   <script src="/js/storage-client.js"></script>
+  <script src="/js/guia-jefe.js"></script>
   <script>(async function(){
     var BRANDS=window.__hub.marcas({'rancho-seco':{fallback:'Rancho Seco',color:'#F2C230'},'rim':{fallback:'RIM',color:'#F472B6'},'optica-one':{fallback:'Óptica One',color:'#38BDF8'},'jefeshub':{fallback:'JefesHub',color:'#B8F725'}});
     var p=location.pathname;
@@ -1955,6 +1956,9 @@ let evergreenProductos = [];
 let evergreenGrupoId = '';
 let evergreenProductoId = '';
 let evergreenTipo = 'todos';
+let evergreenDetalle = '3b'; // '3b' = 3 ideas breves por categoría (como siempre) · '1d' = 1 idea detallada por categoría
+let evergreenProductoTexto = ''; // datos del producto que viene trabajándose en Jefe 366 (solo en modo guiado)
+let evergreenProductoNombre = '';
 let evergreenIdeasStore = {};
 let evergreenStatus = '';
 let evergreenLoaded = false;
@@ -2023,6 +2027,13 @@ function pintarEvergreenIdeas(container){
         ${EVERGREEN_CATEGORIAS.map(c=>`<option value="${c.key}"${evergreenTipo===c.key?' selected':''}>${escHtml(c.label)}</option>`).join('')}
       </select>
     </div>
+    <div class="mode-field" style="min-width:220px;">
+      <label>Cantidad y detalle</label>
+      <select id="evergreen-detalle-sel">
+        <option value="1d"${evergreenDetalle==='1d'?' selected':''}>1 por categoría · detallada</option>
+        <option value="3b"${evergreenDetalle==='3b'?' selected':''}>3 por categoría · breves</option>
+      </select>
+    </div>
     <button class="btn btn-solid" id="evergreen-gen-btn">✨ Generar ideas con IA</button>
     <span class="mode-status" id="evergreen-status">${escHtml(evergreenStatus)}</span>
   `;
@@ -2067,13 +2078,18 @@ function pintarEvergreenIdeas(container){
   document.getElementById('evergreen-grupo-sel').addEventListener('change', (e)=>{
     evergreenGrupoId = e.target.value;
     evergreenProductoId = '';
+    evergreenProductoTexto = ''; evergreenProductoNombre = '';
     pintarEvergreenIdeas(container);
   });
   document.getElementById('evergreen-producto-sel').addEventListener('change', (e)=>{
     evergreenProductoId = e.target.value;
+    evergreenProductoTexto = ''; evergreenProductoNombre = ''; // eligió a mano: ya no aplica el producto que traía de Jefe 366
   });
   document.getElementById('evergreen-tipo-sel').addEventListener('change', (e)=>{
     evergreenTipo = e.target.value;
+  });
+  document.getElementById('evergreen-detalle-sel').addEventListener('change', (e)=>{
+    evergreenDetalle = e.target.value;
   });
   document.getElementById('evergreen-gen-btn').addEventListener('click', generarIdeasEvergreen);
 
@@ -2199,7 +2215,11 @@ async function generarIdeasEvergreen(){
     const res = await fetch('/api/generar-ideas-366', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cliente: CLIENTE_ID, grupo_id: evergreenGrupoId, tipo: evergreenTipo, producto_id: evergreenProductoId }),
+      body: JSON.stringify({
+        cliente: CLIENTE_ID, grupo_id: evergreenGrupoId, tipo: evergreenTipo, producto_id: evergreenProductoId,
+        items_por_categoria: evergreenDetalle === '1d' ? 1 : 3, detallado: evergreenDetalle === '1d',
+        producto_texto: evergreenProductoTexto,
+      }),
     });
     const data = await res.json();
     if(!res.ok){ statusEl2.textContent = 'Error: ' + (data.error || 'No se pudo generar.'); statusEl2.classList.add('error'); return; }
@@ -3062,11 +3082,74 @@ async function syncAgendaEventos(opts){
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'&&agendaSyncPending) syncAgendaEventos({keepalive:true}); });
 window.addEventListener('pagehide',()=>{ if(agendaSyncPending) syncAgendaEventos({keepalive:true}); });
 
+// ─── LLEGADA DESDE JEFE 366 + GUÍA DE USO ─────────────────────────────────
+// Al darle "Ir con el Jefe de Contenido" en el paso 7 de Jefe 366, esa página deja en localStorage el
+// producto con el que se venía trabajando. Aquí se llenan los módulos de "366 IA" con eso (grupo,
+// producto, las 5 categorías, 1 idea detallada de cada una) y arranca la guía. Se consume una sola vez.
+function leerLlegada366(){
+  try{
+    const raw=localStorage.getItem('jefeshub_366_a_contenido');
+    if(!raw) return null;
+    localStorage.removeItem('jefeshub_366_a_contenido');
+    const d=JSON.parse(raw);
+    if(!d || d.cliente!==CLIENTE_ID || Date.now()-(d.ts||0)>30*60*1000) return null;
+    return d;
+  }catch(e){ return null; }
+}
+const normNombre=(s)=>(s||'').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/s+/g,' ').trim();
+function aplicarLlegada366(d){
+  evergreenTipo='todos';
+  evergreenDetalle='1d';
+  const grupo=evergreenGrupos.find(g=>g.id===d.grupo_id) || evergreenGrupos.find(g=>normNombre(g.nombre)===normNombre(d.grupo_nombre));
+  evergreenGrupoId=grupo?grupo.id:'';
+  const n=normNombre(d.producto_nombre);
+  const delGrupo=evergreenProductos.filter(p=>p&&p.nombre&&(!evergreenGrupoId||p.grupo_id===evergreenGrupoId));
+  const prod=n?(delGrupo.find(p=>normNombre(p.nombre)===n)||delGrupo.find(p=>normNombre(p.nombre).includes(n)||n.includes(normNombre(p.nombre)))):null;
+  evergreenProductoId=prod?prod.id:'';
+  evergreenProductoNombre=d.producto_nombre||'';
+  evergreenProductoTexto=d.producto_texto||'';
+}
+
+GuiaJefe.registrar({
+  id:'contenido', nombre:'Jefe de Contenido',
+  antes:()=>new Promise(res=>{
+    if(!document.getElementById('evergreen-gen-btn')){
+      if(agenteMode==='ideas') agenteMode=null;
+      elegirHerramienta('ideas');
+    }
+    let n=0; const t=setInterval(()=>{ if(document.getElementById('evergreen-gen-btn')||++n>40){ clearInterval(t); res(); } },150);
+  }),
+  pasos:[
+    { selector:'#evergreen-grupo-sel', titulo:'Grupo de negocio',
+      texto:()=>'Aquí eliges la línea de negocio de la que quieres ideas.'+(evergreenProductoNombre&&evergreenGrupoId?' Ya lo dejé en el grupo del producto que veníamos trabajando.':'') },
+    { selector:'#evergreen-producto-sel', titulo:'Producto',
+      texto:()=>evergreenProductoNombre
+        ? 'Las ideas van a girar en torno a "'+evergreenProductoNombre+'", el producto que veníamos trabajando en Jefe 366. Si quieres ideas de otro producto, cámbialo aquí.'
+        : 'Elige el producto puntual para que todas las ideas giren en torno a él. Si lo dejas en "Todo el grupo", mezcla los productos del grupo.' },
+    { selector:'#evergreen-tipo-sel', titulo:'Tipo de contenido',
+      texto:'"Las 5 categorías" te da una idea de cada tipo: viral, educativo, de venta, de entretenimiento y de testimonio. Así tienes contenido para atraer, enseñar, vender y dar confianza.' },
+    { selector:'#evergreen-detalle-sel', titulo:'Cantidad y detalle',
+      texto:'Dejé "1 por categoría · detallada": cada idea trae el ángulo, el guion del video escena por escena y la secuencia de historias. Si prefieres muchas ideas rápidas, cambia a "3 por categoría · breves".' },
+    { selector:'#evergreen-gen-btn', titulo:'Pícale aquí para generar',
+      texto:'Este botón le pide a la IA las ideas usando tu ADN, tu Sistema 366 y los datos del producto. Tarda unos segundos; las ideas aparecen abajo, una tabla por categoría.' },
+    { selector:'.evergreen-cat', titulo:'Revisa y ajusta',
+      texto:'Cada categoría tiene su tabla con la Idea, el Video y las Stories. Puedes editar cualquier texto directo en la celda antes de usarlo.' },
+    { selector:'.evergreen-selection-bar', titulo:'Mándalas a trabajar',
+      texto:'Marca la casilla de las ideas que te gusten y pícale a "Agregar a Historias" o "Agregar a Contenido": se pasan a esas pestañas listas para programar.' },
+  ],
+});
+
 initHeroChat();
 pintarBotonesAgente();
-loadStorage().then(()=>{
+loadStorage().then(async ()=>{
   const hash = location.hash.replace('#','');
-  if(hash==='366'){ elegirHerramienta('ideas'); return; }
+  if(hash==='366'){
+    const llegada=leerLlegada366();
+    if(llegada){ await ensureEvergreenLoaded(); aplicarLlegada366(llegada); }
+    elegirHerramienta('ideas');
+    if(llegada) GuiaJefe.iniciar('contenido');
+    return;
+  }
   if(hash==='banco'){ elegirHerramienta('banco'); return; }
   // Los segmentos del dashboard son <a href="#historias">, etc. -- así el clic derecho ofrece
   // "abrir en pestaña nueva"; al abrirla aterriza directo en esa vista.

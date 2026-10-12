@@ -247,9 +247,15 @@
     body.t3-trabajo .hero-robot, body.t3-trabajo .hero-search, body.t3-trabajo .mostrar-todas-btn { display: none; }
     body.t3-trabajo header { padding-top: 84px; padding-bottom: 4px; }
     body.t3-trabajo .group-tabs { margin-bottom: 10px; }
+    /* letrero con el producto que se está trabajando (solo en modo trabajo) */
+    .t3-prod-activo { display: none; }
+    body.t3-trabajo .t3-prod-activo:not([hidden]) { display: block; width: fit-content; max-width: 92%; margin: 6px auto 0; padding: 9px 26px; border-radius: 99px; background: #0F0B3A; color: #fff; font-family: Inter, sans-serif; font-size: 17px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; line-height: 1.25; }
     body.t3-trabajo .t3-tl { --split: 34px; max-width: none; margin-top: 4px; }
     body.t3-trabajo .t3-tl::before { display: none; }
-    body.t3-trabajo .t3-row:not(.open) > div { display: none; }
+    /* los demás pasos quedan debajo de la tarjeta abierta, más chicos, y se pueden tocar para saltar a ellos */
+    body.t3-trabajo .t3-row:not(.open) > div { order: 1; min-height: 0; padding-block: 7px; }
+    body.t3-trabajo .t3-row:not(.open) .t3-n { width: 38px; height: 38px; font-size: 14px; }
+    body.t3-trabajo .t3-row:not(.open) .t3-btn { font-size: 16px; padding: 9px 16px; color: var(--text-dim); }
     body.t3-trabajo .t3-row.open .t3-btn { font-size: 20px; }
     .t3-volver { display: none; margin-left: 14px; background: transparent; border: 1px solid var(--line); border-radius: 9px; padding: 8px 14px; font-size: 13px; color: var(--text-dim); cursor: pointer; font-family: Inter, sans-serif; }
     .t3-volver:hover { border-color: var(--accent-text); color: var(--text); }
@@ -573,6 +579,7 @@
   </div>
   <div class="group-tabs" id="groupTabs"></div>
   <button type="button" class="mostrar-todas-btn" id="mostrarTodasBtn" onclick="toggleMostrarTodas()">Ver todas las pestañas (sin filtrar por grupo)</button>
+  <div class="t3-prod-activo" id="t3-prod-activo" hidden></div>
 </header>
 
 <!-- ═══════════════════════════════════════════════ -->
@@ -652,7 +659,7 @@
       </div>
     </div>
     <div class="ideas-cta">
-      <p>Te comunico directo con el Jefe de Contenido — él ya tiene tu 366 actualizado para darte las mejores ideas de contenido.</p>
+      <p>Te comunico directo con el Jefe de Contenido — él ya tiene tu 366 actualizado para darte las mejores ideas de contenido. Te llevo con el producto que estamos trabajando ya elegido y las 5 categorías listas, y una guía paso a paso te explica qué hace cada botón.</p>
       <a id="contenidoLink" href="/jefe-contenido#366">→ Ir con el Jefe de Contenido</a>
     </div>
   </section>
@@ -666,7 +673,7 @@
       </div>
     </div>
     <div class="ideas-cta">
-      <p>Te comunico directo con el Jefe de Anuncios — él ya tiene tu 366 actualizado para darte las mejores ideas para tus anuncios pagados.</p>
+      <p>Te comunico directo con el Jefe de Anuncios — él ya tiene tu 366 actualizado para darte las mejores ideas para tus anuncios pagados. Te llevo con el producto que estamos trabajando ya elegido y una guía paso a paso te explica qué hace cada botón.</p>
       <a id="anunciosLink" href="/jefe-anuncios">→ Ir con el Jefe de Anuncios</a>
     </div>
   </section>
@@ -680,7 +687,7 @@
       </div>
     </div>
     <div class="ideas-cta">
-      <p>Los dos viven y se editan en el Jefe WhatsApp y Ventas — no se duplican aquí. Ahí armas tu guión real (tarjetas por temperatura del lead, con IA que ya lee tu ADN y todo tu Sistema 366), y pegas capturas y transcripciones reales que alimentan también este Documento Maestro.</p>
+      <p>Los dos viven y se editan en el Jefe WhatsApp y Ventas — no se duplican aquí. Ahí armas tu guión real (tarjetas por temperatura del lead, con IA que ya lee tu ADN y todo tu Sistema 366), y pegas capturas y transcripciones reales que alimentan también este Documento Maestro. Te llevo con el producto que estamos trabajando y una guía paso a paso te explica qué hace cada botón.</p>
       <a id="waLinkBtn" href="/jefe-whatsapp">→ Ir al Jefe WhatsApp y Ventas</a>
     </div>
   </section>
@@ -772,7 +779,17 @@ async function cargarGruposNegocio() {
 /* Al abrir un paso en pantalla ancha: la sección sube hasta arriba y la pantalla se parte en dos --
    el chat de un lado (siempre a la vista) y la sección donde se trabaja del otro. Al cerrar el paso
    (o si se eligió Vista dividida a mano) todo vuelve a como estaba. */
+function actualizarProductoActivo366() {
+  const el = document.getElementById('t3-prod-activo');
+  if (!el) return;
+  const p = (typeof productosState !== 'undefined' && productosState[productoActivo]) || null;
+  const nombre = p ? ((p.nombre || '').trim() || ('Producto ' + (productoActivo + 1))) : '';
+  el.textContent = nombre;
+  el.hidden = !nombre;
+}
+
 function modoTrabajo366(on) {
+  actualizarProductoActivo366();
   const main = document.getElementById('publicidad-content');
   if (!main) return;
   const ancho = window.matchMedia('(min-width: 1000px)').matches;
@@ -2608,6 +2625,7 @@ function renderEpTabs() {
   const nav = document.getElementById('ep-tabs-nav');
   if (!nav) return;
   actualizarTituloActivo('ep-titulo-activo', 'Producto 366', (productosState[productoActivo] || {}).nombre);
+  actualizarProductoActivo366();
   nav.innerHTML = '';
   const indices = indicesDelGrupoActivo(productosState);
   indices.forEach((i, pos) => {
@@ -3551,7 +3569,29 @@ function aplicarClienteUI() {
   const RUTA_ANUNCIOS = window.__hub.rutas('/jefe-anuncios');
   const waHref = RUTA_WHATSAPP[CLIENTE_ID] || RUTA_WHATSAPP.jefeshub;
   document.getElementById('waLinkBtn').href = waHref;
-  document.getElementById('contenidoLink').href = (RUTA_CONTENIDO[CLIENTE_ID] || RUTA_CONTENIDO.jefeshub) + '#366';
+  const contenidoLink = document.getElementById('contenidoLink');
+  contenidoLink.href = (RUTA_CONTENIDO[CLIENTE_ID] || RUTA_CONTENIDO.jefeshub) + '#366';
+  // Al irse con el Jefe de Contenido se lleva el producto que se está trabajando para que llegue
+  // con sus módulos ya llenos (grupo, producto, las 5 categorías) y arranque su guía.
+  const llevarProductoA = (clave) => () => {
+    try {
+      if (typeof capturarProductosDesdeDOM === 'function') capturarProductosDesdeDOM();
+      const p = productosState[productoActivo] || {};
+      const limpio = (v) => (v || '').toString().replace(/\s+/g, ' ').trim();
+      const datos = [
+        ['Producto', p.nombre], ['Qué vendemos', p.que_vendemos], ['Por qué tiene potencial', p.por_que_potencial],
+        ['Oferta irresistible', p.oferta_irresistible], ['Insight estratégico', p.insight_estrategico],
+      ].filter((d) => limpio(d[1])).map((d) => d[0] + ': ' + limpio(d[1]).slice(0, 400)).join('\n');
+      localStorage.setItem(clave, JSON.stringify({
+        ts: Date.now(), cliente: CLIENTE_ID,
+        grupo_id: p.grupo_id || (grupoActivo && grupoActivo.id) || '', grupo_nombre: (grupoActivo && grupoActivo.nombre) || '',
+        producto_nombre: limpio(p.nombre), producto_texto: datos,
+      }));
+    } catch (e) {}
+  };
+  contenidoLink.addEventListener('click', llevarProductoA('jefeshub_366_a_contenido'));
+  document.getElementById('anunciosLink').addEventListener('click', llevarProductoA('jefeshub_366_a_anuncios'));
+  document.getElementById('waLinkBtn').addEventListener('click', llevarProductoA('jefeshub_366_a_whatsapp'));
   document.getElementById('anunciosLink').href = RUTA_ANUNCIOS[CLIENTE_ID] || RUTA_ANUNCIOS.jefeshub;
 }
 

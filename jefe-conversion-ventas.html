@@ -743,6 +743,7 @@
 <footer id="ventas-footer">Jefe WhatsApp y Ventas — construido sobre tu manual de ventas por mensaje</footer>
 
 <script src="/js/storage-client.js"></script>
+<script src="/js/guia-jefe.js"></script>
 <script>
 // ---------- DATA ----------
 const seguimiento = [
@@ -1612,11 +1613,64 @@ document.querySelectorAll('[data-field]').forEach((el) => {
 });
 // Los grupos de negocio deben quedar resueltos (grupoActivo) antes de cargar las tarjetas, porque
 // tarjetasKey()/waGuionesKey() dependen de saber con cuál grupo se está trabajando.
+// ---------- LLEGADA DESDE JEFE 366 + GUÍA DE USO ----------
+// Al darle "Ir al Jefe WhatsApp y Ventas" en el paso 9 de Jefe 366, esa página deja en localStorage el
+// producto con el que se venía trabajando. Aquí se deja activa la pestaña de ese producto (o la de su
+// grupo) y arranca la guía. Se consume una sola vez.
+function leerLlegada366(){
+  try{
+    const raw = localStorage.getItem('jefeshub_366_a_whatsapp');
+    if(!raw) return null;
+    localStorage.removeItem('jefeshub_366_a_whatsapp');
+    const d = JSON.parse(raw);
+    if(!d || d.cliente !== CLIENTE_ID || Date.now() - (d.ts || 0) > 30 * 60 * 1000) return null;
+    return d;
+  }catch(e){ return null; }
+}
+function aplicarLlegada366(d){
+  const norm = (s) => (s || '').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/s+/g, ' ').trim();
+  const n = norm(d.producto_nombre);
+  let i = n ? productos366Tabs.findIndex((p) => norm(p.nombre) === n) : -1;
+  if(i < 0 && n) i = productos366Tabs.findIndex((p) => norm(p.nombre).includes(n) || n.includes(norm(p.nombre)));
+  if(i >= 0){ switchProducto(i); return; }
+  const g = gruposNegocioState.findIndex((x) => x.id === d.grupo_id || (norm(x.nombre) && norm(x.nombre) === norm(d.grupo_nombre)));
+  if(g >= 0) switchGroup(g);
+}
+
+GuiaJefe.registrar({
+  id: 'whatsapp', nombre: 'Jefe WhatsApp y Ventas',
+  pasos: [
+    { selector: '#groupTabs .group-tab.active', titulo: 'Producto o grupo en el que trabajas',
+      texto: 'Cada pestaña de arriba es un producto (o un grupo de negocio) con su propio manual de WhatsApp, y no se mezclan entre sí. La pestaña resaltada es con la que estás trabajando; si vienes de Jefe 366, es el producto que veníamos viendo. Para cambiar, pícale a otra.' },
+    { selector: '#searchInput', titulo: 'Búsqueda rápida',
+      texto: 'Escribe lo que te dijo el cliente ("está caro", "no entiendo", "tarjeta"...) y te sale la respuesta lista para copiar y pegar en el chat.' },
+    { selector: '#estToggleBtn', titulo: 'Pícale aquí para armar tu estrategia',
+      texto: 'Este botón abre el generador: la IA llena las 5 tarjetas de abajo (primer contacto, calificación, oferta, objeciones y cierre) con tu ADN y tu Jefe 366. Puedes subir capturas o un .txt de conversaciones reales para que suene como tú. Si le falta algo clave, te hace hasta 3 preguntas antes.' },
+    { selector: '#liveInput', titulo: 'Consulta en vivo',
+      texto: 'Pega el último mensaje que te mandó el cliente (o adjunta una captura) y pícale "Preguntar al Agente": te aconseja la mejor respuesta estratégica según en qué punto va la venta.' },
+    { selector: '#thermoNav', titulo: 'El termómetro de la conversación',
+      texto: 'Las tarjetas van de frío a ardiendo: 1–2 primer contacto, 3–4 calificación, 5–6 oferta, 7–8 objeciones y 9–10 cierre. Pícale a un tramo para saltar a esas tarjetas según qué tan caliente esté el cliente.' },
+    { selector: '#s1 .copy-btn', titulo: 'Copiar y pegar',
+      texto: 'Cada tarjeta es un mensaje listo. Pícale "Copiar" y pégalo en WhatsApp. También puedes editar el texto directo en la tarjeta: se guarda solo unos segundos después de que dejas de escribir.' },
+    { selector: '.tarjetas-save-row .ask-btn', titulo: 'Guardar ahora',
+      texto: 'Si quieres asegurarte de que quedó guardado antes de salir, pícale aquí.' },
+    { selector: '#seguimientoList', titulo: 'Seguimiento y reactivación',
+      texto: 'Seguimiento es para conversaciones que se quedaron a medias; Reactivación es para leads que se enfriaron o clientas que podrían volver. Son mensajes aparte del termómetro.' },
+    { selector: '#logInput', titulo: 'Preguntas sin respuesta',
+      texto: 'Cuando un cliente te pregunte algo que no está en el manual, anótalo aquí. Después se revisa para completar el manual oficial.' },
+    { selector: '#convoInput', titulo: 'Banco de conversaciones',
+      texto: 'Pega aquí chats reales de WhatsApp (una objeción nueva, una frase que funcionó). Este banco alimenta tu manual y también al Jefe 366 para que sus ideas suenen a tus clientes reales.' },
+  ],
+});
+
 (async () => {
   await cargarGruposNegocio();
   await cargarProductos366();
   await cargarCampanas();
+  const llegada = leerLlegada366();
+  if(llegada) aplicarLlegada366(llegada);
   await cargarTarjetas();
+  if(llegada) GuiaJefe.iniciar('whatsapp');
 })();
 </script>
 <script src="/js/jefes-nav.js" defer></script>
