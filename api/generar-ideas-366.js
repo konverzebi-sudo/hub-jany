@@ -335,17 +335,31 @@ module.exports = async function handler(req, res) {
   const tipo = CATEGORIAS.includes(body.tipo) ? body.tipo : 'todos';
   const productoId = body.producto_id ? body.producto_id.toString() : '';
   const categoriasPedidas = tipo === 'todos' ? CATEGORIAS : [tipo];
+  // Modo guiado (llegan desde Jefe 366): pueden pedir 1 idea por categoría, bien detallada, y mandar
+  // los datos del producto que se está trabajando aunque no esté en el catálogo del ADN.
+  const itemsPorCategoria = Math.min(3, Math.max(1, parseInt(body.items_por_categoria, 10) || ITEMS_POR_CATEGORIA));
+  const detallado = body.detallado === true;
+  const productoTexto = (body.producto_texto || '').toString().trim().slice(0, 1800);
 
   try {
     const promptFijo = cargarPromptFijo();
     const contexto = await construirContexto(clienteId, grupoId);
     const catalogo = await leerJSON(`${clienteId}:catalogo-productos`).catch(() => null);
     const bloqueProducto = formatearProducto(catalogo, productoId);
+    const bloqueProductoTexto = productoTexto
+      ? 'PRODUCTO QUE SE ESTÁ TRABAJANDO EN JEFE 366 (todas las ideas deben girar en torno a este producto; usa estos datos tal cual, no inventes otros):\n' + productoTexto
+      : null;
 
     const instruccion = 'INSTRUCCIÓN DE ESTA GENERACIÓN:\n' +
-      `Genera SOLO estas categorías, ${ITEMS_POR_CATEGORIA} ideas cada una: ` +
+      `Genera SOLO estas categorías, ${itemsPorCategoria} ${itemsPorCategoria === 1 ? 'idea' : 'ideas'} cada una: ` +
       categoriasPedidas.map((c) => `"${c}" (${CATEGORIAS_INFO[c]})`).join(', ') + '.' +
-      (bloqueProducto ? '\n\n' + bloqueProducto : '');
+      (bloqueProducto ? '\n\n' + bloqueProducto : '') +
+      (bloqueProductoTexto ? '\n\n' + bloqueProductoTexto : '') +
+      (detallado ? '\n\nNIVEL DE DETALLE (esta instrucción reemplaza lo de "sé breve" del prompt): desarrolla cada idea completa y lista para producir. ' +
+        'En "idea": el ángulo, a qué cliente le habla y por qué funciona (3-4 líneas). ' +
+        'En "video": gancho de los primeros 2 segundos + escenas en orden (qué se ve y qué se dice) + cierre con llamada a la acción (5-8 líneas). ' +
+        'En "stories": secuencia de 3 a 5 historias, indicando en cuál va la encuesta, pregunta o sticker y cuál es el cierre (4-6 líneas). ' +
+        'Mantén la voz 1 a 1 y el tono de marca.' : '');
 
     const system = [promptFijo, contexto, instruccion].join('\n\n');
 
@@ -358,9 +372,11 @@ module.exports = async function handler(req, res) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: tipo === 'todos' ? 8000 : 2500,
+        max_tokens: tipo === 'todos' ? (detallado ? 7000 : 8000) : 2500,
         system,
-        messages: [{ role: 'user', content: 'Genera las ideas de contenido 366 pedidas, en el formato JSON indicado. Sé breve por campo -- son ideas de referencia, no el guion final.' }],
+        messages: [{ role: 'user', content: detallado
+          ? 'Genera las ideas de contenido 366 pedidas, en el formato JSON indicado, con el nivel de detalle de la instrucción.'
+          : 'Genera las ideas de contenido 366 pedidas, en el formato JSON indicado. Sé breve por campo -- son ideas de referencia, no el guion final.' }],
       }),
     });
 

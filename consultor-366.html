@@ -648,7 +648,7 @@
       </div>
     </div>
     <div class="ideas-cta">
-      <p>Te comunico directo con el Jefe de Contenido — él ya tiene tu 366 actualizado para darte las mejores ideas de contenido.</p>
+      <p>Te comunico directo con el Jefe de Contenido — él ya tiene tu 366 actualizado para darte las mejores ideas de contenido. Te llevo con el producto que estamos trabajando ya elegido y las 5 categorías listas, y una guía paso a paso te explica qué hace cada botón.</p>
       <a id="contenidoLink" href="/jefe-contenido#366">→ Ir con el Jefe de Contenido</a>
     </div>
   </section>
@@ -3441,7 +3441,26 @@ function aplicarClienteUI() {
   const RUTA_ANUNCIOS = { 'rancho-seco': '/rancho-seco/jefe-anuncios', rim: '/rim/jefe-anuncios', 'optica-one': '/optica-one/jefe-anuncios', jefeshub: '/jefe-anuncios' };
   const waHref = RUTA_WHATSAPP[CLIENTE_ID] || RUTA_WHATSAPP.jefeshub;
   document.getElementById('waLinkBtn').href = waHref;
-  document.getElementById('contenidoLink').href = (RUTA_CONTENIDO[CLIENTE_ID] || RUTA_CONTENIDO.jefeshub) + '#366';
+  const contenidoLink = document.getElementById('contenidoLink');
+  contenidoLink.href = (RUTA_CONTENIDO[CLIENTE_ID] || RUTA_CONTENIDO.jefeshub) + '#366';
+  // Al irse con el Jefe de Contenido se lleva el producto que se está trabajando para que llegue
+  // con sus módulos ya llenos (grupo, producto, las 5 categorías) y arranque su guía.
+  contenidoLink.addEventListener('click', () => {
+    try {
+      if (typeof capturarProductosDesdeDOM === 'function') capturarProductosDesdeDOM();
+      const p = productosState[productoActivo] || {};
+      const limpio = (v) => (v || '').toString().replace(/\s+/g, ' ').trim();
+      const datos = [
+        ['Producto', p.nombre], ['Qué vendemos', p.que_vendemos], ['Por qué tiene potencial', p.por_que_potencial],
+        ['Oferta irresistible', p.oferta_irresistible], ['Insight estratégico', p.insight_estrategico],
+      ].filter((d) => limpio(d[1])).map((d) => d[0] + ': ' + limpio(d[1]).slice(0, 400)).join('\n');
+      localStorage.setItem('jefeshub_366_a_contenido', JSON.stringify({
+        ts: Date.now(), cliente: CLIENTE_ID,
+        grupo_id: p.grupo_id || (grupoActivo && grupoActivo.id) || '', grupo_nombre: (grupoActivo && grupoActivo.nombre) || '',
+        producto_nombre: limpio(p.nombre), producto_texto: datos,
+      }));
+    } catch (e) {}
+  });
   document.getElementById('anunciosLink').href = RUTA_ANUNCIOS[CLIENTE_ID] || RUTA_ANUNCIOS.jefeshub;
 }
 
