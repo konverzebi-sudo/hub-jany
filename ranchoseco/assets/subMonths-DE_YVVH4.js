@@ -1,0 +1,1 @@
+import{Yt as e}from"./index-Dyibqx7j.js";function t(t,n,r){return e(t,-n,r)}export{t};
