@@ -319,7 +319,7 @@ const SUGERENCIAS = {
   guia: [
     { txt: '🎥 Guíame antes de grabar', msg: 'Voy a grabar un video, guíame con el checklist antes de grabar.', enviar: true },
     { txt: '¿Qué formato me conviene?', msg: '¿Qué tipo de grabación me conviene según lo que quiero lograr?', enviar: true },
-    { txt: '📝 Revisa mi guion o video', msg: 'Te voy a pegar un guion para que me des feedback.', enviar: true },
+    { txt: '📝 Revisa mi guion o video', ayuda: 'Pega aquí tu guion o la descripción de tu video y presiona enviar para recibir feedback.' },
   ],
   imagen: [
     { txt: 'Foto de producto', msg: 'Foto de producto sobre fondo neutro, luz natural, estilo minimalista' },
@@ -381,6 +381,7 @@ function pintarSugerencias(){
       const s = SUGERENCIAS[modo][+b.dataset.i];
       if (s.enviar) { enviarMensajeChat(s.msg); return; }
       const el = $('chat-input');
+      if (s.ayuda) { el.value = ''; el.placeholder = s.ayuda; autoAlto(); el.focus(); return; }  // sin mensaje automático
       el.value = s.msg; autoAlto(); el.focus();
     });
   });
@@ -520,8 +521,20 @@ async function cargarConversacion(){
   try {
     const r = await window.storage.get(CONVERSACION_KEY);
     const guardado = r && r.value ? JSON.parse(r.value) : [];
-    if (Array.isArray(guardado) && guardado.length > 0) {
-      chatMessages = guardado;
+    // Antes el atajo "Revisa mi guion o video" mandaba este mensaje solo; se quita de lo ya guardado.
+    const AUTOMATICO = 'Te voy a pegar un guion para que me des feedback.';
+    const limpio = [];
+    for (let i = 0; i < guardado.length; i++) {
+      const m = guardado[i];
+      if (m && m.role === 'user' && m.content === AUTOMATICO) {
+        if (guardado[i + 1] && guardado[i + 1].role === 'assistant') i++;
+        continue;
+      }
+      limpio.push(m);
+    }
+    if (limpio.length !== guardado.length) { chatMessages = limpio; persistirConversacion(); }
+    if (Array.isArray(limpio) && limpio.length > 0) {
+      chatMessages = limpio;
       pintarChatThread();
     }
   } catch (e) {}
