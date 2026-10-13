@@ -154,7 +154,24 @@
     .copy-btn:hover { border-color: var(--accent-text); color: var(--accent-text); }
     .copy-btn.copied { background: var(--accent); border-color: var(--accent); color: #1A1A1A; }
     .field-input.recien { background: var(--accent-soft); border-color: var(--accent); box-shadow: 0 0 0 4px rgba(192,248,0,.28); }
-    .tus-numeros { text-align: center; color: var(--text-dim); font-size: 15px; line-height: 1.5; margin: 0 auto 16px; max-width: 640px; }
+    .topbar-izq { justify-self: start; display: flex; align-items: center; gap: 10px; min-width: 0; max-width: 100%; }
+    .topbar-izq .back-link { flex: 0 1 auto; min-width: 0; }
+    .topbar-izq #foco-slot { flex: 0 1 auto; min-width: 0; }
+    @media (max-width: 720px) {
+      /* En celular la pastilla de foco baja a una segunda fila de la barra fija */
+      body .topbar { height: auto; padding: 8px 10px; grid-template-columns: auto minmax(0,1fr); grid-template-areas: "back titulo" "foco foco"; row-gap: 8px; }
+      .topbar-izq { display: contents; }
+      .topbar-izq .back-link { grid-area: back; }
+      .topbar-izq #foco-slot { grid-area: foco; }
+      .topbar h1 { grid-area: titulo; }
+      body header { padding-top: 118px; }
+      /* En celular el buscador pierde lupa y separador para que quepa el texto */
+      .hero-lupa, .hero-search-sep { display: none; }
+      .hero-search { padding-left: 20px; }
+      .hero-search textarea { font-size: 16px; }
+    }
+    .tus-numeros { text-align: center; color: var(--text-dim); font-size: 15px; line-height: 1.5; margin: 0 auto 16px; max-width: 700px; }
+    .tus-numeros strong { color: var(--text); }
 
     footer { text-align: center; padding: 24px 20px; font-size: 13px; color: var(--text-dim); border-top: 1px solid var(--line); margin-top: 20px; }
 
@@ -176,12 +193,16 @@
 <body>
 
 <div class="topbar">
-  <a id="fin-back-hub" href="/" class="back-link">&lt;&lt; Hub de Jefes <span style="opacity:.4;">//</span> <span id="brand-marca-label">—</span></a>
+  <div class="topbar-izq">
+    <a id="fin-back-hub" href="/" class="back-link">&lt;&lt; Hub de Jefes <span style="opacity:.4;">//</span> <span id="brand-marca-label">—</span></a>
+    <div id="foco-slot"></div>
+  </div>
   <h1>Jefe de Finanzas</h1>
 </div>
 
 <header>
   <script src="/js/storage-client.js"></script>
+  <script src="/js/jefes-foco.js"></script>
   <script>
     // Multi-tenant: detectado por pathname — Vercel no expone ?cliente= al browser (mismo
     // patron que consultor-366.html / consultor-radar-mercado.html).
@@ -223,7 +244,7 @@
     <div class="agent-chat" id="agentChat"></div>
   </div>
 
-  <p class="tus-numeros">Tus números: llénalos aquí abajo, o deja que el chat los llene por ti mientras platican.</p>
+  <p class="tus-numeros" id="focoNota">Tus números: llénalos aquí abajo, o deja que el chat los llene por ti mientras platican.</p>
   <div class="calc-tabs" id="calcTabs"></div>
 </header>
 
@@ -454,11 +475,23 @@ function switchTab(tabId) {
 
 /* ─── ESTADO ─── */
 const STATE_KEY = CLIENTE_ID + ':financiero-calculadora';
-let datos = {
-  situacion: { ventasActuales: null, facturacionActual: null, presupuestoAdsActual: null, costosFijos: null },
-  costos: { producto: '', precio: null, costoProduccion: null, empaque: null, envio: null, comisionPct: null, comisionFija: null, otrosCostos: null, metaVentasNuevas: null, utilidadMinima: null },
-  '366': { metaFacturacionMensual: null, presupuestoDisponible: null, tipoConversion: '' },
-};
+function datosVacios() {
+  return {
+    situacion: { ventasActuales: null, facturacionActual: null, presupuestoAdsActual: null, costosFijos: null },
+    costos: { producto: '', precio: null, costoProduccion: null, empaque: null, envio: null, comisionPct: null, comisionFija: null, otrosCostos: null, metaVentasNuevas: null, utilidadMinima: null },
+    '366': { metaFacturacionMensual: null, presupuestoDisponible: null, tipoConversion: '' },
+  };
+}
+let datos = datosVacios();
+
+/* ─── FOCO: tu ecosistema completo o UN producto/servicio ───
+   Situación Actual es del negocio completo (se comparte entre focos). Costos y margen y 366 Día 2
+   son por foco: "ecosistema completo" usa la llave general de siempre (ticket promedio del negocio)
+   y cada producto guarda lo suyo aparte. Así nunca se mezclan los números de dos productos. */
+let focoActual = { id: 'all', nombre: '', item: null };
+let legacyBlob = {};   // lo guardado en la llave general: situación + ecosistema completo
+const esTodo = () => focoActual.id === 'all';
+const keyProducto = (id) => CLIENTE_ID + ':financiero-producto:' + id;
 
 function num(v) {
   if (v === null || v === undefined || v === '') return null;
@@ -817,11 +850,65 @@ function onInput() {
 }
 
 let guardarTimeout = null;
+let guardadoPendiente = false;
 function persistir() {
+  guardadoPendiente = true;
   clearTimeout(guardarTimeout);
-  guardarTimeout = setTimeout(() => {
-    window.storage.set(STATE_KEY, JSON.stringify(datos)).catch(() => {});
-  }, 400);
+  guardarTimeout = setTimeout(guardarAhora, 400);
+}
+
+// Guarda en el foco VIGENTE (por eso se llama antes de cambiar de foco si hay algo pendiente).
+function guardarAhora() {
+  clearTimeout(guardarTimeout);
+  guardadoPendiente = false;
+  const porFoco = { costos: datos.costos, '366': datos['366'] };
+  if (esTodo()) {
+    legacyBlob = Object.assign({}, legacyBlob, { situacion: datos.situacion }, porFoco);
+  } else {
+    legacyBlob = Object.assign({}, legacyBlob, { situacion: datos.situacion });
+    window.storage.set(keyProducto(focoActual.id), JSON.stringify(porFoco)).catch(() => {});
+  }
+  window.storage.set(STATE_KEY, JSON.stringify(legacyBlob)).catch(() => {});
+}
+
+const numCat = (v) => { const x = parseFloat(String(v == null ? '' : v).replace(/[^0-9.\-]/g, '')); return Number.isFinite(x) ? x : null; };
+
+// Al elegir un producto por primera vez, precio y costo se adelantan desde su ficha del catálogo del ADN.
+function prefillDesdeCatalogo(item) {
+  return { costos: { producto: (item && item.nombre) || '', precio: numCat(item && item.precio), costoProduccion: numCat(item && item.costo) }, '366': {} };
+}
+
+async function cargarDatosDelFoco() {
+  const base = datosVacios();
+  datos.situacion = Object.assign(base.situacion, legacyBlob.situacion || {});
+  let porFoco = null;
+  if (esTodo()) {
+    porFoco = { costos: legacyBlob.costos, '366': legacyBlob['366'] };
+  } else {
+    try {
+      const r = await window.storage.get(keyProducto(focoActual.id));
+      if (r && r.value) porFoco = JSON.parse(r.value);
+    } catch (e) {}
+    if (!porFoco) porFoco = prefillDesdeCatalogo(focoActual.item);
+  }
+  datos.costos = Object.assign(base.costos, (porFoco && porFoco.costos) || {});
+  datos['366'] = Object.assign(base['366'], (porFoco && porFoco['366']) || {});
+}
+
+function focoParaIA() {
+  if (esTodo()) return { tipo: 'ecosistema', descripcion: 'Ecosistema completo: Costos y margen y 366 Día 2 usan el ticket promedio de todo el negocio' };
+  const it = focoActual.item || {};
+  return { tipo: 'producto', id: focoActual.id, nombre: focoActual.nombre, precioEnCatalogo: numCat(it.precio), costoEnCatalogo: numCat(it.costo), tipoDeOferta: it.tipo || '' };
+}
+
+function actualizarNotaFoco() {
+  const el = document.getElementById('focoNota');
+  if (!el) return;
+  if (esTodo()) {
+    el.innerHTML = 'Estás viendo tu <strong>ecosistema completo</strong>: Costos y margen y 366 Día 2 usan el ticket promedio de todo tu negocio. Para más precisión, elige un producto en la pastilla de arriba.';
+  } else {
+    el.innerHTML = 'Trabajando solo sobre <strong>' + escaparHtmlFin(focoActual.nombre) + '</strong>. Costos y margen y 366 Día 2 son de este producto (precio y costo vienen de tu catálogo del ADN: revísalos). Situación Actual es de todo el negocio.';
+  }
 }
 
 async function cargarEstado() {
@@ -832,11 +919,31 @@ async function cargarEstado() {
       // Compatibilidad: este bloque vivía bajo la llave "evergreen" antes de renombrarse a "366"
       // -- si el blob guardado todavía trae la forma vieja, la migramos aquí mismo sin perder nada.
       if (guardado.evergreen && !guardado['366']) guardado['366'] = guardado.evergreen;
-      datos = Object.assign(datos, guardado);
+      legacyBlob = guardado;
     }
   } catch (e) {}
+  if (window.__foco) {
+    try { await window.__foco.ready; focoActual = window.__foco.get(); } catch (e) {}
+  }
+  await cargarDatosDelFoco();
   pintarFormulario();
   recalcularYRender();
+  actualizarNotaFoco();
+}
+
+// Cambio de foco (pastilla de arriba): lo pendiente se guarda en el foco anterior y se carga el nuevo,
+// con su propia conversación del chat.
+async function alCambiarFoco(nuevo) {
+  leerFormulario();
+  if (guardadoPendiente) guardarAhora();
+  focoActual = nuevo;
+  agentMessages = [];
+  await cargarDatosDelFoco();
+  pintarFormulario();
+  recalcularYRender();
+  actualizarNotaFoco();
+  await cargarAgenteEnProgreso();
+  renderAgentChat();
 }
 
 /* ─── CONSULTA EN VIVO (via /api/consultor-financiero) ─── */
@@ -857,7 +964,7 @@ function copyText(btn, text) {
 
 let agentMessages = [];
 let agentBusy = false;
-const AGENT_CONVERSACION_KEY = CLIENTE_ID + ':financiero-consulta-conversacion';
+const keyConversacion = () => CLIENTE_ID + ':financiero-consulta-conversacion' + (esTodo() ? '' : ':' + focoActual.id);
 
 /* Campos que el chat puede llenar por ti (mismos ids que las calculadoras de arriba). */
 const TAB_NOMBRE = { situacion: 'Situación Actual', costos: 'Costos y margen', '366': '366 — Día 2' };
@@ -957,11 +1064,12 @@ function renderAgentChat() {
 }
 
 function persistirAgente() {
-  window.storage.set(AGENT_CONVERSACION_KEY, JSON.stringify(agentMessages)).catch(() => {});
+  window.storage.set(keyConversacion(), JSON.stringify(agentMessages)).catch(() => {});
 }
 
 async function llamarAgente() {
   agentBusy = true;
+  const focoAlEnviar = focoActual.id;
   document.getElementById('agentSendBtn').disabled = true;
   renderAgentChat();
   try {
@@ -970,10 +1078,12 @@ async function llamarAgente() {
     const response = await fetch('/api/consultor-financiero', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: agentMessages, cliente: CLIENTE_ID, datosCalculadora: { entradas: datos, resultados: ultimoCalculo } }),
+      body: JSON.stringify({ messages: agentMessages, cliente: CLIENTE_ID, datosCalculadora: { foco: focoParaIA(), entradas: datos, resultados: ultimoCalculo } }),
     });
     const data = await response.json();
-    if (!response.ok) {
+    if (focoActual.id !== focoAlEnviar) {
+      // Cambiaste de producto mientras el Jefe contestaba: esa respuesta era del otro foco, se descarta.
+    } else if (!response.ok) {
       agentMessages.push({ role: 'assistant', content: '⚠️ ' + (data.error || 'No se pudo generar respuesta. Intenta de nuevo.') });
     } else {
       const { limpio, campos } = extraerCampos(data.text);
@@ -1017,12 +1127,12 @@ function enviarSugerenciaAgente(texto) {
 function reiniciarAgente() {
   agentMessages = [];
   renderAgentChat();
-  window.storage.set(AGENT_CONVERSACION_KEY, JSON.stringify([])).catch(() => {});
+  window.storage.set(keyConversacion(), JSON.stringify([])).catch(() => {});
 }
 
 async function cargarAgenteEnProgreso() {
   try {
-    const r = await window.storage.get(AGENT_CONVERSACION_KEY);
+    const r = await window.storage.get(keyConversacion());
     const guardado = r && r.value ? JSON.parse(r.value) : [];
     if (Array.isArray(guardado) && guardado.length > 0) {
       agentMessages = guardado;
@@ -1034,8 +1144,9 @@ async function cargarAgenteEnProgreso() {
 /* ─── INIT ─── */
 renderTabs();
 switchTab('situacion');
-cargarEstado();
-cargarAgenteEnProgreso();
+cargarEstado().then(cargarAgenteEnProgreso);
+if (window.__foco) window.__foco.onChange(alCambiarFoco);
+if (window.matchMedia('(max-width: 720px)').matches) document.getElementById('agentInput').placeholder = 'Pregunta o escribe “empezar”';
 </script>
 <script src="/js/jefes-nav.js" defer></script>
 </body>
