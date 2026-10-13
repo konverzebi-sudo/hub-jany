@@ -110,6 +110,12 @@
     '.jn-rm-act button{height:40px;padding:0 16px;border-radius:10px;border:1px solid var(--line,#332A3D);background:transparent;color:inherit;font:600 14px Inter,system-ui,sans-serif;cursor:pointer}',
     '.jn-rm-act .jn-rm-ok{background:#B8F725;border-color:#B8F725;color:#0F0B16}',
     '.jn-rm-st{font-size:12.5px;margin-left:auto}',
+    '.jn-cm{position:fixed;z-index:121;min-width:170px;padding:6px;border-radius:12px;background:var(--surface,#181120);color:var(--text,#F3EEF9);',
+    'border:1px solid var(--line,#332A3D);box-shadow:0 12px 32px rgba(0,0,0,.35);font-family:Inter,system-ui,sans-serif}',
+    '.jn-cm-t{padding:6px 10px 4px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-dim,#B6A9C7)}',
+    '.jn-cm button{display:block;width:100%;text-align:left;padding:9px 10px;border:0;border-radius:8px;background:transparent;color:inherit;font:500 13.5px Inter,system-ui,sans-serif;cursor:pointer}',
+    '.jn-cm button:hover{background:rgba(127,127,127,.14)}',
+    '.jn-cm .jn-cm-del{color:#EF4444}',
     '.jn-fab,.jn-scrim{display:none}',
     '@media (max-width:720px){',
     ':root{--jn-top:56px}',
@@ -208,6 +214,22 @@
     cont.innerHTML = html;
   }
 
+  // Pone el valor de una red en el objeto del ADN (vacio = borrar), con la misma forma que guarda el ADN.
+  function aplicarRed(actual, k, val) {
+    var r = REDES.filter(function (x) { return x.key === k; })[0];
+    if (k === 'whatsapp') {
+      var wa = actual.whatsapp || {};
+      wa.numero = val;
+      if (Array.isArray(wa.ctas)) wa.ctas.forEach(function (c) { c.link = waLink(val, c.mensaje || ''); });
+      actual.whatsapp = wa;
+    } else {
+      var d = actual[k] || {};
+      d.handle = val;
+      d.link = urlDe(r, val);
+      actual[k] = d;
+    }
+  }
+
   // soloKey: edita solo esa red; sin el, todas.
   function abrirEditorRedes(data, alGuardar, soloKey) {
     var box = document.createElement('div');
@@ -240,20 +262,7 @@
         // Se relee lo ultimo guardado para no pisar lo demas del ADN (contenido, mensajes de WhatsApp, ubicacion...).
         var actual = await leerRedes();
         box.querySelectorAll('input[data-k]').forEach(function (inp) {
-          var k = inp.getAttribute('data-k');
-          var val = inp.value.trim();
-          var r = REDES.filter(function (x) { return x.key === k; })[0];
-          if (k === 'whatsapp') {
-            var wa = actual.whatsapp || {};
-            wa.numero = val;
-            if (Array.isArray(wa.ctas)) wa.ctas.forEach(function (c) { c.link = waLink(val, c.mensaje || ''); });
-            actual.whatsapp = wa;
-          } else {
-            var d = actual[k] || {};
-            d.handle = val;
-            d.link = urlDe(r, val);
-            actual[k] = d;
-          }
+          aplicarRed(actual, inp.getAttribute('data-k'), inp.value.trim());
         });
         await window.storage.set(REDES_KEY, JSON.stringify(actual));
         alGuardar(actual);
@@ -285,11 +294,68 @@
       var b = e.target.closest('.jn-red-add, .jn-red-off');
       if (b) editar(b.getAttribute('data-k') || '');
     });
+    // Clic derecho (o dejar presionado en celular): menu Copiar link / Editar / Borrar.
+    var menu = null;
+    function cerrarMenu() {
+      if (!menu) return;
+      menu.remove(); menu = null;
+      document.removeEventListener('mousedown', fuera, true);
+      document.removeEventListener('keydown', escMenu);
+      window.removeEventListener('scroll', cerrarMenu, true);
+    }
+    function fuera(e) { if (menu && !menu.contains(e.target)) cerrarMenu(); }
+    function escMenu(e) { if (e.key === 'Escape') cerrarMenu(); }
+    async function borrar(k) {
+      var r = REDES.filter(function (x) { return x.key === k; })[0];
+      if (!confirm('¿Borrar el link de ' + r.nombre + '? También se borra de tu ADN.')) return;
+      try {
+        var actual = await leerRedes();
+        aplicarRed(actual, k, '');
+        await window.storage.set(REDES_KEY, JSON.stringify(actual));
+        data = actual; pintarRedes(cont, data);
+      } catch (e) {
+        alert(e && e.status === 401 ? 'Token incorrecto, intenta de nuevo.' : 'No se pudo borrar.');
+      }
+    }
     cont.addEventListener('contextmenu', function (e) {
       var a = e.target.closest('.jn-red[data-k]');
       if (!a) return;
       e.preventDefault();
-      editar(a.getAttribute('data-k'));
+      var k = a.getAttribute('data-k');
+      // Sin link no hay que copiar ni borrar: se abre directo para agregarlo.
+      if (a.classList.contains('jn-red-off')) { editar(k); return; }
+      cerrarMenu();
+      var r = REDES.filter(function (x) { return x.key === k; })[0];
+      var url = a.getAttribute('href');
+      menu = document.createElement('div');
+      menu.className = 'jn-cm';
+      menu.setAttribute('role', 'menu');
+      menu.innerHTML = '<div class="jn-cm-t">' + esc(r.nombre) + '</div>' +
+        '<button type="button" role="menuitem" data-a="copiar">Copiar link</button>' +
+        '<button type="button" role="menuitem" data-a="editar">Editar</button>' +
+        '<button type="button" role="menuitem" data-a="borrar" class="jn-cm-del">Borrar</button>';
+      document.body.appendChild(menu);
+      var x = Math.min(e.clientX, window.innerWidth - menu.offsetWidth - 8);
+      var y = Math.min(e.clientY, window.innerHeight - menu.offsetHeight - 8);
+      menu.style.left = Math.max(8, x) + 'px';
+      menu.style.top = Math.max(8, y) + 'px';
+      menu.addEventListener('click', function (ev) {
+        var b = ev.target.closest('button[data-a]');
+        if (!b) return;
+        var acc = b.getAttribute('data-a');
+        if (acc === 'copiar') {
+          var listo = function () { b.textContent = 'Copiado ✓'; setTimeout(cerrarMenu, 700); };
+          if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(listo, function () { prompt('Copia el link:', url); cerrarMenu(); });
+          else { prompt('Copia el link:', url); cerrarMenu(); }
+          return;
+        }
+        cerrarMenu();
+        if (acc === 'editar') editar(k);
+        else if (acc === 'borrar') borrar(k);
+      });
+      document.addEventListener('mousedown', fuera, true);
+      document.addEventListener('keydown', escMenu);
+      window.addEventListener('scroll', cerrarMenu, true);
     });
   }
 
