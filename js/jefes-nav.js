@@ -29,7 +29,8 @@
     { slug: 'jefe-cierre',           files: ['consultor-cierre.html'],         icono: 'jefe-conversion',       nombre: 'Jefe de Conversión' },
     { slug: 'jefe-optimizacion',     files: ['consultor-optimizacion.html'],   icono: 'jefe-optimizacion',     nombre: 'Jefe de Mejora Constante' },
     { slug: 'jefe-temporada',        files: ['jefe-temporada.html'],           icono: 'jefe-temporada',        nombre: 'Campañas de Temporada' },
-    { slug: 'jefe-agenda',           files: ['consultor-agenda.html'],         icono: 'jefe-agenda',           nombre: 'Jefe de Agenda' }
+    { slug: 'jefe-agenda',           files: ['consultor-agenda.html'],         icono: 'jefe-agenda',           nombre: 'Jefe de Agenda' },
+    { slug: 'herramientas',         files: ['jefe-herramientas.html'],        emoji: '🧰',                       nombre: 'Jefe de Herramientas' }
   ];
   // Prospeccion solo existe en la plataforma principal.
   if (!tenant) {
