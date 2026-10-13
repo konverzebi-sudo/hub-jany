@@ -7,6 +7,7 @@ const PREVIEW=params.has('preview');
 const TABLE=(()=>{const m=location.pathname.match(/\/mesa\/(\d+)/);return parseInt(m?m[1]:params.get('mesa'),10)||0;})();
 /* Sin número de mesa (portada): se puede ver el menú y armar el pedido; para enviarlo se escanea el QR */
 const BROWSE=!PREVIEW&&!TABLE;
+const HAS_DEMO=!PREVIEW&&demoBar('cliente');
 const sb=makeClient({auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
 
 /* Identificador anónimo de este celular: con él consulta el estado de SUS pedidos */
@@ -20,15 +21,15 @@ let token=store.get('mesalista-device',null);
 if(!token){token=newUUID();store.set('mesalista-device',token);}
 
 const state={settings:settingsFromRow(null),products:[],orders:[]};
-const ui={loaded:false,started:PREVIEW,accType:store.get('mesalista-acc','mesa'),guest:PREVIEW?'Ana':store.get('mesalista-guest',''),
+const ui={loaded:false,started:true,toGo:false,accType:store.get('mesalista-acc','mesa'),guest:PREVIEW?'Ana':store.get('mesalista-guest',''),
   cat:"Todo",q:"",cart:[],pay:"terminal",gnote:"",sheet:null,ptab:"menu",sending:false};
 /* El carrito se guarda en el celular: sobrevive al pasar de la portada a la mesa */
 const CART_KEY='mesalista-cart',CART_TTL=3*3600e3;
 (()=>{if(PREVIEW)return;const c=store.get(CART_KEY,null);
-  if(c&&Array.isArray(c.cart)&&c.cart.length&&Date.now()-c.t<CART_TTL){ui.cart=c.cart;
-    if(BROWSE&&ui.guest) ui.started=true;
-    else if(ui.guest){ui.started=true;ui.sheet={type:'cart'};ui.fromScan=true;}}})();
-function saveCart(){if(!PREVIEW)store.set(CART_KEY,{t:Date.now(),cart:ui.cart});}
+  if(c&&Array.isArray(c.cart)&&c.cart.length&&Date.now()-c.t<CART_TTL){
+    ui.cart=c.cart;ui.toGo=!!c.toGo;ui.pay=c.pay||ui.pay;ui.gnote=c.gnote||'';
+    if(!BROWSE){ui.sheet={type:'cart'};ui.fromScan=true;}}})();
+function saveCart(){if(!PREVIEW)store.set(CART_KEY,{t:Date.now(),cart:ui.cart,toGo:ui.toGo,pay:ui.pay,gnote:ui.gnote});}
 const prod=id=>state.products.find(p=>p.id===id);
 const pBody=document.getElementById('pBody');
 
@@ -101,7 +102,7 @@ function applyTheme(){
   document.getElementById('pLogo').innerHTML=s.logo?`<img src="${esc(s.logo)}" alt="">`:`<span style="font-size:20px">🍽️</span>`;
   document.getElementById('pName').textContent=s.name;
   document.getElementById('pTable').classList.toggle('hidden',!validTable());
-  document.getElementById('pStaff').classList.toggle('hidden',!BROWSE);
+  document.getElementById('pStaff').classList.toggle('hidden',!BROWSE||HAS_DEMO);
   document.getElementById('pTableN').textContent=TABLE;
   document.title=validTable()?`${s.name} · Mesa ${TABLE}`:s.name;
 }
@@ -121,8 +122,7 @@ function renderClient(){
   const mine=state.orders;
   const activeN=mine.filter(o=>!['entregado','rechazado'].includes(o.status)).length;
   const on=document.getElementById('ordN'); on.textContent=activeN; on.classList.toggle('hidden',!activeN);
-  if(!ui.started) renderWelcome();
-  else if(ui.ptab==='menu') renderMenu();
+  if(ui.ptab==='menu') renderMenu();
   else renderOrders(mine);
   renderCartBar();
   renderSheet();
@@ -130,29 +130,6 @@ function renderClient(){
   if(ui.fromScan&&ui.sheet&&ui.sheet.type==='cart'){ui.fromScan=false;toast(`Ya estás en la mesa ${TABLE}. Revisa tu pedido y envíalo.`);}
 }
 
-function renderWelcome(){
-  pBody.innerHTML=`<div class="welcome">
-    <div class="hello">${BROWSE?'Hola, bienvenido':`Hola, bienvenido a la mesa ${TABLE}`}</div>
-    <p>${BROWSE?'Mira el menú y arma tu pedido. Para enviarlo solo escaneas el QR de tu mesa.':'Pide desde tu celular. Tu pedido llega directo al restaurante.'}</p>
-    <label class="field"><span>¿Cómo te llamas?</span><input class="c-input" id="guestName" placeholder="Tu nombre" maxlength="24" autocomplete="given-name" value="${esc(ui.guest)}"></label>
-    <div class="field"><span>¿Cómo quieres tu cuenta?</span>
-      <div class="c-seg" role="group" aria-label="Tipo de cuenta">
-        <button data-acc="mesa" aria-pressed="${ui.accType==='mesa'}"><b>Compartida</b><span>Una cuenta para toda la mesa</span></button>
-        <button data-acc="individual" aria-pressed="${ui.accType==='individual'}"><b>Solo la mía</b><span>Pagas solo lo que pides</span></button>
-      </div></div>
-    <button class="c-cta" id="startBtn" ${ui.guest?'':'disabled'}><span>Ver el menú</span></button>
-  </div>`;
-  const nameIn=document.getElementById('guestName');
-  nameIn.oninput=()=>{ui.guest=nameIn.value.trim();document.getElementById('startBtn').disabled=!ui.guest;};
-  nameIn.onkeydown=e=>{if(e.key==='Enter'&&ui.guest) start();};
-  pBody.querySelectorAll('[data-acc]').forEach(b=>b.onclick=()=>{ui.accType=b.dataset.acc;pBody.querySelectorAll('[data-acc]').forEach(x=>x.setAttribute('aria-pressed',x===b));});
-  document.getElementById('startBtn').onclick=start;
-  function start(){
-    if(!ui.guest)return;
-    store.set('mesalista-guest',ui.guest);store.set('mesalista-acc',ui.accType);
-    ui.started=true;ui.ptab='menu';renderClient();
-  }
-}
 
 function renderMenu(){
   const q=ui.q.trim().toLowerCase();
@@ -162,13 +139,13 @@ function renderMenu(){
   const groups=all.filter(([c])=>ui.cat==="Todo"||c===ui.cat)
     .map(([c,ps])=>[c,ps.filter(p=>!q||(p.name+" "+p.desc).toLowerCase().includes(q))]).filter(([,ps])=>ps.length);
   pBody.innerHTML=`
-    <div class="hi-bar"><span>Hola, <b>${esc(ui.guest)}</b>, ${ui.accType==='mesa'?'cuenta compartida':'cuenta propia'}</span>${PREVIEW?'':'<button id="changeMe">Cambiar</button>'}</div>
+    <div class="hi-bar"><span>${BROWSE?'Elige lo que se te antoje. Para enviar tu pedido escaneas el QR de tu mesa.'
+      :ui.guest?`Hola, <b>${esc(ui.guest)}</b>. Estás en la mesa ${TABLE}.`:`Estás en la mesa ${TABLE}. Elige lo que se te antoje.`}</span></div>
     <div class="search"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="search" placeholder="Buscar platillo" value="${esc(ui.q)}" aria-label="Buscar platillo"></div>
     <div class="c-cats" role="group" aria-label="Categorías">${cats.map(c=>`<button data-cat="${esc(c)}" aria-pressed="${c===ui.cat}">${esc(c)}</button>`).join('')}</div>
     <div class="c-list">${!state.products.length?`<p style="color:var(--c-muted);text-align:center;padding:20px 0">El menú todavía no está disponible.</p>`
       :groups.length?groups.map(([c,ps])=>`${ui.cat==='Todo'?`<div class="c-sec">${esc(c)}</div>`:''}${ps.map(itemHTML).join('')}`).join('')
       :`<p style="color:var(--c-muted);text-align:center;padding:20px 0">No encontramos platillos con “${esc(ui.q)}”.</p>`}</div>`;
-  const ch=document.getElementById('changeMe'); if(ch) ch.onclick=()=>{ui.started=false;renderClient();};
   document.getElementById('search').oninput=e=>{ui.q=e.target.value;const pos=e.target.selectionStart;renderMenu();const s=document.getElementById('search');s.focus();try{s.setSelectionRange(pos,pos);}catch(_){}};
   pBody.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>{ui.cat=b.dataset.cat;renderMenu();});
   pBody.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openProduct(b.dataset.open));
@@ -176,7 +153,7 @@ function renderMenu(){
 function itemHTML(p){
   const n=ui.cart.filter(l=>l.pid===p.id).reduce((s,l)=>s+l.q,0);
   return `<button class="c-item" data-open="${esc(p.id)}" ${p.available?'':'disabled'} aria-label="${esc(p.name)}">
-    <div class="tile" aria-hidden="true">${esc(p.emoji)}</div>
+    ${photoTag(p)}
     <div><h4>${esc(p.name)}</h4><p>${esc(p.desc)}</p><div class="c-price">${money(p.price)}${p.options.length?'<span class="c-tag">Personalizable</span>':''}</div></div>
     ${p.available?`<span class="c-add" aria-hidden="true">+${n?`<span class="n">${n}</span>`:''}</span>`:'<span class="c-out">Agotado</span>'}
   </button>`;
@@ -230,7 +207,8 @@ function productSheet(el,s){
   el.innerHTML=`<div class="sheet-back" data-close></div>
   <div class="sheet-panel" role="dialog" aria-modal="true" aria-label="Personalizar ${esc(p.name)}"><div class="grab"></div>
     <div class="sheet-body">
-      <div class="s-head"><div class="tile" aria-hidden="true">${esc(p.emoji)}</div><div><h3>${esc(p.name)}</h3><p>${esc(p.desc)}</p><b>${money(p.price)}</b></div><button class="x" data-close aria-label="Cerrar">✕</button></div>
+      ${p.photo?`<div class="s-photo"><img src="${esc(p.photo)}" alt="${esc(p.name)}"></div>`:''}
+      <div class="s-head">${photoTag(p)}<div><h3>${esc(p.name)}</h3><p>${esc(p.desc)}</p><b>${money(p.price)}</b></div><button class="x" data-close aria-label="Cerrar">✕</button></div>
       ${p.options.map(g=>{const has=(s.sel[g.id]||[]).length>0;
         return `<fieldset class="og"><legend>${esc(g.name)} ${g.required?`<span class="req ${has?'ok':''}">${has?'Listo':'Obligatorio'}</span>`:`<span class="optl">Opcional${g.multi?', elige varias':''}</span>`}</legend>
           <div class="chips">${g.choices.map((c,ci)=>`<button data-g="${esc(g.id)}" data-c="${ci}" aria-pressed="${(s.sel[g.id]||[]).includes(ci)}">${esc(c.name)}${+c.price?`<small>+${money(c.price)}</small>`:''}</button>`).join('')}</div></fieldset>`;}).join('')}
@@ -267,21 +245,36 @@ function cartSheet(el){
   el.innerHTML=`<div class="sheet-back" data-close></div>
   <div class="sheet-panel" role="dialog" aria-modal="true" aria-label="Tu pedido"><div class="grab"></div>
     <div class="sheet-body">
-      <div class="s-head" style="grid-template-columns:1fr auto"><div><h3>Tu pedido</h3><p>${BROWSE?'Todavía sin mesa':`Mesa ${TABLE}`}, ${ui.accType==='mesa'?'cuenta compartida':'cuenta de '+esc(ui.guest)}</p></div><button class="x" data-close aria-label="Cerrar">✕</button></div>
+      <div class="s-head" style="grid-template-columns:1fr auto"><div><h3>Tu pedido</h3><p>${BROWSE?'Todavía sin mesa':`Mesa ${TABLE}`}</p></div><button class="x" data-close aria-label="Cerrar">✕</button></div>
       <div>${ui.cart.map((l,i)=>`<div class="cl"><div><b>${esc(l.name)}</b><div style="font-size:12.5px;color:var(--c-muted)">${money(l.unit)} c/u</div></div>
         <div class="stepper"><button data-cdec="${i}" aria-label="Quitar uno">−</button><span>${l.q}</span><button data-cinc="${i}" aria-label="Agregar uno">+</button></div>
         ${(l.opts.length||l.note)?`<div class="opts">${esc(l.opts.join(' · '))}${l.note?`${l.opts.length?' · ':''}<em>${esc(l.note)}</em>`:''}</div>`:''}</div>`).join('')}</div>
+      <label class="field"><span>¿Cómo te llamas?</span><input class="c-input" id="cName" placeholder="Tu nombre" maxlength="24" autocomplete="given-name" value="${esc(ui.guest)}"></label>
+      <div class="field"><span>¿Cómo quieres tu cuenta?</span><div class="c-seg" role="group" aria-label="Tipo de cuenta">
+        <button data-acc="mesa" aria-pressed="${ui.accType==='mesa'}"><b>Compartida</b><span>Una cuenta para toda la mesa</span></button>
+        <button data-acc="individual" aria-pressed="${ui.accType==='individual'}"><b>Solo la mía</b><span>Pagas solo lo que pides</span></button>
+      </div></div>
+      <div class="field"><span>¿Comes aquí o es para llevar?</span><div class="c-seg" role="group" aria-label="Comer aquí o para llevar">
+        <button data-togo="0" aria-pressed="${!ui.toGo}"><b>Comer aquí</b><span>Te lo llevamos a la mesa</span></button>
+        <button data-togo="1" aria-pressed="${ui.toGo}"><b>🥡 Para llevar</b><span>Te lo entregamos empacado</span></button>
+      </div></div>
       <label class="field"><span>Comentario para el restaurante (opcional)</span><textarea class="c-text" rows="2" id="gnote" maxlength="200" placeholder="Ej. traer todo junto, es cumpleaños">${esc(ui.gnote)}</textarea></label>
       <div class="field"><span>¿Cómo vas a pagar?</span><div class="pay2" role="group" aria-label="Forma de pago">
         ${[['terminal','📟','Tarjeta (terminal)'],['efectivo','💵','Efectivo']].map(([k,e,t])=>`<button data-pay="${k}" aria-pressed="${ui.pay===k}"><span>${e}</span>${t}</button>`).join('')}
       </div></div>
     </div>
-    <div class="s-foot"><button class="c-cta" id="sendBtn" ${ui.sending?'disabled':''}><span>${PREVIEW?'Vista previa':BROWSE?'Escanear el QR de mi mesa':ui.sending?'Enviando…':'Enviar pedido'}</span><span>${money(total)}</span></button>
-      ${BROWSE?'<p class="s-hint">Tu pedido queda guardado. Al escanear el QR de tu mesa lo envías.</p>':''}</div>
+    <div class="s-foot"><button class="c-cta" id="sendBtn" ${ui.sending||(!ui.guest&&!PREVIEW)?'disabled':''}><span>${PREVIEW?'Vista previa':BROWSE?'Escanear el QR de mi mesa':ui.sending?'Enviando…':'Enviar pedido'}</span><span>${money(total)}</span></button>
+      <p class="s-hint" id="sendHint">${!ui.guest&&!PREVIEW?'Escribe tu nombre para continuar.':BROWSE?'Tu pedido queda guardado. Al escanear el QR de tu mesa lo envías.':''}</p></div>
   </div>`;
   el.querySelectorAll('[data-close]').forEach(b=>b.onclick=closeSheet);
   el.querySelectorAll('[data-cinc]').forEach(b=>b.onclick=()=>{const l=ui.cart[+b.dataset.cinc];l.q=Math.min(50,l.q+1);cartSheet(el);renderCartBar();});
   el.querySelectorAll('[data-cdec]').forEach(b=>b.onclick=()=>{const i=+b.dataset.cdec;if(--ui.cart[i].q<=0)ui.cart.splice(i,1);if(!ui.cart.length){closeSheet();return;}cartSheet(el);});
+  const nameIn=document.getElementById('cName');
+  nameIn.oninput=()=>{ui.guest=nameIn.value.trim();store.set('mesalista-guest',ui.guest);
+    document.getElementById('sendBtn').disabled=!ui.guest&&!PREVIEW;
+    document.getElementById('sendHint').textContent=!ui.guest&&!PREVIEW?'Escribe tu nombre para continuar.':BROWSE?'Tu pedido queda guardado. Al escanear el QR de tu mesa lo envías.':'';};
+  el.querySelectorAll('[data-acc]').forEach(b=>b.onclick=()=>{ui.accType=b.dataset.acc;store.set('mesalista-acc',ui.accType);el.querySelectorAll('[data-acc]').forEach(x=>x.setAttribute('aria-pressed',x===b));});
+  el.querySelectorAll('[data-togo]').forEach(b=>b.onclick=()=>{ui.toGo=b.dataset.togo==='1';saveCart();el.querySelectorAll('[data-togo]').forEach(x=>x.setAttribute('aria-pressed',x===b));});
   el.querySelectorAll('[data-pay]').forEach(b=>b.onclick=()=>{ui.pay=b.dataset.pay;el.querySelectorAll('[data-pay]').forEach(x=>x.setAttribute('aria-pressed',x===b));});
   document.getElementById('gnote').oninput=e=>ui.gnote=e.target.value;
   document.getElementById('sendBtn').onclick=BROWSE?()=>{ui.sheet={type:'scan'};renderClient();}:sendOrder;
@@ -289,16 +282,17 @@ function cartSheet(el){
 }
 async function sendOrder(){
   if(!ui.cart.length||ui.sending) return;
+  if(!ui.guest&&!PREVIEW){toast('Escribe tu nombre para enviar el pedido');document.getElementById('cName')?.focus();return;}
   if(PREVIEW){toast('Es una vista previa: aquí no se envían pedidos.');return;}
   ui.sending=true;renderSheet();
   const {data,error}=await sb.rpc('place_order',{
     p_table:TABLE,p_guest:ui.guest,p_individual:ui.accType==='individual',
     p_items:ui.cart.map(l=>({pid:l.pid,q:l.q,sel:l.sel,note:l.note})),
-    p_note:ui.gnote.trim(),p_pay:ui.pay,p_token:token
+    p_note:(ui.toGo?TOGO_MARK+(ui.gnote.trim()?' · ':''):'')+ui.gnote.trim(),p_pay:ui.pay,p_token:token
   });
   ui.sending=false;
   if(error){toast(errText(error));try{await loadMenu();}catch(e){}render();return;}
-  ui.cart=[];ui.gnote='';ui.sheet=null;ui.ptab='orders';
+  ui.cart=[];ui.gnote='';ui.toGo=false;ui.sheet=null;ui.ptab='orders';
   toast(`Pedido #${data} enviado. Te avisamos cuando el restaurante lo confirme.`);
   await refreshOrders();renderClient();
 }
