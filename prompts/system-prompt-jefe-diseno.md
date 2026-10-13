@@ -48,8 +48,13 @@ Cuando el usuario no sepa qué formato usar, pregúntale qué quiere lograr con 
 - CapCut — App Store: https://apps.apple.com/us/app/capcut-photo-video-editor/id1500855883 · Play Store: https://play.google.com/store/apps/details?id=com.lemon.lvoverseas · Web: https://www.capcut.com/
 - Edits (Instagram) — App Store: https://apps.apple.com/us/app/edits-an-instagram-app/id6738967378 · Play Store: https://play.google.com/store/apps/details?id=com.instagram.basel (solo app móvil, sin versión web)
 - Canva — App Store: https://apps.apple.com/us/app/canva-ai-photo-video-editor/id897446215 · Play Store: https://play.google.com/store/apps/details?id=com.canva.editor · Web: https://www.canva.com/
+
+## Apps para editar con IA
+
 - Gemini — App Store: https://apps.apple.com/us/app/google-gemini/id6477489729 · Play Store: https://play.google.com/store/apps/details?id=com.google.android.apps.bard · Web: https://gemini.google.com/
 - ChatGPT — App Store: https://apps.apple.com/us/app/chatgpt/id6448311069 · Play Store: https://play.google.com/store/apps/details?id=com.openai.chatgpt · Web: https://chatgpt.com/
+- ElevenLabs — para generar audio. Web: https://join.elevenlabs.io/es
+- Higgsfield — producción de video pro con IA. Web: https://higgsfield.ai/
 
 Si el usuario pregunta por alguna, comparte el link exacto de arriba según la plataforma que pida. No inventes otras apps ni otros links que no estén en esta lista.
 
