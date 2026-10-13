@@ -82,6 +82,33 @@
     '.jn-min .jn-toggle svg{transform:rotate(180deg)}',
     '.jn-min .jn-item:hover::after{content:attr(data-tip);position:fixed;top:calc(var(--jn-tip-top,0px) + 9px);left:calc(var(--jn-w-min) + 8px);padding:6px 10px;border-radius:8px;',
     'background:#000;color:#fff;font-size:12px;white-space:nowrap;pointer-events:none;z-index:99}',
+    // Redes del negocio: fila de iconos al final de la lista (mismos datos que el ADN, seccion Redes).
+    '.jn-redes{display:flex;flex-wrap:wrap;align-items:center;gap:5px;padding:8px 4px 4px}',
+    '.jn-red{flex:none;width:30px;height:30px;box-sizing:border-box;border-radius:50%;border:2px solid currentColor;display:flex;align-items:center;justify-content:center;',
+    'color:var(--text,#F3EEF9);text-decoration:none;transition:transform .15s,color .15s}',
+    '.jn-red:hover{transform:translateY(-2px);color:#B8F725}',
+    '.jn-red svg{width:15px;height:15px}',
+    '.jn-red-add{border-color:#B8F725;background:#B8F725;color:#0F0B16;cursor:pointer;padding:0}',
+    '.jn-red-add:hover{color:#0F0B16}',
+    '.jn-red-txt{border:0;background:transparent;color:var(--text-dim,#B6A9C7);font:500 12.5px Inter,system-ui,sans-serif;cursor:pointer;padding:0}',
+    '.jn-red-txt:hover{color:var(--text,#F3EEF9)}',
+    '.jn-min .jn-redes{flex-direction:column;padding:8px 0 4px}',
+    '.jn-min .jn-red-txt{display:none}',
+    '.jn-rm{position:fixed;inset:0;z-index:120;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px}',
+    '.jn-rm-box{width:100%;max-width:420px;max-height:calc(100vh - 32px);overflow-y:auto;background:var(--surface,#181120);color:var(--text,#F3EEF9);',
+    'border:1px solid var(--line,#332A3D);border-radius:16px;padding:20px;font-family:Inter,system-ui,sans-serif;box-shadow:0 20px 60px rgba(0,0,0,.5)}',
+    '.jn-rm-box h3{margin:0 0 4px;font-size:17px}',
+    '.jn-rm-box p{margin:0 0 14px;font-size:12.5px;color:var(--text-dim,#B6A9C7);line-height:1.45}',
+    '.jn-rm-f{display:flex;align-items:center;gap:10px;margin-bottom:10px}',
+    '.jn-rm-f .jn-red{width:30px;height:30px}',
+    '.jn-rm-f label{display:block;font-size:11.5px;color:var(--text-dim,#B6A9C7);margin-bottom:3px}',
+    '.jn-rm-f input{width:100%;box-sizing:border-box;height:38px;padding:0 10px;border-radius:9px;border:1px solid var(--line,#332A3D);',
+    'background:transparent;color:inherit;font:16px Inter,system-ui,sans-serif}',
+    '.jn-rm-f div{flex:1}',
+    '.jn-rm-act{display:flex;align-items:center;gap:10px;margin-top:16px}',
+    '.jn-rm-act button{height:40px;padding:0 16px;border-radius:10px;border:1px solid var(--line,#332A3D);background:transparent;color:inherit;font:600 14px Inter,system-ui,sans-serif;cursor:pointer}',
+    '.jn-rm-act .jn-rm-ok{background:#B8F725;border-color:#B8F725;color:#0F0B16}',
+    '.jn-rm-st{font-size:12.5px;margin-left:auto}',
     '.jn-fab,.jn-scrim{display:none}',
     '@media (max-width:720px){',
     ':root{--jn-top:56px}',
@@ -109,6 +136,141 @@
       (activo ? ' aria-current="page"' : '') + '><span class="jn-ico">' + ico + '</span><span class="jn-txt">' + esc(nombre) + '</span></a>';
   }
 
+  // ── Redes del negocio ─────────────────────────────────────────
+  // Misma llave y forma que el ADN (seccion Redes y Contenido): { website:{handle,link}, ..., whatsapp:{numero,ctas} }.
+  var REDES_KEY = (tenant || 'jefeshub') + ':brand-book.redes';
+  function sinArroba(h) { return h.replace(/^@/, ''); }
+  var REDES = [
+    { key: 'website',   nombre: 'Sitio web', ph: 'tudominio.com', link: function (h) { return 'https://' + h; },
+      svg: '<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z" fill="none" stroke="currentColor" stroke-width="2"/>' },
+    { key: 'facebook',  nombre: 'Facebook', ph: 'usuario o página', link: function (h) { return 'https://facebook.com/' + h; },
+      svg: '<path d="M13.5 22v-8h2.7l.4-3.2h-3.1V8.8c0-.9.3-1.6 1.6-1.6h1.7V4.4c-.3 0-1.3-.1-2.5-.1-2.4 0-4.1 1.5-4.1 4.3v2.2H7.5V14h2.7v8z" fill="currentColor"/>' },
+    { key: 'instagram', nombre: 'Instagram', ph: '@usuario', link: function (h) { return 'https://instagram.com/' + sinArroba(h); },
+      svg: '<rect x="3.5" y="3.5" width="17" height="17" rx="5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="17.2" cy="6.8" r="1.2" fill="currentColor"/>' },
+    { key: 'tiktok',    nombre: 'TikTok', ph: '@usuario', link: function (h) { return 'https://tiktok.com/@' + sinArroba(h); },
+      svg: '<path d="M16.2 3c.3 2.3 1.7 3.8 4 4v3.1c-1.5 0-2.8-.4-4-1.2v6.2a5.6 5.6 0 1 1-5.6-5.6h.6v3.2a2.5 2.5 0 1 0 1.8 2.4V3z" fill="currentColor"/>' },
+    { key: 'youtube',   nombre: 'YouTube', ph: '@canal', link: function (h) { return 'https://youtube.com/@' + sinArroba(h); },
+      svg: '<rect x="2.5" y="5.5" width="19" height="13" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 9v6l5-3z" fill="currentColor"/>' },
+    { key: 'linkedin',  nombre: 'LinkedIn', ph: 'usuario', link: function (h) { return 'https://linkedin.com/in/' + sinArroba(h); },
+      svg: '<path d="M5 9.5h3V20H5zM6.5 4a1.75 1.75 0 1 1 0 3.5 1.75 1.75 0 0 1 0-3.5zM10.5 9.5h2.9v1.5c.5-.9 1.7-1.8 3.4-1.8 3 0 3.7 2 3.7 4.6V20h-3v-5.5c0-1.3 0-2.9-1.8-2.9s-2.1 1.4-2.1 2.8V20h-3.1z" fill="currentColor"/>' },
+    { key: 'whatsapp',  nombre: 'WhatsApp', ph: 'número con lada, ej. 5215512345678',
+      svg: '<path d="M4 20l1.2-3.9A8.3 8.3 0 1 1 8 18.9z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9.2 8.6c.2-.4.6-.4.8-.4h.5c.2 0 .4.1.5.4l.7 1.6c.1.2 0 .5-.1.7l-.5.6c.6 1.1 1.5 2 2.6 2.6l.6-.5c.2-.2.5-.2.7-.1l1.6.7c.3.1.4.3.4.6v.4c0 .5-.3.9-.8 1.1-.6.2-1.6.3-3.3-.6-1.7-.9-3.1-2.5-3.7-4-.5-1.4-.2-2.4.2-3.1z" fill="currentColor"/>' }
+  ];
+  function waLink(numero, mensaje) {
+    var n = String(numero || '').replace(/[^\d]/g, '');
+    if (!n) return '';
+    return 'https://wa.me/' + n + (mensaje ? '?text=' + encodeURIComponent(mensaje) : '');
+  }
+  function linkDe(r, data) {
+    var d = data[r.key] || {};
+    if (r.key === 'whatsapp') return waLink(d.numero);
+    if (d.link) return d.link;
+    return d.handle ? (/^https?:\/\//i.test(d.handle) ? d.handle : r.link(d.handle)) : '';
+  }
+  function valorDe(r, data) {
+    var d = data[r.key] || {};
+    return (r.key === 'whatsapp' ? d.numero : d.handle) || '';
+  }
+  function svgRed(r) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + r.svg + '</svg>'; }
+
+  async function leerRedes() {
+    if (!window.storage) return {};
+    try {
+      var res = await window.storage.get(REDES_KEY);
+      var v = res && res.value;
+      if (typeof v === 'string') v = JSON.parse(v);
+      return v && typeof v === 'object' ? v : {};
+    } catch (e) { return {}; }
+  }
+
+  function pintarRedes(cont, data) {
+    var html = '';
+    var alguna = false;
+    REDES.forEach(function (r) {
+      var url = linkDe(r, data);
+      if (!url) return;
+      alguna = true;
+      html += '<a class="jn-red" href="' + esc(url) + '" target="_blank" rel="noopener" title="' + esc(r.nombre) + '" aria-label="' + esc(r.nombre) + '">' + svgRed(r) + '</a>';
+    });
+    html += '<button type="button" class="jn-red jn-red-add" title="Agregar o editar mis redes" aria-label="Agregar o editar mis redes">' +
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg></button>';
+    if (!alguna) html += '<button type="button" class="jn-red-txt">Agregar mis redes</button>';
+    cont.innerHTML = html;
+  }
+
+  function abrirEditorRedes(data, alGuardar) {
+    var box = document.createElement('div');
+    box.className = 'jn-rm';
+    var campos = REDES.map(function (r) {
+      return '<div class="jn-rm-f"><span class="jn-red">' + svgRed(r) + '</span><div><label for="jn-rm-' + r.key + '">' + esc(r.nombre) + '</label>' +
+        '<input id="jn-rm-' + r.key + '" data-k="' + r.key + '" placeholder="' + esc(r.ph) + '" value="' + esc(valorDe(r, data)) + '" autocomplete="off"></div></div>';
+    }).join('');
+    box.innerHTML = '<div class="jn-rm-box" role="dialog" aria-modal="true" aria-labelledby="jn-rm-t">' +
+      '<h3 id="jn-rm-t">Mis redes y sitio web</h3>' +
+      '<p>Se guardan en tu ADN (Redes y Contenido) y aparecen en la barra de todos tus Jefes. Deja vacío lo que no uses.</p>' +
+      campos +
+      '<div class="jn-rm-act"><button type="button" class="jn-rm-ok">Guardar</button><button type="button" class="jn-rm-x">Cancelar</button><span class="jn-rm-st"></span></div></div>';
+    document.body.appendChild(box);
+    var st = box.querySelector('.jn-rm-st');
+    function cerrar() { box.remove(); document.removeEventListener('keydown', onKey); }
+    function onKey(e) { if (e.key === 'Escape') cerrar(); }
+    document.addEventListener('keydown', onKey);
+    box.addEventListener('click', function (e) { if (e.target === box) cerrar(); });
+    box.querySelector('.jn-rm-x').addEventListener('click', cerrar);
+    box.querySelector('input').focus();
+
+    box.querySelector('.jn-rm-ok').addEventListener('click', async function () {
+      var btn = this;
+      btn.disabled = true;
+      st.style.color = ''; st.textContent = 'Guardando…';
+      try {
+        // Se relee lo ultimo guardado para no pisar lo demas del ADN (contenido, mensajes de WhatsApp, ubicacion...).
+        var actual = await leerRedes();
+        box.querySelectorAll('input[data-k]').forEach(function (inp) {
+          var k = inp.getAttribute('data-k');
+          var val = inp.value.trim();
+          var r = REDES.filter(function (x) { return x.key === k; })[0];
+          if (k === 'whatsapp') {
+            var wa = actual.whatsapp || {};
+            wa.numero = val;
+            if (Array.isArray(wa.ctas)) wa.ctas.forEach(function (c) { c.link = waLink(val, c.mensaje || ''); });
+            actual.whatsapp = wa;
+          } else {
+            var d = actual[k] || {};
+            d.handle = val;
+            d.link = val ? (/^https?:\/\//i.test(val) ? val : r.link(val)) : '';
+            actual[k] = d;
+          }
+        });
+        await window.storage.set(REDES_KEY, JSON.stringify(actual));
+        alGuardar(actual);
+        cerrar();
+      } catch (e) {
+        btn.disabled = false;
+        st.style.color = '#F87171';
+        st.textContent = e && e.status === 401 ? 'Token incorrecto, intenta de nuevo.' : 'No se pudo guardar.';
+      }
+    });
+  }
+
+  function montarRedes(nav) {
+    var cont = nav.querySelector('.jn-redes');
+    if (!cont) return;
+    var data = {};
+    pintarRedes(cont, data);
+    leerRedes().then(function (d) { data = d; pintarRedes(cont, data); });
+    cont.addEventListener('click', function (e) {
+      if (!e.target.closest('.jn-red-add, .jn-red-txt')) return;
+      if (!window.storage) return;
+      document.body.classList.remove('jn-open');
+      // Se abre con lo ultimo guardado por si se edito en el ADN en otra pestaña.
+      leerRedes().then(function (d) {
+        data = d;
+        abrirEditorRedes(data, function (nuevo) { data = nuevo; pintarRedes(cont, data); });
+      });
+    });
+  }
+
   function montar() {
     if (!document.body) return;
     var st = document.createElement('style');
@@ -132,13 +294,15 @@
       var ico = archivo ? '<img src="/img/' + archivo + '.webp" alt="" loading="lazy">' : j.emoji;
       html += item(prefix + '/' + j.slug, ico, j.nombre, esActivo(j));
     });
-    // Configuracion: ADN al final de la lista, con un espacio antes.
-    html += '<div class="jn-spacer"></div><div class="jn-sep"></div><div class="jn-sec">Configuración</div>' +
+    // Redes del negocio y luego Configuracion (ADN) al final de la lista, con un espacio antes.
+    html += '<div class="jn-spacer"></div><div class="jn-redes" aria-label="Mis redes"></div>' +
+      '<div class="jn-sep"></div><div class="jn-sec">Configuración</div>' +
       item(prefix + '/adn', '🧬', 'ADN del negocio', false);
     html += '</div><div class="jn-foot"><button type="button" class="jn-toggle" aria-label="Mostrar u ocultar la barra de Jefes">' +
       chevron() + '<span>Ocultar barra</span></button></div>';
 
     nav.innerHTML = html;
+    montarRedes(nav);
 
     var fab = document.createElement('button');
     fab.type = 'button';
