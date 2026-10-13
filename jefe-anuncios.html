@@ -132,22 +132,6 @@
   .item-card textarea.gancho-input{font-size:18px;}
 
   /* TABLERO SEMANAL + EDITOR (formato Jefe de Contenido) */
-  .sem-nav{display:flex;align-items:center;justify-content:center;gap:12px;margin:6px 0 14px;}
-  .sem-rango{font-family:'Sora',sans-serif;font-weight:800;font-size:16px;min-width:130px;text-align:center;}
-  .sem-btn,.sem-hoy{border:1px solid var(--line);background:var(--surface);border-radius:100px;cursor:pointer;font-family:'Inter',sans-serif;font-weight:700;color:var(--text);}
-  .sem-btn{width:38px;height:38px;font-size:20px;line-height:1;}
-  .sem-hoy{padding:8px 16px;font-size:14px;}
-  .sem-btn:hover,.sem-hoy:hover{border-color:var(--accent-text);color:var(--accent-text);}
-  .sem-tablero{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(200px,100%),1fr));gap:16px;margin-bottom:30px;align-items:start;}
-  .sem-dia{display:flex;align-items:center;gap:10px;padding:0 4px 10px;border-bottom:2px solid var(--line);margin-bottom:12px;}
-  .sem-dia.hoy{border-bottom-color:var(--accent-text);}
-  .sem-num{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Sora',sans-serif;font-weight:800;font-size:16px;background:var(--surface-2);}
-  .sem-dia.hoy .sem-num{background:var(--accent);color:#1A1A1A;}
-  .sem-nom{display:flex;flex-direction:column;font-family:'Sora',sans-serif;font-weight:800;font-size:13px;text-transform:uppercase;line-height:1.1;}
-  .sem-nom small{font-family:'Inter',sans-serif;font-weight:600;font-size:12px;color:var(--text-dim);text-transform:none;}
-  .sem-cuenta{margin-left:auto;font-size:12.5px;font-weight:700;background:var(--surface-2);border-radius:100px;padding:2px 9px;color:var(--text-dim);}
-  .sem-cards{display:flex;flex-direction:column;gap:14px;}
-  .sem-vacio{color:#B5B5B5;text-align:center;padding:14px 0;}
   .pcard{background:var(--surface);border:1px solid var(--line);border-radius:18px;overflow:hidden;cursor:pointer;box-shadow:var(--shadow-card);transition:transform .12s,box-shadow .12s;outline:none;}
   .pcard:hover,.pcard:focus-visible{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.12);}
   .pthumb{position:relative;height:104px;background:linear-gradient(135deg,var(--a),var(--b));display:flex;align-items:center;justify-content:center;}
@@ -494,7 +478,6 @@ let formatoSel = FORMATOS[0];
 let genStatus = '';
 let cardsLoaded = false;
 let currentTab = ''; // al abrir solo se ve el chat y los 3 botones; el contenido aparece al elegir una pestaña
-let semanaOffset = 0; // 0 = los 5 días que empiezan hoy; +/-1 mueve de 5 en 5
 let filtroProductoGuardadas = ''; // '' = todos; '__sin__' = campañas sin producto; si no, id de producto
 // Imagen adjunta al siguiente mensaje de Consulta en vivo -- efímero, no se guarda (se limpia al
 // enviar el mensaje o elegir otro archivo).
@@ -1131,50 +1114,23 @@ function renderGuardadas(container){
   }));
   const visibles = filtroProductoGuardadas==='' ? cards : cards.filter(c=>(c.producto_id||'')===(filtroProductoGuardadas==='__sin__'?'':filtroProductoGuardadas));
 
-  // Tablero de 5 días (estilo Jefe de Contenido): una columna por día con las campañas que tienen
-  // esa fecha. Lo que no tiene fecha o cae fuera de estos 5 días va debajo, sin esconder nada.
-  const hoy = hoyMedianoche();
-  const inicio = new Date(hoy); inicio.setDate(inicio.getDate() + semanaOffset*5);
-  const dias = [0,1,2,3,4].map(i=>{ const d = new Date(inicio); d.setDate(inicio.getDate()+i); return d; });
-  const isos = dias.map(isoDeDate);
-  const rangoTxt = `${dias[0].getDate()} ${MESES_CORTOS[dias[0].getMonth()]} – ${dias[4].getDate()} ${MESES_CORTOS[dias[4].getMonth()]}`;
-  const porDia = isos.map(iso=>visibles.filter(c=>(c.fecha||'')===iso).sort(porHoraCard));
-  const nav = document.createElement('div');
-  nav.className = 'sem-nav';
-  nav.innerHTML = `
-    <button type="button" class="sem-btn" data-sem="-1" aria-label="Días anteriores">‹</button>
-    <span class="sem-rango">${escHtml(rangoTxt)}</span>
-    <button type="button" class="sem-btn" data-sem="1" aria-label="Días siguientes">›</button>
-    ${semanaOffset!==0?'<button type="button" class="sem-hoy" data-sem="0">Hoy</button>':''}`;
-  container.appendChild(nav);
-  nav.querySelectorAll('[data-sem]').forEach(b=>b.addEventListener('click',()=>{
-    const v = +b.dataset.sem; semanaOffset = v===0 ? 0 : semanaOffset+v; render();
-  }));
-
-  const tablero = document.createElement('div');
-  tablero.className = 'sem-tablero';
-  tablero.innerHTML = dias.map((d,i)=>`
-    <div class="sem-col">
-      <div class="sem-dia${isos[i]===isoDeDate(hoy)?' hoy':''}">
-        <span class="sem-num">${d.getDate()}</span>
-        <span class="sem-nom">${DIAS_CORTOS[d.getDay()]}<small>${MESES_CORTOS[d.getMonth()]}</small></span>
-        <span class="sem-cuenta">${porDia[i].length}</span>
-      </div>
-      <div class="sem-cards">${porDia[i].map(buildPostCard).join('') || '<div class="sem-vacio">—</div>'}</div>
-    </div>`).join('');
-  container.appendChild(tablero);
-
-  const enVentana = new Set(porDia.flat().map(c=>c.id));
-  const otras = visibles.filter(c=>!enVentana.has(c.id));
-  if(otras.length){
-    const rank = {proceso:0, idea:1, publicado:2};
-    otras.sort((x,y)=>(rank[x.estado||'idea']-rank[y.estado||'idea']) || (x.fecha||'9999').localeCompare(y.fecha||'9999'));
+  // Categorizadas por producto: una barra por producto (en el orden de tu lista de productos, y
+  // "Sin producto" al final) con sus campañas debajo; dentro de cada una, primero lo que está en
+  // proceso, luego ideas y al final lo publicado, y por fecha.
+  const rank = {proceso:0, idea:1, publicado:2};
+  const orden = (x,y)=>(rank[x.estado||'idea']-rank[y.estado||'idea']) || (x.fecha||'9999').localeCompare(y.fecha||'9999') || porHoraCard(x,y);
+  const idsOrdenados = productos.filter(p=>p&&p.id&&visibles.some(c=>c.producto_id===p.id)).map(p=>p.id);
+  visibles.forEach(c=>{ const id=c.producto_id||''; if(id && !idsOrdenados.includes(id)) idsOrdenados.push(id); });
+  if(visibles.some(c=>!c.producto_id)) idsOrdenados.push('');
+  idsOrdenados.forEach(id=>{
+    const delProducto = visibles.filter(c=>(c.producto_id||'')===id).sort(orden);
+    if(!delProducto.length) return;
     const seccion = document.createElement('div');
     seccion.className = 'estado-seccion';
-    seccion.innerHTML = `<p class="estado-seccion-title">Sin fecha o fuera de estos días <span class="estado-count">${otras.length}</span></p>
-      <div class="cards-grid">${otras.map(c=>buildPostCard(c, true)).join('')}</div>`;
+    seccion.innerHTML = `<p class="estado-seccion-title">${escHtml(nombreDe(id))} <span class="estado-count">${delProducto.length}</span></p>
+      <div class="cards-grid">${delProducto.map(c=>buildPostCard(c, true)).join('')}</div>`;
     container.appendChild(seccion);
-  }
+  });
   container.querySelectorAll('.pcard').forEach(el=>{
     el.addEventListener('click',()=>abrirPostModal(el.dataset.id));
     el.addEventListener('keydown',(e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); abrirPostModal(el.dataset.id); } });
