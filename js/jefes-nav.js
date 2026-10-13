@@ -21,11 +21,11 @@
   var JEFES = [
     { slug: 'jefe-366',              files: ['consultor-366.html'],            icono: 'jefe-366-gris',          nombre: 'Jefe 366' },
     { slug: 'jefe-contenido',        files: ['jefe-contenido-v2.html'],        icono: 'jefe-contenido-logo-negro', iconoOscuro: 'jefe-contenido-logo-blanco', nombre: 'Jefe de Contenido' },
+    { slug: 'jefe-anuncios',         files: ['jefe-anuncios.html'],            icono: 'jefe-anuncios-logo-negro', iconoOscuro: 'jefe-anuncios-logo-blanco', nombre: 'Jefe de Anuncios' },
+    { slug: 'jefe-produccion-video', files: ['consultor-produccion-video.html'], icono: 'jefe-produccion-video', nombre: 'Jefe Productor IA' },
     { slug: 'jefe-whatsapp',         files: ['jefe-conversion-ventas.html', 'jefe-conversion-ventas-rancho-seco.html'], icono: 'jefe-whatsapp', nombre: 'WhatsApp y Ventas' },
     { slug: 'jefe-financiero',       files: ['consultor-financiero.html'],     icono: 'jefe-finanzas',         nombre: 'Jefe de Finanzas' },
     { slug: 'jefe-radar',            files: ['consultor-radar-mercado.html'],  icono: 'jefe-radar',            nombre: 'Jefe del Faro' },
-    { slug: 'jefe-anuncios',         files: ['jefe-anuncios.html'],            icono: 'jefe-anuncios-logo-negro', iconoOscuro: 'jefe-anuncios-logo-blanco', nombre: 'Jefe de Anuncios' },
-    { slug: 'jefe-produccion-video', files: ['consultor-produccion-video.html'], icono: 'jefe-produccion-video', nombre: 'Jefe Productor IA' },
     { slug: 'jefe-cierre',           files: ['consultor-cierre.html'],         icono: 'jefe-conversion',       nombre: 'Jefe de Conversión' },
     { slug: 'jefe-optimizacion',     files: ['consultor-optimizacion.html'],   icono: 'jefe-optimizacion',     nombre: 'Jefe de Mejora Constante' },
     { slug: 'jefe-temporada',        files: ['jefe-temporada.html'],           icono: 'jefe-temporada',        nombre: 'Campañas de Temporada' },
@@ -62,6 +62,8 @@
     'color:var(--text-dim,#B6A9C7);text-decoration:none;font-size:13.5px;font-weight:500;white-space:nowrap;border:1px solid transparent}',
     '.jn-item:hover{background:rgba(255,255,255,.05);color:var(--text,#F3EEF9)}',
     '.jn-item.is-active{background:rgba(184,247,37,.1);border-color:rgba(184,247,37,.35);color:var(--text,#F3EEF9)}',
+    '.jn-home{height:36px;padding:0 12px;font-weight:700;font-size:12.5px;letter-spacing:.06em}',
+    '.jn-min .jn-home{display:none}',
     '.jn-ico{flex:none;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:20px;line-height:1}',
     '.jn-ico img{width:28px;height:28px;border-radius:8px;object-fit:contain;display:block}',
     '.jn-ico img[src*="jefe-366-gris"]{width:38px;height:auto;max-height:22px;border-radius:0;margin:0 -5px}',
@@ -87,6 +89,7 @@
     '.jn-open .jn{transform:none;box-shadow:8px 0 32px rgba(0,0,0,.5)}',
     '.jn-min .jn{width:260px}',
     '.jn-min .jn-txt,.jn-min .jn-toggle span{display:inline}',
+    '.jn-min .jn-home{display:flex}',
     '.jn-foot{display:none}',
     '.jn-fab{display:flex;position:fixed;left:12px;bottom:16px;z-index:80;width:46px;height:46px;border-radius:50%;border:1px solid var(--line,#332A3D);',
     'background:var(--surface,#181120);color:var(--text,#F3EEF9);align-items:center;justify-content:center;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.45)}',
@@ -121,7 +124,7 @@
     var claro = rgb.length >= 3 && (rgb.length < 4 || rgb[3] > 0) && (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) > 150;
 
     var html = '<div class="jn-list">' +
-      item(prefix || '/', '🏠', 'Mis Jefes', false) +
+      '<a class="jn-item jn-home" href="' + (prefix || '/') + '"><span class="jn-txt">MIS JEFES</span></a>' +
       '<div class="jn-sep"></div>';
     JEFES.forEach(function (j) {
       var archivo = (!claro && j.iconoOscuro) ? j.iconoOscuro : j.icono;
