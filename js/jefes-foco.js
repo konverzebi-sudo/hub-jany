@@ -27,7 +27,7 @@
     '.foco-pill{display:inline-flex;align-items:center;gap:8px;max-width:100%;font-family:Inter,sans-serif;font-weight:700;font-size:14px;color:#1A1A1A;background:#F3F3F3;border:1px solid #E2E2E2;border-radius:100px;padding:7px 14px;cursor:pointer;transition:.15s}',
     '.foco-pill:hover{border-color:#4E7A00}',
     '.foco-pill.on{background:#C0F800;border-color:#C0F800}',
-    '.foco-txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}',
+    '.foco-txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;max-width:280px}',
     '.foco-caret{font-size:11px;opacity:.7;flex:0 0 auto}',
     '.foco-menu{position:absolute;top:calc(100% + 8px);left:0;z-index:80;width:340px;max-width:calc(100vw - 20px);max-height:min(70vh,460px);overflow:auto;background:#fff;border:1px solid #E2E2E2;border-radius:16px;box-shadow:0 12px 32px rgba(0,0,0,.14);padding:8px;text-align:left}',
     '.foco-menu[hidden]{display:none}',
@@ -40,6 +40,7 @@
     '.foco-sub{display:block;font-weight:500;font-size:12.5px;color:#5F5F5F;margin-top:2px}',
     '.foco-pie{border-top:1px solid #E2E2E2;margin-top:6px;padding:10px 10px 6px;font-family:Inter,sans-serif;font-size:13.5px;color:#5F5F5F}',
     '.foco-pie a{color:#4E7A00;font-weight:600;text-decoration:underline}',
+    '@media (max-width:1200px){.foco-txt{max-width:175px}}',
     '@media (max-width:720px){.foco-wrap{width:100%}.foco-pill{width:100%;justify-content:center}.foco-menu{left:0;right:0;width:auto}}'
   ].join('\n');
   document.head.appendChild(css);
