@@ -5,6 +5,8 @@
 const params=new URLSearchParams(location.search);
 const PREVIEW=params.has('preview');
 const TABLE=(()=>{const m=location.pathname.match(/\/mesa\/(\d+)/);return parseInt(m?m[1]:params.get('mesa'),10)||0;})();
+/* Sin número de mesa (portada): se puede ver el menú y armar el pedido; para enviarlo se escanea el QR */
+const BROWSE=!PREVIEW&&!TABLE;
 const sb=makeClient({auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
 
 /* Identificador anónimo de este celular: con él consulta el estado de SUS pedidos */
@@ -20,6 +22,13 @@ if(!token){token=newUUID();store.set('mesalista-device',token);}
 const state={settings:settingsFromRow(null),products:[],orders:[]};
 const ui={loaded:false,started:PREVIEW,accType:store.get('mesalista-acc','mesa'),guest:PREVIEW?'Ana':store.get('mesalista-guest',''),
   cat:"Todo",q:"",cart:[],pay:"terminal",gnote:"",sheet:null,ptab:"menu",sending:false};
+/* El carrito se guarda en el celular: sobrevive al pasar de la portada a la mesa */
+const CART_KEY='mesalista-cart',CART_TTL=3*3600e3;
+(()=>{if(PREVIEW)return;const c=store.get(CART_KEY,null);
+  if(c&&Array.isArray(c.cart)&&c.cart.length&&Date.now()-c.t<CART_TTL){ui.cart=c.cart;
+    if(BROWSE&&ui.guest) ui.started=true;
+    else if(ui.guest){ui.started=true;ui.sheet={type:'cart'};ui.fromScan=true;}}})();
+function saveCart(){if(!PREVIEW)store.set(CART_KEY,{t:Date.now(),cart:ui.cart});}
 const prod=id=>state.products.find(p=>p.id===id);
 const pBody=document.getElementById('pBody');
 
@@ -83,6 +92,7 @@ window.addEventListener('message',e=>{
 
 /* ---------- Pantalla ---------- */
 const validTable=()=>TABLE>=1&&TABLE<=state.settings.tables;
+const canUse=()=>BROWSE||validTable();
 function applyTheme(){
   const s=state.settings,t=s.theme;
   document.getElementById('phone').setAttribute('style',themeVars(t));
@@ -91,6 +101,7 @@ function applyTheme(){
   document.getElementById('pLogo').innerHTML=s.logo?`<img src="${esc(s.logo)}" alt="">`:`<span style="font-size:20px">🍽️</span>`;
   document.getElementById('pName').textContent=s.name;
   document.getElementById('pTable').classList.toggle('hidden',!validTable());
+  document.getElementById('pStaff').classList.toggle('hidden',!BROWSE);
   document.getElementById('pTableN').textContent=TABLE;
   document.title=validTable()?`${s.name} · Mesa ${TABLE}`:s.name;
 }
@@ -100,13 +111,13 @@ document.querySelectorAll('[data-ptab]').forEach(b=>b.onclick=()=>{ui.ptab=b.dat
 
 function renderClient(){
   if(!ui.loaded) return;
-  if(!validTable()){
+  if(!canUse()){
     document.getElementById('pNav').classList.add('hidden');
     pBody.innerHTML=`<div class="p-msg"><b>Este código no corresponde a una mesa</b><span>Pide ayuda al personal del restaurante.</span></div>`;
     return;
   }
   document.querySelectorAll('[data-ptab]').forEach(b=>b.setAttribute('aria-current',b.dataset.ptab===ui.ptab));
-  document.getElementById('pNav').classList.toggle('hidden',!ui.started);
+  document.getElementById('pNav').classList.toggle('hidden',!ui.started||BROWSE);
   const mine=state.orders;
   const activeN=mine.filter(o=>!['entregado','rechazado'].includes(o.status)).length;
   const on=document.getElementById('ordN'); on.textContent=activeN; on.classList.toggle('hidden',!activeN);
@@ -115,12 +126,14 @@ function renderClient(){
   else renderOrders(mine);
   renderCartBar();
   renderSheet();
+  saveCart();
+  if(ui.fromScan&&ui.sheet&&ui.sheet.type==='cart'){ui.fromScan=false;toast(`Ya estás en la mesa ${TABLE}. Revisa tu pedido y envíalo.`);}
 }
 
 function renderWelcome(){
   pBody.innerHTML=`<div class="welcome">
-    <div class="hello">Hola, bienvenido a la mesa ${TABLE}</div>
-    <p>Pide desde tu celular. Tu pedido llega directo al restaurante.</p>
+    <div class="hello">${BROWSE?'Hola, bienvenido':`Hola, bienvenido a la mesa ${TABLE}`}</div>
+    <p>${BROWSE?'Mira el menú y arma tu pedido. Para enviarlo solo escaneas el QR de tu mesa.':'Pide desde tu celular. Tu pedido llega directo al restaurante.'}</p>
     <label class="field"><span>¿Cómo te llamas?</span><input class="c-input" id="guestName" placeholder="Tu nombre" maxlength="24" autocomplete="given-name" value="${esc(ui.guest)}"></label>
     <div class="field"><span>¿Cómo quieres tu cuenta?</span>
       <div class="c-seg" role="group" aria-label="Tipo de cuenta">
@@ -206,8 +219,9 @@ function renderSheet(){
   if(!s||!ui.started){el.classList.add('hidden');el.innerHTML='';return;}
   if(s.type==='product') return productSheet(el,s);
   if(s.type==='cart') return cartSheet(el);
+  if(s.type==='scan') return scanSheet(el);
 }
-function closeSheet(){if(ui.sending)return;ui.sheet=null;renderClient();}
+function closeSheet(){if(ui.sending)return;stopScan();document.getElementById('sheet').dataset.kind='';ui.sheet=null;renderClient();}
 function productSheet(el,s){
   const p=prod(s.pid);
   if(!p||!p.available){ui.sheet=null;el.classList.add('hidden');return;}
@@ -253,7 +267,7 @@ function cartSheet(el){
   el.innerHTML=`<div class="sheet-back" data-close></div>
   <div class="sheet-panel" role="dialog" aria-modal="true" aria-label="Tu pedido"><div class="grab"></div>
     <div class="sheet-body">
-      <div class="s-head" style="grid-template-columns:1fr auto"><div><h3>Tu pedido</h3><p>Mesa ${TABLE}, ${ui.accType==='mesa'?'cuenta compartida':'cuenta de '+esc(ui.guest)}</p></div><button class="x" data-close aria-label="Cerrar">✕</button></div>
+      <div class="s-head" style="grid-template-columns:1fr auto"><div><h3>Tu pedido</h3><p>${BROWSE?'Todavía sin mesa':`Mesa ${TABLE}`}, ${ui.accType==='mesa'?'cuenta compartida':'cuenta de '+esc(ui.guest)}</p></div><button class="x" data-close aria-label="Cerrar">✕</button></div>
       <div>${ui.cart.map((l,i)=>`<div class="cl"><div><b>${esc(l.name)}</b><div style="font-size:12.5px;color:var(--c-muted)">${money(l.unit)} c/u</div></div>
         <div class="stepper"><button data-cdec="${i}" aria-label="Quitar uno">−</button><span>${l.q}</span><button data-cinc="${i}" aria-label="Agregar uno">+</button></div>
         ${(l.opts.length||l.note)?`<div class="opts">${esc(l.opts.join(' · '))}${l.note?`${l.opts.length?' · ':''}<em>${esc(l.note)}</em>`:''}</div>`:''}</div>`).join('')}</div>
@@ -262,14 +276,15 @@ function cartSheet(el){
         ${[['terminal','📟','Tarjeta (terminal)'],['efectivo','💵','Efectivo']].map(([k,e,t])=>`<button data-pay="${k}" aria-pressed="${ui.pay===k}"><span>${e}</span>${t}</button>`).join('')}
       </div></div>
     </div>
-    <div class="s-foot"><button class="c-cta" id="sendBtn" ${ui.sending?'disabled':''}><span>${PREVIEW?'Vista previa':ui.sending?'Enviando…':'Enviar pedido'}</span><span>${money(total)}</span></button></div>
+    <div class="s-foot"><button class="c-cta" id="sendBtn" ${ui.sending?'disabled':''}><span>${PREVIEW?'Vista previa':BROWSE?'Escanear el QR de mi mesa':ui.sending?'Enviando…':'Enviar pedido'}</span><span>${money(total)}</span></button>
+      ${BROWSE?'<p class="s-hint">Tu pedido queda guardado. Al escanear el QR de tu mesa lo envías.</p>':''}</div>
   </div>`;
   el.querySelectorAll('[data-close]').forEach(b=>b.onclick=closeSheet);
   el.querySelectorAll('[data-cinc]').forEach(b=>b.onclick=()=>{const l=ui.cart[+b.dataset.cinc];l.q=Math.min(50,l.q+1);cartSheet(el);renderCartBar();});
   el.querySelectorAll('[data-cdec]').forEach(b=>b.onclick=()=>{const i=+b.dataset.cdec;if(--ui.cart[i].q<=0)ui.cart.splice(i,1);if(!ui.cart.length){closeSheet();return;}cartSheet(el);});
   el.querySelectorAll('[data-pay]').forEach(b=>b.onclick=()=>{ui.pay=b.dataset.pay;el.querySelectorAll('[data-pay]').forEach(x=>x.setAttribute('aria-pressed',x===b));});
   document.getElementById('gnote').oninput=e=>ui.gnote=e.target.value;
-  document.getElementById('sendBtn').onclick=sendOrder;
+  document.getElementById('sendBtn').onclick=BROWSE?()=>{ui.sheet={type:'scan'};renderClient();}:sendOrder;
   el.onkeydown=e=>{if(e.key==='Escape')closeSheet();};
 }
 async function sendOrder(){
@@ -286,4 +301,83 @@ async function sendOrder(){
   ui.cart=[];ui.gnote='';ui.sheet=null;ui.ptab='orders';
   toast(`Pedido #${data} enviado. Te avisamos cuando el restaurante lo confirme.`);
   await refreshOrders();renderClient();
+}
+
+/* ---------- Escanear el QR de la mesa (desde la portada) ---------- */
+let scan=null;
+function stopScan(){
+  if(!scan) return;
+  scan.stop=true;cancelAnimationFrame(scan.raf);
+  if(scan.stream) scan.stream.getTracks().forEach(t=>t.stop());
+  scan=null;
+}
+function tableUrl(text){
+  try{
+    const u=new URL(text,location.href),m=u.pathname.match(/\/mesa\/(\d+)/);
+    if(u.host!==location.host||!m) return null;
+    return u.href;
+  }catch(e){return null;}
+}
+function loadJsQR(){
+  if(window.jsQR) return Promise.resolve();
+  return new Promise((ok,ko)=>{const sc=document.createElement('script');
+    sc.src='https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js';sc.onload=ok;sc.onerror=ko;document.head.appendChild(sc);});
+}
+function scanSheet(el){
+  if(el.dataset.kind==='scan') return; // la cámara ya está abierta
+  el.dataset.kind='scan';el.classList.remove('hidden');
+  el.innerHTML=`<div class="sheet-back" data-close></div>
+  <div class="sheet-panel" role="dialog" aria-modal="true" aria-label="Escanear el QR de tu mesa"><div class="grab"></div>
+    <div class="sheet-body">
+      <div class="s-head" style="grid-template-columns:1fr auto"><div><h3>Escanea el QR de tu mesa</h3><p>Apunta la cámara al código pegado en tu mesa.</p></div><button class="x" data-close aria-label="Cerrar">✕</button></div>
+      <div class="scan-box"><video id="scanVideo" playsinline muted></video><div class="scan-frame" aria-hidden="true"></div></div>
+      <p class="s-hint" id="scanMsg">Abriendo la cámara…</p>
+    </div></div>`;
+  el.querySelectorAll('[data-close]').forEach(b=>b.onclick=closeSheet);
+  el.onkeydown=e=>{if(e.key==='Escape')closeSheet();};
+  startScan();
+}
+async function startScan(){
+  stopScan();
+  const me=scan={stop:false};
+  const msg=t=>{const m=document.getElementById('scanMsg');if(m)m.textContent=t;};
+  const video=document.getElementById('scanVideo');
+  const fallback='No pudimos abrir la cámara. Usa la cámara de tu celular para escanear el QR de tu mesa: tu pedido sigue guardado.';
+  try{
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia) throw new Error('sin cámara');
+    me.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});
+    if(me.stop){me.stream.getTracks().forEach(t=>t.stop());return;}
+    video.srcObject=me.stream;await video.play();
+  }catch(e){msg(fallback);return;}
+  let detect;
+  if('BarcodeDetector' in window){
+    try{const bd=new BarcodeDetector({formats:['qr_code']});detect=async()=>{const r=await bd.detect(video);return r[0]&&r[0].rawValue;};}catch(e){}
+  }
+  if(!detect){
+    try{await loadJsQR();}catch(e){msg(fallback);return;}
+    const cv=document.createElement('canvas'),cx=cv.getContext('2d',{willReadFrequently:true});
+    detect=async()=>{const w=video.videoWidth,h=video.videoHeight;if(!w)return null;
+      const k=Math.min(1,640/Math.max(w,h));cv.width=w*k|0;cv.height=h*k|0;cx.drawImage(video,0,0,cv.width,cv.height);
+      const r=jsQR(cx.getImageData(0,0,cv.width,cv.height).data,cv.width,cv.height);return r&&r.data;};
+  }
+  if(me.stop) return;
+  msg('Buscando el código…');
+  let busy=false,warned=false;
+  const tick=async()=>{
+    if(me.stop) return;
+    if(!busy&&video.readyState>=2){
+      busy=true;
+      try{
+        const text=await detect();
+        if(text&&!me.stop){
+          const url=tableUrl(text);
+          if(url){saveCart();msg('¡Listo! Abriendo tu mesa…');stopScan();location.href=url;return;}
+          if(!warned){warned=true;msg('Ese código no es de una mesa de este restaurante. Busca el QR pegado en tu mesa.');}
+        }
+      }catch(e){}
+      busy=false;
+    }
+    me.raf=requestAnimationFrame(tick);
+  };
+  tick();
 }
