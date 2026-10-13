@@ -239,10 +239,18 @@
   .res-info{display:flex;flex-direction:column;gap:16px;}
   .res-fecha{font-family:'Sora',sans-serif;font-weight:800;font-size:17px;text-transform:uppercase;}
   .res-fecha span{font-family:'Inter',sans-serif;font-weight:600;text-transform:none;}
-  .res-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
-  .res-row-top{align-items:flex-start;}
-  .res-pill-dark{background:#4B4B4B;color:var(--accent);font-family:'Sora',sans-serif;font-weight:800;font-size:15.5px;text-transform:uppercase;letter-spacing:.02em;padding:9px 20px;border-radius:100px;}
-  .res-valor{font-size:16px;line-height:1.5;font-weight:500;flex:1 1 220px;min-width:0;}
+  .res-bloque{display:flex;flex-direction:column;align-items:flex-start;gap:10px;}
+  .res-pill-dark{border:none;cursor:pointer;text-align:left;transition:.15s;background:#4B4B4B;color:var(--accent);font-family:'Sora',sans-serif;font-weight:800;font-size:15.5px;text-transform:uppercase;letter-spacing:.02em;padding:9px 20px;border-radius:100px;}
+  .res-pill-dark:hover{filter:brightness(1.2);}
+  .res-chev{display:inline-block;transition:transform .15s;margin-left:4px;}
+  .res-bloque.abierto .res-chev{transform:rotate(180deg);}
+  .res-valor{display:none;width:100%;font-size:15.5px;line-height:1.45;font-weight:500;min-width:0;background:rgba(255,255,255,.55);border-radius:14px;padding:12px 16px;}
+  .res-bloque.abierto .res-valor{display:block;}
+  .res-dato{display:flex;flex-direction:column;margin-bottom:8px;}
+  .res-dato span{font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:#3C5E00;}
+  .res-conjunto{padding-bottom:6px;margin-bottom:10px;border-bottom:1px dashed rgba(0,0,0,.2);}
+  .res-conjunto:last-child{border-bottom:none;margin-bottom:0;}
+  .res-conjunto-t{font-family:'Sora',sans-serif;font-weight:800;text-transform:uppercase;margin-bottom:6px;}
   .res-spec{margin-bottom:6px;}
   .res-valor,.res-spec,.res-anuncio,.res-pill-dark,.res-pill-white{overflow-wrap:anywhere;min-width:0;max-width:100%;}
   .res-anuncio{flex-wrap:wrap;}
@@ -1170,6 +1178,8 @@ function renderEstructura(container){
 
 // Resumen de una campaña ya guardada: panel lima con fecha de inicio, objetivo, especificaciones del
 // conjunto y los anuncios vinculados. "Editar campaña" vuelve al formulario.
+// Bloques del resumen que el usuario abrió (se conservan aunque se vuelva a pintar la vista).
+const resAbiertos = new Set();
 function buildCampanaResumenCard(campana){
   const card = document.createElement('div');
   card.className = 'campana-resumen';
@@ -1177,12 +1187,23 @@ function buildCampanaResumenCard(campana){
   const grupo = grupos.find(g=>g&&g.id===campana.grupo_id);
   const nombre = prod ? prod.nombre : (grupo ? grupo.nombre : 'General');
   const obj = OBJETIVOS.find(o=>o.key===campana.objetivo);
-  const objetivoTxt = [obj ? obj.label.replace(/^\S+\s/,'') : '', campana.tipo, campana.resultado_esperado].filter(Boolean).join(' · ') || '—';
   const fechaTxt = campana.fecha_inicio ? campana.fecha_inicio.split('-').reverse().join('/') : '—';
+  const dato = (k,v)=>`<div class="res-dato"><span>${escHtml(k)}</span><b>${escHtml(v||'—')}</b></div>`;
+  const datosCampana = [
+    dato('Producto, servicio o grupo', nombre),
+    dato('Objetivo', obj ? obj.label.replace(/^\S+\s/,'') : ''),
+    dato('Tipo de campaña', campana.tipo),
+    dato('Resultado esperado', campana.resultado_esperado),
+    dato('Fecha de inicio', fechaTxt==='—'?'':fechaTxt),
+  ].join('');
   const specs = (campana.conjuntos||[]).map((c,i)=>{
-    const partes = [c.ubicacion, c.edad&&('Edad '+c.edad), c.genero, c.presupuesto_diario&&('Presupuesto '+c.presupuesto_diario), c.duracion&&('Duración '+c.duracion), c.tipo_contenido, c.intereses].filter(Boolean);
-    return `<div class="res-spec"><b>Conjunto ${i+1}:</b> ${escHtml(partes.join(' · ') || '—')}</div>`;
-  }).join('') || '<div class="res-spec">—</div>';
+    const nAnuncios = (c.anuncios_ids||[]).map(id=>cards.find(x=>x.id===id)).filter(Boolean);
+    return `<div class="res-conjunto"><div class="res-conjunto-t">Conjunto ${i+1}</div>`
+      + dato('Ubicación', c.ubicacion) + dato('Edad', c.edad) + dato('Género', c.genero)
+      + dato('Presupuesto diario', c.presupuesto_diario) + dato('Duración', c.duracion)
+      + dato('Tipo de contenido', c.tipo_contenido) + dato('Intereses', c.intereses)
+      + dato('Anuncios', nAnuncios.map(x=>x.titulo).join(' · ')) + '</div>';
+  }).join('') || '<div class="res-spec">Todavía no hay conjuntos.</div>';
   const idsVinculados = [...new Set((campana.conjuntos||[]).flatMap(c=>c.anuncios_ids||[]))];
   const anuncios = idsVinculados.map(id=>cards.find(c=>c.id===id)).filter(Boolean);
   card.innerHTML = `
@@ -1196,8 +1217,14 @@ function buildCampanaResumenCard(campana){
     <div class="res-body">
       <div class="res-info">
         <div class="res-fecha">Fecha de inicio: <span>${escHtml(fechaTxt)}</span></div>
-        <div class="res-row"><span class="res-pill-dark">Objetivo de campaña:</span><span class="res-valor">${escHtml(objetivoTxt)}</span></div>
-        <div class="res-row res-row-top"><span class="res-pill-dark">Especificaciones del conjunto</span><div class="res-valor">${specs}</div></div>
+        <div class="res-bloque${resAbiertos.has(campana.id+':obj')?' abierto':''}" data-res-key="${campana.id}:obj">
+          <button type="button" class="res-pill-dark" data-res-toggle>Objetivo de campaña: <span class="res-chev">▾</span></button>
+          <div class="res-valor">${datosCampana}</div>
+        </div>
+        <div class="res-bloque${resAbiertos.has(campana.id+':esp')?' abierto':''}" data-res-key="${campana.id}:esp">
+          <button type="button" class="res-pill-dark" data-res-toggle>Especificaciones del conjunto <span class="res-chev">▾</span></button>
+          <div class="res-valor">${specs}</div>
+        </div>
       </div>
       <div class="res-anuncios">
         ${anuncios.length ? anuncios.map(c=>`
@@ -1209,6 +1236,13 @@ function buildCampanaResumenCard(campana){
       </div>
     </div>
   `;
+  card.querySelectorAll('[data-res-toggle]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const bloque = btn.closest('.res-bloque');
+      const abierto = bloque.classList.toggle('abierto');
+      if(abierto) resAbiertos.add(bloque.dataset.resKey); else resAbiertos.delete(bloque.dataset.resKey);
+    });
+  });
   card.querySelector('[data-editar-campana]').addEventListener('click', ()=>{
     campana.guardada = false; scheduleEstructuraSave(); render();
   });
