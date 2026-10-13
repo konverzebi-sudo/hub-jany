@@ -49,15 +49,7 @@
   /* HERO: logo lima + buscador */
   .hero-logo{display:block;margin:0 auto 14px;}
   .hero-logo img{width:150px;height:auto;max-width:60%;object-fit:contain;display:block;margin:0 auto;}
-  /* Al abrir (sin pestaña elegida) el bloque logo + buscador queda centrado en la pantalla */
-  .wrap.modo-inicio .page-header{padding-top:max(40px,11vh);}
   .page-header{padding-top:10px;}
-
-  /* TABS en pastilla -- sticky: se quedan fijas arriba al deslizar */
-  .tabs{display:flex;justify-content:center;gap:14px;margin:0 0 22px;flex-wrap:wrap;position:sticky;top:70px;z-index:40;background:var(--bg);padding:12px 0;}
-  .tab{padding:13px 28px;cursor:pointer;font-size:16px;font-weight:800;color:#333;background:var(--surface-2);border-radius:100px;user-select:none;font-family:'Sora',sans-serif;text-transform:uppercase;letter-spacing:.02em;transition:.15s;}
-  .tab:hover{background:#E8E8E8;}
-  .tab.active{color:#1A1A1A;background:var(--accent);}
 
   /* BOTONES */
   .btn-outline{font-family:'Inter',sans-serif;font-weight:600;font-size:14.5px;padding:10px 16px;border-radius:12px;cursor:pointer;border:1px solid #CFCFCF;background:var(--surface);color:#333;transition:.15s;}
@@ -132,7 +124,10 @@
   .res-dato{display:flex;flex-direction:column;gap:2px;}
   .res-dato span{font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:#3C5E00;}
   .res-dato p{margin:0;font-size:15.5px;line-height:1.5;}
-  .seccion-intro{text-align:center;color:var(--text-dim);font-size:16px;margin:0 0 18px;}
+  .seccion-intro{color:var(--text-dim);font-size:16px;margin:0 0 18px;}
+  /* Módulos siempre abiertos, uno debajo del otro */
+  .seccion{margin:0 0 44px;}
+  .seccion-h{font-family:'Sora',sans-serif;font-weight:800;font-size:clamp(22px,3vw,28px);margin:0 0 18px;}
 
   /* APPS PARA EDITAR */
   .app-head{display:flex;align-items:center;gap:12px;}
@@ -153,7 +148,6 @@
   .app-links a:hover{border-color:var(--accent-text);color:var(--accent-text);background:var(--accent-soft);}
 
   @media (max-width:720px){
-    .tab{padding:11px 18px;font-size:14px;}
     .hero-search textarea{font-size:16px;}
     .modo-pill{padding:8px 16px;font-size:13px;}
   }
@@ -165,7 +159,7 @@
   <a id="back-hub" href="/" class="back-link">&lt;&lt; Hub de Jefes <span style="opacity:.4;">//</span> <span id="brand-marca-label">—</span></a>
   <h1>Jefe Productor IA</h1>
 </div>
-<div class="wrap modo-inicio" id="wrap">
+<div class="wrap" id="wrap">
   <script>(function(){var b=window.__hub.slug!=='jefeshub'?'/'+window.__hub.slug:null;if(b)document.getElementById('back-hub').href=b;})();</script>
   <script src="/js/storage-client.js"></script>
   <script>(async function(){
@@ -205,12 +199,6 @@
     <div class="sugerencias" id="sugerencias"></div>
     <div id="chat-thread" class="chat-thread"></div>
     <div id="imggen-result" class="imggen-result"></div>
-  </div>
-
-  <div class="tabs">
-    <div class="tab" data-tab="checklist">Checklist</div>
-    <div class="tab" data-tab="apps">Apps para editar</div>
-    <div class="tab" data-tab="tipos">Tipos de grabación</div>
   </div>
 
   <div id="content"></div>
@@ -298,7 +286,7 @@ function tarjetasApps(lista){
 }
 
 function renderApps(){
-  return `<div class="apps-titulo">📱 Apps para editar</div>${tarjetasApps(APPS)}
+  return `${tarjetasApps(APPS)}
     <div class="apps-titulo">📱 Apps para editar con IA</div>${tarjetasApps(APPS_IA)}`;
 }
 
@@ -312,22 +300,13 @@ function renderTipos(){
       </div>`).join('')}</div>`;
 }
 
-// ─── TABS (segundo clic en la pestaña abierta = se cierra, queda solo el buscador) ───
-let currentTab = '';
-function renderTabs(){
-  const contentEl = $('content');
-  $('wrap').classList.toggle('modo-inicio', !currentTab);
-  document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === currentTab));
-  contentEl.innerHTML = currentTab === 'checklist' ? renderChecklist()
-    : currentTab === 'apps' ? renderApps()
-    : currentTab === 'tipos' ? renderTipos() : '';
+// ─── MÓDULOS siempre abiertos (sin botones): Checklist · Apps · Tipos de grabación ───
+function renderContenido(){
+  $('content').innerHTML = `
+    <section class="seccion"><h2 class="seccion-h">📋 Checklist antes de grabar</h2>${renderChecklist()}</section>
+    <section class="seccion"><h2 class="seccion-h">📱 Apps para editar</h2>${renderApps()}</section>
+    <section class="seccion"><h2 class="seccion-h">🎥 Tipos de grabación que mejor funcionan</h2>${renderTipos()}</section>`;
 }
-document.querySelectorAll('.tab').forEach((t) => {
-  t.addEventListener('click', () => {
-    currentTab = currentTab === t.dataset.tab ? '' : t.dataset.tab;
-    renderTabs();
-  });
-});
 
 // ─── BUSCADOR: modo Guía (chat con memoria) o Crear imagen ─────────────────
 let modo = 'guia';
@@ -550,7 +529,7 @@ async function cargarConversacion(){
 }
 
 /* ─── INIT ─── */
-renderTabs();
+renderContenido();
 setModo('guia');
 pintarChatThread();
 cargarConversacion();
