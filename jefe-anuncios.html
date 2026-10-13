@@ -238,7 +238,31 @@
   .anuncio-link-titulo{color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;}
   .anuncio-link-titulo:hover{color:var(--accent-text);text-decoration:underline;}
 
+  /* LINKS ARRIBA: círculos con pastilla "Pega tu link aquí" (igual que Jefe de Contenido) */
+  [data-tip]{position:relative;}
+  [data-tip]::after{content:attr(data-tip);position:absolute;left:50%;top:calc(100% + 10px);transform:translate(-50%,-4px);background:#1A1A1A;color:#fff;font:600 13px/1.35 'Inter',sans-serif;padding:7px 11px;border-radius:9px;white-space:nowrap;max-width:260px;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:40;}
+  [data-tip]:hover::after,[data-tip]:focus-visible::after{opacity:1;transform:translate(-50%,0);}
+  .cx-icons{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:62px;}
+  .cx-ic{display:flex;align-items:center;gap:8px;position:relative;}
+  .cx-circle{width:46px;height:46px;border-radius:50%;border:1.5px solid var(--line);background:var(--surface);color:var(--text);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;text-decoration:none;box-shadow:var(--shadow-card);transition:transform .18s ease,border-color .18s,background .18s,box-shadow .18s;padding:0;}
+  .cx-circle svg{width:22px;height:22px;}
+  .cx-circle:hover{transform:translateY(-2px);border-color:var(--accent);background:var(--accent-soft);box-shadow:var(--shadow-pop);}
+  .cx-circle:active{transform:scale(.95);}
+  .cx-circle.vacio{border-style:dashed;color:var(--text-dim);}
+  .cx-edit{position:absolute;left:30px;top:-6px;width:20px;height:20px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--text-dim);font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;transition:opacity .15s;padding:0;}
+  .cx-ic:hover .cx-edit,.cx-edit:focus-visible{opacity:1;}
+  .cx-edit:hover{color:var(--accent-text);border-color:var(--accent);}
+  .cx-pill{display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:100px;padding:4px 6px 4px 14px;box-shadow:var(--shadow-card);animation:cxSlide .22s ease both;}
+  .cx-pill:focus-within{border-color:var(--accent);}
+  .cx-pill input{border:none;outline:none;background:transparent;font-family:'Inter',sans-serif;font-size:15px;color:var(--text);width:230px;max-width:42vw;padding:7px 0;}
+  .cx-pill input::placeholder{color:var(--text-dim);}
+  .cx-pill button{border:none;background:var(--accent);color:#1A1A1A;font:700 14px 'Sora',sans-serif;padding:8px 14px;border-radius:100px;cursor:pointer;}
+  .cx-pill button.ghost{background:transparent;color:var(--text-dim);padding:8px 9px;}
+  @keyframes cxSlide{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
+  .page-header{padding-top:10px;}
+
   @media (max-width:720px){
+    [data-tip]::after{display:none;}
     .tab{padding:11px 18px;font-size:14px;}
     .sub-pill{font-size:16px;padding:14px 20px;}
     .prod-pill{padding:10px 18px;font-size:14px;}
@@ -266,6 +290,9 @@
     bar.style.color=b.color;bar.style.borderColor=b.color.replace('#','rgba(').slice(0,-1)+',0.3)';
     try{var r=await window.storage.get(key+':brand-book.identidad');if(r&&r.value){var d=JSON.parse(r.value);if(d.nombre)el.textContent=d.nombre;}}catch(e){}
   })();</script>
+  <!-- 2 círculos: Carpeta de campaña (Drive u otro) · Business Manager (Meta Ads) -->
+  <div class="cx-icons" id="cx-icons"></div>
+
   <div class="page-header">
     <span class="hero-logo"><img src="/img/jefe-anuncios-logo-negro.webp" alt="Jefe de Anuncios" width="96" height="96"></span>
     <p class="sub-pill">Olvídate de los LIKES. Aquí vamos a hacer los anuncios que van a generar Ventas &amp; Crecimiento -- utilizaremos de base la estrategia 366 de tu producto y tus clientes. ¡Vamos con todo!</p>
@@ -891,54 +918,70 @@ function irAEditarCard(cardId){
 }
 
 // ─── CAMPAÑAS GUARDADAS ───────────────────────────────────────────────────
-// Se queda expandida (input visible) mientras no haya link guardado o el usuario la esté editando
-// a propósito (doble clic) -- una vez que hay link y no se está editando, se colapsa a solo
-// nombre + botón "Abrir" para que se vea más limpio.
-let linkBoxEditing = { carpeta:false, bm:false };
+// ─── LINKS ARRIBA (círculos, mismo patrón que Jefe de Contenido) ──────────
+// Sin link: círculo punteado + pastilla "Pega tu link aquí" con botón Listo. Con link: solo el
+// círculo (clic abre el link) y un lápiz al pasar el cursor para editarlo.
+const ICONOS_SVG = {
+  carpeta:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
+  meta:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.6 8C4.2 8 2.6 10 2.6 12s1.6 4 4 4c2.2 0 3.6-1.7 5.4-4s3.2-4 5.4-4c2.4 0 4 2 4 4s-1.6 4-4 4c-2.2 0-3.6-1.7-5.4-4S8.8 8 6.6 8z"/></svg>',
+};
+function linkHref(link){
+  const v=(link||'').trim();
+  if(!v) return '';
+  return /^https?:\/\//i.test(v) ? v : 'https://'+v;
+}
+let carpetaEditando=false, bmEditando=false;
+const LINK_ICONOS = [
+  { id:'carpeta', icono:'carpeta', titulo:'Carpeta de campaña (Drive u otro)',
+    get:()=>linkCarpeta, set:v=>{ linkCarpeta=v; scheduleCarpetaSave(); },
+    editando:()=>carpetaEditando, setEditando:v=>{ carpetaEditando=v; } },
+  { id:'bm', icono:'meta', titulo:'Business Manager (Meta Ads)',
+    get:()=>linkBM, set:v=>{ linkBM=v; scheduleBMSave(); },
+    editando:()=>bmEditando, setEditando:v=>{ bmEditando=v; } },
+];
+function pintarIconos(){
+  const host=document.getElementById('cx-icons');
+  if(!host) return;
+  host.innerHTML='';
+  LINK_ICONOS.forEach(cfg=>{
+    const link=(cfg.get()||'').trim();
+    const editando=cfg.editando();
+    const mostrarInput=!link||editando;
+    const box=document.createElement('div');
+    box.className='cx-ic';
+    const titulo=escHtml(cfg.titulo);
+    let html='';
+    if(link && !editando){
+      html+=`<a class="cx-circle" href="${escHtml(linkHref(link))}" target="_blank" rel="noopener" data-tip="${titulo} · clic para abrir" aria-label="${titulo}">${ICONOS_SVG[cfg.icono]}</a>
+             <button type="button" class="cx-edit" data-edit="${cfg.id}" title="Editar link" aria-label="Editar link de ${titulo}">✎</button>`;
+    } else {
+      html+=`<button type="button" class="cx-circle vacio" data-focus="${cfg.id}" data-tip="${titulo}" aria-label="${titulo}">${ICONOS_SVG[cfg.icono]}</button>`;
+    }
+    if(mostrarInput){
+      html+=`<div class="cx-pill"><input type="text" data-link-input="${cfg.id}" placeholder="Pega tu link aquí" value="${escHtml(link)}" aria-label="Link: ${titulo}"><button type="button" data-ok="${cfg.id}">Listo</button>${link?`<button type="button" class="ghost" data-cancel="${cfg.id}" aria-label="Cancelar">✕</button>`:''}</div>`;
+    }
+    box.innerHTML=html;
+    host.appendChild(box);
 
-function buildLinkBox({ key, icono, label, valor, placeholder, obtenerValor, guardarValor, guardarProgramado }){
-  const box = document.createElement('div');
-  box.className = 'carpeta-box';
-  const editando = linkBoxEditing[key] || !valor;
-  if(editando){
-    box.innerHTML = `
-      <div class="detail-field-head"><label>${icono} ${label}</label>${valor?`<a class="btn-guion" href="${escHtml(valor)}" target="_blank" rel="noopener">Abrir ↗</a>`:''}</div>
-      <input type="text" class="link-box-input" placeholder="${placeholder}" value="${escHtml(valor)}">
-    `;
-    const input = box.querySelector('.link-box-input');
-    input.addEventListener('input',(e)=>{
-      guardarValor(e.target.value);
-      guardarProgramado();
-      const link = box.querySelector('.btn-guion');
-      if(link) link.href = e.target.value;
-    });
-    input.addEventListener('blur',()=>{
-      if(obtenerValor()){ linkBoxEditing[key] = false; render(); }
-    });
-  }else{
-    box.classList.add('carpeta-box-collapsed');
-    box.title = 'Doble clic para editar el link';
-    box.innerHTML = `
-      <div class="detail-field-head"><label>${icono} ${label}</label><a class="btn-guion" href="${escHtml(valor)}" target="_blank" rel="noopener">Abrir ↗</a></div>
-      <div class="carpeta-collapsed-hint">Doble clic para editar el link</div>
-    `;
-    box.addEventListener('dblclick',()=>{ linkBoxEditing[key] = true; render(); });
-  }
-  return box;
+    const input=box.querySelector('[data-link-input]');
+    if(input){
+      input.addEventListener('input',e=>cfg.set(e.target.value));
+      const cerrar=()=>{ if((cfg.get()||'').trim()){ cfg.setEditando(false); pintarIconos(); } };
+      input.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); cerrar(); } if(e.key==='Escape'){ cfg.setEditando(false); pintarIconos(); } });
+      input.addEventListener('blur',cerrar);
+      box.querySelectorAll('.cx-pill button').forEach(b=>b.addEventListener('mousedown',e=>e.preventDefault()));
+      const ok=box.querySelector('[data-ok]'); if(ok) ok.addEventListener('click',cerrar);
+      const cancel=box.querySelector('[data-cancel]'); if(cancel) cancel.addEventListener('click',()=>{ cfg.setEditando(false); pintarIconos(); });
+      if(editando) input.focus();
+    }
+    const edit=box.querySelector('[data-edit]');
+    if(edit) edit.addEventListener('click',()=>{ cfg.setEditando(true); pintarIconos(); });
+    const vacio=box.querySelector('[data-focus]');
+    if(vacio) vacio.addEventListener('click',()=>{ const i=box.querySelector('input'); if(i) i.focus(); });
+  });
 }
 
 function renderGuardadas(container){
-  container.appendChild(buildLinkBox({
-    key:'carpeta', icono:'📁', label:'Carpeta de campaña (Drive u otro) — videos y material terminado',
-    valor: linkCarpeta, placeholder:'https://drive.google.com/...',
-    obtenerValor: ()=>linkCarpeta, guardarValor: (v)=>{ linkCarpeta=v; }, guardarProgramado: scheduleCarpetaSave,
-  }));
-  container.appendChild(buildLinkBox({
-    key:'bm', icono:'🏢', label:'Business Manager (Meta Ads)',
-    valor: linkBM, placeholder:'https://business.facebook.com/...',
-    obtenerValor: ()=>linkBM, guardarValor: (v)=>{ linkBM=v; }, guardarProgramado: scheduleBMSave,
-  }));
-
   if(cards.length){
     const faltantes = cards.filter(c=>!c.titulo_anuncio || !c.cta_boton || !c.link_destino);
     const completarBar = document.createElement('div');
@@ -1775,6 +1818,7 @@ GuiaJefe.registrar({
 cargarInicial().then(()=>{
   const llegada=leerLlegada366();
   if(llegada) aplicarLlegada366(llegada);
+  pintarIconos();
   render();
   if(llegada) GuiaJefe.iniciar('anuncios');
 });
