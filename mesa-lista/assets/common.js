@@ -53,7 +53,7 @@ function themeVars(t){
 }
 
 /* ---------- Datos ---------- */
-const DEFAULT_THEME={name:'Predeterminado',head:'#111111',brand:'#F25C05',accent:'#F25C05',bg:'#F5F5F5',surface:'#FFFFFF',ink:'#111111'};
+const DEFAULT_THEME={name:'Predeterminado',head:'#111111',brand:'#FF4A1A',accent:'#FF8C2E',bg:'#F5F5F5',surface:'#FFFFFF',ink:'#111111'};
 const PAY_LABEL={terminal:"📟 Terminal con mesero",efectivo:"💵 Efectivo"};
 const STATUS_CLIENT={pendiente:"Esperando que el restaurante confirme tu pedido",confirmado:"Confirmado, en la fila de cocina",preparando:"Tu pedido se está preparando",listo:"¡Listo! Ya va a tu mesa",entregado:"Entregado, buen provecho",rechazado:"El restaurante no pudo tomar este pedido"};
 const money=n=>"$"+Number(n||0).toLocaleString("es-MX");
