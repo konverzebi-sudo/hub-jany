@@ -17,7 +17,7 @@
   <a id="back-hub" href="/" class="back-link">&lt;&lt; Hub de Jefes <span style="opacity:.4;">//</span> <span id="brand-marca-label">JefesHub</span></a>
   <h1>Jefe WhatsApp y Ventas</h1>
   <div class="topbar-actions">
-    <button type="button" class="topbar-ia" id="estToggleBtn" onclick="toggleEstrategiaPanel()">✨ <span>Actualizar Estrategia con IA</span></button>
+    <button type="button" class="topbar-ia" id="estToggleBtn" onclick="pedirActualizarEstrategia()">✨ <span>Actualizar Estrategia con IA</span></button>
     <button type="button" class="topbar-lupa" id="topLupaBtn" aria-label="Buscar respuesta" title="Buscar respuesta">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
     </button>
@@ -72,6 +72,7 @@
   <div class="estrategia-box" id="estrategiaBox" hidden>
     <div class="estrategia-head">
       <h3>🧠 Generar Estrategia de WhatsApp</h3>
+      <button type="button" class="estrategia-cerrar" onclick="cerrarPanelEstrategia()" aria-label="Cerrar panel" title="Cerrar">×</button>
     </div>
     <p class="estrategia-sub" id="estSubTexto">La IA llena las 5 tarjetas de abajo con tu ADN de marca (identidad, tono, catálogo, audiencia) y tu Jefe 366 (comunicación, ángulos, frases) — no hace falta repetir nada. Si le falta algo clave, te hace hasta 3 preguntas antes de generar.</p>
     <div class="estrategia-uploads">
@@ -952,6 +953,48 @@ function toggleEstrategiaPanel(){
   if(!box.hidden) box.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+// Botón lima de la esquina: pide confirmar y, si se acepta, genera una nueva versión de las respuestas.
+function nombrePestanaActiva(){
+  if(campanaActiva) return etiquetaCampana(campanaActiva);
+  if(!mostrarTodasLasPestanas && productoActivo) return productoActivo.nombre;
+  if(!mostrarTodasLasPestanas && grupoActivo) return grupoActivo.nombre;
+  return 'tu negocio';
+}
+function seccionesElegidasTexto(){
+  const nombres = { conversacion: 'la conversación (bienvenida → cierre)', seguimiento: 'el seguimiento', reactivacion: 'la reactivación' };
+  const sel = Array.from(document.querySelectorAll('#estSecciones input[data-sec]:checked')).map((c) => nombres[c.dataset.sec]);
+  if(sel.length === 3) return 'todas las respuestas (conversación, seguimiento y reactivación)';
+  return sel.length ? sel.join(' + ') : '(ninguna sección elegida)';
+}
+function pedirActualizarEstrategia(){
+  document.getElementById('confirmEstNombre').textContent = nombrePestanaActiva();
+  document.getElementById('confirmEstSecciones').textContent = seccionesElegidasTexto();
+  document.getElementById('confirmEst').hidden = false;
+  document.getElementById('confirmEstSi').focus();
+}
+function cerrarConfirmEst(){ document.getElementById('confirmEst').hidden = true; }
+function mostrarPanelEstrategia(){
+  const box = document.getElementById('estrategiaBox');
+  box.hidden = false;
+  box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function confirmarActualizarEstrategia(){
+  cerrarConfirmEst();
+  mostrarPanelEstrategia();
+  generarEstrategia();
+}
+function abrirOpcionesEstrategia(){
+  cerrarConfirmEst();
+  mostrarPanelEstrategia();
+}
+function cerrarPanelEstrategia(){ document.getElementById('estrategiaBox').hidden = true; }
+document.addEventListener('keydown', (e) => {
+  if(e.key === 'Escape' && !document.getElementById('confirmEst').hidden) cerrarConfirmEst();
+});
+document.addEventListener('click', (e) => {
+  if(e.target && e.target.id === 'confirmEst') cerrarConfirmEst();
+});
+
 async function generarEstrategia(){
   const btn = document.getElementById('estBtn');
   const status = document.getElementById('estStatus');
@@ -973,6 +1016,9 @@ async function generarEstrategia(){
 
   btn.disabled = true;
   btn.innerText = 'Generando...';
+  const topBtn = document.getElementById('estToggleBtn');
+  topBtn.disabled = true;
+  topBtn.querySelector('span').textContent = 'Actualizando…';
   status.className = 'log-status';
   status.innerText = fuenteContexto().status;
 
@@ -1010,6 +1056,8 @@ async function generarEstrategia(){
   }finally{
     btn.disabled = false;
     btn.innerText = labelDefault();
+    topBtn.disabled = false;
+    topBtn.querySelector('span').textContent = 'Actualizar Estrategia con IA';
   }
 }
 
@@ -1218,7 +1266,7 @@ GuiaJefe.registrar({
     { selector: '#liveInput', titulo: 'Tu chat con el Jefe de WhatsApp y Ventas',
       texto: 'Pega aquí lo que te escribió el cliente (o adjunta una captura con el clip) y pulsa Enter: el Jefe te aconseja la mejor respuesta según en qué punto va la venta. Si escribes una frase corta ("está caro", "tarjeta"...), abajo también te salen las respuestas que ya tienes en tu manual.' },
     { selector: '#estToggleBtn', titulo: 'Pícale aquí para armar tu estrategia',
-      texto: 'Este botón abre el generador: la IA llena las 5 tarjetas de abajo (primer contacto, calificación, oferta, objeciones y cierre) con tu ADN y tu Jefe 366. Puedes subir capturas o un .txt de conversaciones reales para que suene como tú. Si le falta algo clave, te hace hasta 3 preguntas antes.' },
+      texto: 'Este botón actualiza tus respuestas con IA: te pide confirmar y genera una nueva versión de las tarjetas (conversación, seguimiento y reactivación) con tu ADN y la pestaña que tengas elegida. Si antes quieres subir capturas o elegir qué actualizar, pícale a "Más opciones".' },
     { selector: '#thermoNav', titulo: 'El termómetro de la conversación',
       texto: 'Las tarjetas van de frío a ardiendo: 1–2 primer contacto, 3–4 calificación, 5–6 oferta, 7–8 objeciones y 9–10 cierre. Pícale a un tramo para saltar a esas tarjetas según qué tan caliente esté el cliente.' },
     { selector: '#s1 .copy-btn', titulo: 'Copiar y pegar',
@@ -1244,6 +1292,18 @@ GuiaJefe.registrar({
   if(llegada) GuiaJefe.iniciar('whatsapp');
 })();
 </script>
+<div class="modal-fondo" id="confirmEst" hidden role="dialog" aria-modal="true" aria-labelledby="confirmEstTitulo">
+  <div class="modal-caja">
+    <h3 id="confirmEstTitulo">¿Actualizar las respuestas de WhatsApp?</h3>
+    <p>La IA va a escribir una <b>nueva versión</b> de <b id="confirmEstSecciones"></b> para «<b id="confirmEstNombre"></b>» y va a <b>reemplazar las respuestas actuales</b> de esta pestaña. Si ya editaste algo, lo toma como base. Tarda cerca de un minuto.</p>
+    <div class="modal-acciones">
+      <button type="button" class="ask-btn" id="confirmEstSi" onclick="confirmarActualizarEstrategia()">Sí, actualizar</button>
+      <button type="button" class="btn-sec" onclick="cerrarConfirmEst()">Cancelar</button>
+      <button type="button" class="modal-link" onclick="abrirOpcionesEstrategia()">Más opciones (capturas, qué actualizar)</button>
+    </div>
+  </div>
+</div>
+
 <script>
   (function(){
     var inp = document.getElementById('liveInput');
