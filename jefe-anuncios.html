@@ -222,7 +222,7 @@
   .btn-pill-gray{border:none;background:#E3E3E3;color:#333;border-radius:100px;padding:12px 24px;font-family:'Sora',sans-serif;font-weight:800;font-size:15px;text-transform:uppercase;letter-spacing:.02em;cursor:pointer;transition:.15s;}
   .btn-pill-gray:hover{background:#D5D5D5;}
   .anuncios-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:4px;}
-  .campana-fields-grid{display:grid;grid-template-columns:repeat(5,minmax(140px,1fr)) minmax(240px,2fr);gap:14px;}
+  .campana-fields-grid{display:grid;grid-template-columns:minmax(200px,1.4fr) repeat(3,minmax(140px,1fr)) minmax(240px,2fr);gap:14px;}
   .campana-fields-grid input[type=date]{background:var(--surface-2);border:1px solid var(--line);border-radius:12px;color:var(--text);font-family:'Inter',sans-serif;font-size:16px;padding:10px 12px;outline:none;color-scheme:light;width:100%;}
   @media (max-width:1280px){.campana-fields-grid{grid-template-columns:repeat(auto-fit,minmax(200px,1fr));}}
 
@@ -1169,7 +1169,7 @@ function buildCampanaResumenCard(campana){
   card.className = 'campana-resumen';
   const prod = productos.find(p=>p&&p.id===campana.producto_id);
   const grupo = grupos.find(g=>g&&g.id===campana.grupo_id);
-  const nombre = prod ? prod.nombre : (grupo ? grupo.nombre : 'Todo el grupo');
+  const nombre = prod ? prod.nombre : (grupo ? grupo.nombre : 'General');
   const obj = OBJETIVOS.find(o=>o.key===campana.objetivo);
   const objetivoTxt = [obj ? obj.label.replace(/^\S+\s/,'') : '', campana.tipo, campana.resultado_esperado].filter(Boolean).join(' · ') || '—';
   const fechaTxt = campana.fecha_inicio ? campana.fecha_inicio.split('-').reverse().join('/') : '—';
@@ -1212,12 +1212,25 @@ function buildCampanaResumenCard(campana){
   return card;
 }
 
+// Un solo selector: cada grupo con "Todo el grupo" y sus productos/servicios debajo.
+function opcionesAlcance(campana){
+  const sel = campana.producto_id ? 'p:'+campana.producto_id : (campana.grupo_id ? 'g:'+campana.grupo_id : '');
+  const opt = (v,t)=>`<option value="${v}"${sel===v?' selected':''}>${escHtml(t)}</option>`;
+  const prods = productos.filter(p=>p&&p.nombre);
+  let html = opt('','General (sin grupo)');
+  grupos.filter(g=>g&&g.nombre).forEach(g=>{
+    html += `<optgroup label="${escHtml(g.nombre)}">` + opt('g:'+g.id,'Todo el grupo · '+g.nombre) + prods.filter(p=>p.grupo_id===g.id).map(p=>opt('p:'+p.id,p.nombre)).join('') + '</optgroup>';
+  });
+  const sueltos = prods.filter(p=>!p.grupo_id || !grupos.some(g=>g&&g.id===p.grupo_id));
+  if(sueltos.length) html += '<optgroup label="Sin grupo">' + sueltos.map(p=>opt('p:'+p.id,p.nombre)).join('') + '</optgroup>';
+  return html;
+}
+
 function buildCampanaEstructuraCard(campana){
   if(campana.guardada) return buildCampanaResumenCard(campana);
   const card = document.createElement('div');
   card.className = 'campana-card';
 
-  const productosDisponibles = productos.filter(p => p && p.nombre && (!campana.grupo_id || p.grupo_id === campana.grupo_id));
   const tiposDisponibles = OBJETIVO_TIPO_MAP[campana.objetivo] || [];
 
   card.innerHTML = `
@@ -1230,17 +1243,9 @@ function buildCampanaEstructuraCard(campana){
     </div>
     <div class="campana-fields-grid">
       <div class="mode-field">
-        <label>Producto o servicio</label>
-        <select data-campana="${campana.id}" data-field="producto_id">
-          <option value="">Todo el grupo</option>
-          ${productosDisponibles.map(p=>`<option value="${p.id}"${campana.producto_id===p.id?' selected':''}>${escHtml(p.nombre)}</option>`).join('')}
-        </select>
-      </div>
-      <div class="mode-field">
-        <label>Grupo de negocio</label>
-        <select data-campana="${campana.id}" data-field="grupo_id">
-          <option value="">General (sin grupo)</option>
-          ${grupos.map(g=>`<option value="${g.id}"${campana.grupo_id===g.id?' selected':''}>${escHtml(g.nombre)}</option>`).join('')}
+        <label>Producto, servicio o grupo</label>
+        <select data-campana="${campana.id}" data-field="alcance">
+          ${opcionesAlcance(campana)}
         </select>
       </div>
       <div class="mode-field">
@@ -1286,9 +1291,14 @@ function buildCampanaEstructuraCard(campana){
   card.querySelectorAll('select[data-campana]').forEach(sel=>{
     sel.addEventListener('change',(e)=>{
       const field = e.target.dataset.field;
-      campana[field] = e.target.value;
-      if(field==='objetivo') campana.tipo='';
-      if(field==='grupo_id') campana.producto_id='';
+      if(field==='alcance'){
+        const [kind,id] = (e.target.value||'').split(':');
+        if(kind==='p'){ const pr = productos.find(x=>x&&x.id===id); campana.producto_id = id; campana.grupo_id = pr ? (pr.grupo_id||'') : ''; }
+        else { campana.producto_id = ''; campana.grupo_id = kind==='g' ? id : ''; }
+      } else {
+        campana[field] = e.target.value;
+        if(field==='objetivo') campana.tipo='';
+      }
       scheduleEstructuraSave();
       render();
     });
