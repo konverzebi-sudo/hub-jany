@@ -230,9 +230,8 @@
   .btn-pill-gray{border:none;background:#E3E3E3;color:#333;border-radius:100px;padding:12px 24px;font-family:'Sora',sans-serif;font-weight:800;font-size:15px;text-transform:uppercase;letter-spacing:.02em;cursor:pointer;transition:.15s;}
   .btn-pill-gray:hover{background:#D5D5D5;}
   .anuncios-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:4px;}
-  .campana-fields-grid{display:grid;grid-template-columns:minmax(200px,1.4fr) repeat(3,minmax(140px,1fr)) minmax(240px,2fr);gap:14px;}
+  .campana-fields-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;}
   .campana-fields-grid input[type=date]{background:var(--surface-2);border:1px solid var(--line);border-radius:12px;color:var(--text);font-family:'Inter',sans-serif;font-size:16px;padding:10px 12px;outline:none;color-scheme:light;width:100%;}
-  @media (max-width:1280px){.campana-fields-grid{grid-template-columns:repeat(auto-fit,minmax(200px,1fr));}}
 
   /* CAMPAÑA GUARDADA: panel lima con el resumen */
   .campana-resumen{background:var(--accent);border-radius:28px;padding:22px 26px;margin-bottom:18px;display:flex;flex-direction:column;gap:18px;box-shadow:var(--shadow-card);color:#1A1A1A;}
@@ -245,20 +244,22 @@
   .res-info{display:flex;flex-direction:column;gap:16px;}
   .res-fecha{font-family:'Sora',sans-serif;font-weight:800;font-size:17px;text-transform:uppercase;}
   .res-fecha span{font-family:'Inter',sans-serif;font-weight:600;text-transform:none;}
-  .res-bloque{display:flex;flex-direction:column;align-items:flex-start;gap:10px;}
+  .res-pills{display:flex;flex-wrap:wrap;gap:12px;}
+  .res-pill-dark.on .res-chev{transform:rotate(180deg);}
+  .res-fecha{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .res-fecha-input{background:#fff;border:none;border-radius:100px;color:#1A1A1A;font-family:'Inter',sans-serif;font-size:15px;font-weight:600;padding:8px 16px;outline:none;color-scheme:light;}
+  .res-pane{display:none;background:#fff;border-radius:20px;padding:18px 20px;color:var(--text);flex-direction:column;gap:14px;}
+  .res-pane.abierto{display:flex;}
   .res-pill-dark{border:none;cursor:pointer;text-align:left;transition:.15s;background:#4B4B4B;color:var(--accent);font-family:'Sora',sans-serif;font-weight:800;font-size:15.5px;text-transform:uppercase;letter-spacing:.02em;padding:9px 20px;border-radius:100px;}
   .res-pill-dark:hover{filter:brightness(1.2);}
   .res-chev{display:inline-block;transition:transform .15s;margin-left:4px;}
-  .res-bloque.abierto .res-chev{transform:rotate(180deg);}
-  .res-valor{display:none;width:100%;font-size:15.5px;line-height:1.45;font-weight:500;min-width:0;background:rgba(255,255,255,.55);border-radius:14px;padding:12px 16px;}
-  .res-bloque.abierto .res-valor{display:block;}
   .res-dato{display:flex;flex-direction:column;margin-bottom:8px;}
   .res-dato span{font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:#3C5E00;}
   .res-conjunto{padding-bottom:6px;margin-bottom:10px;border-bottom:1px dashed rgba(0,0,0,.2);}
   .res-conjunto:last-child{border-bottom:none;margin-bottom:0;}
   .res-conjunto-t{font-family:'Sora',sans-serif;font-weight:800;text-transform:uppercase;margin-bottom:6px;}
   .res-spec{margin-bottom:6px;}
-  .res-valor,.res-spec,.res-anuncio,.res-pill-dark,.res-pill-white{overflow-wrap:anywhere;min-width:0;max-width:100%;}
+  .res-spec,.res-anuncio,.res-pill-dark,.res-pill-white{overflow-wrap:anywhere;min-width:0;max-width:100%;}
   .res-anuncio{flex-wrap:wrap;}
   .campana-resumen{max-width:100%;overflow:hidden;}
   .res-anuncios{background:#FAFFE0;border-radius:14px;padding:14px 18px;display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto;}
@@ -1182,80 +1183,36 @@ function renderEstructura(container){
   }));
 }
 
-// Resumen de una campaña ya guardada: panel lima con fecha de inicio, objetivo, especificaciones del
-// conjunto y los anuncios vinculados. "Editar campaña" vuelve al formulario.
-// Bloques del resumen que el usuario abrió (se conservan aunque se vuelva a pintar la vista).
-const resAbiertos = new Set();
-function buildCampanaResumenCard(campana){
-  const card = document.createElement('div');
-  card.className = 'campana-resumen';
+// La campaña es siempre el panel lima: pastilla con el nombre, fecha de inicio, las pastillas
+// "Objetivo de campaña" y "Especificaciones del conjunto" (al pulsarlas se abren sus datos para
+// ver y editar) y a la derecha los anuncios vinculados. Sin guardar se ven abiertas; ya guardada
+// sale cerrada. Lo que el usuario abre/cierra a mano se conserva aunque se vuelva a pintar.
+const resEstado = new Map();
+function resAbierto(campana, clave){
+  const k = campana.id+':'+clave;
+  return resEstado.has(k) ? resEstado.get(k) : !campana.guardada;
+}
+function nombreAlcance(campana){
   const prod = productos.find(p=>p&&p.id===campana.producto_id);
   const grupo = grupos.find(g=>g&&g.id===campana.grupo_id);
-  const nombre = prod ? prod.nombre : (grupo ? grupo.nombre : 'General');
-  const obj = OBJETIVOS.find(o=>o.key===campana.objetivo);
-  const fechaTxt = campana.fecha_inicio ? campana.fecha_inicio.split('-').reverse().join('/') : '—';
-  const dato = (k,v)=>`<div class="res-dato"><span>${escHtml(k)}</span><b>${escHtml(v||'—')}</b></div>`;
-  const datosCampana = [
-    dato('Producto, servicio o grupo', nombre),
-    dato('Objetivo', obj ? obj.label.replace(/^\S+\s/,'') : ''),
-    dato('Tipo de campaña', campana.tipo),
-    dato('Resultado esperado', campana.resultado_esperado),
-    dato('Fecha de inicio', fechaTxt==='—'?'':fechaTxt),
-  ].join('');
-  const specs = (campana.conjuntos||[]).map((c,i)=>{
-    const nAnuncios = (c.anuncios_ids||[]).map(id=>cards.find(x=>x.id===id)).filter(Boolean);
-    return `<div class="res-conjunto"><div class="res-conjunto-t">Conjunto ${i+1}</div>`
-      + dato('Ubicación', c.ubicacion) + dato('Edad', c.edad) + dato('Género', c.genero)
-      + dato('Presupuesto diario', c.presupuesto_diario) + dato('Duración', c.duracion)
-      + dato('Tipo de contenido', c.tipo_contenido) + dato('Intereses', c.intereses)
-      + dato('Anuncios', nAnuncios.map(x=>x.titulo).join(' · ')) + '</div>';
-  }).join('') || '<div class="res-spec">Todavía no hay conjuntos.</div>';
-  const idsVinculados = [...new Set((campana.conjuntos||[]).flatMap(c=>c.anuncios_ids||[]))];
-  const anuncios = idsVinculados.map(id=>cards.find(c=>c.id===id)).filter(Boolean);
-  card.innerHTML = `
-    <div class="res-top">
-      <span class="res-pill-white">Campaña: ${escHtml(nombre)}</span>
-      <div class="campana-top-actions">
-        <button type="button" class="res-btn" data-nueva-campana>+ Nueva campaña</button>
-        <button type="button" class="res-btn res-btn-white" data-editar-campana>Editar campaña</button>
-      </div>
-    </div>
-    <div class="res-body">
-      <div class="res-info">
-        <div class="res-fecha">Fecha de inicio: <span>${escHtml(fechaTxt)}</span></div>
-        <div class="res-bloque${resAbiertos.has(campana.id+':obj')?' abierto':''}" data-res-key="${campana.id}:obj">
-          <button type="button" class="res-pill-dark" data-res-toggle>Objetivo de campaña: <span class="res-chev">▾</span></button>
-          <div class="res-valor">${datosCampana}</div>
-        </div>
-        <div class="res-bloque${resAbiertos.has(campana.id+':esp')?' abierto':''}" data-res-key="${campana.id}:esp">
-          <button type="button" class="res-pill-dark" data-res-toggle>Especificaciones del conjunto <span class="res-chev">▾</span></button>
-          <div class="res-valor">${specs}</div>
-        </div>
-      </div>
-      <div class="res-anuncios">
-        ${anuncios.length ? anuncios.map(c=>`
-          <div class="res-anuncio">
-            <span class="res-check">✔</span>
-            <span class="badge badge-${c.etapa}">${ETAPA_LABEL[c.etapa]||c.etapa}</span>
-            <span class="anuncio-link-titulo" data-editar-card="${c.id}" title="Abrir y editar esta campaña">${escHtml(c.titulo)} ✎</span>
-          </div>`).join('') : '<div class="res-anuncio res-vacio">Todavía no vinculaste anuncios a esta campaña.</div>'}
-      </div>
-    </div>
-  `;
-  card.querySelectorAll('[data-res-toggle]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const bloque = btn.closest('.res-bloque');
-      const abierto = bloque.classList.toggle('abierto');
-      if(abierto) resAbiertos.add(bloque.dataset.resKey); else resAbiertos.delete(bloque.dataset.resKey);
-    });
-  });
-  card.querySelector('[data-editar-campana]').addEventListener('click', ()=>{
-    campana.guardada = false; scheduleEstructuraSave(); render();
-  });
-  card.querySelectorAll('[data-editar-card]').forEach(el=>{
-    el.addEventListener('click', ()=>irAEditarCard(el.dataset.editarCard));
-  });
-  return card;
+  return prod ? prod.nombre : (grupo ? grupo.nombre : 'General');
+}
+function htmlAnunciosVinculados(campana){
+  const ids = [...new Set((campana.conjuntos||[]).flatMap(c=>c.anuncios_ids||[]))];
+  const anuncios = ids.map(id=>cards.find(c=>c.id===id)).filter(Boolean);
+  return anuncios.length ? anuncios.map(c=>`
+    <div class="res-anuncio">
+      <span class="res-check">✔</span>
+      <span class="badge badge-${c.etapa}">${ETAPA_LABEL[c.etapa]||c.etapa}</span>
+      <span class="anuncio-link-titulo" data-editar-card="${c.id}" title="Abrir y editar esta campaña">${escHtml(c.titulo)} ✎</span>
+    </div>`).join('') : '<div class="res-anuncio res-vacio">Todavía no vinculaste anuncios a esta campaña.</div>';
+}
+async function guardarCampana(campana){
+  campana.guardada = true;
+  resEstado.delete(campana.id+':obj'); resEstado.delete(campana.id+':esp');
+  clearTimeout(estructuraSaveTimer);
+  await guardarEstructura();
+  render();
 }
 
 // Un solo selector: cada grupo con "Todo el grupo" y sus productos/servicios debajo.
@@ -1273,52 +1230,61 @@ function opcionesAlcance(campana){
 }
 
 function buildCampanaEstructuraCard(campana){
-  if(campana.guardada) return buildCampanaResumenCard(campana);
   const card = document.createElement('div');
-  card.className = 'campana-card';
-
+  card.className = 'campana-resumen';
   const tiposDisponibles = OBJETIVO_TIPO_MAP[campana.objetivo] || [];
+  const abObj = resAbierto(campana,'obj'), abEsp = resAbierto(campana,'esp');
 
   card.innerHTML = `
-    <div class="campana-top">
-      <span class="pill-title">${campana.objetivo ? 'Campaña · '+(((OBJETIVOS.find(o=>o.key===campana.objetivo)||{}).label||'').replace(/^\S+\s/,'')) : 'Nueva campaña'}</span>
+    <div class="res-top">
+      <span class="res-pill-white">Campaña: ${escHtml(nombreAlcance(campana))}</span>
       <div class="campana-top-actions">
-        <button type="button" class="btn btn-solid btn-sm" data-nueva-campana>+ Nueva campaña</button>
-        <button type="button" class="item-del" data-campana="${campana.id}" title="Eliminar campaña">✕</button>
+        <button type="button" class="res-btn" data-nueva-campana>+ Nueva campaña</button>
+        <button type="button" class="res-btn res-btn-white" data-guardar-campana>Guardar campaña</button>
+        <button type="button" class="item-del" data-del-campana title="Eliminar campaña">✕</button>
       </div>
     </div>
-    <div class="campana-fields-grid">
-      <div class="mode-field">
-        <label>Producto, servicio o grupo</label>
-        <select data-campana="${campana.id}" data-field="alcance">
-          ${opcionesAlcance(campana)}
-        </select>
+    <div class="res-body">
+      <div class="res-info">
+        <label class="res-fecha">Fecha de inicio:
+          <input type="date" class="res-fecha-input" data-campana="${campana.id}" data-field="fecha_inicio" value="${escHtml(campana.fecha_inicio||'')}">
+        </label>
+        <div class="res-pills">
+          <button type="button" class="res-pill-dark${abObj?' on':''}" data-res-toggle="obj">Objetivo de campaña: <span class="res-chev">▾</span></button>
+          <button type="button" class="res-pill-dark${abEsp?' on':''}" data-res-toggle="esp">Especificaciones del conjunto (${campana.conjuntos.length}) <span class="res-chev">▾</span></button>
+        </div>
       </div>
-      <div class="mode-field">
-        <label>Objetivo de la campaña</label>
-        <select data-campana="${campana.id}" data-field="objetivo">
-          <option value="">— Selecciona —</option>
-          ${OBJETIVOS.map(o=>`<option value="${o.key}"${campana.objetivo===o.key?' selected':''}>${o.label}</option>`).join('')}
-        </select>
-      </div>
-      <div class="mode-field">
-        <label>Tipo de campaña</label>
-        <select data-campana="${campana.id}" data-field="tipo"${!campana.objetivo?' disabled':''}>
-          <option value="">${campana.objetivo?'— Selecciona —':'Elige un objetivo primero'}</option>
-          ${tiposDisponibles.map(t=>`<option value="${escHtml(t)}"${campana.tipo===t?' selected':''}>${escHtml(t)}</option>`).join('')}
-        </select>
-      </div>
-      <div class="mode-field">
-        <label>Fecha de inicio</label>
-        <input type="date" data-campana="${campana.id}" data-field="fecha_inicio" value="${escHtml(campana.fecha_inicio||'')}">
-      </div>
-      <div class="mode-field campo-ancho">
-        <label>Resultado esperado</label>
-        <input type="text" data-campana="${campana.id}" data-field="resultado_esperado" placeholder="Ej: Ventas por chat / Citas por chat / Ventas por sitio web" value="${escHtml(campana.resultado_esperado)}">
+      <div class="res-anuncios" data-vinculados="${campana.id}">${htmlAnunciosVinculados(campana)}</div>
+    </div>
+    <div class="res-pane res-pane-obj${abObj?' abierto':''}">
+      <div class="campana-fields-grid">
+        <div class="mode-field">
+          <label>Producto, servicio o grupo</label>
+          <select data-campana="${campana.id}" data-field="alcance">
+            ${opcionesAlcance(campana)}
+          </select>
+        </div>
+        <div class="mode-field">
+          <label>Objetivo de la campaña</label>
+          <select data-campana="${campana.id}" data-field="objetivo">
+            <option value="">— Selecciona —</option>
+            ${OBJETIVOS.map(o=>`<option value="${o.key}"${campana.objetivo===o.key?' selected':''}>${o.label}</option>`).join('')}
+          </select>
+        </div>
+        <div class="mode-field">
+          <label>Tipo de campaña</label>
+          <select data-campana="${campana.id}" data-field="tipo"${!campana.objetivo?' disabled':''}>
+            <option value="">${campana.objetivo?'— Selecciona —':'Elige un objetivo primero'}</option>
+            ${tiposDisponibles.map(t=>`<option value="${escHtml(t)}"${campana.tipo===t?' selected':''}>${escHtml(t)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="mode-field campo-ancho">
+          <label>Resultado esperado</label>
+          <input type="text" data-campana="${campana.id}" data-field="resultado_esperado" placeholder="Ej: Ventas por chat / Citas por chat / Ventas por sitio web" value="${escHtml(campana.resultado_esperado)}">
+        </div>
       </div>
     </div>
-    <div class="conjuntos-wrap">
-      <span class="conjuntos-title">Conjuntos de anuncios (${campana.conjuntos.length})</span>
+    <div class="res-pane res-pane-esp${abEsp?' abierto':''}">
       <div class="conjuntos-list" data-campana-conjuntos="${campana.id}"></div>
       <button type="button" class="anuncios-row-add" data-campana-add-conjunto="${campana.id}">+ Agregar conjunto de anuncios</button>
     </div>
@@ -1327,7 +1293,21 @@ function buildCampanaEstructuraCard(campana){
   const conjuntosList = card.querySelector('.conjuntos-list');
   campana.conjuntos.forEach(conjunto=>conjuntosList.appendChild(buildConjuntoCard(campana, conjunto)));
 
-  card.querySelector('.item-del').addEventListener('click', ()=>{
+  card.querySelectorAll('[data-res-toggle]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const clave = btn.dataset.resToggle;
+      const abierto = !resAbierto(campana, clave);
+      resEstado.set(campana.id+':'+clave, abierto);
+      btn.classList.toggle('on', abierto);
+      card.querySelector('.res-pane-'+clave).classList.toggle('abierto', abierto);
+    });
+  });
+  card.querySelector('[data-guardar-campana]').addEventListener('click', ()=>guardarCampana(campana));
+  card.querySelector('[data-vinculados]').addEventListener('click', (e)=>{
+    const t = e.target.closest('[data-editar-card]');
+    if(t) irAEditarCard(t.dataset.editarCard);
+  });
+  card.querySelector('[data-del-campana]').addEventListener('click', ()=>{
     if(!confirm('¿Eliminar esta campaña y todos sus conjuntos? No se puede deshacer.')) return;
     estructuras = estructuras.filter(c=>c.id!==campana.id);
     scheduleEstructuraSave();
@@ -1359,6 +1339,7 @@ function buildCampanaEstructuraCard(campana){
   });
   card.querySelector('[data-campana-add-conjunto]').addEventListener('click', ()=>{
     campana.conjuntos.push(mkConjunto());
+    resEstado.set(campana.id+':esp', true);
     scheduleEstructuraSave();
     render();
   });
@@ -1442,11 +1423,7 @@ function buildConjuntoCard(campana, conjunto){
     scheduleEstructuraSave();
   });
   card.querySelector('[data-guardar-estructura]').addEventListener('click', async (e)=>{
-    // Guarda y pasa a la vista resumen (panel lima) de la campaña.
-    campana.guardada = true;
-    clearTimeout(estructuraSaveTimer);
-    await guardarEstructura();
-    render();
+    await guardarCampana(campana);
   });
   card.querySelector('[data-ir-guardadas]').addEventListener('click', ()=>{
     currentTab = 'guardadas';
@@ -1466,6 +1443,8 @@ function buildConjuntoCard(campana, conjunto){
         conjunto.anuncios_ids = conjunto.anuncios_ids.filter(id=>id!==cardId);
       }
       scheduleEstructuraSave();
+      const vincBox = document.querySelector('[data-vinculados="'+campana.id+'"]');
+      if(vincBox) vincBox.innerHTML = htmlAnunciosVinculados(campana);
       const titleEl = card.querySelector('.conjunto-top-title');
       if(titleEl) titleEl.textContent = `Conjunto de anuncios${conjunto.anuncios_ids.length ? ` · ${conjunto.anuncios_ids.length} anuncio(s) vinculado(s)` : ''}`;
     });
