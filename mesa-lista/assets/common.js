@@ -6,6 +6,8 @@
 const BASE=location.pathname.replace(/\/(panel|mesa)(\.html|\/.*)?$/,'').replace(/\/index\.html$/,'').replace(/\/$/,'');
 const mesaPath=n=>`${BASE}/mesa/${n}/`;
 const MAX_TABLES=100; // hay una carpeta mesa/1 … mesa/100
+const TOGO_MARK='🥡 PARA LLEVAR'; // va al inicio del comentario del pedido
+let HAS_PHOTO=false; // la base de datos ya tiene la columna de fotos (5-fotos.sql)
 
 /* ---------- Conexión con Supabase ---------- */
 const CFG=window.MESA_CONFIG||{};
@@ -69,16 +71,17 @@ function settingsFromRow(r){
     categories:Array.isArray(r.categories)?r.categories:[],tables:r.tables_count||8};
 }
 function productFromRow(r){
-  return {id:r.id,cat:r.cat,name:r.name,desc:r.description||'',price:Number(r.price)||0,emoji:r.emoji||'🍽️',
+  return {id:r.id,cat:r.cat,name:r.name,desc:r.description||'',price:Number(r.price)||0,emoji:r.emoji||'🍽️',photo:r.photo||'',
     available:!!r.available,options:Array.isArray(r.options)?r.options:[],sort:r.sort||0,created:r.created_at||''};
 }
 function productToRow(p){
   return {id:p.id,cat:p.cat,name:p.name,description:p.desc,price:Math.max(0,Number(p.price)||0),emoji:p.emoji,
-    available:p.available,options:p.options,sort:p.sort||0};
+    available:p.available,options:p.options,sort:p.sort||0,...(HAS_PHOTO?{photo:p.photo||''}:{})};
 }
 const byMenuOrder=(a,b)=>(a.sort-b.sort)||String(a.created).localeCompare(String(b.created));
 function orderFromRow(r){
-  return {id:Number(r.id),table:r.table_no,by:r.guest,account:r.account,items:r.items||[],note:r.note||'',pay:r.pay,
+  const note=r.note||'',toGo=note.startsWith(TOGO_MARK);
+  return {id:Number(r.id),table:r.table_no,by:r.guest,account:r.account,items:r.items||[],toGo,note:toGo?note.slice(TOGO_MARK.length).replace(/^\s*·\s*/,''):note,pay:r.pay,
     status:r.status,paid:!!r.paid,closed:!!r.closed,
     createdAt:Date.parse(r.created_at)||Date.now(),confirmedAt:r.confirmed_at?Date.parse(r.confirmed_at):null};
 }
@@ -98,3 +101,19 @@ const store={
   get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v);}catch(e){return d;}},
   set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
 };
+
+/* ---------- Demo: cambiar entre las 3 vistas (cliente, cocina, admin) ---------- */
+function demoBar(active){
+  if(!CFG.openPanel||window.top!==window) return false;
+  const items=[['cliente','Cliente',`${BASE}/`],['cocina','Cocina',`${BASE}/panel?modo=cocina`],['admin','Admin',`${BASE}/panel`]];
+  const el=document.createElement('nav');
+  el.className='demo-bar';el.setAttribute('aria-label','Cambiar de vista (demo)');
+  el.innerHTML=`<span>Demo · ver como</span><div class="demo-seg">${items.map(([k,l,h])=>
+    `<a href="${h}"${k===active?' aria-current="page"':''}>${l}</a>`).join('')}</div>`;
+  document.body.prepend(el);document.body.classList.add('has-demo');
+  return true;
+}
+function photoTag(p,cls='tile'){
+  return p.photo?`<div class="${cls} ph" aria-hidden="true"><img src="${esc(p.photo)}" alt="" loading="lazy"></div>`
+    :`<div class="${cls}" aria-hidden="true">${esc(p.emoji)}</div>`;
+}

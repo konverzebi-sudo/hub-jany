@@ -98,6 +98,7 @@ async function enter(session){
 async function enterOpen(){
   ui.inApp=true;
   $('whoAmI').textContent='Acceso libre (sin contraseña)';
+  if(!document.querySelector('.demo-bar')) demoBar(KITCHEN?'cocina':'admin');
   $('logoutBtn').classList.add('hidden');
   $('login').classList.add('hidden');$('app').classList.remove('hidden');
   applyView();
@@ -245,8 +246,11 @@ const PAGES={
   marca:["Marca y colores","Sube tu logo y la plataforma toma tus colores."],
   qr:["Códigos QR","Los códigos de tus mesas, listos para imprimir."]
 };
+/* Modo cocina: solo la pantalla de cocina, a pantalla completa (panel?modo=cocina) */
+const KITCHEN=new URLSearchParams(location.search).get('modo')==='cocina';
+if(KITCHEN){ui.view='cocina';document.body.classList.add('modo-cocina');}
 if(!PAGES[ui.view]) ui.view='live';
-document.querySelectorAll('.nav [data-view]').forEach(b=>b.onclick=()=>{ui.view=b.dataset.view;store.set('mesalista-view',ui.view);applyView();});
+document.querySelectorAll('.nav [data-view]').forEach(b=>b.onclick=()=>{ui.view=b.dataset.view;if(!KITCHEN)store.set('mesalista-view',ui.view);applyView();});
 function applyView(){
   const v=ui.view;
   document.querySelectorAll('.nav [data-view]').forEach(b=>b.setAttribute('aria-current',b.dataset.view===v));
@@ -288,7 +292,7 @@ function renderCaja(){
   const pend=state.orders.filter(o=>o.status==='pendiente'&&!o.closed);
   const list=$('pendingList');
   list.innerHTML=pend.length?pend.map(o=>`<div class="ord ${o.fresh?'fresh':''}">
-      <div class="ord-top"><span class="mesa">Mesa ${o.table}</span><span class="pill pendiente">Por confirmar</span><span class="t"><span class="num">#${o.id}</span>, hace ${ago(o.createdAt)}</span></div>
+      <div class="ord-top"><span class="mesa">Mesa ${o.table}</span>${o.toGo?'<span class="pill togo">🥡 Para llevar</span>':''}<span class="pill pendiente">Por confirmar</span><span class="t"><span class="num">#${o.id}</span>, hace ${ago(o.createdAt)}</span></div>
       <div class="ord-who">Pidió <b>${esc(o.by||o.account)}</b>, ${o.account==='Mesa'?'cuenta compartida':'cuenta propia'}, ${PAY_LABEL[o.pay]||esc(o.pay)}</div>
       ${linesHTML(o)}${o.note?`<div class="gnote">📝 ${esc(o.note)}</div>`:''}
       <div class="ord-foot"><b>${money(orderTotal(o))}</b><button class="btn btn-danger btn-sm" data-reject="${o.id}">Rechazar</button><button class="btn btn-ok btn-sm" data-confirm="${o.id}">Confirmar y enviar a cocina</button></div>
@@ -338,7 +342,7 @@ function renderCocina(){
       const since=o.confirmedAt||o.createdAt;
       const late=(Date.now()-since)>=15*60000&&status!=='listo';
       return `<div class="ticket ${cls}">
-        <div class="top"><span class="mesa">Mesa ${o.table}</span><span class="timer ${late?'late':''}" data-since="${since}">${clock(since)}</span></div>
+        <div class="top"><span class="mesa">Mesa ${o.table}${o.toGo?' <span class="pill togo">🥡 Para llevar</span>':''}</span><span class="timer ${late?'late':''}" data-since="${since}">${clock(since)}</span></div>
         <div class="who"><span class="num">#${o.id}</span>, ${esc(o.by||o.account)}</div>
         <ul>${o.items.map(i=>`<li><b>${i.q}×</b>${esc(i.name)}${i.opts.length?`<span class="o">${esc(i.opts.join(' · '))}</span>`:''}${i.note?`<span class="nt">↳ ${esc(i.note)}</span>`:''}</li>`).join('')}</ul>
         ${o.note?`<div class="gnote">📝 ${esc(o.note)}</div>`:''}
@@ -376,7 +380,7 @@ function renderMenuAdmin(){
     `<h4 style="margin:16px 0 8px;font-size:13px;color:var(--muted);font-weight:600">${esc(cat)}</h4>`+ps.map(p=>{
       const open=ui.editing===p.id;
       return `<div class="prod ${open?'open':''}"><div class="prod-main">
-          <div class="tile2" aria-hidden="true">${esc(p.emoji)}</div>
+          ${photoTag(p,'tile2')}
           <div class="info"><b>${esc(p.name)}</b><span>${money(p.price)}${p.options.length?`, opciones: ${esc(p.options.map(g=>g.name).join(', '))}`:', sin opciones'}</span></div>
           <input type="checkbox" class="toggle" data-act="avail" data-p="${esc(p.id)}" ${p.available?'checked':''} aria-label="Disponible: ${esc(p.name)}" title="${p.available?'Disponible':'Agotado'}">
           <button class="btn btn-ghost btn-sm" data-act="edit" data-p="${esc(p.id)}">${open?'Cerrar':'Editar'}</button>
@@ -393,6 +397,11 @@ function editorHTML(p){
       <label class="f"><span>Categoría</span><select class="inp" data-field="cat" data-p="${id}">${cats.map(c=>`<option value="${esc(c)}" ${c===p.cat?'selected':''}>${esc(c||'Sin categoría')}</option>`).join('')}</select></label>
       <label class="f"><span>Ícono</span><input class="inp" data-fk="pe-${id}" data-field="emoji" data-p="${id}" value="${esc(p.emoji)}" maxlength="4"></label>
       <label class="f wide"><span>Descripción</span><input class="inp" data-fk="pd-${id}" data-field="desc" data-p="${id}" value="${esc(p.desc)}" maxlength="120"></label>
+      <div class="f wide"><span>Foto</span><div class="photo-row">${photoTag(p,'photo-prev')}
+        ${HAS_PHOTO?`<div class="photo-btns"><button class="btn btn-ghost btn-sm" data-act="photo" data-p="${id}">${p.photo?'Cambiar foto':'Subir foto'}</button>
+          ${p.photo?`<button class="btn btn-ghost btn-sm" data-act="nophoto" data-p="${id}">Quitar foto</button>`:''}
+          <span class="muted small">Si no subes foto se usa el ícono. Al subirla eliges qué parte se ve.</span></div>`
+        :`<span class="muted small">Para usar fotos, primero corre el archivo <b>5-fotos.sql</b> en Supabase (una sola vez). Mientras, se usa el ícono.</span>`}</div></div>
     </div>
     <div><h4>Opciones de este producto</h4>${p.options.length?'':`<p class="muted small" style="margin:4px 0 0">Sin opciones. Agrega solo si el cliente debe elegir algo.</p>`}</div>
     ${p.options.map(g=>{const gid=esc(g.id);return `<div class="og-edit">
@@ -418,6 +427,11 @@ menuAdmin.onclick=async e=>{
   const p=prod(b.dataset.p),g=p&&p.options.find(x=>x.id===b.dataset.g);
   switch(b.dataset.act){
     case 'edit': ui.editing=ui.editing===p.id?null:p.id; renderMenuAdmin(); return;
+    case 'photo': {
+      const photo=await pickPhoto(); if(!photo) return;
+      p.photo=photo; toast('Foto guardada'); break;
+    }
+    case 'nophoto': p.photo=''; toast('Foto quitada, se usa el ícono'); break;
     case 'addgroup': p.options.push(G('Nuevo grupo',false,false,['Opción 1'])); break;
     case 'preset': p.options.push(PRESETS[b.dataset.k]()); toast(`Plantilla "${b.dataset.k}" agregada`); break;
     case 'delgroup': p.options=p.options.filter(x=>x!==g); break;
@@ -574,3 +588,54 @@ function render(){
   const {data:{session}}=await sb.auth.getSession();
   if(session) enter(session); else showLogin();
 })();
+
+/* =========================================================
+   Fotos de platillos: subir y recortar (todas quedan 4:3)
+   ========================================================= */
+if(sb) sb.from('products').select('photo').limit(1).then(({error})=>{HAS_PHOTO=!error;if(ui.editing)renderMenuAdmin();});
+function pickPhoto(){
+  return new Promise(resolve=>{
+    const inp=document.createElement('input');inp.type='file';inp.accept='image/*';
+    inp.onchange=()=>{const f=inp.files&&inp.files[0];if(!f)return resolve(null);
+      if(!f.type.startsWith('image/')){toast('Ese archivo no es una imagen. Sube JPG o PNG.');return resolve(null);}
+      cropPhoto(f).then(resolve);};
+    inp.click();
+  });
+}
+function cropPhoto(file){
+  return new Promise(resolve=>{
+    const img=new Image(),url=URL.createObjectURL(file);
+    img.onerror=()=>{URL.revokeObjectURL(url);toast('No pudimos abrir esa imagen. Prueba con JPG o PNG.');resolve(null);};
+    img.onload=()=>{
+      const W=640,H=480; // tamaño final de todas las fotos
+      const ov=document.createElement('div');ov.className='crop-ov';
+      ov.innerHTML=`<div class="crop-box" role="dialog" aria-modal="true" aria-label="Recortar foto">
+        <h3>Elige qué parte de la foto se verá</h3>
+        <p class="muted small">Arrastra la foto para moverla y usa la barra para acercar. Todas las fotos del menú quedan del mismo tamaño.</p>
+        <canvas class="crop-cv" width="${W}" height="${H}"></canvas>
+        <label class="crop-zoom"><span class="small">Acercar</span><input type="range" min="1" max="4" step="0.01" value="1" aria-label="Acercar"></label>
+        <div class="crop-foot"><button class="btn btn-ghost" data-x>Cancelar</button><button class="btn btn-brand" data-ok>Usar esta foto</button></div></div>`;
+      document.body.appendChild(ov);
+      const cv=ov.querySelector('canvas'),cx=cv.getContext('2d'),zr=ov.querySelector('input');
+      const base=Math.max(W/img.width,H/img.height);let z=1,x=0,y=0;
+      const draw=()=>{
+        const s=base*z,w=img.width*s,h=img.height*s,mx=(w-W)/2,my=(h-H)/2;
+        x=Math.max(-mx,Math.min(mx,x));y=Math.max(-my,Math.min(my,y));
+        cx.fillStyle='#fff';cx.fillRect(0,0,W,H);cx.drawImage(img,(W-w)/2+x,(H-h)/2+y,w,h);
+      };
+      draw();
+      let drag=null;
+      cv.onpointerdown=e=>{cv.setPointerCapture(e.pointerId);drag={x:e.clientX,y:e.clientY,ox:x,oy:y};};
+      cv.onpointermove=e=>{if(!drag)return;const k=W/cv.getBoundingClientRect().width;x=drag.ox+(e.clientX-drag.x)*k;y=drag.oy+(e.clientY-drag.y)*k;draw();};
+      cv.onpointerup=cv.onpointercancel=()=>{drag=null;};
+      zr.oninput=()=>{z=+zr.value;draw();};
+      cv.onwheel=e=>{e.preventDefault();z=Math.min(4,Math.max(1,z*(e.deltaY<0?1.08:1/1.08)));zr.value=z;draw();};
+      const done=v=>{URL.revokeObjectURL(url);ov.remove();resolve(v);};
+      ov.querySelector('[data-x]').onclick=()=>done(null);
+      ov.onkeydown=e=>{if(e.key==='Escape')done(null);};
+      ov.querySelector('[data-ok]').onclick=()=>done(cv.toDataURL('image/jpeg',.78));
+      ov.querySelector('[data-ok]').focus();
+    };
+    img.src=url;
+  });
+}
