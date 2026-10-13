@@ -160,13 +160,20 @@
   function waLink(numero, mensaje) {
     var n = String(numero || '').replace(/[^\d]/g, '');
     if (!n) return '';
+    if (n.length === 10) n = '52' + n; // numero de Mexico sin lada de pais: wa.me la necesita
     return 'https://wa.me/' + n + (mensaje ? '?text=' + encodeURIComponent(mensaje) : '');
+  }
+  // Acepta @usuario o el link completo (con o sin https://) sin volver a pegarle el dominio.
+  function urlDe(r, h) {
+    if (!h) return '';
+    if (/^https?:\/\//i.test(h)) return h;
+    if (/^(www\.)?[a-z0-9-]+(\.[a-z0-9-]+)+\//i.test(h)) return 'https://' + h;
+    return r.link(h);
   }
   function linkDe(r, data) {
     var d = data[r.key] || {};
     if (r.key === 'whatsapp') return waLink(d.numero);
-    if (d.link) return d.link;
-    return d.handle ? (/^https?:\/\//i.test(d.handle) ? d.handle : r.link(d.handle)) : '';
+    return urlDe(r, d.handle || '');
   }
   function valorDe(r, data) {
     var d = data[r.key] || {};
@@ -239,7 +246,7 @@
           } else {
             var d = actual[k] || {};
             d.handle = val;
-            d.link = val ? (/^https?:\/\//i.test(val) ? val : r.link(val)) : '';
+            d.link = urlDe(r, val);
             actual[k] = d;
           }
         });

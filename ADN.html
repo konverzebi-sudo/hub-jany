@@ -1426,6 +1426,13 @@ function saveTono(){
 // ══════════════════════════════════════════════════════════════
 // 4. REDES Y CONTENIDO (fusionado)
 // ══════════════════════════════════════════════════════════════
+// Acepta @usuario o el link completo (con o sin https://) sin volver a pegarle el dominio.
+function linkRed(def, h){
+  if(/^https?:\/\//i.test(h)) return h;
+  if(/^(www\.)?[a-z0-9-]+(\.[a-z0-9-]+)+\//i.test(h)) return 'https://' + h;
+  return def.builder(h);
+}
+
 const CANAL_DEFS_REDES = {
   website:   { icon:'🌐', nombre:'Website',   builder: h => h.startsWith('http') ? h : 'https://'+h, placeholder:'tudominio.com' },
   facebook:  { icon:'📘', nombre:'Facebook',  builder: h => `https://facebook.com/${h}`, placeholder:'usuario o página' },
@@ -1441,7 +1448,8 @@ let redesState = {};
 
 function buildWaLink(numero, mensaje){
   if(!numero) return '';
-  const num = numero.replace(/[^\d+]/g,'');
+  let num = numero.replace(/[^\d]/g,'');
+  if(num.length === 10) num = '52' + num; // numero de Mexico sin lada de pais: wa.me la necesita
   const base = `https://wa.me/${num}`;
   if(!mensaje) return base;
   return base + '?text=' + encodeURIComponent(mensaje);
@@ -1456,7 +1464,7 @@ function renderRedesCanales(){
     const row = document.createElement('div');
     row.className = 'channel-row';
     const handle = redesState[key]?.handle || '';
-    const link   = handle ? def.builder(handle) : '';
+    const link   = handle ? linkRed(def, handle) : '';
     row.innerHTML = `
       <span class="channel-icon">${def.icon}</span>
       <span class="channel-name">${def.nombre}</span>
@@ -1468,7 +1476,7 @@ function renderRedesCanales(){
     input.addEventListener('input', () => {
       if(!redesState[key]) redesState[key] = {};
       redesState[key].handle = input.value.trim();
-      redesState[key].link   = redesState[key].handle ? def.builder(redesState[key].handle) : '';
+      redesState[key].link   = redesState[key].handle ? linkRed(def, redesState[key].handle) : '';
       linkEl.textContent = redesState[key].link || '';
     });
     container.appendChild(row);
