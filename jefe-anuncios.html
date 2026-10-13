@@ -121,9 +121,15 @@
   .gen-badge{display:inline-block;font-size:12px;font-family:'Inter',sans-serif;font-weight:700;color:var(--accent-text);background:var(--accent-soft);border-radius:100px;padding:2px 9px;margin-left:6px;white-space:nowrap;}
 
   /* CARDS (calcado de item-card de Jefe Contenido) */
-  .cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:18px;}
+  .cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr));gap:18px;align-items:start;}
+  .cards-grid .item-card:has(details[open]){grid-column:1/-1;}
   .estado-seccion{margin-bottom:28px;}
-  .estado-seccion-title{font-family:'Sora',sans-serif;font-weight:800;font-size:19px;color:var(--text);margin:0 0 14px;padding-bottom:10px;border-bottom:2px solid var(--line);}
+  .estado-seccion-title{display:flex;align-items:center;gap:10px;font-family:'Sora',sans-serif;font-weight:800;font-size:18px;letter-spacing:.02em;text-transform:uppercase;margin:0 0 16px;padding:14px 22px;border-radius:16px;background:var(--st-idea-bg);color:var(--st-idea-fg);}
+  .estado-seccion-title.proceso{background:var(--st-proceso-bg);color:var(--st-proceso-fg);}
+  .estado-seccion-title.publicado{background:var(--st-publicado-bg);color:var(--st-publicado-fg);}
+  .estado-seccion-title .estado-count{font-family:'Inter',sans-serif;font-size:14px;font-weight:700;opacity:.75;}
+  .item-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;}
+  .item-card textarea.gancho-input{font-size:18px;}
   .empty-row{padding:22px;text-align:center;color:var(--text-dim);font-size:15.5px;background:var(--surface);border:1px dashed #C9C9C9;border-radius:16px;}
   .item-card{background:var(--surface);border:1px solid var(--line);border-left:5px solid var(--horizon,var(--adq));border-radius:18px;padding:20px 22px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow-card);transition:transform .12s,box-shadow .12s;}
   .item-card.dragging{opacity:.4;}
@@ -1074,8 +1080,8 @@ function renderGuardadas(container){
     const seccion = document.createElement('div');
     seccion.className = 'estado-seccion';
     const titulo = document.createElement('p');
-    titulo.className = 'estado-seccion-title';
-    titulo.textContent = `${g.label} (${delGrupo.length})`;
+    titulo.className = 'estado-seccion-title ' + g.key;
+    titulo.innerHTML = `${g.label} <span class="estado-count">${delGrupo.length}</span>`;
     seccion.appendChild(titulo);
     const grid = document.createElement('div');
     grid.className='cards-grid';
@@ -1746,33 +1752,38 @@ function buildAnuncioCard(item){
   card.className='item-card';
   card.dataset.id = item.id;
   card.draggable = true;
+  const prodItem = productos.find(p=>p&&p.id===item.producto_id);
+  const nombreProd = prodItem ? prodItem.nombre : '';
   card.style.setProperty('--horizon', 'var(--'+(item.etapa==='adquisicion'?'adq':item.etapa==='consideracion'?'con':'conv')+')');
   card.innerHTML = `
     <div class="item-top">
       <span class="drag-handle" title="Arrastra para reordenar">⠿</span>
-      <select class="estado-select ${item.estado}" data-id="${item.id}" data-field="estado">
-        <option value="idea" ${item.estado==='idea'?'selected':''}>💡 Idea</option>
-        <option value="proceso" ${item.estado==='proceso'?'selected':''}>⚙️ En proceso</option>
-        <option value="publicado" ${item.estado==='publicado'?'selected':''}>🔥 Publicado</option>
-      </select>
+      <span class="badge badge-${item.etapa}">${ETAPA_LABEL[item.etapa]||item.etapa}</span>
       <div class="item-top-right">
-        <input type="date" class="fecha-input" value="${item.fecha||''}" data-id="${item.id}" data-field="fecha">
         <button type="button" class="item-del" data-id="${item.id}" title="Eliminar campaña">✕</button>
       </div>
     </div>
     <textarea class="gancho-input" data-id="${item.id}" data-field="titulo">${escHtml(item.titulo)}</textarea>
     <div class="badges-row">
-      <span class="badge badge-${item.etapa}">${ETAPA_LABEL[item.etapa]||item.etapa}</span>
       <span class="badge badge-tipo">${escHtml(item.formato)}</span>
+      ${nombreProd?`<span class="badge badge-tipo">${escHtml(nombreProd)}</span>`:''}
       ${item.audiencia?`<span class="badge badge-tipo">Audiencia ${escHtml(item.audiencia)}</span>`:''}
       ${item.angulo?`<span class="badge badge-tipo">${escHtml(item.angulo)}</span>`:''}
     </div>
-    <div class="clasif-row" style="display:flex;gap:10px;flex-wrap:wrap;">
-      ${clasifFieldsHtml(item)}
+    <div class="item-foot">
+      <select class="estado-select ${item.estado}" data-id="${item.id}" data-field="estado">
+        <option value="idea" ${item.estado==='idea'?'selected':''}>💡 Idea</option>
+        <option value="proceso" ${item.estado==='proceso'?'selected':''}>⚙️ En proceso</option>
+        <option value="publicado" ${item.estado==='publicado'?'selected':''}>🔥 Publicado</option>
+      </select>
+      <input type="date" class="fecha-input" value="${item.fecha||''}" data-id="${item.id}" data-field="fecha">
     </div>
     <details class="item-details">
       <summary>Ver detalles</summary>
       <div class="detail-grid">
+        <div class="clasif-row" style="display:flex;gap:10px;flex-wrap:wrap;">
+          ${clasifFieldsHtml(item)}
+        </div>
         ${textFieldHtml(item,'objetivo','Objetivo del anuncio')}
         <div class="detail-field retro-field">
           <label>💬 Retroalimentación (se usa en las próximas generaciones)</label>
