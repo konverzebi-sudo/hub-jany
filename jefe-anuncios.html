@@ -222,8 +222,34 @@
   .btn-pill-gray{border:none;background:#E3E3E3;color:#333;border-radius:100px;padding:12px 24px;font-family:'Sora',sans-serif;font-weight:800;font-size:15px;text-transform:uppercase;letter-spacing:.02em;cursor:pointer;transition:.15s;}
   .btn-pill-gray:hover{background:#D5D5D5;}
   .anuncios-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:4px;}
-  .campana-fields-grid{display:grid;grid-template-columns:repeat(4,minmax(160px,1fr)) minmax(260px,2fr);gap:14px;}
-  @media (max-width:1100px){.campana-fields-grid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr));}}
+  .campana-fields-grid{display:grid;grid-template-columns:repeat(5,minmax(140px,1fr)) minmax(240px,2fr);gap:14px;}
+  .campana-fields-grid input[type=date]{background:var(--surface-2);border:1px solid var(--line);border-radius:12px;color:var(--text);font-family:'Inter',sans-serif;font-size:16px;padding:10px 12px;outline:none;color-scheme:light;width:100%;}
+  @media (max-width:1280px){.campana-fields-grid{grid-template-columns:repeat(auto-fit,minmax(200px,1fr));}}
+
+  /* CAMPAÑA GUARDADA: panel lima con el resumen */
+  .campana-resumen{background:var(--accent);border-radius:28px;padding:22px 26px;margin-bottom:18px;display:flex;flex-direction:column;gap:18px;box-shadow:var(--shadow-card);color:#1A1A1A;}
+  .res-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  .res-pill-white{background:#fff;color:#1A1A1A;font-family:'Sora',sans-serif;font-weight:800;font-size:17px;text-transform:uppercase;letter-spacing:.02em;padding:10px 24px;border-radius:100px;}
+  .res-btn{border:none;background:#4B4B4B;color:var(--accent);font-family:'Sora',sans-serif;font-weight:800;font-size:14.5px;text-transform:uppercase;letter-spacing:.02em;padding:10px 20px;border-radius:100px;cursor:pointer;transition:.15s;}
+  .res-btn:hover{filter:brightness(1.2);}
+  .res-btn-white{background:#fff;color:#1A1A1A;}
+  .res-body{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:22px;align-items:start;}
+  .res-info{display:flex;flex-direction:column;gap:16px;}
+  .res-fecha{font-family:'Sora',sans-serif;font-weight:800;font-size:17px;text-transform:uppercase;}
+  .res-fecha span{font-family:'Inter',sans-serif;font-weight:600;text-transform:none;}
+  .res-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+  .res-row-top{align-items:flex-start;}
+  .res-pill-dark{background:#4B4B4B;color:var(--accent);font-family:'Sora',sans-serif;font-weight:800;font-size:15.5px;text-transform:uppercase;letter-spacing:.02em;padding:9px 20px;border-radius:100px;}
+  .res-valor{font-size:16px;line-height:1.5;font-weight:500;flex:1 1 220px;min-width:0;}
+  .res-spec{margin-bottom:6px;}
+  .res-valor,.res-spec,.res-anuncio,.res-pill-dark,.res-pill-white{overflow-wrap:anywhere;min-width:0;max-width:100%;}
+  .res-anuncio{flex-wrap:wrap;}
+  .campana-resumen{max-width:100%;overflow:hidden;}
+  .res-anuncios{background:#FAFFE0;border-radius:14px;padding:14px 18px;display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto;}
+  .res-anuncio{display:flex;align-items:center;gap:10px;font-size:15.5px;padding:5px 0;}
+  .res-check{color:#4E7A00;font-weight:800;flex-shrink:0;}
+  .res-vacio{color:var(--text-dim);}
+  @media (max-width:900px){.res-body{grid-template-columns:1fr;}}
   .campana-fields-grid .mode-field input,.campana-fields-grid .mode-field select{width:100%;}
   .conjuntos-wrap{display:flex;flex-direction:column;gap:14px;margin-top:4px;padding-top:14px;border-top:1px dashed #CFCFCF;}
   .conjuntos-title{font-family:'Sora',sans-serif;font-weight:700;font-size:16px;color:var(--text);}
@@ -399,7 +425,7 @@ function mkIdeaId(etapa){ return etapa+'_'+Date.now().toString(36)+Math.random()
 function mkCardId(){ return 'ac'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 function mkCampanaId(){ return 'camp'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 function mkConjuntoId(){ return 'conj'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
-function mkCampana(){ return { id:mkCampanaId(), objetivo:'', tipo:'', grupo_id:'', producto_id:'', resultado_esperado:'', conjuntos:[] }; }
+function mkCampana(){ return { id:mkCampanaId(), objetivo:'', tipo:'', grupo_id:'', producto_id:'', resultado_esperado:'', fecha_inicio:'', guardada:false, conjuntos:[] }; }
 // Presupuesto mínimo recomendado y duración por defecto -- regla fija del negocio, no depende
 // del contexto de marca, así que se aplica siempre igual (no se le pide a la IA que la decida).
 const PRESUPUESTO_DIARIO_MINIMO = '$100 MXN (mínimo recomendado)';
@@ -1136,7 +1162,58 @@ function renderEstructura(container){
   }));
 }
 
+// Resumen de una campaña ya guardada: panel lima con fecha de inicio, objetivo, especificaciones del
+// conjunto y los anuncios vinculados. "Editar campaña" vuelve al formulario.
+function buildCampanaResumenCard(campana){
+  const card = document.createElement('div');
+  card.className = 'campana-resumen';
+  const prod = productos.find(p=>p&&p.id===campana.producto_id);
+  const grupo = grupos.find(g=>g&&g.id===campana.grupo_id);
+  const nombre = prod ? prod.nombre : (grupo ? grupo.nombre : 'Todo el grupo');
+  const obj = OBJETIVOS.find(o=>o.key===campana.objetivo);
+  const objetivoTxt = [obj ? obj.label.replace(/^\S+\s/,'') : '', campana.tipo, campana.resultado_esperado].filter(Boolean).join(' · ') || '—';
+  const fechaTxt = campana.fecha_inicio ? campana.fecha_inicio.split('-').reverse().join('/') : '—';
+  const specs = (campana.conjuntos||[]).map((c,i)=>{
+    const partes = [c.ubicacion, c.edad&&('Edad '+c.edad), c.genero, c.presupuesto_diario&&('Presupuesto '+c.presupuesto_diario), c.duracion&&('Duración '+c.duracion), c.tipo_contenido, c.intereses].filter(Boolean);
+    return `<div class="res-spec"><b>Conjunto ${i+1}:</b> ${escHtml(partes.join(' · ') || '—')}</div>`;
+  }).join('') || '<div class="res-spec">—</div>';
+  const idsVinculados = [...new Set((campana.conjuntos||[]).flatMap(c=>c.anuncios_ids||[]))];
+  const anuncios = idsVinculados.map(id=>cards.find(c=>c.id===id)).filter(Boolean);
+  card.innerHTML = `
+    <div class="res-top">
+      <span class="res-pill-white">Campaña: ${escHtml(nombre)}</span>
+      <div class="campana-top-actions">
+        <button type="button" class="res-btn" data-nueva-campana>+ Nueva campaña</button>
+        <button type="button" class="res-btn res-btn-white" data-editar-campana>Editar campaña</button>
+      </div>
+    </div>
+    <div class="res-body">
+      <div class="res-info">
+        <div class="res-fecha">Fecha de inicio: <span>${escHtml(fechaTxt)}</span></div>
+        <div class="res-row"><span class="res-pill-dark">Objetivo de campaña:</span><span class="res-valor">${escHtml(objetivoTxt)}</span></div>
+        <div class="res-row res-row-top"><span class="res-pill-dark">Especificaciones del conjunto</span><div class="res-valor">${specs}</div></div>
+      </div>
+      <div class="res-anuncios">
+        ${anuncios.length ? anuncios.map(c=>`
+          <div class="res-anuncio">
+            <span class="res-check">✔</span>
+            <span class="badge badge-${c.etapa}">${ETAPA_LABEL[c.etapa]||c.etapa}</span>
+            <span class="anuncio-link-titulo" data-editar-card="${c.id}" title="Abrir y editar esta campaña">${escHtml(c.titulo)} ✎</span>
+          </div>`).join('') : '<div class="res-anuncio res-vacio">Todavía no vinculaste anuncios a esta campaña.</div>'}
+      </div>
+    </div>
+  `;
+  card.querySelector('[data-editar-campana]').addEventListener('click', ()=>{
+    campana.guardada = false; scheduleEstructuraSave(); render();
+  });
+  card.querySelectorAll('[data-editar-card]').forEach(el=>{
+    el.addEventListener('click', ()=>irAEditarCard(el.dataset.editarCard));
+  });
+  return card;
+}
+
 function buildCampanaEstructuraCard(campana){
+  if(campana.guardada) return buildCampanaResumenCard(campana);
   const card = document.createElement('div');
   card.className = 'campana-card';
 
@@ -1180,6 +1257,10 @@ function buildCampanaEstructuraCard(campana){
           ${tiposDisponibles.map(t=>`<option value="${escHtml(t)}"${campana.tipo===t?' selected':''}>${escHtml(t)}</option>`).join('')}
         </select>
       </div>
+      <div class="mode-field">
+        <label>Fecha de inicio</label>
+        <input type="date" data-campana="${campana.id}" data-field="fecha_inicio" value="${escHtml(campana.fecha_inicio||'')}">
+      </div>
       <div class="mode-field campo-ancho">
         <label>Resultado esperado</label>
         <input type="text" data-campana="${campana.id}" data-field="resultado_esperado" placeholder="Ej: Ventas por chat / Citas por chat / Ventas por sitio web" value="${escHtml(campana.resultado_esperado)}">
@@ -1211,6 +1292,10 @@ function buildCampanaEstructuraCard(campana){
       scheduleEstructuraSave();
       render();
     });
+  });
+  card.querySelector('input[data-field="fecha_inicio"]').addEventListener('input',(e)=>{
+    campana.fecha_inicio = e.target.value;
+    scheduleEstructuraSave();
   });
   card.querySelector('input[data-field="resultado_esperado"]').addEventListener('input',(e)=>{
     campana.resultado_esperado = e.target.value;
@@ -1301,11 +1386,11 @@ function buildConjuntoCard(campana, conjunto){
     scheduleEstructuraSave();
   });
   card.querySelector('[data-guardar-estructura]').addEventListener('click', async (e)=>{
-    const btn = e.currentTarget;
+    // Guarda y pasa a la vista resumen (panel lima) de la campaña.
+    campana.guardada = true;
     clearTimeout(estructuraSaveTimer);
     await guardarEstructura();
-    const prev = btn.textContent; btn.textContent = 'Guardado ✓';
-    setTimeout(()=>{ btn.textContent = prev; }, 1600);
+    render();
   });
   card.querySelector('[data-ir-guardadas]').addEventListener('click', ()=>{
     currentTab = 'guardadas';
