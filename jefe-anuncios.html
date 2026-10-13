@@ -287,6 +287,9 @@
   /* CAMPAÑA GUARDADA: panel lima con el resumen */
   .campana-resumen{background:var(--accent);border-radius:28px;padding:22px 26px;margin-bottom:18px;display:flex;flex-direction:column;gap:18px;box-shadow:var(--shadow-card);color:#1A1A1A;}
   .res-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  .campana-resumen.nueva{background:var(--surface);border:1px solid var(--line);border-left:5px solid var(--accent);}
+  .campana-resumen.nueva .res-pill-white{background:#4B4B4B;color:var(--accent);}
+  .campana-resumen.nueva .res-btn-white{background:var(--accent);color:#1A1A1A;}
   .res-pill-white{background:#fff;color:#1A1A1A;font-family:'Sora',sans-serif;font-weight:800;font-size:17px;text-transform:uppercase;letter-spacing:.02em;padding:10px 24px;border-radius:100px;}
   .res-btn{border:none;background:#4B4B4B;color:var(--accent);font-family:'Sora',sans-serif;font-weight:800;font-size:14.5px;text-transform:uppercase;letter-spacing:.02em;padding:10px 20px;border-radius:100px;cursor:pointer;transition:.15s;}
   .res-btn:hover{filter:brightness(1.2);}
@@ -1236,6 +1239,12 @@ function resAbierto(campana, clave){
   const k = campana.id+':'+clave;
   return resEstado.has(k) ? resEstado.get(k) : !campana.guardada;
 }
+// Una campaña recién creada y sin tocar va en blanco; en cuanto lleva algún dato (producto, objetivo,
+// fecha, resultado, conjuntos o guardada) pasa al panel lima.
+function campanaNueva(c){
+  return !c.guardada && !c.objetivo && !c.tipo && !c.producto_id && !c.grupo_id && !c.fecha_inicio
+    && !c.resultado_esperado && !(c.conjuntos||[]).length;
+}
 function nombreAlcance(campana){
   const prod = productos.find(p=>p&&p.id===campana.producto_id);
   const grupo = grupos.find(g=>g&&g.id===campana.grupo_id);
@@ -1275,7 +1284,7 @@ function opcionesAlcance(campana){
 
 function buildCampanaEstructuraCard(campana){
   const card = document.createElement('div');
-  card.className = 'campana-resumen';
+  card.className = 'campana-resumen' + (campanaNueva(campana) ? ' nueva' : '');
   const tiposDisponibles = OBJETIVO_TIPO_MAP[campana.objetivo] || [];
   const abObj = resAbierto(campana,'obj'), abEsp = resAbierto(campana,'esp');
 
@@ -1375,10 +1384,12 @@ function buildCampanaEstructuraCard(campana){
   });
   card.querySelector('input[data-field="fecha_inicio"]').addEventListener('input',(e)=>{
     campana.fecha_inicio = e.target.value;
+    card.classList.toggle('nueva', campanaNueva(campana));
     scheduleEstructuraSave();
   });
   card.querySelector('input[data-field="resultado_esperado"]').addEventListener('input',(e)=>{
     campana.resultado_esperado = e.target.value;
+    card.classList.toggle('nueva', campanaNueva(campana));
     scheduleEstructuraSave();
   });
   card.querySelector('[data-campana-add-conjunto]').addEventListener('click', ()=>{
