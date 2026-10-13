@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Panel del restaurante</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+
+<!-- ACCESO -->
+<div class="login-wrap hidden" id="login">
+  <form class="login" id="loginForm">
+    <div class="tenant"><div class="tenant-logo" id="loginLogo"><span style="font-size:20px">🍽️</span></div><div><b id="loginName">Panel del restaurante</b><span>Solo personal autorizado</span></div></div>
+    <h1>Iniciar sesión</h1>
+    <label class="f"><span>Correo</span><input class="inp" type="email" id="email" autocomplete="username" required></label>
+    <label class="f"><span>Contraseña</span><input class="inp" type="password" id="password" autocomplete="current-password" required></label>
+    <p class="err" id="loginErr" role="alert"></p>
+    <button class="btn btn-brand" type="submit" id="loginBtn">Entrar</button>
+  </form>
+</div>
+
+<!-- PANEL -->
+<div class="app hidden" id="app">
+  <aside class="side">
+    <div class="tenant">
+      <div class="tenant-logo" id="sideLogo"></div>
+      <div><b id="sideName"></b><span>Panel del restaurante</span></div>
+    </div>
+    <nav class="nav" aria-label="Secciones">
+      <div class="nav-label">Operación</div>
+      <button data-view="live"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="10" y="4" width="5" height="16" rx="1.5"/><rect x="17" y="4" width="4" height="16" rx="1.5"/></svg>En vivo</button>
+      <button data-view="cliente"><svg class="i" viewBox="0 0 24 24"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M10.5 18.5h3"/></svg>Vista cliente</button>
+      <button data-view="caja"><svg class="i" viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>Caja <span class="badge" id="bCaja"></span></button>
+      <button data-view="cocina"><svg class="i" viewBox="0 0 24 24"><path d="M12 3c1 3 4 4.5 4 8.5a4 4 0 0 1-8 0c0-1.7.8-2.8 1.6-3.7.3 1.4 1 2.2 1.9 2.2 0-2.6-.5-4.6.5-7z"/><path d="M6 21h12"/></svg>Cocina <span class="badge" id="bCocina"></span></button>
+      <div class="nav-label">Configuración</div>
+      <button data-view="menu"><svg class="i" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 21H20"/><path d="M9 8h7M9 11.5h5"/></svg>Menú y opciones</button>
+      <button data-view="marca"><svg class="i" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18c1 0 1.6-.8 1.6-1.6 0-1.3-1.1-1.6-1.1-2.8 0-1 .8-1.6 1.8-1.6H17a4 4 0 0 0 4-4C21 6.6 17 3 12 3z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7" r="1"/><circle cx="15" cy="7.5" r="1"/></svg>Marca y colores</button>
+      <button data-view="qr"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v.01M14 21h7v-4"/></svg>Códigos QR</button>
+    </nav>
+    <div class="side-foot">
+      <div class="live off"><span class="dot"></span><span id="syncState">Conectando…</span></div>
+      <div class="who" id="whoAmI"></div>
+      <button class="linkbtn" id="logoutBtn">Cerrar sesión</button>
+    </div>
+  </aside>
+
+  <div class="content">
+    <div class="page-head"><div><h2 id="pageTitle"></h2><p id="pageDesc"></p></div></div>
+
+    <div class="views" id="views">
+      <!-- CLIENTE (el menú real de una mesa, dentro de un celular) -->
+      <section id="v-cliente" aria-label="Vista del cliente">
+        <div class="col-title">Cliente en la mesa <select class="inp" id="liveTable" aria-label="Mesa que se muestra" style="width:auto;padding:3px 8px;font-size:13px"></select></div>
+        <div class="phone-wrap"><div class="phone-frame live-phone"><iframe id="clientFrame" title="Menú del cliente"></iframe></div></div>
+      </section>
+
+      <!-- CAJA -->
+      <section id="v-caja" aria-label="Caja">
+        <div class="col-title live-only">Caja</div>
+        <div class="kpis">
+          <div class="kpi"><span>Por confirmar</span><b id="kPend">0</b></div>
+          <div class="kpi"><span>En cocina</span><b id="kCook">0</b></div>
+          <div class="kpi"><span>Mesas abiertas</span><b id="kMesas">0</b></div>
+          <div class="kpi"><span>Venta del día</span><b id="kVenta">$0</b></div>
+        </div>
+        <div class="caja-grid">
+          <div class="card card-pad"><h3>Pedidos por confirmar</h3><p class="sub">Revisa y envía a cocina, o rechaza si algo no procede.</p><div id="pendingList"></div></div>
+          <div class="card card-pad"><h3>Mesas</h3><p class="sub">Cuentas abiertas y lo que falta por cobrar.</p><div class="tables" id="tablesGrid"></div></div>
+        </div>
+      </section>
+
+      <!-- COCINA -->
+      <section id="v-cocina" aria-label="Cocina">
+        <div class="col-title live-only">Cocina</div>
+        <div class="kds">
+          <div class="kds-head"><h3>Pantalla de cocina</h3><span>Solo pedidos confirmados por caja</span></div>
+          <div class="kcols">
+            <div class="kcol"><h4><i style="background:#5B8DEF"></i>Por preparar<em id="cNew"></em></h4><div id="kNew"></div></div>
+            <div class="kcol"><h4><i style="background:#F2B23A"></i>Preparando<em id="cPrep"></em></h4><div id="kPrep"></div></div>
+            <div class="kcol"><h4><i style="background:#4CCB8D"></i>Listo para entregar<em id="cReady"></em></h4><div id="kReady"></div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- MENÚ -->
+      <section id="v-menu" aria-label="Menú y opciones">
+        <div class="card card-pad">
+          <h3>Categorías</h3>
+          <p class="sub">Escríbelas en el orden en que quieres que aparezcan, separadas por comas.</p>
+          <input class="inp" id="catsInput" data-fk="cats" placeholder="Entradas, Platos fuertes, Bebidas, Postres">
+        </div>
+        <div class="card card-pad"><div id="menuAdmin"></div></div>
+      </section>
+
+      <!-- MARCA -->
+      <section id="v-marca" aria-label="Marca y colores">
+        <div class="brand-grid">
+          <div>
+            <div class="card card-pad">
+              <h3>Tu logo</h3>
+              <p class="sub">Súbelo en PNG, JPG o SVG. Detectamos tus colores y armamos la paleta de toda la plataforma.</p>
+              <div class="drop">
+                <label class="drop-zone" id="dropZone" tabindex="0" aria-label="Subir logo">
+                  <span>Arrastra tu logo aquí</span>
+                  <input type="file" id="logoInput" accept="image/*" class="hidden">
+                </label>
+                <div class="drop-actions">
+                  <label class="f"><span>Nombre del restaurante</span><input class="inp" id="nameInput" data-fk="rname" maxlength="40"></label>
+                  <div class="row">
+                    <button class="btn btn-brand" id="uploadBtn">Subir logo</button>
+                    <button class="btn btn-ghost" id="resetThemeBtn">Volver a naranja y negro</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card card-pad">
+              <h3>Colores detectados</h3>
+              <p class="sub">Extraídos de tu logo, del más presente al menos. El Pantone es la equivalencia más cercana, confírmalo con tu guía impresa.</p>
+              <div class="swatches" id="swatches"></div>
+            </div>
+
+            <div class="card card-pad">
+              <h3>Combinaciones sugeridas</h3>
+              <p class="sub">Cuidamos que los textos y botones se lean bien en cada una. Elige la que más te guste.</p>
+              <div class="combos" id="combos"></div>
+            </div>
+
+            <div class="card card-pad">
+              <h3>Ajuste fino</h3>
+              <p class="sub">Si quieres, cambia cualquier color a mano. Los cambios se aplican al instante.</p>
+              <div class="tune" id="tune"></div>
+              <div class="check" id="contrastCheck"></div>
+            </div>
+          </div>
+          <div class="sticky-prev">
+            <div class="col-title">Así lo verán tus clientes</div>
+            <div class="phone-wrap"><div class="phone-frame"><iframe id="previewFrame" title="Vista previa del menú" src="mesa/1/?preview=1"></iframe></div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- QR -->
+      <section id="v-qr" aria-label="Códigos QR">
+        <div class="card card-pad">
+          <h3>Un código por mesa</h3>
+          <p class="sub">Imprímelos y pégalos en cada mesa. Se generan con el color de tu marca. Toca uno para abrir el menú de esa mesa.</p>
+          <div class="qr-tools">
+            <label class="f"><span>Número de mesas</span><input class="inp" type="number" min="1" max="100" id="tablesInput" data-fk="tables"></label>
+            <button class="btn btn-brand" id="printBtn">Imprimir códigos</button>
+          </div>
+          <div class="qr-grid" id="qrGrid"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script src="config.js"></script>
+<script src="assets/common.js"></script>
+<script src="assets/panel.js"></script>
+</body>
+</html>
