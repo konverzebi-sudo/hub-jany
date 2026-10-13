@@ -91,10 +91,10 @@
     '.jn-red svg{width:15px;height:15px}',
     '.jn-red-add{border-color:#B8F725;background:#B8F725;color:#0F0B16;cursor:pointer;padding:0}',
     '.jn-red-add:hover{color:#0F0B16}',
-    '.jn-red-txt{border:0;background:transparent;color:var(--text-dim,#B6A9C7);font:500 12.5px Inter,system-ui,sans-serif;cursor:pointer;padding:0}',
-    '.jn-red-txt:hover{color:var(--text,#F3EEF9)}',
+    'button.jn-red{background:transparent;cursor:pointer;padding:0}',
+    '.jn-red-off{opacity:.38;border-style:dashed}',
+    '.jn-red-off:hover{opacity:1}',
     '.jn-min .jn-redes{flex-direction:column;padding:8px 0 4px}',
-    '.jn-min .jn-red-txt{display:none}',
     '.jn-rm{position:fixed;inset:0;z-index:120;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px}',
     '.jn-rm-box{width:100%;max-width:420px;max-height:calc(100vh - 32px);overflow-y:auto;background:var(--surface,#181120);color:var(--text,#F3EEF9);',
     'border:1px solid var(--line,#332A3D);border-radius:16px;padding:20px;font-family:Inter,system-ui,sans-serif;box-shadow:0 20px 60px rgba(0,0,0,.5)}',
@@ -160,13 +160,20 @@
   function waLink(numero, mensaje) {
     var n = String(numero || '').replace(/[^\d]/g, '');
     if (!n) return '';
+    if (n.length === 10) n = '52' + n; // numero de Mexico sin lada de pais: wa.me la necesita
     return 'https://wa.me/' + n + (mensaje ? '?text=' + encodeURIComponent(mensaje) : '');
+  }
+  // Acepta @usuario o el link completo (con o sin https://) sin volver a pegarle el dominio.
+  function urlDe(r, h) {
+    if (!h) return '';
+    if (/^https?:\/\//i.test(h)) return h;
+    if (/^(www\.)?[a-z0-9-]+(\.[a-z0-9-]+)+\//i.test(h)) return 'https://' + h;
+    return r.link(h);
   }
   function linkDe(r, data) {
     var d = data[r.key] || {};
     if (r.key === 'whatsapp') return waLink(d.numero);
-    if (d.link) return d.link;
-    return d.handle ? (/^https?:\/\//i.test(d.handle) ? d.handle : r.link(d.handle)) : '';
+    return urlDe(r, d.handle || '');
   }
   function valorDe(r, data) {
     var d = data[r.key] || {};
@@ -185,30 +192,35 @@
   }
 
   function pintarRedes(cont, data) {
+    // Todas las redes se ven: con link abren la red; sin link (tenue) abren el editor de esa red.
+    // Clic derecho (o dejar presionado en celular) edita el link de esa red.
     var html = '';
-    var alguna = false;
     REDES.forEach(function (r) {
       var url = linkDe(r, data);
-      if (!url) return;
-      alguna = true;
-      html += '<a class="jn-red" href="' + esc(url) + '" target="_blank" rel="noopener" title="' + esc(r.nombre) + '" aria-label="' + esc(r.nombre) + '">' + svgRed(r) + '</a>';
+      if (url) {
+        html += '<a class="jn-red" data-k="' + r.key + '" href="' + esc(url) + '" target="_blank" rel="noopener" title="' + esc(r.nombre) + ' (clic derecho para editar)" aria-label="' + esc(r.nombre) + '">' + svgRed(r) + '</a>';
+      } else {
+        html += '<button type="button" class="jn-red jn-red-off" data-k="' + r.key + '" title="Agregar ' + esc(r.nombre) + '" aria-label="Agregar ' + esc(r.nombre) + '">' + svgRed(r) + '</button>';
+      }
     });
     html += '<button type="button" class="jn-red jn-red-add" title="Agregar o editar mis redes" aria-label="Agregar o editar mis redes">' +
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg></button>';
-    if (!alguna) html += '<button type="button" class="jn-red-txt">Agregar mis redes</button>';
     cont.innerHTML = html;
   }
 
-  function abrirEditorRedes(data, alGuardar) {
+  // soloKey: edita solo esa red; sin el, todas.
+  function abrirEditorRedes(data, alGuardar, soloKey) {
     var box = document.createElement('div');
     box.className = 'jn-rm';
-    var campos = REDES.map(function (r) {
+    var lista = soloKey ? REDES.filter(function (r) { return r.key === soloKey; }) : REDES;
+    var titulo = soloKey ? (valorDe(lista[0], data) ? 'Editar ' : 'Agregar ') + lista[0].nombre : 'Mis redes y sitio web';
+    var campos = lista.map(function (r) {
       return '<div class="jn-rm-f"><span class="jn-red">' + svgRed(r) + '</span><div><label for="jn-rm-' + r.key + '">' + esc(r.nombre) + '</label>' +
         '<input id="jn-rm-' + r.key + '" data-k="' + r.key + '" placeholder="' + esc(r.ph) + '" value="' + esc(valorDe(r, data)) + '" autocomplete="off"></div></div>';
     }).join('');
     box.innerHTML = '<div class="jn-rm-box" role="dialog" aria-modal="true" aria-labelledby="jn-rm-t">' +
-      '<h3 id="jn-rm-t">Mis redes y sitio web</h3>' +
-      '<p>Se guardan en tu ADN (Redes y Contenido) y aparecen en la barra de todos tus Jefes. Deja vacío lo que no uses.</p>' +
+      '<h3 id="jn-rm-t">' + esc(titulo) + '</h3>' +
+      '<p>Se guarda en tu ADN (Redes y Contenido) y aparece en la barra de todos tus Jefes. Puedes pegar el link completo o tu @usuario.' + (soloKey ? '' : ' Deja vacío lo que no uses.') + '</p>' +
       campos +
       '<div class="jn-rm-act"><button type="button" class="jn-rm-ok">Guardar</button><button type="button" class="jn-rm-x">Cancelar</button><span class="jn-rm-st"></span></div></div>';
     document.body.appendChild(box);
@@ -239,7 +251,7 @@
           } else {
             var d = actual[k] || {};
             d.handle = val;
-            d.link = val ? (/^https?:\/\//i.test(val) ? val : r.link(val)) : '';
+            d.link = urlDe(r, val);
             actual[k] = d;
           }
         });
@@ -260,15 +272,24 @@
     var data = {};
     pintarRedes(cont, data);
     leerRedes().then(function (d) { data = d; pintarRedes(cont, data); });
-    cont.addEventListener('click', function (e) {
-      if (!e.target.closest('.jn-red-add, .jn-red-txt')) return;
+    function editar(soloKey) {
       if (!window.storage) return;
       document.body.classList.remove('jn-open');
       // Se abre con lo ultimo guardado por si se edito en el ADN en otra pestaña.
       leerRedes().then(function (d) {
         data = d;
-        abrirEditorRedes(data, function (nuevo) { data = nuevo; pintarRedes(cont, data); });
+        abrirEditorRedes(data, function (nuevo) { data = nuevo; pintarRedes(cont, data); }, soloKey);
       });
+    }
+    cont.addEventListener('click', function (e) {
+      var b = e.target.closest('.jn-red-add, .jn-red-off');
+      if (b) editar(b.getAttribute('data-k') || '');
+    });
+    cont.addEventListener('contextmenu', function (e) {
+      var a = e.target.closest('.jn-red[data-k]');
+      if (!a) return;
+      e.preventDefault();
+      editar(a.getAttribute('data-k'));
     });
   }
 
