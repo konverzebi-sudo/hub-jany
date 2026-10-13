@@ -45,23 +45,28 @@
   </script>
   <span class="hero-logo"><img src="/img/jefe-whatsapp-logo-lima.webp" alt="Jefe WhatsApp y Ventas" width="150" height="156"></span>
   <p class="hero-tagline">¡Vamos a cerrar esas ventas y sacarle provecho a cada conversación! Tu manual de ventas por mensaje, listo para copiar y pegar. Sube o baja por el termómetro según qué tan caliente esté la conversación.</p>
-  <div class="hero-search">
+  <div class="hero-search" id="chatPill">
     <span class="hero-lupa" aria-hidden="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
     </span>
     <span class="hero-search-sep"></span>
-    <input id="searchInput" type="text" autocomplete="off" placeholder="¿Qué te preguntó el cliente? Ej: “está caro”, “no entiendo”, “tarjeta”...">
-    <button class="hero-search-send" id="heroSendBtn" type="button" aria-label="Buscar" title="Buscar">
+    <textarea id="liveInput" rows="1" placeholder="¿Qué te escribió el cliente? Pégalo aquí…"></textarea>
+    <label class="hero-attach" title="Adjuntar captura" aria-label="Adjuntar captura">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+      <input type="file" id="liveImage" accept="image/*" hidden>
+    </label>
+    <button class="hero-search-send" id="askBtn" type="button" onclick="askAgent()" aria-label="Preguntar al Jefe" title="Preguntar al Jefe de WhatsApp y Ventas">
       <img src="/img/jefe-whatsapp-logo-negro.webp" alt="" aria-hidden="true">
     </button>
   </div>
-  <div class="search-hint">Escribe lo que te dijo el cliente y te doy la respuesta lista para copiar</div>
+  <div class="search-hint">Pega lo que te dijo el cliente (o una captura) y pulsa <b>Enter</b>: el Jefe te aconseja la mejor respuesta. Mientras escribes te muestro lo que ya tienes en tu manual.</div>
+  <span id="liveImageName" class="file-name"></span>
+  <div id="liveAnswer" class="live-answer"></div>
+  <div id="searchResults"></div>
   <div class="group-tabs" id="groupTabs"></div>
   <button type="button" class="mostrar-todas-btn" id="mostrarTodasBtn" onclick="toggleMostrarTodas()" hidden>Ver todas las pestañas (sin filtrar por grupo)</button>
   <p class="campana-hint" id="campanaHint" hidden>Estás trabajando el manual de esta campaña de temporada: se guarda aparte del manual de todo el año. Las respuestas y la asesoría se basan en ella. Si está vacío, dale &ldquo;Actualizar Estrategia con IA&rdquo;.</p>
 </header>
-
-<div id="searchResults"></div>
 
 <div class="estrategia-wrap">
   <div class="estrategia-box" id="estrategiaBox" hidden>
@@ -87,26 +92,6 @@
     </div>
     <button class="ask-btn" id="estBtn" onclick="generarEstrategia()">✨ Actualizar Estrategia con IA</button>
     <div id="estStatus" class="log-status"></div>
-  </div>
-</div>
-
-<div class="live-wrap">
-  <div class="live-box">
-    <div class="live-head">
-      <span class="live-dot"></span>
-      <h3>Consulta con el Jefe de WhatsApp y Ventas</h3>
-    </div>
-    <p class="live-sub">¡Yo te ayudo a cerrar esas VENTAS! Pega el último mensaje del cliente (o sube una captura) y te aconsejaré la mejor respuesta estratégica.</p>
-    <textarea id="liveInput" placeholder="Ej: &quot;oye pero mi negocio es de repostería, ¿esto igual me sirve?&quot;"></textarea>
-    <div class="live-controls">
-      <label class="file-btn">
-        📎 Adjuntar captura
-        <input type="file" id="liveImage" accept="image/*" hidden>
-      </label>
-      <span id="liveImageName" class="file-name"></span>
-      <button class="ask-btn" id="askBtn" onclick="askAgent()">Preguntar al Agente →</button>
-    </div>
-    <div id="liveAnswer"></div>
   </div>
 </div>
 
@@ -362,20 +347,24 @@ const searchIndex = [
 ];
 
 // ---------- SEARCH ----------
-const input = document.getElementById('searchInput');
+const input = document.getElementById('liveInput');
 const resultsBox = document.getElementById('searchResults');
 
 function normalize(s){return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");}
 
 input.addEventListener('input', () => {
-  const q = normalize(input.value.trim());
-  if(q.length < 2){ resultsBox.innerHTML = ""; return; }
+  input.style.height = 'auto';
+  input.style.height = Math.min(input.scrollHeight, 220) + 'px';
+  const crudo = input.value.trim();
+  const q = normalize(crudo);
+  // Mensajes largos son para el Jefe (Enter); la búsqueda rápida es para frases cortas.
+  if(q.length < 2 || crudo.length > 80){ resultsBox.innerHTML = ""; return; }
   const matches = searchIndex.filter(item => normalize(item.q).includes(q) || q.split(" ").some(w => w.length>2 && normalize(item.q).includes(w)));
   if(matches.length === 0){
     resultsBox.innerHTML = '<div class="no-results">No encontré coincidencia exacta — revisa la sección de Objeciones o Seguimiento manualmente 👇</div>';
     return;
   }
-  resultsBox.innerHTML = matches.map(m => `
+  resultsBox.innerHTML = matches.slice(0, 4).map(m => `
     <div class="result-card" style="border-left-color:${m.color}">
       <span class="tag" style="background:${m.color}">Cliente dice: match</span>
       <div class="q">${m.q}</div>
@@ -415,6 +404,10 @@ document.getElementById('liveImage').addEventListener('change', (e) => {
   reader.readAsDataURL(file);
 });
 
+document.getElementById('liveInput').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); askAgent(); }
+});
+
 document.getElementById('liveInput').addEventListener('paste', (e) => {
   const item = Array.from(e.clipboardData?.items || []).find((i) => i.type.startsWith('image/'));
   if(!item) return;
@@ -437,7 +430,7 @@ async function askAgent(){
     return;
   }
   btn.disabled = true;
-  btn.innerText = "Pensando...";
+  btn.classList.add('pensando');
   answerBox.innerHTML = '<div class="log-empty">El Agente está armando tu respuesta...</div>';
 
   try{
@@ -458,7 +451,7 @@ async function askAgent(){
     answerBox.innerHTML = '<div class="error-card">Hubo un error de conexión. Intenta de nuevo en un momento.</div>';
   } finally {
     btn.disabled = false;
-    btn.innerText = "Preguntar al Agente →";
+    btn.classList.remove('pensando');
   }
 }
 
@@ -1222,12 +1215,10 @@ GuiaJefe.registrar({
   pasos: [
     { selector: '#groupTabs .group-tab.active', titulo: 'Producto o grupo en el que trabajas',
       texto: 'Cada pestaña de arriba es un producto (o un grupo de negocio) con su propio manual de WhatsApp, y no se mezclan entre sí. La pestaña resaltada es con la que estás trabajando; si vienes de Jefe 366, es el producto que veníamos viendo. Para cambiar, pícale a otra.' },
-    { selector: '#searchInput', titulo: 'Búsqueda rápida',
-      texto: 'Escribe lo que te dijo el cliente ("está caro", "no entiendo", "tarjeta"...) y te sale la respuesta lista para copiar y pegar en el chat.' },
+    { selector: '#liveInput', titulo: 'Tu chat con el Jefe de WhatsApp y Ventas',
+      texto: 'Pega aquí lo que te escribió el cliente (o adjunta una captura con el clip) y pulsa Enter: el Jefe te aconseja la mejor respuesta según en qué punto va la venta. Si escribes una frase corta ("está caro", "tarjeta"...), abajo también te salen las respuestas que ya tienes en tu manual.' },
     { selector: '#estToggleBtn', titulo: 'Pícale aquí para armar tu estrategia',
       texto: 'Este botón abre el generador: la IA llena las 5 tarjetas de abajo (primer contacto, calificación, oferta, objeciones y cierre) con tu ADN y tu Jefe 366. Puedes subir capturas o un .txt de conversaciones reales para que suene como tú. Si le falta algo clave, te hace hasta 3 preguntas antes.' },
-    { selector: '#liveInput', titulo: 'Consulta en vivo',
-      texto: 'Pega el último mensaje que te mandó el cliente (o adjunta una captura) y pícale "Preguntar al Agente": te aconseja la mejor respuesta estratégica según en qué punto va la venta.' },
     { selector: '#thermoNav', titulo: 'El termómetro de la conversación',
       texto: 'Las tarjetas van de frío a ardiendo: 1–2 primer contacto, 3–4 calificación, 5–6 oferta, 7–8 objeciones y 9–10 cierre. Pícale a un tramo para saltar a esas tarjetas según qué tan caliente esté el cliente.' },
     { selector: '#s1 .copy-btn', titulo: 'Copiar y pegar',
@@ -1255,12 +1246,11 @@ GuiaJefe.registrar({
 </script>
 <script>
   (function(){
-    var inp = document.getElementById('searchInput');
+    var inp = document.getElementById('liveInput');
     document.getElementById('topLupaBtn').addEventListener('click', function(){
       window.scrollTo({ top: 0, behavior: 'smooth' });
       setTimeout(function(){ inp.focus(); }, 250);
     });
-    document.getElementById('heroSendBtn').addEventListener('click', function(){ inp.focus(); });
   })();
 </script>
 <script src="/js/jefes-nav.js" defer></script>
