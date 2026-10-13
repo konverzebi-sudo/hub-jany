@@ -212,15 +212,23 @@
 
   /* ESTRUCTURA DE ADS: Campaña > Conjunto de Anuncios > (nota + link a Anuncios) */
   .campana-card{background:var(--surface);border:1px solid var(--line);border-left:5px solid var(--accent);border-radius:20px;padding:22px 24px;margin-bottom:18px;display:flex;flex-direction:column;gap:16px;box-shadow:var(--shadow-card);}
-  .campana-top{display:flex;align-items:center;justify-content:space-between;gap:10px;}
-  .campana-top-title{font-family:'Sora',sans-serif;font-weight:800;font-size:19px;}
-  .campana-fields-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;}
+  .campana-top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+  /* Títulos en pastilla oscura con texto lima (Campaña / Conjunto / Anuncios) */
+  .pill-title{display:inline-block;background:#4B4B4B;color:var(--accent);font-family:'Sora',sans-serif;font-weight:800;font-size:17px;text-transform:uppercase;letter-spacing:.02em;padding:9px 22px;border-radius:100px;}
+  .pill-title-sm{align-self:flex-start;font-size:16px;padding:7px 20px;}
+  .campana-top-actions{display:flex;align-items:center;gap:10px;}
+  .btn-sm{padding:9px 16px;font-size:14px;border-radius:100px;}
+  .btn-pill{border-radius:100px;padding:12px 24px;font-family:'Sora',sans-serif;font-weight:800;text-transform:uppercase;letter-spacing:.02em;}
+  .btn-pill-gray{border:none;background:#E3E3E3;color:#333;border-radius:100px;padding:12px 24px;font-family:'Sora',sans-serif;font-weight:800;font-size:15px;text-transform:uppercase;letter-spacing:.02em;cursor:pointer;transition:.15s;}
+  .btn-pill-gray:hover{background:#D5D5D5;}
+  .anuncios-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:4px;}
+  .campana-fields-grid{display:grid;grid-template-columns:repeat(4,minmax(160px,1fr)) minmax(260px,2fr);gap:14px;}
+  @media (max-width:1100px){.campana-fields-grid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr));}}
   .campana-fields-grid .mode-field input,.campana-fields-grid .mode-field select{width:100%;}
   .conjuntos-wrap{display:flex;flex-direction:column;gap:14px;margin-top:4px;padding-top:14px;border-top:1px dashed #CFCFCF;}
   .conjuntos-title{font-family:'Sora',sans-serif;font-weight:700;font-size:16px;color:var(--text);}
   .conjunto-card{background:#FAFAFA;border:1px solid var(--line);border-left:4px solid var(--con);border-radius:16px;padding:18px 20px;display:flex;flex-direction:column;gap:12px;}
-  .conjunto-top{display:flex;align-items:center;justify-content:space-between;gap:8px;}
-  .conjunto-top-title{font-family:'Sora',sans-serif;font-weight:700;font-size:16px;color:#0369A1;}
+  .conjunto-top{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;}
   .conjunto-fields-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;}
   .conjunto-fields-grid .mode-field input,.conjunto-fields-grid .mode-field textarea{width:100%;}
   .conjunto-fields-grid .mode-field textarea{min-height:44px;resize:vertical;font-family:'Inter',sans-serif;}
@@ -1099,18 +1107,11 @@ async function completarCamposMeta(){
 function renderEstructura(container){
   const wrap = document.createElement('div');
 
-  const header = document.createElement('div');
-  header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px;flex-wrap:wrap;';
-  header.innerHTML = `
-    <p class="etapa-desc" style="margin:0;max-width:640px;">Planea la configuración de pauta (objetivo, presupuesto, segmentación) antes de subir a Meta Ads Manager -- el contenido creativo de cada anuncio vive en "Campañas guardadas".</p>
-    <button class="btn btn-solid" id="estructura-nueva-campana-btn" type="button">+ Nueva campaña</button>
-  `;
-  wrap.appendChild(header);
-
   if(!estructuras.length){
+    // Sin campañas todavía: el botón vive aquí; con campañas, cada una lo trae en su encabezado.
     const empty = document.createElement('div');
     empty.className = 'empty-row';
-    empty.textContent = 'Todavía no hay campañas de estructura. Usa "+ Nueva campaña" para empezar.';
+    empty.innerHTML = 'Todavía no hay campañas de estructura.<br><br><button class="btn btn-solid" type="button" data-nueva-campana>+ Nueva campaña</button>';
     wrap.appendChild(empty);
   } else {
     estructuras.forEach(campana=>wrap.appendChild(buildCampanaEstructuraCard(campana)));
@@ -1128,11 +1129,11 @@ function renderEstructura(container){
 
   container.appendChild(wrap);
 
-  document.getElementById('estructura-nueva-campana-btn').addEventListener('click', ()=>{
+  wrap.querySelectorAll('[data-nueva-campana]').forEach(b=>b.addEventListener('click', ()=>{
     estructuras.unshift(mkCampana());
     scheduleEstructuraSave();
     render();
-  });
+  }));
 }
 
 function buildCampanaEstructuraCard(campana){
@@ -1144,10 +1145,27 @@ function buildCampanaEstructuraCard(campana){
 
   card.innerHTML = `
     <div class="campana-top">
-      <span class="campana-top-title">📋 ${campana.objetivo ? (OBJETIVOS.find(o=>o.key===campana.objetivo)||{}).label||'Campaña' : 'Nueva campaña'}</span>
-      <button type="button" class="item-del" data-campana="${campana.id}" title="Eliminar campaña">✕</button>
+      <span class="pill-title">${campana.objetivo ? 'Campaña · '+(((OBJETIVOS.find(o=>o.key===campana.objetivo)||{}).label||'').replace(/^\S+\s/,'')) : 'Nueva campaña'}</span>
+      <div class="campana-top-actions">
+        <button type="button" class="btn btn-solid btn-sm" data-nueva-campana>+ Nueva campaña</button>
+        <button type="button" class="item-del" data-campana="${campana.id}" title="Eliminar campaña">✕</button>
+      </div>
     </div>
     <div class="campana-fields-grid">
+      <div class="mode-field">
+        <label>Producto o servicio</label>
+        <select data-campana="${campana.id}" data-field="producto_id">
+          <option value="">Todo el grupo</option>
+          ${productosDisponibles.map(p=>`<option value="${p.id}"${campana.producto_id===p.id?' selected':''}>${escHtml(p.nombre)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="mode-field">
+        <label>Grupo de negocio</label>
+        <select data-campana="${campana.id}" data-field="grupo_id">
+          <option value="">General (sin grupo)</option>
+          ${grupos.map(g=>`<option value="${g.id}"${campana.grupo_id===g.id?' selected':''}>${escHtml(g.nombre)}</option>`).join('')}
+        </select>
+      </div>
       <div class="mode-field">
         <label>Objetivo de la campaña</label>
         <select data-campana="${campana.id}" data-field="objetivo">
@@ -1162,21 +1180,7 @@ function buildCampanaEstructuraCard(campana){
           ${tiposDisponibles.map(t=>`<option value="${escHtml(t)}"${campana.tipo===t?' selected':''}>${escHtml(t)}</option>`).join('')}
         </select>
       </div>
-      <div class="mode-field">
-        <label>Grupo de negocio</label>
-        <select data-campana="${campana.id}" data-field="grupo_id">
-          <option value="">General (sin grupo)</option>
-          ${grupos.map(g=>`<option value="${g.id}"${campana.grupo_id===g.id?' selected':''}>${escHtml(g.nombre)}</option>`).join('')}
-        </select>
-      </div>
-      <div class="mode-field">
-        <label>Producto o servicio a vender</label>
-        <select data-campana="${campana.id}" data-field="producto_id">
-          <option value="">Todo el grupo</option>
-          ${productosDisponibles.map(p=>`<option value="${p.id}"${campana.producto_id===p.id?' selected':''}>${escHtml(p.nombre)}</option>`).join('')}
-        </select>
-      </div>
-      <div class="mode-field" style="grid-column:1/-1;">
+      <div class="mode-field campo-ancho">
         <label>Resultado esperado</label>
         <input type="text" data-campana="${campana.id}" data-field="resultado_esperado" placeholder="Ej: Ventas por chat / Citas por chat / Ventas por sitio web" value="${escHtml(campana.resultado_esperado)}">
       </div>
@@ -1226,7 +1230,7 @@ function buildConjuntoCard(campana, conjunto){
   card.className = 'conjunto-card';
   card.innerHTML = `
     <div class="conjunto-top">
-      <span class="conjunto-top-title">🎯 Conjunto de anuncios${conjunto.anuncios_ids && conjunto.anuncios_ids.length ? ` · ${conjunto.anuncios_ids.length} anuncio(s) vinculado(s)` : ''}</span>
+      <span class="pill-title conjunto-top-title">Conjunto de anuncios${conjunto.anuncios_ids && conjunto.anuncios_ids.length ? ` · ${conjunto.anuncios_ids.length} anuncio(s) vinculado(s)` : ''}</span>
       <button type="button" class="item-del" data-conjunto="${conjunto.id}" title="Eliminar conjunto">✕</button>
     </div>
     <div class="conjunto-fields-grid">
@@ -1261,6 +1265,7 @@ function buildConjuntoCard(campana, conjunto){
         <textarea data-conjunto="${conjunto.id}" data-field="intereses" placeholder="Público abierto (sin intereses, deja que Advantage+ haga su trabajo)...">${escHtml(conjunto.intereses)}</textarea>
       </div>
     </div>
+    <span class="pill-title pill-title-sm">Anuncios</span>
     <div class="anuncios-nota-box">
       <p><b>📌 No olvides utilizar formatos:</b> UGC · Testimonio · Demostración · Ángulos...</p>
       <div class="anuncios-link-list">
@@ -1272,7 +1277,10 @@ function buildConjuntoCard(campana, conjunto){
           </label>
         `).join('') : '<p class="mode-status" style="margin:0;">Todavía no hay campañas guardadas para vincular.</p>'}
       </div>
-      <button type="button" class="btn-outline" data-ir-guardadas="1">→ Crear más anuncios en Campañas guardadas</button>
+      <div class="anuncios-footer">
+        <button type="button" class="btn-pill-gray" data-ir-guardadas="1">Crear más anuncios</button>
+        <button type="button" class="btn btn-solid btn-pill" data-guardar-estructura>Guardar campaña</button>
+      </div>
     </div>
   `;
 
@@ -1291,6 +1299,13 @@ function buildConjuntoCard(campana, conjunto){
   card.querySelector('select[data-field="genero"]').addEventListener('change',(e)=>{
     conjunto.genero = e.target.value;
     scheduleEstructuraSave();
+  });
+  card.querySelector('[data-guardar-estructura]').addEventListener('click', async (e)=>{
+    const btn = e.currentTarget;
+    clearTimeout(estructuraSaveTimer);
+    await guardarEstructura();
+    const prev = btn.textContent; btn.textContent = 'Guardado ✓';
+    setTimeout(()=>{ btn.textContent = prev; }, 1600);
   });
   card.querySelector('[data-ir-guardadas]').addEventListener('click', ()=>{
     currentTab = 'guardadas';
@@ -1311,7 +1326,7 @@ function buildConjuntoCard(campana, conjunto){
       }
       scheduleEstructuraSave();
       const titleEl = card.querySelector('.conjunto-top-title');
-      if(titleEl) titleEl.textContent = `🎯 Conjunto de anuncios${conjunto.anuncios_ids.length ? ` · ${conjunto.anuncios_ids.length} anuncio(s) vinculado(s)` : ''}`;
+      if(titleEl) titleEl.textContent = `Conjunto de anuncios${conjunto.anuncios_ids.length ? ` · ${conjunto.anuncios_ids.length} anuncio(s) vinculado(s)` : ''}`;
     });
   });
   card.querySelector('[data-sugerir-targeting]').addEventListener('click', async (e)=>{
