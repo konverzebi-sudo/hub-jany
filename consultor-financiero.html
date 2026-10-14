@@ -245,13 +245,13 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
       </span>
       <span class="hero-search-sep"></span>
-      <textarea rows="1" id="agentInput" placeholder="Pregúntame o escribe “empezar” y te guío" onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();enviarMensajeAgente();}" oninput="autoAlturaAgentInput(this)"></textarea>
+      <textarea rows="1" id="agentInput" placeholder="Escribe tu respuesta o pregúntame lo que quieras" onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();enviarMensajeAgente();}" oninput="autoAlturaAgentInput(this)"></textarea>
       <button class="hero-search-send" id="agentSendBtn" type="button" aria-label="Enviar" title="Enviar" onclick="enviarMensajeAgente()">
         <img src="/img/jefe-finanzas-logo-negro.webp" alt="" aria-hidden="true">
       </button>
     </div>
     <div class="agent-suggestions" id="agentSuggestions">
-      <button class="agent-suggestion principal" type="button" onclick="enviarSugerenciaAgente('Haz un diagnóstico completo y guíame paso a paso para llenar lo que me falte.')">🧭 Empezar guía paso a paso</button>
+      <button class="agent-suggestion principal" type="button" onclick="enviarSugerenciaAgente('¿Qué sigue?')">🧭 ¿Qué sigue?</button>
       <button class="agent-suggestion" type="button" onclick="enviarSugerenciaAgente('¿Cuánto puedo invertir en ads con mis números actuales?')">¿Cuánto puedo invertir?</button>
       <button class="agent-suggestion" type="button" onclick="enviarSugerenciaAgente('¿Qué descuento máximo puedo dar sin perder?')">¿Descuento máximo?</button>
       <button class="agent-suggestion" type="button" onclick="enviarSugerenciaAgente('Comparando todos mis productos, ¿cuál me conviene escalar primero y por qué?')">¿Qué producto escalo?</button>
@@ -1169,6 +1169,7 @@ async function alCambiarFoco(nuevo) {
     persistirAgente();
   }
   renderAgentChat();
+  if (hayConversacionReal()) dispararSeguimiento(TRIGGERS.foco);
 }
 
 /* ─── CONSULTA EN VIVO (via /api/consultor-financiero) ─── */
@@ -1274,6 +1275,7 @@ function irACampo(id) {
 function renderAgentChat() {
   const chat = document.getElementById('agentChat');
   const partes = agentMessages.map((m, i) => {
+    if (m.oculto) return '';   // mensaje interno de seguimiento: el Jefe habla primero, sin burbuja del usuario
     if (m.role === 'nota') return `<div class="nota-foco">${escaparHtmlFin(m.content)}</div>`;
     if (m.role === 'user') {
       return `<div class="bubble user">${escaparHtmlFin(m.content)}</div>`;
@@ -1289,11 +1291,12 @@ function renderAgentChat() {
   chat.innerHTML = partes.join('');
   chat.scrollTop = chat.scrollHeight;
   const hayMensajes = agentMessages.length > 0;
-  document.getElementById('agentSuggestions').style.display = hayMensajes ? 'none' : 'flex';
   document.getElementById('agentResetBtn').style.display = hayMensajes ? '' : 'none';
 }
 
 function persistirAgente() {
+  const ahora = Date.now();
+  agentMessages.forEach((m) => { if (!m.ts) m.ts = ahora; });
   window.storage.set(keyConversacion(), JSON.stringify(agentMessages)).catch(() => {});
 }
 
@@ -1314,11 +1317,13 @@ function nuevoMensajeUsuario(texto) {
   return { role: 'user', content: texto, focoNombre: esTodo() ? '' : focoActual.nombre };
 }
 
-async function llamarAgente() {
+async function llamarAgente(revertirA) {
   agentBusy = true;
   const focoAlEnviar = focoActual.id;
+  const automatico = revertirA != null;   // seguimiento que dispara la página: si falla no se muestra error
   document.getElementById('agentSendBtn').disabled = true;
   renderAgentChat();
+  let fallo = false;
   try {
     leerFormulario();
     recalcularYRender();
@@ -1329,7 +1334,8 @@ async function llamarAgente() {
     });
     const data = await response.json();
     if (!response.ok) {
-      agentMessages.push({ role: 'assistant', content: '⚠️ ' + (data.error || 'No se pudo generar respuesta. Intenta de nuevo.') });
+      fallo = true;
+      if (!automatico) agentMessages.push({ role: 'assistant', content: '⚠️ ' + (data.error || 'No se pudo generar respuesta. Intenta de nuevo.') });
     } else {
       const { limpio, campos } = extraerCampos(data.text);
       if (focoActual.id !== focoAlEnviar) {
@@ -1340,12 +1346,19 @@ async function llamarAgente() {
       }
     }
   } catch (err) {
-    agentMessages.push({ role: 'assistant', content: '⚠️ Hubo un error de conexión. Intenta de nuevo en un momento.' });
+    fallo = true;
+    if (!automatico) agentMessages.push({ role: 'assistant', content: '⚠️ Hubo un error de conexión. Intenta de nuevo en un momento.' });
   } finally {
     agentBusy = false;
     document.getElementById('agentSendBtn').disabled = false;
-    renderAgentChat();
-    persistirAgente();
+    if (fallo && automatico) {
+      // Sin tocar lo guardado: se quita el aviso interno y la conversación queda como estaba.
+      agentMessages.length = revertirA;
+      renderAgentChat();
+    } else {
+      renderAgentChat();
+      persistirAgente();
+    }
   }
 }
 
@@ -1377,6 +1390,32 @@ function reiniciarAgente() {
   agentMessages = [];
   renderAgentChat();
   window.storage.set(keyConversacion(), JSON.stringify([])).catch(() => {});
+  dispararSeguimiento(TRIGGERS.apertura);
+}
+
+/* ─── El Jefe habla primero: apertura, retomar y cambio de foco ───
+   La página le manda al Jefe un mensaje interno (no se muestra) y él decide según el avance:
+   sin avance saluda breve y arranca el Módulo 1; con avance NO saluda ni empieza de cero: hace un
+   corte de dónde van y sigue con lo que falta (ver el prompt, "Aperturas, cortes y seguimiento"). */
+const TRIGGERS = {
+  apertura: '[Apertura de la página] Acabo de abrir la página; la conversación está vacía.',
+  retomar: '[Retomar] Volví a la página después de un rato.',
+  foco: '[Cambio de foco] Acabo de cambiar a este foco.',
+};
+const REABRIR_DESPUES_DE_MS = 6 * 3600 * 1000;
+const hayConversacionReal = () => agentMessages.some((m) => m.role === 'user' && !m.oculto);
+
+function dispararSeguimiento(texto) {
+  if (agentBusy) return;
+  const base = agentMessages.length;
+  agentMessages.push({ role: 'user', content: texto, oculto: true, focoNombre: esTodo() ? '' : focoActual.nombre });
+  llamarAgente(base);
+}
+
+function iniciarSeguimientoAlAbrir() {
+  const ultimo = agentMessages.length ? agentMessages[agentMessages.length - 1] : null;
+  if (!ultimo) dispararSeguimiento(TRIGGERS.apertura);
+  else if (ultimo.ts && Date.now() - ultimo.ts > REABRIR_DESPUES_DE_MS) dispararSeguimiento(TRIGGERS.retomar);
 }
 
 async function cargarAgenteEnProgreso() {
@@ -1394,9 +1433,9 @@ async function cargarAgenteEnProgreso() {
 renderTabs();
 switchTab('situacion');
 prepararPaneles();
-cargarEstado().then(cargarAgenteEnProgreso);
+cargarEstado().then(cargarAgenteEnProgreso).then(iniciarSeguimientoAlAbrir);
 if (window.__foco) window.__foco.onChange(alCambiarFoco);
-if (window.matchMedia('(max-width: 720px)').matches) document.getElementById('agentInput').placeholder = 'Pregunta o escribe “empezar”';
+if (window.matchMedia('(max-width: 720px)').matches) document.getElementById('agentInput').placeholder = 'Escribe tu respuesta o pregunta';
 </script>
 <script src="/js/jefes-nav.js" defer></script>
 </body>
