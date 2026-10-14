@@ -557,11 +557,20 @@ async function manejarChatGuiado(req, res) {
     // Se inyecta siempre (no solo en modo documento-maestro) para que el chat guiado normal
     // también sepa qué ya está guardado y pueda comparar en vez de proponer siempre desde cero.
     partesSystem.push(await builderFormatearNotasGuardadas(clienteId));
+    // Primera vez de la usuaria en este chat (todavia no hay ninguna respuesta tuya): la bienvenida es lo primero,
+    // y debe explicar quien es el Jefe y que van a hacer ahora. Se refuerza aqui para que no se la salte
+    // aunque su primer mensaje sea una peticion concreta ("quiero empezar a construir mi oferta...").
+    const primeraVez = modo === 'normal' && !limpio.some((m) => m.role === 'assistant');
+    if (primeraVez) {
+      partesSystem.push(
+        'ES LA PRIMERA VEZ QUE LA USUARIA TE ESCRIBE (no hay ninguna respuesta tuya antes en esta conversación). Tu mensaje DEBE EMPEZAR con la bienvenida de "Al iniciar la conversación", completa y en este orden: (1) saludo cálido, quién eres y para qué existes, (2) que aquí puede preguntarte lo que sea y que ya vienes preparado con su ADN y la estrategia 366, (3) QUÉ VAN A HACER AHORA JUNTOS y cómo funciona, (4) el mini-diagnóstico, (5) "arrancamos" con UNA sola pregunta. NO empieces con el mini-diagnóstico ni con una pregunta: primero la bienvenida y la explicación. Háblale en primera persona y con frases cortas, fáciles de leer.'
+      );
+    }
     const system = partesSystem.join('\n\n');
 
     const { ok, status, data } = await llamarClaude(system, {
       model: 'claude-sonnet-4-6',
-      max_tokens: modo === 'documento-maestro' ? 3000 : 2200,
+      max_tokens: modo === 'documento-maestro' ? 3000 : (primeraVez ? 2800 : 2200),
       system,
       messages: limpio,
     });
