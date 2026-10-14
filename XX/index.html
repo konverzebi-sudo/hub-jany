@@ -202,7 +202,7 @@
     <div class="jd-card">
       <div class="jd-row" style="justify-content:space-between;margin-bottom:8px;">
         <div class="jd-h" style="margin:0;">Retos del día y agenda</div>
-        <span class="jd-sub">toca para editar · ▲▼ para ordenar</span>
+        <span class="jd-sub">toca para editar · agarra ⠿ y desliza para ordenar</span>
       </div>
       <div id="jd-gcal-reconnect" style="display:none;background:#3B211E;border:1px solid #5C2E2A;border-radius:9px;padding:8px 10px;margin-bottom:8px;font-size:12px;color:#F08C82;">
         📅 Se perdió la conexión con Google Calendar (pasa después de un rato sin usar el dashboard).
@@ -228,18 +228,20 @@
     </div>
   </div>
 
-  <div style="padding:0 14px 14px;" id="jd-time-map-section">
+  <div style="padding:0 14px 14px;">
     <div class="jd-row" style="justify-content:space-between;align-items:center;margin-bottom:6px;">
-      <div class="jd-h" style="margin:0;">Mapa de tiempo</div>
+      <div class="jd-h" style="margin:0;">Mapa semanal (por hora)</div>
       <div class="jd-row" style="gap:6px;">
-        <button id="jd-cal-prev" style="background:#1B2117;color:#B9C0AF;border:none;border-radius:6px;width:26px;height:26px;cursor:pointer;">‹</button>
-        <span id="jd-cal-label" style="font-size:12px;color:#B9C0AF;min-width:76px;text-align:center;"></span>
-        <button id="jd-cal-next" style="background:#1B2117;color:#B9C0AF;border:none;border-radius:6px;width:26px;height:26px;cursor:pointer;">›</button>
+        <button id="jd-week-prev" style="background:#1B2117;color:#B9C0AF;border:none;border-radius:6px;width:26px;height:26px;cursor:pointer;">‹</button>
+        <span id="jd-week-label" style="font-size:12px;color:#B9C0AF;min-width:76px;text-align:center;"></span>
+        <button id="jd-week-next" style="background:#1B2117;color:#B9C0AF;border:none;border-radius:6px;width:26px;height:26px;cursor:pointer;">›</button>
       </div>
     </div>
     <div class="jd-card">
-      <div id="jd-cal-grid" style="display:grid;grid-template-columns:repeat(7,minmax(0,64px));gap:4px;max-width:472px;margin:0 auto;"></div>
-      <div id="jd-cal-day-detail" style="max-width:472px;margin:0 auto;display:none;"></div>
+      <div style="overflow-x:auto;">
+        <div id="jd-week-grid" style="display:grid;grid-template-columns:38px repeat(24,20px);gap:2px;width:max-content;"></div>
+      </div>
+      <div id="jd-week-day-detail" style="display:none;"></div>
     </div>
   </div>
 
@@ -263,20 +265,18 @@
     <div class="jd-grid-auto" id="jd-products"></div>
   </div>
 
-  <div style="padding:0 14px 14px;">
+  <div style="padding:0 14px 14px;" id="jd-time-map-section">
     <div class="jd-row" style="justify-content:space-between;align-items:center;margin-bottom:6px;">
-      <div class="jd-h" style="margin:0;">Mapa semanal (por hora)</div>
+      <div class="jd-h" style="margin:0;">Mapa de tiempo</div>
       <div class="jd-row" style="gap:6px;">
-        <button id="jd-week-prev" style="background:#1B2117;color:#B9C0AF;border:none;border-radius:6px;width:26px;height:26px;cursor:pointer;">‹</button>
-        <span id="jd-week-label" style="font-size:12px;color:#B9C0AF;min-width:76px;text-align:center;"></span>
-        <button id="jd-week-next" style="background:#1B2117;color:#B9C0AF;border:none;border-radius:6px;width:26px;height:26px;cursor:pointer;">›</button>
+        <button id="jd-cal-prev" style="background:#1B2117;color:#B9C0AF;border:none;border-radius:6px;width:26px;height:26px;cursor:pointer;">‹</button>
+        <span id="jd-cal-label" style="font-size:12px;color:#B9C0AF;min-width:76px;text-align:center;"></span>
+        <button id="jd-cal-next" style="background:#1B2117;color:#B9C0AF;border:none;border-radius:6px;width:26px;height:26px;cursor:pointer;">›</button>
       </div>
     </div>
     <div class="jd-card">
-      <div style="overflow-x:auto;">
-        <div id="jd-week-grid" style="display:grid;grid-template-columns:38px repeat(24,20px);gap:2px;width:max-content;"></div>
-      </div>
-      <div id="jd-week-day-detail" style="display:none;"></div>
+      <div id="jd-cal-grid" style="display:grid;grid-template-columns:repeat(7,minmax(0,64px));gap:4px;max-width:472px;margin:0 auto;"></div>
+      <div id="jd-cal-day-detail" style="max-width:472px;margin:0 auto;display:none;"></div>
     </div>
   </div>
 
@@ -1391,12 +1391,72 @@
     }).join('');
   }
 
-  function moveAgendaItem(id, dir){
-    var idx = data.agenda.findIndex(function(x){ return x.id === id; });
-    var to = idx + dir;
-    if(idx < 0 || to < 0 || to >= data.agenda.length) return;
-    var tmp = data.agenda[idx]; data.agenda[idx] = data.agenda[to]; data.agenda[to] = tmp;
-    save(); renderAgenda();
+  function reorderAgendaItem(from, to){
+    if(from === to || from < 0 || to < 0 || from >= data.agenda.length || to >= data.agenda.length) return;
+    var item = data.agenda.splice(from, 1)[0];
+    data.agenda.splice(to, 0, item);
+    save();
+  }
+
+  function attachAgendaDrag(grip, row, idx){
+    grip.addEventListener('pointerdown', function(ev){
+      var box = document.getElementById('jd-agenda');
+      var rows = Array.prototype.slice.call(box.children);
+      if(rows.length < 2 || rows[idx] !== row) return;
+      ev.preventDefault();
+      try{ grip.setPointerCapture(ev.pointerId); }catch(err){}
+      var startY = ev.clientY, startScroll = window.scrollY, lastY = ev.clientY;
+      var centers = rows.map(function(r){ var b = r.getBoundingClientRect(); return b.top + window.scrollY + b.height / 2; });
+      var dragH = row.getBoundingClientRect().height;
+      var target = idx, moved = false;
+      row.style.position = 'relative';
+      row.style.zIndex = '5';
+      row.style.background = '#1B2117';
+      row.style.boxShadow = '0 6px 18px rgba(0,0,0,.55)';
+      row.style.borderRadius = '8px';
+      row.style.transition = 'none';
+      grip.style.cursor = 'grabbing';
+      rows.forEach(function(r, j){ if(j !== idx) r.style.transition = 'transform .15s'; });
+
+      function update(){
+        var dy = (lastY - startY) + (window.scrollY - startScroll);
+        if(Math.abs(dy) > 3) moved = true;
+        row.style.transform = 'translateY(' + dy + 'px)';
+        var dragCenter = centers[idx] + dy;
+        var t = 0;
+        centers.forEach(function(c, j){ if(j !== idx && c < dragCenter) t++; });
+        target = t;
+        rows.forEach(function(r, j){
+          if(j === idx) return;
+          var shift = 0;
+          if(idx < target && j > idx && j <= target) shift = -dragH;
+          else if(idx > target && j < idx && j >= target) shift = dragH;
+          r.style.transform = shift ? 'translateY(' + shift + 'px)' : '';
+        });
+      }
+
+      var scroller = setInterval(function(){
+        if(lastY < 70) { window.scrollBy(0, -14); update(); }
+        else if(lastY > window.innerHeight - 70) { window.scrollBy(0, 14); update(); }
+      }, 16);
+
+      function onMove(e){ lastY = e.clientY; update(); }
+      function finish(commit){
+        clearInterval(scroller);
+        grip.removeEventListener('pointermove', onMove);
+        grip.removeEventListener('pointerup', onUp);
+        grip.removeEventListener('pointercancel', onCancel);
+        if(commit && moved && target !== idx){
+          reorderAgendaItem(idx, target);
+        }
+        renderAgenda();
+      }
+      function onUp(){ finish(true); }
+      function onCancel(){ finish(false); }
+      grip.addEventListener('pointermove', onMove);
+      grip.addEventListener('pointerup', onUp);
+      grip.addEventListener('pointercancel', onCancel);
+    });
   }
 
   function completeAgendaItem(a){
@@ -1479,17 +1539,13 @@
       line.className = 'jd-row';
       line.style.cssText = 'justify-content:space-between;align-items:flex-start;gap:6px;';
 
-      var mover = document.createElement('div');
-      mover.style.cssText = 'display:flex;flex-direction:column;gap:1px;flex:none;';
-      ['▲','▼'].forEach(function(sym, i){
-        var b = document.createElement('button');
-        b.textContent = sym;
-        b.setAttribute('aria-label', i === 0 ? 'Subir' : 'Bajar');
-        b.style.cssText = 'background:#1B2117;border:1px solid #2A3324;color:#9BA294;border-radius:4px;font-size:8px;line-height:1;padding:3px 6px;cursor:pointer;';
-        if((i === 0 && idx === 0) || (i === 1 && idx === data.agenda.length - 1)) b.style.opacity = '.3';
-        b.addEventListener('click', function(){ moveAgendaItem(a.id, i === 0 ? -1 : 1); });
-        mover.appendChild(b);
-      });
+      var grip = document.createElement('div');
+      grip.textContent = '⠿';
+      grip.title = 'Agarra y desliza para ordenar';
+      grip.setAttribute('aria-label', 'Arrastrar para ordenar');
+      grip.style.cssText = 'flex:none;width:28px;height:30px;display:flex;align-items:center;justify-content:center;background:#1B2117;border:1px solid #2A3324;border-radius:7px;color:#9BA294;font-size:18px;line-height:1;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;';
+      attachAgendaDrag(grip, row, idx);
+      var mover = grip;
       line.appendChild(mover);
 
       var projColor = a.project ? projectColor(a.project) : null;
