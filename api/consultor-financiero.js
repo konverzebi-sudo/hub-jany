@@ -58,7 +58,7 @@ const IMGGEN_SIZE = '1024x1024';
 const IMGGEN_QUALITY = 'medium';
 
 const CONTEXT_CHAR_LIMIT = 6000;
-const CALC_CHAR_LIMIT = 3000;
+const CALC_CHAR_LIMIT = 14000; // foco + negocio + todos los productos + detalle del foco
 const MAX_MESSAGES = 40;
 
 let fixedPromptCache = null;

@@ -155,23 +155,38 @@
     .copy-btn.copied { background: var(--accent); border-color: var(--accent); color: #1A1A1A; }
     .field-input.recien { background: var(--accent-soft); border-color: var(--accent); box-shadow: 0 0 0 4px rgba(192,248,0,.28); }
     .topbar-izq { justify-self: start; display: flex; align-items: center; gap: 10px; min-width: 0; max-width: 100%; }
-    .topbar-izq .back-link { flex: 0 1 auto; min-width: 0; }
-    .topbar-izq #foco-slot { flex: 0 1 auto; min-width: 0; }
-    @media (max-width: 720px) {
-      /* En celular la pastilla de foco baja a una segunda fila de la barra fija */
+    /* Si falta espacio, se recorta primero el nombre de la marca y no la pastilla de foco */
+    .topbar-izq .back-link { flex: 0 5 auto; min-width: 0; }
+    .topbar-izq #foco-slot { flex: 0 0 auto; }
+    @media (max-width: 900px) {
+      /* En pantallas angostas la pastilla de foco baja a una segunda fila de la barra fija */
       body .topbar { height: auto; padding: 8px 10px; grid-template-columns: auto minmax(0,1fr); grid-template-areas: "back titulo" "foco foco"; row-gap: 8px; }
       .topbar-izq { display: contents; }
       .topbar-izq .back-link { grid-area: back; }
       .topbar-izq #foco-slot { grid-area: foco; }
       .topbar h1 { grid-area: titulo; }
       body header { padding-top: 118px; }
+    }
+    @media (max-width: 720px) {
       /* En celular el buscador pierde lupa y separador para que quepa el texto */
       .hero-lupa, .hero-search-sep { display: none; }
       .hero-search { padding-left: 20px; }
       .hero-search textarea { font-size: 16px; }
     }
-    .tus-numeros { text-align: center; color: var(--text-dim); font-size: 15px; line-height: 1.5; margin: 0 auto 16px; max-width: 700px; }
-    .tus-numeros strong { color: var(--text); }
+    /* Ecosistema completo = suma de los productos: en lugar de las pestañas de producto va la tabla comparativa */
+    .panel > .eco-resumen { grid-column: 1 / -1; }
+    .eco-resumen { display: none; }
+    body.modo-agregado .eco-resumen { display: block; }
+    body.modo-agregado .solo-producto { display: none !important; }
+    .eco-pie { font-size: 14px; color: var(--text-dim); margin: 12px 0 0; line-height: 1.5; }
+    .eco-tabla .sim-table { min-width: 0; font-size: 14px; }
+    .eco-tabla .sim-table th { white-space: normal; vertical-align: bottom; }
+    .eco-tabla .sim-table th, .eco-tabla .sim-table td { padding: 12px 9px; }
+    .eco-fila { cursor: pointer; }
+    .eco-fila:hover td { background: var(--surface-2); }
+    .eco-total td { font-weight: 800; background: var(--surface-2); }
+    .field-input.solo-lectura { background: var(--surface-2); color: var(--text-dim); cursor: not-allowed; }
+    .nota-foco { align-self: center; font-size: 13px; font-weight: 600; color: var(--text-dim); background: var(--surface-2); border-radius: 100px; padding: 4px 14px; }
 
     footer { text-align: center; padding: 24px 20px; font-size: 13px; color: var(--text-dim); border-top: 1px solid var(--line); margin-top: 20px; }
 
@@ -239,12 +254,12 @@
       <button class="agent-suggestion principal" type="button" onclick="enviarSugerenciaAgente('Haz un diagnóstico completo y guíame paso a paso para llenar lo que me falte.')">🧭 Empezar guía paso a paso</button>
       <button class="agent-suggestion" type="button" onclick="enviarSugerenciaAgente('¿Cuánto puedo invertir en ads con mis números actuales?')">¿Cuánto puedo invertir?</button>
       <button class="agent-suggestion" type="button" onclick="enviarSugerenciaAgente('¿Qué descuento máximo puedo dar sin perder?')">¿Descuento máximo?</button>
+      <button class="agent-suggestion" type="button" onclick="enviarSugerenciaAgente('Comparando todos mis productos, ¿cuál me conviene escalar primero y por qué?')">¿Qué producto escalo?</button>
     </div>
     <div class="hero-meta"><button class="link-btn" id="agentResetBtn" type="button" style="display:none;" onclick="reiniciarAgente()">Nueva conversación</button></div>
     <div class="agent-chat" id="agentChat"></div>
   </div>
 
-  <p class="tus-numeros" id="focoNota">Tus números: llénalos aquí abajo, o deja que el chat los llene por ti mientras platican.</p>
   <div class="calc-tabs" id="calcTabs"></div>
 </header>
 
@@ -254,24 +269,24 @@
   <section class="panel" id="panel-situacion">
     <div class="panel-intro">
       <h2>1. Situación Actual</h2>
-      <p>Antes de planear tu campaña, cuéntanos cómo está tu negocio HOY. Esto hace que todos los cálculos sean más reales y justos.</p>
+      <p>Antes de planear tu campaña, cuéntanos cómo está tu negocio HOY. Las ventas, la facturación y los ads son de cada producto; los costos fijos son de todo el negocio.</p>
     </div>
     <div class="card">
       <div class="card-label">Datos que tú llenas</div>
       <div class="field-row">
-        <div><div class="field-label">Ventas o clientes al mes ACTUALMENTE (unidades)</div><div class="field-hint">Total de ventas en todos tus canales hoy. Si empiezas de cero → pon 0</div></div>
+        <div><div class="field-label">Ventas o clientes al mes ACTUALMENTE (unidades)</div><div class="field-hint" id="hint-ventas">Total de ventas en todos tus canales hoy. Si empiezas de cero → pon 0</div></div>
         <input type="number" class="field-input" id="s-ventasActuales" oninput="onInput()">
       </div>
       <div class="field-row">
-        <div><div class="field-label">Facturación mensual actual (MXN)</div><div class="field-hint">Cuánto vendiste en pesos el mes pasado en total. Si empiezas de cero → pon 0</div></div>
+        <div><div class="field-label">Facturación mensual actual (MXN)</div><div class="field-hint" id="hint-fact">Cuánto vendiste en pesos el mes pasado en total. Si empiezas de cero → pon 0</div></div>
         <input type="number" class="field-input" id="s-facturacionActual" oninput="onInput()">
       </div>
       <div class="field-row">
-        <div><div class="field-label">Presupuesto actual en ads/mes (MXN)</div><div class="field-hint">Lo que ya gastas en publicidad pagada cada mes. Si no tienes → pon 0</div></div>
+        <div><div class="field-label">Presupuesto actual en ads/mes (MXN)</div><div class="field-hint" id="hint-ads">Lo que ya gastas en publicidad pagada cada mes. Si no tienes → pon 0</div></div>
         <input type="number" class="field-input" id="s-presupuestoAdsActual" oninput="onInput()">
       </div>
       <div class="field-row">
-        <div><div class="field-label">Costos fijos mensuales TOTALES del negocio (MXN)</div><div class="field-hint">Renta, sueldos fijos, apps, herramientas, contador, servicios, internet. TODO lo que pagas aunque no vendas nada ese mes.</div></div>
+        <div><div class="field-label">Costos fijos mensuales TOTALES del negocio (MXN)</div><div class="field-hint" id="hint-fijos">Renta, sueldos fijos, apps, herramientas, contador, servicios, internet. TODO lo que pagas aunque no vendas nada ese mes.</div></div>
         <input type="number" class="field-input" id="s-costosFijos" oninput="onInput()">
       </div>
       <div class="warn-note" style="margin-top:12px">⚠️ NO incluyas aquí los costos variables por venta (insumos, materiales) ni el presupuesto de ads. Esos se capturan en «Costos y margen».</div>
@@ -279,6 +294,7 @@
     <div class="card">
       <div class="card-label results">Resultados automáticos</div>
       <div class="result-row"><div><div class="result-label">Ticket promedio actual</div><div class="result-hint">Facturación ÷ ventas actuales. Lo que paga en promedio cada cliente hoy.</div></div><div class="result-value" id="r-ticketPromedioActual">—</div></div>
+      <div class="result-row"><div><div class="result-label">Ventas totales de tu negocio</div><div class="result-hint">Suma de las ventas de todos tus productos. Entre ellas se reparten tus costos fijos.</div></div><div class="result-value" id="r-ventasTotales">—</div></div>
       <div class="result-row"><div><div class="result-label">Costo fijo actual por venta</div><div class="result-hint">Lo que absorbe cada venta actual de fijos. Baja cuando sumas ventas nuevas de tu campaña.</div></div><div class="result-value" id="r-costoFijoPorVenta">—</div></div>
       <div id="r-situacionDiag" class="diag-banner diag-info" style="margin-top:8px">—</div>
     </div>
@@ -340,7 +356,7 @@
       <div class="result-row"><div><div class="result-label">Costo variable total por venta</div><div class="result-hint">Todo lo que te cuesta cuando vendes 1 unidad (sin costos fijos ni ads)</div></div><div class="result-value" id="r-costoVariableTotal">—</div></div>
       <div class="result-row"><div><div class="result-label">Margen bruto por venta</div><div class="result-hint">Lo que te queda por venta antes de pagar costos fijos y ads</div></div><div class="result-value" id="r-margenBruto">—</div></div>
       <div class="result-row"><div><div class="result-label">Margen bruto (%)</div><div class="result-hint">Qué porcentaje de cada venta es margen bruto</div></div><div class="result-value" id="r-margenBrutoPct">—</div></div>
-      <div class="result-row"><div><div class="result-label">Aportación a costos fijos por venta</div><div class="result-hint">Costos fijos totales ÷ (ventas actuales + ventas nuevas)</div></div><div class="result-value" id="r-aportacionCostosFijos">—</div></div>
+      <div class="result-row"><div><div class="result-label">Aportación a costos fijos por venta</div><div class="result-hint">Costos fijos del negocio ÷ (ventas de todos tus productos + ventas nuevas de este)</div></div><div class="result-value" id="r-aportacionCostosFijos">—</div></div>
       <div class="result-row"><div><div class="result-label">Margen después de costos fijos</div><div class="result-hint">Lo que te queda por venta después de costos variables Y fijos, antes de ads</div></div><div class="result-value" id="r-margenDespuesCostosFijos">—</div></div>
       <div class="result-row"><div><div class="result-label">CPA máximo bruto</div><div class="result-hint">Límite absoluto — si pagas esto, no te queda margen bruto de esa venta</div></div><div class="result-value" id="r-cpaMaximoBruto">—</div></div>
       <div class="result-row"><div><div class="result-label">CPA máximo real</div><div class="result-hint">Considera tus costos fijos. Más conservador y realista.</div></div><div class="result-value" id="r-cpaMaximoReal">—</div></div>
@@ -490,7 +506,14 @@ let datos = datosVacios();
    y cada producto guarda lo suyo aparte. Así nunca se mezclan los números de dos productos. */
 let focoActual = { id: 'all', nombre: '', item: null };
 let legacyBlob = {};   // lo guardado en la llave general: situación + ecosistema completo
+let porProducto = {};  // id -> { situacion: {ventasActuales, facturacionActual, presupuestoAdsActual}, costos, '366' }
+const hayProductos = () => !!(window.__foco && window.__foco.lista().length);
 const esTodo = () => focoActual.id === 'all';
+// 'producto' = un producto elegido; 'agregado' = ecosistema completo con productos en el catálogo
+// (sale de sumar los productos: solo se escriben los costos fijos); 'manual' = ecosistema sin
+// productos en el catálogo (todo se captura a mano, como siempre).
+const esAgregado = () => esTodo() && hayProductos();
+const modo = () => (esAgregado() ? 'agregado' : (esTodo() ? 'manual' : 'producto'));
 const keyProducto = (id) => CLIENTE_ID + ':financiero-producto:' + id;
 
 function num(v) {
@@ -546,20 +569,21 @@ function pintarFormulario() {
 }
 
 /* ─── FÓRMULAS (mismas que Finanzas de Marketing.xlsx) ─── */
-function calcularSituacion() {
-  const s = datos.situacion;
+function calcularSituacion(d, negocio) {
+  const s = d.situacion;
   const ventas = s.ventasActuales;
   const facturacion = s.facturacionActual;
-  const costosFijos = s.costosFijos;
+  const costosFijos = negocio.costosFijos;
+  const ventasTotales = negocio.ventasTotales;
 
   const ticketPromedioActual = (!ventas || ventas === 0) ? '—' : (facturacion || 0) / ventas;
-  const costoFijoPorVenta = (!ventas || ventas === 0 || !costosFijos || costosFijos === 0) ? 'Completa los datos' : costosFijos / ventas;
+  const costoFijoPorVenta = (!ventasTotales || !costosFijos) ? 'Completa los datos' : costosFijos / ventasTotales;
 
   let situacionTexto, situacionTipo;
   if (!costosFijos || costosFijos === 0) {
     situacionTexto = 'Completa tus costos fijos para ver el diagnóstico';
     situacionTipo = 'info';
-  } else if (!ventas || ventas === 0) {
+  } else if (!ventasTotales) {
     situacionTexto = '🆕 Comenzando desde cero — los costos fijos los cubre solo la campaña nueva.';
     situacionTipo = 'warn';
   } else {
@@ -567,11 +591,11 @@ function calcularSituacion() {
     situacionTipo = 'ok';
   }
 
-  return { costosFijos, ventasActuales: ventas, ticketPromedioActual, costoFijoPorVenta, situacionTexto, situacionTipo };
+  return { costosFijos, ventasActuales: ventas, ventasTotales, ticketPromedioActual, costoFijoPorVenta, situacionTexto, situacionTipo };
 }
 
-function calcularCostos(situacion) {
-  const c = datos.costos;
+function calcularCostos(situacion, d) {
+  const c = d.costos;
   const precio = c.precio;
 
   if (precio === null) {
@@ -595,7 +619,7 @@ function calcularCostos(situacion) {
   } else if (!c.metaVentasNuevas || c.metaVentasNuevas === 0) {
     aportacionCostosFijos = 'Completa tu meta de ventas nuevas';
   } else {
-    const ventasTotales = (situacion.ventasActuales || 0) + c.metaVentasNuevas;
+    const ventasTotales = (situacion.ventasTotales || 0) + c.metaVentasNuevas;
     aportacionCostosFijos = ventasTotales === 0 ? 'El total de ventas no puede ser 0' : situacion.costosFijos / ventasTotales;
   }
 
@@ -623,8 +647,8 @@ function calcularCostos(situacion) {
   return { precio, comisionPesos, costoVariableTotal, margenBruto, margenBrutoPct, aportacionCostosFijos, margenDespuesCostosFijos, cpaMaximoBruto, cpaMaximoReal, cpaObjetivoSeguro, roasMinimo, estadoTexto, estadoTipo };
 }
 
-function calcular366(costos) {
-  const e = datos['366'];
+function calcular366(costos, d) {
+  const e = d['366'];
   const precio = costos.precio;
   const cpaObjetivoSeguro = costos.cpaObjetivoSeguro;
   const cpaMaximoReal = costos.cpaMaximoReal;
@@ -656,10 +680,10 @@ function calcular366(costos) {
   return { precio, margenBruto: costos.margenBruto, aportacion: costos.aportacionCostosFijos, cpaObjetivoSeguro, cpaMaximoReal, ventasNecesarias, presupuestoMensualNecesario, presupuestoDiarioNecesario, diferencia, ventasPosibles, ingresosPosibles, utilidadEstimada, diagnosticoTexto, diagnosticoTipo };
 }
 
-function calcularSimulador(costos, resultado366) {
+function calcularSimulador(costos, resultado366, d) {
   const precio = costos.precio;
   const margenBruto = costos.margenBruto;
-  const presupuesto = datos['366'].presupuestoDisponible || 0;
+  const presupuesto = d['366'].presupuestoDisponible || 0;
   const cpaObjetivoSeguro = resultado366.cpaObjetivoSeguro;
   const cpaMaximoReal = resultado366.cpaMaximoReal;
 
@@ -683,7 +707,7 @@ function calcularSimulador(costos, resultado366) {
   ];
 }
 
-function calcularLectura(costos, resultado366) {
+function calcularLectura(costos, resultado366, d) {
   const A1 = costos.precio !== null ? 1 : 0;
   const A2 = isNum(costos.margenBruto) ? costos.margenBruto : 0;
   const A3 = A1 === 1 && A2 <= 0;
@@ -691,7 +715,7 @@ function calcularLectura(costos, resultado366) {
   const A5 = A1 === 1 && A2 > 0 && A4 <= 0;
   const A6 = isNum(costos.cpaObjetivoSeguro) ? costos.cpaObjetivoSeguro : 9999;
   const A7 = A1 === 1 && A2 > 0 && A4 > 0 && A6 <= 0;
-  const A8 = isNum(datos['366'].presupuestoDisponible) ? datos['366'].presupuestoDisponible : 0;
+  const A8 = isNum(d['366'].presupuestoDisponible) ? d['366'].presupuestoDisponible : 0;
   const A9 = isNum(resultado366.presupuestoMensualNecesario) ? resultado366.presupuestoMensualNecesario : 0;
   const A10 = A1 === 1 && A8 > 0 && A9 > 0 && A8 < A9;
 
@@ -762,14 +786,21 @@ function diagClass(tipo) { return { ok: 'diag-ok', warn: 'diag-warn', danger: 'd
 let ultimoCalculo = null;
 
 function recalcularYRender() {
-  const situacion = calcularSituacion();
-  const costos = calcularCostos(situacion);
-  const resultado366 = calcular366(costos);
-  const simulador = calcularSimulador(costos, resultado366);
-  const lectura = calcularLectura(costos, resultado366);
+  const negocio = calcularNegocio();
+  if (esAgregado()) {
+    // Ecosistema completo: ventas, facturación y ads son la SUMA de los productos (solo lectura)
+    datos.situacion.ventasActuales = negocio.ventasTotales;
+    datos.situacion.facturacionActual = negocio.facturacionTotal;
+    datos.situacion.presupuestoAdsActual = negocio.adsTotal;
+    document.getElementById('s-ventasActuales').value = negocio.ventasTotales;
+    document.getElementById('s-facturacionActual').value = negocio.facturacionTotal;
+    document.getElementById('s-presupuestoAdsActual').value = negocio.adsTotal;
+  }
+  const { situacion, costos, resultado366, simulador, lectura } = calcularProducto(datos, negocio);
   ultimoCalculo = { situacion, costos, resultado366, simulador, lectura };
 
   // Panel Situación Actual
+  document.getElementById('r-ventasTotales').textContent = fmtNum(negocio.ventasTotales);
   document.getElementById('r-ticketPromedioActual').textContent = fmtMoney(situacion.ticketPromedioActual);
   document.getElementById('r-costoFijoPorVenta').textContent = fmtMoney(situacion.costoFijoPorVenta);
   const sd = document.getElementById('r-situacionDiag');
@@ -837,6 +868,8 @@ function recalcularYRender() {
       </tr>`).join('');
   }
 
+  renderEco(negocio);
+
   // Mientras falta un dato, el valor es un aviso corto ("Completa los datos"), no una cifra grande
   document.querySelectorAll('.result-value').forEach((el) => {
     el.classList.toggle('pend', !/^[-$\d]/.test(el.textContent.trim()));
@@ -857,16 +890,28 @@ function persistir() {
   guardarTimeout = setTimeout(guardarAhora, 400);
 }
 
-// Guarda en el foco VIGENTE (por eso se llama antes de cambiar de foco si hay algo pendiente).
+// Guarda según el modo (por eso se llama antes de cambiar de foco si hay algo pendiente):
+//  - producto: sus ventas/facturación/ads, costos y 366 aparte; los costos fijos van a la llave del negocio.
+//  - ecosistema con productos: solo se puede escribir "costos fijos" (lo demás es la suma de los productos).
+//  - ecosistema sin productos en el catálogo: todo en la llave general, como siempre.
 function guardarAhora() {
   clearTimeout(guardarTimeout);
   guardadoPendiente = false;
-  const porFoco = { costos: datos.costos, '366': datos['366'] };
-  if (esTodo()) {
-    legacyBlob = Object.assign({}, legacyBlob, { situacion: datos.situacion }, porFoco);
+  const s = datos.situacion;
+  const situacionNegocio = Object.assign({}, legacyBlob.situacion, { costosFijos: s.costosFijos });
+  if (esAgregado()) {
+    legacyBlob = Object.assign({}, legacyBlob, { situacion: situacionNegocio });
+  } else if (esTodo()) {
+    legacyBlob = Object.assign({}, legacyBlob, { situacion: datos.situacion, costos: datos.costos, '366': datos['366'] });
   } else {
-    legacyBlob = Object.assign({}, legacyBlob, { situacion: datos.situacion });
-    window.storage.set(keyProducto(focoActual.id), JSON.stringify(porFoco)).catch(() => {});
+    const blob = {
+      situacion: { ventasActuales: s.ventasActuales, facturacionActual: s.facturacionActual, presupuestoAdsActual: s.presupuestoAdsActual },
+      costos: datos.costos,
+      '366': datos['366'],
+    };
+    porProducto[focoActual.id] = blob;
+    window.storage.set(keyProducto(focoActual.id), JSON.stringify(blob)).catch(() => {});
+    legacyBlob = Object.assign({}, legacyBlob, { situacion: situacionNegocio });
   }
   window.storage.set(STATE_KEY, JSON.stringify(legacyBlob)).catch(() => {});
 }
@@ -875,40 +920,217 @@ const numCat = (v) => { const x = parseFloat(String(v == null ? '' : v).replace(
 
 // Al elegir un producto por primera vez, precio y costo se adelantan desde su ficha del catálogo del ADN.
 function prefillDesdeCatalogo(item) {
-  return { costos: { producto: (item && item.nombre) || '', precio: numCat(item && item.precio), costoProduccion: numCat(item && item.costo) }, '366': {} };
+  return { situacion: {}, costos: { producto: (item && item.nombre) || '', precio: numCat(item && item.precio), costoProduccion: numCat(item && item.costo) }, '366': {} };
+}
+
+async function cargarTodosLosProductos() {
+  const lista = window.__foco ? window.__foco.lista() : [];
+  await Promise.all(lista.map(async (p) => {
+    try {
+      const r = await window.storage.get(keyProducto(p.id));
+      if (r && r.value) porProducto[p.id] = JSON.parse(r.value);
+    } catch (e) {}
+  }));
 }
 
 async function cargarDatosDelFoco() {
   const base = datosVacios();
-  datos.situacion = Object.assign(base.situacion, legacyBlob.situacion || {});
-  let porFoco = null;
+  const costosFijos = legacyBlob.situacion && legacyBlob.situacion.costosFijos != null ? legacyBlob.situacion.costosFijos : null;
+  if (esAgregado()) {
+    base.situacion.costosFijos = costosFijos;   // ventas, facturación y ads salen de la suma (ver recalcularYRender)
+    datos = base;
+    return;
+  }
   if (esTodo()) {
-    porFoco = { costos: legacyBlob.costos, '366': legacyBlob['366'] };
-  } else {
+    datos.situacion = Object.assign(base.situacion, legacyBlob.situacion || {});
+    datos.costos = Object.assign(base.costos, legacyBlob.costos || {});
+    datos['366'] = Object.assign(base['366'], legacyBlob['366'] || {});
+    return;
+  }
+  let blob = porProducto[focoActual.id] || null;
+  if (!blob) {
     try {
       const r = await window.storage.get(keyProducto(focoActual.id));
-      if (r && r.value) porFoco = JSON.parse(r.value);
+      if (r && r.value) { blob = JSON.parse(r.value); porProducto[focoActual.id] = blob; }
     } catch (e) {}
-    if (!porFoco) porFoco = prefillDesdeCatalogo(focoActual.item);
   }
-  datos.costos = Object.assign(base.costos, (porFoco && porFoco.costos) || {});
-  datos['366'] = Object.assign(base['366'], (porFoco && porFoco['366']) || {});
+  if (!blob) blob = prefillDesdeCatalogo(focoActual.item);
+  datos.situacion = Object.assign(base.situacion, blob.situacion || {}, { costosFijos });
+  datos.costos = Object.assign(base.costos, blob.costos || {});
+  datos['366'] = Object.assign(base['366'], blob['366'] || {});
+}
+
+/* ─── NEGOCIO, PRODUCTOS Y MODO ─── */
+// Datos de un producto: lo vivo en pantalla si es el foco actual; si no, lo guardado.
+function datosDeProducto(id) {
+  if (id === focoActual.id) return datos;
+  const b = porProducto[id] || {};
+  const base = datosVacios();
+  return {
+    situacion: Object.assign(base.situacion, b.situacion || {}),
+    costos: Object.assign(base.costos, b.costos || {}),
+    '366': Object.assign(base['366'], b['366'] || {}),
+  };
+}
+
+// Totales del negocio: los costos fijos se reparten entre las ventas de TODOS los productos.
+function calcularNegocio() {
+  const costosFijos = datos.situacion.costosFijos;
+  if (!hayProductos()) {
+    return { costosFijos, ventasTotales: datos.situacion.ventasActuales || 0, facturacionTotal: datos.situacion.facturacionActual || 0, adsTotal: datos.situacion.presupuestoAdsActual || 0 };
+  }
+  let v = 0, f = 0, a = 0;
+  window.__foco.lista().forEach((p) => {
+    const d = datosDeProducto(p.id);
+    v += d.situacion.ventasActuales || 0;
+    f += d.situacion.facturacionActual || 0;
+    a += d.situacion.presupuestoAdsActual || 0;
+  });
+  return { costosFijos, ventasTotales: v, facturacionTotal: f, adsTotal: a };
+}
+
+function calcularProducto(d, negocio) {
+  const situacion = calcularSituacion(d, negocio);
+  const costos = calcularCostos(situacion, d);
+  const resultado366 = calcular366(costos, d);
+  const simulador = calcularSimulador(costos, resultado366, d);
+  const lectura = calcularLectura(costos, resultado366, d);
+  return { situacion, costos, resultado366, simulador, lectura };
+}
+
+function filasProductos(negocio) {
+  const lista = window.__foco ? window.__foco.lista() : [];
+  return lista.filter((p) => p && p.nombre).map((p) => {
+    const d = datosDeProducto(p.id);
+    return { id: p.id, nombre: String(p.nombre).trim(), llenado: d.costos.precio !== null, d, r: calcularProducto(d, negocio) };
+  });
+}
+
+const attrSeguro = (s) => String(s).replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
+// Tabla "tu ecosistema, producto por producto" (solo se ve con el ecosistema completo).
+function renderEco(negocio) {
+  const cont = document.querySelectorAll('.eco-tabla');
+  if (!cont.length) return;
+  const cel = (v) => (isNum(v) ? fmtMoney(v) : '—');
+  const filas = filasProductos(negocio);
+  let tv = 0, tf = 0, tp = 0, tu = 0, np = 0, nu = 0;
+  const trs = filas.map((f) => {
+    const c = f.r.costos, e = f.r.resultado366, l = f.r.lectura, s = f.d.situacion;
+    tv += s.ventasActuales || 0;
+    tf += s.facturacionActual || 0;
+    const conPresupuesto = f.d['366'].presupuestoDisponible != null;
+    if (isNum(e.presupuestoMensualNecesario)) { tp += e.presupuestoMensualNecesario; np++; }
+    if (conPresupuesto && isNum(e.utilidadEstimada)) { tu += e.utilidadEstimada; nu++; }
+    return `<tr class="eco-fila" data-foco-id="${attrSeguro(f.id)}" title="Clic para llenar o ajustar este producto">
+      <td class="sim-scenario">${escaparHtmlFin(f.nombre)}</td>
+      <td>${s.ventasActuales == null ? '—' : fmtNum(s.ventasActuales)}</td>
+      <td>${s.facturacionActual == null ? '—' : fmtMoney(s.facturacionActual)}</td>
+      <td>${cel(c.precio)}</td>
+      <td>${cel(c.margenBruto)}</td>
+      <td>${cel(c.cpaObjetivoSeguro)}</td>
+      <td>${cel(e.presupuestoMensualNecesario)}</td>
+      <td>${conPresupuesto ? cel(e.utilidadEstimada) : '—'}</td>
+      <td>${f.llenado ? escaparHtmlFin(l.veredicto) : 'Sin llenar'}</td>
+    </tr>`;
+  }).join('');
+  const html = filas.length
+    ? `<div class="sim-wrap"><table class="sim-table">
+        <thead><tr><th>Producto</th><th>Ventas/mes</th><th>Facturación/mes</th><th>Precio</th><th>Margen bruto</th><th>CPA objetivo seguro</th><th>Presupuesto necesario</th><th>Utilidad estimada</th><th>Veredicto</th></tr></thead>
+        <tbody>${trs}<tr class="eco-total"><td>Total del negocio</td><td>${fmtNum(tv)}</td><td>${fmtMoney(tf)}</td><td></td><td></td><td></td><td>${np ? fmtMoney(tp) : '—'}</td><td>${nu ? fmtMoney(tu) : '—'}</td><td></td></tr></tbody>
+      </table></div>`
+    : '<p class="eco-pie">Todavía no hay productos en el Catálogo de tu ADN.</p>';
+  cont.forEach((el) => { el.innerHTML = html; });
+}
+
+// Resumen compacto de TODOS los productos para el chat (comparar y recomendar).
+function resumenProductosIA(negocio) {
+  const n = (v) => (isNum(v) ? Math.round(v * 100) / 100 : null);
+  return filasProductos(negocio).map((f) => {
+    const c = f.r.costos, e = f.r.resultado366, s = f.d.situacion, x = f.d['366'];
+    return {
+      id: f.id, nombre: f.nombre, llenado: f.llenado,
+      ventasMes: s.ventasActuales, facturacionMes: s.facturacionActual, adsMes: s.presupuestoAdsActual,
+      precio: n(c.precio), costoVariable: n(c.costoVariableTotal), margenBruto: n(c.margenBruto),
+      cpaMaximoReal: n(c.cpaMaximoReal), cpaObjetivoSeguro: n(c.cpaObjetivoSeguro), roasMinimo: n(c.roasMinimo),
+      metaFacturacion: x.metaFacturacionMensual, presupuestoDisponible: x.presupuestoDisponible,
+      presupuestoNecesario: n(e.presupuestoMensualNecesario), utilidadEstimada: n(e.utilidadEstimada),
+      veredicto: f.llenado ? f.r.lectura.veredicto : 'Sin llenar',
+      riesgoPrincipal: f.llenado ? f.r.lectura.riesgoPrincipal : null,
+    };
+  });
+}
+
+const HINTS = {
+  producto: {
+    ventas: 'Ventas de ESTE producto en un mes promedio. Si empiezas de cero → pon 0',
+    fact: 'Cuánto vendiste en pesos de este producto el mes pasado. Si empiezas de cero → pon 0',
+    ads: 'Lo que gastas hoy en publicidad pagada para este producto. Si no tienes → pon 0',
+    fijos: 'Del negocio completo (el mismo para todos tus productos). Renta, sueldos fijos, apps, herramientas, contador, servicios, internet. TODO lo que pagas aunque no vendas nada ese mes.',
+  },
+  agregado: {
+    ventas: 'Suma de todos tus productos (se llena sola). Para cambiarla, elige un producto arriba.',
+    fact: 'Suma de todos tus productos (se llena sola). Para cambiarla, elige un producto arriba.',
+    ads: 'Suma de todos tus productos (se llena sola). Para cambiarla, elige un producto arriba.',
+    fijos: 'Del negocio completo (el mismo para todos tus productos). Renta, sueldos fijos, apps, herramientas, contador, servicios, internet. TODO lo que pagas aunque no vendas nada ese mes.',
+  },
+  manual: {
+    ventas: 'Total de ventas en todos tus canales hoy. Si empiezas de cero → pon 0',
+    fact: 'Cuánto vendiste en pesos el mes pasado en total. Si empiezas de cero → pon 0',
+    ads: 'Lo que ya gastas en publicidad pagada cada mes. Si no tienes → pon 0',
+    fijos: 'Renta, sueldos fijos, apps, herramientas, contador, servicios, internet. TODO lo que pagas aunque no vendas nada ese mes.',
+  },
+};
+
+function aplicarModo() {
+  const m = modo();
+  document.body.classList.toggle('modo-agregado', m === 'agregado');
+  document.body.classList.toggle('modo-producto', m === 'producto');
+  const h = HINTS[m];
+  const set = (id, t) => { const el = document.getElementById(id); if (el) el.textContent = t; };
+  set('hint-ventas', h.ventas); set('hint-fact', h.fact); set('hint-ads', h.ads); set('hint-fijos', h.fijos);
+  ['s-ventasActuales', 's-facturacionActual', 's-presupuestoAdsActual'].forEach((id) => {
+    const el = document.getElementById(id);
+    el.readOnly = m === 'agregado';
+    el.classList.toggle('solo-lectura', m === 'agregado');
+  });
+}
+
+// Las pestañas de producto se esconden con el ecosistema completo y en su lugar va la tabla comparativa.
+function prepararPaneles() {
+  document.querySelectorAll('.panel').forEach((p) => {
+    const eco = document.createElement('div');
+    eco.className = 'card eco-resumen';
+    eco.innerHTML = '<div class="card-label">Tu ecosistema, producto por producto</div><div class="eco-tabla"></div>' +
+      '<p class="eco-pie">Haz clic en un producto para llenar o ajustar sus números. Tus costos fijos (del negocio) se reparten entre las ventas de todos tus productos.</p>';
+    const intro = p.querySelector('.panel-intro');
+    if (intro) intro.after(eco);
+    if (p.id !== 'panel-situacion') {
+      p.querySelectorAll(':scope > .card:not(.eco-resumen), :scope > .info-note').forEach((el) => el.classList.add('solo-producto'));
+    }
+  });
+  document.addEventListener('click', (e) => {
+    const fila = e.target.closest && e.target.closest('[data-foco-id]');
+    if (fila && window.__foco) window.__foco.set(fila.dataset.focoId);
+  });
 }
 
 function focoParaIA() {
-  if (esTodo()) return { tipo: 'ecosistema', descripcion: 'Ecosistema completo: Costos y margen y 366 Día 2 usan el ticket promedio de todo el negocio' };
+  if (esTodo()) return { tipo: 'ecosistema', descripcion: hayProductos() ? 'Ecosistema completo: es la SUMA de tus productos (solo se pueden escribir los costos fijos del negocio; ventas, facturación y ads son suma de solo lectura; Costos y margen y 366 Día 2 se llenan producto por producto)' : 'Ecosistema completo (sin productos en el catálogo): Costos y margen y 366 Día 2 usan el ticket promedio de todo el negocio' };
   const it = focoActual.item || {};
   return { tipo: 'producto', id: focoActual.id, nombre: focoActual.nombre, precioEnCatalogo: numCat(it.precio), costoEnCatalogo: numCat(it.costo), tipoDeOferta: it.tipo || '' };
 }
 
-function actualizarNotaFoco() {
-  const el = document.getElementById('focoNota');
-  if (!el) return;
-  if (esTodo()) {
-    el.innerHTML = 'Estás viendo tu <strong>ecosistema completo</strong>: Costos y margen y 366 Día 2 usan el ticket promedio de todo tu negocio. Para más precisión, elige un producto en la pastilla de arriba.';
-  } else {
-    el.innerHTML = 'Trabajando solo sobre <strong>' + escaparHtmlFin(focoActual.nombre) + '</strong>. Costos y margen y 366 Día 2 son de este producto (precio y costo vienen de tu catálogo del ADN: revísalos). Situación Actual es de todo el negocio.';
-  }
+// Lo que ve el chat en cada mensaje: foco actual, negocio, TODOS los productos, y el detalle del foco.
+function datosParaIA() {
+  const negocio = calcularNegocio();
+  return {
+    foco: focoParaIA(),
+    negocio,
+    productos: hayProductos() ? resumenProductosIA(negocio) : [],
+    entradas: datos,
+    resultados: esAgregado() ? { situacion: ultimoCalculo && ultimoCalculo.situacion } : ultimoCalculo,
+  };
 }
 
 async function cargarEstado() {
@@ -925,24 +1147,27 @@ async function cargarEstado() {
   if (window.__foco) {
     try { await window.__foco.ready; focoActual = window.__foco.get(); } catch (e) {}
   }
+  await cargarTodosLosProductos();
   await cargarDatosDelFoco();
+  aplicarModo();
   pintarFormulario();
   recalcularYRender();
-  actualizarNotaFoco();
 }
 
-// Cambio de foco (pastilla de arriba): lo pendiente se guarda en el foco anterior y se carga el nuevo,
-// con su propia conversación del chat.
+// Cambio de foco (pastilla de arriba): lo pendiente se guarda en el foco anterior y se carga el nuevo.
+// El chat NO se reinicia: es la misma conversación, solo se marca el cambio.
 async function alCambiarFoco(nuevo) {
   leerFormulario();
   if (guardadoPendiente) guardarAhora();
   focoActual = nuevo;
-  agentMessages = [];
   await cargarDatosDelFoco();
+  aplicarModo();
   pintarFormulario();
   recalcularYRender();
-  actualizarNotaFoco();
-  await cargarAgenteEnProgreso();
+  if (agentMessages.some((m) => m.role === 'user')) {
+    agentMessages.push({ role: 'nota', content: nuevo.id === 'all' ? 'Ahora estás en: tu ecosistema completo' : 'Ahora estás en: ' + nuevo.nombre });
+    persistirAgente();
+  }
   renderAgentChat();
 }
 
@@ -964,7 +1189,8 @@ function copyText(btn, text) {
 
 let agentMessages = [];
 let agentBusy = false;
-const keyConversacion = () => CLIENTE_ID + ':financiero-consulta-conversacion' + (esTodo() ? '' : ':' + focoActual.id);
+// Una sola conversación por Jefe (el chat recuerda todo, aunque cambies de producto).
+const keyConversacion = () => CLIENTE_ID + ':financiero-consulta-conversacion';
 
 /* Campos que el chat puede llenar por ti (mismos ids que las calculadoras de arriba). */
 const TAB_NOMBRE = { situacion: 'Situación Actual', costos: 'Costos y margen', '366': '366 — Día 2' };
@@ -983,9 +1209,9 @@ const CAMPOS_CHAT = {
   'c-otrosCostos':           { label: 'Otros costos',           tab: 'costos',    tipo: 'num', money: true },
   'c-metaVentasNuevas':      { label: 'Meta de ventas nuevas',  tab: 'costos',    tipo: 'num' },
   'c-utilidadMinima':        { label: 'Utilidad mínima',        tab: 'costos',    tipo: 'num', money: true },
-  'e-metaFacturacionMensual':{ label: 'Meta de facturación',    tab: '366', tipo: 'num', money: true },
-  'e-presupuestoDisponible': { label: 'Presupuesto para probar',tab: '366', tipo: 'num', money: true },
-  'e-tipoConversion':        { label: 'Tipo de conversión',     tab: '366', tipo: 'select' },
+  'e-metaFacturacionMensual':{ label: 'Meta de facturación',    tab: '366',       tipo: 'num', money: true },
+  'e-presupuestoDisponible': { label: 'Presupuesto para probar',tab: '366',       tipo: 'num', money: true },
+  'e-tipoConversion':        { label: 'Tipo de conversión',     tab: '366',       tipo: 'select' },
 };
 
 // El chat termina sus mensajes con una línea [[CAMPOS {...}]]: se separa del texto y se aplica.
@@ -1005,6 +1231,8 @@ function aplicarCampos(campos) {
     const def = CAMPOS_CHAT[id];
     const el = document.getElementById(id);
     if (!def || !el) return;
+    // Con el ecosistema completo (suma de productos) solo se escriben los costos fijos del negocio.
+    if (esAgregado() && id !== 's-costosFijos') return;
     let v;
     if (def.tipo === 'num') {
       const n = parseFloat(String(valor).replace(/[^0-9.\-]/g, ''));
@@ -1046,6 +1274,7 @@ function irACampo(id) {
 function renderAgentChat() {
   const chat = document.getElementById('agentChat');
   const partes = agentMessages.map((m, i) => {
+    if (m.role === 'nota') return `<div class="nota-foco">${escaparHtmlFin(m.content)}</div>`;
     if (m.role === 'user') {
       return `<div class="bubble user">${escaparHtmlFin(m.content)}</div>`;
     }
@@ -1059,12 +1288,30 @@ function renderAgentChat() {
   if (agentBusy) partes.push('<div class="bubble assistant pensando">Pensando…</div>');
   chat.innerHTML = partes.join('');
   chat.scrollTop = chat.scrollHeight;
-  document.getElementById('agentSuggestions').style.display = agentMessages.length ? 'none' : 'flex';
-  document.getElementById('agentResetBtn').style.display = agentMessages.length ? '' : 'none';
+  const hayMensajes = agentMessages.length > 0;
+  document.getElementById('agentSuggestions').style.display = hayMensajes ? 'none' : 'flex';
+  document.getElementById('agentResetBtn').style.display = hayMensajes ? '' : 'none';
 }
 
 function persistirAgente() {
   window.storage.set(keyConversacion(), JSON.stringify(agentMessages)).catch(() => {});
+}
+
+// Al servidor solo viaja la conversación real; el cambio de producto se avisa como prefijo
+// "[Foco: X]" en el mensaje del usuario (las notas de cambio solo se muestran en pantalla).
+function mensajesParaAPI() {
+  let previo = null;
+  return agentMessages.filter((m) => m.role === 'user' || m.role === 'assistant').map((m) => {
+    if (m.role !== 'user') return { role: m.role, content: m.content };
+    const f = m.focoNombre || '';
+    const prefijo = f !== previo ? '[Foco: ' + (f || 'ecosistema completo') + '] ' : '';
+    previo = f;
+    return { role: 'user', content: prefijo + m.content };
+  });
+}
+
+function nuevoMensajeUsuario(texto) {
+  return { role: 'user', content: texto, focoNombre: esTodo() ? '' : focoActual.nombre };
 }
 
 async function llamarAgente() {
@@ -1078,17 +1325,19 @@ async function llamarAgente() {
     const response = await fetch('/api/consultor-financiero', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: agentMessages, cliente: CLIENTE_ID, datosCalculadora: { foco: focoParaIA(), entradas: datos, resultados: ultimoCalculo } }),
+      body: JSON.stringify({ messages: mensajesParaAPI(), cliente: CLIENTE_ID, datosCalculadora: datosParaIA() }),
     });
     const data = await response.json();
-    if (focoActual.id !== focoAlEnviar) {
-      // Cambiaste de producto mientras el Jefe contestaba: esa respuesta era del otro foco, se descarta.
-    } else if (!response.ok) {
+    if (!response.ok) {
       agentMessages.push({ role: 'assistant', content: '⚠️ ' + (data.error || 'No se pudo generar respuesta. Intenta de nuevo.') });
     } else {
       const { limpio, campos } = extraerCampos(data.text);
-      const aplicados = aplicarCampos(campos);
-      agentMessages.push({ role: 'assistant', content: limpio || data.text, aplicados });
+      if (focoActual.id !== focoAlEnviar) {
+        // Cambiaste de producto mientras contestaba: esos datos eran del otro, no se anotan en este.
+        agentMessages.push({ role: 'assistant', content: (limpio || data.text) + '\n\n(Cambiaste de producto mientras contestaba, así que no anoté esos datos aquí. Si quieres, repíteme el dato en este producto.)', aplicados: [] });
+      } else {
+        agentMessages.push({ role: 'assistant', content: limpio || data.text, aplicados: aplicarCampos(campos) });
+      }
     }
   } catch (err) {
     agentMessages.push({ role: 'assistant', content: '⚠️ Hubo un error de conexión. Intenta de nuevo en un momento.' });
@@ -1110,7 +1359,7 @@ function enviarMensajeAgente() {
   const input = document.getElementById('agentInput');
   const texto = input.value.trim();
   if (!texto) return;
-  agentMessages.push({ role: 'user', content: texto });
+  agentMessages.push(nuevoMensajeUsuario(texto));
   input.value = '';
   input.style.height = 'auto';
   renderAgentChat();
@@ -1119,7 +1368,7 @@ function enviarMensajeAgente() {
 
 function enviarSugerenciaAgente(texto) {
   if (agentBusy) return;
-  agentMessages.push({ role: 'user', content: texto });
+  agentMessages.push(nuevoMensajeUsuario(texto));
   renderAgentChat();
   llamarAgente();
 }
@@ -1144,6 +1393,7 @@ async function cargarAgenteEnProgreso() {
 /* ─── INIT ─── */
 renderTabs();
 switchTab('situacion');
+prepararPaneles();
 cargarEstado().then(cargarAgenteEnProgreso);
 if (window.__foco) window.__foco.onChange(alCambiarFoco);
 if (window.matchMedia('(max-width: 720px)').matches) document.getElementById('agentInput').placeholder = 'Pregunta o escribe “empezar”';
