@@ -2496,10 +2496,14 @@ function actualizarHeroBar(){
 // ─── SUGERENCIAS al escribir (como el buscador de YouTube) ─────────────────────
 // Salen debajo de la barra: lo más común con este Jefe y lo que conviene hacer después según cómo va el
 // tablero. Al escribir se filtran por lo tecleado; al elegir una se envía de una vez.
+// completa:true = es una plantilla que termina en "de…": al elegirla se escribe en la barra para que la termines.
 const SUGERENCIAS_BASE = [
-  {t:'¿Cómo hago mi próximo post?', g:'inicio'},
-  {t:'Dame 5 ideas para mi próximo post', g:'inicio'},
+  {t:'¿Cómo hago mi siguiente post?', g:'comun'},
+  {t:'Dame un gancho para un post de ', g:'comun', completa:true},
+  {t:'Dame 5 ideas para mi siguiente post', g:'inicio'},
   {t:'¿Qué debería publicar esta semana?', g:'inicio'},
+  {t:'Dame 5 ideas para un post de ', g:'plantilla', completa:true},
+  {t:'Escríbeme un post sobre ', g:'plantilla', completa:true},
   {t:'Dame 5 ganchos para un reel', g:'inicio'},
   {t:'Hazme un post a partir de uno que me gustó', g:'inicio'},
   {t:'Escríbeme el caption y el guion de la mejor idea', g:'ideas'},
@@ -2533,9 +2537,10 @@ function sugerenciasChat(texto){
     if(s.g==='tablero-historias') return pocasHistorias;
     return true;
   };
-  const orden = hayPost ? ['post','ideas','tablero-proceso','tablero-ideas','tablero-historias','inicio','cero']
-    : conv ? ['ideas','inicio','tablero-proceso','tablero-ideas','tablero-historias','cero']
-    : ['inicio','tablero-ideas','tablero-proceso','tablero-historias','cero'];
+  // Las dos más comunes van siempre primero; el resto cambia según el momento.
+  const orden = hayPost ? ['comun','post','ideas','tablero-proceso','tablero-ideas','tablero-historias','inicio','plantilla','cero']
+    : conv ? ['comun','ideas','inicio','tablero-proceso','tablero-ideas','tablero-historias','plantilla','cero']
+    : ['comun','inicio','tablero-ideas','tablero-proceso','tablero-historias','plantilla','cero'];
   const candidatos = SUGERENCIAS_BASE.filter(aplica).sort((a,b)=>orden.indexOf(a.g)-orden.indexOf(b.g));
   const q = normSug(texto).trim();
   if(!q) return candidatos.slice(0,5);
@@ -2551,7 +2556,7 @@ function pintarSugerencias(){
   sugLista = document.activeElement===ta ? sugerenciasChat(guionOrgPreguntaDraft) : [];
   sugActiva = -1;
   if(!sugLista.length){ ocultarSugerencias(); return; }
-  box.innerHTML = sugLista.map((s,i)=>`<button type="button" class="go-sug-item" role="option" data-i="${i}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span>${escHtml(s.t)}</span></button>`).join('');
+  box.innerHTML = sugLista.map((s,i)=>`<button type="button" class="go-sug-item" role="option" data-i="${i}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span>${escHtml(s.completa ? s.t.trim()+'…' : s.t)}</span></button>`).join('');
   box.hidden = false;
   box.querySelectorAll('.go-sug-item').forEach(b=>{
     b.addEventListener('mousedown',e=>e.preventDefault()); // no le quita el foco a la barra
@@ -2577,6 +2582,12 @@ function elegirSugerencia(i){
   ocultarSugerencias();
   if(s.accion==='arranque'){ reiniciarArranque(); return; }
   guionOrgPreguntaDraft = s.t;
+  if(s.completa){
+    // Plantilla: queda escrita en la barra para que la persona la termine.
+    const ta=document.getElementById('go-pregunta');
+    ta.value=s.t; autoAlturaHero(ta); ta.focus(); ta.setSelectionRange(s.t.length,s.t.length);
+    return;
+  }
   preguntarAgentePostIA();
 }
 
