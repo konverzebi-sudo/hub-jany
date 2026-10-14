@@ -363,6 +363,22 @@
   .hero-meta .mode-status{font-family:'Inter',sans-serif;font-size:14px;}
   #go-chat-thread{width:100%;max-width:880px;margin:6px auto 14px;text-align:left;}
   #go-chat-thread[hidden]{display:none;}
+  /* Chat abierto = estilo WhatsApp: las respuestas arriba y la barra para escribir abajo, debajo de la última. */
+  .cx-hero.has-chat #go-chat-thread{order:1;margin:14px auto 10px;padding:16px;background:var(--surface-2);border:1px solid var(--line);border-radius:26px;max-height:min(58vh,560px);}
+  .cx-hero.has-chat .hero-search{order:2;}
+  .cx-hero.has-chat .hero-previews{order:3;}
+  .cx-hero.has-chat .hero-meta{order:4;}
+  .cx-hero.has-chat .group-tabs{order:5;}
+  .cx-hero.has-chat .go-sug{top:auto;bottom:calc(100% + 6px);}
+  .cx-hero.has-chat #go-chat-thread .chat-msg{font-size:16px;line-height:1.6;}
+  .cx-hero.has-chat #go-chat-thread .chat-msg-user{background:var(--accent);border-color:var(--accent);color:#1A1A1A;border-radius:20px 20px 6px 20px;}
+  .cx-hero.has-chat #go-chat-thread .chat-msg-assistant{background:var(--surface);border-radius:20px 20px 20px 6px;box-shadow:0 1px 3px rgba(0,0,0,.06);}
+  .chat-typing{display:inline-flex;gap:5px;align-items:center;padding:14px 18px;width:fit-content;}
+  .chat-typing span{width:8px;height:8px;border-radius:50%;background:var(--text-dim);opacity:.45;animation:chatDot 1.1s infinite ease-in-out;}
+  .chat-typing span:nth-child(2){animation-delay:.18s;}
+  .chat-typing span:nth-child(3){animation-delay:.36s;}
+  @keyframes chatDot{0%,80%,100%{transform:translateY(0);opacity:.35}40%{transform:translateY(-5px);opacity:1}}
+  @media (prefers-reduced-motion:reduce){.chat-typing span{animation:none;}}
   .group-tabs{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:10px;}
     .group-tab{font-family:'Sora',sans-serif;font-size:clamp(14px,1.8vw,17px);font-weight:700;padding:11px 30px;border-radius:12px;border:1.5px solid #0F0B16;background:#0F0B16;color:#fff;cursor:pointer;transition:background .18s,color .18s,border-color .18s,transform .15s,box-shadow .18s;}
   .group-tab:hover{background:#241C36;border-color:#241C36;color:var(--accent);transform:translateY(-2px);box-shadow:0 8px 22px rgba(15,11,22,.28);}
@@ -1723,12 +1739,16 @@ function reiniciarArranque(){
   actualizarHeroBar();
 }
 
+let guionOrgPensando = false; // mientras el Jefe contesta se ve el globito "escribiendo…"
 function pintarGuionOrgChat(){
   const box = document.getElementById('go-chat-thread');
   if(!box) return;
+  const hero = document.querySelector('.cx-hero');
   const bienvenida = bienvenidaVisible();
-  if(!guionOrgChat.length && !bienvenida){ box.hidden=true; box.innerHTML=''; return; }
+  if(!guionOrgChat.length && !bienvenida){ box.hidden=true; box.innerHTML=''; if(hero) hero.classList.remove('has-chat'); return; }
   box.hidden = bienvenida ? false : chatPlegado;
+  // Con la conversación abierta la barra baja y queda debajo de la última respuesta, como en WhatsApp.
+  if(hero) hero.classList.toggle('has-chat', !box.hidden);
   const mensajes = guionOrgChat.length ? guionOrgChat : [{role:'assistant', content:BIENVENIDA_ARRANQUE, local:true}];
   box.innerHTML = mensajes.map((m,i)=>{
     if(m.local){
@@ -1739,14 +1759,13 @@ function pintarGuionOrgChat(){
       const thumbs = (m.imagenes&&m.imagenes.length) ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">${m.imagenes.map(src=>`<img src="${src}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--line);">`).join('')}</div>` : '';
       return `<div class="chat-msg chat-msg-user">${thumbs}${escHtml(m.content)}</div>`;
     }
-    return `<div class="chat-msg chat-msg-assistant">${escHtml(m.content)}
-      <div class="chat-msg-actions">
+    return `<div class="chat-msg chat-msg-assistant">${escHtml(m.content)}<div class="chat-msg-actions">
         <button type="button" data-copy-idx="${i}">📋 Copiar</button>
         <button type="button" data-usar-idx="${i}" class="${m.usada?'done':''}">${m.usada?'✅ Agregado a Contenido':'✅ Usar en Contenido (en proceso)'}</button>
         ${m.usada&&m.contenidoId?`<button type="button" data-ver-idx="${i}">→ Ver publicación</button>`:''}
-      </div>
-    </div>`;
+      </div></div>`;
   }).join('');
+  if(guionOrgPensando) box.insertAdjacentHTML('beforeend','<div class="chat-msg chat-msg-assistant chat-typing" aria-label="Escribiendo"><span></span><span></span><span></span></div>');
   box.scrollTop = box.scrollHeight;
   box.querySelectorAll('[data-opcion]').forEach(btn=>{
     btn.addEventListener('click', ()=>{ guionOrgPreguntaDraft = btn.dataset.opcion; preguntarAgentePostIA(); });
@@ -1885,8 +1904,11 @@ async function preguntarAgentePostIA(){
   guionOrgPreguntaDraft = '';
   guionOrgImagenesAdjuntas = [];
   scheduleGuionOrgChatSave();
+  guionOrgPensando = true;
   pintarGuionOrgChat();
   pintarGuionOrgImgPreview();
+  const barraHero=document.getElementById('hero-bar');
+  if(barraHero && barraHero.scrollIntoView) barraHero.scrollIntoView({block:'nearest'});
   const taHero=document.getElementById('go-pregunta');
   if(taHero){ taHero.value=''; autoAlturaHero(taHero); }
   const rsHero=document.getElementById('go-chat-reset-btn');
@@ -1920,7 +1942,10 @@ async function preguntarAgentePostIA(){
     guionOrgImagenesAdjuntas = imagenesParaEnviar.map((img,i)=>({...img, previewUrl:previewsParaMostrar[i]}));
     guionOrgPreguntaStatus = '❌ ' + (err.message || 'Error al consultar al Agente.');
   }
+  guionOrgPensando = false;
   actualizarHeroBar();
+  const barraFin=document.getElementById('hero-bar');
+  if(barraFin && barraFin.scrollIntoView) barraFin.scrollIntoView({block:'nearest'});
 }
 
 // El chat etiqueta "CAPTION:" (texto del post) aparte de "GUION:" (lo que se dice en el video) --
