@@ -348,6 +348,15 @@
   .hero-search-send:disabled{opacity:.5;cursor:wait;}
   .hero-search-bot{width:42px;height:42px;transition:transform .15s;}
   .hero-search-send:hover .hero-search-bot{transform:scale(1.1) rotate(-4deg);}
+  #hero-bar{position:relative;}
+  .go-sug{position:absolute;top:calc(100% + 6px);left:12px;right:12px;z-index:40;display:flex;flex-direction:column;padding:8px;background:var(--surface);border:1px solid var(--line);border-radius:22px;box-shadow:0 14px 36px rgba(0,0,0,.16);text-align:left;}
+  .go-sug[hidden]{display:none;}
+  .go-sug-item{display:flex;align-items:center;gap:12px;width:100%;padding:11px 14px;border:none;border-radius:14px;background:transparent;color:var(--text);font:500 16px 'Inter',sans-serif;text-align:left;cursor:pointer;}
+  .go-sug-item svg{flex:0 0 auto;width:18px;height:18px;color:var(--text-dim);}
+  .go-sug-item:hover,.go-sug-item.on{background:var(--surface-2);}
+  .chat-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
+  .chat-chip{border:1.5px solid var(--accent);background:var(--accent-soft);color:var(--text);font:700 14px 'Sora',sans-serif;padding:9px 16px;border-radius:100px;cursor:pointer;transition:.15s;}
+  .chat-chip:hover{background:var(--accent);color:#1A1A1A;transform:translateY(-1px);}
   .hero-previews{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;}
   .hero-previews:not(:empty){margin:4px 0 8px;}
   .hero-meta{display:flex;align-items:center;gap:12px;justify-content:center;min-height:22px;margin-bottom:6px;}
@@ -597,6 +606,7 @@
         <span class="hero-search-sep"></span>
         <textarea id="go-pregunta" rows="1" placeholder="Hagamos contenido mamalón y estratégico para tu marca… comienza preguntando"></textarea>
         <button type="button" class="hero-search-send" id="go-pregunta-btn" aria-label="Preguntar al Agente"><svg class="hero-search-bot" aria-hidden="true"><use href="#robot366"/></svg></button>
+        <div class="go-sug" id="go-sug" role="listbox" aria-label="Sugerencias" hidden></div>
       </div>
       <div id="go-pregunta-img-preview" class="hero-previews"></div>
       <div class="hero-meta">
@@ -1677,12 +1687,54 @@ async function ensureGuionOrgChatLoaded(){
 function scheduleGuionOrgChatSave(){ clearTimeout(guionOrgChatSaveTimer); guionOrgChatSaveTimer=setTimeout(guardarGuionOrgChat,500); }
 async function guardarGuionOrgChat(opts){ try{ await window.storage.set(POST_IA_CHAT_KEY, JSON.stringify(guionOrgChat), opts); }catch(e){} }
 
+// ─── ARRANQUE GUIADO ───────────────────────────────────────────────────────────
+// La primera vez, el Jefe da la bienvenida y guía: ¿ya publicas?, capturas de su estilo, 5 ideas y el
+// primer post (la guía vive en prompts/system-prompt-post-ia-arranque.md). Al entregar el primer post
+// se marca como hecho y de ahí en adelante la consulta es libre.
+const ARRANQUE_KEY = CLIENTE_ID + ':contenido-arranque';
+let arranqueHecho = true; // hasta saber lo contrario no se muestra la bienvenida
+const BIENVENIDA_ARRANQUE = '¡Hola! Qué gusto tenerte aquí 💚 Soy tu Jefe de Contenido y voy a acompañarte, paso a paso y sin prisa, a empezar a publicar con tu propio estilo. Para conocerte un poquito: ¿ya tienes publicaciones en tus redes o este va a ser tu primer post?';
+const OPCIONES_ARRANQUE = ['Ya tengo publicaciones', 'Será mi primer post'];
+async function cargarArranque(){
+  try{
+    const r = await window.storage.get(ARRANQUE_KEY);
+    arranqueHecho = !!(r && r.value && JSON.parse(r.value).hecho);
+  }catch(e){ arranqueHecho = true; }
+}
+async function guardarArranque(hecho){
+  arranqueHecho = hecho;
+  try{ await window.storage.set(ARRANQUE_KEY, JSON.stringify({hecho})); }catch(e){}
+}
+// La conversación está en el arranque si todavía no se termina y se abrió con la bienvenida.
+function enArranque(){
+  if(arranqueHecho) return false;
+  return !guionOrgChat.length || !!guionOrgChat[0].local;
+}
+// Mensaje de bienvenida que se ve mientras no hay nada escrito (se guarda en la conversación al contestar).
+function bienvenidaVisible(){
+  if(arranqueHecho) return false;
+  return !guionOrgChat.length || (guionOrgChat.length===1 && !!guionOrgChat[0].local);
+}
+function reiniciarArranque(){
+  guionOrgChat=[]; guionOrgPreguntaStatus=''; guionOrgPreguntaDraft=''; guionOrgImagenesAdjuntas=[];
+  scheduleGuionOrgChatSave();
+  guardarArranque(false);
+  chatPlegado=false;
+  actualizarHeroBar();
+}
+
 function pintarGuionOrgChat(){
   const box = document.getElementById('go-chat-thread');
   if(!box) return;
-  if(!guionOrgChat.length){ box.hidden=true; box.innerHTML=''; return; }
-  box.hidden=chatPlegado;
-  box.innerHTML = guionOrgChat.map((m,i)=>{
+  const bienvenida = bienvenidaVisible();
+  if(!guionOrgChat.length && !bienvenida){ box.hidden=true; box.innerHTML=''; return; }
+  box.hidden = bienvenida ? false : chatPlegado;
+  const mensajes = guionOrgChat.length ? guionOrgChat : [{role:'assistant', content:BIENVENIDA_ARRANQUE, local:true}];
+  box.innerHTML = mensajes.map((m,i)=>{
+    if(m.local){
+      const opciones = bienvenida ? `<div class="chat-chips">${OPCIONES_ARRANQUE.map(t=>`<button type="button" class="chat-chip" data-opcion="${escHtml(t)}">${escHtml(t)}</button>`).join('')}</div>` : '';
+      return `<div class="chat-msg chat-msg-assistant">${escHtml(m.content)}${opciones}</div>`;
+    }
     if(m.role==='user'){
       const thumbs = (m.imagenes&&m.imagenes.length) ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">${m.imagenes.map(src=>`<img src="${src}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--line);">`).join('')}</div>` : '';
       return `<div class="chat-msg chat-msg-user">${thumbs}${escHtml(m.content)}</div>`;
@@ -1696,6 +1748,9 @@ function pintarGuionOrgChat(){
     </div>`;
   }).join('');
   box.scrollTop = box.scrollHeight;
+  box.querySelectorAll('[data-opcion]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ guionOrgPreguntaDraft = btn.dataset.opcion; preguntarAgentePostIA(); });
+  });
   box.querySelectorAll('[data-copy-idx]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const idx=+btn.dataset.copyIdx;
@@ -1823,6 +1878,9 @@ async function preguntarAgentePostIA(){
   if(statusEl) statusEl.textContent = '⏳ Consultando ADN + 366 + Radar para responderte...';
   const imagenesParaEnviar = guionOrgImagenesAdjuntas.map(img=>({mediaType:img.mediaType, data:img.data}));
   const previewsParaMostrar = guionOrgImagenesAdjuntas.map(img=>img.previewUrl);
+  ocultarSugerencias();
+  const faseArranque = enArranque();
+  if(faseArranque && !guionOrgChat.length) guionOrgChat.push({role:'assistant', content:BIENVENIDA_ARRANQUE, local:true});
   guionOrgChat.push({role:'user', content: pregunta || '(revisa la imagen adjunta)', imagenes: previewsParaMostrar});
   guionOrgPreguntaDraft = '';
   guionOrgImagenesAdjuntas = [];
@@ -1838,7 +1896,8 @@ async function preguntarAgentePostIA(){
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
         cliente: CLIENTE_ID, modo:'pregunta',
-        messages: guionOrgChat.map(m=>({role:m.role, content:m.content})),
+        fase: faseArranque ? 'arranque' : 'libre',
+        messages: guionOrgChat.filter(m=>!m.local).map(m=>({role:m.role, content:m.content})),
         imagenes: imagenesParaEnviar,
       }),
     });
@@ -1850,6 +1909,8 @@ async function preguntarAgentePostIA(){
       throw new Error((data && data.error) || `Error al consultar al Agente (código ${resp.status}).`);
     }
     guionOrgChat.push({role:'assistant', content:data.text||''});
+    // El primer post entregado cierra el arranque guiado: de aquí en adelante la consulta es libre.
+    if(faseArranque && /CAPTION:/i.test(data.text||'')) guardarArranque(true);
     guionOrgPreguntaStatus = '✅ Listo';
     scheduleGuionOrgChatSave();
   }catch(err){
@@ -2419,7 +2480,7 @@ function actualizarHeroBar(){
   const ta=document.getElementById('go-pregunta');
   if(!ta) return;
   if(ta.value!==guionOrgPreguntaDraft){ ta.value=guionOrgPreguntaDraft; autoAlturaHero(ta); }
-  ta.placeholder = guionOrgChat.length ? 'Sigue la conversación para pulir la idea…' : HERO_PLACEHOLDER;
+  ta.placeholder = bienvenidaVisible() ? 'Cuéntame aquí… o elige una opción de arriba' : (guionOrgChat.length ? 'Sigue la conversación para pulir la idea…' : HERO_PLACEHOLDER);
   const st=document.getElementById('go-pregunta-status');
   if(st) st.textContent=guionOrgPreguntaStatus||'';
   const btn=document.getElementById('go-pregunta-btn');
@@ -2432,13 +2493,110 @@ function actualizarHeroBar(){
   pintarGuionOrgImgPreview();
 }
 
+// ─── SUGERENCIAS al escribir (como el buscador de YouTube) ─────────────────────
+// Salen debajo de la barra: lo más común con este Jefe y lo que conviene hacer después según cómo va el
+// tablero. Al escribir se filtran por lo tecleado; al elegir una se envía de una vez.
+const SUGERENCIAS_BASE = [
+  {t:'¿Cómo hago mi próximo post?', g:'inicio'},
+  {t:'Dame 5 ideas para mi próximo post', g:'inicio'},
+  {t:'¿Qué debería publicar esta semana?', g:'inicio'},
+  {t:'Dame 5 ganchos para un reel', g:'inicio'},
+  {t:'Hazme un post a partir de uno que me gustó', g:'inicio'},
+  {t:'Escríbeme el caption y el guion de la mejor idea', g:'ideas'},
+  {t:'Dame otras 5 ideas', g:'ideas'},
+  {t:'Hazlo más corto', g:'post'},
+  {t:'Hazlo más cercano y con más humor', g:'post'},
+  {t:'Dame otra opción de gancho', g:'post'},
+  {t:'Adáptalo a carrusel o imagen', g:'post'},
+  {t:'Ayúdame a elegir qué idea publicar primero', g:'tablero-ideas'},
+  {t:'Ayúdame a programar mis posts de esta semana', g:'tablero-proceso'},
+  {t:'Dame ideas para mis historias de hoy', g:'tablero-historias'},
+  {t:'Guíame paso a paso desde cero', g:'cero', accion:'arranque'},
+];
+let sugLista = [];
+let sugActiva = -1;
+function normSug(s){ return (s||'').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
+// Orden de relevancia según el momento: sin conversación (arranque del día), con ideas ya dadas o con un post escrito.
+function sugerenciasChat(texto){
+  if(bienvenidaVisible()) return []; // mientras se contesta la bienvenida las opciones son las de la burbuja
+  const conv =guionOrgChat.some(m=>!m.local);
+  const hayPost = guionOrgChat.some(m=>m.role==='assistant' && /CAPTION:/i.test(m.content));
+  const nIdeas = state.contenido.filter(r=>r.estado==='idea').length;
+  const nSinFecha = state.contenido.filter(r=>(r.estado==='proceso'||r.estado==='programado') && !/^\d{4}-\d{2}-\d{2}$/.test(r.fecha||'')).length;
+  const pocasHistorias = state.historias.filter(r=>r.estado!=='publicado').length < 3;
+  const aplica = s=>{
+    if(s.g==='post') return hayPost;
+    if(s.g==='ideas') return conv;
+    if(s.g==='cero') return !conv;
+    if(s.g==='tablero-ideas') return nIdeas>0;
+    if(s.g==='tablero-proceso') return nSinFecha>0;
+    if(s.g==='tablero-historias') return pocasHistorias;
+    return true;
+  };
+  const orden = hayPost ? ['post','ideas','tablero-proceso','tablero-ideas','tablero-historias','inicio','cero']
+    : conv ? ['ideas','inicio','tablero-proceso','tablero-ideas','tablero-historias','cero']
+    : ['inicio','tablero-ideas','tablero-proceso','tablero-historias','cero'];
+  const candidatos = SUGERENCIAS_BASE.filter(aplica).sort((a,b)=>orden.indexOf(a.g)-orden.indexOf(b.g));
+  const q = normSug(texto).trim();
+  if(!q) return candidatos.slice(0,5);
+  // Al escribir, "dame otras 5 ideas" y similares también salen aunque todavía no haya conversación.
+  const paraBuscar = SUGERENCIAS_BASE.filter(s=>aplica(s) || s.g==='ideas').sort((a,b)=>orden.indexOf(a.g)-orden.indexOf(b.g));
+  const palabras = q.split(/\s+/).filter(Boolean);
+  return paraBuscar.filter(s=>{ const n=normSug(s.t); return palabras.every(p=>n.includes(p)); }).slice(0,5);
+}
+function pintarSugerencias(){
+  const box=document.getElementById('go-sug');
+  const ta=document.getElementById('go-pregunta');
+  if(!box || !ta) return;
+  sugLista = document.activeElement===ta ? sugerenciasChat(guionOrgPreguntaDraft) : [];
+  sugActiva = -1;
+  if(!sugLista.length){ ocultarSugerencias(); return; }
+  box.innerHTML = sugLista.map((s,i)=>`<button type="button" class="go-sug-item" role="option" data-i="${i}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span>${escHtml(s.t)}</span></button>`).join('');
+  box.hidden = false;
+  box.querySelectorAll('.go-sug-item').forEach(b=>{
+    b.addEventListener('mousedown',e=>e.preventDefault()); // no le quita el foco a la barra
+    b.addEventListener('click',()=>elegirSugerencia(+b.dataset.i));
+  });
+}
+function ocultarSugerencias(){
+  const box=document.getElementById('go-sug');
+  if(box){ box.hidden=true; box.innerHTML=''; }
+  sugLista=[]; sugActiva=-1;
+}
+function moverSugerencia(paso){
+  const items=document.querySelectorAll('#go-sug .go-sug-item');
+  if(!items.length) return false;
+  const n=items.length;
+  sugActiva = sugActiva<0 ? (paso>0 ? 0 : n-1) : (sugActiva+paso+n)%n;
+  items.forEach((b,i)=>b.classList.toggle('on', i===sugActiva));
+  return true;
+}
+function elegirSugerencia(i){
+  const s=sugLista[i];
+  if(!s) return;
+  ocultarSugerencias();
+  if(s.accion==='arranque'){ reiniciarArranque(); return; }
+  guionOrgPreguntaDraft = s.t;
+  preguntarAgentePostIA();
+}
+
 function initHeroChat(){
   const ta=document.getElementById('go-pregunta');
-  ta.addEventListener('input',e=>{ guionOrgPreguntaDraft=e.target.value; autoAlturaHero(ta); });
+  ta.addEventListener('input',e=>{ guionOrgPreguntaDraft=e.target.value; autoAlturaHero(ta); pintarSugerencias(); });
   ta.addEventListener('keydown',e=>{
-    if(e.key==='Enter' && !e.shiftKey && !e.isComposing){ e.preventDefault(); preguntarAgentePostIA(); }
+    if(e.key==='ArrowDown' || e.key==='ArrowUp'){
+      if(document.getElementById('go-sug').hidden) pintarSugerencias();
+      if(moverSugerencia(e.key==='ArrowDown'?1:-1)) e.preventDefault();
+      return;
+    }
+    if(e.key==='Escape'){ ocultarSugerencias(); return; }
+    if(e.key==='Enter' && !e.shiftKey && !e.isComposing){
+      e.preventDefault();
+      if(sugActiva>=0) elegirSugerencia(sugActiva); else preguntarAgentePostIA();
+    }
   });
-  ta.addEventListener('focus',()=>{ if(chatPlegado) setChatPlegado(false); });
+  ta.addEventListener('focus',()=>{ if(chatPlegado) setChatPlegado(false); pintarSugerencias(); });
+  ta.addEventListener('blur',()=>setTimeout(ocultarSugerencias,120));
   ta.addEventListener('paste', agregarImagenesPegadasPostIA);
   document.getElementById('go-chat-toggle').addEventListener('click',()=>setChatPlegado(!chatPlegado));
   document.getElementById('go-pregunta-img').addEventListener('change', agregarImagenesAdjuntasPostIA);
@@ -2448,7 +2606,7 @@ function initHeroChat(){
     scheduleGuionOrgChatSave();
     actualizarHeroBar();
   });
-  ensureGuionOrgChatLoaded().then(()=>{ chatPlegado=guionOrgChat.length>0; actualizarHeroBar(); });
+  Promise.all([ensureGuionOrgChatLoaded(), cargarArranque()]).then(()=>{ chatPlegado=guionOrgChat.length>0 && !bienvenidaVisible(); actualizarHeroBar(); });
   autoAlturaHero(ta);
   window.addEventListener('resize',()=>autoAlturaHero(ta));
 }

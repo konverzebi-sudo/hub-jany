@@ -11,6 +11,7 @@ const { sql } = require('@vercel/postgres');
 const DEFAULT_CLIENTE = 'jefeshub';
 const PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-guion-organico.md');
 const PREGUNTAS_PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-post-ia-preguntas.md');
+const ARRANQUE_PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-post-ia-arranque.md');
 const CONTEXT_CHAR_LIMIT = 10000;
 
 let fixedPromptCache = null;
@@ -25,6 +26,15 @@ function cargarPromptPreguntas() {
   if (preguntasPromptCache) return preguntasPromptCache;
   preguntasPromptCache = fs.readFileSync(PREGUNTAS_PROMPT_PATH, 'utf-8');
   return preguntasPromptCache;
+}
+
+// Guía de la primera conversación (¿ya publicas?, capturas de su estilo, 5 ideas, primer post).
+// Se agrega al prompt de preguntas solo cuando el cliente manda fase 'arranque'.
+let arranquePromptCache = null;
+function cargarPromptArranque() {
+  if (arranquePromptCache) return arranquePromptCache;
+  arranquePromptCache = fs.readFileSync(ARRANQUE_PROMPT_PATH, 'utf-8');
+  return arranquePromptCache;
 }
 
 const WINDOW_MS = 10 * 60 * 1000;
@@ -516,7 +526,8 @@ module.exports = async function handler(req, res) {
 
       const promptPreguntas = cargarPromptPreguntas();
       const { contexto } = await construirContexto(clienteId, grupoId);
-      const system = promptPreguntas + '\n\n' + contexto;
+      const arranque = body.fase === 'arranque' ? '\n\n' + cargarPromptArranque() : '';
+      const system = promptPreguntas + arranque + '\n\n' + contexto;
 
       const { texto, usage } = await llamarClaudeTexto({ system, messages: historial, maxTokens: 1100, conBusqueda: true });
       if (!texto) {
