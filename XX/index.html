@@ -1998,6 +1998,111 @@
     });
   }
 
+  var editingProjectId = null;
+  var editingProjTaskId = null;
+
+  function renameProject(p, newName){
+    newName = (newName || '').trim();
+    var old = p.name;
+    if(!newName || newName === old) return false;
+    if(data.products.some(function(x){ return x !== p && x.name.toLowerCase() === newName.toLowerCase(); })) return false;
+    if(!p.color) p.color = PROJECT_COLORS[old] || '#9BA294';
+    data.agenda.forEach(function(a){ if(a.project === old) a.project = newName; });
+    data.history.forEach(function(h){ if(h.project === old) h.project = newName; });
+    p.name = newName;
+    return true;
+  }
+
+  function addProjectField(p, label, value, toAll){
+    label = (label || '').trim();
+    if(!label) return false;
+    if(!p.fields) p.fields = [];
+    p.fields.push({id:uid('f'), label:label, value:(value || '').trim()});
+    if(toAll){
+      data.products.forEach(function(other){
+        if(other === p) return;
+        if(!other.fields) other.fields = [];
+        if(!other.fields.some(function(f){ return f.label.toLowerCase() === label.toLowerCase(); })){
+          other.fields.push({id:uid('f'), label:label, value:''});
+        }
+      });
+    }
+    return true;
+  }
+
+  function renderProjectEditor(p, card){
+    var ed = document.createElement('div');
+    ed.style.cssText = 'margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid #232A1E;';
+    var nameInp = document.createElement('input');
+    nameInp.className = 'jd-input'; nameInp.value = p.name; nameInp.style.marginBottom = '8px';
+    nameInp.addEventListener('change', function(){
+      if(renameProject(p, nameInp.value)){ save(); renderProducts(); renderAgenda(); renderHistory(); renderCalendar(); renderWeekGrid(); }
+      else nameInp.value = p.name;
+    });
+    ed.appendChild(nameInp);
+
+    var cap = document.createElement('div');
+    cap.className = 'jd-sub'; cap.style.margin = '2px 0 6px';
+    cap.textContent = 'Datos del proyecto (concepto y dato)';
+    ed.appendChild(cap);
+
+    (p.fields || []).forEach(function(f){
+      var row = document.createElement('div');
+      row.className = 'jd-row'; row.style.cssText = 'gap:4px;margin-bottom:8px;align-items:stretch;';
+      var l = document.createElement('input'); l.className = 'jd-input'; l.value = f.label; l.placeholder = 'Concepto'; l.style.marginBottom = '4px';
+      var v = document.createElement('input'); v.className = 'jd-input'; v.value = f.value; v.placeholder = 'Dato';
+      var fieldCol = document.createElement('div'); fieldCol.style.cssText = 'flex:1;min-width:0;';
+      fieldCol.appendChild(l); fieldCol.appendChild(v);
+      var btnCol = document.createElement('div'); btnCol.style.cssText = 'display:flex;flex-direction:column;gap:4px;flex:none;';
+      l.addEventListener('change', function(){ var t = l.value.trim(); if(t){ f.label = t; save(); } else l.value = f.label; });
+      v.addEventListener('change', function(){ f.value = v.value.trim(); save(); });
+      var all = document.createElement('button');
+      all.className = 'jd-btn'; all.textContent = '⇉'; all.title = 'Agregar este concepto a todos los proyectos'; all.style.padding = '1px 7px';
+      all.addEventListener('click', function(){
+        data.products.forEach(function(other){
+          if(other === p) return;
+          if(!other.fields) other.fields = [];
+          if(!other.fields.some(function(x){ return x.label.toLowerCase() === f.label.toLowerCase(); })){
+            other.fields.push({id:uid('f'), label:f.label, value:''});
+          }
+        });
+        save(); all.textContent = '✓'; setTimeout(renderProducts, 600);
+      });
+      var del = document.createElement('button');
+      del.className = 'jd-btn'; del.textContent = '×'; del.style.padding = '1px 8px';
+      del.addEventListener('click', function(){
+        p.fields = p.fields.filter(function(x){ return x.id !== f.id; });
+        save(); renderProducts();
+      });
+      btnCol.appendChild(all); btnCol.appendChild(del);
+      row.appendChild(fieldCol); row.appendChild(btnCol);
+      ed.appendChild(row);
+    });
+
+    var addRow = document.createElement('div');
+    addRow.style.cssText = 'display:flex;flex-direction:column;gap:4px;margin-top:6px;';
+    var nl = document.createElement('input'); nl.className = 'jd-input'; nl.placeholder = 'Concepto (déjalo vacío si aún no sabes)';
+    var nv = document.createElement('input'); nv.className = 'jd-input'; nv.placeholder = 'Dato';
+    addRow.appendChild(nl); addRow.appendChild(nv);
+    ed.appendChild(addRow);
+    var allLbl = document.createElement('label');
+    allLbl.className = 'jd-sub'; allLbl.style.cssText = 'display:flex;gap:6px;align-items:center;margin:6px 0;cursor:pointer;';
+    var allChk = document.createElement('input'); allChk.type = 'checkbox';
+    allLbl.appendChild(allChk); allLbl.appendChild(document.createTextNode('Agregar este concepto a todos los proyectos'));
+    ed.appendChild(allLbl);
+    var addBtn = document.createElement('button');
+    addBtn.className = 'jd-btn'; addBtn.style.width = '100%'; addBtn.textContent = '+ Agregar campo';
+    addBtn.addEventListener('click', function(){
+      if(addProjectField(p, nl.value, nv.value, allChk.checked)){ save(); renderProducts(); }
+    });
+    ed.appendChild(addBtn);
+    var done = document.createElement('button');
+    done.className = 'jd-btn jd-btn-lima'; done.style.cssText = 'width:100%;margin-top:6px;'; done.textContent = 'Listo';
+    done.addEventListener('click', function(){ editingProjectId = null; renderProducts(); });
+    ed.appendChild(done);
+    card.appendChild(ed);
+  }
+
   function renderProducts(){
     var box = document.getElementById('jd-products');
     box.innerHTML = '';
@@ -2012,24 +2117,76 @@
       head.className = 'jd-row'; head.style.cssText='justify-content:space-between;margin-bottom:6px;';
       head.innerHTML = '<div class="jd-row" style="gap:6px;"><span style="width:9px;height:9px;border-radius:50%;background:'+color+';display:inline-block;"></span>'+
         '<span style="font-size:12.5px;font-weight:600;">'+p.name+'</span></div>'+
-        '<span class="jd-chip" style="background:#1B2117;color:#B9C0AF;">'+pendingCount+' pend.</span>';
+        '<span class="jd-row" style="gap:6px;"><button class="jd-sub" data-edit style="background:transparent;border:none;cursor:pointer;padding:0;text-decoration:underline;">'+(editingProjectId === p.id ? 'listo' : 'editar')+'</button>'+
+        '<span class="jd-chip" style="background:#1B2117;color:#B9C0AF;">'+pendingCount+' pend.</span></span>';
+      head.querySelector('[data-edit]').addEventListener('click', function(){
+        editingProjectId = (editingProjectId === p.id) ? null : p.id;
+        renderProducts();
+      });
       card.appendChild(head);
       var bar = document.createElement('div');
       bar.style.cssText = 'height:4px;background:#1B2117;border-radius:4px;overflow:hidden;margin-bottom:8px;';
       bar.innerHTML = '<div style="height:100%;width:'+pct+'%;background:'+color+';"></div>';
       card.appendChild(bar);
+
+      if(editingProjectId === p.id){
+        renderProjectEditor(p, card);
+      } else if(p.fields && p.fields.length){
+        var info = document.createElement('div');
+        info.style.cssText = 'margin-bottom:8px;';
+        p.fields.forEach(function(f){
+          var line = document.createElement('div');
+          line.className = 'jd-sub'; line.style.cssText = 'font-size:11px;line-height:1.5;';
+          line.innerHTML = '<span style="color:#B9C0AF;">'+f.label+':</span> '+(f.value ? f.value : '<span style="color:#4A5A3C;">—</span>');
+          info.appendChild(line);
+        });
+        card.appendChild(info);
+      }
+
       p.tasks.forEach(function(t){
+        if(editingProjTaskId === t.id){
+          var er = document.createElement('div');
+          er.style.cssText = 'padding:6px 0;border-bottom:1px solid #232A1E;';
+          var ti = document.createElement('input'); ti.className = 'jd-input'; ti.value = t.text; ti.style.marginBottom = '6px';
+          var ts = document.createElement('select'); ts.className = 'jd-input'; ts.style.marginBottom = '6px';
+          ts.innerHTML = areaOptionsHtml(t.area, 'Meta: automática');
+          var tb = document.createElement('div'); tb.className = 'jd-row'; tb.style.gap = '6px';
+          tb.innerHTML = '<button class="jd-btn jd-btn-lima" data-save style="flex:1;">Guardar</button><button class="jd-btn" data-del>Borrar</button><button class="jd-btn" data-cancel>Cancelar</button>';
+          er.appendChild(ti); er.appendChild(ts); er.appendChild(tb);
+          tb.querySelector('[data-save]').addEventListener('click', function(){
+            var v = ti.value.trim();
+            if(v) t.text = v;
+            if(ts.value !== (t.area || '')) setItemArea(t, ts.value || undefined, t.done);
+            editingProjTaskId = null;
+            save(); renderProducts(); renderBalance();
+          });
+          tb.querySelector('[data-del]').addEventListener('click', function(){
+            p.tasks = p.tasks.filter(function(x){ return x.id !== t.id; });
+            editingProjTaskId = null;
+            save(); renderProducts(); renderBalance();
+          });
+          tb.querySelector('[data-cancel]').addEventListener('click', function(){ editingProjTaskId = null; renderProducts(); });
+          card.appendChild(er);
+          return;
+        }
         var row = document.createElement('label');
         row.className = 'jd-row';
         row.style.cssText = 'gap:6px;padding:2px 0;cursor:pointer;';
-        row.innerHTML = '<input type="checkbox" '+(t.done?'checked':'')+' style="width:13px;height:13px;accent-color:'+color+';">'+
-          '<span style="font-size:11.5px;'+(t.done?'color:#5C6157;text-decoration:line-through;':'color:#9BA294;')+'">'+t.text+'</span>';
+        var areaObj = t.area ? data.areas.find(function(ar){ return ar.id === t.area; }) : null;
+        row.innerHTML = '<input type="checkbox" '+(t.done?'checked':'')+' style="width:13px;height:13px;accent-color:'+color+';flex:none;">'+
+          '<span style="font-size:11.5px;flex:1;'+(t.done?'color:#5C6157;text-decoration:line-through;':'color:#9BA294;')+'">'+t.text+(areaObj ? ' <span class="jd-chip" style="background:#1B2117;color:'+areaObj.color+';font-size:9.5px;">◎ '+areaObj.name+'</span>' : '')+'</span>'+
+          '<button type="button" data-edit-task class="jd-sub" style="background:transparent;border:none;cursor:pointer;padding:0 2px;flex:none;" aria-label="Editar">✎</button>';
+        row.querySelector('[data-edit-task]').addEventListener('click', function(e){
+          e.preventDefault(); e.stopPropagation();
+          editingProjTaskId = t.id;
+          renderProducts();
+        });
         row.querySelector('input').addEventListener('change', function(e){
           t.done = e.target.checked;
           if(e.target.checked){
             data.history.unshift(Object.assign({id:uid('hist'), project:p.name, text:t.text, minutes:null}, historyStamp()));
             if(data.history.length > 50) data.history.length = 50;
-            bumpAreaDone(t.text);
+            bumpAreaDone(t.text, t.area);
           }
           save(); renderProducts(); renderProgressMini(); renderHistory(); renderCalendar(); renderWeekGrid(); renderBalance();
         });
