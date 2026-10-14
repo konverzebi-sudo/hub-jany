@@ -67,7 +67,6 @@
       <button id="jd-note-add" style="padding:6px 12px;border-radius:8px;background:#0B0F0C;border:1px solid #0B0F0C;color:#FFFFFF;font-weight:600;font-family:'Inter',sans-serif;font-size:12.5px;cursor:pointer;">Agregar</button>
     </div>
     <div id="jd-note-image-preview" style="display:none;margin-top:6px;"></div>
-    <div id="jd-note-flash" style="display:none;color:#12210A;font-size:12.5px;font-weight:600;margin-top:8px;line-height:1.4;"></div>
     <div id="jd-token-usage" style="color:#3C4A2E;font-size:10.5px;margin-top:6px;"></div>
   </div>
 
@@ -2549,21 +2548,13 @@
     return true;
   }
 
-  function tryLogFinance(text){
+  function looksFinancial(text){
     var lower = text.toLowerCase();
-    var expenseKw = ['gaste','gasté','gasto','se cobro','se cobró','cobraron','pague','pagué','compre','compré','cargo','cargó'];
-    var savingKw = ['ahorre','ahorré','ahorro','deposite','deposité','guarde','guardé'];
-    var isExpense = expenseKw.some(function(k){ return lower.indexOf(k) > -1; });
-    var isSaving = !isExpense && savingKw.some(function(k){ return lower.indexOf(k) > -1; });
-    if(!isExpense && !isSaving) return false;
-    var m = lower.match(/(\d+[.,]?\d*)/);
-    var amount = m ? parseFloat(m[1].replace(',', '.')) : null;
-    var signed = (amount === null || isNaN(amount)) ? null : (isExpense ? -Math.abs(amount) : Math.abs(amount));
-    var dateLabel = new Date().toLocaleDateString('es-MX', {day:'numeric', month:'short'});
-    data.movements.unshift({id:uid('m'), date:dateLabel, text:text, amount:signed});
-    if(data.movements.length > 30) data.movements.length = 30;
-    save(); renderFinance();
-    return true;
+    if(/(banco|cuenta|saldo|tarjeta|deuda|abono|estado de cuenta|bbva|banamex|banbaj|santander|hsbc|scotiabank|banorte|\$)/.test(lower)) return true;
+    return data.debts.some(function(d){
+      var first = d.name.toLowerCase().split(' ')[0];
+      return first.length > 2 && lower.indexOf(first) > -1;
+    });
   }
 
   var MONTH_INDEX = {enero:0,febrero:1,marzo:2,abril:3,mayo:4,junio:5,julio:6,agosto:7,septiembre:8,setiembre:8,octubre:9,noviembre:10,diciembre:11};
@@ -2791,10 +2782,14 @@
       var isUser = m.role === 'user';
       row.style.cssText = 'font-size:12.5px;line-height:1.5;padding:8px 10px;border-radius:10px;max-width:90%;'+
         (isUser ? 'align-self:flex-end;background:#1B2117;color:#F2F5EC;' : 'align-self:flex-start;background:#C6FF4B;color:#12210A;');
-      row.textContent = (m.image ? '📷 ' : '') + m.text;
+      row.style.whiteSpace = 'pre-wrap';
+      row.textContent = (m.image ? (m.image.mediaType === 'application/pdf' ? '📄 ' : '📷 ') : '') + m.text;
       box.appendChild(row);
     });
     box.scrollTop = box.scrollHeight;
+    document.getElementById('jd-chatlog-cancel').textContent = pendingConversation.finished ? 'Cerrar' : 'Cancelar';
+    var lastMsg = pendingConversation.history[pendingConversation.history.length - 1];
+    if(lastMsg.role === 'assistant') wrap.scrollIntoView({behavior:'smooth', block:'nearest'});
   }
 
   document.getElementById('jd-note-image-btn').addEventListener('click', function(){
@@ -2842,16 +2837,6 @@
     };
     reader.readAsDataURL(file);
   });
-
-  var flashTimer = null;
-  function flashNote(msg){
-    var el = document.getElementById('jd-note-flash');
-    if(!el) return;
-    el.textContent = msg;
-    el.style.display = 'block';
-    clearTimeout(flashTimer);
-    flashTimer = setTimeout(function(){ el.style.display = 'none'; }, 9000);
-  }
 
   document.getElementById('jd-chatlog-cancel').addEventListener('click', function(){
     pendingConversation = null;
@@ -2904,7 +2889,7 @@
       'Responde SIEMPRE con UN SOLO objeto JSON valido (nunca varios seguidos, nunca uno por cada cosa que menciono), sin texto extra ni markdown, en una de estas tres formas:\n'+
       '{"status":"ask","question":"..."}\n'+
       '{"status":"respond","reply":"..."}\n'+
-      '{"status":"done","action":{"type":"evento|editar|historial|movimiento|movimientos|eliminar_movimiento|reto|habito|proyecto","editId":"id EXACTO de la lista de Agenda o null","movementId":"id EXACTO de la lista de Movimientos o null","text":"...","date":"YYYY-MM-DD","endDate":"YYYY-MM-DD o null","time":"HH:MM 24h o null","durationMinutes":numero o null,"project":"nombre EXACTO de la lista o null","amount":numero o null,"finType":"compra|ingreso|pago_deuda|ahorro_corto|ahorro_largo","paymentType":"unico|plazos","account":"nombre EXACTO de la lista de Cuentas o null","items":[{"text":"concepto","amount":numero,"finType":"compra|ingreso|pago_deuda","date":"YYYY-MM-DD"}]}}\n\n'+
+      '{"status":"done","action":{"type":"evento|editar|historial|movimiento|movimientos|actualizar_cuenta|eliminar_movimiento|reto|habito|proyecto","editId":"id EXACTO de la lista de Agenda o null","movementId":"id EXACTO de la lista de Movimientos o null","text":"...","date":"YYYY-MM-DD","endDate":"YYYY-MM-DD o null","time":"HH:MM 24h o null","durationMinutes":numero o null,"project":"nombre EXACTO de la lista o null","amount":numero o null,"finType":"compra|ingreso|pago_deuda|ahorro_corto|ahorro_largo","paymentType":"unico|plazos","account":"nombre EXACTO de la lista de Cuentas o null","items":[{"text":"concepto","amount":numero,"finType":"compra|ingreso|pago_deuda","date":"YYYY-MM-DD"}]}}\n\n'+
       'Reglas: si el mensaje es una pregunta, pide consejo, o quiere ayuda para organizar/priorizar sus proyectos y pendientes '+
       '(sin ser claramente algo para agregar a una lista), usa status="respond" con una respuesta util, especifica a su situacion real, y breve (maximo 5 lineas). '+
       'Si el mensaje describe algo que YA HIZO (tiempo pasado: "trabajé en", "agregué", "terminé", "estuve haciendo"), usa type="historial" '+
@@ -2931,9 +2916,10 @@
       'Si el mensaje incluye una foto (de un recibo, ticket, estado de cuenta o pantalla de compra), leela para identificar el monto, '+
       'el comercio o banco, y la fecha si se ve. Trata esto como type="movimiento" con finType="compra" salvo que el texto o la imagen '+
       'claramente indiquen otra cosa (pago/ingreso, ahorro). Si no puedes leer el monto con confianza, pregunta el monto en vez de adivinar. '+
-      'Si adjunta un ESTADO DE CUENTA o una lista con VARIOS movimientos (captura o PDF de su banco): (1) identifica el banco o tarjeta (logo, nombre, ultimos 4 digitos) y comparalo con las Cuentas registradas; si coincide pon su nombre EXACTO en "account"; si no coincide o no puedes saberlo, pregunta de cual cuenta es (status="ask", menciona los nombres registrados). '+
+      'Si adjunta un ESTADO DE CUENTA o una lista con VARIOS movimientos (captura, PDF o texto pegado de su banco): (1) identifica el banco o tarjeta (logo, nombre, ultimos 4 digitos) y comparalo con las Cuentas registradas; si coincide pon su nombre EXACTO en "account"; si no coincide o no puedes saberlo, pregunta de cual cuenta es (status="ask", menciona los nombres registrados). '+
       '(2) Lee cada movimiento (fecha, concepto, monto) sin inventar ninguno: cargos o compras = finType "compra"; pagos o abonos a la tarjeta = "pago_deuda"; depositos o ingresos = "ingreso"; el monto siempre positivo; si la fecha no trae anio usa el anio de hoy. '+
-      '(3) Si algun concepto es ambiguo (no sabes si es cargo, pago o ingreso, o que es), pregunta UNA cosa breve antes de registrar; si todo es claro responde status="done" con type="movimientos", "account" e "items" (un item por movimiento). No uses type="movimiento" (singular) para estados de cuenta.';
+      '(3) Si algun concepto es ambiguo (no sabes si es cargo, pago o ingreso, o que es), pregunta UNA cosa breve antes de registrar; si todo es claro responde status="done" con type="movimientos", "account" e "items" (un item por movimiento). No uses type="movimiento" (singular) para estados de cuenta. '+
+      'Si pide ACTUALIZAR o ajustar el saldo de una cuenta o tarjeta ("actualiza mi cuenta", "mi saldo de X es Y", "ahora debo Y en X", "quedo en Y") o adjunta una captura que solo muestra el saldo o total actual: usa type="actualizar_cuenta" con "account" (nombre EXACTO de la lista de Cuentas) y "amount" = el NUEVO saldo total de deuda de esa cuenta (numero positivo). Si no dijo cual cuenta o cual es el nuevo saldo, pregunta. Si en cambio trae una lista de movimientos, usa type="movimientos".';
     var messages = history.map(function(m){
       if(m.image){
         return {role: m.role, content: [
@@ -3004,7 +2990,7 @@
     return null;
   }
 
-  function executeAssistantAction(action){
+  function executeAssistantActionRaw(action){
     if(!action) return;
     if(action.type === 'editar' && action.editId){
       var existing = data.agenda.find(function(x){ return x.id === action.editId; });
@@ -3052,21 +3038,39 @@
       save(); renderHistory(); renderCalendar(); renderWeekGrid(); renderBalance();
     } else if(action.type === 'movimiento' && typeof action.amount === 'number'){
       addFinMovement(action.text, action.finType || 'compra', action.paymentType || 'unico', action.account || null, action.amount, action.date);
+    } else if(action.type === 'actualizar_cuenta' && action.amount !== null && action.amount !== undefined && !isNaN(Number(action.amount))){
+      var debtU = findDebtByAccount(action.account);
+      if(!debtU) return 'No encontré esa cuenta en tus deudas, no cambié nada.';
+      var oldAmt = Number(debtU.amount);
+      var newAmt = Math.max(0, Number(action.amount));
+      debtU.amount = newAmt;
+      save(); renderDebt(); renderFinance();
+      var diffU = newAmt - oldAmt;
+      return 'Actualicé ' + debtU.name + ': de ' + fmt(oldAmt) + ' a ' + fmt(newAmt) + (diffU === 0 ? ' (sin cambio).' : ' (' + (diffU < 0 ? 'bajó ' : 'subió ') + fmt(Math.abs(diffU)) + ').');
     } else if(action.type === 'movimientos' && Array.isArray(action.items)){
       var accDebt = findDebtByAccount(action.account);
       var accName = accDebt ? accDebt.name : (action.account || null);
-      var addedCount = 0, skippedCount = 0;
+      var addedLines = [];
+      var skippedCount = 0;
       action.items.forEach(function(it){
         if(!it || !it.text) return;
         var amt = Number(it.amount);
         if(isNaN(amt) || amt <= 0) return;
         var ft = ['compra','ingreso','pago_deuda'].indexOf(it.finType) > -1 ? it.finType : 'compra';
+        if(accDebt && ft === 'ingreso') ft = 'pago_deuda';
         var dt = /^\d{4}-\d{2}-\d{2}$/.test(it.date || '') ? it.date : todayKey;
         var dup = data.finMovements.some(function(m){ return m.date === dt && Number(m.amount) === amt && (m.account || null) === accName && m.type === ft; });
         if(dup){ skippedCount++; return; }
-        if(addFinMovement(it.text, ft, 'unico', accName, amt, dt)) addedCount++;
+        if(addFinMovement(it.text, ft, 'unico', accName, amt, dt)){
+          var dl = new Date(dt + 'T00:00:00').toLocaleDateString('es-MX', {day:'numeric', month:'short'});
+          addedLines.push('• ' + dl + ' · ' + it.text + ' — ' + (ft === 'compra' ? 'cargo ' : 'pago ') + fmt(amt));
+        }
       });
-      return 'Registré '+addedCount+' movimiento'+(addedCount===1?'':'s')+(accName ? ' en '+accName : '')+(skippedCount ? ' ('+skippedCount+' ya estaban registrados)' : '')+'. Puedes corregirlos en Deuda y ahorro → Movimientos recientes.';
+      var head = addedLines.length ? ('Registré ' + addedLines.length + ' movimiento' + (addedLines.length === 1 ? '' : 's') + (accName ? ' en ' + accName : '') + ':') : 'No registré nada nuevo.';
+      var tail = (skippedCount ? '\n(' + skippedCount + ' ya estaban registrados y no los dupliqué.)' : '') +
+        (accDebt ? '\nTu deuda en ' + accDebt.name + ' ahora es ' + fmt(accDebt.amount) + '.' : '') +
+        (addedLines.length ? '\nSi algo quedó mal, tócalo en Deuda y ahorro → Movimientos recientes.' : '');
+      return head + (addedLines.length ? '\n' + addedLines.join('\n') : '') + tail;
     } else if(action.type === 'eliminar_movimiento' && action.movementId){
       var targetMov = data.movements.find(function(m){ return m.id === action.movementId; });
       if(targetMov) reverseDebtEffect(targetMov.debtId, targetMov.debtDelta);
@@ -3085,6 +3089,21 @@
       bumpAreaTotal(action.text);
       save(); renderAgenda(); renderBalance();
     }
+  }
+
+  function executeAssistantAction(action){
+    var detail = executeAssistantActionRaw(action);
+    if(detail) return detail;
+    if(!action) return 'Listo ✓';
+    var t = action.text ? ' "' + action.text + '"' : '';
+    if(action.type === 'evento' && action.date) return 'Agendé' + t + ' · ' + action.date + (action.time ? ' ' + action.time : '') + ' ✓';
+    if(action.type === 'editar') return 'Actualicé' + t + ' ✓';
+    if(action.type === 'historial') return 'Lo anoté en tu historial' + t + ' ✓';
+    if(action.type === 'movimiento') return 'Registré' + t + (typeof action.amount === 'number' ? ' por ' + fmt(action.amount) : '') + ' ✓';
+    if(action.type === 'eliminar_movimiento') return 'Eliminé ese movimiento ✓';
+    if(action.type === 'habito') return 'Agregué el hábito' + t + ' ✓';
+    if(action.type === 'proyecto' && action.project) return 'Agregué' + t + ' al proyecto ' + action.project + ' ✓';
+    return 'Agregué' + t + ' a tu lista ✓';
   }
 
   async function continueConversation(){
@@ -3113,10 +3132,16 @@
       return;
     }
     if(result.status === 'done'){
-      var doneMsg = executeAssistantAction(result.action);
-      pendingConversation = null;
+      var act = result.action;
+      if(act && (act.type === 'movimientos' || act.type === 'actualizar_cuenta') && data.debts.length && !findDebtByAccount(act.account)){
+        pendingConversation.history.push({role:'assistant', text:'No pude ligar esto a una de tus cuentas' + (act.account ? ' ("' + act.account + '")' : '') + '. ¿De cuál es? ' + data.debts.map(function(d){ return d.name; }).join(' · ') + '. Si es una cuenta nueva, agrégala primero en Deuda y ahorro → Agregar deuda y vuelve a intentarlo.'});
+        renderChatLog();
+        return;
+      }
+      var doneMsg = executeAssistantAction(act);
+      pendingConversation.history.push({role:'assistant', text: doneMsg});
+      pendingConversation.finished = true;
       renderChatLog();
-      if(doneMsg) flashNote(doneMsg);
     }
   }
 
@@ -3143,6 +3168,7 @@
     input.value = '';
     clearPendingImage();
 
+    if(pendingConversation && pendingConversation.finished) pendingConversation = null;
     if(pendingConversation){
       pendingConversation.history.push({role:'user', text: text || 'Foto adjunta', image: image});
       renderChatLog();
@@ -3151,8 +3177,8 @@
     }
 
     var mentionsProject = data.products.some(function(p){ return text.toLowerCase().indexOf(p.name.toLowerCase()) > -1; });
-    if(!image && !mentionsProject){
-      var handled = tryMarkDone(text) || tryLogFinance(text) || tryScheduleAgenda(text) || tryFutureAgenda(text) || tryCreateProject(text) || tryAddToProject(text);
+    if(!image && !mentionsProject && !looksFinancial(text)){
+      var handled = tryMarkDone(text) || tryScheduleAgenda(text) || tryFutureAgenda(text) || tryCreateProject(text) || tryAddToProject(text);
       if(handled){
         var original = input.placeholder;
         input.placeholder = 'Registrado ✓';
