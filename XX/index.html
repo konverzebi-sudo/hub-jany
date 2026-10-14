@@ -99,10 +99,15 @@
   <div style="padding:14px;">
     <div class="jd-row" style="justify-content:space-between;">
       <div class="jd-h" style="margin:0;">Checklist mañanero</div>
-      <button id="jd-habits-count" class="jd-sub" style="background:transparent;border:none;cursor:pointer;padding:0;text-decoration:underline;"></button>
+      <div class="jd-row" style="gap:12px;">
+        <button id="jd-habits-edit-btn" class="jd-sub" style="background:transparent;border:none;cursor:pointer;padding:0;text-decoration:underline;">editar</button>
+        <button id="jd-habits-count" class="jd-sub" style="background:transparent;border:none;cursor:pointer;padding:0;text-decoration:underline;"></button>
+      </div>
     </div>
     <div class="jd-card" id="jd-habits-card">
+      <div id="jd-habits-manager" style="display:none;"></div>
       <div id="jd-habits"></div>
+      <div id="jd-habits-timeline" style="margin-top:12px;border-top:1px solid #232A1E;padding-top:10px;"></div>
     </div>
     <div class="jd-card" id="jd-habits-stats" style="display:none;margin-top:8px;"></div>
   </div>
@@ -1067,15 +1072,307 @@
         if(!data.habitChecks[todayKey]) data.habitChecks[todayKey] = {};
         if(e.target.checked){
           data.habitChecks[todayKey][h.id] = {done:true, time: time24()};
+          habitAreaCredit(h, +1);
+          tlDay = todayKey;
         } else {
           delete data.habitChecks[todayKey][h.id];
         }
-        save(); renderHabits();
+        save(); renderHabits(); renderBalance();
       });
       box.appendChild(row);
     });
     renderHabitsStats();
+    renderHabitTimeline();
   }
+
+  function habitAreaCredit(h, dir){
+    if(!h || !h.area || !data.areas.some(function(a){ return a.id === h.area; })) return;
+    ensureArea(h.area);
+    var s = data.areaStats[h.area];
+    if(dir > 0){ s.total++; s.done = Math.min(s.total, s.done + 1); }
+    else { s.total = Math.max(0, s.total - 1); s.done = Math.max(0, s.done - 1); }
+  }
+
+  function habitCheckCount(habitId){
+    return Object.keys(data.habitChecks).reduce(function(s, d){ return s + (data.habitChecks[d] && data.habitChecks[d][habitId] ? 1 : 0); }, 0);
+  }
+
+  function adjustHabitArea(h, newArea){
+    var n = habitCheckCount(h.id);
+    if(h.area && n){
+      ensureArea(h.area);
+      var so = data.areaStats[h.area];
+      so.total = Math.max(0, so.total - n); so.done = Math.max(0, so.done - n);
+    }
+    h.area = newArea || undefined;
+    if(h.area && n){
+      ensureArea(h.area);
+      var sn = data.areaStats[h.area];
+      sn.total += n; sn.done = Math.min(sn.total, sn.done + n);
+    }
+  }
+
+  function shiftDay(iso, n){
+    var d = new Date(iso + 'T00:00:00');
+    d.setDate(d.getDate() + n);
+    return localISO(d);
+  }
+  function toMin(t){
+    var m = /^(\d{1,2}):(\d{2})/.exec(t || '');
+    return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;
+  }
+  function fromMin(m){
+    m = Math.max(0, Math.min(1439, Math.round(m)));
+    return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+  }
+
+  var tlDay = null;
+  var tlSelected = null;
+  var tlAddOpen = false;
+
+  function refreshHabitViews(){
+    renderHabits(); renderBalance();
+  }
+
+  function renderHabitTimeline(){
+    var box = document.getElementById('jd-habits-timeline');
+    if(!box) return;
+    if(!tlDay) tlDay = todayKey;
+    box.innerHTML = '';
+    var dayChecks = data.habitChecks[tlDay] || {};
+    var entries = [];
+    data.habits.forEach(function(h, hi){
+      var e = dayChecks[h.id];
+      var m = e ? toMin(e.time) : null;
+      if(m !== null) entries.push({h:h, min:m, color:HABIT_PALETTE[hi % HABIT_PALETTE.length]});
+    });
+
+    var head = document.createElement('div');
+    head.className = 'jd-row'; head.style.cssText = 'justify-content:space-between;margin-bottom:8px;';
+    head.innerHTML = '<span class="jd-sub" style="color:#B9C0AF;">Línea del día</span>';
+    var nav = document.createElement('div');
+    nav.className = 'jd-row'; nav.style.gap = '6px';
+    var navBtnStyle = 'background:#1B2117;color:#B9C0AF;border:none;border-radius:6px;width:24px;height:24px;cursor:pointer;';
+    var prev = document.createElement('button'); prev.textContent = '‹'; prev.style.cssText = navBtnStyle;
+    var next = document.createElement('button'); next.textContent = '›'; next.style.cssText = navBtnStyle;
+    var lbl = document.createElement('span');
+    lbl.style.cssText = 'font-size:11.5px;color:#B9C0AF;min-width:70px;text-align:center;';
+    lbl.textContent = tlDay === todayKey ? 'Hoy' : new Date(tlDay + 'T00:00:00').toLocaleDateString('es-MX', {weekday:'short', day:'numeric', month:'short'});
+    if(tlDay >= todayKey) next.style.opacity = '.3';
+    prev.addEventListener('click', function(){ tlDay = shiftDay(tlDay, -1); tlSelected = null; renderHabitTimeline(); });
+    next.addEventListener('click', function(){ if(tlDay < todayKey){ tlDay = shiftDay(tlDay, 1); tlSelected = null; renderHabitTimeline(); } });
+    nav.appendChild(prev); nav.appendChild(lbl); nav.appendChild(next);
+    head.appendChild(nav);
+    box.appendChild(head);
+
+    if(entries.length === 0){
+      var emptyMsg = document.createElement('div');
+      emptyMsg.className = 'jd-sub'; emptyMsg.style.marginBottom = '6px';
+      emptyMsg.textContent = tlDay === todayKey ? 'Cuando marques un hábito aparece aquí con su hora. Arrastra el punto para corregir la hora.' : 'Sin marcas este día.';
+      box.appendChild(emptyMsg);
+    } else {
+      var mins = entries.map(function(e){ return e.min; });
+      var lo = Math.min.apply(null, mins), hi = Math.max.apply(null, mins);
+      var startH = Math.max(0, Math.floor(lo / 60) - 1);
+      var endH = Math.min(24, Math.ceil((hi + 1) / 60) + 1);
+      if(endH - startH < 4){ endH = Math.min(24, startH + 4); startH = Math.max(0, endH - 4); }
+      var A0 = startH * 60, A1 = endH * 60, span = A1 - A0;
+      var West = Math.max(220, (box.clientWidth || 300) - 24);
+      var sorted = entries.slice().sort(function(a, b){ return a.min - b.min; });
+      var laneLast = [];
+      sorted.forEach(function(en){
+        var x = (en.min - A0) / span * West;
+        var lane = 0;
+        while(laneLast[lane] !== undefined && x - laneLast[lane] < 34) lane++;
+        laneLast[lane] = x;
+        en.lane = lane;
+      });
+      var LANE_H = 38;
+      var lanes = laneLast.length;
+      var axisY = lanes * LANE_H + 4;
+      var wrap = document.createElement('div');
+      wrap.style.cssText = 'position:relative;margin:0 12px;height:'+(axisY + 28)+'px;touch-action:pan-y;';
+      var axis = document.createElement('div');
+      axis.style.cssText = 'position:absolute;left:0;right:0;top:'+axisY+'px;height:3px;background:#2A3324;border-radius:3px;';
+      wrap.appendChild(axis);
+      var step = (span / 60) > 8 ? 2 : 1;
+      for(var hh = startH; hh <= endH; hh += step){
+        var pct = (hh * 60 - A0) / span * 100;
+        var tick = document.createElement('div');
+        tick.style.cssText = 'position:absolute;left:'+pct+'%;top:'+(axisY + 6)+'px;transform:translateX(-50%);font-size:9px;color:#6B7266;white-space:nowrap;';
+        tick.textContent = hh + ':00';
+        wrap.appendChild(tick);
+      }
+      entries.forEach(function(en){
+        var pct = (en.min - A0) / span * 100;
+        var top = en.lane * LANE_H;
+        var stem = document.createElement('div');
+        stem.style.cssText = 'position:absolute;left:'+pct+'%;top:'+(top + 18)+'px;width:1px;height:'+(axisY - top - 18)+'px;background:'+en.color+';opacity:.35;';
+        wrap.appendChild(stem);
+        var dot = document.createElement('div');
+        var selected = tlSelected === en.h.id;
+        dot.style.cssText = 'position:absolute;left:calc('+pct+'% - 10px);top:'+top+'px;width:20px;height:20px;border-radius:50%;background:'+en.color+';border:2px solid '+(selected ? '#FFFFFF' : '#0B0F0C')+';cursor:grab;touch-action:none;z-index:2;';
+        dot.title = en.h.text + ' · ' + fromMin(en.min);
+        var timeLbl = document.createElement('div');
+        timeLbl.style.cssText = 'position:absolute;left:calc('+pct+'% - 20px);top:'+(top + 21)+'px;width:40px;text-align:center;font-size:9px;color:'+en.color+';z-index:2;pointer-events:none;';
+        timeLbl.textContent = fromMin(en.min);
+        wrap.appendChild(dot);
+        wrap.appendChild(timeLbl);
+
+        var dragging = false, moved = false, startX = 0, startMin = 0, curMin = en.min;
+        dot.addEventListener('pointerdown', function(ev){
+          dragging = true; moved = false; startX = ev.clientX; startMin = en.min; curMin = en.min;
+          try{ dot.setPointerCapture(ev.pointerId); }catch(err){}
+          dot.style.cursor = 'grabbing';
+          ev.preventDefault();
+        });
+        dot.addEventListener('pointermove', function(ev){
+          if(!dragging) return;
+          var dx = ev.clientX - startX;
+          if(Math.abs(dx) > 4) moved = true;
+          if(!moved) return;
+          var wpx = wrap.getBoundingClientRect().width || West;
+          var raw = startMin + dx / wpx * span;
+          curMin = Math.max(A0, Math.min(A1 - 1, Math.round(raw / 5) * 5));
+          var p2 = (curMin - A0) / span * 100;
+          dot.style.left = 'calc('+p2+'% - 10px)';
+          timeLbl.style.left = 'calc('+p2+'% - 20px)';
+          timeLbl.textContent = fromMin(curMin);
+        });
+        function endDrag(ev){
+          if(!dragging) return;
+          dragging = false;
+          dot.style.cursor = 'grab';
+          if(moved){
+            data.habitChecks[tlDay][en.h.id].time = fromMin(curMin);
+            tlSelected = en.h.id;
+            save(); refreshHabitViews(); renderHabitsStats();
+          } else {
+            tlSelected = (tlSelected === en.h.id) ? null : en.h.id;
+            renderHabitTimeline();
+          }
+        }
+        dot.addEventListener('pointerup', endDrag);
+        dot.addEventListener('pointercancel', function(){ dragging = false; renderHabitTimeline(); });
+      });
+      box.appendChild(wrap);
+
+      var legend = document.createElement('div');
+      legend.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:6px;';
+      sorted.forEach(function(en){
+        var st = getHabitStreak(en.h.id);
+        var item = document.createElement('span');
+        item.className = 'jd-sub';
+        item.innerHTML = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+en.color+';margin-right:4px;"></span>'+en.h.text+(st > 0 ? ' 🔥'+st : '');
+        legend.appendChild(item);
+      });
+      box.appendChild(legend);
+
+      var sel = entries.find(function(e){ return e.h.id === tlSelected; });
+      if(sel){
+        var ed = document.createElement('div');
+        ed.className = 'jd-row'; ed.style.cssText = 'gap:6px;margin-top:8px;flex-wrap:wrap;';
+        ed.innerHTML = '<span style="font-size:12px;color:#DDE3D4;flex:1;min-width:110px;">'+sel.h.text+'</span>'+
+          '<input class="jd-input" id="jd-tl-time" type="time" value="'+fromMin(sel.min)+'" style="width:110px;">'+
+          '<button class="jd-btn" id="jd-tl-remove">Quitar marca</button>';
+        box.appendChild(ed);
+        document.getElementById('jd-tl-time').addEventListener('change', function(){
+          if(!this.value) return;
+          data.habitChecks[tlDay][sel.h.id].time = this.value;
+          save(); refreshHabitViews(); renderHabitsStats();
+        });
+        document.getElementById('jd-tl-remove').addEventListener('click', function(){
+          delete data.habitChecks[tlDay][sel.h.id];
+          habitAreaCredit(sel.h, -1);
+          tlSelected = null;
+          save(); refreshHabitViews(); renderHabitsStats();
+        });
+      }
+    }
+
+    var missing = data.habits.filter(function(h){ return !(dayChecks[h.id]); });
+    if(missing.length){
+      var addToggle = document.createElement('button');
+      addToggle.className = 'jd-sub';
+      addToggle.style.cssText = 'background:transparent;border:none;cursor:pointer;padding:0;text-decoration:underline;margin-top:8px;display:block;';
+      addToggle.textContent = tlAddOpen ? 'cerrar' : '¿Se te olvidó marcar algo? Agrégalo con su hora';
+      addToggle.addEventListener('click', function(){ tlAddOpen = !tlAddOpen; renderHabitTimeline(); });
+      box.appendChild(addToggle);
+      if(tlAddOpen){
+        var form = document.createElement('div');
+        form.className = 'jd-row'; form.style.cssText = 'gap:6px;margin-top:6px;flex-wrap:wrap;';
+        var nowT = tlDay === todayKey ? time24() : '08:00';
+        form.innerHTML = '<select class="jd-input" id="jd-tl-add-habit" style="flex:1;min-width:120px;">'+missing.map(function(h){ return '<option value="'+h.id+'">'+h.text+'</option>'; }).join('')+'</select>'+
+          '<input class="jd-input" id="jd-tl-add-time" type="time" value="'+nowT+'" style="width:110px;">'+
+          '<button class="jd-btn jd-btn-lima" id="jd-tl-add-btn">Agregar</button>';
+        box.appendChild(form);
+        document.getElementById('jd-tl-add-btn').addEventListener('click', function(){
+          var hid = document.getElementById('jd-tl-add-habit').value;
+          var t = document.getElementById('jd-tl-add-time').value;
+          var hb = data.habits.find(function(x){ return x.id === hid; });
+          if(!hb || !t) return;
+          if(!data.habitChecks[tlDay]) data.habitChecks[tlDay] = {};
+          data.habitChecks[tlDay][hid] = {done:true, time:t};
+          habitAreaCredit(hb, +1);
+          tlSelected = hid;
+          save(); refreshHabitViews(); renderHabitsStats();
+        });
+      }
+    }
+  }
+
+  var habitsManagerOpen = false;
+
+  function renderHabitsManager(){
+    var box = document.getElementById('jd-habits-manager');
+    if(!box) return;
+    box.innerHTML = '';
+    data.habits.forEach(function(h){
+      var row = document.createElement('div');
+      row.className = 'jd-row'; row.style.cssText = 'gap:6px;margin-bottom:6px;';
+      var inp = document.createElement('input');
+      inp.className = 'jd-input'; inp.value = h.text; inp.style.flex = '2';
+      inp.addEventListener('change', function(){
+        var v = inp.value.trim();
+        if(v){ h.text = v; save(); renderHabits(); renderHabitsStats(); }
+      });
+      var sel = document.createElement('select');
+      sel.className = 'jd-input'; sel.style.flex = '1.3';
+      sel.innerHTML = areaOptionsHtml(h.area, 'Sin meta');
+      sel.addEventListener('change', function(){
+        adjustHabitArea(h, sel.value || undefined);
+        save(); renderBalance();
+      });
+      var del = document.createElement('button');
+      del.className = 'jd-btn'; del.textContent = '×'; del.style.padding = '1px 8px';
+      del.addEventListener('click', function(){
+        data.habits = data.habits.filter(function(x){ return x.id !== h.id; });
+        save(); renderHabitsManager(); renderHabits(); renderHabitsStats();
+      });
+      row.appendChild(inp); row.appendChild(sel); row.appendChild(del);
+      box.appendChild(row);
+    });
+    var addRow = document.createElement('div');
+    addRow.className = 'jd-row'; addRow.style.cssText = 'gap:6px;margin:8px 0 12px;';
+    addRow.innerHTML = '<input class="jd-input" id="jd-habit-new" placeholder="Nuevo hábito..." style="flex:2;"><select class="jd-input" id="jd-habit-new-area" style="flex:1.3;">'+areaOptionsHtml('', 'Sin meta')+'</select><button class="jd-btn jd-btn-lima" id="jd-habit-new-btn">+</button>';
+    box.appendChild(addRow);
+    function addHabit(){
+      var name = document.getElementById('jd-habit-new').value.trim();
+      if(!name) return;
+      var area = document.getElementById('jd-habit-new-area').value;
+      data.habits.push({id:uid('h'), text:name, daily:true, area:area || undefined});
+      save(); renderHabitsManager(); renderHabits(); renderHabitsStats();
+    }
+    document.getElementById('jd-habit-new-btn').addEventListener('click', addHabit);
+    document.getElementById('jd-habit-new').addEventListener('keydown', function(e){ if(e.key === 'Enter') addHabit(); });
+  }
+
+  document.getElementById('jd-habits-edit-btn').addEventListener('click', function(){
+    habitsManagerOpen = !habitsManagerOpen;
+    document.getElementById('jd-habits-manager').style.display = habitsManagerOpen ? 'block' : 'none';
+    this.textContent = habitsManagerOpen ? 'listo' : 'editar';
+    if(habitsManagerOpen) renderHabitsManager();
+  });
 
   var colorMap = {
     verde: {bg:'#1E3B24', fg:'#8FE39E', dot:'#4FCF6D'},
