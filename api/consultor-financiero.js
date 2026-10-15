@@ -56,6 +56,10 @@ const IMGGEN_DAILY_CAP = 15; // tope duro por marca por dia -- ajustable segun c
 const IMGGEN_MODEL = 'gpt-image-1';
 const IMGGEN_SIZE = '1024x1024';
 const IMGGEN_QUALITY = 'medium';
+// Imagen de referencia opcional (como subir una foto en ChatGPT): el front la reduce a ~1024px antes de
+// mandarla en base64; este tope protege el limite de 4.5 MB del cuerpo de una funcion en Vercel.
+const IMGGEN_REF_TIPOS = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+const IMGGEN_REF_MAX_B64 = 3500000;
 
 const CONTEXT_CHAR_LIMIT = 6000;
 const CALC_CHAR_LIMIT = 14000; // foco + negocio + todos los productos + detalle del foco
@@ -455,7 +459,20 @@ async function handleDisenoImagen(req, res, body) {
 
   const clienteId = (body.cliente || DEFAULT_CLIENTE_IMGGEN).toString();
   const prompt = (body.prompt || '').toString().trim();
-  if (!prompt) return res.status(400).json({ error: 'Falta describir la imagen que quieres generar.' });
+
+  let referencia = null;
+  if (body.imagen) {
+    const tipo = (body.imagen.mediaType || '').toString();
+    const b64ref = (body.imagen.data || '').toString();
+    if (!IMGGEN_REF_TIPOS[tipo] || !b64ref) {
+      return res.status(400).json({ error: 'La imagen de referencia no es válida (usa JPG, PNG o WEBP).' });
+    }
+    if (b64ref.length > IMGGEN_REF_MAX_B64) {
+      return res.status(413).json({ error: 'La imagen de referencia pesa demasiado. Prueba con una más pequeña.' });
+    }
+    referencia = { tipo, ext: IMGGEN_REF_TIPOS[tipo], buffer: Buffer.from(b64ref, 'base64') };
+  }
+  if (!prompt && !referencia) return res.status(400).json({ error: 'Falta describir la imagen que quieres generar.' });
 
   const capKey = `${clienteId}:jefe-diseno-imagenes-${fechaKeyHoyUtc()}`;
   const usadasHoy = (await leerJSON(capKey).catch(() => null)) || 0;
@@ -463,22 +480,39 @@ async function handleDisenoImagen(req, res, body) {
     return res.status(429).json({ error: `Ya se alcanzó el límite de ${IMGGEN_DAILY_CAP} imágenes de hoy para esta marca. Vuelve mañana.` });
   }
 
+  const base = 'Genera una imagen de alta calidad, lista para usar en redes sociales o anuncios. Sin texto en la imagen salvo que se pida explícitamente.';
   let openaiRes;
   try {
-    openaiRes = await fetch('https://api.openai.com/v1/images/generations', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: IMGGEN_MODEL,
-        prompt: `Genera una imagen de alta calidad, lista para usar en redes sociales o anuncios. Sin texto en la imagen salvo que se pida explícitamente.\n\n${prompt}`,
-        size: IMGGEN_SIZE,
-        quality: IMGGEN_QUALITY,
-        n: 1,
-      }),
-    });
+    if (referencia) {
+      // Con referencia: endpoint de edicion de OpenAI (multipart) -- la imagen subida guia estilo y composicion.
+      const form = new FormData();
+      form.append('model', IMGGEN_MODEL);
+      form.append('prompt', `${base}\n\nUsa la imagen adjunta como referencia visual: genera una imagen NUEVA y similar (misma idea, estilo, composición y colores).${prompt ? ` Aplica además esto: ${prompt}` : ''}`);
+      form.append('size', IMGGEN_SIZE);
+      form.append('quality', IMGGEN_QUALITY);
+      form.append('n', '1');
+      form.append('image[]', new Blob([referencia.buffer], { type: referencia.tipo }), `referencia.${referencia.ext}`);
+      openaiRes = await fetch('https://api.openai.com/v1/images/edits', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` }, // sin Content-Type: fetch pone el boundary
+        body: form,
+      });
+    } else {
+      openaiRes = await fetch('https://api.openai.com/v1/images/generations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: IMGGEN_MODEL,
+          prompt: `${base}\n\n${prompt}`,
+          size: IMGGEN_SIZE,
+          quality: IMGGEN_QUALITY,
+          n: 1,
+        }),
+      });
+    }
   } catch (err) {
     return res.status(500).json({ error: 'Error de conexión con el generador de imágenes.' });
   }
