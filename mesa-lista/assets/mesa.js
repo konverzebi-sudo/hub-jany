@@ -170,7 +170,7 @@ const inCart=p=>ui.cart.filter(l=>l.pid===p.id).reduce((s,l)=>s+l.q,0);
 function iconHTML(p){
   const n=inCart(p);
   return `<button class="c-ico" data-open="${esc(p.id)}" ${p.available?'':'disabled'} aria-label="${esc(p.name)}, ${money(p.price)}">
-    ${photoTag(p,'ico-tile')}${n?`<span class="n">${n}</span>`:''}
+    <span class="ico-wrap">${photoTag(p,'ico-tile')}${videoBadge(p)}</span>${n?`<span class="n">${n}</span>`:''}
     <span class="nm">${esc(p.name)}</span><span class="pr">${p.available?money(p.price):'Agotado'}</span>
   </button>`;
 }
@@ -178,7 +178,7 @@ function iconHTML(p){
 function cardHTML(p){
   const n=inCart(p);
   return `<button class="c-card" data-open="${esc(p.id)}" ${p.available?'':'disabled'} aria-label="${esc(p.name)}">
-    <div class="card-media">${p.photo?`<img src="${esc(p.photo)}" alt="" loading="lazy">`:`<span aria-hidden="true">${esc(p.emoji)}</span>`}<span class="card-tag">${esc(p.cat)}</span></div>
+    <div class="card-media">${p.photo?`<img src="${esc(p.photo)}" alt="" loading="lazy">`:`<span aria-hidden="true">${esc(p.emoji)}</span>`}<span class="card-tag">${esc(p.cat)}</span>${videoBadge(p)}</div>
     <div class="card-body"><h4>${esc(p.name)}</h4><p>${esc(p.desc)}</p>
       <div class="card-foot"><b>${money(p.price)}</b>${p.available?`<span class="c-add" aria-hidden="true">+${n?`<span class="n">${n}</span>`:''}</span>`:'<span class="c-out">Agotado</span>'}</div></div>
   </button>`;
@@ -231,16 +231,17 @@ function productSheet(el,s){
   el.classList.remove('hidden');
   const unit=unitOf(p,s),ok=validOf(p,s);
   const post=ui.layout!=='lista',biz=state.settings;
+  const vt=el.querySelector('video')?.currentTime||0; // el video sigue donde iba al elegir opciones
   el.innerHTML=`<div class="sheet-back" data-close></div>
   <div class="sheet-panel${post?' post':''}" role="dialog" aria-modal="true" aria-label="Personalizar ${esc(p.name)}">${post
     ?`<div class="post-head"><div class="p-logo">${biz.logo?`<img src="${esc(biz.logo)}" alt="">`:'<span aria-hidden="true">🍽️</span>'}</div>
        <div><b>${esc(biz.name)}</b><small>${esc(p.cat)}</small></div><button class="x" data-close aria-label="Cerrar">✕</button></div>`
     :'<div class="grab"></div>'}
     <div class="sheet-body">
-      ${post?`<div class="post-media">${p.photo?`<img src="${esc(p.photo)}" alt="${esc(p.name)}">`:`<span aria-hidden="true">${esc(p.emoji)}</span>`}</div>
+      ${post?`<div class="post-media">${mediaInner(p)}</div>
       <div class="post-title"><h3>${esc(p.name)}</h3><b>${money(p.price)}</b></div>
       ${p.desc?`<p class="post-desc">${esc(p.desc)}</p>`:''}`
-      :`${p.photo?`<div class="s-photo"><img src="${esc(p.photo)}" alt="${esc(p.name)}"></div>`:''}
+      :`${p.photo||p.video?`<div class="s-photo">${mediaInner(p)}</div>`:''}
       <div class="s-head">${photoTag(p)}<div><h3>${esc(p.name)}</h3><p>${esc(p.desc)}</p><b>${money(p.price)}</b></div><button class="x" data-close aria-label="Cerrar">✕</button></div>`}
       ${p.options.map(g=>{const has=(s.sel[g.id]||[]).length>0;
         return `<fieldset class="og"><legend>${esc(g.name)} ${g.required?`<span class="req ${has?'ok':''}">${has?'Listo':'Obligatorio'}</span>`:`<span class="optl">Opcional${g.multi?', elige varias':''}</span>`}</legend>
@@ -251,6 +252,7 @@ function productSheet(el,s){
       <div class="stepper"><button data-sq="-1" aria-label="Menos">−</button><span>${s.q}</span><button data-sq="1" aria-label="Más">+</button></div>
       <button class="c-cta" id="addLine" ${ok?'':'disabled'}><span>${ok?'Agregar':'Elige lo obligatorio'}</span><span>${money(unit*s.q)}</span></button>
     </div></div>`;
+  const nv=el.querySelector('video'); if(nv&&vt){try{nv.currentTime=vt;}catch(e){}}
   el.querySelectorAll('[data-close]').forEach(b=>b.onclick=closeSheet);
   el.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{
     const g=p.options.find(x=>x.id===b.dataset.g),ci=+b.dataset.c,cur=s.sel[g.id]||[];
