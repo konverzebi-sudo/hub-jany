@@ -68,6 +68,11 @@
   .px-trabajo-btns{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   .px-btn{border:1.5px solid var(--text);background:var(--surface);color:var(--text);font:700 14px 'Sora',sans-serif;padding:8px 14px;border-radius:100px;cursor:pointer;transition:.15s;}
   .px-btn:hover{background:var(--text);color:var(--accent);}
+  .px-confirm{flex:1 1 100%;display:flex;flex-direction:column;gap:10px;background:var(--surface);border:1.5px solid var(--accent);border-radius:16px;padding:14px 16px;}
+  .px-confirm-t{font-size:14.5px;line-height:1.45;}
+  .px-confirm-txt{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font:500 15px 'Inter',sans-serif;line-height:1.5;resize:vertical;outline:none;color:var(--text);}
+  .px-confirm-btns{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .px-btn-ok{background:var(--accent);border-color:var(--accent);color:#1A1A1A;}
   .px-prox{max-width:1100px;margin:0 auto 28px;}
   .px-prox[hidden]{display:none;}
   .px-ayuda{text-align:center;color:var(--text-dim);font-size:15px;margin-bottom:14px;}
@@ -705,6 +710,7 @@ function itemPx(){
   return (contenidoPx[trabajoPx.tab] || []).find((r) => r.id === trabajoPx.id) || null;
 }
 function elegirTrabajoPx(tab, id){
+  confirmPx = null;
   trabajoPx = (trabajoPx && trabajoPx.id === id) ? null : { tab, id };
   pintarTrabajoPx(); pintarProximos();
 }
@@ -718,30 +724,123 @@ function pintarTrabajoPx(){
       <button type="button" class="px-btn" data-px="imagen">🖼️ Prompt de imagen</button>
       <button type="button" class="px-btn" data-px="video">🎬 Prompt de video</button>
       <button type="button" class="link-btn" data-px="quitar">Quitar</button>
-    </div>`;
+    </div>${confirmarPxHtml()}`;
   box.querySelectorAll('[data-px]').forEach((b) => b.addEventListener('click', () => {
-    if (b.dataset.px === 'quitar') { trabajoPx = null; pintarTrabajoPx(); pintarProximos(); }
+    if (b.dataset.px === 'quitar') { trabajoPx = null; confirmPx = null; pintarTrabajoPx(); pintarProximos(); }
     else usarPromptPx(b.dataset.px);
   }));
+  enlazarConfirmarPx(box);
 }
 function textoVideoPx(titulo, prompt){
   return `Este es el prompt de video para mi post «${titulo}». Ayúdame a elegir la herramienta de IA ideal y a afinarlo:\n\n${prompt}`;
 }
-// Deja en el buscador lo que ya hay del post (su prompt guardado) o un arranque con su resumen; no lo envía.
+// Si el post ya tiene su prompt guardado, lo deja en el buscador. Si no lo tiene, la IA lo arma con lo que hay
+// del post y se muestra para confirmar: al confirmar se guarda en el post y (imagen) se crea la imagen.
 function usarPromptPx(tipo){
   const r = itemPx(); if (!r) return;
   const titulo = r.gancho || 'mi post';
-  const resumen = (r.caption || r.descripcion || '').replace(/\s+/g, ' ').trim().slice(0, 220);
-  let texto;
-  if (tipo === 'imagen') {
-    setModo('imagen');
-    texto = r.promptImagen || `Imagen para mi post «${titulo}»${resumen ? ': ' + resumen : ''}`;
-  } else {
-    setModo('guia');
-    texto = r.promptVideo ? textoVideoPx(titulo, r.promptVideo)
-      : `Ayúdame a producir el video de mi post «${titulo}»${resumen ? '. De qué trata: ' + resumen : ''}. Dame las escenas y el prompt para una IA de video.`;
+  const guardado = tipo === 'imagen' ? r.promptImagen : r.promptVideo;
+  if (guardado) {
+    confirmPx = null; pintarTrabajoPx();
+    if (tipo === 'imagen') { setModo('imagen'); const el = $('chat-input'); el.value = guardado; autoAlto(); el.focus(); }
+    else { setModo('guia'); const el = $('chat-input'); el.value = textoVideoPx(titulo, guardado); autoAlto(); el.focus(); }
+    return;
   }
-  const el = $('chat-input'); el.value = texto; autoAlto(); el.focus();
+  crearPromptPx(tipo);
+}
+
+// ─── PROMPT CREADO CON IA PARA CONFIRMAR ───────────────────────────────────────────────────────
+let confirmPx = null; // { tipo, estado:'cargando'|'listo'|'error', texto, error }
+function confirmarPxHtml(){
+  if (!confirmPx) return '';
+  const nombre = confirmPx.tipo === 'imagen' ? 'imagen' : 'video';
+  if (confirmPx.estado === 'cargando') return `<div class="px-confirm"><div class="px-confirm-t">⏳ Armando el prompt de ${nombre} con la información de tu publicación…</div></div>`;
+  if (confirmPx.estado === 'error') return `<div class="px-confirm"><div class="px-confirm-t">⚠️ ${escHtml(confirmPx.error)}</div>
+    <div class="px-confirm-btns"><button type="button" class="px-btn" data-pxc="otro">↻ Intentar de nuevo</button><button type="button" class="link-btn" data-pxc="cancelar">Cancelar</button></div></div>`;
+  return `<div class="px-confirm">
+    <div class="px-confirm-t">Este es el prompt de ${nombre} que armé con lo que ya tiene tu publicación. Revísalo (puedes editarlo) y, si te gusta, confírmalo: ${confirmPx.tipo === 'imagen' ? 'se guarda en la publicación y creo la imagen.' : 'se guarda en la publicación y lo dejo en el buscador para afinarlo.'}</div>
+    <textarea class="px-confirm-txt" rows="6">${escHtml(confirmPx.texto)}</textarea>
+    <div class="px-confirm-btns">
+      <button type="button" class="px-btn px-btn-ok" data-pxc="ok">${confirmPx.tipo === 'imagen' ? '✅ Confirmar y crear imagen' : '✅ Confirmar y guardar'}</button>
+      <button type="button" class="px-btn" data-pxc="otro">↻ Otro prompt</button>
+      <button type="button" class="link-btn" data-pxc="cancelar">Cancelar</button>
+    </div></div>`;
+}
+function enlazarConfirmarPx(box){
+  const ta = box.querySelector('.px-confirm-txt');
+  if (ta) ta.addEventListener('input', () => { confirmPx.texto = ta.value; });
+  box.querySelectorAll('[data-pxc]').forEach((b) => b.addEventListener('click', () => {
+    const a = b.dataset.pxc;
+    if (a === 'cancelar') { confirmPx = null; pintarTrabajoPx(); }
+    else if (a === 'otro') crearPromptPx(confirmPx ? confirmPx.tipo : 'imagen');
+    else if (a === 'ok') confirmarPromptPx();
+  }));
+}
+async function crearPromptPx(tipo){
+  const r = itemPx(); if (!r) return;
+  confirmPx = { tipo, estado: 'cargando', texto: '', error: '' }; pintarTrabajoPx();
+  try {
+    let res, texto = '';
+    if (trabajoPx.tab === 'campanas') {
+      const c = r.raw || {};
+      res = await fetch('/api/generar-anuncios', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          modo: 'pieza', cliente: CLIENTE_ID, tipo, grupo_id: c.grupo_id || '', producto_id: c.producto_id || '',
+          card: { titulo: c.titulo, hook: c.hook, etapa: c.etapa, formato: c.formato, objetivo: c.objetivo, angulo: c.angulo, audiencia: c.audiencia,
+            copy_publicacion: c.copy_publicacion, visual_sugerido: c.visual_sugerido, duracion_sugerida: c.duracion_sugerida,
+            cta_boton: c.cta_boton, link_destino: c.link_destino, retroalimentacion: c.retroalimentacion, guion: c.guion },
+        }),
+      });
+    } else {
+      res = await fetch('/api/generar-guion-organico', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cliente: CLIENTE_ID, modo: 'prompt-medio', tipo,
+          post: { gancho: r.gancho, formato: r.formato, caption: r.caption, guion: r.guion, notas: r.notas },
+          texto: '', imagenes: [],
+        }),
+      });
+    }
+    const raw = await res.text(); let data = null; try { data = JSON.parse(raw); } catch (e) {}
+    if (!res.ok || !data) throw new Error((data && data.error) || 'No se pudo armar el prompt. Intenta de nuevo.');
+    texto = trabajoPx.tab === 'campanas'
+      ? ((data.pieza && (tipo === 'imagen' ? data.pieza.prompt_imagen : data.pieza.prompt_video)) || '')
+      : (data.text || '');
+    if (!texto.trim()) throw new Error('La IA no devolvió el prompt. Intenta de nuevo.');
+    confirmPx = { tipo, estado: 'listo', texto: texto.trim(), error: '' };
+  } catch (err) {
+    confirmPx = { tipo, estado: 'error', texto: '', error: err.message || 'No se pudo armar el prompt.' };
+  }
+  pintarTrabajoPx();
+}
+// Guarda el prompt confirmado dentro de la publicación (lee lo guardado justo antes, para no pisar otros cambios).
+async function guardarPromptEnPostPx(tab, id, tipo, texto){
+  const campo = tab === 'campanas' ? (tipo === 'imagen' ? 'prompt_imagen' : 'prompt_video') : (tipo === 'imagen' ? 'promptImagen' : 'promptVideo');
+  const key = tab === 'campanas' ? ANUNCIOS_KEY : CONTENIDO_KEY;
+  const rr = await window.storage.get(key);
+  const d = rr && rr.value ? JSON.parse(rr.value) : null;
+  const lista = tab === 'campanas' ? d : (d && d[tab]);
+  const it = Array.isArray(lista) ? lista.find((x) => x && x.id === id) : null;
+  if (!it) throw new Error('No encontré la publicación para guardar el prompt.');
+  it[campo] = texto;
+  await window.storage.set(key, JSON.stringify(d));
+}
+async function confirmarPromptPx(){
+  const r = itemPx(); if (!r || !confirmPx || confirmPx.estado !== 'listo') return;
+  const { tipo } = confirmPx; const texto = (confirmPx.texto || '').trim(); if (!texto) return;
+  const tab = trabajoPx.tab, id = trabajoPx.id;
+  try {
+    await guardarPromptEnPostPx(tab, id, tipo, texto);
+  } catch (err) {
+    confirmPx = { tipo, estado: 'error', texto: '', error: err.message || 'No se pudo guardar el prompt.' }; pintarTrabajoPx(); return;
+  }
+  if (tipo === 'imagen') r.promptImagen = texto; else r.promptVideo = texto;
+  if (r.raw) { if (tipo === 'imagen') r.raw.prompt_imagen = texto; else r.raw.prompt_video = texto; }
+  confirmPx = null; pintarTrabajoPx();
+  const el = $('chat-input');
+  if (tipo === 'imagen') { setModo('imagen'); el.value = texto; autoAlto(); generarImagen(); }
+  else { setModo('guia'); el.value = textoVideoPx(r.gancho || 'mi post', texto); autoAlto(); el.focus(); }
 }
 // Llega desde el editor del post con "Ir a Jefe Productor IA": abre ese post y deja su prompt en el buscador.
 async function aplicarTraspasoPx(){
@@ -781,6 +880,7 @@ async function cargarContenidoPx(){
       id: c.id, gancho: c.titulo || '', estado: c.estado || 'idea', fecha: c.fecha || '', hora: c.hora || '',
       caption: c.copy_publicacion || '', descripcion: c.objetivo || '',
       promptImagen: c.prompt_imagen || '', promptVideo: c.prompt_video || '',
+      raw: c,
     }));
   } catch (e) {}
   await aplicarTraspasoPx();
