@@ -7,9 +7,9 @@ const EVENTO = {
   marca: "Red Impulso Mujer",
   nombre: "Brigada de Salud",
   lema: "Una mañana para cuidar tu mente, tu cuerpo y tu salud. Octubre Rosa.",
-  fecha: "Por confirmar",
+  fecha: "Martes 27 de octubre",
   horario: "9:00 a. m. – 1:00 p. m.",
-  lugar: "Por confirmar",
+  lugar: "Auditorio de la Facultad de Psicología",
   direccion: "",
   mapaUrl: "", // link de Google Maps (opcional)
 
