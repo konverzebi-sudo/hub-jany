@@ -223,6 +223,32 @@
   .pm-copiar-gemini:hover{filter:brightness(.95);transform:translateY(-1px);}
   .pm-abrir-gemini{font-size:14px;font-weight:700;color:var(--accent-text);text-decoration:none;}
   .pm-abrir-gemini:hover{text-decoration:underline;}
+  .pm-links{display:flex;flex-direction:column;gap:10px;}
+  .pm-links-t{font-family:'Inter',sans-serif;font-weight:700;font-size:14.5px;color:#1F5FA8;}
+  .pm-lk-lista{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+  .pm-lk{display:inline-flex;align-items:center;gap:2px;background:#EEF5FD;border:1px solid #BBD7F2;border-radius:100px;padding:3px 4px 3px 4px;max-width:100%;}
+  .pm-lk.on{background:#DCEBFA;border-color:#1F5FA8;box-shadow:0 0 0 3px rgba(31,95,168,.12);}
+  .pm-lk-main{display:inline-flex;align-items:center;gap:8px;text-decoration:none;color:#1F5FA8;font-family:'Inter',sans-serif;font-weight:700;font-size:14.5px;padding:3px 8px 3px 4px;min-width:0;}
+  .pm-lk-ico{width:28px;height:28px;border-radius:50%;background:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;box-shadow:0 1px 3px rgba(0,0,0,.12);}
+  .pm-lk-nom{max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .pm-lk-go{font-size:12px;opacity:.7;}
+  .pm-lk-btn{border:none;background:transparent;border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:13px;color:#1F5FA8;opacity:.75;}
+  .pm-lk-btn:hover{background:#fff;opacity:1;}
+  .pm-lk-add{border:1.5px dashed #9DBFE3;background:transparent;color:#1F5FA8;border-radius:100px;padding:8px 16px;font-family:'Inter',sans-serif;font-weight:700;font-size:14px;cursor:pointer;}
+  .pm-lk-add:hover{background:#EEF5FD;}
+  .pm-lk-editor{display:grid;grid-template-columns:minmax(120px,190px) minmax(0,1fr) auto;gap:8px;align-items:center;padding:10px;border:1px solid #BBD7F2;border-radius:16px;background:#fff;}
+  .pm-lk-editor input{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-family:'Inter',sans-serif;font-size:15px;outline:none;color:var(--text);min-width:0;}
+  .pm-link-nombre{font-weight:700;}
+  .pm-link-url{color:#1F5FA8 !important;}
+  .pm-lk-editor input:focus{border-color:#1F5FA8;background:#fff;}
+  .pm-lk-editor-btns{display:flex;align-items:center;gap:10px;}
+  .pm-lk-quitar{border:none;background:none;color:var(--text-dim);font-weight:700;font-size:13.5px;cursor:pointer;text-decoration:underline;}
+  .pm-lk-quitar:hover{color:#D32F2F;}
+  .pm-linkchips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;}
+  .pm-linkchips:empty{display:none;}
+  .pm-linkchip{border:1px solid var(--line);background:#fff;border-radius:100px;padding:4px 12px;font-size:12.5px;font-weight:700;cursor:pointer;color:var(--text-dim);}
+  .pm-linkchip.on{background:#10101A;color:var(--accent);border-color:#10101A;}
+  @media (max-width:600px){.pm-lk-editor{grid-template-columns:1fr;}}
   .pm-foot{display:flex;align-items:center;justify-content:flex-end;gap:14px;padding:14px 26px;border-top:1px solid var(--line);}
   .pm-cancel{background:none;border:none;font-family:'Inter',sans-serif;font-weight:700;font-size:16px;cursor:pointer;color:var(--text);padding:10px 14px;}
   @media (max-width:820px){.pm-body{grid-template-columns:1fr;overflow-y:auto;}.pm-form{overflow:visible;}.pm-side{border-left:none;border-top:1px solid var(--line);}.pm-dialog{max-height:98vh;}}
@@ -1902,7 +1928,7 @@ function buildPostCard(item, conFecha){
   return `<article class="pcard" tabindex="0" role="button" data-id="${escHtml(item.id)}" aria-label="${escHtml(item.titulo||'Campaña')}">
     <div class="pthumb" style="--a:${gr[0]};--b:${gr[1]};">
       <span class="pthumb-ico">${FORMATO_ICO[item.formato]||'🎬'}</span>
-      ${(()=>{ const mi = infoMaterial(item.link_archivo_final); return mi && mi.thumb ? `<img class="pthumb-img" src="${mi.thumb}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''; })()}
+      ${(()=>{ const th = linkMiniatura(item); return th ? `<img class="pthumb-img" src="${th}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''; })()}
       <span class="pchip">${escHtml(item.formato||'reel')}</span>
       <span class="badge badge-${item.etapa} pthumb-etapa">${ETAPA_LABEL[item.etapa]||item.etapa}</span>
     </div>
@@ -1916,6 +1942,34 @@ function buildPostCard(item, conFecha){
 
 let postModalEl = null, postModalSnapshot = null, postModalId = null;
 function marcaVisible(){ const el = document.getElementById('brand-marca-label'); return (el && el.textContent) || ''; }
+
+// ─── LINKS DEL ANUNCIO (varios, con nombre personalizable) ───────────────────────────────────
+// Cada anuncio puede guardar todos los links que necesite (Drive, Canva, el video, la imagen...) con el nombre
+// que el usuario les ponga. `link_archivo_final` sigue existiendo y siempre refleja el primer link con dirección.
+let linkVistaId = ''; // link que se está viendo en el celular (si está vacío, el primero que se pueda mostrar)
+function mkLinkId(){ return 'l'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function linksDe(item){
+  if(!Array.isArray(item.links)){
+    item.links = item.link_archivo_final ? [{ id:mkLinkId(), nombre:'Anuncio final', url:item.link_archivo_final }] : [];
+  }
+  return item.links;
+}
+function sincronizarLinkPrincipal(item){
+  const l = (item.links||[]).find(x=>x && x.url && x.url.trim());
+  item.link_archivo_final = l ? l.url.trim() : '';
+}
+function linksConUrl(item){ return linksDe(item).filter(l=>l && l.url && l.url.trim()); }
+function linkVista(item){
+  const ls = linksConUrl(item);
+  if(!ls.length) return null;
+  return ls.find(l=>l.id===linkVistaId) || ls.find(l=>{ const m = infoMaterial(l.url); return m && m.tipo!=='link'; }) || ls[0];
+}
+function nombreLink(l, i){ return (l.nombre||'').trim() || ('Link '+(i+1)); }
+// Miniatura de la tarjeta: la primera imagen que salga de alguno de los links.
+function linkMiniatura(item){
+  for(const l of linksConUrl(item)){ const m = infoMaterial(l.url); if(m && m.thumb) return m.thumb; }
+  return '';
+}
 
 // Qué se puede mostrar a partir del "Link del anuncio final": imagen o video directo, YouTube, Google Drive,
 // Instagram y TikTok se ven dentro del celular; cualquier otro link queda como botón "Abrir".
@@ -1957,8 +2011,9 @@ function pintarPreviewPost(item){
   const est = ESTADO_LABEL[item.estado] ? item.estado : 'idea';
   const gr = ESTADO_GRAD[est];
   const texto = item.copy_publicacion || item.titulo_anuncio || item.hook || item.titulo || '';
-  const mi = infoMaterial(item.link_archivo_final);
-  const claveMedia = (item.link_archivo_final||'').trim() + '|' + est;
+  const lv = linkVista(item);
+  const mi = infoMaterial(lv && lv.url);
+  const claveMedia = (lv ? lv.url.trim() : '') + '|' + est;
   const captionHtml = `<b>${escHtml(marcaVisible())}</b><p>${escHtml(texto.slice(0,170))}${texto.length>170?'…':''}</p>`;
   const redesHtml = redesDe(item).map(k=>`<span>${escHtml((REDES.find(r=>r[0]===k)||[])[1]||k)}</span>`).join('');
   const meta = `${escHtml(item.formato||'reel')} · 9:16`;
@@ -1969,6 +2024,7 @@ function pintarPreviewPost(item){
     const cap = box.querySelector('.pm-caption') || box.querySelector('.pm-caption-fuera'); if(cap) cap.innerHTML = captionHtml;
     box.querySelector('.pm-screen > .pchip').textContent = item.formato||'reel';
     box.querySelector('.pm-meta').textContent = (item.formato||'reel') + ' · 9:16';
+    pintarChipsLinks(item, box);
     return;
   }
   box.dataset.media = claveMedia;
@@ -1990,6 +2046,7 @@ function pintarPreviewPost(item){
         : `<a href="${mi.abrir}" target="_blank" rel="noopener">Abrir en una pestaña ↗</a>${mi.host==='drive.google.com' ? '<br>Si no se ve, en Drive comparte el archivo con “Cualquier persona con el enlace”.' : ''}`);
   box.innerHTML = `
     <div class="pm-nets">${redesHtml}</div>
+    <div class="pm-linkchips"></div>
     <div class="pm-phone"><div class="pm-screen" style="--a:${gr[0]};--b:${gr[1]};">
       ${mi && mi.tipo!=='link' ? '' : `<span class="pm-ico">${FORMATO_ICO[item.formato]||'🎬'}</span>`}
       ${capa}
@@ -1999,6 +2056,98 @@ function pintarPreviewPost(item){
     ${enVivo ? `<div class="pm-caption-fuera">${captionHtml}</div>` : ''}
     <div class="pm-meta">${meta}</div>
     <p class="pm-hint">${ayuda}</p>`;
+  pintarChipsLinks(item, box);
+}
+
+// Con 2 o más links, chips con su nombre sobre el celular para elegir cuál se ve.
+function pintarChipsLinks(item, box){
+  const cont = box.querySelector('.pm-linkchips'); if(!cont) return;
+  const ls = linksDe(item).map((l,i)=>({l,i})).filter(x=>x.l.url && x.l.url.trim());
+  const sel = linkVista(item);
+  cont.innerHTML = ls.length > 1 ? ls.map(x=>`<button type="button" class="pm-linkchip${sel && sel.id===x.l.id?' on':''}" data-vista-link="${x.l.id}">${escHtml(nombreLink(x.l,x.i))}</button>`).join('') : '';
+  if(!box._chipsListo){
+    box._chipsListo = true;
+    box.addEventListener('click',(e)=>{
+      const b = e.target.closest('[data-vista-link]'); if(!b) return;
+      const it = cards.find(c=>c.id===postModalId); if(!it) return;
+      linkVistaId = b.dataset.vistaLink; pintarPreviewPost(it); pintarLinks(it);
+    });
+  }
+}
+
+// Links del anuncio: se ven como pastillas compactas (icono + nombre; clic abre el link) con 📱 para verlo en el celular
+// y ✎ para editarlo. "+ Agregar link" abre una fila para escribir nombre y dirección; al darle "Listo" vuelve a ser pastilla.
+let linkEditandoId = '';
+function iconoLink(url){
+  const m = infoMaterial(url); if(!m) return '🔗';
+  const h = m.host || '';
+  if(h.includes('drive.google')) return '📁';
+  if(h.includes('youtu')) return '▶️';
+  if(h.includes('instagram')) return '📷';
+  if(h.includes('tiktok')) return '🎵';
+  if(h.includes('canva')) return '🎨';
+  if(m.tipo==='img') return '🖼️';
+  if(m.tipo==='video') return '🎬';
+  return '🔗';
+}
+function pintarLinks(item, modal){
+  const box = (modal||postModalEl).querySelector('#pm-links');
+  if(!box) return;
+  const links = linksDe(item);
+  const sel = linkVista(item);
+  const pastilla = (l,i)=>`
+    <span class="pm-lk${sel && sel.id===l.id ? ' on' : ''}" data-lid="${l.id}">
+      <a class="pm-lk-main" href="${escHtml(linkHref(l.url))}" target="_blank" rel="noopener" title="Abrir ${escHtml(nombreLink(l,i))}">
+        <span class="pm-lk-ico">${iconoLink(l.url)}</span><span class="pm-lk-nom">${escHtml(nombreLink(l,i))}</span><span class="pm-lk-go">↗</span>
+      </a>
+      <button type="button" class="pm-lk-btn" data-lk-ver title="Verlo en el celular">📱</button>
+      <button type="button" class="pm-lk-btn" data-lk-edit title="Editar nombre o link">✎</button>
+    </span>`;
+  const editor = (l)=>`
+    <div class="pm-lk-editor" data-lid="${l.id}">
+      <input type="text" class="pm-link-nombre" placeholder="Nombre (Video, Imagen, Anuncio final…)" value="${escHtml(l.nombre)}" aria-label="Nombre del link">
+      <input type="text" class="pm-link-url" placeholder="https://… (Drive, Canva, YouTube…)" value="${escHtml(l.url)}" aria-label="Dirección del link">
+      <div class="pm-lk-editor-btns">
+        <button type="button" class="btn btn-solid btn-sm" data-lk-listo>Listo</button>
+        <button type="button" class="pm-lk-quitar" data-lk-quitar>Quitar</button>
+      </div>
+    </div>`;
+  const editando = links.find(l=>l.id===linkEditandoId);
+  box.innerHTML = `
+    <div class="pm-links-t">🔗 Links del anuncio <span class="pm-hint-inline">(Drive, Canva, el video, la imagen…)</span></div>
+    <div class="pm-lk-lista">
+      ${links.filter(l=>l.id!==linkEditandoId && l.url && l.url.trim()).map((l)=>pastilla(l, links.indexOf(l))).join('')}
+      ${editando ? '' : '<button type="button" class="pm-lk-add" data-link-add>＋ Agregar link</button>'}
+    </div>
+    ${editando ? editor(editando) : ''}`;
+  const guardar = ()=>{ sincronizarLinkPrincipal(item); scheduleCardsSave(); };
+  box.querySelectorAll('.pm-lk').forEach(el=>{
+    const l = links.find(x=>x.id===el.dataset.lid); if(!l) return;
+    el.querySelector('[data-lk-ver]').addEventListener('click',()=>{ linkVistaId = l.id; pintarPreviewPost(item); pintarLinks(item); });
+    el.querySelector('[data-lk-edit]').addEventListener('click',()=>{ linkEditandoId = l.id; pintarLinks(item); const i = box.querySelector('.pm-link-url'); if(i) i.focus(); });
+  });
+  const ed = box.querySelector('.pm-lk-editor');
+  if(ed && editando){
+    const nom = ed.querySelector('.pm-link-nombre'), url = ed.querySelector('.pm-link-url');
+    nom.addEventListener('input',()=>{ editando.nombre = nom.value; guardar(); });
+    url.addEventListener('input',()=>{ editando.url = url.value; guardar(); pintarPreviewPost(item); });
+    const cerrar = ()=>{
+      // un link sin dirección no se queda
+      if(!(editando.url||'').trim()) item.links = links.filter(x=>x.id!==editando.id);
+      linkEditandoId = ''; guardar(); pintarLinks(item); pintarPreviewPost(item);
+    };
+    ed.querySelector('[data-lk-listo]').addEventListener('click', cerrar);
+    [nom,url].forEach(i=>i.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ e.preventDefault(); cerrar(); } }));
+    ed.querySelector('[data-lk-quitar]').addEventListener('click',()=>{
+      item.links = links.filter(x=>x.id!==editando.id); linkEditandoId = ''; guardar(); pintarLinks(item); pintarPreviewPost(item);
+    });
+  }
+  const add = box.querySelector('[data-link-add]');
+  if(add) add.addEventListener('click',()=>{
+    const nuevo = { id:mkLinkId(), nombre:'', url:'' };
+    links.push(nuevo); linkEditandoId = nuevo.id; pintarLinks(item);
+    const i = box.querySelector('.pm-link-nombre'); if(i) i.focus();
+  });
 }
 
 // ─── PIEZAS BAJO DEMANDA (guion · caption de WhatsApp · prompt de imagen · prompt de video) ─────
@@ -2239,10 +2388,7 @@ function abrirPostModal(id){
               <label>💬 Retroalimentación (se usa en las próximas generaciones)</label>
               <textarea data-id="${item.id}" data-field="retroalimentacion" placeholder="Ej: falta mencionar que son 10 agentes de IA trabajando para el negocio...">${escHtml(item.retroalimentacion)}</textarea>
             </div>
-            <div class="detail-field link-field">
-              <div class="detail-field-head"><label>🔗 Link del anuncio final (Drive, Canva, etc.)</label>${item.link_archivo_final?`<a class="btn-guion" href="${escHtml(linkHref(item.link_archivo_final))}" target="_blank" rel="noopener">Abrir ↗</a>`:''}</div>
-              <input type="text" class="link-input" data-id="${item.id}" data-field="link_archivo_final" placeholder="https://..." value="${escHtml(item.link_archivo_final)}">
-            </div>
+            <div class="pm-links" id="pm-links"></div>
             ${textFieldHtml(item,'visual_sugerido','Visual sugerido (qué mostrar)')}
             ${textFieldHtml(item,'duracion_sugerida','Duración sugerida')}
             ${promptFieldHtml(item,'copy_publicacion','Copy para publicar')}
@@ -2262,6 +2408,8 @@ function abrirPostModal(id){
   postModalEl = el;
   pintarPreviewPost(item);
   bindCardEvents(el);
+  linkVistaId = '';
+  pintarLinks(item, el);
   pintarPiezas(item, el);
 
   // La vista previa y el chip de estado se mantienen al día mientras se edita.
