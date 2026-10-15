@@ -15,6 +15,10 @@
     el.textContent = E[el.dataset.bind] ?? "";
   });
 
+  // Acceso discreto para las organizadoras: el logo de la barra lleva a la vista privada
+  // (sin <a> para que no se vea el link al pasar el mouse; la vista igual pide el código)
+  $("#logo-acceso").addEventListener("click", () => { location.href = "registros.html"; });
+
   // Programa
   $("#lista-programa").innerHTML = E.programa.map((a) => `
     <li class="${a.pausa ? "pausa" : ""}">
