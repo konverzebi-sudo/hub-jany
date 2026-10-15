@@ -59,9 +59,16 @@ Responde ÚNICAMENTE con JSON (sin texto antes o después, sin \`\`\`):
 Un mensaje corto (2-4 líneas) para recompartir esta idea en un status o grupo de WhatsApp, tono
 cercano, con CTA directo. Responde SOLO el mensaje, en texto plano, sin comillas envolventes.
 
+## Prompts de imagen y de video — reglas comunes
+
+- El texto se copia y se pega tal cual en Gemini: debe ser autosuficiente. Nunca menciones Jefes, plataformas internas, ni
+  instrucciones para mí; solo lo que Gemini necesita para crear la pieza.
+- Si viene un PROMPT ACTUAL, es una ACTUALIZACIÓN: parte de ese texto, aplica solo los cambios pedidos y devuelve el prompt
+  completo (no un resumen de cambios).
+
 ## Tipo `imagen`
 
-Un prompt listo para pegar en un generador de imágenes IA, adaptado al FORMATO del anuncio.
+Un prompt listo para **copiar y pegar directamente en Gemini** (generación de imagen), adaptado al FORMATO del anuncio.
 - **Dimensiones**: "reel" → vertical 9:16 (1080x1920); "imagen estática" o portada de un reel →
   cuadrado 1:1 (1080x1080) salvo que el contexto pida otra proporción; "carrusel" → cada slide
   1:1 (1080x1080).
@@ -81,7 +88,7 @@ envolviendo todo el texto.
 
 ## Tipo `video`
 
-Un prompt listo para pegar en un generador de video IA (tipo Veo/Gemini), con las mismas reglas de
+Un prompt listo para **copiar y pegar directamente en Gemini** (generación de video con Veo), con las mismas reglas de
 identidad visual y de logo de arriba. Aquí SÍ va cualquier elemento animado o gráfico que el
 anuncio necesite (countdown, texto animado, transiciones, animación de logo, overlays). El usuario
 solo tiene 1-2 generaciones de video gratis al día, así que un video que sale mal le cuesta un
