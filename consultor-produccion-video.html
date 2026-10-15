@@ -59,6 +59,36 @@
   .mode-status.error{color:#C62828;}
 
   /* BUSCADOR GRANDE del Jefe (mismo formato que Contenido y Anuncios) */
+  /* PRÓXIMOS POSTS E HISTORIAS (vienen del Jefe de Contenido) */
+  .px-trabajo{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 12px;padding:12px 18px;background:var(--accent-soft);border:1px solid var(--accent);border-radius:22px;}
+  .px-trabajo[hidden]{display:none;}
+  .px-trabajo-txt{display:flex;flex-direction:column;min-width:0;}
+  .px-trabajo-lbl{font-size:12.5px;font-weight:700;color:var(--accent-text);text-transform:uppercase;letter-spacing:.06em;}
+  .px-trabajo-txt strong{font:800 16px 'Sora',sans-serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .px-trabajo-btns{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .px-btn{border:1.5px solid var(--text);background:var(--surface);color:var(--text);font:700 14px 'Sora',sans-serif;padding:8px 14px;border-radius:100px;cursor:pointer;transition:.15s;}
+  .px-btn:hover{background:var(--text);color:var(--accent);}
+  .px-prox{max-width:1100px;margin:0 auto 28px;}
+  .px-prox[hidden]{display:none;}
+  .px-ayuda{text-align:center;color:var(--text-dim);font-size:15px;margin-bottom:14px;}
+  .px-sec{margin-bottom:18px;}
+  .px-sec-tit{font:800 clamp(18px,2.2vw,22px) 'Sora',sans-serif;margin-bottom:10px;}
+  .px-row{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;}
+  .px-card{display:flex;flex-direction:column;text-align:left;padding:0;border:1.5px solid var(--line);border-radius:16px;overflow:hidden;background:var(--surface);cursor:pointer;font-family:'Inter',sans-serif;transition:.15s;}
+  .px-card:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(0,0,0,.10);}
+  .px-card.on{border-color:var(--text);box-shadow:0 0 0 3px var(--accent);}
+  .px-thumb{position:relative;display:flex;align-items:center;justify-content:center;height:84px;background:linear-gradient(135deg,var(--a),var(--b));}
+  .px-thumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+  .px-ico{font-size:28px;opacity:.7;}
+  .px-nuevo{position:absolute;right:8px;top:8px;background:#1A1A1A;color:var(--accent);font:800 11px 'Sora',sans-serif;padding:3px 9px;border-radius:100px;}
+  .px-tit{padding:10px 12px 4px;font:700 14px/1.35 'Inter',sans-serif;color:var(--text);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.7em;}
+  .px-pie{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:4px 12px 12px;}
+  .px-pill{font-size:12px;font-weight:700;padding:3px 9px;border-radius:100px;background:var(--surface-2);color:var(--text);}
+  .px-fecha{font-size:12.5px;color:var(--text-dim);}
+  @media (max-width:1100px){
+    .px-row{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:8px;}
+    .px-card{flex:0 0 min(60vw,200px);scroll-snap-align:start;}
+  }
   .chat-hero{display:flex;flex-direction:column;align-items:stretch;margin:0 auto 24px;max-width:900px;}
   .hero-search{display:flex;align-items:center;gap:12px;width:100%;margin:0 auto 10px;padding:8px 10px 8px 18px;min-height:64px;background:var(--surface);border:1px solid var(--line);border-radius:34px;box-shadow:0 8px 30px rgba(0,0,0,.10);transition:border-color .18s,box-shadow .18s;text-align:left;}
   .hero-search:focus-within{border-color:var(--accent);box-shadow:0 8px 30px rgba(0,0,0,.10),0 0 0 4px rgba(192,248,0,.28);}
@@ -188,6 +218,7 @@
 
   <!-- Buscador del Jefe: un solo cuadro para la guía (chat) y para crear imágenes -->
   <div class="chat-hero">
+    <div class="px-trabajo" id="px-trabajo" hidden></div>
     <div class="hero-search">
       <span class="hero-lupa" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
@@ -218,6 +249,8 @@
     <div id="chat-thread" class="chat-thread"></div>
     <div id="imggen-result" class="imggen-result"></div>
   </div>
+
+  <section class="px-prox" id="px-prox" hidden></section>
 
   <div id="content"></div>
 </div>
@@ -610,11 +643,142 @@ async function cargarConversacion(){
   } catch (e) {}
 }
 
+// ─── PRÓXIMOS POSTS E HISTORIAS (vienen del Jefe de Contenido) ─────────────────────────────
+// Lee los mismos posts e historias que el Jefe de Contenido (primero lo programado, luego lo que está en
+// proceso y al final ideas). Al elegir uno se trabaja aquí: sus prompts de imagen y de video pasan al buscador.
+const CONTENIDO_KEY = CLIENTE_ID + ':agente-contenido';
+const HANDOFF_KEY = CLIENTE_ID + ':productor-handoff';
+const MAX_PROXIMOS = 5;
+const ESTADO_PX = {
+  idea:{txt:'Idea', a:'#FFE3E3', b:'#F4A0A0'},
+  proceso:{txt:'En proceso', a:'#FFF8D6', b:'#FBE48E'},
+  programado:{txt:'Programado', a:'#E6F2FF', b:'#A9D0F5'},
+  publicado:{txt:'Publicado', a:'#EAFBB8', b:'#C6F04E'},
+};
+const MESES_PX = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+let contenidoPx = { contenido: [], historias: [] };
+let trabajoPx = null; // { tab, id }
+
+function estadoPx(r){ return ESTADO_PX[r.estado] ? r.estado : 'idea'; }
+function esNuevoPx(r){ return !!r.agregadoEn && (Date.now() - r.agregadoEn) < 24 * 60 * 60 * 1000; }
+function isoHoyPx(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function fechaCortaPx(f){
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(f || '');
+  return m ? (+m[3]) + ' ' + MESES_PX[+m[2] - 1] : 'Sin fecha';
+}
+function proximosPx(lista){
+  const hoy = isoHoyPx();
+  const rank = { programado: 0, proceso: 1, idea: 2 };
+  const grupo = (r) => { const f = r.fecha || ''; if (!/^\d{4}-\d{2}-\d{2}$/.test(f)) return 1; return f >= hoy ? 0 : 2; };
+  return lista.filter((r) => estadoPx(r) !== 'publicado').slice().sort((a, b) => {
+    const n = (esNuevoPx(b) ? 1 : 0) - (esNuevoPx(a) ? 1 : 0); if (n) return n;
+    if (esNuevoPx(a) && esNuevoPx(b)) return b.agregadoEn - a.agregadoEn;
+    const d = rank[estadoPx(a)] - rank[estadoPx(b)]; if (d) return d;
+    const g = grupo(a) - grupo(b); if (g) return g;
+    return (a.fecha || '').localeCompare(b.fecha || '') || (a.hora || '99:99').localeCompare(b.hora || '99:99');
+  }).slice(0, MAX_PROXIMOS);
+}
+function tarjetaPx(r, tab){
+  const c = ESTADO_PX[estadoPx(r)];
+  const activa = trabajoPx && trabajoPx.id === r.id;
+  const mini = r.miniatura ? `<img src="${escHtml(r.miniatura)}" alt="">` : `<span class="px-ico">${tab === 'historias' ? '⭕' : '🎬'}</span>`;
+  return `<button type="button" class="px-card${activa ? ' on' : ''}" data-id="${escHtml(r.id)}" data-tab="${tab}" style="--a:${c.a};--b:${c.b}">
+    <span class="px-thumb">${mini}${esNuevoPx(r) ? '<span class="px-nuevo">Nuevo</span>' : ''}</span>
+    <span class="px-tit">${escHtml(r.gancho || '(sin título)')}</span>
+    <span class="px-pie"><span class="px-pill">${c.txt}</span><span class="px-fecha">${fechaCortaPx(r.fecha)}</span></span>
+  </button>`;
+}
+function pintarProximos(){
+  const host = $('px-prox');
+  const posts = proximosPx(contenidoPx.contenido), hist = proximosPx(contenidoPx.historias);
+  if (!posts.length && !hist.length) { host.hidden = true; host.innerHTML = ''; return; }
+  host.hidden = false;
+  const sec = (titulo, lista, tab) => lista.length
+    ? `<div class="px-sec"><div class="px-sec-tit">${titulo}</div><div class="px-row">${lista.map((r) => tarjetaPx(r, tab)).join('')}</div></div>` : '';
+  host.innerHTML = '<div class="px-ayuda">Elige una publicación para trabajarla aquí con el Jefe Productor IA.</div>'
+    + sec('Próximos posts', posts, 'contenido') + sec('Próximas historias', hist, 'historias');
+  host.querySelectorAll('.px-card').forEach((b) => b.addEventListener('click', () => elegirTrabajoPx(b.dataset.tab, b.dataset.id)));
+}
+function itemPx(){
+  if (!trabajoPx) return null;
+  return (contenidoPx[trabajoPx.tab] || []).find((r) => r.id === trabajoPx.id) || null;
+}
+function elegirTrabajoPx(tab, id){
+  trabajoPx = (trabajoPx && trabajoPx.id === id) ? null : { tab, id };
+  pintarTrabajoPx(); pintarProximos();
+}
+function pintarTrabajoPx(){
+  const box = $('px-trabajo');
+  const r = itemPx();
+  if (!r) { box.hidden = true; box.innerHTML = ''; return; }
+  box.hidden = false;
+  box.innerHTML = `<div class="px-trabajo-txt"><span class="px-trabajo-lbl">Trabajando en</span><strong>${escHtml(r.gancho || '(sin título)')}</strong></div>
+    <div class="px-trabajo-btns">
+      <button type="button" class="px-btn" data-px="imagen">🖼️ Prompt de imagen</button>
+      <button type="button" class="px-btn" data-px="video">🎬 Prompt de video</button>
+      <button type="button" class="link-btn" data-px="quitar">Quitar</button>
+    </div>`;
+  box.querySelectorAll('[data-px]').forEach((b) => b.addEventListener('click', () => {
+    if (b.dataset.px === 'quitar') { trabajoPx = null; pintarTrabajoPx(); pintarProximos(); }
+    else usarPromptPx(b.dataset.px);
+  }));
+}
+function textoVideoPx(titulo, prompt){
+  return `Este es el prompt de video para mi post «${titulo}». Ayúdame a elegir la herramienta de IA ideal y a afinarlo:\n\n${prompt}`;
+}
+// Deja en el buscador lo que ya hay del post (su prompt guardado) o un arranque con su resumen; no lo envía.
+function usarPromptPx(tipo){
+  const r = itemPx(); if (!r) return;
+  const titulo = r.gancho || 'mi post';
+  const resumen = (r.caption || r.descripcion || '').replace(/\s+/g, ' ').trim().slice(0, 220);
+  let texto;
+  if (tipo === 'imagen') {
+    setModo('imagen');
+    texto = r.promptImagen || `Imagen para mi post «${titulo}»${resumen ? ': ' + resumen : ''}`;
+  } else {
+    setModo('guia');
+    texto = r.promptVideo ? textoVideoPx(titulo, r.promptVideo)
+      : `Ayúdame a producir el video de mi post «${titulo}»${resumen ? '. De qué trata: ' + resumen : ''}. Dame las escenas y el prompt para una IA de video.`;
+  }
+  const el = $('chat-input'); el.value = texto; autoAlto(); el.focus();
+}
+// Llega desde el editor del post con "Ir a Jefe Productor IA": abre ese post y deja su prompt en el buscador.
+async function aplicarTraspasoPx(){
+  try {
+    const r = await window.storage.get(HANDOFF_KEY);
+    const h = r && r.value ? JSON.parse(r.value) : null;
+    if (!h || !h.ts || Date.now() - h.ts > 2 * 60 * 60 * 1000) return;
+    let visto = ''; try { visto = localStorage.getItem('px-traspaso-visto') || ''; } catch (e) {}
+    if (visto === String(h.ts)) return;
+    try { localStorage.setItem('px-traspaso-visto', String(h.ts)); } catch (e) {}
+    if ((contenidoPx[h.tab] || []).some((x) => x.id === h.postId)) trabajoPx = { tab: h.tab, id: h.postId };
+    if (h.prompt) {
+      const el = $('chat-input');
+      if (h.tipo === 'video') { setModo('guia'); el.value = textoVideoPx((itemPx() || {}).gancho || 'mi post', h.prompt); }
+      else { setModo('imagen'); el.value = h.prompt; }
+      autoAlto();
+    }
+  } catch (e) {}
+}
+async function cargarContenidoPx(){
+  try {
+    const r = await window.storage.get(CONTENIDO_KEY);
+    const d = r && r.value ? JSON.parse(r.value) : null;
+    if (d) {
+      contenidoPx.contenido = Array.isArray(d.contenido) ? d.contenido : [];
+      contenidoPx.historias = Array.isArray(d.historias) ? d.historias : [];
+    }
+  } catch (e) {}
+  await aplicarTraspasoPx();
+  pintarProximos(); pintarTrabajoPx();
+}
+
 /* ─── INIT ─── */
 renderContenido();
 setModo('guia');
 pintarChatThread();
 cargarConversacion();
+cargarContenidoPx();
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(autoAlto);
 </script>
 

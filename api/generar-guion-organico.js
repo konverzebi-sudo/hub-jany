@@ -12,6 +12,7 @@ const DEFAULT_CLIENTE = 'jefeshub';
 const PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-guion-organico.md');
 const PREGUNTAS_PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-post-ia-preguntas.md');
 const ARRANQUE_PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-post-ia-arranque.md');
+const MEDIOS_PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-prompt-medios.md');
 const CONTEXT_CHAR_LIMIT = 10000;
 
 let fixedPromptCache = null;
@@ -30,6 +31,14 @@ function cargarPromptPreguntas() {
 
 // Guía de la primera conversación (¿ya publicas?, capturas de su estilo, 5 ideas, primer post).
 // Se agrega al prompt de preguntas solo cuando el cliente manda fase 'arranque'.
+// Prompt para crear el prompt de imagen o de video de un post (modo 'prompt-medio').
+let mediosPromptCache = null;
+function cargarPromptMedios() {
+  if (mediosPromptCache) return mediosPromptCache;
+  mediosPromptCache = fs.readFileSync(MEDIOS_PROMPT_PATH, 'utf-8');
+  return mediosPromptCache;
+}
+
 let arranquePromptCache = null;
 function cargarPromptArranque() {
   if (arranquePromptCache) return arranquePromptCache;
@@ -494,11 +503,40 @@ module.exports = async function handler(req, res) {
   const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
   const grupoId = body.grupo_id ? body.grupo_id.toString() : '';
   const productoId = body.producto_id ? body.producto_id.toString() : '';
-  const modo = body.modo === 'contenido' ? 'contenido' : body.modo === 'pregunta' ? 'pregunta' : 'ideas';
+  const modo = body.modo === 'contenido' ? 'contenido' : body.modo === 'pregunta' ? 'pregunta' : body.modo === 'prompt-medio' ? 'prompt-medio' : 'ideas';
   const objetivo = OBJETIVOS_VALIDOS.includes(body.objetivo) ? body.objetivo : 'alcance';
   const esTendencia = objetivo === 'tendencia';
 
   try {
+    if (modo === 'prompt-medio') {
+      const tipo = body.tipo === 'video' ? 'video' : 'imagen';
+      const post = body.post && typeof body.post === 'object' ? body.post : {};
+      const campo = (v, n) => (v == null ? '' : String(v)).trim().slice(0, n);
+      const lineas = ['TIPO DE PROMPT: ' + tipo, '', 'POST:'];
+      if (campo(post.gancho, 300)) lineas.push('Título: ' + campo(post.gancho, 300));
+      if (campo(post.formato, 40)) lineas.push('Formato: ' + campo(post.formato, 40));
+      if (campo(post.caption, 2500)) lineas.push('Caption: ' + campo(post.caption, 2500));
+      if (campo(post.guion, 2500)) lineas.push('Guion: ' + campo(post.guion, 2500));
+      if (campo(post.notas, 1200)) lineas.push('Notas: ' + campo(post.notas, 1200));
+      const material = campo(body.texto, 1500);
+      if (material) lineas.push('', 'MATERIAL REAL (lo que la persona cuenta que tiene o cómo lo imagina):', material);
+      const imagenes = Array.isArray(body.imagenes)
+        ? body.imagenes.filter((img) => img && img.mediaType && img.data).slice(0, 4)
+        : [];
+      if (imagenes.length) lineas.push('', 'Las imágenes adjuntas son el MATERIAL REAL (si vienen de un video, son cuadros de ese video).');
+      lineas.push('', 'Escribe ahora el prompt de ' + tipo + '.');
+      const partes = imagenes.map((img) => ({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.data } }));
+      partes.push({ type: 'text', text: lineas.join('\n') });
+      const { contexto } = await construirContexto(clienteId, grupoId);
+      const system = cargarPromptMedios() + '\n\n' + contexto;
+      const { texto, usage } = await llamarClaudeTexto({ system, messages: [{ role: 'user', content: partes }], maxTokens: 1000, conBusqueda: false });
+      if (!texto) {
+        return res.status(502).json({ error: 'No se pudo crear el prompt. Intenta de nuevo.' });
+      }
+      await registrarUsoTokens(clienteId, 'generar-guion-organico-prompt-medio', usage);
+      return res.status(200).json({ text: texto });
+    }
+
     if (modo === 'pregunta') {
       const mensajeSuelto = (body.mensaje || '').toString().trim();
       const messagesRaw = Array.isArray(body.messages) ? body.messages : null;
