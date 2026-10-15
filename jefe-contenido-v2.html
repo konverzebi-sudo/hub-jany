@@ -531,6 +531,25 @@
   .ed-mas[open]>summary::before{content:'▾';}
   .ed-mas .ed-block{margin-top:12px;}
   .ed-medios{display:flex;flex-direction:column;gap:12px;}
+  .ed-ctl-prod select{max-width:230px;}
+  .ed-auto{font-style:normal;font-size:11.5px;font-weight:700;color:var(--accent-text);background:var(--accent-soft);border-radius:100px;padding:1px 8px;margin-left:6px;}
+  .ed-prodline{padding:8px 26px 0;}
+  .ed-prodline[hidden]{display:none;}
+  .ed-label-sub{margin-top:14px;}
+  .ed-mat-add{display:flex;gap:8px;align-items:center;margin-top:6px;}
+  .ed-mat-add input{flex:1;min-width:0;}
+  .ed-mat-add input.ed-mal{border-color:#C62828;}
+  .ed-mat-pregunta{margin-top:8px;padding:10px 12px;background:var(--surface-2);border:1px solid var(--line);border-radius:14px;}
+  .ed-mat-pregunta[hidden]{display:none;}
+  .ed-mat-lista{display:flex;flex-direction:column;gap:6px;margin-top:8px;}
+  .ed-mat-fila{display:flex;align-items:center;gap:10px;padding:6px 10px;border:1px solid var(--line);border-radius:12px;background:var(--surface);font-size:14px;}
+  .ed-mat-et{flex:0 0 auto;font:700 12px 'Sora',sans-serif;background:var(--accent-soft);color:var(--accent-text);border-radius:100px;padding:3px 10px;}
+  .ed-mat-fila a{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);}
+  .ed-mat-fila button{border:none;background:none;cursor:pointer;color:var(--text-dim);}
+  .ed-tools{display:flex;gap:8px;}
+  .ed-tool{flex:1 1 0;min-width:0;border:1.5px solid var(--line);background:var(--surface);color:var(--text);font:700 14.5px 'Sora',sans-serif;padding:11px 10px;border-radius:100px;cursor:pointer;transition:.15s;white-space:nowrap;}
+  .ed-tool:hover{border-color:var(--accent);background:var(--accent-soft);}
+  .ed-tool.on{border-color:var(--text);background:var(--accent);color:#1A1A1A;}
   .ed-medio-ask{display:flex;flex-direction:column;gap:10px;margin-top:8px;padding:12px;background:var(--surface-2);border:1px solid var(--line);border-radius:14px;}
   .ed-medio-ask[hidden],.ed-medio-box[hidden]{display:none;}
   .ed-medio-adj{display:flex;flex-wrap:wrap;align-items:center;gap:8px;}
@@ -2022,6 +2041,9 @@ function usarRespuestaChatEnContenido(idx){
     fecha:'', estado:'proceso',
     agregadoEn: Date.now()
   });
+  const itemNuevo = state.contenido[state.contenido.length-1];
+  const productoDetectado = detectarProductoAuto(itemNuevo);
+  if(productoDetectado){ itemNuevo.productoId = productoDetectado; itemNuevo.productoNombre = nombreProducto(productoDetectado); }
   msg.usada = true;
   msg.contenidoId = newId;
   msg.contenidoGancho = gancho;
@@ -2694,7 +2716,7 @@ function draftDeItem(tab, r){
     formato:formatoDeItem(r,tab), redes:(Array.isArray(r.redes)?r.redes:REDES_DEFAULT).slice(),
     miniatura:r.miniatura||'', caption:r.caption||'', descripcion:r.descripcion||'', ganchoIdea:r.ganchoIdea||'',
     guion:r.guion||'', promptImagen:r.promptImagen||'', promptVideo:r.promptVideo||'',
-    linkArchivo:r.linkArchivo||'', linkFinal:r.linkFinal||'', linkPub:r.linkPub||'', linkRef:r.linkRef||'',
+    linkVirgen:r.linkVirgen||'', linkArchivo:r.linkArchivo||'', linkFinal:r.linkFinal||'', linkPub:r.linkPub||'', linkRef:r.linkRef||'',
     productoId:r.productoId||'',
     notas:(r.notas!=null && r.notas!=='') ? r.notas : [r.instrucciones,r.recomendacion].filter(Boolean).join('\n\n'),
     etapa:r.etapa||d.etapa, semana:semanaDeFase(r.fase),
@@ -2751,6 +2773,11 @@ function abrirEditor(tab, id, opts){
     draft.gancho='';
     draft.fecha=opts.fecha||'';
   }
+  if(draft.productoId){ draft.productoManual=true; }
+  else {
+    const auto=detectarProductoAuto(draft);
+    if(auto){ draft.productoId=auto; draft.productoAuto=true; }
+  }
   editorCtx={tab,id:id||null,draft,fuente:null};
   pintarEditor();
 }
@@ -2764,6 +2791,77 @@ function cerrarEditor(){
 }
 function editorTecla(e){ if(e.key==='Escape') cerrarEditor(); }
 
+// ─── PRODUCTO AUTOMÁTICO ───────────────────────────────────────────────────────────────────
+// Si el título, el caption, el guion o las notas nombran un producto del catálogo, queda elegido solo
+// (aparece como "sugerido"). Se puede cambiar; si se elige a mano ya no se vuelve a mover.
+function detectarProductoAuto(o){
+  const prods=productosCatalogo();
+  if(!prods.length) return '';
+  const texto=' '+normSug([o.gancho,o.caption,o.guion,o.descripcion,o.ganchoIdea,o.notas].join(' ')).split(/\s+/).join(' ')+' ';
+  let mejor=null, largo=0, empate=false;
+  prods.forEach(p=>{
+    const n=normSug(p.nombre).split(/\s+/).join(' ').trim();
+    if(n.length<3 || !texto.includes(n)) return;
+    if(n.length>largo){ mejor=p; largo=n.length; empate=false; }
+    else if(n.length===largo && mejor && mejor.id!==p.id) empate=true;
+  });
+  return (mejor && !empate) ? mejor.id : '';
+}
+function enlazarProductoAuto(ov){
+  const d=editorCtx.draft;
+  const sel=ov.querySelector('select[data-ed="productoId"]');
+  const tag=ov.querySelector('#ed-prod-auto');
+  const pintarTag=()=>{ tag.hidden=!d.productoAuto; };
+  sel.addEventListener('change',()=>{ d.productoAuto=false; d.productoManual=true; pintarTag(); });
+  let t=null;
+  const reevaluar=()=>{
+    if(d.productoManual) return;
+    const id=detectarProductoAuto(d);
+    if(id && id!==d.productoId){ d.productoId=id; d.productoAuto=true; sel.value=id; actualizarPreviewEditor(); }
+    else if(!id && d.productoAuto){ d.productoId=''; d.productoAuto=false; sel.value=''; actualizarPreviewEditor(); }
+    pintarTag();
+  };
+  ['gancho','caption','guion','descripcion','notas'].forEach(f=>{
+    const el=ov.querySelector('[data-ed="'+f+'"]');
+    if(el) el.addEventListener('input',()=>{ clearTimeout(t); t=setTimeout(reevaluar,700); });
+  });
+  pintarTag();
+}
+
+// ─── MATERIAL: links por etapa ─────────────────────────────────────────────────────────────
+// Se pega un link, se dice qué material es (virgen, listo para editar, editado o ya publicado) y se van
+// sumando según avanza el post. La vista previa muestra el más avanzado que se tenga.
+function enlazarMaterial(ov){
+  const d=editorCtx.draft;
+  const lista=ov.querySelector('#ed-mat-lista'), inp=ov.querySelector('#ed-mat-url'), preg=ov.querySelector('#ed-mat-pregunta');
+  let pendiente='';
+  const pintar=()=>{
+    const filas=ETAPAS_MATERIAL.filter(([k,c])=>(d[c]||'').trim());
+    lista.innerHTML=filas.length ? filas.map(([k,c,l])=>{
+      const mi=infoMaterial(d[c]);
+      const corto=(d[c]||'').replace(/^https?:[/][/](www[.])?/,'').slice(0,46);
+      return `<div class="ed-mat-fila"><span class="ed-mat-et">${l}</span><a href="${mi?mi.abrir:'#'}" target="_blank" rel="noopener">${escHtml(corto)}</a><button type="button" data-mat-quitar="${c}" aria-label="Quitar" title="Quitar">✕</button></div>`;
+    }).join('') : '<div class="ed-hint">Todavía no hay material.</div>';
+    lista.querySelectorAll('[data-mat-quitar]').forEach(b=>b.addEventListener('click',()=>{ d[b.dataset.matQuitar]=''; editorCtx.fuente=null; pintar(); actualizarPreviewEditor(); }));
+  };
+  const agregar=()=>{
+    const url=inp.value.trim();
+    if(!url) return;
+    if(!/[.]/.test(url) || !infoMaterial(url)){ inp.classList.add('ed-mal'); setTimeout(()=>inp.classList.remove('ed-mal'),1200); return; }
+    pendiente=url; preg.hidden=false;
+  };
+  ov.querySelector('#ed-mat-agregar').addEventListener('click',agregar);
+  inp.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); agregar(); } });
+  ov.querySelector('#ed-mat-cancelar').addEventListener('click',()=>{ pendiente=''; preg.hidden=true; });
+  preg.querySelectorAll('[data-etapa-mat]').forEach(b=>b.addEventListener('click',()=>{
+    const et=ETAPAS_MATERIAL.find(x=>x[0]===b.dataset.etapaMat);
+    if(!et || !pendiente) return;
+    d[et[1]]=pendiente; pendiente=''; inp.value=''; preg.hidden=true;
+    editorCtx.fuente=null; pintar(); actualizarPreviewEditor();
+  }));
+  pintar();
+}
+
 // ─── PROMPTS DE IMAGEN Y VIDEO con IA (dentro del editor del post) ─────────────────────────────
 // Cada botón abre una cajita que pregunta, sin obligar, por el material real que se quiera tomar en cuenta
 // (texto, imágenes o videos). Solo cuando se pide se crea el prompt; queda guardado en el post, con Copiar y
@@ -2776,7 +2874,6 @@ const MEDIO_MAX_IMAGENES = 4;
 function medioEditorHTML(tipo, draft){
   const m=MEDIO_META[tipo];
   return `<div class="ed-medio" data-medio="${tipo}">
-    <button type="button" class="btn-guion ed-medio-btn" data-medio-crear="${tipo}">${m.ico} ${m.boton}</button>
     <div class="ed-medio-ask" hidden>
       <div class="ed-hint">¿Tienes material real que quieras tomar en cuenta? Es opcional: cuéntalo con palabras o agrega imágenes o videos.</div>
       <textarea class="ed-medio-texto" rows="2" placeholder="Ej. la foto de mi local, mi logo en blanco, que salga mi producto…"></textarea>
@@ -2830,7 +2927,8 @@ function enlazarMedios(ov){
       prev.innerHTML=ctx.medioAdj[tipo].map((a,i)=>`<span class="ed-medio-chip">${a.esVideo?'🎞️':'🖼️'} ${escHtml(a.nombre)}<button type="button" data-rm="${i}" aria-label="Quitar">✕</button></span>`).join('');
       prev.querySelectorAll('[data-rm]').forEach(b=>b.addEventListener('click',()=>{ ctx.medioAdj[tipo].splice(+b.dataset.rm,1); pintarPrev(); }));
     };
-    box.querySelector('[data-medio-crear]').addEventListener('click',()=>{ ask.hidden=!ask.hidden; });
+    const botonFila=ov.querySelector('[data-tool="'+tipo+'"]');
+    botonFila.addEventListener('click',()=>{ ask.hidden=!ask.hidden; botonFila.classList.toggle('on',!ask.hidden); });
     box.querySelector('.ed-medio-file').addEventListener('change',async e=>{
       const archivos=[...e.target.files]; e.target.value='';
       st.textContent='⏳ Preparando los archivos…';
@@ -2883,6 +2981,7 @@ async function generarPromptMedio(tipo, box){
     box.querySelector('[data-ed="'+m.campo+'"]').value=d[m.campo];
     box.querySelector('.ed-medio-box').hidden=false;
     box.querySelector('.ed-medio-ask').hidden=true;
+    const botonFila=document.querySelector('[data-tool="'+tipo+'"]'); if(botonFila) botonFila.classList.remove('on');
     st.textContent='';
   }catch(err){ st.textContent='⚠️ '+err.message; }
   btn.disabled=false;
@@ -2924,41 +3023,51 @@ function pintarEditor(){
           <select data-ed="estado">${Object.keys(ESTADO_LABEL).map(k=>`<option value="${k}" ${draft.estado===k?'selected':''}>${ESTADO_LABEL[k]}</option>`).join('')}</select></label>
         <label class="ed-ctl"><span>Fecha</span><input type="date" data-ed="fecha" value="${escHtml(draft.fecha)}"></label>
         <label class="ed-ctl"><span>Hora</span><input type="time" data-ed="hora" value="${escHtml(draft.hora)}"></label>
+        <label class="ed-ctl ed-ctl-prod"><span>Producto <em class="ed-auto" id="ed-prod-auto" hidden>sugerido</em></span>
+          <select data-ed="productoId">${opcionesProductoHTML(draft.productoId)}</select></label>
       </div>
+      <div class="ed-prodline" id="ed-prodline" hidden><div class="ed-prodinfo" id="ed-prodinfo"></div></div>
       <div class="ed-body">
         <div class="ed-form">
           <div class="ed-block">
             <div class="ed-label">Formato</div>
             <div class="ed-chips" id="ed-formatos">${Object.keys(FORMATOS_META).map(k=>`<button type="button" class="ed-chip${draft.formato===k?' on':''}" data-formato="${k}">${FORMATOS_META[k].ico} ${FORMATOS_META[k].label}</button>`).join('')}</div>
           </div>
-          <div class="ed-block">
+          <div class="ed-block ed-material">
             <div class="ed-label">Miniatura <span class="ed-hint">(se ve en Próximos posts)</span></div>
             <div class="mini-edit" id="ed-mini">
               <img id="ed-mini-img" src="${draft.miniatura||''}" alt="Miniatura" ${draft.miniatura?'':'hidden'}>
               <label class="btn-guion" style="cursor:pointer;"><span id="ed-mini-txt">📷 ${draft.miniatura?'Cambiar imagen':'Subir imagen'}</span><input type="file" accept="image/*" id="ed-mini-file" style="display:none;"></label>
               <button type="button" class="btn-guion" id="ed-mini-quitar" ${draft.miniatura?'':'hidden'}>Quitar</button>
             </div>
+            <div class="ed-label ed-label-sub">Material <span class="ed-hint">(links de lo que tengas, según la etapa)</span></div>
+            <div class="ed-mat-add">
+              <input type="text" id="ed-mat-url" placeholder="Pega aquí el link de tu material…">
+              <button type="button" class="btn-guion" id="ed-mat-agregar">+ Agregar</button>
+            </div>
+            <div class="ed-mat-pregunta" id="ed-mat-pregunta" hidden>
+              <div class="ed-hint">¿Qué material es?</div>
+              <div class="ed-chips">${ETAPAS_MATERIAL.map(([k,c,l])=>`<button type="button" class="ed-chip" data-etapa-mat="${k}">${l}</button>`).join('')}<button type="button" class="link-btn" id="ed-mat-cancelar">Cancelar</button></div>
+            </div>
+            <div class="ed-mat-lista" id="ed-mat-lista"></div>
           </div>
           <div class="ed-block">
             <div class="ed-label-row"><div class="ed-label">Caption</div>
               <span class="ed-actions"><button type="button" class="btn-guion" id="ed-copiar">📋 Copiar</button></span></div>
             <textarea data-ed="caption" rows="5" placeholder="Texto para redes: dinámico, con personalidad, emojis, CTA claro y breve — cierra con 5 hashtags.">${escHtml(draft.caption)}</textarea>
           </div>
-          <div class="ed-block">
-            <div class="ed-label-row"><div class="ed-label">Guion del video</div>
-              <span class="ed-actions"><button type="button" class="btn-guion" id="ed-guion">✨ Crear guion</button><button type="button" class="btn-guion" id="ed-copiar-guion">📋 Copiar</button></span></div>
-            <textarea data-ed="guion" rows="4" placeholder="Lo que se dice o se muestra dentro del video.">${escHtml(draft.guion)}</textarea>
-          </div>
           <div class="ed-block"><div class="ed-label">Notas <span class="ed-hint">(apuntes rápidos)</span></div><textarea data-ed="notas" rows="3">${escHtml(draft.notas)}</textarea></div>
-          <div class="ed-two">
-            <div class="ed-block"><div class="ed-label">Material final <span class="ed-hint">(lo que se publica)</span></div><input type="text" data-ed="linkFinal" value="${escHtml(draft.linkFinal)}" placeholder="https://..."></div>
-            <div class="ed-block ed-producto">
-              <div class="ed-label">¿De qué producto es?</div>
-              <select data-ed="productoId">${opcionesProductoHTML(draft.productoId)}</select>
-            </div>
-          </div>
-          <div class="ed-prodinfo" id="ed-prodinfo"></div>
           <div class="ed-block ed-medios">
+            <div class="ed-tools">
+              <button type="button" class="ed-tool" data-tool="guion">✨ Guion</button>
+              <button type="button" class="ed-tool" data-tool="imagen">🖼️ Imagen</button>
+              <button type="button" class="ed-tool" data-tool="video">🎬 Video</button>
+            </div>
+            <div class="ed-medio-box ed-guion-box" data-guion-box ${draft.guion?'':'hidden'}>
+              <div class="ed-label">Guion del video</div>
+              <textarea data-ed="guion" rows="5" placeholder="Lo que se dice o se muestra dentro del video.">${escHtml(draft.guion)}</textarea>
+              <div class="ed-actions"><button type="button" class="btn-guion" id="ed-copiar-guion">📋 Copiar</button><button type="button" class="btn-guion" id="ed-guion">✨ Crear de nuevo</button></div>
+            </div>
             ${medioEditorHTML('imagen',draft)}
             ${medioEditorHTML('video',draft)}
           </div>
@@ -2969,10 +3078,6 @@ function pintarEditor(){
             <div class="ed-block">
               <div class="ed-label">Redes donde se publica</div>
               <div class="ed-chips" id="ed-redes">${[['ig','Instagram'],['tt','TikTok'],['fb','Facebook']].map(([k,n])=>`<button type="button" class="ed-chip${draft.redes.includes(k)?' on':''}" data-red="${k}">${n}</button>`).join('')}</div>
-            </div>
-            <div class="ed-two">
-              <div class="ed-block"><div class="ed-label">Material para editar</div><input type="text" data-ed="linkArchivo" value="${escHtml(draft.linkArchivo)}" placeholder="https://..."></div>
-              <div class="ed-block"><div class="ed-label">Link de publicación <span class="ed-hint">(ya publicado)</span></div><input type="text" data-ed="linkPub" value="${escHtml(draft.linkPub)}" placeholder="https://..."></div>
             </div>
             <div class="ed-block"><div class="ed-label">Link de referencia</div><input type="text" data-ed="linkRef" value="${escHtml(draft.linkRef)}" placeholder="https://..."></div>
           </details>
@@ -3041,7 +3146,7 @@ function actualizarPreviewEditor(){
   if(pc) pc.textContent=`${fm.label} · ${alto==='tall'?'9:16':'4:5'}${draft.hora?' · '+draft.hora:''}`;
   const pm=document.getElementById('ed-prev-mat');
   if(pm){
-    if(!mi) pm.innerHTML='<span class="wnote">Pega el link del material final (o del material para editar, o de la publicación) y aquí lo verás.</span>';
+    if(!mi) pm.innerHTML='<span class="wnote">Agrega un link de material y aquí lo verás (se muestra el más avanzado que tengas).</span>';
     else pm.innerHTML=`<a class="wcal-link" href="${mi.abrir}" target="_blank" rel="noopener">🔗 Abrir ${fu.label.toLowerCase()}</a>${mi.tipo==='link'?`<span class="wnote">${escHtml(mi.host||'')} no deja mostrarse dentro de otra página. Ábrelo con el botón o sube una portada.</span><label class="wcal-link" for="ed-mini-file" style="cursor:pointer;">📷 Subir portada</label>`:''}`;
   }
   const fl=document.getElementById('ed-fuentes');
@@ -3050,7 +3155,10 @@ function actualizarPreviewEditor(){
     fl.innerHTML=fs.length>1 ? fs.map(f=>`<button type="button" class="ed-fuente${fu&&f.k===fu.k?' on':''}" data-fuente="${f.k}">${f.label}</button>`).join('') : '';
   }
   const pi=document.getElementById('ed-prodinfo');
-  if(pi) pi.innerHTML=infoProductoHTML(draft.productoId, editorCtx.id);
+  if(pi){
+    pi.innerHTML = draft.productoId ? '' : infoProductoHTML('', editorCtx.id);
+    const linea=document.getElementById('ed-prodline'); if(linea) linea.hidden = !pi.innerHTML;
+  }
   const pill=document.getElementById('ed-estado-pill');
   if(pill){ pill.className='wpill '+draft.estado; pill.textContent=ESTADO_LABEL[draft.estado]||''; }
 }
@@ -3102,8 +3210,17 @@ function enlazarEditor(ov){
     const b=e.currentTarget, prev=b.textContent;
     navigator.clipboard.writeText(draft.caption).then(()=>{ b.textContent='✅ Copiado'; setTimeout(()=>{b.textContent=prev;},1500); });
   });
-  ov.querySelector('#ed-guion').addEventListener('click',()=>{
+  const cajaGuion=ov.querySelector('[data-guion-box]');
+  const crearGuion=()=>{
+    cajaGuion.hidden=false;
     generateGuion(null,ov.querySelector('[data-ed="guion"]'),{gancho:draft.gancho,descripcion:draft.descripcion,etapa:draft.etapa});
+  };
+  ov.querySelector('#ed-guion').addEventListener('click',crearGuion);
+  // Guion: si todavía no hay, lo crea; si ya hay, abre o cierra su cajita.
+  ov.querySelector('[data-tool="guion"]').addEventListener('click',e=>{
+    if(!draft.guion.trim()){ crearGuion(); e.currentTarget.classList.add('on'); return; }
+    cajaGuion.hidden=!cajaGuion.hidden;
+    e.currentTarget.classList.toggle('on',!cajaGuion.hidden);
   });
   ov.querySelector('#ed-copiar-guion').addEventListener('click',e=>{
     if(!draft.guion) return;
@@ -3111,6 +3228,8 @@ function enlazarEditor(ov){
     navigator.clipboard.writeText(draft.guion).then(()=>{ b.textContent='✅ Copiado'; setTimeout(()=>{b.textContent=prev;},1500); });
   });
   enlazarMedios(ov);
+  enlazarMaterial(ov);
+  enlazarProductoAuto(ov);
   ov.querySelector('#ed-fuentes').addEventListener('click',e=>{
     const b=e.target.closest('[data-fuente]'); if(!b) return;
     editorCtx.fuente=b.dataset.fuente;
@@ -3145,7 +3264,7 @@ function guardarEditor(){
   row.formato=draft.formato; row.redes=draft.redes.slice();
   row.caption=draft.caption; row.descripcion=draft.descripcion; row.ganchoIdea=draft.ganchoIdea;
   row.guion=draft.guion; row.promptImagen=draft.promptImagen; row.promptVideo=draft.promptVideo;
-  row.linkArchivo=draft.linkArchivo; row.linkFinal=draft.linkFinal; row.linkPub=draft.linkPub; row.linkRef=draft.linkRef; row.notas=draft.notas;
+  row.linkVirgen=draft.linkVirgen; row.linkArchivo=draft.linkArchivo; row.linkFinal=draft.linkFinal; row.linkPub=draft.linkPub; row.linkRef=draft.linkRef; row.notas=draft.notas;
   if(draft.productoId){ row.productoId=draft.productoId; row.productoNombre=nombreProducto(draft.productoId)||row.productoNombre||''; }
   else { delete row.productoId; delete row.productoNombre; }
   if(draft.etapa!==(row.etapa||getDefaults(row).etapa)) row.etapa=draft.etapa;
@@ -3230,7 +3349,10 @@ function materialCapaHTML(mi){
 
 // Tres links de material: final (lo que se publica), para editar (lo crudo) y de publicación (ya publicado).
 // La vista usa el primero que se pueda mostrar, en ese orden; en el editor se puede cambiar de uno a otro.
-const FUENTES_DEF = [['final','linkFinal','Material final'],['editar','linkArchivo','Para editar'],['pub','linkPub','Publicado']];
+// Etapas del material, de la más cruda a la más avanzada. La vista previa y las tarjetas usan el material más
+// avanzado que se tenga (primero lo ya publicado, luego lo listo para publicar, para editar y al final el virgen).
+const ETAPAS_MATERIAL = [['virgen','linkVirgen','Material virgen'],['editar','linkArchivo','Listo para editar'],['final','linkFinal','Editado, listo para publicar'],['pub','linkPub','Ya publicado']];
+const FUENTES_DEF = [['pub','linkPub','Ya publicado'],['final','linkFinal','Listo para publicar'],['editar','linkArchivo','Para editar'],['virgen','linkVirgen','Material virgen']];
 function fuentesMaterial(o){ return FUENTES_DEF.map(([k,campo,label])=>({k,label,mi:infoMaterial(o[campo])})).filter(f=>f.mi); }
 function fuenteElegida(o, k){
   const fs=fuentesMaterial(o);
