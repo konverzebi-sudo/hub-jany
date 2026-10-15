@@ -411,6 +411,7 @@
   .wthumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .35s ease;}
   .wcard:hover .wthumb img{transform:scale(1.05);}
   .wthumb-ico{font-size:34px;opacity:.55;}
+  .wnuevo{position:absolute;right:8px;top:8px;background:#1A1A1A;color:var(--accent);font:800 12px 'Sora',sans-serif;padding:4px 10px;border-radius:100px;}
   .wchip{position:absolute;left:8px;top:8px;background:rgba(255,255,255,.94);color:#1A1A1A;font:700 12px 'Inter',sans-serif;padding:4px 10px;border-radius:100px;box-shadow:0 1px 3px rgba(0,0,0,.15);}
   .wplay{position:absolute;right:8px;bottom:8px;width:34px;height:34px;border-radius:50%;background:rgba(26,26,26,.78);display:flex;align-items:center;justify-content:center;}
   .wplay::after{content:"";border-left:11px solid #fff;border-top:7px solid transparent;border-bottom:7px solid transparent;margin-left:3px;}
@@ -2018,7 +2019,8 @@ function usarRespuestaChatEnContenido(idx){
     guion: guionExtraido || '',
     notas: notasExtraidas || '',
     linkRef:'', linkArchivo:'',
-    fecha:'', estado:'proceso'
+    fecha:'', estado:'proceso',
+    agregadoEn: Date.now()
   });
   msg.usada = true;
   msg.contenidoId = newId;
@@ -2034,7 +2036,8 @@ function usarRespuestaChatEnContenido(idx){
       if(it && mini){ it.miniatura=mini; scheduleSave(); }
     });
   }
-  guionOrgPreguntaStatus = '✅ Se agregó a Contenido (en proceso). Asígnale fecha para verlo en Próximos posts.';
+  guionOrgPreguntaStatus = '✅ Se agregó a Contenido (en proceso) y ya es el primero de Próximos posts: ábrelo para editarlo y ponerle fecha.';
+  renderWidget();
   actualizarHeroBar();
 }
 
@@ -3246,7 +3249,7 @@ function wcardPost(r, i, conFecha){
     <div class="wthumb" style="--thumb-a:${gr[0]};--thumb-b:${gr[1]};">
       ${r.miniatura?`<img src="${r.miniatura}" alt="" loading="lazy" draggable="false">`:`<span class="wthumb-ico">${fm.ico}</span>`}
       ${materialCapaHTML(mi)}
-      <span class="wchip">${fm.label}</span>${fm.play?'<span class="wplay"></span>':''}
+      <span class="wchip">${fm.label}</span>${esNuevo(r)?'<span class="wnuevo">Nuevo</span>':''}${fm.play?'<span class="wplay"></span>':''}
       ${mi?`<a class="wlink" href="${mi.abrir}" target="_blank" rel="noopener" title="Abrir material" onclick="event.stopPropagation()">🔗 Material</a>`:''}
     </div>
     <div class="wbody">
@@ -3272,12 +3275,17 @@ function wcardHistoria(r, i, conFecha){
 
 // Los "siguientes" de cada sección: primero lo programado (azul, por fecha), si faltan se completa con
 // lo que está en proceso (amarillo) y al final con ideas (rojo), hasta WIDGET_MAX tarjetas.
+// Lo que se acaba de agregar desde el chat ("Usar en Contenido") va primero durante un día, para editarlo rápido.
+const NUEVO_MS = 24*60*60*1000;
+function esNuevo(r){ return !!r.agregadoEn && (Date.now()-r.agregadoEn) < NUEVO_MS; }
 function proximosPorEstado(lista){
   const hoy=isoDeDate(hoyMedianoche());
   const rank={programado:0,proceso:1,idea:2};
   const estDe=r=>ESTADO_LABEL[r.estado]?r.estado:'idea';
   const grupoFecha=r=>{ const f=r.fecha||''; if(!/^\d{4}-\d{2}-\d{2}$/.test(f)) return 1; return f>=hoy?0:2; }; // con fecha próxima, sin fecha, ya pasada
   return lista.filter(r=>estDe(r)!=='publicado').slice().sort((a,b)=>{
+    const n=(esNuevo(b)?1:0)-(esNuevo(a)?1:0); if(n) return n;
+    if(esNuevo(a) && esNuevo(b)) return b.agregadoEn-a.agregadoEn;
     const d=rank[estDe(a)]-rank[estDe(b)]; if(d) return d;
     const g=grupoFecha(a)-grupoFecha(b); if(g) return g;
     return (a.fecha||'').localeCompare(b.fecha||'') || porHora(a,b);
