@@ -523,6 +523,22 @@
   .ed-body{display:grid;grid-template-columns:minmax(0,1fr) 320px;min-height:0;flex:1;overflow:hidden;}
   .ed-form{padding:20px 26px;overflow-y:auto;display:flex;flex-direction:column;gap:18px;}
   .ed-block{display:flex;flex-direction:column;gap:7px;min-width:0;}
+  .ed-mas{border:1px solid var(--line);border-radius:14px;padding:2px 14px 12px;background:var(--surface);}
+  .ed-mas>summary{cursor:pointer;font:700 14px 'Sora',sans-serif;padding:10px 0;list-style:none;}
+  .ed-mas>summary::-webkit-details-marker{display:none;}
+  .ed-mas>summary::before{content:'▸';margin-right:8px;color:var(--text-dim);}
+  .ed-mas[open]>summary::before{content:'▾';}
+  .ed-mas .ed-block{margin-top:12px;}
+  .ed-medios{display:flex;flex-direction:column;gap:12px;}
+  .ed-medio-ask{display:flex;flex-direction:column;gap:10px;margin-top:8px;padding:12px;background:var(--surface-2);border:1px solid var(--line);border-radius:14px;}
+  .ed-medio-ask[hidden],.ed-medio-box[hidden]{display:none;}
+  .ed-medio-adj{display:flex;flex-wrap:wrap;align-items:center;gap:8px;}
+  .ed-medio-prev{display:inline-flex;flex-wrap:wrap;gap:6px;}
+  .ed-medio-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 6px 4px 10px;background:var(--surface);border:1px solid var(--line);border-radius:100px;font-size:13px;}
+  .ed-medio-chip button{border:none;background:none;cursor:pointer;color:var(--text-dim);}
+  .ed-medio-go{display:flex;align-items:center;gap:10px;}
+  .ed-medio-box{margin-top:8px;}
+  .ed-medio-box textarea{width:100%;}
   .ed-label{font:700 14px 'Sora',sans-serif;}
   .ed-hint{font:500 13px 'Inter',sans-serif;color:var(--text-dim);}
   .ed-label-row{display:flex;align-items:center;justify-content:space-between;}
@@ -1086,8 +1102,9 @@ async function generateGuion(id, destino, datos){
   const uso=row.uso||d.uso;
   const el=destino||document.getElementById('guion-'+id);
   if(!el) return;
-  el.hidden=false;
-  el.textContent='⏳ Generando guión...';
+  const esCampo=el.tagName==='TEXTAREA';
+  const poner=(t)=>{ if(esCampo){ el.value=t; el.dispatchEvent(new Event('input',{bubbles:true})); } else { el.textContent=t; } };
+  if(esCampo){ el.placeholder='⏳ Generando guión...'; } else { el.hidden=false; el.textContent='⏳ Generando guión...'; }
 
   const prompt=`${NEGOCIO_CONTEXT}
 
@@ -1109,11 +1126,11 @@ NOTAS DE GRABACIÓN: …`;
   try{
     const res=await fetch('/api/sugerir-contenido',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idea:prompt})});
     const data=await res.json();
-    if(!res.ok){ el.textContent='Error: '+(data.error||'No se pudo generar.'); return; }
+    if(!res.ok){ if(esCampo) alert('Error: '+(data.error||'No se pudo generar.')); else el.textContent='Error: '+(data.error||'No se pudo generar.'); return; }
     const texto=data.respuesta||data.guion||(data.gancho?(data.gancho+(data.caption?'\n\n'+data.caption:'')):'');
-    el.textContent=texto||JSON.stringify(data,null,2);
+    poner(texto||JSON.stringify(data,null,2));
   }catch(e){
-    el.textContent='Error de conexión. Intenta de nuevo.';
+    if(esCampo) alert('Error de conexión. Intenta de nuevo.'); else el.textContent='Error de conexión. Intenta de nuevo.';
   }
 }
 
@@ -1987,9 +2004,9 @@ function usarRespuestaChatEnContenido(idx){
   const lineasTitulo = (captionExtraida||msg.content).split('\n').map(l=>l.trim()).filter(Boolean);
   const primeraLinea = lineasTitulo.map(limpiarPreambuloChat).find(Boolean) || '';
   const gancho = (primeraLinea || 'Idea desde Consulta en vivo').replace(/^["“]|["”]$/g,'').slice(0,140);
-  const notasPartes=[];
-  if(preguntaPrevia) notasPartes.push(`Pregunta original: ${preguntaPrevia}`);
-  if(captionExtraida) notasPartes.push(`RESPUESTA COMPLETA:\n${msg.content}`);
+  // El guion va en su propio campo y las notas son solo los apuntes rápidos (NOTAS:), sin repetir el caption.
+  const guionExtraido = extraerSeccionRespuestaChat(msg.content,'GUI[OÓ]N');
+  const notasExtraidas = extraerSeccionRespuestaChat(msg.content,SECCIONES_RESPUESTA_CHAT[5]);
   state.contenido.push({
     id:newId,
     orden:state.contenido.length+1,
@@ -1998,7 +2015,8 @@ function usarRespuestaChatEnContenido(idx){
     descripcion: preguntaPrevia,
     ganchoIdea:'',
     caption: quitarLineasIntroChat(captionExtraida || msg.content),
-    notas: notasPartes.join('\n\n'),
+    guion: guionExtraido || '',
+    notas: notasExtraidas || '',
     linkRef:'', linkArchivo:'',
     fecha:'', estado:'proceso'
   });
@@ -2672,6 +2690,7 @@ function draftDeItem(tab, r){
     gancho:r.gancho||'', estado:r.estado||'idea', fecha:r.fecha||'', hora:r.hora||'',
     formato:formatoDeItem(r,tab), redes:(Array.isArray(r.redes)?r.redes:REDES_DEFAULT).slice(),
     miniatura:r.miniatura||'', caption:r.caption||'', descripcion:r.descripcion||'', ganchoIdea:r.ganchoIdea||'',
+    guion:r.guion||'', promptImagen:r.promptImagen||'', promptVideo:r.promptVideo||'',
     linkArchivo:r.linkArchivo||'', linkFinal:r.linkFinal||'', linkPub:r.linkPub||'', linkRef:r.linkRef||'',
     productoId:r.productoId||'',
     notas:(r.notas!=null && r.notas!=='') ? r.notas : [r.instrucciones,r.recomendacion].filter(Boolean).join('\n\n'),
@@ -2742,6 +2761,140 @@ function cerrarEditor(){
 }
 function editorTecla(e){ if(e.key==='Escape') cerrarEditor(); }
 
+// ─── PROMPTS DE IMAGEN Y VIDEO con IA (dentro del editor del post) ─────────────────────────────
+// Cada botón abre una cajita que pregunta, sin obligar, por el material real que se quiera tomar en cuenta
+// (texto, imágenes o videos). Solo cuando se pide se crea el prompt; queda guardado en el post, con Copiar y
+// el botón para ir al Jefe Productor IA, que lo recibe listo para trabajar.
+const MEDIO_META = {
+  imagen:{ico:'🖼️', boton:'Crear prompt de imagen con IA', campo:'promptImagen', titulo:'Prompt de imagen'},
+  video:{ico:'🎬', boton:'Crear prompt de video con IA', campo:'promptVideo', titulo:'Prompt de video'},
+};
+const MEDIO_MAX_IMAGENES = 4;
+function medioEditorHTML(tipo, draft){
+  const m=MEDIO_META[tipo];
+  return `<div class="ed-medio" data-medio="${tipo}">
+    <button type="button" class="btn-guion ed-medio-btn" data-medio-crear="${tipo}">${m.ico} ${m.boton}</button>
+    <div class="ed-medio-ask" hidden>
+      <div class="ed-hint">¿Tienes material real que quieras tomar en cuenta? Es opcional: cuéntalo con palabras o agrega imágenes o videos.</div>
+      <textarea class="ed-medio-texto" rows="2" placeholder="Ej. la foto de mi local, mi logo en blanco, que salga mi producto…"></textarea>
+      <div class="ed-medio-adj">
+        <label class="btn-guion" style="cursor:pointer;">📎 Agregar imágenes o videos<input type="file" class="ed-medio-file" accept="image/*,video/*" multiple style="display:none;"></label>
+        <span class="ed-medio-prev"></span>
+      </div>
+      <div class="ed-medio-go"><button type="button" class="btn btn-solid ed-medio-gen">Crear prompt</button><span class="ed-medio-status mode-status"></span></div>
+    </div>
+    <div class="ed-medio-box" ${draft[m.campo]?'':'hidden'}>
+      <div class="ed-label">${m.titulo}</div>
+      <textarea data-ed="${m.campo}" rows="5">${escHtml(draft[m.campo])}</textarea>
+      <div class="ed-actions"><button type="button" class="btn-guion ed-medio-copiar">📋 Copiar</button><button type="button" class="btn-guion ed-medio-ir">Ir a Jefe Productor IA →</button></div>
+    </div>
+  </div>`;
+}
+// Un video no se manda entero: se toman unos cuadros para que la IA vea de qué trata.
+function fotogramasDeVideo(file, cuantos){
+  return new Promise((resolve,reject)=>{
+    const url=URL.createObjectURL(file);
+    const v=document.createElement('video');
+    v.muted=true; v.playsInline=true; v.preload='auto'; v.src=url;
+    let listo=false;
+    const t=setTimeout(()=>fin(null,new Error('tiempo')),20000);
+    const fin=(res,err)=>{ if(listo) return; listo=true; clearTimeout(t); URL.revokeObjectURL(url); err?reject(err):resolve(res); };
+    v.addEventListener('error',()=>fin(null,new Error('video')));
+    v.addEventListener('loadedmetadata',async()=>{
+      try{
+        const dur=v.duration||1, w0=v.videoWidth||640, h0=v.videoHeight||360;
+        const esc=Math.min(1,768/Math.max(w0,h0));
+        const c=document.createElement('canvas'); c.width=Math.round(w0*esc); c.height=Math.round(h0*esc);
+        const cx=c.getContext('2d'); const out=[];
+        for(let i=0;i<cuantos;i++){
+          await new Promise(r=>{ v.onseeked=r; v.currentTime=dur*(i+1)/(cuantos+1); });
+          cx.drawImage(v,0,0,c.width,c.height);
+          out.push({mediaType:'image/jpeg', data:c.toDataURL('image/jpeg',0.7).split(',')[1]});
+        }
+        fin(out);
+      }catch(e){ fin(null,e); }
+    });
+  });
+}
+function enlazarMedios(ov){
+  const ctx=editorCtx;
+  ctx.medioAdj={imagen:[],video:[]};
+  ov.querySelectorAll('.ed-medio').forEach(box=>{
+    const tipo=box.dataset.medio, m=MEDIO_META[tipo];
+    const ask=box.querySelector('.ed-medio-ask'), st=box.querySelector('.ed-medio-status'), prev=box.querySelector('.ed-medio-prev');
+    const usadas=()=>ctx.medioAdj[tipo].reduce((n,a)=>n+a.imgs.length,0);
+    const pintarPrev=()=>{
+      prev.innerHTML=ctx.medioAdj[tipo].map((a,i)=>`<span class="ed-medio-chip">${a.esVideo?'🎞️':'🖼️'} ${escHtml(a.nombre)}<button type="button" data-rm="${i}" aria-label="Quitar">✕</button></span>`).join('');
+      prev.querySelectorAll('[data-rm]').forEach(b=>b.addEventListener('click',()=>{ ctx.medioAdj[tipo].splice(+b.dataset.rm,1); pintarPrev(); }));
+    };
+    box.querySelector('[data-medio-crear]').addEventListener('click',()=>{ ask.hidden=!ask.hidden; });
+    box.querySelector('.ed-medio-file').addEventListener('change',async e=>{
+      const archivos=[...e.target.files]; e.target.value='';
+      st.textContent='⏳ Preparando los archivos…';
+      for(const f of archivos){
+        const libres=MEDIO_MAX_IMAGENES-usadas();
+        if(libres<=0){ st.textContent='⚠️ Máximo '+MEDIO_MAX_IMAGENES+' imágenes (un video cuenta con sus cuadros).'; break; }
+        try{
+          if(f.type.startsWith('video/')){
+            const cuadros=await fotogramasDeVideo(f,Math.min(3,libres));
+            ctx.medioAdj[tipo].push({nombre:f.name, esVideo:true, imgs:cuadros});
+          } else {
+            const {dataUrl,mediaType}=await comprimirImagenParaChat(f);
+            ctx.medioAdj[tipo].push({nombre:f.name, esVideo:false, imgs:[{mediaType, data:dataUrl.split(',')[1]}]});
+          }
+        }catch(err){ st.textContent='⚠️ No pude leer '+f.name; }
+      }
+      if(st.textContent.startsWith('⏳')) st.textContent='';
+      pintarPrev();
+    });
+    box.querySelector('.ed-medio-gen').addEventListener('click',()=>generarPromptMedio(tipo,box));
+    box.querySelector('.ed-medio-copiar').addEventListener('click',e=>{
+      const txt=ctx.draft[m.campo]; if(!txt) return;
+      const b=e.currentTarget, antes=b.textContent;
+      navigator.clipboard.writeText(txt).then(()=>{ b.textContent='✅ Copiado'; setTimeout(()=>{ b.textContent=antes; },1500); });
+    });
+    box.querySelector('.ed-medio-ir').addEventListener('click',()=>irAProductor(tipo));
+  });
+}
+async function generarPromptMedio(tipo, box){
+  const ctx=editorCtx, d=ctx.draft, m=MEDIO_META[tipo];
+  const st=box.querySelector('.ed-medio-status'), btn=box.querySelector('.ed-medio-gen');
+  if(!d.gancho.trim() && !d.caption.trim()){ st.textContent='⚠️ Escribe primero el título o el caption del post.'; return; }
+  const imagenes=ctx.medioAdj[tipo].flatMap(a=>a.imgs);
+  btn.disabled=true; st.textContent='⏳ Creando tu prompt…';
+  try{
+    const resp=await fetch('/api/generar-guion-organico',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        cliente:CLIENTE_ID, modo:'prompt-medio', tipo,
+        post:{gancho:d.gancho, formato:(FORMATOS_META[d.formato]||{}).label||d.formato, caption:d.caption, guion:d.guion, notas:d.notas},
+        texto:box.querySelector('.ed-medio-texto').value, imagenes,
+      }),
+    });
+    const crudo=await resp.text();
+    let data=null; try{ data=JSON.parse(crudo); }catch(e){}
+    if(!resp.ok||!data){
+      throw new Error(resp.status===413 ? 'Los archivos pesan mucho. Prueba con menos o más ligeros.' : ((data&&data.error)||'No se pudo crear el prompt.'));
+    }
+    d[m.campo]=data.text||'';
+    box.querySelector('[data-ed="'+m.campo+'"]').value=d[m.campo];
+    box.querySelector('.ed-medio-box').hidden=false;
+    box.querySelector('.ed-medio-ask').hidden=true;
+    st.textContent='';
+  }catch(err){ st.textContent='⚠️ '+err.message; }
+  btn.disabled=false;
+}
+// Guarda el post y abre el Jefe Productor IA con este prompt y este post listos para trabajar.
+async function irAProductor(tipo){
+  const m=MEDIO_META[tipo];
+  const tab=editorCtx.tab, prompt=editorCtx.draft[m.campo];
+  const id=guardarEditor();
+  try{ await doSave(); }catch(e){}
+  try{ await window.storage.set(CLIENTE_ID+':productor-handoff', JSON.stringify({postId:id, tab, tipo, prompt, ts:Date.now()})); }catch(e){}
+  const enlace=document.querySelector('.jn-item[href$="jefe-produccion-video"]');
+  location.href = enlace ? enlace.getAttribute('href') : '/jefe-produccion-video';
+}
+
 function pintarEditor(){
   const {tab,id,draft}=editorCtx;
   const prev=document.getElementById('ed-overlay');
@@ -2776,10 +2929,6 @@ function pintarEditor(){
             <div class="ed-chips" id="ed-formatos">${Object.keys(FORMATOS_META).map(k=>`<button type="button" class="ed-chip${draft.formato===k?' on':''}" data-formato="${k}">${FORMATOS_META[k].ico} ${FORMATOS_META[k].label}</button>`).join('')}</div>
           </div>
           <div class="ed-block">
-            <div class="ed-label">Redes donde se publica</div>
-            <div class="ed-chips" id="ed-redes">${[['ig','Instagram'],['tt','TikTok'],['fb','Facebook']].map(([k,n])=>`<button type="button" class="ed-chip${draft.redes.includes(k)?' on':''}" data-red="${k}">${n}</button>`).join('')}</div>
-          </div>
-          <div class="ed-block">
             <div class="ed-label">Miniatura <span class="ed-hint">(se ve en Próximos posts)</span></div>
             <div class="mini-edit" id="ed-mini">
               <img id="ed-mini-img" src="${draft.miniatura||''}" alt="Miniatura" ${draft.miniatura?'':'hidden'}>
@@ -2789,26 +2938,41 @@ function pintarEditor(){
           </div>
           <div class="ed-block">
             <div class="ed-label-row"><div class="ed-label">Caption</div>
-              <span class="ed-actions"><button type="button" class="btn-guion" id="ed-guion">✨ Guión</button><button type="button" class="btn-guion" id="ed-copiar">📋 Copiar</button></span></div>
-            <textarea data-ed="caption" rows="6" placeholder="Texto para redes: dinámico, con personalidad, emojis, CTA claro y breve — cierra con 5 hashtags.">${escHtml(draft.caption)}</textarea>
-            <div class="guion-result" id="ed-guion-out" hidden></div>
+              <span class="ed-actions"><button type="button" class="btn-guion" id="ed-copiar">📋 Copiar</button></span></div>
+            <textarea data-ed="caption" rows="5" placeholder="Texto para redes: dinámico, con personalidad, emojis, CTA claro y breve — cierra con 5 hashtags.">${escHtml(draft.caption)}</textarea>
           </div>
-          <div class="ed-block"><div class="ed-label">Idea</div><textarea data-ed="descripcion" rows="3">${escHtml(draft.descripcion)}</textarea></div>
-          <div class="ed-block"><div class="ed-label">Gancho idea</div><textarea data-ed="ganchoIdea" rows="2">${escHtml(draft.ganchoIdea)}</textarea></div>
+          <div class="ed-block">
+            <div class="ed-label-row"><div class="ed-label">Guion del video</div>
+              <span class="ed-actions"><button type="button" class="btn-guion" id="ed-guion">✨ Crear guion</button><button type="button" class="btn-guion" id="ed-copiar-guion">📋 Copiar</button></span></div>
+            <textarea data-ed="guion" rows="4" placeholder="Lo que se dice o se muestra dentro del video.">${escHtml(draft.guion)}</textarea>
+          </div>
+          <div class="ed-block"><div class="ed-label">Notas <span class="ed-hint">(apuntes rápidos)</span></div><textarea data-ed="notas" rows="3">${escHtml(draft.notas)}</textarea></div>
           <div class="ed-two">
             <div class="ed-block"><div class="ed-label">Material final <span class="ed-hint">(lo que se publica)</span></div><input type="text" data-ed="linkFinal" value="${escHtml(draft.linkFinal)}" placeholder="https://..."></div>
-            <div class="ed-block"><div class="ed-label">Material para editar</div><input type="text" data-ed="linkArchivo" value="${escHtml(draft.linkArchivo)}" placeholder="https://..."></div>
+            <div class="ed-block ed-producto">
+              <div class="ed-label">¿De qué producto es?</div>
+              <select data-ed="productoId">${opcionesProductoHTML(draft.productoId)}</select>
+            </div>
           </div>
-          <div class="ed-two">
-            <div class="ed-block"><div class="ed-label">Link de publicación <span class="ed-hint">(ya publicado)</span></div><input type="text" data-ed="linkPub" value="${escHtml(draft.linkPub)}" placeholder="https://..."></div>
+          <div class="ed-prodinfo" id="ed-prodinfo"></div>
+          <div class="ed-block ed-medios">
+            ${medioEditorHTML('imagen',draft)}
+            ${medioEditorHTML('video',draft)}
+          </div>
+          <details class="ed-mas">
+            <summary>Más opciones <span class="ed-hint">(idea, redes, links)</span></summary>
+            <div class="ed-block"><div class="ed-label">Idea</div><textarea data-ed="descripcion" rows="2">${escHtml(draft.descripcion)}</textarea></div>
+            <div class="ed-block"><div class="ed-label">Gancho idea</div><textarea data-ed="ganchoIdea" rows="2">${escHtml(draft.ganchoIdea)}</textarea></div>
+            <div class="ed-block">
+              <div class="ed-label">Redes donde se publica</div>
+              <div class="ed-chips" id="ed-redes">${[['ig','Instagram'],['tt','TikTok'],['fb','Facebook']].map(([k,n])=>`<button type="button" class="ed-chip${draft.redes.includes(k)?' on':''}" data-red="${k}">${n}</button>`).join('')}</div>
+            </div>
+            <div class="ed-two">
+              <div class="ed-block"><div class="ed-label">Material para editar</div><input type="text" data-ed="linkArchivo" value="${escHtml(draft.linkArchivo)}" placeholder="https://..."></div>
+              <div class="ed-block"><div class="ed-label">Link de publicación <span class="ed-hint">(ya publicado)</span></div><input type="text" data-ed="linkPub" value="${escHtml(draft.linkPub)}" placeholder="https://..."></div>
+            </div>
             <div class="ed-block"><div class="ed-label">Link de referencia</div><input type="text" data-ed="linkRef" value="${escHtml(draft.linkRef)}" placeholder="https://..."></div>
-          </div>
-          <div class="ed-block"><div class="ed-label">Notas</div><textarea data-ed="notas" rows="3">${escHtml(draft.notas)}</textarea></div>
-          <div class="ed-block ed-producto">
-            <div class="ed-label">¿De qué producto es?</div>
-            <select data-ed="productoId">${opcionesProductoHTML(draft.productoId)}</select>
-            <div class="ed-prodinfo" id="ed-prodinfo"></div>
-          </div>
+          </details>
         </div>
         <aside class="ed-prev" aria-label="Vista previa">
           <div class="ed-prev-nets" id="ed-prev-nets"></div>
@@ -2936,9 +3100,14 @@ function enlazarEditor(ov){
     navigator.clipboard.writeText(draft.caption).then(()=>{ b.textContent='✅ Copiado'; setTimeout(()=>{b.textContent=prev;},1500); });
   });
   ov.querySelector('#ed-guion').addEventListener('click',()=>{
-    const out=ov.querySelector('#ed-guion-out');
-    generateGuion(null,out,{gancho:draft.gancho,descripcion:draft.descripcion,etapa:draft.etapa});
+    generateGuion(null,ov.querySelector('[data-ed="guion"]'),{gancho:draft.gancho,descripcion:draft.descripcion,etapa:draft.etapa});
   });
+  ov.querySelector('#ed-copiar-guion').addEventListener('click',e=>{
+    if(!draft.guion) return;
+    const b=e.currentTarget, prev=b.textContent;
+    navigator.clipboard.writeText(draft.guion).then(()=>{ b.textContent='✅ Copiado'; setTimeout(()=>{b.textContent=prev;},1500); });
+  });
+  enlazarMedios(ov);
   ov.querySelector('#ed-fuentes').addEventListener('click',e=>{
     const b=e.target.closest('[data-fuente]'); if(!b) return;
     editorCtx.fuente=b.dataset.fuente;
@@ -2972,6 +3141,7 @@ function guardarEditor(){
   row.estado=draft.estado; row.fecha=draft.fecha; row.hora=draft.hora;
   row.formato=draft.formato; row.redes=draft.redes.slice();
   row.caption=draft.caption; row.descripcion=draft.descripcion; row.ganchoIdea=draft.ganchoIdea;
+  row.guion=draft.guion; row.promptImagen=draft.promptImagen; row.promptVideo=draft.promptVideo;
   row.linkArchivo=draft.linkArchivo; row.linkFinal=draft.linkFinal; row.linkPub=draft.linkPub; row.linkRef=draft.linkRef; row.notas=draft.notas;
   if(draft.productoId){ row.productoId=draft.productoId; row.productoNombre=nombreProducto(draft.productoId)||row.productoNombre||''; }
   else { delete row.productoId; delete row.productoNombre; }
@@ -2981,7 +3151,9 @@ function guardarEditor(){
     const suffix=tab==='historias' ? FASE_SUFFIJOS[+draft.semana]||'' : '';
     row.fase=suffix ? `Semana ${draft.semana} · ${suffix}` : `Semana ${draft.semana}`;
   }
+  const idGuardado=row.id;
   actualizarContadores(); scheduleSave(); cerrarEditor(); refrescarVistas();
+  return idGuardado;
 }
 
 // ─── WIDGET: Próximos posts + Historias (tira de 5 días, estilo Henry) ──────────
