@@ -775,10 +775,20 @@ async function manejarChatTemporada(req, res) {
         if (typeof body[k] === 'string') campana[k] = body[k];
       });
     }
-    const [catalogoProd, gruposNegocio] = await Promise.all([
+    const [catalogoBase, gruposNegocio, ofertas366] = await Promise.all([
       leerJSON(`${clienteId}:catalogo-productos`).catch(() => null),
       leerJSON(`${clienteId}:grupos-negocio`).catch(() => null),
+      leerJSON(`${clienteId}:brand-book.366-producto`).catch(() => null),
     ]);
+    // Catálogo del ADN + ofertas de Producto 366 que no estén en él (id '366-<slug>', como en la pastilla de foco).
+    const catalogoProd = Array.isArray(catalogoBase) ? catalogoBase.slice() : [];
+    (ofertas366 && Array.isArray(ofertas366.lista) ? ofertas366.lista : []).forEach((o) => {
+      const nombre = ((o && o.nombre) || '').toString().trim();
+      if (!nombre || catalogoProd.some((p) => p && p.nombre && p.nombre.toString().trim().toLowerCase() === nombre.toLowerCase())) return;
+      const slug = nombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      const notas = [o.que_vendemos, o.oferta_irresistible && `Oferta irresistible: ${o.oferta_irresistible}`].filter(Boolean).join(' | ');
+      catalogoProd.push({ id: '366-' + slug, nombre, tipo: 'Oferta 366', grupo_id: o.grupo_id || '', notas: truncar(notas, 700) });
+    });
     const productoDeCatalogo = campana && campana.producto_id && Array.isArray(catalogoProd)
       ? catalogoProd.find((p) => p && p.id === campana.producto_id) : null;
     if (campana && productoDeCatalogo && productoDeCatalogo.nombre) campana.producto_nombre = productoDeCatalogo.nombre;
