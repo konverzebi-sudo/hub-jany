@@ -520,6 +520,8 @@ function autoGrow(el){ el.style.height='auto'; el.style.height=el.scrollHeight+'
 let grupos = [];
 let productos = [];
 let angulos366 = [];
+let comunicaciones366 = []; // las Comunicaciones 366 guardadas (puede haber varias: por grupo o por producto)
+let angulosFirma = '';
 let grupoId = '';
 let productoId = '';
 let productoNombre = ''; // producto que venía trabajándose en Jefe 366 (solo en modo guiado)
@@ -573,8 +575,11 @@ async function cargarInicial(){
     let r=await window.storage.get(CLIENTE_ID+':brand-book.366-comunicacion');
     if(!r || !r.value) r=await window.storage.get(CLIENTE_ID+':brand-book.evergreen-comunicacion');
     const d = r&&r.value?JSON.parse(r.value):{};
-    angulos366 = Array.isArray(d.angulos_evergreen) ? d.angulos_evergreen.filter(f=>f&&f.angulo&&f.angulo.trim()) : [];
-  }catch(e){ angulos366=[]; }
+    // Jefe 366 guarda {lista:[{nombre, grupo_id, angulos_evergreen:[...]}, ...]} (una Comunicación por pestaña);
+    // el formato viejo era un solo objeto plano con angulos_evergreen.
+    comunicaciones366 = Array.isArray(d.lista) ? d.lista.filter(Boolean) : (Object.keys(d).length ? [d] : []);
+    recalcularAngulos366();
+  }catch(e){ comunicaciones366=[]; angulos366=[]; }
   try{ const r=await window.storage.get(BORRADOR_KEY); borradorStore = r&&r.value?JSON.parse(r.value):{}; }catch(e){ borradorStore={}; }
   try{
     const r=await window.storage.get(CARDS_KEY);
@@ -697,7 +702,24 @@ function seleccionadas(){
   return items;
 }
 
+// Los ángulos que se ofrecen: los de la Comunicación 366 del grupo elegido (si tiene una propia); si no,
+// los de todas las Comunicaciones guardadas, sin repetir.
+function recalcularAngulos366(){
+  const delGrupo = grupoId ? comunicaciones366.filter(c=>c && c.grupo_id===grupoId) : [];
+  const fuente = delGrupo.length ? delGrupo : comunicaciones366;
+  const vistos = new Set(), out = [];
+  fuente.forEach(c=>(Array.isArray(c.angulos_evergreen) ? c.angulos_evergreen : []).forEach(f=>{
+    if(!f || !f.angulo || !String(f.angulo).trim()) return;
+    const k = String(f.angulo).trim().toLowerCase();
+    if(vistos.has(k)) return; vistos.add(k); out.push(f);
+  }));
+  const firma = out.map(f=>f.angulo).join('|');
+  if(firma !== angulosFirma){ angulosFirma = firma; anguloIdx = ''; } // cambió la lista: el índice elegido ya no sirve
+  angulos366 = out;
+}
+
 function renderGenerador(container){
+  recalcularAngulos366();
   const datos = datosActuales();
   const productosDisponibles = productos.filter(p => p && p.nombre && (!grupoId || p.grupo_id === grupoId));
 
