@@ -643,10 +643,11 @@ async function cargarConversacion(){
   } catch (e) {}
 }
 
-// ─── PRÓXIMOS POSTS E HISTORIAS (vienen del Jefe de Contenido) ─────────────────────────────
+// ─── PRÓXIMOS POSTS, HISTORIAS Y CAMPAÑAS (vienen del Jefe de Contenido y del Jefe de Anuncios) ──────
 // Lee los mismos posts e historias que el Jefe de Contenido (primero lo programado, luego lo que está en
 // proceso y al final ideas). Al elegir uno se trabaja aquí: sus prompts de imagen y de video pasan al buscador.
 const CONTENIDO_KEY = CLIENTE_ID + ':agente-contenido';
+const ANUNCIOS_KEY = CLIENTE_ID + ':agente-anuncios';
 const HANDOFF_KEY = CLIENTE_ID + ':productor-handoff';
 const MAX_PROXIMOS = 5;
 const ESTADO_PX = {
@@ -656,7 +657,7 @@ const ESTADO_PX = {
   publicado:{txt:'Publicado', a:'#EAFBB8', b:'#C6F04E'},
 };
 const MESES_PX = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
-let contenidoPx = { contenido: [], historias: [] };
+let contenidoPx = { contenido: [], historias: [], campanas: [] };
 let trabajoPx = null; // { tab, id }
 
 function estadoPx(r){ return ESTADO_PX[r.estado] ? r.estado : 'idea'; }
@@ -681,7 +682,7 @@ function proximosPx(lista){
 function tarjetaPx(r, tab){
   const c = ESTADO_PX[estadoPx(r)];
   const activa = trabajoPx && trabajoPx.id === r.id;
-  const mini = r.miniatura ? `<img src="${escHtml(r.miniatura)}" alt="">` : `<span class="px-ico">${tab === 'historias' ? '⭕' : '🎬'}</span>`;
+  const mini = r.miniatura ? `<img src="${escHtml(r.miniatura)}" alt="">` : `<span class="px-ico">${tab === 'historias' ? '⭕' : tab === 'campanas' ? '📣' : '🎬'}</span>`;
   return `<button type="button" class="px-card${activa ? ' on' : ''}" data-id="${escHtml(r.id)}" data-tab="${tab}" style="--a:${c.a};--b:${c.b}">
     <span class="px-thumb">${mini}${esNuevoPx(r) ? '<span class="px-nuevo">Nuevo</span>' : ''}</span>
     <span class="px-tit">${escHtml(r.gancho || '(sin título)')}</span>
@@ -690,13 +691,13 @@ function tarjetaPx(r, tab){
 }
 function pintarProximos(){
   const host = $('px-prox');
-  const posts = proximosPx(contenidoPx.contenido), hist = proximosPx(contenidoPx.historias);
-  if (!posts.length && !hist.length) { host.hidden = true; host.innerHTML = ''; return; }
+  const posts = proximosPx(contenidoPx.contenido), hist = proximosPx(contenidoPx.historias), camps = proximosPx(contenidoPx.campanas);
+  if (!posts.length && !hist.length && !camps.length) { host.hidden = true; host.innerHTML = ''; return; }
   host.hidden = false;
   const sec = (titulo, lista, tab) => lista.length
     ? `<div class="px-sec"><div class="px-sec-tit">${titulo}</div><div class="px-row">${lista.map((r) => tarjetaPx(r, tab)).join('')}</div></div>` : '';
   host.innerHTML = '<div class="px-ayuda">Elige una publicación para trabajarla aquí con el Jefe Productor IA.</div>'
-    + sec('Próximos posts', posts, 'contenido') + sec('Próximas historias', hist, 'historias');
+    + sec('Próximos posts', posts, 'contenido') + sec('Próximas historias', hist, 'historias') + sec('Próximas campañas', camps, 'campanas');
   host.querySelectorAll('.px-card').forEach((b) => b.addEventListener('click', () => elegirTrabajoPx(b.dataset.tab, b.dataset.id)));
 }
 function itemPx(){
@@ -751,7 +752,10 @@ async function aplicarTraspasoPx(){
     let visto = ''; try { visto = localStorage.getItem('px-traspaso-visto') || ''; } catch (e) {}
     if (visto === String(h.ts)) return;
     try { localStorage.setItem('px-traspaso-visto', String(h.ts)); } catch (e) {}
-    if ((contenidoPx[h.tab] || []).some((x) => x.id === h.postId)) trabajoPx = { tab: h.tab, id: h.postId };
+    // Desde el Jefe de Anuncios llega tab:'anuncios' y postId:'anuncio:<id>' (sus campañas viven en 'campanas').
+    const tabH = h.tab === 'anuncios' ? 'campanas' : h.tab;
+    const idH = h.tab === 'anuncios' ? String(h.postId || '').replace(/^anuncio:/, '') : h.postId;
+    if ((contenidoPx[tabH] || []).some((x) => x.id === idH)) trabajoPx = { tab: tabH, id: idH };
     if (h.prompt) {
       const el = $('chat-input');
       if (h.tipo === 'video') { setModo('guia'); el.value = textoVideoPx((itemPx() || {}).gancho || 'mi post', h.prompt); }
@@ -768,6 +772,16 @@ async function cargarContenidoPx(){
       contenidoPx.contenido = Array.isArray(d.contenido) ? d.contenido : [];
       contenidoPx.historias = Array.isArray(d.historias) ? d.historias : [];
     }
+  } catch (e) {}
+  // Campañas del Jefe de Anuncios: se adaptan a la misma forma que un post (título, estado, fecha, prompts).
+  try {
+    const r = await window.storage.get(ANUNCIOS_KEY);
+    const lista = r && r.value ? JSON.parse(r.value) : [];
+    contenidoPx.campanas = (Array.isArray(lista) ? lista : []).filter((c) => c && c.id).map((c) => ({
+      id: c.id, gancho: c.titulo || '', estado: c.estado || 'idea', fecha: c.fecha || '', hora: c.hora || '',
+      caption: c.copy_publicacion || '', descripcion: c.objetivo || '',
+      promptImagen: c.prompt_imagen || '', promptVideo: c.prompt_video || '',
+    }));
   } catch (e) {}
   await aplicarTraspasoPx();
   pintarProximos(); pintarTrabajoPx();
