@@ -68,6 +68,18 @@
      en escritorio (>=1000px, donde de verdad cabe la vista dividida) pasa a fijo en la esquina. */
   .view-toggle-btn{justify-self:end;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--line);color:var(--text-dim);font-family:'JetBrains Mono',monospace;font-size:11px;padding:7px 14px;border-radius:20px;cursor:pointer;}
   .view-toggle-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .topbar-izq{justify-self:start;display:flex;align-items:center;gap:10px;min-width:0;max-width:100%;}
+  .topbar-izq .back-link{flex:0 5 auto;min-width:0;}
+  .topbar-izq #foco-slot{flex:0 0 auto;}
+  @media (max-width:900px){
+    /* En pantallas angostas la pastilla de foco baja a una segunda fila de la barra fija */
+    body .topbar{height:auto;padding:8px 10px;grid-template-columns:auto minmax(0,1fr);grid-template-areas:"back titulo" "foco foco";row-gap:8px;}
+    .topbar-izq{display:contents;}
+    .topbar-izq .back-link{grid-area:back;}
+    .topbar-izq #foco-slot{grid-area:foco;}
+    .topbar h1{grid-area:titulo;}
+    body{padding-top:96px;}
+  }
   @media (max-width:999px){ .view-toggle-btn{ display:none; } }
   @media (min-width:1000px){
     #temporada-main.split-view{ display:grid; grid-template-columns:400px 1fr; align-items:start; gap:20px; max-width:1400px; }
@@ -167,13 +179,18 @@
 </head>
 <body>
 <div class="topbar">
-  <a id="back-hub" href="/" class="back-link">&lt;&lt; Hub de Jefes <span style="opacity:.4;">//</span> <span id="brand-marca-label">—</span></a>
+  <div class="topbar-izq">
+    <a id="back-hub" href="/" class="back-link">&lt;&lt; Hub de Jefes <span style="opacity:.4;">//</span> <span id="brand-marca-label">—</span></a>
+    <div id="foco-slot"></div>
+  </div>
   <h1>🗓️ Jefe de Temporada</h1>
   <button type="button" class="view-toggle-btn" id="viewToggleBtn" onclick="toggleVistaDividida()">🔀 Vista dividida</button>
 </div>
 <div class="wrap">
   <script>(function(){var p=location.pathname;var b=window.__hub.slug!=='jefeshub'?'/'+window.__hub.slug:null;if(b)document.getElementById('back-hub').href=b;})();</script>
   <script src="/js/storage-client.js"></script>
+  <script>window.__focoConfig = { grupos: true }; // la pastilla de foco también deja elegir un grupo completo</script>
+  <script src="/js/jefes-foco.js"></script>
   <script>(async function(){
     var BRANDS=window.__hub.marcas({'rancho-seco':{fallback:'Rancho Seco',color:'#F2C230'},'rim':{fallback:'RIM',color:'#F472B6'},'optica-one':{fallback:'Óptica One',color:'#38BDF8'},'jefeshub':{fallback:'JefesHub',color:'#B8F725'}});
     var p=location.pathname;
@@ -459,7 +476,7 @@ function guardarChatsEnCampana(){
   camp.chat_general = chatMessages.slice(-60);
   scheduleGuardarCampanas();
 }
-function cambiarCampana(id){ campanaActivaId=id||null; sincronizarChatsDesdeCampana(); render(); renderToolbar(); }
+function cambiarCampana(id){ campanaActivaId=id||null; sincronizarChatsDesdeCampana(); render(); renderToolbar(); sincronizarFocoConCampana(); }
 function actualizarNombreCampana(valor){
   const camp=activeCampana(); if(!camp) return;
   camp.nombre=valor;
@@ -474,6 +491,7 @@ function nuevaCampana(){
   sincronizarChatsDesdeCampana();
   renderToolbar(); render();
   scheduleGuardarCampanas();
+  sincronizarFocoConCampana();
 }
 function duplicarCampana(){
   const camp=activeCampana(); if(!camp) return;
@@ -826,13 +844,18 @@ function cambiarProductoOrigen(valor){
 function seleccionarProducto366(id){
   const camp=activeCampana(); if(!camp) return;
   const prod=catalogoProductos.find(p=>p.id===id);
-  camp.producto_id=id; camp.producto_nombre=prod?prod.nombre:'';
+  camp.producto_id=id; camp.producto_nombre=prod?prod.nombre:''; camp.grupo_id=prod?(prod.grupo_id||''):'';
   scheduleGuardarCampanas();
   renderRecaps();
+  sincronizarFoco();
 }
 function nombreProductoActual(camp){
   if(!camp) return '(sin elegir)';
   if(camp.producto_origen==='nuevo') return camp.producto_nuevo?camp.producto_nuevo:'(nuevo, sin describir)';
+  if(!camp.producto_nombre && camp.grupo_id){
+    const g=(window.__foco && window.__foco.grupos ? window.__foco.grupos() : []).find(x=>x&&x.id===camp.grupo_id);
+    return 'Todo el grupo' + (g&&g.nombre ? ': '+g.nombre : '');
+  }
   return camp.producto_nombre || '(sin elegir)';
 }
 function renderRecaps(){
@@ -842,6 +865,47 @@ function renderRecaps(){
     <div><span class="recap-label">Producto elegido:</span> ${escHtml(nombreProductoActual(camp))}</div>
     <div><span class="recap-label">Objetivo:</span> ${escHtml(camp.objetivo_principal||'(sin definir)')}</div>
   `;
+}
+
+// ─── FOCO (pastilla de arriba: ecosistema completo / un grupo / un producto) ───────────────────
+// La campaña activa trabaja sobre UN producto o sobre un grupo completo. La pastilla es la misma de
+// Jefe de Finanzas y de Jefe de Anuncios: lo que se elige aquí queda como producto/grupo de la campaña
+// y el chat y todo el Documento se arman para vender eso. Una campaña con producto "nuevo" (oferta
+// exclusiva de la temporada) no se toca hasta que se elija otro foco a propósito.
+function focoDeCampana(camp){
+  if(!camp) return 'all';
+  if(camp.producto_origen!=='nuevo' && camp.producto_id) return camp.producto_id;
+  if(camp.producto_origen!=='nuevo' && camp.grupo_id) return 'g:'+camp.grupo_id;
+  return 'all';
+}
+function sincronizarFoco(){
+  if(window.__foco && window.__foco.get().id !== focoDeCampana(activeCampana())) window.__foco.set(focoDeCampana(activeCampana()));
+}
+// Si la campaña ya tiene producto/grupo manda la campaña; si no, adopta el foco que ya estaba elegido.
+function sincronizarFocoConCampana(){
+  if(!window.__foco) return;
+  const camp=activeCampana(); if(!camp) return;
+  if(focoDeCampana(camp)!=='all' || camp.producto_origen==='nuevo') sincronizarFoco();
+  else aplicarFocoACampana(window.__foco.get());
+}
+function aplicarFocoACampana(f){
+  const camp=activeCampana(); if(!camp) return false;
+  const nuevoP=f.productoId||'', nuevoG=f.grupoId||'';
+  if(nuevoP===(camp.producto_id||'') && nuevoG===(camp.grupo_id||'')) return false;
+  if(f.esTodo){
+    // "ecosistema" no borra una oferta nueva ni un producto que ya no está en el catálogo (id viejo)
+    if(camp.producto_origen==='nuevo') return false;
+    if(camp.producto_id && !catalogoProductos.some(p=>p&&p.id===camp.producto_id)) return false;
+  }
+  camp.producto_origen='evergreen';
+  camp.producto_id=nuevoP; camp.producto_nombre=f.item?String(f.nombre||''):''; camp.grupo_id=nuevoG;
+  scheduleGuardarCampanas();
+  const sel=document.getElementById('f-producto_id'); if(sel) sel.value=nuevoP;
+  const o=document.getElementById('f-producto_origen'); if(o) o.value='evergreen';
+  const we=document.getElementById('wrap-producto-evergreen'), wn=document.getElementById('wrap-producto-nuevo');
+  if(we) we.style.display='block'; if(wn) wn.style.display='none';
+  renderRecaps();
+  return true;
 }
 
 // ─── CONECTAR CON OTROS JEFES (Contenido / Anuncios) ─────────────────────────
@@ -1366,7 +1430,7 @@ async function enviarMensajeChat(){
     const res=await fetch('/api/consultor-366',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ messages:chatMessages, cliente:CLIENTE_ID, campanaId:camp.id, agente:'temporada', modulo:'plan', imagenes:chatImagenes, txtConversacion:chatTxtConversacion }),
+      body:JSON.stringify({ messages:chatMessages, cliente:CLIENTE_ID, campanaId:camp.id, agente:'temporada', modulo:'plan', imagenes:chatImagenes, txtConversacion:chatTxtConversacion, producto_origen:camp.producto_origen||'evergreen', producto_id:camp.producto_id||'', producto_nombre:camp.producto_nombre||'', grupo_id:camp.grupo_id||'' }),
     });
     const data=await res.json();
     if(!res.ok){
@@ -1393,7 +1457,12 @@ function reiniciarChat(){
   guardarChatsEnCampana();
 }
 
-cargarInicial();
+cargarInicial().then(async ()=>{
+  try{ if(window.__foco) await window.__foco.ready; }catch(e){}
+  if(!window.__foco) return;
+  sincronizarFocoConCampana();
+  window.__foco.onChange(f=>{ aplicarFocoACampana(f); });
+});
 </script>
 <script src="/js/jefes-nav.js" defer></script>
 </body>
