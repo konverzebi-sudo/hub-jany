@@ -144,6 +144,8 @@
   .pcard:hover,.pcard:focus-visible{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.12);}
   .pthumb{position:relative;height:104px;background:linear-gradient(135deg,var(--a),var(--b));display:flex;align-items:center;justify-content:center;}
   .pthumb-ico{font-size:34px;opacity:.85;}
+  .pthumb-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+  .pthumb .pchip,.pthumb .pthumb-etapa{z-index:1;}
   .pchip{position:absolute;top:10px;left:10px;background:#fff;border-radius:100px;padding:3px 11px;font-size:12.5px;font-weight:700;color:#1A1A1A;text-transform:capitalize;}
   .pthumb-etapa{position:absolute;bottom:10px;left:10px;}
   .pbody{padding:12px 14px 14px;display:flex;flex-direction:column;gap:8px;}
@@ -182,6 +184,12 @@
   .pm-phone{width:210px;background:#10101A;border-radius:34px;padding:8px;}
   .pm-screen{position:relative;height:340px;border-radius:27px;overflow:hidden;background:linear-gradient(160deg,var(--a),var(--b));display:flex;align-items:center;justify-content:center;}
   .pm-ico{font-size:44px;opacity:.7;}
+  .pm-media{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border:0;background:#000;}
+  .pm-screen > .pchip{z-index:2;}
+  .pm-caption{z-index:1;}
+  .pm-caption-fuera{width:210px;font-size:12.5px;line-height:1.35;color:var(--text);text-align:left;}
+  .pm-caption-fuera p{margin:3px 0 0;overflow-wrap:anywhere;color:var(--text-dim);}
+  .pm-hint a{color:var(--accent-text);font-weight:700;}
   .pm-caption{position:absolute;left:0;right:0;bottom:0;padding:34px 14px 14px;background:linear-gradient(transparent,rgba(0,0,0,.65));color:#fff;font-size:12.5px;line-height:1.35;}
   .pm-caption p{margin:4px 0 0;overflow-wrap:anywhere;}
   .pm-meta{font-size:13.5px;color:var(--text-dim);}
@@ -1891,6 +1899,7 @@ function buildPostCard(item, conFecha){
   return `<article class="pcard" tabindex="0" role="button" data-id="${escHtml(item.id)}" aria-label="${escHtml(item.titulo||'Campaña')}">
     <div class="pthumb" style="--a:${gr[0]};--b:${gr[1]};">
       <span class="pthumb-ico">${FORMATO_ICO[item.formato]||'🎬'}</span>
+      ${(()=>{ const mi = infoMaterial(item.link_archivo_final); return mi && mi.thumb ? `<img class="pthumb-img" src="${mi.thumb}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''; })()}
       <span class="pchip">${escHtml(item.formato||'reel')}</span>
       <span class="badge badge-${item.etapa} pthumb-etapa">${ETAPA_LABEL[item.etapa]||item.etapa}</span>
     </div>
@@ -1905,21 +1914,88 @@ function buildPostCard(item, conFecha){
 let postModalEl = null, postModalSnapshot = null, postModalId = null;
 function marcaVisible(){ const el = document.getElementById('brand-marca-label'); return (el && el.textContent) || ''; }
 
+// Qué se puede mostrar a partir del "Link del anuncio final": imagen o video directo, YouTube, Google Drive,
+// Instagram y TikTok se ven dentro del celular; cualquier otro link queda como botón "Abrir".
+function infoMaterial(url){
+  let u = (url||'').trim();
+  if(!u) return null;
+  if(!/^https?:\/\//i.test(u)) u = 'https://'+u;
+  let L; try{ L = new URL(u); }catch(e){ return null; }
+  const h = L.hostname.replace(/^www\./,'').toLowerCase();
+  const ext = ((L.pathname.match(/\.([a-z0-9]+)$/i)||[])[1]||'').toLowerCase();
+  if(h.endsWith('dropbox.com')){ L.searchParams.delete('dl'); L.searchParams.set('raw','1'); }
+  const limpio = x=>x.replace(/"/g,'%22').replace(/'/g,'%27').replace(/</g,'%3C').replace(/>/g,'%3E');
+  const abrir = limpio(L.toString());
+  let m, id = null;
+  if(['jpg','jpeg','png','gif','webp','avif','bmp'].includes(ext) || h.endsWith('googleusercontent.com')) return {tipo:'img', src:abrir, thumb:abrir, abrir, host:h};
+  if(['mp4','webm','mov','m4v','ogv'].includes(ext)) return {tipo:'video', src:abrir, thumb:null, abrir, host:h};
+  if(h==='youtu.be') id = L.pathname.slice(1).split('/')[0];
+  else if(h.endsWith('youtube.com')){
+    if(L.pathname.startsWith('/watch')) id = L.searchParams.get('v');
+    else if((m = L.pathname.match(/^\/(?:shorts|embed|live)\/([\w-]{6,})/))) id = m[1];
+  }
+  if(id && /^[\w-]{6,}$/.test(id)) return {tipo:'embed', src:'https://www.youtube.com/embed/'+id, thumb:'https://img.youtube.com/vi/'+id+'/hqdefault.jpg', abrir, host:h};
+  if(h==='drive.google.com'){
+    m = L.pathname.match(/\/file\/d\/([\w-]+)/); id = m ? m[1] : L.searchParams.get('id');
+    if(id && /^[\w-]+$/.test(id)) return {tipo:'embed', src:'https://drive.google.com/file/d/'+id+'/preview', thumb:'https://drive.google.com/thumbnail?id='+id+'&sz=w640', abrir, host:h};
+  }
+  if(h.endsWith('instagram.com') && (m = L.pathname.match(/^\/(?:[\w.]+\/)?(p|reel|reels|tv)\/([\w-]+)/)))
+    return {tipo:'embed', src:'https://www.instagram.com/'+(m[1]==='reels'?'reel':m[1])+'/'+m[2]+'/embed', thumb:null, abrir, host:h};
+  if(h.endsWith('tiktok.com') && (m = L.pathname.match(/\/video\/(\d+)/)))
+    return {tipo:'embed', src:'https://www.tiktok.com/embed/v2/'+m[1], thumb:null, abrir, host:h};
+  return {tipo:'link', abrir, host:h};
+}
+
+// Vista previa en el celular: lo que se publica (el material del link, si se puede mostrar) y el copy. El
+// material solo se vuelve a cargar cuando cambia el link, no con cada letra que se escribe.
 function pintarPreviewPost(item){
   const box = document.getElementById('pm-preview');
   if(!box) return;
   const est = ESTADO_LABEL[item.estado] ? item.estado : 'idea';
   const gr = ESTADO_GRAD[est];
   const texto = item.copy_publicacion || item.titulo_anuncio || item.hook || item.titulo || '';
+  const mi = infoMaterial(item.link_archivo_final);
+  const claveMedia = (item.link_archivo_final||'').trim() + '|' + est;
+  const captionHtml = `<b>${escHtml(marcaVisible())}</b><p>${escHtml(texto.slice(0,170))}${texto.length>170?'…':''}</p>`;
+  const redesHtml = redesDe(item).map(k=>`<span>${escHtml((REDES.find(r=>r[0]===k)||[])[1]||k)}</span>`).join('');
+  const meta = `${escHtml(item.formato||'reel')} · 9:16`;
+
+  if(box.dataset.media === claveMedia && box.querySelector('.pm-screen')){
+    // Solo cambió texto/redes/formato: se actualiza sin tocar el material (así el video no se reinicia).
+    box.querySelector('.pm-nets').innerHTML = redesHtml;
+    const cap = box.querySelector('.pm-caption') || box.querySelector('.pm-caption-fuera'); if(cap) cap.innerHTML = captionHtml;
+    box.querySelector('.pm-screen > .pchip').textContent = item.formato||'reel';
+    box.querySelector('.pm-meta').textContent = (item.formato||'reel') + ' · 9:16';
+    return;
+  }
+  box.dataset.media = claveMedia;
+
+  let capa = '', enVivo = false;
+  if(mi){
+    if(mi.tipo==='img') capa = `<img class="pm-media" src="${mi.src}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">`;
+    else if(mi.tipo==='video'){ capa = `<video class="pm-media" src="${mi.src}#t=0.5" controls playsinline preload="metadata"></video>`; enVivo = true; }
+    else if(mi.tipo==='embed'){
+      if(mi.thumb) capa += `<img class="pm-media" src="${mi.thumb}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">`;
+      capa += `<iframe class="pm-media pm-embed" src="${mi.src}" allow="autoplay; fullscreen" allowfullscreen loading="lazy" referrerpolicy="no-referrer"></iframe>`;
+      enVivo = true;
+    }
+  }
+  const ayuda = !mi
+    ? 'Pega el link del anuncio final (Drive, YouTube, Instagram, TikTok o una imagen/video directo) y aquí lo verás.'
+    : (mi.tipo==='link'
+        ? `Este link no se puede mostrar aquí. <a href="${mi.abrir}" target="_blank" rel="noopener">Abrir material ↗</a>`
+        : `<a href="${mi.abrir}" target="_blank" rel="noopener">Abrir en una pestaña ↗</a>${mi.host==='drive.google.com' ? '<br>Si no se ve, en Drive comparte el archivo con “Cualquier persona con el enlace”.' : ''}`);
   box.innerHTML = `
-    <div class="pm-nets">${redesDe(item).map(k=>`<span>${escHtml((REDES.find(r=>r[0]===k)||[])[1]||k)}</span>`).join('')}</div>
+    <div class="pm-nets">${redesHtml}</div>
     <div class="pm-phone"><div class="pm-screen" style="--a:${gr[0]};--b:${gr[1]};">
+      ${mi && mi.tipo!=='link' ? '' : `<span class="pm-ico">${FORMATO_ICO[item.formato]||'🎬'}</span>`}
+      ${capa}
       <span class="pchip">${escHtml(item.formato||'reel')}</span>
-      <span class="pm-ico">${FORMATO_ICO[item.formato]||'🎬'}</span>
-      <div class="pm-caption"><b>${escHtml(marcaVisible())}</b><p>${escHtml(texto.slice(0,170))}${texto.length>170?'…':''}</p></div>
+      ${enVivo ? '' : `<div class="pm-caption">${captionHtml}</div>`}
     </div></div>
-    <div class="pm-meta">${escHtml((item.formato||'reel'))} · 9:16</div>
-    <p class="pm-hint">Pega el link del anuncio final y ábrelo desde “Link del anuncio final”.</p>`;
+    ${enVivo ? `<div class="pm-caption-fuera">${captionHtml}</div>` : ''}
+    <div class="pm-meta">${meta}</div>
+    <p class="pm-hint">${ayuda}</p>`;
 }
 
 // ─── PIEZAS BAJO DEMANDA (guion · caption de WhatsApp · prompt de imagen · prompt de video) ─────
