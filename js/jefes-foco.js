@@ -234,6 +234,7 @@
     set: fijar,
     onChange: function (fn) { if (typeof fn === 'function') oyentes.push(fn); },
     lista: function () { return lista.slice(); },
+    grupos: function () { return grupos.slice(); },
     ready: listo
   };
   pintar();

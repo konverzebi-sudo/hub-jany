@@ -647,9 +647,34 @@ const TABLAS_TEMPORADA_366 = {
   calendario: [['fecha', 'Fecha'], ['fase', 'Fase'], ['accion', 'Acción']],
 };
 
-function temporadaFormatearProducto(camp) {
+// Una línea con los datos del catálogo del ADN de un producto (tipo, precio, notas, grupo).
+function temporadaLineaProducto(p, grupos) {
+  const g = (Array.isArray(grupos) ? grupos : []).find((x) => x && x.id === p.grupo_id);
+  const partes = [p.nombre];
+  if (p.tipo) partes.push(p.tipo);
+  if (p.precio) partes.push(`precio: ${p.precio}`);
+  if (g && g.nombre) partes.push(`grupo: ${g.nombre}`);
+  if (p.notas) partes.push(`notas: ${p.notas}`);
+  return '- ' + partes.join(' · ');
+}
+
+// Producto o grupo en que se enfoca la campaña. Se lee del catálogo en vivo (precio, tipo, notas) y la
+// regla es que TODO el Documento sirva para vender ESO, sin mezclar otros productos del negocio.
+function temporadaFormatearProducto(camp, catalogo, grupos) {
+  const cat = Array.isArray(catalogo) ? catalogo.filter((p) => p && p.nombre) : [];
   if (camp.producto_origen === 'nuevo' && camp.producto_nuevo) return `Producto/oferta NUEVO de esta temporada (no está en Evergreen): ${camp.producto_nuevo}`;
+  const regla = 'Todo lo que armes en esta campaña (mensajes, ángulos, ofertas, ads, calendario) debe servir para VENDER esto; no mezcles otros productos del catálogo.';
+  const prod = camp.producto_id ? cat.find((p) => p.id === camp.producto_id) : null;
+  if (prod) return `PRODUCTO EN EL QUE SE ENFOCA LA CAMPAÑA (del catálogo del ADN). ${regla}\n${temporadaLineaProducto(prod, grupos)}`;
   if (camp.producto_origen === 'evergreen' && camp.producto_nombre) return `Producto evergreen elegido como base: ${camp.producto_nombre}`;
+  if (camp.grupo_id) {
+    const g = (Array.isArray(grupos) ? grupos : []).find((x) => x && x.id === camp.grupo_id);
+    const delGrupo = cat.filter((p) => p.grupo_id === camp.grupo_id);
+    if (g || delGrupo.length) {
+      return `GRUPO DE PRODUCTOS EN EL QUE SE ENFOCA LA CAMPAÑA: ${g && g.nombre ? g.nombre : camp.grupo_id}. La campaña es para este grupo completo, no para otros grupos del negocio. Todo lo que armes en esta campaña (mensajes, ángulos, ofertas, ads, calendario) debe servir para VENDER los productos y servicios de este grupo; no mezcles los de otros grupos.\n` +
+        (delGrupo.length ? 'Productos y servicios del grupo:\n' + delGrupo.map((p) => temporadaLineaProducto(p, grupos)).join('\n') : '');
+    }
+  }
   return null;
 }
 
@@ -688,10 +713,10 @@ function temporadaFormatearOtrasCampanas(campanas, campanaActualId) {
   return 'OTRAS CAMPAÑAS DE TEMPORADA DE ESTE NEGOCIO (ya guardadas -- no las repitas ni las contradigas, es solo para que tengas contexto de qué más ha hecho el negocio):\n' + lineas.join('\n');
 }
 
-function temporadaFormatearCampana(camp) {
+function temporadaFormatearCampana(camp, catalogo, grupos) {
   if (!camp) return 'CAMPAÑA DE TEMPORADA EN CURSO: todavía no hay campaña seleccionada -- si el usuario no ha dicho qué campaña quiere trabajar, pregúntaselo primero.';
   const lineas = [`Nombre de campaña: ${camp.nombre || '(sin nombre todavía)'}`, `Estado: ${camp.estado || 'borrador'}`];
-  const prod = temporadaFormatearProducto(camp);
+  const prod = temporadaFormatearProducto(camp, catalogo, grupos);
   if (prod) lineas.push(prod);
   if (camp.fecha_inicio_activa || camp.fecha_fin_activa) lineas.push(`Fecha de campaña activa: ${camp.fecha_inicio_activa || '?'} a ${camp.fecha_fin_activa || '?'}`);
   Object.keys(TEMPORADA_CAMPO_LABEL).forEach((campo) => {
@@ -741,7 +766,22 @@ async function manejarChatTemporada(req, res) {
   try {
     const campanas = (await leerJSON(`${clienteId}:temporada-campanas`).catch(() => null)) || [];
     const campanaId = (body.campanaId || '').toString();
-    const campana = campanaId ? campanas.find((c) => c && c.id === campanaId) : null;
+    const campanaGuardada = campanaId ? campanas.find((c) => c && c.id === campanaId) : null;
+    // El navegador manda el producto/grupo vigente (puede que aún no se haya guardado en storage);
+    // si viene, manda sobre lo guardado.
+    const campana = campanaGuardada ? { ...campanaGuardada } : null;
+    if (campana) {
+      ['producto_origen', 'producto_id', 'producto_nombre', 'grupo_id'].forEach((k) => {
+        if (typeof body[k] === 'string') campana[k] = body[k];
+      });
+    }
+    const [catalogoProd, gruposNegocio] = await Promise.all([
+      leerJSON(`${clienteId}:catalogo-productos`).catch(() => null),
+      leerJSON(`${clienteId}:grupos-negocio`).catch(() => null),
+    ]);
+    const productoDeCatalogo = campana && campana.producto_id && Array.isArray(catalogoProd)
+      ? catalogoProd.find((p) => p && p.id === campana.producto_id) : null;
+    if (campana && productoDeCatalogo && productoDeCatalogo.nombre) campana.producto_nombre = productoDeCatalogo.nombre;
 
     // clienteRecurrente se manda siempre (no solo para un modulo puntual): el chat único ahora
     // cubre Producto/Perfil de Cliente/Comunicación dentro de la misma conversación (PASO 2A/2B/2C
@@ -760,7 +800,7 @@ async function manejarChatTemporada(req, res) {
     if (clienteRecurrente) partesSystem.push(clienteRecurrente);
     const otrasCampanas = temporadaFormatearOtrasCampanas(campanas, campanaId);
     if (otrasCampanas) partesSystem.push(otrasCampanas);
-    partesSystem.push(temporadaFormatearCampana(campana));
+    partesSystem.push(temporadaFormatearCampana(campana, catalogoProd, gruposNegocio));
     const system = partesSystem.join('\n\n');
 
     const { ok, status, data } = await llamarClaude(system, {
