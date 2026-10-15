@@ -21,6 +21,7 @@ const PROMPT_PATH_DETALLE = path.join(__dirname, '..', 'prompts', 'system-prompt
 const PROMPT_PATH_TARGETING = path.join(__dirname, '..', 'prompts', 'system-prompt-targeting-anuncios.md');
 const PROMPT_PATH_CAMPOS_META = path.join(__dirname, '..', 'prompts', 'system-prompt-campos-meta.md');
 const PROMPT_PATH_CHAT = path.join(__dirname, '..', 'prompts', 'system-prompt-chat-anuncios.md');
+const PROMPT_PATH_PIEZA = path.join(__dirname, '..', 'prompts', 'system-prompt-pieza-anuncio.md');
 const CHAT_MAX_MESSAGES = 40;
 // 10000 se quedaba corto para negocios con ADN/audiencias/catálogo detallados (ej. Rancho Seco,
 // donde solo el bloque de Audiencias ya mide ~55000 caracteres y las 4 Notas 366 ~85000): el
@@ -272,6 +273,7 @@ function formatearCatalogo(items, grupos, grupoId) {
   const lineas = filtrados.map((p) => {
     const partes = [p.nombre];
     if (p.tipo) partes.push(p.tipo);
+    if (p.precio) partes.push(`precio: ${p.precio}`);
     if (p.grupo_id && nombrePorGrupo[p.grupo_id]) partes.push(`grupo: ${nombrePorGrupo[p.grupo_id]}`);
     if (p.notas) partes.push(`notas: ${p.notas}`);
     return '- ' + partes.join(' · ');
@@ -533,8 +535,9 @@ function formatearProducto(items, productoId, etiqueta) {
   if (!p) return null;
   const partes = [p.nombre];
   if (p.tipo) partes.push(p.tipo);
+  if (p.precio) partes.push(`precio: ${p.precio}`);
   if (p.notas) partes.push(`notas: ${p.notas}`);
-  return `PRODUCTO ESPECÍFICO A ENFOCAR (${etiqueta}):\n- ` + partes.join(' · ');
+  return `PRODUCTO ESPECÍFICO A ENFOCAR (${etiqueta}). Todo lo que generes debe servir para VENDER este producto o servicio (su precio, a quién le sirve, qué problema resuelve); no mezcles otros productos del catálogo:\n- ` + partes.join(' · ');
 }
 
 // Datos del producto que se venía trabajando en Jefe 366 (llegan en modo guiado, aunque el producto
@@ -807,7 +810,7 @@ async function manejarModoDetalle(body, res) {
   const { ok, status, data } = await llamarClaude(
     system,
     'Desarrolla el detalle completo de cada idea del lote, en el formato JSON (array) indicado, en el mismo orden y con el mismo "id" que recibiste.',
-    Math.min(8000, 1000 + ideas.length * 1800)
+    Math.min(6000, 800 + ideas.length * 800)
   );
   if (!ok) {
     return res.status(status).json({ error: data?.error?.message || 'Error al llamar a la API.' });
@@ -828,22 +831,17 @@ async function manejarModoDetalle(body, res) {
       objetivo: (d && d.objetivo) || '',
       angulo: (d && d.angulo) || '',
       audiencia: AUDIENCIA_POR_ETAPA[etapaIdea] || '',
-      guion: (d && d.guion && typeof d.guion === 'object') ? {
-        hook: d.guion.hook || '',
-        problema: d.guion.problema || '',
-        solucion: d.guion.solucion || '',
-        prueba: d.guion.prueba || '',
-        costo_inaccion: d.guion.costo_inaccion || '',
-        cta: d.guion.cta || '',
-      } : { hook: '', problema: '', solucion: '', prueba: '', costo_inaccion: '', cta: '' },
-      version_15s: (d && d.version_15s) || '',
-      hooks_alternativos: Array.isArray(d && d.hooks_alternativos) ? d.hooks_alternativos.filter(Boolean).map((h) => h.toString()) : [],
+      // El guion, la versión de 15 s, los hooks alternativos, los prompts de imagen/video y el caption de
+      // WhatsApp ya no se generan aquí (ahorro de tokens): se piden uno por uno con modo "pieza".
+      guion: { hook: '', problema: '', solucion: '', prueba: '', costo_inaccion: '', cta: '' },
+      version_15s: '',
+      hooks_alternativos: [],
       visual_sugerido: (d && d.visual_sugerido) || '',
       duracion_sugerida: (d && d.duracion_sugerida) || '',
       copy_publicacion: (d && d.copy_publicacion) || '',
-      prompt_imagen: (d && d.prompt_imagen) || '',
-      prompt_video: (d && d.prompt_video) || '',
-      caption_whatsapp: (d && d.caption_whatsapp) || '',
+      prompt_imagen: '',
+      prompt_video: '',
+      caption_whatsapp: '',
       titulo_anuncio: (d && d.titulo_anuncio) || '',
       descripcion_anuncio: (d && d.descripcion_anuncio) || '',
       cta_boton: validarCta(d && d.cta_boton) || 'Más información',
@@ -1021,6 +1019,84 @@ async function manejarModoChat(body, res) {
   return res.status(200).json({ text, usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 } });
 }
 
+// ---------- modo: pieza (una sola pieza bajo demanda: guion | whatsapp | imagen | video) ----------
+// El detalle base ya no trae estas piezas; el usuario las pide con su botón y solo entonces se gastan
+// los tokens. Recibe la tarjeta (lo ya desarrollado) y, para imagen/video, material real opcional.
+const PIEZAS_VALIDAS = ['guion', 'whatsapp', 'imagen', 'video'];
+const PIEZA_MAX_TOKENS = { guion: 1400, whatsapp: 350, imagen: 600, video: 900 };
+
+async function manejarModoPieza(body, res) {
+  const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
+  const grupoId = body.grupo_id ? body.grupo_id.toString() : '';
+  const productoId = body.producto_id ? body.producto_id.toString() : '';
+  const tipo = PIEZAS_VALIDAS.includes(body.tipo) ? body.tipo : '';
+  if (!tipo) return res.status(400).json({ error: 'Falta el tipo de pieza (guion, whatsapp, imagen o video).' });
+  const c = body.card && typeof body.card === 'object' ? body.card : {};
+  const campo = (v, n) => (v == null ? '' : String(v)).trim().slice(0, n);
+
+  const lineas = [`TIPO DE PIEZA A CREAR AHORA: ${tipo}`, '', 'ANUNCIO:'];
+  const datos = [
+    ['Título', c.titulo, 300], ['Hook de la idea', c.hook, 300], ['Etapa', c.etapa, 40], ['Formato', c.formato, 40],
+    ['Objetivo', c.objetivo, 300], ['Ángulo', c.angulo, 80], ['Audiencia', c.audiencia, 40],
+    ['Copy de publicación', c.copy_publicacion, 2500], ['Visual sugerido', c.visual_sugerido, 600],
+    ['Duración sugerida', c.duracion_sugerida, 80], ['Botón (CTA)', c.cta_boton, 60], ['Link de destino', c.link_destino, 300],
+    ['Retroalimentación del usuario', c.retroalimentacion, 1200],
+  ];
+  datos.forEach(([k, v, n]) => { const t = campo(v, n); if (t) lineas.push(`${k}: ${t}`); });
+  if ((tipo === 'imagen' || tipo === 'video') && c.guion && typeof c.guion === 'object') {
+    const g = ['hook', 'problema', 'solucion', 'prueba', 'costo_inaccion', 'cta'].map((k) => campo(c.guion[k], 400)).filter(Boolean).join(' / ');
+    if (g) lineas.push(`Guion ya escrito: ${g}`);
+  }
+  const material = campo(body.texto, 1500);
+  if (material) lineas.push('', 'MATERIAL REAL (lo que la persona cuenta que tiene o cómo lo imagina):', material);
+  const imagenes = (tipo === 'imagen' || tipo === 'video') && Array.isArray(body.imagenes)
+    ? body.imagenes.filter((img) => img && img.mediaType && img.data && MEDIA_TYPES_IMAGEN_VALIDOS.includes(img.mediaType) && img.data.length <= MAX_IMAGEN_BASE64_CHARS).slice(0, 4)
+    : [];
+  if (imagenes.length) lineas.push('', 'Las imágenes adjuntas son el MATERIAL REAL (si vienen de un video, son cuadros de ese video).');
+  lineas.push('', `Crea ahora la pieza "${tipo}".`);
+
+  const promptFijo = cargarPrompt(PROMPT_PATH_PIEZA);
+  const { contexto, catalogo } = await construirContexto(clienteId, grupoId);
+  const bloqueProducto = formatearProducto(catalogo, productoId, 'la pieza debe girar en torno a este producto puntual');
+  const bloqueTexto = formatearProductoTexto(body, 'la pieza debe girar en torno a este producto');
+  const system = [promptFijo, contexto, bloqueProducto, bloqueTexto].filter(Boolean).join('\n\n');
+
+  const partes = imagenes.map((img) => ({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.data } }));
+  partes.push({ type: 'text', text: lineas.join('\n') });
+  const { ok, status, data } = await llamarClaudeConHistorial(system, [{ role: 'user', content: partes }], PIEZA_MAX_TOKENS[tipo]);
+  if (!ok) {
+    return res.status(status).json({ error: data?.error?.message || 'Error al llamar a la API.' });
+  }
+  const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim();
+  if (!text) return res.status(502).json({ error: 'No se pudo crear la pieza. Intenta de nuevo.' });
+
+  let pieza;
+  if (tipo === 'guion') {
+    const j = extractJson(text);
+    const g = j && j.guion && typeof j.guion === 'object' ? j.guion : null;
+    if (!g) {
+      return res.status(502).json({ error: data.stop_reason === 'max_tokens' ? 'El guion quedó incompleto. Intenta de nuevo.' : 'No se pudo interpretar el guion.' });
+    }
+    pieza = {
+      guion: {
+        hook: (g.hook || '').toString(), problema: (g.problema || '').toString(), solucion: (g.solucion || '').toString(),
+        prueba: (g.prueba || '').toString(), costo_inaccion: (g.costo_inaccion || '').toString(), cta: (g.cta || '').toString(),
+      },
+      version_15s: (j.version_15s || '').toString(),
+      hooks_alternativos: Array.isArray(j.hooks_alternativos) ? j.hooks_alternativos.filter(Boolean).map((h) => h.toString()) : [],
+    };
+  } else if (tipo === 'whatsapp') {
+    pieza = { caption_whatsapp: text };
+  } else if (tipo === 'imagen') {
+    pieza = { prompt_imagen: text };
+  } else {
+    pieza = { prompt_video: text };
+  }
+
+  await registrarUsoTokens(clienteId, 'generar-anuncios-pieza-' + tipo, data.usage);
+  return res.status(200).json({ tipo, pieza, usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 } });
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
 
@@ -1050,6 +1126,7 @@ module.exports = async function handler(req, res) {
     if (modo === 'targeting') return await manejarModoTargeting(body, res);
     if (modo === 'completar_meta') return await manejarModoCompletarMeta(body, res);
     if (modo === 'chat') return await manejarModoChat(body, res);
+    if (modo === 'pieza') return await manejarModoPieza(body, res);
     return res.status(400).json({ error: 'Falta o es inválido el campo "modo" (usa "ideas", "detalle", "targeting", "completar_meta" o "chat").' });
   } catch (err) {
     return res.status(500).json({ error: 'Error de conexión con el Agente.' });
