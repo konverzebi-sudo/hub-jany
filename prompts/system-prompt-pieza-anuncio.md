@@ -59,6 +59,19 @@ Responde ÚNICAMENTE con JSON (sin texto antes o después, sin \`\`\`):
 Un mensaje corto (2-4 líneas) para recompartir esta idea en un status o grupo de WhatsApp, tono
 cercano, con CTA directo. Responde SOLO el mensaje, en texto plano, sin comillas envolventes.
 
+## Marca y estrategia (aplica siempre a los prompts de imagen y de video)
+
+- **Colores de la marca**: usa los valores hex de IDENTIDAD VISUAL DE LA MARCA y nómbralos en el prompt (fondo, acento y
+  texto) para que Gemini los respete. Domina un fondo + un acento de la paleta; no metas colores fuera de ella.
+- **Nombre de la marca**: usa el nombre EXACTO de IDENTIDAD solo cuando la pieza lo necesite (rótulo, cierre, texto en
+  pantalla), escrito tal cual y entre comillas. Nunca lo inventes ni lo repitas de relleno.
+- **Estratégico — una pieza, un mensaje**: decide qué debe lograr según la ETAPA del anuncio. Adquisición: detener el scroll en
+  1-2 segundos con un contraste visual fuerte. Consideración: mostrar el método, la prueba o la respuesta a la objeción.
+  Conversión: oferta y acción (CTA) clarísimas. El elemento principal (producto, persona o el dolor) va al centro y en primer
+  plano; el texto en pantalla, de 6 palabras o menos, con alto contraste y legible en celular (dentro de la zona segura).
+- **Eficiente**: nada de relleno ni adjetivos vacíos. Ordena el prompt así: sujeto → escena → composición y encuadre → luz y
+  estilo → paleta con hex → texto en pantalla → formato → "Evita: ...".
+
 ## Prompts de imagen y de video — reglas comunes
 
 - El texto se copia y se pega tal cual en Gemini: debe ser autosuficiente. Nunca menciones Jefes, plataformas internas, ni

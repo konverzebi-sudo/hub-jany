@@ -519,7 +519,12 @@ module.exports = async function handler(req, res) {
       if (campo(post.guion, 2500)) lineas.push('Guion: ' + campo(post.guion, 2500));
       if (campo(post.notas, 1200)) lineas.push('Notas: ' + campo(post.notas, 1200));
       const material = campo(body.texto, 1500);
-      if (material) lineas.push('', 'MATERIAL REAL (lo que la persona cuenta que tiene o cómo lo imagina):', material);
+      const promptActual = campo(body.prompt_actual, 3000);
+      if (promptActual) {
+        // Actualizar: partir del prompt que ya existe y aplicar solo los cambios pedidos.
+        lineas.push('', 'PROMPT ACTUAL (la persona ya lo tiene; ACTUALÍZALO y devuélvelo completo, conservando todo lo que no pidió cambiar):', promptActual);
+        lineas.push('', material ? 'CAMBIOS QUE PIDE LA PERSONA: ' + material : 'La persona no escribió cambios: mejora el prompt manteniendo su idea.');
+      } else if (material) lineas.push('', 'MATERIAL REAL (lo que la persona cuenta que tiene o cómo lo imagina):', material);
       const imagenes = Array.isArray(body.imagenes)
         ? body.imagenes.filter((img) => img && img.mediaType && img.data).slice(0, 4)
         : [];
