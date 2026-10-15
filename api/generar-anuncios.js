@@ -595,8 +595,13 @@ async function formatearBancoConversacionesWhatsApp(clienteId) {
   return 'BANCO DE CONVERSACIONES REALES DE WHATSAPP (guardadas por el usuario en Jefe WhatsApp y Ventas -- son transcripciones reales de clientes, úsalas para frases reales, objeciones y tono; no las inventes ni las repitas tal cual):\n\n' + recortado;
 }
 
+// Slug del nombre de una oferta de Producto 366 (igual al que arma la pastilla de foco en el navegador).
+function slugOferta366(nombre) {
+  return (nombre || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
 async function construirContexto(clienteId, grupoId) {
-  const [identidad, tono, audiencia, catalogo, grupos, contexto366, radarHistorial, conversacionReciente, bloqueRetroalimentacion, bancoConversaciones, redes, visual] = await Promise.all([
+  const [identidad, tono, audiencia, catalogo, grupos, contexto366, radarHistorial, conversacionReciente, bloqueRetroalimentacion, bancoConversaciones, redes, visual, ofertas366] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
     leerAudiencias(clienteId).catch(() => []),
@@ -609,6 +614,7 @@ async function construirContexto(clienteId, grupoId) {
     formatearBancoConversacionesWhatsApp(clienteId).catch(() => null),
     leerJSON(`${clienteId}:brand-book.redes`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.visual`).catch(() => null),
+    leerProductos366(clienteId).catch(() => []),
   ]);
 
   const bloque366 = contexto366 ? contexto366.texto : null;
@@ -639,7 +645,15 @@ async function construirContexto(clienteId, grupoId) {
   if (bloqueRetroalimentacion) partes.push(bloqueRetroalimentacion);
   if (bancoConversaciones) partes.push(bancoConversaciones);
 
-  return { contexto: truncar(partes.join('\n\n---\n\n'), CONTEXT_CHAR_LIMIT), catalogo, linkContacto };
+  // Para ubicar el producto elegido: catálogo del ADN + ofertas de Producto 366 que no estén en él (id '366-<slug>').
+  const catalogoConOfertas = Array.isArray(catalogo) ? catalogo.slice() : [];
+  (ofertas366 || []).forEach((o) => {
+    const nombre = ((o && o.nombre) || '').toString().trim();
+    if (!nombre || catalogoConOfertas.some((p) => p && p.nombre && p.nombre.toString().trim().toLowerCase() === nombre.toLowerCase())) return;
+    const notas = [o.que_vendemos, o.oferta_irresistible && `Oferta irresistible: ${o.oferta_irresistible}`].filter(Boolean).join(' | ');
+    catalogoConOfertas.push({ id: '366-' + slugOferta366(nombre), nombre, tipo: 'Oferta 366', grupo_id: o.grupo_id || '', notas: truncar(notas, 700) });
+  });
+  return { contexto: truncar(partes.join('\n\n---\n\n'), CONTEXT_CHAR_LIMIT), catalogo: catalogoConOfertas, linkContacto };
 }
 
 function extractJson(text) {

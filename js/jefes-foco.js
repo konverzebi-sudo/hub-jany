@@ -21,6 +21,9 @@
   var lista = [];
   var grupos = [];
   var conGrupos = !!(window.__focoConfig && window.__focoConfig.grupos);
+  // OPCIONAL (window.__focoConfig.productos366): suma las ofertas de "Producto 366" de Jefe 366 que todavia
+  // no estan en el Catalogo del ADN (id '366-<nombre-sin-acentos>'), para poder enfocarse en ellas.
+  var conOfertas366 = !!(window.__focoConfig && window.__focoConfig.productos366);
   var actual = { id: TODO, nombre: '', item: null, grupo: null };
   var oyentes = [];
 
@@ -223,6 +226,19 @@
     var cat = await leer('catalogo-productos');
     var gr = await leer('grupos-negocio');
     lista = Array.isArray(cat) ? cat.filter(function (p) { return p && p.id; }) : [];
+    if (conOfertas366) {
+      var of366 = await leer('brand-book.366-producto');
+      if (!of366) of366 = await leer('brand-book.evergreen-producto');
+      var ofertas = of366 && Array.isArray(of366.lista) ? of366.lista : (of366 && of366.nombre ? [of366] : []);
+      ofertas.forEach(function (o) {
+        var nombre = String((o && o.nombre) || '').trim();
+        if (!nombre) return;
+        var ya = lista.some(function (p) { return String(p.nombre || '').trim().toLowerCase() === nombre.toLowerCase(); });
+        if (ya) return;
+        var slug = nombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+        lista.push({ id: '366-' + slug, nombre: nombre, tipo: 'Oferta 366', precio: '', grupo_id: o.grupo_id || '', notas: String(o.que_vendemos || ''), origen366: true });
+      });
+    }
     grupos = Array.isArray(gr) ? gr : [];
     var guardado = leerLS();
     aplicar(guardado ? guardado.id : TODO); // si el producto ya no existe, vuelve a "ecosistema completo"
