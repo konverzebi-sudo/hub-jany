@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Registros | Brigada de Salud</title>
+  <link rel="icon" href="img/logo.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=3" />
+  <style>
+    .panel { padding: 40px 0 72px; }
+    .acceso { max-width: 380px; margin: 10vh auto 0; text-align: center; }
+    .acceso input { text-align: center; font-size: 1.6rem; letter-spacing: .4em; }
+    .resumen { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 24px; }
+    .dato { background: var(--tarjeta); border: 1px solid var(--borde); border-radius: var(--radio); padding: 16px 18px; }
+    .dato strong { display: block; font-family: "Anton", Impact, sans-serif; font-size: 2.2rem; font-weight: 400; line-height: 1.1; }
+    .dato span { color: var(--suave); font-size: .9rem; }
+    .acciones { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+    .acciones input { font: inherit; padding: 12px 16px; border-radius: 999px; border: 1.5px solid var(--borde); background: rgba(0,0,0,.18); color: #fff; min-width: 220px; flex: 1; max-width: 360px; }
+    .acciones div { display: flex; gap: 8px; flex-wrap: wrap; }
+    .tabs { display: flex; gap: 8px; margin: 22px 0 0; flex-wrap: wrap; }
+    .tab { background: transparent; color: var(--suave); border: 1.5px solid var(--borde); border-radius: 999px; padding: 8px 16px; font: inherit; font-weight: 800; cursor: pointer; }
+    .tab[aria-selected="true"] { background: var(--cian); border-color: var(--cian); color: var(--indigo-noche); }
+    .tabla-wrap { overflow-x: auto; margin-top: 14px; border: 1px solid var(--borde); border-radius: var(--radio); }
+    table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+    th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--borde); white-space: nowrap; }
+    th { background: var(--indigo-noche); font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; color: var(--cian); }
+    td a { color: var(--cian); }
+    .si { color: #7cf5b4; font-weight: 800; }
+    .libre { color: var(--suave); font-style: italic; }
+    .cita { background: var(--rosa); color: #fff; font-size: .75rem; font-weight: 800; padding: 3px 8px; border-radius: 999px; margin-left: 6px; }
+    .vacio { text-align: center; color: var(--suave); padding: 40px 0; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap topbar__inner">
+      <span class="brand"><img src="img/logo.png" alt="" />Registros · Brigada de Salud</span>
+      <button class="btn btn--small btn--ghost" id="salir" hidden>Salir</button>
+    </div>
+  </header>
+
+  <main class="wrap panel">
+    <!-- Paso 1: código -->
+    <form class="acceso form" id="form-acceso">
+      <h2>Vista privada</h2>
+      <p class="muted">Escribe el código para ver y descargar la lista de registradas.</p>
+      <input name="codigo" type="password" inputmode="numeric" autocomplete="off" placeholder="••••" required />
+      <button class="btn btn--block" type="submit">Entrar</button>
+      <p class="form__msg" id="acceso-msg" role="status"></p>
+    </form>
+
+    <!-- Paso 2: lista -->
+    <section id="lista" hidden>
+      <div class="resumen" id="resumen"></div>
+      <div class="acciones">
+        <input type="search" id="buscar" placeholder="Buscar por nombre o teléfono" />
+        <div>
+          <button class="btn btn--small btn--ghost" id="actualizar">Actualizar</button>
+          <button class="btn btn--small" id="descargar">⬇ Descargar Excel</button>
+        </div>
+      </div>
+      <div class="tabs" id="tabs" role="tablist"></div>
+      <div class="tabla-wrap">
+        <table>
+          <thead><tr id="cabecera"></tr></thead>
+          <tbody id="filas"></tbody>
+        </table>
+      </div>
+      <p class="vacio" id="vacio" hidden>Todavía no hay registros.</p>
+    </section>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="config.js?v=3"></script>
+  <script>
+  (function () {
+    const E = EVENTO;
+    const $ = (s) => document.querySelector(s);
+    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const CLAVE = "brigada_codigo";
+    const guardar = (v) => { try { v ? sessionStorage.setItem(CLAVE, v) : sessionStorage.removeItem(CLAVE); } catch (e) {} };
+    const leer = () => { try { return sessionStorage.getItem(CLAVE) || ""; } catch (e) { return ""; } };
+
+    const OPC = E.opcionesRegistro;
+    const conHorario = OPC.filter((o) => o.conHorario);
+    const TERAPIA = "terapia";
+
+    let codigo = "", personas = [], vista = "todas";
+
+    const fecha = (iso) => new Date(iso).toLocaleString("es-MX", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+    const tel = (t) => t.length === 10 ? `${t.slice(0, 2)} ${t.slice(2, 6)} ${t.slice(6)}` : t;
+    const hora12 = (hhmm) => {
+      const [h, m] = hhmm.split(":").map(Number);
+      return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h >= 12 ? "p. m." : "a. m."}`;
+    };
+
+    // Junta cada registro con sus turnos: { nombre, telefono, opciones[], horario{vista,...}, ordenTerapia }
+    function combinar(registros, citas) {
+      const porTel = {};
+      citas.forEach((c) => { (porTel[c.telefono] ||= {})[c.servicio] = c; });
+      const lista = registros.map((r) => ({
+        ...r,
+        opciones: (r.opciones || "").split(",").filter(Boolean),
+        horario: Object.fromEntries(Object.entries(porTel[r.telefono] || {}).map(([s, c]) => [s, c.horario])),
+        terapiaDesde: porTel[r.telefono]?.[TERAPIA]?.created_at,
+      }));
+      lista.filter((p) => p.opciones.includes(TERAPIA) && p.terapiaDesde)
+        .sort((a, b) => new Date(a.terapiaDesde) - new Date(b.terapiaDesde))
+        .forEach((p, i) => { p.ordenTerapia = i + 1; });
+      return lista;
+    }
+
+    async function cargar() {
+      const r = await fetch(`${E.formEndpoint}?evento=${encodeURIComponent(E.eventoId)}`, {
+        headers: { "X-Evento-Codigo": codigo },
+      });
+      if (r.status === 401) throw new Error("Código incorrecto.");
+      if (r.status === 429) throw new Error("Demasiados intentos. Espera 15 minutos.");
+      if (!r.ok) throw new Error("No se pudo cargar la lista. Intenta de nuevo.");
+      const d = await r.json();
+      personas = combinar(d.registros || [], d.citas || []);
+      pintar();
+    }
+
+    // Todos los turnos posibles de un servicio (9:00 a 12:45 cada 15 min), con quién lo tomó
+    function turnos(servicio) {
+      const out = [];
+      for (let t = 9 * 60; t < 13 * 60; t += 15) {
+        const h = `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+        out.push({ hora: h, persona: personas.find((p) => p.horario[servicio] === h) });
+      }
+      return out;
+    }
+
+    const coincide = (p, q) => !q || p.nombre.toLowerCase().includes(q) || (q.replace(/\D/g, "") && p.telefono.includes(q.replace(/\D/g, "")));
+    const celTel = (p) => `<a href="https://wa.me/52${esc(p.telefono.slice(-10))}" target="_blank" rel="noopener">${esc(tel(p.telefono))}</a>`;
+
+    function pintar() {
+      const q = $("#buscar").value.trim().toLowerCase();
+
+      $("#resumen").innerHTML =
+        `<div class="dato"><strong>${personas.length}</strong><span>Personas registradas</span></div>` +
+        OPC.map((o) => {
+          const n = personas.filter((p) => p.opciones.includes(o.id)).length;
+          const extra = o.conHorario ? ` <small>/ ${turnos(o.id).length}</small>` : "";
+          return `<div class="dato"><strong>${n}${extra}</strong><span>${esc(o.titulo)}</span></div>`;
+        }).join("");
+
+      const pestañas = [["todas", "Todas"], ...conHorario.map((o) => [o.id, "Turnos " + o.titulo.replace(" gratis", "")]), [TERAPIA, "Terapia (orden)"]];
+      $("#tabs").innerHTML = pestañas.map(([id, t]) =>
+        `<button class="tab" role="tab" data-tab="${id}" aria-selected="${vista === id}">${esc(t)}</button>`).join("");
+
+      let cab, filas;
+      if (vista === "todas") {
+        cab = ["#", "Nombre", "Teléfono", ...OPC.map((o) => o.titulo), "Registro"];
+        filas = personas.filter((p) => coincide(p, q)).map((p) => [
+          personas.indexOf(p) + 1, esc(p.nombre), celTel(p),
+          ...OPC.map((o) => !p.opciones.includes(o.id) ? "—"
+            : o.conHorario ? `<span class="si">${esc(hora12(p.horario[o.id] || "00:00"))}</span>`
+            : o.id === TERAPIA ? `<span class="si">#${p.ordenTerapia}</span>${p.ordenTerapia <= E.terapiaCitas ? '<span class="cita">Cita</span>' : ""}`
+            : '<span class="si">Sí</span>'),
+          esc(fecha(p.created_at)),
+        ]);
+      } else if (vista === TERAPIA) {
+        cab = ["Orden", "Nombre", "Teléfono", "Se registró"];
+        filas = personas.filter((p) => p.ordenTerapia && coincide(p, q))
+          .sort((a, b) => a.ordenTerapia - b.ordenTerapia)
+          .map((p) => [`#${p.ordenTerapia}${p.ordenTerapia <= E.terapiaCitas ? '<span class="cita">Cita</span>' : ""}`, esc(p.nombre), celTel(p), esc(fecha(p.terapiaDesde))]);
+      } else {
+        cab = ["Horario", "Nombre", "Teléfono"];
+        filas = turnos(vista).filter((t) => !q || (t.persona && coincide(t.persona, q)))
+          .map((t) => [esc(hora12(t.hora)), t.persona ? esc(t.persona.nombre) : '<span class="libre">Libre</span>', t.persona ? celTel(t.persona) : ""]);
+      }
+
+      $("#cabecera").innerHTML = cab.map((c) => `<th>${esc(c)}</th>`).join("");
+      $("#filas").innerHTML = filas.map((f) => `<tr>${f.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("");
+      $("#vacio").hidden = personas.length > 0;
+    }
+
+    function descargar() {
+      const libro = XLSX.utils.book_new();
+      const agregar = (nombre, filas, anchos) => {
+        const hoja = XLSX.utils.json_to_sheet(filas.length ? filas : [{ "": "Sin registros" }]);
+        hoja["!cols"] = anchos.map((wch) => ({ wch }));
+        XLSX.utils.book_append_sheet(libro, hoja, nombre.slice(0, 31));
+      };
+
+      agregar("Registros", personas.map((p, i) => {
+        const f = { "#": i + 1, Nombre: p.nombre, "Teléfono": p.telefono };
+        OPC.forEach((o) => {
+          f[o.titulo] = !p.opciones.includes(o.id) ? "No"
+            : o.conHorario ? hora12(p.horario[o.id] || "00:00")
+            : o.id === TERAPIA ? `Sí (#${p.ordenTerapia})` : "Sí";
+        });
+        f["Fecha de registro"] = new Date(p.created_at).toLocaleString("es-MX");
+        return f;
+      }), [5, 30, 14, ...OPC.map(() => 22), 22]);
+
+      conHorario.forEach((o) => agregar(o.titulo.replace(" gratis", ""), turnos(o.id).map((t) => ({
+        Horario: hora12(t.hora), Nombre: t.persona?.nombre || "Libre", "Teléfono": t.persona?.telefono || "",
+      })), [12, 30, 14]));
+
+      agregar("Terapia emocional", personas.filter((p) => p.ordenTerapia)
+        .sort((a, b) => a.ordenTerapia - b.ordenTerapia)
+        .map((p) => ({ Orden: p.ordenTerapia, Nombre: p.nombre, "Teléfono": p.telefono, "Cita en consultorio": p.ordenTerapia <= E.terapiaCitas ? "Sí" : "Lista de espera" })),
+        [8, 30, 14, 20]);
+
+      XLSX.writeFile(libro, `registros-brigada-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    }
+
+    function mostrarLista(si) {
+      $("#form-acceso").hidden = si;
+      $("#lista").hidden = !si;
+      $("#salir").hidden = !si;
+    }
+
+    $("#form-acceso").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const msg = $("#acceso-msg");
+      codigo = ev.target.codigo.value.trim();
+      msg.textContent = "Entrando…"; msg.className = "form__msg";
+      try {
+        await cargar();
+        guardar(codigo);
+        mostrarLista(true);
+        msg.textContent = "";
+      } catch (e) {
+        msg.textContent = e.message; msg.className = "form__msg error";
+      }
+    });
+
+    $("#tabs").addEventListener("click", (ev) => {
+      const b = ev.target.closest("[data-tab]");
+      if (b) { vista = b.dataset.tab; pintar(); }
+    });
+    $("#buscar").addEventListener("input", pintar);
+    $("#descargar").addEventListener("click", descargar);
+    $("#actualizar").addEventListener("click", () => cargar().catch((e) => alert(e.message)));
+    $("#salir").addEventListener("click", () => {
+      guardar(""); codigo = ""; personas = [];
+      $("#form-acceso").reset(); mostrarLista(false);
+    });
+
+    // Si ya entró en esta pestaña, no volver a pedir el código
+    codigo = leer();
+    if (codigo) cargar().then(() => mostrarLista(true)).catch(() => guardar(""));
+  })();
+  </script>
+</body>
+</html>

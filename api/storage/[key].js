@@ -509,6 +509,207 @@ async function manejarAdnPrevio(req, res) {
   }
 }
 
+// ─── Registros de eventos (REDIMPULSOMUJER-BRIGADA/) ───
+// Caso especial de la key "registros-evento", por el mismo límite de funciones serverless
+// del plan Hobby que explica el caso de "leads".
+// - POST: público (formulario de la landing). Una persona = un teléfono por evento; si se
+//   vuelve a registrar se actualizan sus opciones y horarios en vez de duplicarla.
+// - GET ?evento=&disponibilidad=1: público, solo qué horarios están libres (sin datos personales).
+// - GET ?evento=: solo con el código del evento (header X-Evento-Codigo, env BRIGADA_CODIGO)
+//   o el LEADS_ADMIN_TOKEN, porque devuelve nombres y teléfonos. El código es corto (lo
+//   pidió la organizadora), así que tras INTENTOS_MAX fallos en BLOQUEO_MIN minutos se
+//   bloquea la lectura para todos hasta que pase la ventana.
+const INTENTOS_MAX = 10;
+const BLOQUEO_MIN = 15;
+
+// Horarios cada `min` minutos entre `desde` (incluido) y `hasta` (excluido), formato 'HH:MM'.
+function horariosCada(desde, hasta, min) {
+  const aMin = (h) => { const [a, b] = h.split(':').map(Number); return a * 60 + b; };
+  const out = [];
+  for (let t = aMin(desde); t < aMin(hasta); t += min) {
+    out.push(String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'));
+  }
+  return out;
+}
+
+// opciones: lo que se puede marcar. servicios: opciones que generan un turno en evento_citas;
+// con `horarios` la persona elige uno (un lugar por horario); con horarios null solo cuenta el
+// orden de llegada (ej. terapia: las primeras reciben cita en consultorio).
+const EVENTOS = {
+  'brigada-salud-rim-2026': {
+    opciones: ['talleres', 'vista', 'mastografia', 'terapia'],
+    servicios: {
+      vista: { horarios: horariosCada('09:00', '13:00', 15) },
+      mastografia: { horarios: horariosCada('09:00', '13:00', 15) },
+      terapia: { horarios: null },
+    },
+  },
+};
+
+let registrosTablaLista = null;
+function ensureRegistrosTable() {
+  if (!registrosTablaLista) {
+    registrosTablaLista = (async () => {
+      await sql`CREATE TABLE IF NOT EXISTS evento_registros (
+        id SERIAL PRIMARY KEY,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        evento TEXT NOT NULL,
+        nombre TEXT NOT NULL,
+        telefono TEXT NOT NULL,
+        opciones TEXT NOT NULL DEFAULT '',
+        UNIQUE (evento, telefono)
+      )`;
+      // Un turno por persona y servicio, y un lugar por horario. Los turnos sin horario
+      // (NULL) no chocan entre sí: Postgres no considera iguales dos NULL.
+      await sql`CREATE TABLE IF NOT EXISTS evento_citas (
+        id SERIAL PRIMARY KEY,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        evento TEXT NOT NULL,
+        servicio TEXT NOT NULL,
+        telefono TEXT NOT NULL,
+        horario TEXT,
+        UNIQUE (evento, servicio, telefono),
+        UNIQUE (evento, servicio, horario)
+      )`;
+    })().catch(err => { registrosTablaLista = null; throw err; });
+  }
+  return registrosTablaLista;
+}
+
+async function codigoEventoValido(req) {
+  if (esAdmin(req)) return { ok: true };
+  const codigo = (req.headers['x-evento-codigo'] || '').toString().trim();
+  const esperado = (process.env.BRIGADA_CODIGO || '').trim();
+  if (!esperado) return { ok: false };
+  await ensureTable();
+  const llave = 'registros-evento:intentos-fallidos';
+  const ahora = Date.now();
+  const guardados = await kvLeer(llave);
+  const previos = (Array.isArray(guardados) ? guardados : []).filter(t => ahora - t < BLOQUEO_MIN * 60000);
+  if (previos.length >= INTENTOS_MAX) return { ok: false, bloqueado: true };
+  if (codigo && iguales(codigo, esperado)) return { ok: true };
+  await kvEscribir(llave, previos.concat(ahora));
+  return { ok: false };
+}
+
+async function disponibilidadEvento(evento, ev) {
+  const { rows } = await sql`SELECT servicio, horario FROM evento_citas
+    WHERE evento = ${evento} AND horario IS NOT NULL`;
+  const ocupados = new Set(rows.map(r => r.servicio + ' ' + r.horario));
+  const servicios = {};
+  for (const [s, conf] of Object.entries(ev.servicios)) {
+    if (!conf.horarios) continue;
+    servicios[s] = conf.horarios.map(h => ({ hora: h, libre: !ocupados.has(s + ' ' + h) }));
+  }
+  return { servicios };
+}
+
+async function manejarRegistrosEvento(req, res) {
+  try {
+    await ensureRegistrosTable();
+  } catch (err) {
+    return res.status(500).json({ error: 'No se pudo conectar a la base de datos.' });
+  }
+
+  if (req.method === 'POST') {
+    const b = req.body || {};
+    if (b.sitio) return res.status(200).json({ ok: true }); // campo trampa: solo lo llenan bots
+    const evento = typeof b.evento === 'string' ? b.evento : '';
+    const ev = EVENTOS[evento];
+    if (!ev) return res.status(400).json({ error: 'evento_invalido' });
+    const nombre = limitar(typeof b.nombre === 'string' ? b.nombre.trim() : '', 200);
+    if (!nombre) return res.status(400).json({ error: 'falta_nombre' });
+    const telefono = String(b.telefono || '').replace(/\D/g, '');
+    if (telefono.length < 10 || telefono.length > 15) return res.status(400).json({ error: 'telefono_invalido' });
+    const opciones = [...new Set(Array.isArray(b.opciones) ? b.opciones : [])].filter(o => ev.opciones.includes(o));
+    if (!opciones.length) return res.status(400).json({ error: 'faltan_opciones' });
+    const pedidos = b.horarios && typeof b.horarios === 'object' ? b.horarios : {};
+    for (const [s, conf] of Object.entries(ev.servicios)) {
+      if (conf.horarios && opciones.includes(s) && !conf.horarios.includes(pedidos[s])) {
+        return res.status(400).json({ error: 'falta_horario', servicio: s });
+      }
+    }
+
+    try {
+      // Primero los turnos (pueden chocar con otra persona); el registro se guarda al final
+      // para que nadie quede inscrito a un servicio sin su horario.
+      const ocupados = [];
+      for (const [s, conf] of Object.entries(ev.servicios)) {
+        const { rows } = await sql`SELECT horario FROM evento_citas
+          WHERE evento = ${evento} AND servicio = ${s} AND telefono = ${telefono}`;
+        const actual = rows[0];
+        if (!opciones.includes(s)) {
+          if (actual) await sql`DELETE FROM evento_citas WHERE evento = ${evento} AND servicio = ${s} AND telefono = ${telefono}`;
+          continue;
+        }
+        const horario = conf.horarios ? pedidos[s] : null;
+        if (actual && actual.horario === horario) continue;
+        try {
+          if (actual) {
+            await sql`UPDATE evento_citas SET horario = ${horario}
+              WHERE evento = ${evento} AND servicio = ${s} AND telefono = ${telefono}`;
+          } else {
+            await sql`INSERT INTO evento_citas (evento, servicio, telefono, horario)
+              VALUES (${evento}, ${s}, ${telefono}, ${horario})`;
+          }
+        } catch (err) {
+          if (!esChoqueDeHorario(err)) throw err;
+          ocupados.push(s);
+        }
+      }
+      if (ocupados.length) {
+        return res.status(409).json({ error: 'horario_ocupado', ocupados, ...(await disponibilidadEvento(evento, ev)) });
+      }
+
+      const { rows } = await sql`
+        INSERT INTO evento_registros (evento, nombre, telefono, opciones)
+        VALUES (${evento}, ${nombre}, ${telefono}, ${opciones.join(',')})
+        ON CONFLICT (evento, telefono) DO UPDATE
+          SET nombre = EXCLUDED.nombre, opciones = EXCLUDED.opciones, updated_at = now()
+        RETURNING (xmax = 0) AS nuevo
+      `;
+      return res.status(200).json({ ok: true, nuevo: rows[0].nuevo });
+    } catch (err) {
+      return res.status(500).json({ error: 'Error guardando el registro.' });
+    }
+  }
+
+  if (req.method === 'GET') {
+    const evento = (req.query.evento || '').toString();
+    const ev = EVENTOS[evento];
+    if (!ev) return res.status(400).json({ error: 'evento_invalido' });
+
+    if (req.query.disponibilidad) {
+      try {
+        return res.status(200).json(await disponibilidadEvento(evento, ev));
+      } catch (err) {
+        return res.status(500).json({ error: 'Error leyendo la disponibilidad.' });
+      }
+    }
+
+    let acceso;
+    try { acceso = await codigoEventoValido(req); }
+    catch (err) { return res.status(500).json({ error: 'No se pudo conectar a la base de datos.' }); }
+    if (acceso.bloqueado) return res.status(429).json({ error: 'demasiados_intentos' });
+    if (!acceso.ok) return res.status(401).json({ error: 'No autorizado.' });
+    try {
+      const registros = await sql`
+        SELECT id, created_at, updated_at, nombre, telefono, opciones
+        FROM evento_registros WHERE evento = ${evento} ORDER BY created_at ASC`;
+      const citas = await sql`
+        SELECT created_at, servicio, telefono, horario
+        FROM evento_citas WHERE evento = ${evento} ORDER BY created_at ASC`;
+      return res.status(200).json({ registros: registros.rows, citas: citas.rows });
+    } catch (err) {
+      return res.status(500).json({ error: 'Error leyendo los registros.' });
+    }
+  }
+
+  res.setHeader('Allow', 'GET, POST, OPTIONS');
+  return res.status(405).json({ error: 'Method not allowed' });
+}
+
 module.exports = async function handler(req, res) {
   // Los datos cambian por dispositivo en cualquier momento: nunca cachear
   // esta respuesta (ni en el browser ni en el edge de Vercel), o un refresh
@@ -518,7 +719,7 @@ module.exports = async function handler(req, res) {
   // (Vercel) — sin esto el navegador bloquea el fetch desde /davilada o el diagnóstico.
   res.setHeader('Access-Control-Allow-Origin', 'https://jefeshub.com');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Storage-Token, X-Leads-Token');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Storage-Token, X-Leads-Token, X-Evento-Codigo');
   if (req.method === 'OPTIONS') {
     return res.status(204).end();
   }
@@ -537,6 +738,10 @@ module.exports = async function handler(req, res) {
 
   if (key === 'adn-previo') {
     return manejarAdnPrevio(req, res);
+  }
+
+  if (key === 'registros-evento') {
+    return manejarRegistrosEvento(req, res);
   }
 
   try {

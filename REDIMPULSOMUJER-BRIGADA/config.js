@@ -1,59 +1,72 @@
 // ============================================================
 //  CONFIGURACIÓN DEL EVENTO
 //  Todo el contenido de la landing se edita aquí.
-//  (Los textos actuales son de EJEMPLO — los cambiamos juntas.)
 // ============================================================
 
 const EVENTO = {
-  marca: "Red Impulso Mujer MX",
-  nombre: "Brigada Impulso Mujer",
-  lema: "Un día para cuidarnos, aprender y crecer juntas",
-  fecha: "Sábado 00 de mes, 2026",
-  horario: "9:00 a 17:00 h",
-  lugar: "Lugar por confirmar",
-  direccion: "Dirección por confirmar",
+  marca: "Red Impulso Mujer",
+  nombre: "Brigada de Salud",
+  lema: "Una mañana para cuidar tu mente, tu cuerpo y tu salud. Octubre Rosa.",
+  fecha: "Por confirmar",
+  horario: "9:00 a. m. – 1:00 p. m.",
+  lugar: "Por confirmar",
+  direccion: "",
   mapaUrl: "", // link de Google Maps (opcional)
 
   descripcion:
-    "Texto de ejemplo: aquí va de qué trata la brigada, a quién va dirigida y por qué es importante asistir. Lo definimos juntas.",
+    "Te invitamos a una mañana dedicada a ti: pláticas de salud mental, un taller para recuperar el equilibrio, orientación sobre prevención del cáncer de mama y técnicas de autoexploración con la Secretaría de Salud. Además, contaremos con examen de la vista, mastografías y sesiones de terapia emocional, todo gratis.",
 
-  // Cada actividad aparece como tarjeta y como opción en el registro.
-  // cupo: número de lugares (o null si no hay límite)
-  actividades: [
+  // Programa del día (se muestra como agenda)
+  programa: [
+    { hora: "9:00 a. m.", titulo: "Bienvenida" },
+    { hora: "9:00 – 9:15 a. m.", titulo: "Meditación" },
+    { hora: "9:15 – 10:00 a. m.", titulo: "Plática de salud mental", frase: "Mente en calma, vida en equilibrio", detalle: "Herramientas para cuidar mi salud mental." },
+    { hora: "10:00 – 11:00 a. m.", titulo: "Taller", frase: "Respira, suelta y vuelve a ti", detalle: "El poder de detenerte para recuperar el equilibrio." },
+    { hora: "11:00 – 11:20 a. m.", titulo: "Receso", pausa: true },
+    { hora: "11:20 a. m. – 12:00 p. m.", titulo: "Plática de orientación y prevención del cáncer de mama", frase: "Octubre Rosa: salud, prevención y esperanza" },
+    { hora: "12:00 – 12:20 p. m.", titulo: "Testimonio: Mary Quintero" },
+    { hora: "12:20 – 12:40 p. m.", titulo: "Taller de técnicas de autoexploración mamaria", detalle: "Secretaría de Salud" },
+    { hora: "12:40 – 12:55 p. m.", titulo: "Preguntas y respuestas" },
+    { hora: "12:55 p. m.", titulo: "Clausura" },
+  ],
+
+  // Opciones que la persona puede elegir al registrarse.
+  // conHorario: la persona elige un turno de 15 min (los turnos los define el servidor).
+  // Los ids deben coincidir con api/storage/[key].js (EVENTOS) en hub-jany.
+  opcionesRegistro: [
     {
-      id: "actividad-1",
-      titulo: "Actividad 1",
-      hora: "9:00 – 10:30",
-      descripcion: "Descripción breve de la actividad.",
-      cupo: 30,
+      id: "talleres",
+      titulo: "Pláticas y talleres",
+      descripcion: "Todo el programa de 9:00 a. m. a 1:00 p. m.",
     },
     {
-      id: "actividad-2",
-      titulo: "Actividad 2",
-      hora: "10:30 – 12:00",
-      descripcion: "Descripción breve de la actividad.",
-      cupo: 30,
+      id: "vista",
+      titulo: "Examen de la vista gratis",
+      descripcion: "Turnos de 15 minutos. Elige tu horario.",
+      conHorario: true,
     },
     {
-      id: "actividad-3",
-      titulo: "Actividad 3",
-      hora: "12:00 – 13:30",
-      descripcion: "Descripción breve de la actividad.",
-      cupo: null,
+      id: "mastografia",
+      titulo: "Mastografía",
+      descripcion: "Turnos de 15 minutos. Elige tu horario.",
+      conHorario: true,
     },
     {
-      id: "actividad-4",
-      titulo: "Actividad 4",
-      hora: "15:00 – 17:00",
-      descripcion: "Descripción breve de la actividad.",
-      cupo: 20,
+      id: "terapia",
+      titulo: "Sesión de terapia emocional",
+      descripcion: "Las primeras personas registradas recibirán cita en consultorio.",
     },
   ],
 
+  // Cuántas de las primeras registradas a terapia reciben cita (se resaltan en la vista privada)
+  terapiaCitas: 10,
+
   preguntasFrecuentes: [
-    { p: "¿Tiene costo?", r: "Respuesta por definir." },
-    { p: "¿Puedo registrarme a varias actividades?", r: "Sí, puedes elegir todas las que quieras mientras no se empalmen los horarios." },
-    { p: "¿Qué debo llevar?", r: "Respuesta por definir." },
+    { p: "¿Tiene costo?", r: "No, todas las actividades y servicios son gratuitos." },
+    { p: "¿Puedo registrarme a varias opciones?", r: "Sí, puedes elegir todas las que quieras. Para el examen de la vista y la mastografía eliges un horario de 15 minutos." },
+    { p: "¿Cómo funciona la terapia emocional?", r: "Te registras y, si estás entre las primeras personas, te contactaremos para darte cita en consultorio." },
+    { p: "¿Y si quiero cambiar mi horario?", r: "Vuelve a registrarte con el mismo teléfono y elige el nuevo horario; el anterior se libera." },
+    { p: "¿Puedo llevar a alguien?", r: "Sí, solo pídele que haga su propio registro para apartar su lugar." },
   ],
 
   contacto: {
@@ -63,7 +76,9 @@ const EVENTO = {
     facebook: "",
   },
 
-  // URL donde se guardan los registros (Google Sheets vía Apps Script).
-  // Mientras esté vacío, el formulario funciona en MODO PRUEBA y no envía nada.
-  formEndpoint: "",
+  // Dónde se guardan los registros (base de datos de jefeshub).
+  // Si se deja vacío, el formulario funciona en MODO PRUEBA y no envía nada.
+  // La lista se consulta y descarga en registros.html (pide el código).
+  formEndpoint: "https://agentes.jefeshub.com/api/storage/registros-evento",
+  eventoId: "brigada-salud-rim-2026",
 };
