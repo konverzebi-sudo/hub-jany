@@ -74,8 +74,10 @@ const EVENTO = {
   ],
 
   preguntasFrecuentes: [
+    { p: "¿Cómo me registro?", r: "Es gratis y toma 1 minuto: en la sección \"Regístrate gratis\" de esta página elige tus servicios y tu horario, y deja tu nombre y teléfono." },
+    { p: "¿Cuándo y dónde es?", r: "El martes 27 de octubre, de 9:00 a. m. a 1:00 p. m., en el Auditorio de la Facultad de Psicología." },
+    { p: "¿Qué servicios habrá?", r: "Examen de la vista, mastografía, sesiones de terapia emocional, y pláticas y talleres de salud mental y prevención del cáncer de mama. Puedes elegir todos los que quieras." },
     { p: "¿Tiene costo?", r: "No, todas las actividades y servicios son gratuitos." },
-    { p: "¿Puedo registrarme a varias opciones?", r: "Sí, puedes elegir todas las que quieras. El registro te va preguntando paso a paso a qué pláticas quieres ir y a qué hora quieres cada servicio." },
     { p: "¿Cómo funciona la terapia emocional?", r: "Son sesiones cada 30 minutos, con hasta 10 personas por horario. Elige el que mejor te acomode al registrarte." },
     { p: "¿Y si quiero cambiar mi horario?", r: "Vuelve a registrarte con el mismo teléfono y elige el nuevo horario; el anterior se libera." },
     { p: "¿Puedo llevar a alguien?", r: "Sí, solo pídele que haga su propio registro para apartar su lugar." },
