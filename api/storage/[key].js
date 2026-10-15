@@ -536,7 +536,9 @@ function horariosCada(desde, hasta, min) {
 // (evento_citas); `cupo` = cuántas personas caben en cada horario.
 const EVENTOS = {
   'brigada-salud-rim-2026': {
-    opciones: ['talleres', 'vista', 'mastografia', 'terapia'],
+    // talleres + a cuáles pláticas/talleres va (platica-*, taller-*), y los servicios con horario
+    opciones: ['talleres', 'platica-mental', 'taller-respira', 'platica-mama', 'taller-autoexploracion',
+      'vista', 'mastografia', 'terapia'],
     servicios: {
       vista: { horarios: horariosCada('09:00', '13:00', 15), cupo: 1 },
       mastografia: { horarios: horariosCada('09:00', '13:00', 15), cupo: 1 },
