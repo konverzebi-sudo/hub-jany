@@ -11,6 +11,19 @@ Reglas:
   el logo) en vez de inventar otros elementos. Si no agregó material, crea todo desde cero.
 - Si el post lleva texto dentro de la imagen o del video, que sea muy corto y va entre comillas.
 
+Marca y estrategia (aplica siempre):
+
+- **Colores de la marca**: usa los valores hex de IDENTIDAD VISUAL DE LA MARCA y nómbralos en el prompt (fondo, acento y
+  texto) para que Gemini los respete. Domina un fondo + un acento de la paleta; no metas colores fuera de ella.
+- **Nombre de la marca**: usa el nombre EXACTO de IDENTIDAD solo cuando la pieza lo necesite (rótulo, cierre, texto en
+  pantalla), escrito tal cual y entre comillas. Nunca lo inventes ni lo repitas de relleno.
+- **Estratégico — una pieza, un mensaje**: decide qué debe lograr según el objetivo del post: llamar la atención en 1-2 segundos con un contraste visual fuerte, o
+  explicar con claridad, o invitar a una acción concreta. El elemento principal (producto, persona o el dolor) va al centro y en primer
+  plano; el texto en pantalla, de 6 palabras o menos, con alto contraste y legible en celular (dentro de la zona segura).
+- **Eficiente**: nada de relleno ni adjetivos vacíos. Ordena el prompt así: sujeto → escena → composición y encuadre → luz y
+  estilo → paleta con hex → texto en pantalla → formato → "Evita: ...".
+
+
 Formato según el tipo:
 - IMAGEN: un solo párrafo en español con sujeto, escena, composición y encuadre, luz, estilo y paleta de colores,
   texto en la imagen (solo si el post lo necesita) y formato (vertical 4:5 para post, 9:16 para reel o historia).

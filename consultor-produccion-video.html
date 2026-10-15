@@ -71,6 +71,9 @@
   .px-confirm{flex:1 1 100%;display:flex;flex-direction:column;gap:10px;background:var(--surface);border:1.5px solid var(--accent);border-radius:16px;padding:14px 16px;}
   .px-confirm-t{font-size:14.5px;line-height:1.45;}
   .px-confirm-txt{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font:500 15px 'Inter',sans-serif;line-height:1.5;resize:vertical;outline:none;color:var(--text);}
+  .px-confirm-sub{font-weight:700;margin-top:2px;}
+  .px-confirm-sub span{font-weight:500;color:var(--text-dim);}
+  .px-confirm-cambios{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:8px 12px;font:500 14.5px 'Inter',sans-serif;resize:vertical;outline:none;color:var(--text);}
   .px-confirm-btns{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   .px-btn-ok{background:var(--accent);border-color:var(--accent);color:#1A1A1A;}
   .px-prox{max-width:1100px;margin:0 auto 28px;}
@@ -738,47 +741,56 @@ function textoVideoPx(titulo, prompt){
 // del post y se muestra para confirmar: al confirmar se guarda en el post y (imagen) se crea la imagen.
 function usarPromptPx(tipo){
   const r = itemPx(); if (!r) return;
-  const titulo = r.gancho || 'mi post';
   const guardado = tipo === 'imagen' ? r.promptImagen : r.promptVideo;
-  if (guardado) {
-    confirmPx = null; pintarTrabajoPx();
-    if (tipo === 'imagen') { setModo('imagen'); const el = $('chat-input'); el.value = guardado; autoAlto(); el.focus(); }
-    else { setModo('guia'); const el = $('chat-input'); el.value = textoVideoPx(titulo, guardado); autoAlto(); el.focus(); }
-    return;
-  }
+  if (guardado) { confirmPx = { tipo, estado: 'listo', texto: guardado, existente: true, cambios: '', error: '' }; pintarTrabajoPx(); return; }
   crearPromptPx(tipo);
 }
 
 // ─── PROMPT CREADO CON IA PARA CONFIRMAR ───────────────────────────────────────────────────────
-let confirmPx = null; // { tipo, estado:'cargando'|'listo'|'error', texto, error }
+let confirmPx = null; // { tipo, estado:'cargando'|'listo'|'error', texto, existente, cambios, error }
 function confirmarPxHtml(){
   if (!confirmPx) return '';
   const nombre = confirmPx.tipo === 'imagen' ? 'imagen' : 'video';
-  if (confirmPx.estado === 'cargando') return `<div class="px-confirm"><div class="px-confirm-t">⏳ Armando el prompt de ${nombre} con la información de tu publicación…</div></div>`;
+  if (confirmPx.estado === 'cargando') return `<div class="px-confirm"><div class="px-confirm-t">⏳ ${confirmPx.actualizando ? 'Actualizando' : 'Armando'} el prompt de ${nombre}…</div></div>`;
   if (confirmPx.estado === 'error') return `<div class="px-confirm"><div class="px-confirm-t">⚠️ ${escHtml(confirmPx.error)}</div>
     <div class="px-confirm-btns"><button type="button" class="px-btn" data-pxc="otro">↻ Intentar de nuevo</button><button type="button" class="link-btn" data-pxc="cancelar">Cancelar</button></div></div>`;
+  const titulo = confirmPx.existente
+    ? `Este es el prompt de ${nombre} de tu publicación, listo para copiar y pegar en Gemini. Úsalo tal cual, edítalo, o actualízalo / rehazlo con IA.`
+    : `Armé este prompt de ${nombre} con lo que ya tiene tu publicación, tus colores y el nombre de tu marca. Está listo para copiar y pegar en Gemini: revísalo (puedes editarlo) y confírmalo.`;
   return `<div class="px-confirm">
-    <div class="px-confirm-t">Este es el prompt de ${nombre} que armé con lo que ya tiene tu publicación. Revísalo (puedes editarlo) y, si te gusta, confírmalo: ${confirmPx.tipo === 'imagen' ? 'se guarda en la publicación y creo la imagen.' : 'se guarda en la publicación y lo dejo en el buscador para afinarlo.'}</div>
+    <div class="px-confirm-t">${titulo}</div>
     <textarea class="px-confirm-txt" rows="6">${escHtml(confirmPx.texto)}</textarea>
+    <div class="px-confirm-t px-confirm-sub">¿Qué quieres cambiar? <span>(opcional — escríbelo y lo ajusto; vacío = otra versión mejorada)</span></div>
+    <textarea class="px-confirm-cambios" rows="2" placeholder="Ej. más luz, que salga mi producto, otro estilo, más corto…">${escHtml(confirmPx.cambios || '')}</textarea>
     <div class="px-confirm-btns">
       <button type="button" class="px-btn px-btn-ok" data-pxc="ok">${confirmPx.tipo === 'imagen' ? '✅ Confirmar y crear imagen' : '✅ Confirmar y guardar'}</button>
-      <button type="button" class="px-btn" data-pxc="otro">↻ Otro prompt</button>
+      <button type="button" class="px-btn" data-pxc="copiar">📋 Copiar para Gemini</button>
+      <button type="button" class="px-btn" data-pxc="actualizar">✏️ Actualizar prompt</button>
+      <button type="button" class="px-btn" data-pxc="otro">🔄 Rehacer desde cero</button>
       <button type="button" class="link-btn" data-pxc="cancelar">Cancelar</button>
     </div></div>`;
 }
 function enlazarConfirmarPx(box){
   const ta = box.querySelector('.px-confirm-txt');
   if (ta) ta.addEventListener('input', () => { confirmPx.texto = ta.value; });
+  const cb = box.querySelector('.px-confirm-cambios');
+  if (cb) cb.addEventListener('input', () => { confirmPx.cambios = cb.value; });
   box.querySelectorAll('[data-pxc]').forEach((b) => b.addEventListener('click', () => {
     const a = b.dataset.pxc;
     if (a === 'cancelar') { confirmPx = null; pintarTrabajoPx(); }
     else if (a === 'otro') crearPromptPx(confirmPx ? confirmPx.tipo : 'imagen');
+    else if (a === 'actualizar') crearPromptPx(confirmPx.tipo, { actual: confirmPx.texto, cambios: confirmPx.cambios });
+    else if (a === 'copiar') {
+      const antes = b.textContent;
+      navigator.clipboard.writeText(confirmPx.texto || '').then(() => { b.textContent = '✅ Copiado — pégalo en Gemini'; setTimeout(() => { b.textContent = antes; }, 1800); });
+    }
     else if (a === 'ok') confirmarPromptPx();
   }));
 }
-async function crearPromptPx(tipo){
+async function crearPromptPx(tipo, opts){
   const r = itemPx(); if (!r) return;
-  confirmPx = { tipo, estado: 'cargando', texto: '', error: '' }; pintarTrabajoPx();
+  const actual = (opts && opts.actual) || '', cambios = (opts && opts.cambios) || '';
+  confirmPx = { tipo, estado: 'cargando', texto: '', cambios, actualizando: !!actual, error: '' }; pintarTrabajoPx();
   try {
     let res, texto = '';
     if (trabajoPx.tab === 'campanas') {
@@ -790,6 +802,7 @@ async function crearPromptPx(tipo){
           card: { titulo: c.titulo, hook: c.hook, etapa: c.etapa, formato: c.formato, objetivo: c.objetivo, angulo: c.angulo, audiencia: c.audiencia,
             copy_publicacion: c.copy_publicacion, visual_sugerido: c.visual_sugerido, duracion_sugerida: c.duracion_sugerida,
             cta_boton: c.cta_boton, link_destino: c.link_destino, retroalimentacion: c.retroalimentacion, guion: c.guion },
+          texto: cambios, prompt_actual: actual,
         }),
       });
     } else {
@@ -798,7 +811,7 @@ async function crearPromptPx(tipo){
         body: JSON.stringify({
           cliente: CLIENTE_ID, modo: 'prompt-medio', tipo,
           post: { gancho: r.gancho, formato: r.formato, caption: r.caption, guion: r.guion, notas: r.notas },
-          texto: '', imagenes: [],
+          texto: cambios, prompt_actual: actual, imagenes: [],
         }),
       });
     }
@@ -808,9 +821,9 @@ async function crearPromptPx(tipo){
       ? ((data.pieza && (tipo === 'imagen' ? data.pieza.prompt_imagen : data.pieza.prompt_video)) || '')
       : (data.text || '');
     if (!texto.trim()) throw new Error('La IA no devolvió el prompt. Intenta de nuevo.');
-    confirmPx = { tipo, estado: 'listo', texto: texto.trim(), error: '' };
+    confirmPx = { tipo, estado: 'listo', texto: texto.trim(), existente: false, cambios: '', error: '' };
   } catch (err) {
-    confirmPx = { tipo, estado: 'error', texto: '', error: err.message || 'No se pudo armar el prompt.' };
+    confirmPx = { tipo, estado: 'error', texto: '', cambios, error: err.message || 'No se pudo armar el prompt.' };
   }
   pintarTrabajoPx();
 }
