@@ -36,7 +36,13 @@
 
   // Contacto y lugar
   const c = E.contacto, links = [];
-  if (c.whatsapp) links.push(`<a href="https://wa.me/${esc(c.whatsapp)}" target="_blank" rel="noopener">WhatsApp</a>`);
+  if (c.whatsapp) {
+    // Botón flotante, el de "¿Tienes dudas?" y el del pie: abren WhatsApp con el mensaje ya escrito
+    const wa = `https://wa.me/${c.whatsapp}?text=${encodeURIComponent(c.whatsappMensaje || "")}`;
+    document.querySelectorAll("[data-whatsapp]").forEach((a) => { a.href = wa; a.hidden = false; });
+    $("#dudas").hidden = false;
+    links.push(`<a href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a>`);
+  }
   if (c.email) links.push(`<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>`);
   if (c.instagram) links.push(`<a href="${esc(c.instagram)}" target="_blank" rel="noopener">Instagram</a>`);
   if (c.facebook) links.push(`<a href="${esc(c.facebook)}" target="_blank" rel="noopener">Facebook</a>`);

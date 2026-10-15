@@ -82,7 +82,8 @@ const EVENTO = {
   ],
 
   contacto: {
-    whatsapp: "", // ej. "5215512345678"
+    whatsapp: "528444192374", // 52 + 10 dígitos
+    whatsappMensaje: "Hola, estoy interesada en la Brigada de Salud y tengo una duda: ",
     email: "",
     instagram: "",
     facebook: "",
