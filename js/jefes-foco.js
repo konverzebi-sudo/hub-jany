@@ -6,7 +6,10 @@
    Las opciones salen del Catalogo del ADN (llave "<hub>:catalogo-productos", la misma de la que
    ya leen Anuncios, Temporada y 366: el id del catalogo es el producto_id). Nada de marca va
    escrito aqui. El foco elegido se recuerda por navegador y por hub (localStorage), asi que es
-   el mismo en todas las paginas de Jefes de ese hub. */
+   el mismo en todas las paginas de Jefes de ese hub.
+   OPCIONAL: una pagina puede declarar window.__focoConfig = { grupos: true } ANTES de cargar este
+   script para que cada grupo de negocio tambien se pueda elegir completo ("Todo el grupo: X", id
+   'g:<grupo_id>'). Sin esa bandera el comportamiento es el de siempre (solo ecosistema o producto). */
 (function () {
   'use strict';
   var slot = document.getElementById('foco-slot');
@@ -17,7 +20,8 @@
   var TODO = 'all';
   var lista = [];
   var grupos = [];
-  var actual = { id: TODO, nombre: '', item: null };
+  var conGrupos = !!(window.__focoConfig && window.__focoConfig.grupos);
+  var actual = { id: TODO, nombre: '', item: null, grupo: null };
   var oyentes = [];
 
   // ---------- estilos (piel blanca, mismos tokens que el resto de los Jefes) ----------
@@ -56,12 +60,29 @@
     for (var i = 0; i < lista.length; i++) if (lista[i].id === id) return lista[i];
     return null;
   }
+  function buscarGrupo(id) {
+    for (var i = 0; i < grupos.length; i++) if (grupos[i] && grupos[i].id === id) return grupos[i];
+    return null;
+  }
   function aplicar(id) {
+    var grupo = conGrupos && typeof id === 'string' && id.indexOf('g:') === 0 ? buscarGrupo(id.slice(2)) : null;
+    if (grupo) {
+      actual = { id: id, nombre: String(grupo.nombre || '').trim(), item: null, grupo: grupo };
+      return;
+    }
     var item = id !== TODO ? buscar(id) : null;
-    actual = item ? { id: item.id, nombre: String(item.nombre || '').trim(), item: item } : { id: TODO, nombre: '', item: null };
+    actual = item
+      ? { id: item.id, nombre: String(item.nombre || '').trim(), item: item, grupo: null }
+      : { id: TODO, nombre: '', item: null, grupo: null };
   }
   function foco() {
-    return { id: actual.id, nombre: actual.nombre, item: actual.item, esTodo: actual.id === TODO };
+    return {
+      id: actual.id, nombre: actual.nombre, item: actual.item, esTodo: actual.id === TODO,
+      esGrupo: !!actual.grupo,
+      // atajos para quien trabaja con grupo_id / producto_id: ecosistema = ambos vacios
+      grupoId: actual.grupo ? actual.grupo.id : (actual.item ? (actual.item.grupo_id || '') : ''),
+      productoId: actual.item ? actual.item.id : ''
+    };
   }
   function avisar() {
     oyentes.slice().forEach(function (fn) { try { fn(foco()); } catch (e) {} });
@@ -134,7 +155,7 @@
 
   function pintar() {
     var especifico = actual.id !== TODO;
-    txt.textContent = especifico ? (actual.nombre || 'Producto') : 'Tu ecosistema completo';
+    txt.textContent = especifico ? (actual.grupo ? 'Grupo: ' : '') + (actual.nombre || 'Producto') : 'Tu ecosistema completo';
     pill.classList.toggle('on', especifico);
     pill.title = especifico
       ? 'Estás trabajando solo sobre: ' + (actual.nombre || 'este producto') + '. Clic para cambiar.'
@@ -158,6 +179,7 @@
       orden.forEach(function (gid) {
         var g = grupos.filter(function (x) { return x.id === gid; })[0];
         menu.appendChild(titulo(g && g.nombre ? g.nombre : (grupos.length ? 'Sin grupo' : 'Productos y servicios')));
+        if (conGrupos && g && g.nombre) menu.appendChild(opcion('g:' + g.id, 'Todo el grupo: ' + String(g.nombre).trim(), 'Todos los productos y servicios de este grupo'));
         porGrupo[gid].forEach(function (p) {
           menu.appendChild(opcion(p.id, String(p.nombre).trim(), p.tipo || '', precioTexto(p.precio)));
         });
