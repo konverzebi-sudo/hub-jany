@@ -2,6 +2,8 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
+  <!-- El servidor de registros solo acepta https: sin esto, en http no cargan horarios ni se envía el registro -->
+  <script>if (location.protocol === "http:" && location.hostname.endsWith("jefeshub.com")) location.replace("https:" + location.href.slice(5));</script>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="robots" content="noindex, nofollow" />
   <title>Registros | Brigada de Salud</title>
@@ -9,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=3" />
+  <link rel="stylesheet" href="styles.css?v=4" />
   <style>
     .panel { padding: 40px 0 72px; }
     .acceso { max-width: 380px; margin: 10vh auto 0; text-align: center; }
@@ -75,7 +77,7 @@
   </main>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  <script src="config.js?v=3"></script>
+  <script src="config.js?v=4"></script>
   <script>
   (function () {
     const E = EVENTO;
@@ -88,9 +90,14 @@
 
     const OPC = E.opcionesRegistro;
     const conHorario = OPC.filter((o) => o.conHorario);
-    const TERAPIA = "terapia";
+    const corto = (o) => {
+      const t = o.titulo.replace(" gratis", "").replace("Sesión de ", "");
+      return t.charAt(0).toUpperCase() + t.slice(1);
+    };
 
-    let codigo = "", personas = [], vista = "todas";
+    // personas: [{ nombre, telefono, opciones[], horario{servicio: "HH:MM"} }]
+    // agenda: { servicio: [{ hora, cupo }] } — los horarios y cupos vienen del servidor
+    let codigo = "", personas = [], agenda = {}, vista = "todas";
 
     const fecha = (iso) => new Date(iso).toLocaleString("es-MX", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
     const tel = (t) => t.length === 10 ? `${t.slice(0, 2)} ${t.slice(2, 6)} ${t.slice(6)}` : t;
@@ -99,43 +106,37 @@
       return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h >= 12 ? "p. m." : "a. m."}`;
     };
 
-    // Junta cada registro con sus turnos: { nombre, telefono, opciones[], horario{vista,...}, ordenTerapia }
     function combinar(registros, citas) {
       const porTel = {};
       citas.forEach((c) => { (porTel[c.telefono] ||= {})[c.servicio] = c; });
-      const lista = registros.map((r) => ({
+      return registros.map((r) => ({
         ...r,
         opciones: (r.opciones || "").split(",").filter(Boolean),
         horario: Object.fromEntries(Object.entries(porTel[r.telefono] || {}).map(([s, c]) => [s, c.horario])),
-        terapiaDesde: porTel[r.telefono]?.[TERAPIA]?.created_at,
       }));
-      lista.filter((p) => p.opciones.includes(TERAPIA) && p.terapiaDesde)
-        .sort((a, b) => new Date(a.terapiaDesde) - new Date(b.terapiaDesde))
-        .forEach((p, i) => { p.ordenTerapia = i + 1; });
-      return lista;
     }
 
     async function cargar() {
-      const r = await fetch(`${E.formEndpoint}?evento=${encodeURIComponent(E.eventoId)}`, {
-        headers: { "X-Evento-Codigo": codigo },
-      });
+      const base = `${E.formEndpoint}?evento=${encodeURIComponent(E.eventoId)}`;
+      const r = await fetch(base, { headers: { "X-Evento-Codigo": codigo } });
       if (r.status === 401) throw new Error("Código incorrecto.");
       if (r.status === 429) throw new Error("Demasiados intentos. Espera 15 minutos.");
       if (!r.ok) throw new Error("No se pudo cargar la lista. Intenta de nuevo.");
       const d = await r.json();
+      const disp = await fetch(base + "&disponibilidad=1").then((x) => x.json()).catch(() => ({}));
+      agenda = disp.servicios || {};
       personas = combinar(d.registros || [], d.citas || []);
       pintar();
     }
 
-    // Todos los turnos posibles de un servicio (9:00 a 12:45 cada 15 min), con quién lo tomó
+    // Cada horario de un servicio con las personas que lo tomaron
     function turnos(servicio) {
-      const out = [];
-      for (let t = 9 * 60; t < 13 * 60; t += 15) {
-        const h = `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
-        out.push({ hora: h, persona: personas.find((p) => p.horario[servicio] === h) });
-      }
-      return out;
+      return (agenda[servicio] || []).map((t) => ({
+        hora: t.hora, cupo: t.cupo,
+        personas: personas.filter((p) => p.horario[servicio] === t.hora),
+      }));
     }
+    const lugaresTotales = (servicio) => (agenda[servicio] || []).reduce((n, t) => n + t.cupo, 0);
 
     const coincide = (p, q) => !q || p.nombre.toLowerCase().includes(q) || (q.replace(/\D/g, "") && p.telefono.includes(q.replace(/\D/g, "")));
     const celTel = (p) => `<a href="https://wa.me/52${esc(p.telefono.slice(-10))}" target="_blank" rel="noopener">${esc(tel(p.telefono))}</a>`;
@@ -147,11 +148,11 @@
         `<div class="dato"><strong>${personas.length}</strong><span>Personas registradas</span></div>` +
         OPC.map((o) => {
           const n = personas.filter((p) => p.opciones.includes(o.id)).length;
-          const extra = o.conHorario ? ` <small>/ ${turnos(o.id).length}</small>` : "";
+          const extra = o.conHorario && agenda[o.id] ? ` <small>/ ${lugaresTotales(o.id)}</small>` : "";
           return `<div class="dato"><strong>${n}${extra}</strong><span>${esc(o.titulo)}</span></div>`;
         }).join("");
 
-      const pestañas = [["todas", "Todas"], ...conHorario.map((o) => [o.id, "Turnos " + o.titulo.replace(" gratis", "")]), [TERAPIA, "Terapia (orden)"]];
+      const pestañas = [["todas", "Todas"], ...conHorario.map((o) => [o.id, "Horarios " + corto(o)])];
       $("#tabs").innerHTML = pestañas.map(([id, t]) =>
         `<button class="tab" role="tab" data-tab="${id}" aria-selected="${vista === id}">${esc(t)}</button>`).join("");
 
@@ -161,20 +162,19 @@
         filas = personas.filter((p) => coincide(p, q)).map((p) => [
           personas.indexOf(p) + 1, esc(p.nombre), celTel(p),
           ...OPC.map((o) => !p.opciones.includes(o.id) ? "—"
-            : o.conHorario ? `<span class="si">${esc(hora12(p.horario[o.id] || "00:00"))}</span>`
-            : o.id === TERAPIA ? `<span class="si">#${p.ordenTerapia}</span>${p.ordenTerapia <= E.terapiaCitas ? '<span class="cita">Cita</span>' : ""}`
+            : o.conHorario ? `<span class="si">${p.horario[o.id] ? esc(hora12(p.horario[o.id])) : "Sí"}</span>`
             : '<span class="si">Sí</span>'),
           esc(fecha(p.created_at)),
         ]);
-      } else if (vista === TERAPIA) {
-        cab = ["Orden", "Nombre", "Teléfono", "Se registró"];
-        filas = personas.filter((p) => p.ordenTerapia && coincide(p, q))
-          .sort((a, b) => a.ordenTerapia - b.ordenTerapia)
-          .map((p) => [`#${p.ordenTerapia}${p.ordenTerapia <= E.terapiaCitas ? '<span class="cita">Cita</span>' : ""}`, esc(p.nombre), celTel(p), esc(fecha(p.terapiaDesde))]);
       } else {
         cab = ["Horario", "Nombre", "Teléfono"];
-        filas = turnos(vista).filter((t) => !q || (t.persona && coincide(t.persona, q)))
-          .map((t) => [esc(hora12(t.hora)), t.persona ? esc(t.persona.nombre) : '<span class="libre">Libre</span>', t.persona ? celTel(t.persona) : ""]);
+        filas = [];
+        turnos(vista).forEach((t) => {
+          const lista = t.personas.filter((p) => coincide(p, q));
+          const etiqueta = esc(hora12(t.hora)) + (t.cupo > 1 ? ` <small class="muted">(${t.personas.length}/${t.cupo})</small>` : "");
+          if (!lista.length && !q) filas.push([etiqueta, '<span class="libre">Libre</span>', ""]);
+          lista.forEach((p, i) => filas.push([i === 0 ? etiqueta : "", esc(p.nombre), celTel(p)]));
+        });
       }
 
       $("#cabecera").innerHTML = cab.map((c) => `<th>${esc(c)}</th>`).join("");
@@ -194,21 +194,20 @@
         const f = { "#": i + 1, Nombre: p.nombre, "Teléfono": p.telefono };
         OPC.forEach((o) => {
           f[o.titulo] = !p.opciones.includes(o.id) ? "No"
-            : o.conHorario ? hora12(p.horario[o.id] || "00:00")
-            : o.id === TERAPIA ? `Sí (#${p.ordenTerapia})` : "Sí";
+            : o.conHorario && p.horario[o.id] ? hora12(p.horario[o.id]) : "Sí";
         });
         f["Fecha de registro"] = new Date(p.created_at).toLocaleString("es-MX");
         return f;
       }), [5, 30, 14, ...OPC.map(() => 22), 22]);
 
-      conHorario.forEach((o) => agregar(o.titulo.replace(" gratis", ""), turnos(o.id).map((t) => ({
-        Horario: hora12(t.hora), Nombre: t.persona?.nombre || "Libre", "Teléfono": t.persona?.telefono || "",
-      })), [12, 30, 14]));
-
-      agregar("Terapia emocional", personas.filter((p) => p.ordenTerapia)
-        .sort((a, b) => a.ordenTerapia - b.ordenTerapia)
-        .map((p) => ({ Orden: p.ordenTerapia, Nombre: p.nombre, "Teléfono": p.telefono, "Cita en consultorio": p.ordenTerapia <= E.terapiaCitas ? "Sí" : "Lista de espera" })),
-        [8, 30, 14, 20]);
+      conHorario.forEach((o) => {
+        const filas = [];
+        turnos(o.id).forEach((t) => {
+          if (!t.personas.length) filas.push({ Horario: hora12(t.hora), Nombre: "Libre", "Teléfono": "" });
+          t.personas.forEach((p) => filas.push({ Horario: hora12(t.hora), Nombre: p.nombre, "Teléfono": p.telefono }));
+        });
+        agregar(corto(o), filas, [12, 30, 14]);
+      });
 
       XLSX.writeFile(libro, `registros-brigada-${new Date().toISOString().slice(0, 10)}.xlsx`);
     }

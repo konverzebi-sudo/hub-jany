@@ -31,7 +31,8 @@ const EVENTO = {
   ],
 
   // Opciones que la persona puede elegir al registrarse.
-  // conHorario: la persona elige un turno de 15 min (los turnos los define el servidor).
+  // conHorario: la persona elige un horario. Los horarios y el cupo de cada uno los define
+  // el servidor (vista y mastografía: cada 15 min, 1 persona; terapia: cada 30 min, 10 personas).
   // Los ids deben coincidir con api/storage/[key].js (EVENTOS) en hub-jany.
   opcionesRegistro: [
     {
@@ -54,17 +55,15 @@ const EVENTO = {
     {
       id: "terapia",
       titulo: "Sesión de terapia emocional",
-      descripcion: "Las primeras personas registradas recibirán cita en consultorio.",
+      descripcion: "Sesiones cada 30 minutos, hasta 10 personas por horario.",
+      conHorario: true,
     },
   ],
-
-  // Cuántas de las primeras registradas a terapia reciben cita (se resaltan en la vista privada)
-  terapiaCitas: 10,
 
   preguntasFrecuentes: [
     { p: "¿Tiene costo?", r: "No, todas las actividades y servicios son gratuitos." },
     { p: "¿Puedo registrarme a varias opciones?", r: "Sí, puedes elegir todas las que quieras. Para el examen de la vista y la mastografía eliges un horario de 15 minutos." },
-    { p: "¿Cómo funciona la terapia emocional?", r: "Te registras y, si estás entre las primeras personas, te contactaremos para darte cita en consultorio." },
+    { p: "¿Cómo funciona la terapia emocional?", r: "Son sesiones cada 30 minutos, con hasta 10 personas por horario. Elige el que mejor te acomode al registrarte." },
     { p: "¿Y si quiero cambiar mi horario?", r: "Vuelve a registrarte con el mismo teléfono y elige el nuevo horario; el anterior se libera." },
     { p: "¿Puedo llevar a alguien?", r: "Sí, solo pídele que haga su propio registro para apartar su lugar." },
   ],

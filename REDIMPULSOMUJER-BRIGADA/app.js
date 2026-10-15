@@ -50,19 +50,22 @@
         ? lista.map((t) => `
           <label class="turno">
             <input type="radio" name="horario-${esc(o.id)}" value="${esc(t.hora)}" ${t.libre ? "" : "disabled"} ${t.libre && t.hora === elegido ? "checked" : ""} />
-            <span>${esc(hora12(t.hora))}</span>
+            <span>${esc(hora12(t.hora))}${t.cupo > 1 ? `<small>${t.libre ? `${t.quedan} lugares` : "Lleno"}</small>` : ""}</span>
           </label>`).join("")
         : '<small class="muted">No se pudieron cargar los horarios. Recarga la página.</small>';
     });
   }
 
-  // Sin servidor (modo prueba) se muestran turnos de 9:00 a 12:45, todos libres.
+  // Sin servidor (modo prueba) se muestran horarios de 9:00 a 13:00, todos libres.
   function horariosDePrueba() {
-    const lista = [];
-    for (let t = 9 * 60; t < 13 * 60; t += 15) {
-      lista.push({ hora: `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`, libre: true });
-    }
-    return Object.fromEntries(conHorario.map((o) => [o.id, lista]));
+    const lista = (cada, cupo) => {
+      const out = [];
+      for (let t = 9 * 60; t < 13 * 60; t += cada) {
+        out.push({ hora: `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`, libre: true, quedan: cupo, cupo });
+      }
+      return out;
+    };
+    return Object.fromEntries(conHorario.map((o) => [o.id, o.id === "terapia" ? lista(30, 10) : lista(15, 1)]));
   }
 
   async function cargarHorarios() {
@@ -112,7 +115,8 @@
     const data = new FormData(form);
     const elegidas = data.getAll("opciones");
     const nombre = data.get("nombre").trim();
-    const telefono = data.get("telefono").replace(/\D/g, "");
+    // Siempre a 10 dígitos: "+52 55…" y "55…" deben ser la misma persona (no duplicar turnos)
+    const telefono = data.get("telefono").replace(/\D/g, "").replace(/^521?(?=\d{10}$)/, "");
     const horarios = {};
 
     if (!elegidas.length) return setMsg("Elige al menos una opción.", "error");
@@ -122,7 +126,7 @@
       if (!horarios[o.id]) return setMsg(`Elige tu horario para ${o.titulo.toLowerCase()}.`, "error");
     }
     if (!nombre) return setMsg("Por favor escribe tu nombre.", "error");
-    if (telefono.length < 10) return setMsg("Escribe tu teléfono a 10 dígitos.", "error");
+    if (telefono.length !== 10) return setMsg("Escribe tu teléfono a 10 dígitos.", "error");
 
     const registro = { evento: E.eventoId, nombre, telefono, opciones: elegidas, horarios, sitio: data.get("sitio") || "" };
     const resumen = elegidas.map((id) => titulo(id) + (horarios[id] ? ` (${hora12(horarios[id])})` : "")).join(", ");

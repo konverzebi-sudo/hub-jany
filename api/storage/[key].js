@@ -532,19 +532,21 @@ function horariosCada(desde, hasta, min) {
   return out;
 }
 
-// opciones: lo que se puede marcar. servicios: opciones que generan un turno en evento_citas;
-// con `horarios` la persona elige uno (un lugar por horario); con horarios null solo cuenta el
-// orden de llegada (ej. terapia: las primeras reciben cita en consultorio).
+// opciones: lo que se puede marcar. servicios: opciones en las que la persona elige un horario
+// (evento_citas); `cupo` = cuántas personas caben en cada horario.
 const EVENTOS = {
   'brigada-salud-rim-2026': {
     opciones: ['talleres', 'vista', 'mastografia', 'terapia'],
     servicios: {
-      vista: { horarios: horariosCada('09:00', '13:00', 15) },
-      mastografia: { horarios: horariosCada('09:00', '13:00', 15) },
-      terapia: { horarios: null },
+      vista: { horarios: horariosCada('09:00', '13:00', 15), cupo: 1 },
+      mastografia: { horarios: horariosCada('09:00', '13:00', 15), cupo: 1 },
+      terapia: { horarios: horariosCada('09:00', '13:00', 30), cupo: 10 },
     },
   },
 };
+
+// Mismo número con o sin lada de país ("52", "521") = misma persona.
+const telefonoMx = (v) => String(v || '').replace(/\D/g, '').replace(/^521?(?=\d{10}$)/, '');
 
 let registrosTablaLista = null;
 function ensureRegistrosTable() {
@@ -560,8 +562,8 @@ function ensureRegistrosTable() {
         opciones TEXT NOT NULL DEFAULT '',
         UNIQUE (evento, telefono)
       )`;
-      // Un turno por persona y servicio, y un lugar por horario. Los turnos sin horario
-      // (NULL) no chocan entre sí: Postgres no considera iguales dos NULL.
+      // Un turno por persona y servicio. Cada horario tiene `cupo` lugares numerados (1..cupo):
+      // la base de datos misma impide que dos personas tomen el mismo lugar.
       await sql`CREATE TABLE IF NOT EXISTS evento_citas (
         id SERIAL PRIMARY KEY,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -569,9 +571,15 @@ function ensureRegistrosTable() {
         servicio TEXT NOT NULL,
         telefono TEXT NOT NULL,
         horario TEXT,
-        UNIQUE (evento, servicio, telefono),
-        UNIQUE (evento, servicio, horario)
+        lugar INT NOT NULL DEFAULT 1,
+        UNIQUE (evento, servicio, telefono)
       )`;
+      // La primera versión (un lugar por horario) creó UNIQUE (evento, servicio, horario);
+      // se cambia por (evento, servicio, horario, lugar) para permitir cupo > 1.
+      await sql`ALTER TABLE evento_citas ADD COLUMN IF NOT EXISTS lugar INT NOT NULL DEFAULT 1`;
+      await sql`ALTER TABLE evento_citas DROP CONSTRAINT IF EXISTS evento_citas_evento_servicio_horario_key`;
+      await sql`CREATE UNIQUE INDEX IF NOT EXISTS uq_evento_citas_lugar
+        ON evento_citas (evento, servicio, horario, lugar)`;
     })().catch(err => { registrosTablaLista = null; throw err; });
   }
   return registrosTablaLista;
@@ -596,11 +604,14 @@ async function codigoEventoValido(req) {
 async function disponibilidadEvento(evento, ev) {
   const { rows } = await sql`SELECT servicio, horario FROM evento_citas
     WHERE evento = ${evento} AND horario IS NOT NULL`;
-  const ocupados = new Set(rows.map(r => r.servicio + ' ' + r.horario));
+  const usados = {};
+  rows.forEach(r => { const k = r.servicio + ' ' + r.horario; usados[k] = (usados[k] || 0) + 1; });
   const servicios = {};
   for (const [s, conf] of Object.entries(ev.servicios)) {
-    if (!conf.horarios) continue;
-    servicios[s] = conf.horarios.map(h => ({ hora: h, libre: !ocupados.has(s + ' ' + h) }));
+    servicios[s] = conf.horarios.map(h => {
+      const quedan = Math.max(0, conf.cupo - (usados[s + ' ' + h] || 0));
+      return { hora: h, libre: quedan > 0, quedan, cupo: conf.cupo };
+    });
   }
   return { servicios };
 }
@@ -620,13 +631,13 @@ async function manejarRegistrosEvento(req, res) {
     if (!ev) return res.status(400).json({ error: 'evento_invalido' });
     const nombre = limitar(typeof b.nombre === 'string' ? b.nombre.trim() : '', 200);
     if (!nombre) return res.status(400).json({ error: 'falta_nombre' });
-    const telefono = String(b.telefono || '').replace(/\D/g, '');
+    const telefono = telefonoMx(b.telefono);
     if (telefono.length < 10 || telefono.length > 15) return res.status(400).json({ error: 'telefono_invalido' });
     const opciones = [...new Set(Array.isArray(b.opciones) ? b.opciones : [])].filter(o => ev.opciones.includes(o));
     if (!opciones.length) return res.status(400).json({ error: 'faltan_opciones' });
     const pedidos = b.horarios && typeof b.horarios === 'object' ? b.horarios : {};
     for (const [s, conf] of Object.entries(ev.servicios)) {
-      if (conf.horarios && opciones.includes(s) && !conf.horarios.includes(pedidos[s])) {
+      if (opciones.includes(s) && !conf.horarios.includes(pedidos[s])) {
         return res.status(400).json({ error: 'falta_horario', servicio: s });
       }
     }
@@ -643,20 +654,25 @@ async function manejarRegistrosEvento(req, res) {
           if (actual) await sql`DELETE FROM evento_citas WHERE evento = ${evento} AND servicio = ${s} AND telefono = ${telefono}`;
           continue;
         }
-        const horario = conf.horarios ? pedidos[s] : null;
+        const horario = pedidos[s];
         if (actual && actual.horario === horario) continue;
-        try {
-          if (actual) {
-            await sql`UPDATE evento_citas SET horario = ${horario}
-              WHERE evento = ${evento} AND servicio = ${s} AND telefono = ${telefono}`;
-          } else {
-            await sql`INSERT INTO evento_citas (evento, servicio, telefono, horario)
-              VALUES (${evento}, ${s}, ${telefono}, ${horario})`;
+        // Se prueba cada lugar del horario hasta encontrar uno libre; si todos chocan, está lleno.
+        let tomado = false;
+        for (let lugar = 1; lugar <= conf.cupo && !tomado; lugar++) {
+          try {
+            if (actual) {
+              await sql`UPDATE evento_citas SET horario = ${horario}, lugar = ${lugar}
+                WHERE evento = ${evento} AND servicio = ${s} AND telefono = ${telefono}`;
+            } else {
+              await sql`INSERT INTO evento_citas (evento, servicio, telefono, horario, lugar)
+                VALUES (${evento}, ${s}, ${telefono}, ${horario}, ${lugar})`;
+            }
+            tomado = true;
+          } catch (err) {
+            if (!esChoqueDeHorario(err)) throw err;
           }
-        } catch (err) {
-          if (!esChoqueDeHorario(err)) throw err;
-          ocupados.push(s);
         }
+        if (!tomado) ocupados.push(s);
       }
       if (ocupados.length) {
         return res.status(409).json({ error: 'horario_ocupado', ocupados, ...(await disponibilidadEvento(evento, ev)) });
