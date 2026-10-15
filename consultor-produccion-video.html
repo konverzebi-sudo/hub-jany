@@ -66,6 +66,18 @@
   .px-trabajo-lbl{font-size:12.5px;font-weight:700;color:var(--accent-text);text-transform:uppercase;letter-spacing:.06em;}
   .px-trabajo-txt strong{font:800 16px 'Sora',sans-serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .px-trabajo-btns{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  /* El título abre/cierra las características de la publicación */
+  .px-titulo-btn{background:none;border:0;padding:0;margin:0;font:inherit;color:inherit;cursor:pointer;text-align:left;display:flex;flex-direction:column;align-items:flex-start;min-width:0;max-width:100%;}
+  .px-titulo-btn:hover strong{color:var(--accent-text);}
+  .px-titulo-btn:focus-visible{outline:2px solid var(--accent-text);outline-offset:4px;border-radius:8px;}
+  .px-ver{font-size:13px;font-weight:700;color:var(--accent-text);text-decoration:underline;}
+  .px-detalle{flex:1 1 100%;margin-top:4px;padding-top:12px;border-top:1px dashed var(--accent-text);display:flex;flex-direction:column;gap:12px;}
+  .px-chips{display:flex;flex-wrap:wrap;gap:8px;}
+  .px-chip{background:var(--surface);border:1px solid var(--line);border-radius:100px;padding:5px 12px;font-size:13.5px;font-weight:600;color:var(--text);}
+  .px-chip b{color:var(--accent-text);font-weight:800;margin-right:4px;}
+  .px-bloque{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px 14px;}
+  .px-bloque-t{display:block;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--accent-text);margin-bottom:3px;}
+  .px-bloque p{margin:0;font-size:15px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow-y:auto;}
   .px-btn{border:1.5px solid var(--text);background:var(--surface);color:var(--text);font:700 14px 'Sora',sans-serif;padding:8px 14px;border-radius:100px;cursor:pointer;transition:.15s;}
   .px-btn:hover{background:var(--text);color:var(--accent);}
   .px-prox{max-width:1100px;margin:0 auto 28px;}
@@ -658,6 +670,11 @@ const ESTADO_PX = {
 const MESES_PX = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 let contenidoPx = { contenido: [], historias: [] };
 let trabajoPx = null; // { tab, id }
+let detallePx = false; // ¿se ven las características de la publicación elegida?
+let catalogoPx = null; // productos del ADN (para mostrar el nombre del producto); null = aún sin cargar
+const FORMATO_PX = { reel: 'Reel', video: 'Video', carrusel: 'Carrusel', imagen: 'Imagen', historia: 'Historia' };
+const ETAPA_PX = { adquisicion: 'Adquisición', consideracion: 'Consideración', conversion: 'Conversión' };
+const RED_PX = { ig: 'Instagram', tt: 'TikTok', fb: 'Facebook', web: 'Web' };
 
 function estadoPx(r){ return ESTADO_PX[r.estado] ? r.estado : 'idea'; }
 function esNuevoPx(r){ return !!r.agregadoEn && (Date.now() - r.agregadoEn) < 24 * 60 * 60 * 1000; }
@@ -705,21 +722,60 @@ function itemPx(){
 }
 function elegirTrabajoPx(tab, id){
   trabajoPx = (trabajoPx && trabajoPx.id === id) ? null : { tab, id };
+  detallePx = false;
   pintarTrabajoPx(); pintarProximos();
+}
+async function cargarCatalogoPx(){
+  if (catalogoPx) return;
+  try {
+    const r = await window.storage.get(CLIENTE_ID + ':catalogo-productos');
+    const d = r && r.value ? JSON.parse(r.value) : [];
+    catalogoPx = Array.isArray(d) ? d : [];
+  } catch (e) { catalogoPx = []; }
+}
+// Características de la publicación: lo que tiene guardado en el Jefe de Contenido (solo se muestra lo que tenga).
+function detalleHtmlPx(r, tab){
+  const chips = [];
+  chips.push(['Formato', FORMATO_PX[r.formato || (tab === 'historias' ? 'historia' : 'reel')] || r.formato]);
+  chips.push(['Estado', ESTADO_PX[estadoPx(r)].txt]);
+  const cuando = [/^\d{4}-\d{2}-\d{2}$/.test(r.fecha || '') ? fechaCortaPx(r.fecha) : '', r.hora || ''].filter(Boolean).join(' · ');
+  if (cuando) chips.push(['Fecha', cuando]);
+  if (Array.isArray(r.redes) && r.redes.length) chips.push(['Redes', r.redes.map((k) => RED_PX[k] || k).join(', ')]);
+  if (r.etapa) chips.push(['Etapa', ETAPA_PX[r.etapa] || r.etapa]);
+  const prod = r.productoId && (catalogoPx || []).find((p) => p && p.id === r.productoId);
+  if (prod && prod.nombre) chips.push(['Producto', prod.nombre]);
+  const notas = (r.notas != null && r.notas !== '') ? r.notas : [r.instrucciones, r.recomendacion].filter(Boolean).join('\n\n');
+  const bloques = [
+    ['Título', r.gancho], ['Idea', r.ganchoIdea || r.descripcion], ['Caption', r.caption], ['Guion', r.guion],
+    ['Notas', notas], ['Prompt de imagen', r.promptImagen], ['Prompt de video', r.promptVideo],
+  ].filter(([, v]) => v && String(v).trim());
+  return `<div class="px-detalle">
+    <div class="px-chips">${chips.map(([k, v]) => `<span class="px-chip"><b>${escHtml(k)}</b>${escHtml(v)}</span>`).join('')}</div>
+    ${bloques.map(([t, v]) => `<div class="px-bloque"><span class="px-bloque-t">${escHtml(t)}</span><p>${escHtml(v)}</p></div>`).join('')}
+  </div>`;
 }
 function pintarTrabajoPx(){
   const box = $('px-trabajo');
   const r = itemPx();
   if (!r) { box.hidden = true; box.innerHTML = ''; return; }
   box.hidden = false;
-  box.innerHTML = `<div class="px-trabajo-txt"><span class="px-trabajo-lbl">Trabajando en</span><strong>${escHtml(r.gancho || '(sin título)')}</strong></div>
+  box.innerHTML = `<div class="px-trabajo-txt"><span class="px-trabajo-lbl">Trabajando en</span>
+      <button type="button" class="px-titulo-btn" data-px="detalle" aria-expanded="${detallePx}" title="Ver las características de esta publicación">
+        <strong>${escHtml(r.gancho || '(sin título)')}</strong>
+        <span class="px-ver">${detallePx ? 'Ocultar características ▴' : 'Ver características ▾'}</span>
+      </button></div>
     <div class="px-trabajo-btns">
       <button type="button" class="px-btn" data-px="imagen">🖼️ Prompt de imagen</button>
       <button type="button" class="px-btn" data-px="video">🎬 Prompt de video</button>
       <button type="button" class="link-btn" data-px="quitar">Quitar</button>
-    </div>`;
-  box.querySelectorAll('[data-px]').forEach((b) => b.addEventListener('click', () => {
-    if (b.dataset.px === 'quitar') { trabajoPx = null; pintarTrabajoPx(); pintarProximos(); }
+    </div>${detallePx ? detalleHtmlPx(r, trabajoPx.tab) : ''}`;
+  box.querySelectorAll('[data-px]').forEach((b) => b.addEventListener('click', async () => {
+    if (b.dataset.px === 'quitar') { trabajoPx = null; detallePx = false; pintarTrabajoPx(); pintarProximos(); }
+    else if (b.dataset.px === 'detalle') {
+      detallePx = !detallePx;
+      if (detallePx) await cargarCatalogoPx();
+      pintarTrabajoPx();
+    }
     else usarPromptPx(b.dataset.px);
   }));
 }
