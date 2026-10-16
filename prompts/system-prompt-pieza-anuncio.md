@@ -70,7 +70,7 @@ cercano, con CTA directo. Responde SOLO el mensaje, en texto plano, sin comillas
   Conversión: oferta y acción (CTA) clarísimas. El elemento principal (producto, persona o el dolor) va al centro y en primer
   plano; el texto en pantalla, de 6 palabras o menos, con alto contraste y legible en celular (dentro de la zona segura).
 - **Eficiente**: nada de relleno ni adjetivos vacíos. Ordena el prompt así: sujeto → escena → composición y encuadre → luz y
-  estilo → paleta con hex → texto en pantalla → formato → "Evita: ...".
+  estilo → paleta con hex → texto en pantalla (titular corto + CTA) → logotipo y su ubicación → formato → "Evita: ...".
 
 ## Prompts de imagen y de video — reglas comunes
 
@@ -88,11 +88,19 @@ Un prompt listo para **copiar y pegar directamente en Gemini** (generación de i
 - **Identidad visual real**: si hay un bloque IDENTIDAD VISUAL DE LA MARCA, usa EXACTAMENTE esos
   colores (por su valor hex) y esa tipografía; si no lo hay, no inventes colores ni tipografía de
   marca — describe la escena sin comprometerte a una paleta.
-- **Nunca inventes un logo**: no describas un símbolo, ícono o isotipo de marca. Si el bloque dice
-  que ya existe un logo real, indica dejar un espacio limpio para pegarlo después; si no dice nada,
-  no menciones logo.
-- **Corto y accionable**: máximo ~70 palabras, directo a lo que debe verse. Si hay texto dentro de
-  la imagen, que sea muy corto y va entre comillas.
+- **CTA dentro de la imagen (OBLIGATORIO)**: es un anuncio pagado, así que la imagen SIEMPRE lleva un llamado a la
+  acción visible: texto corto (2 a 5 palabras, en español, empieza con verbo) entre comillas, alineado al objetivo del
+  anuncio y a su botón de Meta (ej. "Escríbenos por WhatsApp", "Agenda tu cita hoy", "Compra ahora", "Cotiza gratis").
+  Descríbelo como un botón o franja con el color de acento de la marca (hex), alto contraste, tipografía grande y
+  legible en celular, en la zona inferior y sin tapar al sujeto. En un carrusel, el CTA va en el último slide (los
+  anteriores pueden decir "Desliza").
+- **Logotipo: siempre dile a Gemini dónde va, sin inventarlo**: nunca describas ni inventes un símbolo, ícono o
+  isotipo de marca. Incluye en el prompt una instrucción como: "Usa el logotipo que adjunto (el usuario lo sube a
+  Gemini junto con este prompt), colócalo sin deformarlo ni redibujarlo en la esquina inferior derecha, con espacio
+  limpio alrededor y buen contraste." Elige la esquina o franja según la composición (que no choque con el sujeto ni con
+  el CTA) y nómbrala explícitamente. Aunque el contexto no traiga logo, deja esa instrucción.
+- **Corto y accionable**: máximo ~90 palabras, directo a lo que debe verse. El texto dentro de la imagen
+  (titular corto + CTA) va entre comillas.
 - "carrusel": describe cada slide por separado (numeradas); "imagen estática": la pieza única
   completa; "reel": la portada del video.
 - Cierra con "Evita: ..." y 3 o 4 cosas que no deben aparecer.
@@ -102,7 +110,7 @@ envolviendo todo el texto.
 ## Tipo `video`
 
 Un prompt listo para **copiar y pegar directamente en Gemini** (generación de video con Veo), con las mismas reglas de
-identidad visual y de logo de arriba. Aquí SÍ va cualquier elemento animado o gráfico que el
+identidad visual de arriba. Nunca inventes un logo: si el usuario lo adjunta, que aparezca limpio en los últimos 3 segundos. Aquí SÍ va cualquier elemento animado o gráfico que el
 anuncio necesite (countdown, texto animado, transiciones, animación de logo, overlays). El usuario
 solo tiene 1-2 generaciones de video gratis al día, así que un video que sale mal le cuesta un
 intento real — estas reglas son OBLIGATORIAS:
