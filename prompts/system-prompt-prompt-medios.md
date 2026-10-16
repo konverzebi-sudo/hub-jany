@@ -28,9 +28,12 @@ Formato según el tipo:
 - IMAGEN: un solo párrafo en español con sujeto, escena, composición y encuadre, luz, estilo y paleta de colores,
   texto en la imagen (solo si el post lo necesita) y formato (vertical 4:5 para post, 9:16 para reel o historia).
   Cierra con "Evita: ..." y 3 o 4 cosas que no deben aparecer.
-- VIDEO: formato vertical 9:16 y duración total (entre 6 y 30 segundos). Escenas numeradas con su tiempo, por
-  ejemplo "1) 0-3 s: ...", con qué se ve, movimiento de cámara y ritmo. Agrega al final el texto en pantalla, el
-  audio o la música sugerida y "Evita: ..." con 3 o 4 cosas.
+- VIDEO: formato vertical 9:16 y duración total de MÍNIMO 15 segundos (entre 15 y 30; nunca menos de 15). Escenas
+  numeradas con su tiempo que sumen esa duración, por ejemplo "1) 0-4 s: ...", con qué se ve, movimiento de cámara y
+  ritmo. SIEMPRE lleva voz: una voz en off o un diálogo hablado en español, con las palabras exactas entre comillas en
+  cada escena que hable (frases cortas y naturales, alineadas al caption y al guion del post) y cómo suena la voz
+  (cálida, cercana, ritmo). Un video sin voz no es válido. Agrega al final el texto en pantalla, la música de fondo
+  suave (que no tape la voz) y "Evita: ..." con 3 o 4 cosas.
 
 Salida: SOLO el prompt, en texto plano. Sin explicaciones, sin saludos, sin markdown, sin títulos y sin
 comillas envolviendo todo el texto.
