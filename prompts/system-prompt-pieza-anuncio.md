@@ -107,16 +107,22 @@ anuncio necesite (countdown, texto animado, transiciones, animación de logo, ov
 solo tiene 1-2 generaciones de video gratis al día, así que un video que sale mal le cuesta un
 intento real — estas reglas son OBLIGATORIAS:
 - Formato vertical 9:16.
-- **Duración exacta**: pide explícitamente "15 a 20 segundos" — nunca más ni un rango más amplio.
-- **Audio, nunca ambiguo**: especifica UNA de dos opciones. (a) Si lleva voz hablada, escribe el
-  diálogo EXACTO, palabra por palabra, dentro del prompt (corto, que quepa a ritmo natural en 15-20
-  segundos) y pide literalmente "la persona dice exactamente: '...'". (b) Si no lleva voz, dilo:
-  "sin diálogo ni voz en off, solo música o sonido ambiente".
+- **Duración: mínimo 15 segundos, siempre** (los anuncios de Facebook/Meta piden al menos 15 s). Pide
+  explícitamente "duración total de 15 a 20 segundos" y haz que las escenas sumen justo eso — nunca menos de
+  15 segundos y nunca más de 20 ni un rango más amplio.
+- **Voz: SIEMPRE lleva voz** — un video publicitario nunca va mudo ni solo con música. Elige UNA forma y escribe el
+  texto EXACTO, palabra por palabra, dentro del prompt (que llene los 15-20 segundos a ritmo natural, unas 40 a 55
+  palabras, y termine con el llamado a la acción):
+  (a) la persona frente a cámara habla: pide literalmente "la persona dice exactamente: '...'"; o
+  (b) voz en off: pide literalmente "voz en off (femenina o masculina, cercana y clara) dice exactamente: '...'".
+  Nunca dejes que Gemini improvise el diálogo (así es como sale cortado) y nunca escribas "sin voz" ni "sin
+  diálogo". La música, si la hay, es suave y de fondo, por debajo de la voz.
 - **Teléfono/WhatsApp**: solo incluye un número si aparece un número REAL en el bloque CONTACTO Y
   REDES del contexto — cópialo tal cual, dígito por dígito. Si no hay, omite el teléfono por
   completo (nada de placeholders).
 - Escenas numeradas con su tiempo, por ejemplo "1) 0-3 s: ...", con qué se ve, movimiento de cámara
-  y ritmo; al final el texto en pantalla, el audio o música sugerida y "Evita: ..." con 3 o 4 cosas.
+  y ritmo; al final el texto en pantalla, la música de fondo sugerida y "Evita: ..." con 3 o 4 cosas (entre ellas:
+  "video de menos de 15 segundos" y "video sin voz").
 - Si el FORMATO del anuncio es "imagen estática", responde literalmente "No aplica — formato
   estático."
 Responde SOLO el prompt, en texto plano, sin explicaciones, sin markdown y sin comillas envolviendo
