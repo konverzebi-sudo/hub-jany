@@ -160,7 +160,12 @@
     .t3-act-pasos b { flex: 0 0 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #111; display: flex; align-items: center; justify-content: center; font-family: Sora, sans-serif; font-size: 13px; }
     .t3-video-btn { display: inline-flex; align-items: center; gap: 8px; background: #111; color: #fff; border: 0; border-radius: 12px; padding: 12px 20px; font-family: Inter, sans-serif; font-weight: 700; font-size: 15px; cursor: pointer; }
     .t3-video-btn:hover { background: #2a2a2a; }
-    .t3-activo-res { margin-top: 16px; background: #F0FDF4; border: 1px solid #86EFAC; border-radius: 12px; padding: 14px 16px; font-size: 14.5px; line-height: 1.6; color: #14532D; }
+    .t3-activo-res { margin-top: 18px; min-height: 120px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; background: #FAFAFA; border: 2px dashed #D4D4D8; border-radius: 14px; padding: 18px 16px; }
+    .t3-activo-res.listo { background: #F0FDF4; border: 2px solid #86EFAC; color: #14532D; }
+    .t3-cuadro-hint { font-size: 13.5px; color: #A1A1AA; }
+    .t3-hecho-tit { font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+    .t3-hecho-msg { font-family: Sora, sans-serif; font-size: clamp(22px, 5vw, 30px); font-weight: 800; line-height: 1.2; }
+    .t3-hecho-sub { font-size: 12.5px; opacity: .75; }
     .t3-nota-producto { background: #FFFBEB; border: 1px solid #FCD34D; border-radius: 12px; padding: 10px 14px; margin: 0 0 14px; font-size: 13.5px; line-height: 1.55; color: #78350F; }
     .t3-aviso { background: #FFF7ED; border: 1px solid #FDBA74; border-radius: 12px; padding: 12px 14px; margin: 0 0 12px; font-size: 13.5px; line-height: 1.55; color: #7C2D12; }
     .t3-rev-h { font-family: Sora, sans-serif; font-size: 16px; margin: 0 0 4px; }
@@ -288,14 +293,13 @@
     body.t3-trabajo .hero-robot, body.t3-trabajo .hero-search:not(.en-chat), body.t3-trabajo .mostrar-todas-btn { display: none; }
     body.t3-trabajo header { padding-top: 84px; padding-bottom: 4px; }
     body.t3-trabajo .group-tabs { margin-bottom: 10px; }
-    /* letrero con el producto que se está trabajando (solo en modo trabajo) */
-    .t3-prod-activo { display: none; }
-    body.t3-trabajo .t3-prod-activo:not([hidden]) { display: block; width: fit-content; max-width: 92%; margin: 6px auto 0; padding: 9px 26px; border-radius: 99px; background: #0F0B3A; color: #fff; font-family: Inter, sans-serif; font-size: 17px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; line-height: 1.25; }
     body.t3-trabajo .t3-tl { --split: 34px; max-width: none; margin-top: 4px; }
     body.t3-trabajo .t3-tl::before { display: none; }
     /* los demás pasos quedan debajo de la tarjeta abierta, más chicos, y se pueden tocar para saltar a ellos */
     body.t3-trabajo .t3-row:not(.open) > div { order: 1; min-height: 0; padding-block: 7px; }
-    body.t3-trabajo .t3-row:not(.open) .t3-n { width: 38px; height: 38px; font-size: 14px; }
+    body.t3-trabajo .t3-row .t3-n { width: 44px; height: 44px; font-size: 16px; }
+    /* al pasar el cursor el número casi no crece, para que todos se vean del mismo tamaño y alineados */
+    body.t3-trabajo .t3-row:hover .t3-n { scale: 1.06; font-size: 16px; }
     body.t3-trabajo .t3-row:not(.open) .t3-btn { font-size: 16px; padding: 9px 16px; color: var(--text-dim); }
     body.t3-trabajo .t3-row.open .t3-btn { font-size: 20px; }
     .t3-volver { display: none; margin-left: 14px; background: transparent; border: 1px solid var(--line); border-radius: 9px; padding: 8px 14px; font-size: 13px; color: var(--text-dim); cursor: pointer; font-family: Inter, sans-serif; }
@@ -624,7 +628,6 @@
     </div>
   </div>
 
-  <div class="t3-prod-activo" id="t3-prod-activo" hidden></div>
 </header>
 
 <!-- ═══════════════════════════════════════════════ -->
@@ -824,17 +827,7 @@ async function cargarGruposNegocio() {
 /* Al abrir un paso en pantalla ancha: la sección sube hasta arriba y la pantalla se parte en dos --
    el chat de un lado (siempre a la vista) y la sección donde se trabaja del otro. Al cerrar el paso
    (o si se eligió Vista dividida a mano) todo vuelve a como estaba. */
-function actualizarProductoActivo366() {
-  const el = document.getElementById('t3-prod-activo');
-  if (!el) return;
-  const p = (typeof productosState !== 'undefined' && productosState[productoActivo]) || null;
-  const nombre = p ? ((p.nombre || '').trim() || ('Producto ' + (productoActivo + 1))) : '';
-  el.textContent = nombre;
-  el.hidden = !nombre;
-}
-
 function modoTrabajo366(on) {
-  actualizarProductoActivo366();
   const main = document.getElementById('publicidad-content');
   if (!main) return;
   const ancho = window.matchMedia('(min-width: 1000px)').matches;
@@ -867,21 +860,22 @@ function modoTrabajo366(on) {
 const VIDEO_INTRO_366 = ''; // cuando exista el video: '/video/jefe-366-intro.mp4' (archivo mp4) o un enlace para insertar (YouTube/Vimeo embed). Vacío = el popup solo explica qué es el Jefe 366.
 const ONB_KEY = 'jefeshub_366_onb_' + CLIENTE_ID;
 const MSG_ONB_BIENVENIDA = '¡Mucho gusto! 👋 Soy el Jefe 366.\n\nVamos a ir paso a paso, sin prisa: yo te hago una pregunta a la vez y tú me contestas con tus palabras.\n\nPrimero, una prueba rápida para comprobar que nos estamos comunicando: escríbeme cualquier cosa aquí abajo (por ejemplo, "hola") y dale Enviar.';
-const MSG_ONB_EXPLICA = '¡Te leí perfecto! ✅ Ya estamos conectados.\n\nAsí funciona esto:\n1. Tú y yo platicamos aquí, en el chat.\n2. Cuando algo quede bien, me escribes CONFIRMO JEFE y yo lo guardo solo en tu tablero: los cuadritos de la derecha, uno por cada paso numerado.\n3. Nada se guarda hasta que lo confirmes.\n\nHagamos la prueba de guardado con el paso 1. Escribe exactamente:\nACTIVO MI JEFE';
-const MSG_ONB_DIRECTO = '¡Mucho gusto! 👋 Soy el Jefe 366 y ya te leí: estamos conectados ✅.\n\nAsí funciona esto:\n1. Tú y yo platicamos aquí, en el chat.\n2. Cuando algo quede bien, me escribes CONFIRMO JEFE y yo lo guardo solo en tu tablero: los cuadritos de la derecha, uno por cada paso numerado.\n3. Nada se guarda hasta que lo confirmes.\n\nHagamos la prueba de guardado con el paso 1. Escribe exactamente:\nACTIVO MI JEFE';
-const MSG_ONB_RECUERDA = 'Para la prueba de guardado necesito que escribas exactamente:\nACTIVO MI JEFE\n\n(Puedes copiar y pegar esas tres palabras.)';
-const MSG_ONB_LISTO = '🎉 ¡Listo! Tu Jefe 366 quedó activado y guardado en el paso 1: míralo a la derecha, ya aparece con su palomita y mi respuesta automática.\n\nSigue el paso 2: tu producto o servicio. Escríbeme "seguimos" cuando quieras y arrancamos con el primero.';
+const MSG_ONB_EXPLICA = '¡Te leí perfecto! ✅ Ya estamos conectados.\n\nAsí funciona esto:\n1. Tú y yo platicamos aquí, en el chat.\n2. Lo que quede bien lo paso a tu tablero (los cuadros de la derecha, uno por cada paso numerado), pero solo cuando tú lo confirmas con la frase CONFIRMO JEFE.\n3. Nada se guarda hasta que lo confirmes.\n\nHagamos la prueba con el cuadro vacío del paso 1. El mensaje que voy a pasar ahí es:\n«Arranquemos Jefe»\n\nPara guardarlo, escribe exactamente:\nCONFIRMO JEFE';
+const MSG_ONB_DIRECTO = '¡Mucho gusto! 👋 Soy el Jefe 366 y ya te leí: estamos conectados ✅.\n\nAsí funciona esto:\n1. Tú y yo platicamos aquí, en el chat.\n2. Lo que quede bien lo paso a tu tablero (los cuadros de la derecha, uno por cada paso numerado), pero solo cuando tú lo confirmas con la frase CONFIRMO JEFE.\n3. Nada se guarda hasta que lo confirmes.\n\nHagamos la prueba con el cuadro vacío del paso 1. El mensaje que voy a pasar ahí es:\n«Arranquemos Jefe»\n\nPara guardarlo, escribe exactamente:\nCONFIRMO JEFE';
+const MSG_ONB_RECUERDA = 'Para la prueba de guardado necesito que escribas exactamente:\nCONFIRMO JEFE\n\n(Puedes copiar y pegar esas dos palabras.)';
+const MSG_ONB_LISTO = '🎉 ¡Hecho! Pasé «Arranquemos Jefe» al cuadro del paso 1: míralo a la derecha, ya aparece con su palomita.\n\nAsí funciona todo: yo preparo, tú confirmas con CONFIRMO JEFE y se guarda solo en su lugar.\n\nSigue el paso 2: tu producto o servicio. Escríbeme \"seguimos\" cuando quieras y arrancamos con el primero.';
 
 function leerOnb366() { try { return localStorage.getItem(ONB_KEY) || ''; } catch (e) { return ''; } }
 function guardarOnb366(v) { try { localStorage.setItem(ONB_KEY, v); } catch (e) {} }
 
 function esActivoMiJefe(texto) {
   const n = (texto || '').trim().toUpperCase().replace(/\s+/g, ' ').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  if (n === 'ACTIVO MI JEFE') return true;
-  if (n.length < 10 || n.length > 18) return false;
-  return distanciaEdicion(n, 'ACTIVO MI JEFE') <= 2;
+  return ['CONFIRMO JEFE', 'ACTIVO MI JEFE', 'ARRANQUEMOS JEFE'].some((frase) => {
+    if (n === frase) return true;
+    if (n.length < frase.length - 3 || n.length > frase.length + 3) return false;
+    return distanciaEdicion(n, frase) <= 2;
+  });
 }
-
 function abrirVideo366() {
   let modal = document.getElementById('t3-video-modal');
   if (!modal) {
@@ -1100,12 +1094,11 @@ function inicializarMapa366() {
       '<div class="q-actions"><button type="button" class="q-back">← Atrás</button><span class="q-sp"></span><button type="button" class="q-skip">Saltar</button><button type="button" class="ask-btn q-next">Siguiente →</button></div><div class="q-save"></div>';
     const body = q.querySelector('.q-body');
     if (p.tipo === 'texto') {
-      body.innerHTML = '<p class="q-help" style="margin:0 0 12px;font-size:16px;line-height:1.65;color:var(--text);">¡Mucho gusto! <strong>Soy el Jefe 366</strong> y me enfoco en que tu negocio venda los 366 días del año, no solo en campaña o en temporada.</p>' +
-        '<p class="q-help" style="margin:0 0 14px;font-size:15px;line-height:1.65;">Aquí te guío <strong>paso a paso</strong> para armar la estrategia de cada uno de tus productos o servicios. Yo te hago una pregunta a la vez en el chat, tú me contestas y, cuando algo quede bien, lo confirmas y se guarda solo en este tablero.</p>' +
-        '<div class="t3-act-pasos"><div><b>1</b> ' + (VIDEO_INTRO_366 ? 'Mira el video de introducción (30 segundos).' : 'Lee en 20 segundos qué es el Jefe 366.') + '</div><div><b>2</b> Escríbeme algo en el chat para comprobar que estamos conectados.</div><div><b>3</b> Escribe <strong>ACTIVO MI JEFE</strong> y quedará activado aquí mismo.</div></div>' +
-        '<button type="button" class="t3-video-btn" id="t3-ver-video">' + (VIDEO_INTRO_366 ? '▶ Ver video de introducción' : '▶ ¿Qué es el Jefe 366?') + '</button>' +
-        '<div class="t3-activo-res" id="t3-activo-res" hidden></div>';
-      body.querySelector('#t3-ver-video').onclick = () => abrirVideo366();    } else if (p.tipo === 'notas') {
+      body.innerHTML = '<p class="q-help" style="margin:0 0 12px;font-size:17px;line-height:1.65;color:var(--text);">¡Mucho gusto! <strong>Soy el Jefe 366</strong> y me enfoco en que tu negocio venda los 366 días del año, no solo en campaña o en temporada.</p>' +
+        '<p class="q-help" style="margin:0 0 14px;font-size:17px;line-height:1.5;color:var(--text);"><strong>¿Listo para comenzar? Haz click en el chat.</strong></p>' +
+        '<button type="button" class="t3-video-btn" id="t3-ir-chat">💬 Ir al chat</button>' +
+        '<div class="t3-activo-res" id="t3-activo-res"></div>';
+      body.querySelector('#t3-ir-chat').onclick = () => iniciarOnboarding366();    } else if (p.tipo === 'notas') {
       const det = document.getElementById(p.el);
       const notas = { producto: '📌 <strong>Esta ficha es solo para este producto o servicio.</strong> Aquí desarrollamos TODA la estrategia de ese producto. Arriba, en la pastilla, puedes cambiar de producto y llenar la ficha de cada uno de los productos y servicios que manejas.',
         perfil: '👤 <strong>Este cliente ideal es el del producto que tienes arriba, en la pastilla.</strong> Si manejas más productos o servicios, cambia de producto arriba y arma el cliente ideal de cada uno.' };
@@ -1354,17 +1347,15 @@ function inicializarMapa366() {
   function textoActivacion() {
     let t = null; try { t = JSON.parse(localStorage.getItem(ACTIVO_KEY) || 'null'); } catch (e) { t = null; }
     if (!t) return null;
-    const marca = txt(document.getElementById('brand-marca-label'));
-    const nombre = marca && marca !== '—' ? ', ' + marca : '';
     const fecha = new Date(t.ts).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' });
-    return '<strong>✅ Tu Jefe 366 está activo.</strong><br>Respuesta automática de tu Jefe: «¡Listo' + escaparHtmlBuilder(nombre) + '! Ya estamos conectados y esta ficha quedó guardada. A partir de aquí te voy guiando producto por producto: arriba, en la pastilla, eliges con cuál producto o servicio trabajamos y yo te hago una pregunta a la vez. Sigue el paso 2: Producto 366.»<br><span style="opacity:.7;font-size:12.5px;">Activado el ' + fecha + '.</span>';
+    return '<div class="t3-hecho-tit">✅ Hecho</div><div class="t3-hecho-msg">Arranquemos Jefe</div><div class="t3-hecho-sub">Confirmado desde el chat con CONFIRMO JEFE · ' + fecha + '</div>';
   }
   function pintarActivacion() {
     const caja = document.getElementById('t3-activo-res');
     if (!caja) return;
     const h = textoActivacion();
-    caja.hidden = !h;
-    if (h) caja.innerHTML = h;
+    caja.classList.toggle('listo', !!h);
+    caja.innerHTML = h || '<span class="t3-cuadro-hint">Aquí aparecerá lo que confirmes en el chat.</span>';
   }
   function activarJefe366() {
     try { localStorage.setItem(ACTIVO_KEY, JSON.stringify({ ts: Date.now() })); } catch (e) {}
@@ -1617,14 +1608,61 @@ function limpiarAvisoGrupo(statusId) {
   status.textContent = '';
 }
 
-/* ─── FOCO (pastilla de arriba: ecosistema completo / un grupo / un producto) ───
-   Es la misma pastilla de Finanzas, Anuncios y Temporada. Lo elegido manda en las 4 secciones del mapa:
+/* ─── FOCO (pastilla de arriba) ───
+   La pastilla de arriba y las pestañas de Producto 366 son lo mismo: al cambiar una, cambia la otra, y
+   las fichas de Tu cliente ideal, Sistema para vender y Comunicación muestran SOLO lo de ese producto
+   (también lo que dice y guarda el chat). Cada ficha se liga a su producto por un id (producto_uid), así
+   que renombrar un producto no la desconecta.
    - Ecosistema completo: se ven las fichas de todos tus productos.
-   - Un grupo: se activan las fichas de ese grupo (como antes con las pestañas de grupo).
-   - Un producto: se abre la ficha de ESE producto (si todavía no tiene, se crea con su nombre) y el
-     cliente ideal que lo menciona. Así se va producto por producto, llenando todas sus fichas. */
+   - Un grupo: se ven las fichas de ese grupo.
+   - Un producto: se abre su ficha (si todavía no tiene, se crea con su nombre) y cada sección abre la suya. */
+let focoProducto366 = ''; // id (uid) del producto elegido; '' = ecosistema completo o un grupo
+let sincronizandoFoco366 = false;
+let temporizadorPastilla366 = null;
+
 function normalizarNombre366(t) {
   return (t || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function uidProducto366(p) {
+  if (!p) return '';
+  if (!p.uid) p.uid = 'pr_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  return p.uid;
+}
+
+function lineasNorm366(t) {
+  return (t || '').toString().split(/\r?\n/).map(normalizarNombre366).filter(Boolean);
+}
+
+function perteneceAProducto366(item, tipo, uid, nombreNorm) {
+  if (!item) return false;
+  if (item.producto_uid && item.producto_uid === uid) return true;
+  if (tipo === 'perfil' && nombreNorm && lineasNorm366(item.producto_relacionado).indexOf(nombreNorm) !== -1) return true;
+  return false;
+}
+
+function productoFoco366() {
+  if (!focoProducto366 || typeof productosState === 'undefined') return null;
+  return productosState.find((p) => p && p.uid === focoProducto366) || null;
+}
+
+/* Índices de las fichas que se ven en una sección. Con un producto elegido solo salen las de ese producto;
+   si por cualquier razón no hay ninguna, se le arma una (nunca queda la barra de pestañas vacía). */
+function indicesDelFoco366(lista, tipo) {
+  if (!focoProducto366) return indicesDelGrupoActivo(lista);
+  const prod = productoFoco366();
+  if (!prod) { focoProducto366 = ''; return indicesDelGrupoActivo(lista); }
+  const n = normalizarNombre366(prod.nombre);
+  const propios = () => { const r = []; lista.forEach((p, i) => { if (perteneceAProducto366(p, tipo, focoProducto366, n)) r.push(i); }); return r; };
+  let r = propios();
+  if (!r.length) {
+    vincularFichasAProducto366(prod);
+    r = propios();
+    // se guarda un momento después, cuando ya se pintó la ficha nueva
+    clearTimeout(indicesDelFoco366._t);
+    indicesDelFoco366._t = setTimeout(() => { try { guardarPerfiles(); guardarSistemas(); guardarComunicaciones(); } catch (e) {} }, 900);
+  }
+  return r;
 }
 
 function capturarTodoDesdeDOM366() {
@@ -1638,18 +1676,19 @@ function repintarSecciones366() {
   renderEcTabs(); renderEcPanels();
 }
 
-function enfocarProducto366(f) {
+/* Deja abierta (o crea) la ficha de este producto en Producto 366. */
+function obtenerOCrearProducto366(f) {
   const nombre = (f.nombre || '').trim();
-  if (!nombre || typeof productosState === 'undefined') return;
+  if (!nombre) return null;
   const n = normalizarNombre366(nombre);
-  let creado = false;
   let idx = productosState.findIndex((p) => p && normalizarNombre366(p.nombre) === n);
+  let creado = false;
   if (idx === -1) {
     // reutiliza una ficha vacía sin nombre (típico de una cuenta nueva) antes de crear otra
-    idx = productosState.findIndex((p) => p && !normalizarNombre366(p.nombre) && !p.que_vendemos && (!p.grupo_id || p.grupo_id === f.grupoId));
+    idx = productosState.findIndex((p) => p && !normalizarNombre366(p.nombre) && !p.que_vendemos && (!p.grupo_id || !f.grupoId || p.grupo_id === f.grupoId));
     if (idx === -1) {
       const nuevo = PRODUCTO_TEMPLATE();
-      nuevo.grupo_id = f.grupoId || (grupoActivo && grupoActivo.id) || '';
+      nuevo.grupo_id = f.grupoId || '';
       productosState.push(nuevo);
       idx = productosState.length - 1;
     }
@@ -1658,35 +1697,125 @@ function enfocarProducto366(f) {
     creado = true;
   }
   productoActivo = idx;
-  renderEpTabs(); renderEpPanels();
-  // se guarda DESPUÉS de repintar: guardarProductos() lee lo que hay en pantalla y borraría el nombre recién puesto
-  if (creado) guardarProductos();
-  // el cliente ideal que dice venderle este producto
-  if (typeof perfilesState !== 'undefined') {
-    const pi = perfilesState.findIndex((p) => p && normalizarNombre366(p.producto_relacionado).includes(n));
-    if (pi !== -1) { perfilActivo = pi; renderEpcTabs(); renderEpcPanels(); }
-  }
+  return { prod: productosState[idx], creado };
+}
+
+/* Cada sección (cliente ideal, sistema, comunicación) abre la ficha de este producto: la que ya es suya,
+   o una sin dueño todavía (como se hacía con los grupos), o una nueva en blanco. Devuelve true si cambió algo. */
+function vincularFichasAProducto366(prod, opciones) {
+  const soloNuevas = !!(opciones && opciones.soloNuevas);
+  const uid = uidProducto366(prod);
+  const n = normalizarNombre366(prod.nombre);
+  let cambio = false;
+  const secciones = [
+    { tipo: 'perfil', lista: perfilesState, plantilla: PERFIL_TEMPLATE, activo: perfilActivo, activar: (i) => { perfilActivo = i; } },
+    { tipo: 'sistema', lista: sistemasState, plantilla: SISTEMA_TEMPLATE, activo: sistemaActivo, activar: (i) => { sistemaActivo = i; } },
+    { tipo: 'comunicacion', lista: comunicacionesState, plantilla: COMUNICACION_TEMPLATE, activo: comunicacionActivo, activar: (i) => { comunicacionActivo = i; } },
+  ];
+  secciones.forEach((sec) => {
+    const lista = sec.lista;
+    const propias = [];
+    lista.forEach((p, i) => { if (perteneceAProducto366(p, sec.tipo, uid, n)) propias.push(i); });
+    let idx;
+    if (propias.length) {
+      idx = propias.indexOf(sec.activo) !== -1 ? sec.activo : propias[0];
+    } else {
+      idx = soloNuevas ? -1 : lista.findIndex((p) => p && !p.producto_uid && !(sec.tipo === 'perfil' && lineasNorm366(p.producto_relacionado).length) && (!p.grupo_id || !prod.grupo_id || p.grupo_id === prod.grupo_id));
+      if (idx === -1) {
+        const nuevo = sec.plantilla();
+        nuevo.grupo_id = prod.grupo_id || '';
+        lista.push(nuevo);
+        idx = lista.length - 1;
+      }
+      lista[idx].producto_uid = uid;
+      if (sec.tipo === 'perfil' && !lineasNorm366(lista[idx].producto_relacionado).length) lista[idx].producto_relacionado = prod.nombre || '';
+      cambio = true;
+    }
+    sec.activar(idx);
+  });
+  return cambio;
+}
+
+/* Una ficha nueva (cliente ideal, sistema, comunicación) nace ya ligada al producto elegido. */
+function vincularNuevaFicha366(nuevo, tipo) {
+  if (!focoProducto366) { delete nuevo.producto_uid; return; }
+  const prod = productoFoco366();
+  nuevo.producto_uid = focoProducto366;
+  if (tipo === 'perfil' && prod) nuevo.producto_relacionado = prod.nombre || '';
+}
+
+function guardarFichasDeProducto366() {
+  try { guardarProductos(); guardarPerfiles(); guardarSistemas(); guardarComunicaciones(); } catch (e) {}
+}
+
+/* La pastilla de arriba siempre muestra el producto abierto abajo. */
+function sincronizarPastilla366() {
+  const foco = window.__foco;
+  if (!foco) return;
+  const prod = productoFoco366();
+  if (!prod) return;
+  const n = normalizarNombre366(prod.nombre);
+  sincronizandoFoco366 = true;
+  try {
+    // las ofertas de Producto 366 (nuevas o renombradas) también aparecen en la lista de la pastilla
+    if (foco.registrarOfertas366) foco.registrarOfertas366(productosState.filter((p) => p && normalizarNombre366(p.nombre)).map((p) => ({ nombre: p.nombre, grupo_id: p.grupo_id, que_vendemos: p.que_vendemos })));
+    if (!n) { if (foco.etiqueta) foco.etiqueta('Producto sin nombre'); }
+    else {
+      const it = foco.lista().find((x) => normalizarNombre366(x.nombre) === n);
+      if (it) foco.set(it.id);
+    }
+  } catch (e) {}
+  sincronizandoFoco366 = false;
+}
+
+/* Al darle clic a una pestaña de Producto 366: cambia el producto en todas las secciones y en la pastilla. */
+function cambiarProductoDesdeTab366(i) {
+  capturarTodoDesdeDOM366();
+  const prod = productosState[i];
+  if (!prod) return;
+  const teniaUid = !!prod.uid;
+  productoActivo = i;
+  focoProducto366 = uidProducto366(prod);
+  const cambio = vincularFichasAProducto366(prod);
+  repintarSecciones366();
+  if (cambio || !teniaUid) guardarFichasDeProducto366();
+  sincronizarPastilla366();
 }
 
 function aplicarFoco366(f) {
   capturarTodoDesdeDOM366();
   if (!f || f.esTodo) {
+    focoProducto366 = '';
     mostrarTodasLasPestanas = true;
     repintarSecciones366();
     return;
   }
-  mostrarTodasLasPestanas = false;
-  const gi = f.grupoId ? gruposNegocioState.findIndex((g) => g.id === f.grupoId) : -1;
-  if (gi >= 0) switchGroup(gruposNegocioState, gi);
-  else repintarSecciones366();
-  if (!f.esGrupo) enfocarProducto366(f);
+  if (f.esGrupo) {
+    focoProducto366 = '';
+    mostrarTodasLasPestanas = false;
+    const gi = f.grupoId ? gruposNegocioState.findIndex((g) => g.id === f.grupoId) : -1;
+    if (gi >= 0) switchGroup(gruposNegocioState, gi);
+    else repintarSecciones366();
+    return;
+  }
+  const g = f.grupoId ? gruposNegocioState.find((x) => x.id === f.grupoId) : null;
+  if (g) grupoActivo = g;
+  mostrarTodasLasPestanas = !g;
+  const r = obtenerOCrearProducto366(f);
+  if (!r) { repintarSecciones366(); return; }
+  const teniaUid = !!r.prod.uid;
+  focoProducto366 = uidProducto366(r.prod);
+  const cambio = vincularFichasAProducto366(r.prod);
+  repintarSecciones366();
+  // se guarda DESPUÉS de repintar: guardar lee lo que hay en pantalla
+  if (r.creado || cambio || !teniaUid) guardarFichasDeProducto366();
 }
 
 async function inicializarFoco366() {
   try { if (window.__foco) await window.__foco.ready; } catch (e) {}
   if (!window.__foco) return;
   aplicarFoco366(window.__foco.get());
-  window.__foco.onChange((f) => aplicarFoco366(f));
+  window.__foco.onChange((f) => { if (sincronizandoFoco366) return; aplicarFoco366(f); });
 }
 
 function switchGroup(grupos, idx) {
@@ -2004,6 +2133,8 @@ async function llamarConstructor(senalOnb) {
 /* El producto o grupo que está elegido en la pastilla de arriba: el Jefe trabaja solo sobre ese. */
 function focoParaChat366() {
   try {
+    const p = productoFoco366();
+    if (p && (p.nombre || '').trim()) return { nombre: p.nombre.trim(), esGrupo: false };
     const f = window.__foco && window.__foco.get();
     if (!f || f.esTodo || !f.nombre) return null;
     return { nombre: f.nombre, esGrupo: !!f.esGrupo };
@@ -2600,7 +2731,7 @@ function renderEpcTabs() {
   if (!nav) return;
   actualizarTituloActivo('epc-titulo-activo', 'Tu cliente ideal', (perfilesState[perfilActivo] || {}).nombre);
   nav.innerHTML = '';
-  const indices = indicesDelGrupoActivo(perfilesState);
+  const indices = indicesDelFoco366(perfilesState, 'perfil');
   indices.forEach((i, pos) => {
     const p = perfilesState[i];
     const btn = document.createElement('button');
@@ -2662,6 +2793,7 @@ function agregarPerfilDesde(valor) {
   const nuevo = clonarOEnBlanco(valor, perfilesState, PERFIL_TEMPLATE);
   if (!nuevo) return;
   nuevo.grupo_id = grupoActivo ? grupoActivo.id : '';
+  vincularNuevaFicha366(nuevo, 'perfil');
   perfilesState.push(nuevo);
   perfilActivo = perfilesState.length - 1;
   renderEpcTabs();
@@ -2670,15 +2802,20 @@ function agregarPerfilDesde(valor) {
 }
 
 function agregarProductoDesde(valor) {
-  capturarProductosDesdeDOM();
+  capturarTodoDesdeDOM366();
   const nuevo = clonarOEnBlanco(valor, productosState, PRODUCTO_TEMPLATE);
   if (!nuevo) return;
   nuevo.grupo_id = grupoActivo ? grupoActivo.id : '';
+  delete nuevo.uid; // un producto nuevo es otro producto, aunque se haya copiado de uno
+  uidProducto366(nuevo);
   productosState.push(nuevo);
   productoActivo = productosState.length - 1;
-  renderEpTabs();
-  renderEpPanels();
-  guardarProductos();
+  // el producto nuevo queda elegido en todas las secciones, cada una con su ficha en blanco
+  focoProducto366 = nuevo.uid;
+  vincularFichasAProducto366(nuevo, { soloNuevas: true });
+  repintarSecciones366();
+  guardarFichasDeProducto366();
+  sincronizarPastilla366();
 }
 
 function agregarSistemaDesde(valor) {
@@ -2686,6 +2823,7 @@ function agregarSistemaDesde(valor) {
   const nuevo = clonarOEnBlanco(valor, sistemasState, SISTEMA_TEMPLATE);
   if (!nuevo) return;
   nuevo.grupo_id = grupoActivo ? grupoActivo.id : '';
+  vincularNuevaFicha366(nuevo, 'sistema');
   sistemasState.push(nuevo);
   sistemaActivo = sistemasState.length - 1;
   renderEsTabs();
@@ -2860,7 +2998,7 @@ function renderEpcPanels() {
 
 function moverPerfil(i, dir) {
   capturarPerfilesDesdeDOM();
-  const indices = indicesDelGrupoActivo(perfilesState);
+  const indices = indicesDelFoco366(perfilesState, 'perfil');
   const pos = indices.indexOf(i);
   const j = indices[pos + dir];
   if (pos === -1 || j === undefined) return;
@@ -2874,7 +3012,7 @@ function moverPerfil(i, dir) {
 function eliminarPerfil(i) {
   capturarPerfilesDesdeDOM();
   perfilesState.splice(i, 1);
-  const indicesRestantes = indicesDelGrupoActivo(perfilesState);
+  const indicesRestantes = indicesDelFoco366(perfilesState, 'perfil');
   perfilActivo = indicesRestantes.length ? indicesRestantes[0] : 0;
   renderEpcTabs();
   renderEpcPanels();
@@ -2887,6 +3025,7 @@ function guardarPerfiles() {
     nuevo.activa = !!p.activa;
     nuevo.preguntas = p.preguntas || '';
     nuevo.grupo_id = p.grupo_id || '';
+    if (p.producto_uid) nuevo.producto_uid = p.producto_uid;
     const importantes = {};
     CAMPOS_TEXTO_EPC.forEach((campo) => {
       const el = document.getElementById('epc-' + campo + '-' + i);
@@ -2966,6 +3105,10 @@ let productoActivo = 0;
 function sincronizarNombreProducto(i, valor) {
   if (productosState[i]) productosState[i].nombre = valor;
   renderEpTabs();
+  if (productosState[i] && productosState[i].uid && productosState[i].uid === focoProducto366) {
+    clearTimeout(temporizadorPastilla366);
+    temporizadorPastilla366 = setTimeout(sincronizarPastilla366, 500);
+  }
 }
 
 /* Mismo motivo que capturarPerfilesDesdeDOM(): sin esto, cambiar de pestaña de producto borra lo
@@ -2988,7 +3131,6 @@ function renderEpTabs() {
   const nav = document.getElementById('ep-tabs-nav');
   if (!nav) return;
   actualizarTituloActivo('ep-titulo-activo', 'Producto 366', (productosState[productoActivo] || {}).nombre);
-  actualizarProductoActivo366();
   nav.innerHTML = '';
   const indices = indicesDelGrupoActivo(productosState);
   indices.forEach((i, pos) => {
@@ -2997,7 +3139,7 @@ function renderEpTabs() {
     btn.type = 'button';
     btn.className = 'epc-tab-btn' + (i === productoActivo ? ' active' : '');
     btn.textContent = p.nombre || ('Producto ' + (i + 1));
-    btn.onclick = () => { capturarProductosDesdeDOM(); productoActivo = i; renderEpTabs(); renderEpPanels(); };
+    btn.onclick = () => cambiarProductoDesdeTab366(i);
     nav.appendChild(btn);
     if (indices.length > 1 && pos > 0) {
       const up = document.createElement('button');
@@ -3086,18 +3228,25 @@ function moverProducto(i, dir) {
 
 function eliminarProducto(i) {
   capturarProductosDesdeDOM();
+  const eraElFoco = !!(productosState[i] && productosState[i].uid && productosState[i].uid === focoProducto366);
   productosState.splice(i, 1);
   const indicesRestantes = indicesDelGrupoActivo(productosState);
   productoActivo = indicesRestantes.length ? indicesRestantes[0] : 0;
   renderEpTabs();
   renderEpPanels();
   guardarProductos();
+  if (eraElFoco) {
+    focoProducto366 = '';
+    if (productosState[productoActivo]) cambiarProductoDesdeTab366(productoActivo);
+    else repintarSecciones366();
+  }
 }
 
 function guardarProductos() {
   const lista = productosState.map((p, i) => {
     const nuevo = PRODUCTO_TEMPLATE();
     nuevo.grupo_id = p.grupo_id || '';
+    if (p.uid) nuevo.uid = p.uid;
     const importantes = {};
     CAMPOS_TEXTO_EP.forEach((campo) => {
       const el = document.getElementById('ep-' + campo + '-' + i);
@@ -3243,7 +3392,7 @@ function renderEsTabs() {
   if (!nav) return;
   actualizarTituloActivo('es-titulo-activo', 'Sistema para vender 366', (sistemasState[sistemaActivo] || {}).nombre);
   nav.innerHTML = '';
-  const indices = indicesDelGrupoActivo(sistemasState);
+  const indices = indicesDelFoco366(sistemasState, 'sistema');
   indices.forEach((i, pos) => {
     const p = sistemasState[i];
     const btn = document.createElement('button');
@@ -3319,7 +3468,7 @@ function renderEsPanels() {
 
 function moverSistema(i, dir) {
   capturarSistemasDesdeDOM();
-  const indices = indicesDelGrupoActivo(sistemasState);
+  const indices = indicesDelFoco366(sistemasState, 'sistema');
   const pos = indices.indexOf(i);
   const j = indices[pos + dir];
   if (pos === -1 || j === undefined) return;
@@ -3333,7 +3482,7 @@ function moverSistema(i, dir) {
 function eliminarSistema(i) {
   capturarSistemasDesdeDOM();
   sistemasState.splice(i, 1);
-  const indicesRestantes = indicesDelGrupoActivo(sistemasState);
+  const indicesRestantes = indicesDelFoco366(sistemasState, 'sistema');
   sistemaActivo = indicesRestantes.length ? indicesRestantes[0] : 0;
   renderEsTabs();
   renderEsPanels();
@@ -3345,6 +3494,7 @@ function guardarSistemas() {
   const lista = sistemasState.map((p, i) => {
     const nuevo = SISTEMA_TEMPLATE();
     nuevo.grupo_id = p.grupo_id || '';
+    if (p.producto_uid) nuevo.producto_uid = p.producto_uid;
     const importantes = {};
     CAMPOS_TEXTO_ES.forEach((campo) => {
       const el = document.getElementById('es-' + campo + '-' + i);
@@ -3429,7 +3579,7 @@ function renderEcTabs() {
   if (!nav) return;
   actualizarTituloActivo('ec-titulo-activo', 'Comunicación 366', (comunicacionesState[comunicacionActivo] || {}).nombre);
   nav.innerHTML = '';
-  const indices = indicesDelGrupoActivo(comunicacionesState);
+  const indices = indicesDelFoco366(comunicacionesState, 'comunicacion');
   indices.forEach((i, pos) => {
     const p = comunicacionesState[i];
     const btn = document.createElement('button');
@@ -3555,7 +3705,7 @@ async function refrescarPreviewWhatsapp366(i) {
 
 function moverComunicacion(i, dir) {
   capturarComunicacionesDesdeDOM();
-  const indices = indicesDelGrupoActivo(comunicacionesState);
+  const indices = indicesDelFoco366(comunicacionesState, 'comunicacion');
   const pos = indices.indexOf(i);
   const j = indices[pos + dir];
   if (pos === -1 || j === undefined) return;
@@ -3569,7 +3719,7 @@ function moverComunicacion(i, dir) {
 function eliminarComunicacion(i) {
   capturarComunicacionesDesdeDOM();
   comunicacionesState.splice(i, 1);
-  const indicesRestantes = indicesDelGrupoActivo(comunicacionesState);
+  const indicesRestantes = indicesDelFoco366(comunicacionesState, 'comunicacion');
   comunicacionActivo = indicesRestantes.length ? indicesRestantes[0] : 0;
   renderEcTabs();
   renderEcPanels();
@@ -3581,6 +3731,7 @@ function agregarComunicacionDesde(valor) {
   const nuevo = clonarOEnBlanco(valor, comunicacionesState, COMUNICACION_TEMPLATE);
   if (!nuevo) return;
   nuevo.grupo_id = grupoActivo ? grupoActivo.id : '';
+  vincularNuevaFicha366(nuevo, 'comunicacion');
   comunicacionesState.push(nuevo);
   comunicacionActivo = comunicacionesState.length - 1;
   renderEcTabs();
@@ -3593,6 +3744,7 @@ function guardarComunicaciones() {
   const lista = comunicacionesState.map((p, i) => {
     const nuevo = COMUNICACION_TEMPLATE();
     nuevo.grupo_id = p.grupo_id || '';
+    if (p.producto_uid) nuevo.producto_uid = p.producto_uid;
     const importantes = {};
     CAMPOS_TEXTO_EC.forEach((campo) => {
       const el = document.getElementById('ec-' + campo + '-' + i);

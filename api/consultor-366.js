@@ -568,7 +568,7 @@ async function manejarChatGuiado(req, res) {
     const primeraVez = modo === 'normal' && !yaHuboRespuesta && !activado;
     if (activado) {
       partesSystem.push(
-        'LA USUARIA YA ACTIVÓ SU JEFE: en la pantalla ya hizo el paso 1 (vio el video, comprobó el chat y escribió ACTIVO MI JEFE). NO te presentes de nuevo, NO repitas la bienvenida ni el mini-diagnóstico. Su mensaje (por ejemplo "seguimos") es la señal para arrancar: entra directo al PASO PREVIO — TU PRODUCTO, con UNA sola pregunta. Si su mensaje trae una pregunta concreta, respóndela en 1-2 líneas y enseguida arranca el PASO PREVIO.'
+        'LA USUARIA YA ACTIVÓ SU JEFE: en la pantalla ya hizo el paso 1 (vio de qué trata el Jefe 366, comprobó el chat y confirmó con CONFIRMO JEFE el mensaje de prueba «Arranquemos Jefe»). NO te presentes de nuevo, NO repitas la bienvenida ni el mini-diagnóstico. Su mensaje (por ejemplo "seguimos") es la señal para arrancar: entra directo al PASO PREVIO — TU PRODUCTO, con UNA sola pregunta. Si su mensaje trae una pregunta concreta, respóndela en 1-2 líneas y enseguida arranca el PASO PREVIO.'
       );
     }
     const foco = body.foco && typeof body.foco === 'object' && typeof body.foco.nombre === 'string' && body.foco.nombre.trim() ? body.foco : null;
