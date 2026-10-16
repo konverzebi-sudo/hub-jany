@@ -531,6 +531,9 @@ async function manejarChatGuiado(req, res) {
     .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
     .slice(-BUILDER_MAX_MESSAGES)
     .map((m) => ({ role: m.role, content: m.content }));
+  // La app escribe sola unos primeros mensajes (bienvenida y prueba de conexión) como del asistente: la API
+  // exige que la conversación empiece con un mensaje de la usuaria, así que esos se descartan al inicio.
+  while (limpio.length && limpio[0].role === 'assistant') limpio.shift();
   if (limpio.length === 0 || limpio[limpio.length - 1].role !== 'user') {
     return res.status(400).json({ error: 'El último mensaje debe ser del usuario.' });
   }
@@ -560,7 +563,20 @@ async function manejarChatGuiado(req, res) {
     // Primera vez de la usuaria en este chat (todavia no hay ninguna respuesta tuya): la bienvenida es lo primero,
     // y debe explicar quien es el Jefe y que van a hacer ahora. Se refuerza aqui para que no se la salte
     // aunque su primer mensaje sea una peticion concreta ("quiero empezar a construir mi oferta...").
-    const primeraVez = modo === 'normal' && !limpio.some((m) => m.role === 'assistant');
+    const yaHuboRespuesta = messages.some((m) => m && m.role === 'assistant' && typeof m.content === 'string' && m.content.trim());
+    const activado = modo === 'normal' && body.onboarding === 'activado';
+    const primeraVez = modo === 'normal' && !yaHuboRespuesta && !activado;
+    if (activado) {
+      partesSystem.push(
+        'LA USUARIA YA ACTIVÓ SU JEFE: en la pantalla ya hizo el paso 1 (vio el video, comprobó el chat y escribió ACTIVO MI JEFE). NO te presentes de nuevo, NO repitas la bienvenida ni el mini-diagnóstico. Su mensaje (por ejemplo "seguimos") es la señal para arrancar: entra directo al PASO PREVIO — TU PRODUCTO, con UNA sola pregunta. Si su mensaje trae una pregunta concreta, respóndela en 1-2 líneas y enseguida arranca el PASO PREVIO.'
+      );
+    }
+    const foco = body.foco && typeof body.foco === 'object' && typeof body.foco.nombre === 'string' && body.foco.nombre.trim() ? body.foco : null;
+    if (foco) {
+      partesSystem.push(
+        'FOCO ELEGIDO ARRIBA: la usuaria eligió en la pastilla de la parte de arriba ' + (foco.esGrupo ? 'el GRUPO "' : 'el PRODUCTO O SERVICIO "') + String(foco.nombre).trim().slice(0, 120) + '". Es con ' + (foco.esGrupo ? 'ese grupo' : 'ese producto') + ' con lo que se trabaja ahora: no le preguntes cuál es, y todo lo que se guarde es de ' + (foco.esGrupo ? 'ese grupo' : 'ese producto') + '. Recuérdale, cuando toque, que arriba puede cambiar de producto para llenar las fichas de los demás.'
+      );
+    }
     if (primeraVez) {
       partesSystem.push(
         'ES LA PRIMERA VEZ QUE LA USUARIA TE ESCRIBE (no hay ninguna respuesta tuya antes en esta conversación). Tu mensaje DEBE EMPEZAR con la bienvenida de "Al iniciar la conversación", completa y en este orden: (1) saludo cálido, quién eres y para qué existes, (2) que aquí puede preguntarte lo que sea y que ya vienes preparado con su ADN y la estrategia 366, (3) QUÉ VAN A HACER AHORA JUNTOS y cómo funciona, (4) el mini-diagnóstico, (5) "arrancamos" con UNA sola pregunta. NO empieces con el mini-diagnóstico ni con una pregunta: primero la bienvenida y la explicación. Háblale en primera persona y con frases cortas, fáciles de leer.'
