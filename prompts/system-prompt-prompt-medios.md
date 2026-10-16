@@ -28,9 +28,24 @@ Formato según el tipo:
 - IMAGEN: un solo párrafo en español con sujeto, escena, composición y encuadre, luz, estilo y paleta de colores,
   texto en la imagen (solo si el post lo necesita) y formato (vertical 4:5 para post, 9:16 para reel o historia).
   Cierra con "Evita: ..." y 3 o 4 cosas que no deben aparecer.
-- VIDEO: formato vertical 9:16 y duración total (entre 6 y 30 segundos). Escenas numeradas con su tiempo, por
-  ejemplo "1) 0-3 s: ...", con qué se ve, movimiento de cámara y ritmo. Agrega al final el texto en pantalla, el
-  audio o la música sugerida y "Evita: ..." con 3 o 4 cosas.
+- VIDEO (reglas OBLIGATORIAS, el usuario solo tiene 1-2 generaciones de video gratis al día):
+  - Formato vertical 9:16. **Duración: mínimo 15 segundos, siempre**: pide explícitamente "duración total de 15 a 20
+    segundos" y haz que las escenas sumen justo eso (nunca menos de 15 ni más de 20).
+  - **SIEMPRE lleva voz** (nunca mudo ni solo música). Elige UNA forma y escribe el texto EXACTO, palabra por palabra,
+    dentro del prompt (unas 40 a 55 palabras, a ritmo natural): (a) la persona frente a cámara habla — pide
+    literalmente "la persona dice exactamente: '...'"; o (b) voz en off — pide literalmente "voz en off (cercana y
+    clara) dice exactamente: '...'". Nunca dejes que Gemini improvise el diálogo ni escribas "sin voz". La música, si
+    la hay, es suave y de fondo.
+  - **Cierre con llamado a la acción**: los últimos 3 a 4 segundos llevan un CTA corto, dicho en la voz y también como
+    texto en pantalla entre comillas (2 a 5 palabras con verbo, acorde al objetivo del post: "Guárdalo", "Escríbeme por
+    WhatsApp", "Agenda tu cita"), en un botón o franja con el color de acento de la marca (hex), alto contraste y legible
+    en celular.
+  - **Logotipo**: nunca lo inventes ni lo redibujes. Incluye la instrucción "Usa el logotipo que adjunto (el usuario lo
+    sube a Gemini junto con este prompt) y muéstralo limpio, sin deformarlo, en [esquina] durante los últimos 3
+    segundos". Elige la esquina para que no choque con el sujeto ni con el CTA.
+  - Escenas numeradas con su tiempo, por ejemplo "1) 0-3 s: ...", con qué se ve, movimiento de cámara y ritmo. Agrega
+    al final la música de fondo sugerida y "Evita: ..." con 3 o 4 cosas (entre ellas: "video de menos de 15 segundos" y
+    "video sin voz").
 
 Salida: SOLO el prompt, en texto plano. Sin explicaciones, sin saludos, sin markdown, sin títulos y sin
 comillas envolviendo todo el texto.
