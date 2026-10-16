@@ -333,6 +333,19 @@
     body.t3-ajuste .t3-prev-wrap:not([hidden]) { padding: 0 0 6px; }
     /* en pantallas grandes la vista crece (zoom que calcula el JS) y usa todo el ancho: sin márgenes en blanco a los lados */
     body.t3-ajuste main#publicidad-content.split-view { zoom: var(--z, 1); height: calc((100vh - 70px) / var(--z, 1)); max-width: none; margin-left: 0; margin-right: 0; grid-template-columns: minmax(380px, 38%) minmax(0, 1fr); column-gap: 28px; }
+    /* PANTALLA PRINCIPAL FIJA (clase t3-fijo, la pone el JS cuando no hay ningún paso abierto ni chat): el robot, la barra y los 10
+       pasos caben exactos en la pantalla (el JS calcula el zoom), sin hueco vacío abajo ni deslizar. Si de plano no caben (ventana
+       muy bajita) se deja deslizar como antes (clase t3-fijo-corto). */
+    body.t3-fijo { overflow: hidden; height: 100vh; padding-top: 70px; }
+    body.t3-fijo.t3-fijo-corto { overflow: auto; height: auto; }
+    body.t3-fijo footer { display: none; }
+    body.t3-fijo.t3-fijo-sinrobot .hero-robot { display: none; }
+    body.t3-fijo header { padding: 6px 20px 0; zoom: var(--zf, 1); }
+    body.t3-fijo main#publicidad-content { padding: 0 20px; zoom: var(--zf, 1); }
+    body.t3-fijo .hero-robot { margin-bottom: 8px; }
+    body.t3-fijo .hero-search { margin-bottom: 8px; }
+    body.t3-fijo .t3-tl { margin: 2px auto 0; }
+    body.t3-fijo .t3-row > div { min-height: 0; padding-block: 7px; }
     .t3-volver { display: none; margin-left: 14px; background: transparent; border: 1px solid var(--line); border-radius: 9px; padding: 8px 14px; font-size: 13px; color: var(--text-dim); cursor: pointer; font-family: Inter, sans-serif; }
     .t3-volver:hover { border-color: var(--accent-text); color: var(--text); }
     body.t3-trabajo .t3-row.open .t3-volver { display: inline-block; }
@@ -861,6 +874,35 @@ async function cargarGruposNegocio() {
    (o si se eligió Vista dividida a mano) todo vuelve a como estaba. */
 /* La vista de trabajo (chat | paso) se ajusta a la altura de la pantalla solo cuando de verdad está en pantalla dividida
    y la ventana es amplia; en ventanas muy bajitas se deja deslizar la página como antes. */
+/* Pantalla principal (ningún paso abierto, sin chat, sin vista dividida) en una ventana de escritorio: se calcula el zoom para que
+   robot + barra + los 10 pasos ocupen justo la pantalla. Así no se desliza ni queda un hueco vacío abajo. */
+function ajustarVistaPrincipal366() {
+  const body = document.body;
+  const main = document.getElementById('publicidad-content');
+  const header = document.querySelector('header');
+  const caja = document.getElementById('jefe366ChatBox');
+  const aplica = !!(main && header && window.matchMedia('(min-width: 1000px)').matches
+    && !body.classList.contains('t3-trabajo') && !main.classList.contains('split-view')
+    && !document.querySelector('.t3-row.open') && !(caja && caja.classList.contains('activo')));
+  if (!aplica) {
+    body.classList.remove('t3-fijo', 't3-fijo-corto', 't3-fijo-sinrobot');
+    body.style.removeProperty('--zf');
+    return;
+  }
+  body.classList.add('t3-fijo');
+  body.classList.remove('t3-fijo-corto', 't3-fijo-sinrobot');
+  body.style.setProperty('--zf', '1');
+  const medida = () => header.getBoundingClientRect().height + main.getBoundingClientRect().height; // alto con zoom 1
+  const disponible = window.innerHeight - 70 - 14; // 70 de la barra de arriba y un respiro abajo
+  let natural = medida();
+  // ventana baja: el robot se esconde para que todo quepa sin hacer tan chico el texto
+  if (disponible / natural < 0.8) { body.classList.add('t3-fijo-sinrobot'); natural = medida(); }
+  const z = Math.max(0.7, Math.min(disponible / natural, 1.5));
+  body.style.setProperty('--zf', z.toFixed(3));
+  if (natural * z > disponible + 2) body.classList.add('t3-fijo-corto'); // ni con el zoom mínimo cabe: que se deslice
+  window.scrollTo(0, 0);
+}
+
 function actualizarAjuste366() {
   const main = document.getElementById('publicidad-content');
   const cabe = window.matchMedia('(min-width: 1000px)').matches && window.matchMedia('(min-height: 520px)').matches;
@@ -874,6 +916,7 @@ function actualizarAjuste366() {
   } else {
     document.body.style.removeProperty('--z');
   }
+  ajustarVistaPrincipal366();
 }
 window.addEventListener('resize', () => actualizarAjuste366());
 
@@ -1580,6 +1623,7 @@ function activarChat366() {
   const chat = document.getElementById('builderChat');
   if (chat) chat.scrollTop = chat.scrollHeight;
   acomodarBarra366();
+  actualizarAjuste366();
 }
 
 function ocultarChat366() {
@@ -1590,6 +1634,7 @@ function ocultarChat366() {
   const inp = document.getElementById('heroSearchInput');
   if (inp) inp.placeholder = 'Estoy para asesorarte para vender los 366/365 días del año';
   acomodarBarra366();
+  actualizarAjuste366();
 }
 
 /* Al empezar a escribir en la barra se muestra el chat (con su historial si ya había conversación). */
@@ -4281,6 +4326,9 @@ cargarGruposNegocio();
 calcular();
 cargarNotas366().then(inicializarFoco366);
 cargarConversacionEnProgreso();
+
+window.addEventListener('load', () => actualizarAjuste366());
+setTimeout(() => actualizarAjuste366(), 900);
 
 /* ─── TUTORIAL DE LA PÁGINA ───
    La primera vez que se entra señala las zonas importantes (chat, pastilla de producto, pasos...), con una palomita en cada
