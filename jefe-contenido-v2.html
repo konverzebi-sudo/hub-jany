@@ -1781,16 +1781,14 @@ function pintarGuionOrgChat(){
   const box = document.getElementById('go-chat-thread');
   if(!box) return;
   const hero = document.querySelector('.cx-hero');
-  const bienvenida = bienvenidaVisible();
-  if(!guionOrgChat.length && !bienvenida){ box.hidden=true; box.innerHTML=''; if(hero) hero.classList.remove('has-chat'); return; }
-  box.hidden = bienvenida ? false : chatPlegado;
+  // Mientras no se contesta la bienvenida, el saludo vive en la barra (como su texto) y el hilo no se muestra.
+  if(!guionOrgChat.length || bienvenidaVisible()){ box.hidden=true; box.innerHTML=''; if(hero) hero.classList.remove('has-chat'); return; }
+  box.hidden = chatPlegado;
   // Con la conversación abierta la barra baja y queda debajo de la última respuesta, como en WhatsApp.
   if(hero) hero.classList.toggle('has-chat', !box.hidden);
-  const mensajes = guionOrgChat.length ? guionOrgChat : [{role:'assistant', content:BIENVENIDA_ARRANQUE, local:true}];
-  box.innerHTML = mensajes.map((m,i)=>{
+  box.innerHTML = guionOrgChat.map((m,i)=>{
     if(m.local){
-      const opciones = bienvenida ? `<div class="chat-chips">${OPCIONES_ARRANQUE.map(t=>`<button type="button" class="chat-chip" data-opcion="${escHtml(t)}">${escHtml(t)}</button>`).join('')}</div>` : '';
-      return `<div class="chat-msg chat-msg-assistant">${escHtml(m.content)}${opciones}</div>`;
+      return `<div class="chat-msg chat-msg-assistant">${escHtml(m.content)}</div>`;
     }
     if(m.role==='user'){
       const thumbs = (m.imagenes&&m.imagenes.length) ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">${m.imagenes.map(src=>`<img src="${src}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--line);">`).join('')}</div>` : '';
@@ -1804,9 +1802,6 @@ function pintarGuionOrgChat(){
   }).join('');
   if(guionOrgPensando) box.insertAdjacentHTML('beforeend','<div class="chat-msg chat-msg-assistant chat-typing" aria-label="Escribiendo"><span></span><span></span><span></span></div>');
   box.scrollTop = box.scrollHeight;
-  box.querySelectorAll('[data-opcion]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{ guionOrgPreguntaDraft = btn.dataset.opcion; preguntarAgentePostIA(); });
-  });
   box.querySelectorAll('[data-copy-idx]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const idx=+btn.dataset.copyIdx;
@@ -2540,7 +2535,24 @@ pintarIconos();
 const HERO_PLACEHOLDER = 'Hagamos contenido mamalón y estratégico para tu marca… comienza preguntando';
 let chatPlegado = false; // al entrar, la conversación guardada queda cerrada hasta que se pica la barra
 function setChatPlegado(v){ chatPlegado=v; actualizarHeroBar(); }
-function autoAlturaHero(el){ el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,150)+'px'; el.style.overflowY = el.scrollHeight>150 ? 'auto' : 'hidden'; }
+// Con la barra vacía y la bienvenida puesta, la altura se mide con el texto de ayuda (placeholder) para que se lea entero.
+function alturaPlaceholderHero(el){
+  const cs=getComputedStyle(el);
+  const m=document.createElement('div');
+  m.style.cssText='position:absolute;visibility:hidden;left:-9999px;top:0;box-sizing:border-box;white-space:pre-wrap;overflow-wrap:break-word;width:'+el.clientWidth+'px;font-family:'+cs.fontFamily+';font-size:'+cs.fontSize+';line-height:'+cs.lineHeight+';padding:'+cs.padding+';';
+  m.textContent=el.placeholder||' ';
+  document.body.appendChild(m);
+  const h=m.offsetHeight;
+  m.remove();
+  return h;
+}
+function autoAlturaHero(el){
+  el.style.height='auto';
+  const medirAyuda = !el.value && bienvenidaVisible();
+  const alto = medirAyuda ? alturaPlaceholderHero(el)+2 : el.scrollHeight;
+  el.style.height=Math.min(alto,medirAyuda?260:150)+'px';
+  el.style.overflowY = alto>(medirAyuda?260:150) ? 'auto' : 'hidden';
+}
 
 // Repinta lo que depende de la conversación (hilo, estado, botón, vista previa de imágenes).
 // No toca el texto que se está escribiendo salvo que el borrador cambie desde código.
@@ -2548,7 +2560,8 @@ function actualizarHeroBar(){
   const ta=document.getElementById('go-pregunta');
   if(!ta) return;
   if(ta.value!==guionOrgPreguntaDraft){ ta.value=guionOrgPreguntaDraft; autoAlturaHero(ta); }
-  ta.placeholder = bienvenidaVisible() ? 'Cuéntame aquí… o elige una opción de arriba' : (guionOrgChat.length ? 'Sigue la conversación para pulir la idea…' : HERO_PLACEHOLDER);
+  ta.placeholder = bienvenidaVisible() ? BIENVENIDA_ARRANQUE : (guionOrgChat.length ? 'Sigue la conversación para pulir la idea…' : HERO_PLACEHOLDER);
+  autoAlturaHero(ta);
   const st=document.getElementById('go-pregunta-status');
   if(st) st.textContent=guionOrgPreguntaStatus||'';
   const btn=document.getElementById('go-pregunta-btn');
@@ -2590,7 +2603,14 @@ let sugActiva = -1;
 function normSug(s){ return (s||'').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
 // Orden de relevancia según el momento: sin conversación (arranque del día), con ideas ya dadas o con un post escrito.
 function sugerenciasChat(texto){
-  if(bienvenidaVisible()) return []; // mientras se contesta la bienvenida las opciones son las de la burbuja
+  if(bienvenidaVisible()){
+    // Mientras se contesta la bienvenida, la lista trae solo las dos respuestas del arranque.
+    const opciones = OPCIONES_ARRANQUE.map(t=>({t, g:'arranque'}));
+    const qa = normSug(texto).trim();
+    if(!qa) return opciones;
+    const pals = qa.split(/\s+/).filter(Boolean);
+    return opciones.filter(o=>{ const n=normSug(o.t); return pals.every(w=>n.includes(w)); });
+  }
   const conv =guionOrgChat.some(m=>!m.local);
   const hayPost = guionOrgChat.some(m=>m.role==='assistant' && /CAPTION:/i.test(m.content));
   const nIdeas = state.contenido.filter(r=>r.estado==='idea').length;
