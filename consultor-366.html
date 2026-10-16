@@ -318,6 +318,19 @@
     .t3-prev-btn:hover { border-color: var(--accent-text); color: var(--text); }
     body.t3-trabajo .t3-row.t3-prev > div { display: none; }
     body.t3-trabajo .t3-tl.t3-ver-prev .t3-row.t3-prev > div { display: block; order: -1; min-height: 0; padding-block: 7px; }
+    /* VISTA DE TRABAJO AJUSTADA A LA PANTALLA (clase t3-ajuste, la pone el JS): sin encabezado vacío arriba ni pie abajo, la página
+       no se desliza; el chat y el paso se acomodan a la altura y, si algo es muy largo, se desliza SOLO dentro de su columna. */
+    body.t3-ajuste { overflow: hidden; height: 100vh; padding-top: 70px; } /* el espacio de la barra de arriba va como relleno (un margen se "colaba" y empujaba toda la página 70px) */
+    body.t3-ajuste header, body.t3-ajuste footer { display: none; }
+    body.t3-ajuste main#publicidad-content.split-view { margin-top: 0; padding: 14px 20px; height: calc(100vh - 70px); box-sizing: border-box; overflow: hidden; align-items: stretch; }
+    body.t3-ajuste main#publicidad-content.split-view #jefe366ChatBox.activo { position: static; display: flex; flex-direction: column; height: 100%; max-height: none; margin: 0; overflow: hidden; min-height: 0; }
+    body.t3-ajuste main#publicidad-content.split-view #jefe366ChatBox #builderChat { flex: 1 1 auto; max-height: none; min-height: 0; }
+    body.t3-ajuste main#publicidad-content.split-view #split-rest-col { height: 100%; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 0 8px 6px 0; scrollbar-width: thin; }
+    body.t3-ajuste .t3-tl { margin-bottom: 0; }
+    /* renglones de la lista más juntos para que quepan más pasos sin deslizar */
+    body.t3-ajuste .t3-row:not(.open) > div { padding-block: 3px; }
+    body.t3-ajuste .t3-row.open > div { padding-block: 6px; }
+    body.t3-ajuste .t3-prev-wrap:not([hidden]) { padding: 0 0 6px; }
     .t3-volver { display: none; margin-left: 14px; background: transparent; border: 1px solid var(--line); border-radius: 9px; padding: 8px 14px; font-size: 13px; color: var(--text-dim); cursor: pointer; font-family: Inter, sans-serif; }
     .t3-volver:hover { border-color: var(--accent-text); color: var(--text); }
     body.t3-trabajo .t3-row.open .t3-volver { display: inline-block; }
@@ -843,7 +856,23 @@ async function cargarGruposNegocio() {
 /* Al abrir un paso en pantalla ancha: la sección sube hasta arriba y la pantalla se parte en dos --
    el chat de un lado (siempre a la vista) y la sección donde se trabaja del otro. Al cerrar el paso
    (o si se eligió Vista dividida a mano) todo vuelve a como estaba. */
+/* La vista de trabajo (chat | paso) se ajusta a la altura de la pantalla solo cuando de verdad está en pantalla dividida
+   y la ventana es amplia; en ventanas muy bajitas se deja deslizar la página como antes. */
+function actualizarAjuste366() {
+  const main = document.getElementById('publicidad-content');
+  const cabe = window.matchMedia('(min-width: 1000px)').matches && window.matchMedia('(min-height: 520px)').matches;
+  const activo = !!(main && cabe && document.body.classList.contains('t3-trabajo') && main.classList.contains('split-view'));
+  document.body.classList.toggle('t3-ajuste', activo);
+  if (activo) window.scrollTo(0, 0);
+}
+window.addEventListener('resize', () => actualizarAjuste366());
+
 function modoTrabajo366(on) {
+  modoTrabajo366Base(on);
+  actualizarAjuste366();
+}
+
+function modoTrabajo366Base(on) {
   const main = document.getElementById('publicidad-content');
   if (!main) return;
   const ancho = window.matchMedia('(min-width: 1000px)').matches;
@@ -1301,6 +1330,8 @@ function inicializarMapa366() {
   }
   function abrir(id) {
     verAnteriores = false;
+    const colDer = document.getElementById('split-rest-col');
+    if (colDer) colDer.scrollTop = 0;
     if (abierto) st[abierto].slot.hidden = true;
     if (abierto === id) { abierto = null; pintarMapa(); return; }
     abierto = id; idx = 0;
@@ -4170,6 +4201,7 @@ function toggleVistaDividida() {
   delete main.dataset.autoSplit;
   document.getElementById('viewToggleBtn').textContent = activo ? '☰ Vista normal' : '🔀 Vista dividida';
   ubicarChat366();
+  actualizarAjuste366();
 }
 
 /* ─── INIT ─── */
