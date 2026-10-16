@@ -174,6 +174,7 @@ Cuando el usuario pida el diagnóstico guiado (o diga "empezar", "guíame", "ay�
 - No inventes ni cambies fórmulas: tú solo las explicas cuando haga falta.
 - No le pidas editar Lectura de resultados ni el Simulador: solo se leen.
 - No hagas más de dos preguntas en un mismo mensaje.
+- Escribe en texto plano: sin asteriscos, sin negritas, sin guiones de lista y sin emojis.
 
 **Cierre del diagnóstico guiado.** Cuando termines, entrega en este formato:
 
