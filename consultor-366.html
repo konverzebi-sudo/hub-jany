@@ -294,7 +294,7 @@
     body.t3-trabajo .hero-robot, body.t3-trabajo .hero-search:not(.en-chat), body.t3-trabajo .mostrar-todas-btn { display: none; }
     body.t3-trabajo header { padding-top: 84px; padding-bottom: 4px; }
     body.t3-trabajo .group-tabs { margin-bottom: 10px; }
-    body.t3-trabajo .t3-tl { --split: 34px; max-width: none; margin-top: 4px; }
+    body.t3-trabajo .t3-tl { --split: 34px; max-width: none; margin-top: 4px; width: 100%; align-self: stretch; margin-left: 0; margin-right: 0; }
     body.t3-trabajo .t3-tl::before { display: none; }
     /* los demás pasos quedan debajo de la tarjeta abierta, más chicos, y se pueden tocar para saltar a ellos */
     body.t3-trabajo .t3-row:not(.open) > div { order: 1; min-height: 0; padding-block: 7px; }
@@ -331,6 +331,8 @@
     body.t3-ajuste .t3-row:not(.open) > div { padding-block: 3px; }
     body.t3-ajuste .t3-row.open > div { padding-block: 6px; }
     body.t3-ajuste .t3-prev-wrap:not([hidden]) { padding: 0 0 6px; }
+    /* en pantallas grandes la vista crece (zoom que calcula el JS) y usa todo el ancho: sin márgenes en blanco a los lados */
+    body.t3-ajuste main#publicidad-content.split-view { zoom: var(--z, 1); height: calc((100vh - 70px) / var(--z, 1)); max-width: none; margin-left: 0; margin-right: 0; grid-template-columns: minmax(380px, 38%) minmax(0, 1fr); column-gap: 28px; }
     .t3-volver { display: none; margin-left: 14px; background: transparent; border: 1px solid var(--line); border-radius: 9px; padding: 8px 14px; font-size: 13px; color: var(--text-dim); cursor: pointer; font-family: Inter, sans-serif; }
     .t3-volver:hover { border-color: var(--accent-text); color: var(--text); }
     body.t3-trabajo .t3-row.open .t3-volver { display: inline-block; }
@@ -597,6 +599,7 @@
   <script src="/js/storage-client.js"></script>
   <script>window.__focoConfig = { grupos: true, productos366: true }; // la pastilla también deja elegir un grupo completo y las ofertas de Producto 366</script>
   <script src="/js/jefes-foco.js"></script>
+  <script src="/js/guia-jefe.js"></script>
   <script>
     // Multi-tenant: detectado por pathname — Vercel no expone ?cliente= al browser (mismo patron
     // que consultor-radar-mercado.html / jefe-contenido-v2.html).
@@ -863,7 +866,14 @@ function actualizarAjuste366() {
   const cabe = window.matchMedia('(min-width: 1000px)').matches && window.matchMedia('(min-height: 520px)').matches;
   const activo = !!(main && cabe && document.body.classList.contains('t3-trabajo') && main.classList.contains('split-view'));
   document.body.classList.toggle('t3-ajuste', activo);
-  if (activo) window.scrollTo(0, 0);
+  if (activo) {
+    window.scrollTo(0, 0);
+    // pantallas grandes: la vista crece, sin pasarse de lo que cabe a lo ancho ni a lo alto
+    const z = Math.max(1, Math.min((window.innerWidth - 230) / 1240, window.innerHeight / 880, 1.8));
+    document.body.style.setProperty('--z', z.toFixed(2));
+  } else {
+    document.body.style.removeProperty('--z');
+  }
 }
 window.addEventListener('resize', () => actualizarAjuste366());
 
@@ -1203,9 +1213,6 @@ function inicializarMapa366() {
         '<div class="t3-activo-res" id="t3-activo-res"></div>';
       body.querySelector('#t3-ir-chat').onclick = () => iniciarOnboarding366();    } else if (p.tipo === 'notas') {
       const det = document.getElementById(p.el);
-      const notas = { producto: '📌 <strong>Esta ficha es solo para este producto o servicio.</strong> Aquí desarrollamos TODA la estrategia de ese producto. Arriba, en la pastilla, puedes cambiar de producto y llenar la ficha de cada uno de los productos y servicios que manejas.',
-        perfil: '👤 <strong>Este cliente ideal es el del producto que tienes arriba, en la pastilla.</strong> Si manejas más productos o servicios, cambia de producto arriba y arma el cliente ideal de cada uno.' };
-      if (notas[p.id]) { const nota = document.createElement('div'); nota.className = 't3-nota-producto'; nota.innerHTML = notas[p.id]; body.appendChild(nota); }
       if (det) { det.open = true; body.appendChild(det); }
     } else if (p.tipo === 'resumen') {
       body.innerHTML = '<div class="t3-rev">' +
@@ -4274,6 +4281,30 @@ cargarGruposNegocio();
 calcular();
 cargarNotas366().then(inicializarFoco366);
 cargarConversacionEnProgreso();
+
+/* ─── TUTORIAL DE LA PÁGINA ───
+   La primera vez que se entra señala las zonas importantes (chat, pastilla de producto, pasos...), con una palomita en cada
+   una conforme se van viendo. Así no hace falta repetir avisos en cada ficha. Siempre se puede repetir con el botón "❓ Guía". */
+GuiaJefe.registrar({
+  id: 'jefe366', nombre: 'Tutorial del Jefe 366',
+  pasos: [
+    { selector: ['#builderInput', '.hero-search'], titulo: 'Aquí hablas con tu Jefe',
+      texto: 'Este es el chat. Escribe aquí y yo te hago una pregunta a la vez. Lo que confirmes con la frase CONFIRMO JEFE se guarda solo en tu tablero.' },
+    { selector: '.foco-pill', titulo: 'Aquí eliges tu producto o servicio',
+      texto: 'Esta pastilla es el selector de producto. Todo lo que ves en las fichas (producto, cliente ideal, sistema y comunicación) y todo lo que hablamos en el chat es de ESE producto. Si manejas varios productos o servicios, cámbialo aquí y llena la ficha de cada uno, uno por uno.' },
+    { selector: '#t3-tl', titulo: 'Tus 10 pasos',
+      texto: 'Este es tu recorrido, en orden. Pícale a un número para abrir su ficha. Empieza por el 1 y sigue en orden: lo que confirmes en el chat se guarda en la ficha de su paso.' },
+    { selector: '#ep-tabs-nav', titulo: 'Pestañas de producto',
+      texto: 'Cada pestaña es un producto o servicio. Al cambiar de pestaña también cambia la pastilla de arriba y las fichas de cliente ideal, sistema y comunicación: siempre ves solo lo del producto elegido.' },
+    { selector: '#t3-prev-btn', titulo: 'Pasos anteriores',
+      texto: 'Con un paso abierto, los siguientes salen abajo. Los anteriores quedan escondidos: pícale aquí para verlos.' },
+    { selector: '#viewToggleBtn', titulo: 'Vista dividida o normal',
+      texto: 'Cambia entre ver el chat y la ficha lado a lado, o cada cosa en pantalla completa.' },
+  ],
+});
+setTimeout(() => {
+  if (!GuiaJefe.vista('jefe366') && !document.body.classList.contains('t3-trabajo')) GuiaJefe.iniciar('jefe366');
+}, 2200);
 </script>
 <script src="/js/jefes-nav.js" defer></script>
 </body>
