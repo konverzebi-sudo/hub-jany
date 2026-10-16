@@ -979,6 +979,53 @@ function manejarOnboarding366(texto) {
 }
 
 /* ─── REVISIÓN GENERAL (último paso): manda la orden al chat, con advertencia ─── */
+/* ─── PROMPT PARA OTRA IA (último paso): se copia y se pega en ChatGPT, Gemini, etc. ───
+   Le pide a esa IA que, con lo que ya sabe del negocio, entregue datos reales en el orden que el Jefe 366 necesita. */
+function promptParaOtraIA366() {
+  const marca = ((document.getElementById('brand-marca-label') || {}).textContent || '').trim();
+  const nombreMarca = marca && marca !== '—' ? marca : '';
+  const prod = (typeof productoFoco366 === 'function') ? productoFoco366() : null;
+  const nombreProd = prod && (prod.nombre || '').trim();
+  const de = nombreProd ? 'mi producto o servicio «' + nombreProd + '»' : 'mi negocio';
+  const intro = 'Actúa como mi analista de negocio y estratega de ventas. Voy a usar un sistema llamado Jefe 366 para armar la estrategia de ' + de + (nombreMarca ? ' (' + nombreMarca + ')' : '') + ', y necesita datos REALES de cómo funciona mi negocio hoy, no suposiciones.';
+  const tarea = 'Tu tarea: revisa TODO lo que sabes de mí y de mi negocio (conversaciones anteriores, documentos, archivos, notas, ejemplos de clientes y los números que te haya compartido) y entrégame la información que pide el Jefe 366, en el orden de abajo.';
+  return [
+    intro,
+    '',
+    tarea,
+    '',
+    "REGLAS",
+    "1. Usa solo información real que tengas de mí. NO inventes ni rellenes con datos genéricos.",
+    "2. Si algo no lo sabes o no lo tengo, escribe SIN DATO. Es mejor un hueco honesto que un dato falso.",
+    "3. Si un dato es una estimación, márcalo (aprox.) y dime de dónde sale.",
+    "4. Usa mis palabras reales y las de mis clientes cuando las tengas; nada de lenguaje de marketing.",
+    "5. Si casi no tienes información mía, dímelo claramente y conviértelo en un cuestionario corto para que yo lo responda.",
+    "6. Al final hazme como máximo 5 preguntas, solo sobre lo más importante que falte.",
+    "",
+    "FORMATO DE ENTREGA (usa estos títulos exactos)",
+    "1) MI NEGOCIO Y MI PRODUCTO: nombre del negocio; qué vendo (cada producto o servicio con su nombre, precio y qué incluye); cuál es el que más vendo y cuál quiero vender todo el año; qué me diferencia de los demás.",
+    "2) MI CLIENTE REAL: quién me compra hoy (edad, ubicación, a qué se dedica); qué problema quiere resolver; qué miedos y objeciones me ha puesto de verdad (con sus frases textuales); por qué sí me compran y por qué no; cómo me encontró.",
+    "3) CÓMO VENDO HOY (mi proceso real): canales (WhatsApp, redes, tienda, citas, llamadas); los pasos desde que alguien pregunta hasta que paga; cuánto tardo en contestar; cómo doy seguimiento y cuándo lo dejo de hacer; qué herramientas uso.",
+    "4) MIS NÚMEROS: ventas por mes; ticket promedio; cuántos prospectos llegan y cuántos compran (tasa de cierre); lo que invierto en anuncios y qué resultado da; costos fijos; mi meta de ventas.",
+    "5) MI COMUNICACIÓN: el tono con el que hablo; frases que sí uso y las que evito; el contenido que mejor me ha funcionado y el que no; anuncios que he hecho y qué resultado dieron.",
+    "6) LO QUE FUNCIONA Y LO QUE NO: 3 cosas que hoy me están dando resultado y 3 que me frenan.",
+    "7) PREGUNTAS PENDIENTES (máximo 5).",
+    "",
+    "Cuando termines, dime en una línea qué tan completa quedó cada sección (completa / parcial / sin datos). Voy a pegar tu respuesta tal cual en el chat del Jefe 366 para avanzar con datos reales.",
+  ].join(String.fromCharCode(10));
+}
+
+async function copiarPromptOtraIA366(btn) {
+  const texto = promptParaOtraIA366();
+  let ok = false;
+  try { await navigator.clipboard.writeText(texto); ok = true; } catch (e) {
+    try { const ta = document.createElement('textarea'); ta.value = texto; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); ok = document.execCommand('copy'); ta.remove(); } catch (e2) { ok = false; }
+  }
+  const original = btn.textContent;
+  btn.textContent = ok ? '✅ Prompt copiado: pégalo en tu otra IA' : 'No se pudo copiar, intenta de nuevo';
+  setTimeout(() => { btn.textContent = original; }, 2600);
+}
+
 function pedirRevisionGeneral366() {
   if (builderBusy) return;
   const ok = window.confirm('Ojo: la revisión general lee TODA tu estrategia y gasta bastantes tokens (créditos de IA).\n\nNo hace falta hacerla seguido. Úsala cuando hiciste cambios grandes en tu estrategia o campaña, o cuando quieras verificar que todo cuadra.\n\n¿Quieres pedirla ahora?');
@@ -1112,9 +1159,13 @@ function inicializarMapa366() {
         '<h4 class="t3-rev-h">Descarga tu estrategia</h4>' +
         '<p class="q-help" style="margin:0 0 10px;font-size:14px;">Baja en un documento de Word lo más importante de tu estrategia y de tu campaña: lo que llevas lleno en tu producto, cliente ideal, sistema y comunicación, más tus metas.</p>' +
         '<button type="button" class="ask-btn" id="t3-descargar">⬇️ Descargar mi estrategia (Word)</button>' +
+        '<h4 class="t3-rev-h" style="margin-top:22px;">Prompt para tu otra IA</h4>' +
+        '<p class="q-help" style="margin:0 0 10px;font-size:14px;">¿Ya trabajas con otra IA (ChatGPT, Gemini, etc.) que conoce tu negocio? Copia este prompt, pégalo ahí y llévale la respuesta al chat del Jefe 366: así avanzas con datos reales de tus procesos reales, sin volver a escribirlo todo.</p>' +
+        '<button type="button" class="ask-btn" id="t3-copiar-prompt">📋 Copiar prompt para otra IA</button>' +
         '<details class="t3-ver-lleno" id="t3-ver-lleno"><summary>Ver lo que llevo lleno (sin gastar IA)</summary><div id="t3-resumen"></div></details></div>';
       body.querySelector('#t3-rev-btn').onclick = () => pedirRevisionGeneral366();
       body.querySelector('#t3-descargar').onclick = () => descargarEstrategia366();
+      body.querySelector('#t3-copiar-prompt').onclick = (e) => copiarPromptOtraIA366(e.currentTarget);
     } else {
       const sec = document.getElementById(p.sec);
       if (sec) {
