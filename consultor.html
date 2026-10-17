@@ -47,6 +47,7 @@
   .graph-node.active .node-icon, .graph-node.active .node-emoji,
   .graph-node.locked .node-icon, .graph-node.locked .node-emoji{ transform-box: fill-box; transform-origin: center; animation: respirar 4.4s ease-in-out infinite; }
   .graph-link{ stroke: var(--chalk-dim); stroke-width: 1.2; opacity: .38; }
+  .pulso{ fill: var(--accent); filter: drop-shadow(0 0 4px var(--accent)); pointer-events: none; }
   .graph-link.satellite-link{ stroke: var(--chalk); stroke-width: .7; opacity: .14; }
   .graph-node{ cursor: pointer; }
   .graph-node.locked{ cursor: not-allowed; }
@@ -282,7 +283,10 @@ const REQUISITO_TEXTO = {
   const escalaG = zoomRoot.append('g').attr('class','escala').attr('transform', `scale(${escala})`);
   const starsLayer = escalaG.append('g').attr('class','stars-layer');
   const graphGroup = escalaG.append('g').attr('class','graph-depth');
-  svg.call(d3.zoom().scaleExtent([0.4, 3.2]).on('zoom', (event) => {
+  // En celular un dedo ya no arrastra todo el grafo (al deslizar se bajaba el circulo);
+  // con dos dedos si se hace zoom. En compu igual que antes.
+  const filtroZoom = (e) => (!e.ctrlKey || e.type === 'wheel') && !e.button && (!e.touches || e.touches.length > 1);
+  svg.call(d3.zoom().scaleExtent([0.4, 3.2]).filter(filtroZoom).on('zoom', (event) => {
     zoomRoot.attr('transform', event.transform);
   }));
   function pintarEstrellas(){
@@ -356,6 +360,13 @@ const REQUISITO_TEXTO = {
   const link = graphGroup.append('g').selectAll('line')
     .data(linksData).join('line')
     .attr('class', d => 'graph-link' + (d.esSatelite ? ' satellite-link' : ''));
+
+  // Pulsos de luz que corren del ADN a cada Jefe activo: el ADN "alimenta" a los Jefes.
+  const jefeActivo = {}; jefes.forEach(j => { jefeActivo[j.id] = j.activo; });
+  const pulsoData = linksData.filter(l => !l.esSatelite && jefeActivo[l.target.id || l.target]);
+  pulsoData.forEach(l => { l.fase = Math.random(); l.vel = 0.0028 + Math.random() * 0.0024; });
+  const pulso = graphGroup.append('g').selectAll('circle')
+    .data(pulsoData).join('circle').attr('class', 'pulso').attr('r', 2.6);
 
   const node = graphGroup.append('g').selectAll('g')
     .data(nodesData).join('g')
@@ -458,6 +469,10 @@ const REQUISITO_TEXTO = {
       }
     }
     link.attr('x1', d=>d.source.x).attr('y1', d=>d.source.y).attr('x2', d=>d.target.x).attr('y2', d=>d.target.y);
+    pulso.each(l => { l.fase = (l.fase + l.vel) % 1; })
+      .attr('cx', l => l.source.x + (l.target.x - l.source.x) * l.fase)
+      .attr('cy', l => l.source.y + (l.target.y - l.source.y) * l.fase)
+      .attr('opacity', l => Math.sin(Math.PI * l.fase));
     node.attr('transform', d => `translate(${d.x},${d.y})`);
   });
 
