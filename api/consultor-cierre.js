@@ -15,6 +15,7 @@
 const fs = require('fs');
 const path = require('path');
 const { sql } = require('@vercel/postgres');
+const { systemConCache, historialConCache, camposUso } = require('./_lib/cache-claude');
 
 const DEFAULT_CLIENTE = 'rancho-seco';
 
@@ -107,7 +108,7 @@ async function registrarUsoTokens(clienteId, endpoint, usage) {
   try {
     const key = `${clienteId}:uso-tokens-log`;
     const items = (await leerJSON(key)) || [];
-    items.push({ date: new Date().toISOString(), endpoint, inputTokens: usage?.input_tokens || 0, outputTokens: usage?.output_tokens || 0 });
+    items.push({ date: new Date().toISOString(), endpoint, ...camposUso(usage) });
     await escribirJSON(key, items.slice(-500));
   } catch (err) {
     // No bloquear la respuesta al usuario si falla el registro de uso.
@@ -569,7 +570,7 @@ module.exports = async function handler(req, res) {
       await escribirJSON(`${clienteId}:conversion-cierre-diagnostico-${sufijoRuta}`, datos).catch(() => {});
 
       const contextoDatos = formatearContextoDiagnostico(modo, datos, tasas);
-      const system = [promptBase, promptModo, contextoNegocio, contextoDatos].join('\n\n');
+      const system = systemConCache([promptBase, promptModo].join('\n\n'), contextoNegocio, contextoDatos);
 
       const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -611,12 +612,12 @@ module.exports = async function handler(req, res) {
         return res.status(400).json({ error: 'El último mensaje debe ser del usuario.' });
       }
 
-      const system = [promptBase, promptModo, contextoNegocio].join('\n\n');
+      const system = systemConCache([promptBase, promptModo].join('\n\n'), contextoNegocio);
       const bodyAnthropic = {
         model: 'claude-sonnet-4-6',
         max_tokens: 1600,
         system,
-        messages: limpio,
+        messages: historialConCache(limpio),
       };
       if (modo === 'audit-tienda') {
         bodyAnthropic.tools = [WEB_FETCH_TOOL];

@@ -38,6 +38,7 @@
 const fs = require('fs');
 const path = require('path');
 const { sql } = require('@vercel/postgres');
+const { systemConCache, historialConCache, camposUso } = require('./_lib/cache-claude');
 
 const PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-consultor-financiero.md');
 const DEFAULT_CLIENTE = 'jefeshub';
@@ -139,7 +140,7 @@ async function registrarUsoTokens(clienteId, endpoint, usage) {
   try {
     const key = `${clienteId}:uso-tokens-log`;
     const items = (await leerJSON(key)) || [];
-    items.push({ date: new Date().toISOString(), endpoint, inputTokens: usage?.input_tokens || 0, outputTokens: usage?.output_tokens || 0 });
+    items.push({ date: new Date().toISOString(), endpoint, ...camposUso(usage) });
     await escribirJSON(key, items.slice(-500));
   } catch (err) {
     // No bloquear la respuesta al usuario si falla el registro de uso.
@@ -345,7 +346,7 @@ async function llamarClaudeChat({ system, messages, maxTokens }) {
       model: 'claude-sonnet-4-6',
       max_tokens: maxTokens,
       system,
-      messages,
+      messages: historialConCache(messages),
     }),
   });
 
@@ -379,7 +380,7 @@ async function handleFinanciero(req, res, body) {
   const systemPrompt = cargarPromptFijo();
   const contexto = await construirContextoNegocio(clienteId);
   const contextoCalculadora = formatearDatosCalculadora(body.datosCalculadora);
-  const system = [systemPrompt, contexto, contextoCalculadora].join('\n\n');
+  const system = systemConCache(systemPrompt, contexto, contextoCalculadora);
 
   const r = await llamarClaudeChat({ system, messages: limpio, maxTokens: 1300 });
   if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
@@ -399,7 +400,7 @@ async function handleDiseno(req, res, body) {
 
   const systemPrompt = cargarPromptDiseno();
   const contexto = await construirContextoDiseno(clienteId);
-  const system = [systemPrompt, contexto].join('\n\n');
+  const system = systemConCache(systemPrompt, contexto);
 
   const r = await llamarClaudeChat({ system, messages: limpio, maxTokens: 900 });
   if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
@@ -438,7 +439,7 @@ async function handleMetaAds(req, res, body) {
   const systemPrompt = cargarPromptMetaAds();
   const contextoNegocio = await construirContextoMetaAds(clienteId);
   const contextoReporte = formatearReporteCsv(body.reporteCsv);
-  const system = [systemPrompt, contextoNegocio, contextoReporte].join('\n\n');
+  const system = systemConCache(systemPrompt, [contextoNegocio, contextoReporte].filter(Boolean).join('\n\n'));
 
   const r = await llamarClaudeChat({ system, messages: limpio, maxTokens: 8000 });
   if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
