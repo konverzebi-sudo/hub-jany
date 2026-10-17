@@ -8,6 +8,7 @@ const mesaPath=n=>`${BASE}/mesa/${n}/`;
 const MAX_TABLES=100; // hay una carpeta mesa/1 … mesa/100
 const TOGO_MARK='🥡 PARA LLEVAR'; // va al inicio del comentario del pedido
 let HAS_PHOTO=false; // la base de datos ya tiene la columna de fotos (5-fotos.sql)
+let HAS_VIDEO=false; // y la de videos (6-videos.sql)
 
 /* ---------- Conexión con Supabase ---------- */
 const CFG=window.MESA_CONFIG||{};
@@ -71,12 +72,12 @@ function settingsFromRow(r){
     categories:Array.isArray(r.categories)?r.categories:[],tables:r.tables_count||8};
 }
 function productFromRow(r){
-  return {id:r.id,cat:r.cat,name:r.name,desc:r.description||'',price:Number(r.price)||0,emoji:r.emoji||'🍽️',photo:r.photo||'',
+  return {id:r.id,cat:r.cat,name:r.name,desc:r.description||'',price:Number(r.price)||0,emoji:r.emoji||'🍽️',photo:r.photo||'',video:r.video||'',
     available:!!r.available,options:Array.isArray(r.options)?r.options:[],sort:r.sort||0,created:r.created_at||''};
 }
 function productToRow(p){
   return {id:p.id,cat:p.cat,name:p.name,description:p.desc,price:Math.max(0,Number(p.price)||0),emoji:p.emoji,
-    available:p.available,options:p.options,sort:p.sort||0,...(HAS_PHOTO?{photo:p.photo||''}:{})};
+    available:p.available,options:p.options,sort:p.sort||0,...(HAS_PHOTO?{photo:p.photo||''}:{}),...(HAS_VIDEO?{video:(p.video||'').trim()}:{})};
 }
 const byMenuOrder=(a,b)=>(a.sort-b.sort)||String(a.created).localeCompare(String(b.created));
 function orderFromRow(r){
@@ -117,3 +118,11 @@ function photoTag(p,cls='tile'){
   return p.photo?`<div class="${cls} ph" aria-hidden="true"><img src="${esc(p.photo)}" alt="" loading="lazy"></div>`
     :`<div class="${cls}" aria-hidden="true">${esc(p.emoji)}</div>`;
 }
+
+/* Imagen grande de un platillo: video en loop (si tiene), si no la foto, si no el ícono */
+function mediaInner(p){
+  if(p.video) return `<video src="${esc(p.video)}" ${p.photo?`poster="${esc(p.photo)}"`:''} autoplay muted loop playsinline preload="metadata" aria-label="${esc(p.name)}"></video>`;
+  if(p.photo) return `<img src="${esc(p.photo)}" alt="${esc(p.name)}">`;
+  return `<span aria-hidden="true">${esc(p.emoji)}</span>`;
+}
+const videoBadge=p=>p.video?'<span class="vid-badge" aria-label="Tiene video">▶</span>':'';
