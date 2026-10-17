@@ -14,6 +14,7 @@
 const fs = require('fs');
 const path = require('path');
 const { sql } = require('@vercel/postgres');
+const { systemConCache, historialConCache, camposUso } = require('./_lib/cache-claude');
 
 const DEFAULT_CLIENTE = 'jefeshub';
 const PROMPT_PATH_IDEAS = path.join(__dirname, '..', 'prompts', 'system-prompt-ideas-anuncios.md');
@@ -106,7 +107,7 @@ async function registrarUsoTokens(clienteId, endpoint, usage) {
   try {
     const key = `${clienteId}:uso-tokens-log`;
     const items = (await leerJSON(key)) || [];
-    items.push({ date: new Date().toISOString(), endpoint, inputTokens: usage?.input_tokens || 0, outputTokens: usage?.output_tokens || 0 });
+    items.push({ date: new Date().toISOString(), endpoint, ...camposUso(usage) });
     await escribirJSON(key, items.slice(-500));
   } catch (err) {
     // No bloquear la respuesta al usuario si falla el registro de uso.
@@ -753,7 +754,7 @@ async function manejarModoIdeas(body, res) {
     (bloqueProducto ? '\n\n' + bloqueProducto : '') +
     (bloqueTexto ? '\n\n' + bloqueTexto : '');
 
-  const system = [promptFijo, contexto, instruccion].join('\n\n');
+  const system = systemConCache(promptFijo, contexto, instruccion);
   const { ok, status, data } = await llamarClaude(
     system,
     `Genera las ${cantidadPorEtapa * 3} ideas de anuncios pedidas, en el formato JSON indicado. Sé breve por campo -- son ideas de referencia para elegir, no el anuncio terminado.`,
@@ -775,7 +776,7 @@ async function manejarModoIdeas(body, res) {
   });
 
   await registrarUsoTokens(clienteId, 'generar-anuncios-ideas', data.usage);
-  return res.status(200).json({ ideas, usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 } });
+  return res.status(200).json({ ideas, usage: camposUso(data.usage) });
 }
 
 // ---------- modo: detalle (guion + copy + prompts de un lote aprobado) ----------
@@ -820,7 +821,7 @@ async function manejarModoDetalle(body, res) {
     (bloqueProducto ? '\n\n' + bloqueProducto : '') +
     (bloqueTexto ? '\n\n' + bloqueTexto : '');
 
-  const system = [promptFijo, contexto, instruccion].join('\n\n');
+  const system = systemConCache(promptFijo, contexto, instruccion);
   const { ok, status, data } = await llamarClaude(
     system,
     'Desarrolla el detalle completo de cada idea del lote, en el formato JSON (array) indicado, en el mismo orden y con el mismo "id" que recibiste.',
@@ -864,7 +865,7 @@ async function manejarModoDetalle(body, res) {
   });
 
   await registrarUsoTokens(clienteId, 'generar-anuncios-detalle', data.usage);
-  return res.status(200).json({ detalles, formato, usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 } });
+  return res.status(200).json({ detalles, formato, usage: camposUso(data.usage) });
 }
 
 // ---------- modo: targeting (perfil de segmentación sugerido para un Conjunto de Anuncios) ----------
@@ -882,7 +883,7 @@ async function manejarModoTargeting(body, res) {
     'Sugiere el perfil de targeting (ubicación, edad, género, intereses) para un Conjunto de Anuncios de Meta Ads, en el formato JSON indicado.' +
     (bloqueProducto ? '\n\n' + bloqueProducto : '');
 
-  const system = [promptFijo, contexto, instruccion].join('\n\n');
+  const system = systemConCache(promptFijo, contexto, instruccion);
   const { ok, status, data } = await llamarClaude(
     system,
     'Sugiere el perfil de targeting pedido, en el formato JSON indicado. Sé breve y concreto en cada campo.',
@@ -906,7 +907,7 @@ async function manejarModoTargeting(body, res) {
   };
 
   await registrarUsoTokens(clienteId, 'generar-anuncios-targeting', data.usage);
-  return res.status(200).json({ perfil, usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 } });
+  return res.status(200).json({ perfil, usage: camposUso(data.usage) });
 }
 
 // ---------- modo: completar_meta (rellena Título/Descripción/CTA de anuncios ya desarrollados) ----------
@@ -944,7 +945,7 @@ async function manejarModoCompletarMeta(body, res) {
   const instruccion = 'INSTRUCCIÓN DE ESTA GENERACIÓN:\n' +
     `ANUNCIOS YA DESARROLLADOS A COMPLETAR (${tarjetas.length}):\n${listaAnuncios}`;
 
-  const system = [promptFijo, contexto, instruccion].join('\n\n');
+  const system = systemConCache(promptFijo, contexto, instruccion);
   const { ok, status, data } = await llamarClaude(
     system,
     'Completa titulo_anuncio, descripcion_anuncio y cta_boton de cada anuncio del lote, en el formato JSON (array) indicado, en el mismo orden y con el mismo "id" que recibiste.',
@@ -969,7 +970,7 @@ async function manejarModoCompletarMeta(body, res) {
   }));
 
   await registrarUsoTokens(clienteId, 'generar-anuncios-completar-meta', data.usage);
-  return res.status(200).json({ campos, usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 } });
+  return res.status(200).json({ campos, usage: camposUso(data.usage) });
 }
 
 // ---------- modo: chat (Consulta en vivo, multi-turno -- desarrolla anuncios conversando) ----------
@@ -1017,9 +1018,9 @@ async function manejarModoChat(body, res) {
   const promptFijo = cargarPromptChat();
   const { contexto, catalogo } = await construirContexto(clienteId, grupoId);
   const bloqueProducto = formatearProducto(catalogo, productoId, 'si aplica al anuncio que se está desarrollando en esta conversación');
-  const system = [promptFijo, contexto, bloqueProducto].filter(Boolean).join('\n\n');
+  const system = systemConCache(promptFijo, contexto, bloqueProducto);
 
-  const { ok, status, data } = await llamarClaudeConHistorial(system, historial, 1500);
+  const { ok, status, data } = await llamarClaudeConHistorial(system, historialConCache(historial), 1500);
   if (!ok) {
     return res.status(status).json({ error: data?.error?.message || 'Error al llamar a la API.' });
   }
@@ -1030,7 +1031,7 @@ async function manejarModoChat(body, res) {
   }
 
   await registrarUsoTokens(clienteId, 'generar-anuncios-chat', data.usage);
-  return res.status(200).json({ text, usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 } });
+  return res.status(200).json({ text, usage: camposUso(data.usage) });
 }
 
 // ---------- modo: pieza (una sola pieza bajo demanda: guion | whatsapp | imagen | video) ----------
@@ -1078,7 +1079,7 @@ async function manejarModoPieza(body, res) {
   const { contexto, catalogo } = await construirContexto(clienteId, grupoId);
   const bloqueProducto = formatearProducto(catalogo, productoId, 'la pieza debe girar en torno a este producto puntual');
   const bloqueTexto = formatearProductoTexto(body, 'la pieza debe girar en torno a este producto');
-  const system = [promptFijo, contexto, bloqueProducto, bloqueTexto].filter(Boolean).join('\n\n');
+  const system = systemConCache(promptFijo, contexto, bloqueProducto, bloqueTexto);
 
   const partes = imagenes.map((img) => ({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.data } }));
   partes.push({ type: 'text', text: lineas.join('\n') });
@@ -1113,7 +1114,7 @@ async function manejarModoPieza(body, res) {
   }
 
   await registrarUsoTokens(clienteId, 'generar-anuncios-pieza-' + tipo, data.usage);
-  return res.status(200).json({ tipo, pieza, usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 } });
+  return res.status(200).json({ tipo, pieza, usage: camposUso(data.usage) });
 }
 
 module.exports = async function handler(req, res) {

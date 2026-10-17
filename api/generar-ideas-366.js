@@ -6,6 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const { sql } = require('@vercel/postgres');
+const { systemConCache, camposUso } = require('./_lib/cache-claude');
 
 const DEFAULT_CLIENTE = 'jefeshub';
 const PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-ideas-contenido-366.md');
@@ -69,7 +70,7 @@ async function registrarUsoTokens(clienteId, endpoint, usage) {
   try {
     const key = `${clienteId}:uso-tokens-log`;
     const items = (await leerJSON(key)) || [];
-    items.push({ date: new Date().toISOString(), endpoint, inputTokens: usage?.input_tokens || 0, outputTokens: usage?.output_tokens || 0 });
+    items.push({ date: new Date().toISOString(), endpoint, ...camposUso(usage) });
     await escribirJSON(key, items.slice(-500));
   } catch (err) {
     // No bloquear la respuesta al usuario si falla el registro de uso.
@@ -361,7 +362,7 @@ module.exports = async function handler(req, res) {
         'En "stories": secuencia de 3 a 5 historias, indicando en cuál va la encuesta, pregunta o sticker y cuál es el cierre (4-6 líneas). ' +
         'Mantén la voz 1 a 1 y el tono de marca.' : '');
 
-    const system = [promptFijo, contexto, instruccion].join('\n\n');
+    const system = systemConCache(promptFijo, contexto, instruccion);
 
     const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -397,7 +398,7 @@ module.exports = async function handler(req, res) {
     });
 
     await registrarUsoTokens(clienteId, 'generar-ideas-366', data.usage);
-    return res.status(200).json({ ideas: resultado, usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 } });
+    return res.status(200).json({ ideas: resultado, usage: camposUso(data.usage) });
   } catch (err) {
     return res.status(500).json({ error: 'Error de conexión con el Agente.' });
   }
