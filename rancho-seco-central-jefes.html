@@ -7,7 +7,7 @@
 <link rel="icon" type="image/png" href="/img/favicon-32.png">
 <link rel="apple-touch-icon" href="/img/favicon-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@700;800&family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <style>
   :root{
@@ -83,6 +83,9 @@
   @keyframes adn-pulse{ 0%,100%{ filter: drop-shadow(0 0 14px rgba(242,194,48,0.4)); } 50%{ filter: drop-shadow(0 0 26px rgba(242,194,48,0.75)); } }
   .graph-node.adn-node .node-emoji{ font-size: 30px; }
   .graph-node.adn-node .node-label{ font-size: 12px; fill: var(--chalk); }
+  .graph-node.adn-node .adn-nombre{ font-family:'Sora',sans-serif; font-weight:800; letter-spacing:-.01em; fill:#fff; text-anchor:middle; dominant-baseline:central; pointer-events:none; user-select:none; }
+  .graph-node.adn-node .adn-icono{ fill:none; stroke: var(--accent); stroke-width:2; stroke-linecap:round; opacity:.45; pointer-events:none; transition: opacity .3s; }
+  .graph-node.adn-node.connected .adn-icono{ opacity:1; }
   .graph-node.adn-node .node-status{ font-family:'Oswald',sans-serif; font-size: 9px; letter-spacing: .12em; text-transform:uppercase; text-anchor: middle; fill: #888; pointer-events: none; }
   .graph-node.adn-node.connected .node-status{ fill: var(--accent); }
 
@@ -101,9 +104,9 @@
     color: var(--chalk-dim); opacity: .7;
   }
 
-  /* Pastilla de tokens, abajo al centro */
+  /* Pastilla de tokens, abajo a la derecha */
   .tokens-pill{
-    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 10;
+    position: fixed; bottom: 24px; right: 24px; z-index: 10;
     font-size: 12px; color: var(--chalk-dim);
     background: rgba(24,17,32,0.75); backdrop-filter: blur(6px);
     border: 1px solid var(--line); border-radius: 100px;
@@ -128,7 +131,7 @@
   .footer-overlay a{ color: var(--accent); text-decoration:none; }
   @media (max-width: 720px){
     .footer-overlay{ display:none; }
-    .tokens-pill{ font-size: 10px; max-width: 82vw; overflow:hidden; text-overflow:ellipsis; }
+    .tokens-pill{ font-size: 10px; right: 12px; bottom: 14px; max-width: calc(100vw - 24px); overflow:hidden; text-overflow:ellipsis; }
   }
   @media (max-width: 480px){
     .graph-node .node-label{ font-size: 9px; }
@@ -173,7 +176,6 @@
 
 <div class="tokens-pill" id="tokens-pill">🔢 Cargando tokens…</div>
 
-<a class="fab-adn" href="/rancho-seco/adn">✦ Editar ADN del negocio</a>
 
 <div class="guia-overlay" id="guiaOverlay" hidden>
   <div class="guia-card">
@@ -252,16 +254,33 @@ const REQUISITO_TEXTO = {
   jefes.forEach(j => agregarSatelites(j, j.activo ? 5 : 2));
 
   const svg = d3.select('#hub-graph');
-  let width = window.innerWidth, height = window.innerHeight;
-  let margenArriba = Math.min(140, height * 0.22); // deja espacio para el breadcrumb + instrucciones de arriba
-  svg.attr('viewBox', [0,0,width,height]);
+  // Escala segun la pantalla: en compu todo (iconos, letras y distancias) crece para llenar la
+  // pantalla; en celular se achica. La simulacion corre en un espacio "virtual" de
+  // (ancho/escala x alto/escala) y el grupo .escala lo lleva al tamaño real.
+  let vw = window.innerWidth, vh = window.innerHeight;
+  function calcEscala(){ return Math.max(0.7, Math.min(1.75, Math.min(vw / 1100, vh / 760))); }
+  let escala = calcEscala();
+  let width = vw / escala, height = vh / escala;
+  let margenArriba = Math.min(140, vh * 0.22) / escala; // deja espacio para el breadcrumb + instrucciones de arriba
+  // Anillo de Jefes en forma de elipse que sigue la forma de la pantalla: ancho en compu,
+  // alto en celular. rx/ry son los radios; distJefe, el largo de las lineas al ADN.
+  let rx, ry, distJefe;
+  function calcAnillo(){
+    ry = Math.max(150, height/2 - Math.max(margenArriba, 90) - 30);
+    rx = Math.max(140, Math.min(width/2 - 110, ry * 1.9));
+    ry = Math.min(ry, rx * 2.2);
+    distJefe = (rx + ry) / 2;
+  }
+  calcAnillo();
+  svg.attr('viewBox', [0,0,vw,vh]);
 
   // Todo lo visual vive dentro de zoomRoot para poder hacer pinch-zoom
   // (o rueda/ctrl+scroll en escritorio) sin pelearse con el drag de
   // cada nodo, que sigue funcionando igual.
   const zoomRoot = svg.append('g').attr('class','zoom-root');
-  const starsLayer = zoomRoot.append('g').attr('class','stars-layer');
-  const graphGroup = zoomRoot.append('g').attr('class','graph-depth');
+  const escalaG = zoomRoot.append('g').attr('class','escala').attr('transform', `scale(${escala})`);
+  const starsLayer = escalaG.append('g').attr('class','stars-layer');
+  const graphGroup = escalaG.append('g').attr('class','graph-depth');
   svg.call(d3.zoom().scaleExtent([0.4, 3.2]).on('zoom', (event) => {
     zoomRoot.attr('transform', event.transform);
   }));
@@ -281,14 +300,24 @@ const REQUISITO_TEXTO = {
   adnNode.x = width/2; adnNode.y = height/2;
   adnNode.fx = width/2; adnNode.fy = height/2; // fijo en el centro siempre
 
-  const r0 = Math.min(width,height)/2 - 90;
   jefes.forEach((d,i)=>{
     const angle = (i/jefes.length)*2*Math.PI;
-    d.x = width/2 + r0*Math.cos(angle);
-    d.y = height/2 + r0*Math.sin(angle);
+    d.x = width/2 + rx*Math.cos(angle);
+    d.y = height/2 + ry*Math.sin(angle);
   });
 
-  function radioDe(d){ return d.esADN ? 60 : d.esSatelite ? 2.4 : (d.activo?46:36); }
+  // Jala cada Jefe hacia su punto en la elipse (se reparten solos por la repulsion entre ellos).
+  function fuerzaAnillo(alpha){
+    const cx = width/2, cy = height/2;
+    for (const d of nodesData){
+      if (d.esADN || d.esSatelite) continue;
+      const ang = Math.atan2((d.y - cy) / ry, (d.x - cx) / rx);
+      d.vx += (cx + rx*Math.cos(ang) - d.x) * 0.6 * alpha;
+      d.vy += (cy + ry*Math.sin(ang) - d.y) * 0.6 * alpha;
+    }
+  }
+
+  function radioDe(d){ return d.esADN ? 72 : d.esSatelite ? 2.4 : (d.activo?46:36); }
 
   // El simulador de D3 se "enfria" y se detiene solo tras ~5s por diseño.
   // Un alphaTarget permanente arriba de alphaMin lo mantiene vivo para
@@ -309,12 +338,13 @@ const REQUISITO_TEXTO = {
 
   const simulation = d3.forceSimulation(nodesData)
     .force('link', d3.forceLink(linksData).id(d=>d.id)
-      .distance(d => d.esSatelite ? 26 + Math.random()*22 : 190)
-      .strength(d => d.esSatelite ? 0.7 : 0.5))
+      .distance(d => d.esSatelite ? 26 + Math.random()*22 : distJefe)
+      .strength(d => d.esSatelite ? 0.7 : 0.08))
     .force('charge', d3.forceManyBody().strength(d => d.esSatelite ? -6 : -340))
     .force('center', d3.forceCenter(width/2, height/2))
     .force('collide', d3.forceCollide(d => d.esSatelite ? 5 : radioDe(d)+16))
     .force('vida', fuerzaVida)
+    .force('anillo', fuerzaAnillo)
     .alphaTarget(ALPHA_VIDA);
 
   const link = graphGroup.append('g').selectAll('line')
@@ -345,6 +375,9 @@ const REQUISITO_TEXTO = {
   nodePrincipal.append('text').attr('class','node-num').attr('y', d=>d.activo?-26:-22).text(d=>(d.icono==='jefe-366-blanco' || d.icono==='jefe-contenido-logo-blanco' || d.icono==='jefe-anuncios-logo-blanco' || d.icono==='jefe-produccion-video-logo-blanco' || d.icono==='jefe-whatsapp-logo-blanco' || d.icono==='jefe-herramientas-logo-blanco' || d.icono==='jefe-finanzas-logo-blanco') ? '' : 'JEFE '+d.num);
   nodePrincipal.filter(d=>!d.activo).append('text').attr('class','node-lock').attr('y',18).text('🔒');
   nodePrincipal.append('text').attr('class','node-label').attr('y', d=>radioDe(d)+18).text(d=>d.desc || d.nombre);
+  // La letra de los nombres no baja de ~10px reales en celular aunque el grafo se achique.
+  function ajustarLetras(){ nodePrincipal.selectAll('.node-label').style('font-size', Math.max(11, 10/escala) + 'px'); }
+  ajustarLetras();
   nodePrincipal.append('title').text(d => d.activo ? d.nombre : d.nombre + ' — ' + (REQUISITO_TEXTO[d.requisito] || 'Próximamente'));
 
   // Nodo ADN: emoji, nombre del negocio (o "ADN pendiente"), y estado.
@@ -352,16 +385,45 @@ const REQUISITO_TEXTO = {
   // un nombre largo se desborda del circulo.
   function ajustarTextoADN(el, texto){
     if(!el) return;
-    el.textContent = texto;
-    const maxWidth = 104, base = 12;
+    texto = String(texto || '').trim();
+    el.__texto = texto;
+    // Reparte el nombre en 2 renglones lo mas parejos posible.
+    const palabras = texto.split(/\s+/);
+    let lineas = [texto];
+    if (palabras.length > 1){
+      let mejor = null;
+      for (let i = 1; i < palabras.length; i++){
+        const l = [palabras.slice(0,i).join(' '), palabras.slice(i).join(' ')];
+        const largo = Math.max(l[0].length, l[1].length);
+        if (!mejor || largo < mejor.largo) mejor = { largo, l };
+      }
+      lineas = mejor.l;
+    }
+    const base = 19, maxWidth = 118, interlineado = 1.1;
+    el.textContent = '';
+    el.style.fontSize = base + 'px';
+    const tspans = lineas.map(t => {
+      const ts = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+      ts.setAttribute('x', 0); ts.textContent = t; el.appendChild(ts); return ts;
+    });
     let largo;
-    try{ largo = el.getComputedTextLength(); }
-    catch(e){ largo = texto.length * base * 0.55; }
-    el.style.fontSize = (largo > maxWidth ? Math.max(8, base * maxWidth / largo) : base) + 'px';
+    try{ largo = Math.max(...tspans.map(ts => ts.getComputedTextLength())); }
+    catch(e){ largo = 0; }
+    if (!largo) largo = Math.max(...lineas.map(t => t.length)) * base * 0.62;
+    const fs = largo > maxWidth ? Math.max(8, base * maxWidth / largo) : base;
+    el.style.fontSize = fs + 'px';
+    tspans.forEach((ts, i) => ts.setAttribute('y', -10 + (i - (lineas.length - 1) / 2) * fs * interlineado));
   }
-  nodeLink.filter(d=>d.esADN).append('text').attr('class','node-label').attr('id','adn-node-label').attr('y', 2);
+  nodeLink.filter(d=>d.esADN).append('text').attr('class','adn-nombre').attr('id','adn-node-label');
   ajustarTextoADN(document.getElementById('adn-node-label'), adnNode.nombre);
-  nodeLink.filter(d=>d.esADN).append('text').attr('class','node-status').attr('id','adn-node-status').attr('y', 20).text('Pendiente');
+  // Con la letra ya cargada se vuelve a medir el nombre para que quepa exacto.
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => {
+    const el = document.getElementById('adn-node-label'); if (el) ajustarTextoADN(el, el.__texto);
+  });
+  // Icono de ADN de una tinta (tenue mientras el ADN esta pendiente).
+  nodeLink.filter(d=>d.esADN).append('path').attr('class','adn-icono')
+    .attr('transform','translate(-12,22) scale(1)')
+    .attr('d','M8 2c0 5 8 5 8 10s-8 5-8 10M16 2c0 5-8 5-8 10s8 5 8 10M9.3 5h5.4M10 9h4M10 15h4M9.3 19h5.4');
   nodeLink.filter(d=>d.esADN).append('title').attr('id','adn-node-title').text('Editar ADN del negocio');
 
   // El <a> ya navega solo con clic normal, Ctrl/Cmd+clic, clic central o "Abrir en pestaña nueva"
@@ -396,8 +458,8 @@ const REQUISITO_TEXTO = {
   // Paralaje suave con el mouse: sensacion de profundidad barata moviendo
   // el grafo y el fondo de estrellas a velocidades distintas.
   document.querySelector('.graph-full').addEventListener('mousemove', (e) => {
-    const relX = (e.clientX - width/2) / width;
-    const relY = (e.clientY - height/2) / height;
+    const relX = (e.clientX - vw/2) / vw;
+    const relY = (e.clientY - vh/2) / vh;
     graphGroup.style('transform', `translate(${relX*22}px,${relY*22}px)`);
     starsLayer.style('transform', `translate(${relX*-8}px,${relY*-8}px)`);
   });
@@ -420,9 +482,15 @@ const REQUISITO_TEXTO = {
   }
 
   window.addEventListener('resize', () => {
-    width = window.innerWidth; height = window.innerHeight;
-    margenArriba = Math.min(140, height * 0.22);
-    svg.attr('viewBox', [0,0,width,height]);
+    vw = window.innerWidth; vh = window.innerHeight;
+    escala = calcEscala();
+    width = vw / escala; height = vh / escala;
+    margenArriba = Math.min(140, vh * 0.22) / escala;
+    svg.attr('viewBox', [0,0,vw,vh]);
+    escalaG.attr('transform', `scale(${escala})`);
+    ajustarLetras();
+    calcAnillo();
+    simulation.force('link').distance(d => d.esSatelite ? 26 + Math.random()*22 : distJefe);
     adnNode.fx = width/2; adnNode.fy = height/2;
     simulation.force('center', d3.forceCenter(width/2, height/2));
     simulation.alpha(0.3).restart();
@@ -442,8 +510,6 @@ const REQUISITO_TEXTO = {
           const adnG = document.querySelector('.graph-node.adn-node');
           if(adnG) adnG.classList.add('connected');
           ajustarTextoADN(document.getElementById('adn-node-label'), nombre);
-          const status = document.getElementById('adn-node-status');
-          if(status) status.textContent = 'Tu ADN';
           const title = document.getElementById('adn-node-title');
           if(title) title.textContent = nombre + ' — Editar ADN';
         }
