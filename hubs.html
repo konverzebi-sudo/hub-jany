@@ -178,7 +178,8 @@
   }
 
   async function datosDe(h) {
-    var res = await Promise.all([leer(h.slug + ':brand-book.visual'), leer(h.slug + ':brand-book.identidad'), leer(h.slug + ':uso-tokens-log'), leer(h.slug + ':uso-tokens-mensual')]);
+    var res = await Promise.all([leer(h.slug + ':brand-book.visual'), leer(h.slug + ':brand-book.identidad'), leer(h.slug + ':uso-tokens-log'), leer(h.slug + ':uso-tokens-mensual'),
+      fetch('/api/storage/saldo?cliente=' + encodeURIComponent(h.slug), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })]);
     var logo = res[0] && res[0].logo ? res[0].logo : '';
     var nombre = (res[1] && res[1].nombre) || h.nombre || h.slug;
     var items = Array.isArray(res[2]) ? res[2] : [];
@@ -206,7 +207,7 @@
     var primero = fechas.length ? new Date(Math.min.apply(null, fechas)) : null;
     if (resumen && resumen.desde && (!primero || new Date(resumen.desde) < primero)) primero = new Date(resumen.desde);
     var desglose = Object.keys(por).map(function (k) { return [k, por[k]]; }).sort(function (x, y) { return y[1] - x[1]; }).slice(0, 5);
-    return { logo: logo, nombre: nombre, tokens: tot.tokens, inT: tot.inT, outT: tot.outT, usd: tot.usd, sinCache: tot.sinCache, meses: lista, primero: primero, desglose: desglose, registros: items.length, creado: h.creado ? new Date(h.creado) : null };
+    return { saldo: res[4], logo: logo, nombre: nombre, tokens: tot.tokens, inT: tot.inT, outT: tot.outT, usd: tot.usd, sinCache: tot.sinCache, meses: lista, primero: primero, desglose: desglose, registros: items.length, creado: h.creado ? new Date(h.creado) : null };
   }
 
   function tarjeta(h, d) {
@@ -236,6 +237,14 @@
         '<tr><td>Promedio por día</td><td>' + usd(total / dias) + '</td></tr>';
     }
     html += '</table>';
+    if (d.saldo) {
+      var sp = d.saldo, venceP = sp.paquetes && sp.paquetes.length ? sp.paquetes[sp.paquetes.length - 1].vence : null;
+      html += '<div class="tit">Plan del ciclo (tope $15 USD)</div><table>' +
+        '<tr><td>Consumido</td><td><b>' + sp.porcentaje + '%</b>' + (sp.sinTope ? ' · sin tope' : sp.bloqueado ? ' · <b style="color:var(--err)">bloqueado</b>' : '') + '</td></tr>' +
+        '<tr><td>Se renueva</td><td>' + fechaMx(new Date(sp.renueva)) + '</td></tr>' +
+        (sp.paquetes && sp.paquetes.length ? '<tr><td>Paquetes activos</td><td>' + sp.paquetes.length + ' (vence ' + fechaMx(new Date(venceP)) + ')</td></tr>' : '') +
+        '</table>';
+    }
     if (d.meses && d.meses.length) {
       var actual = mesDe(new Date());
       html += '<div class="tit">Uso por mes</div><table class="meses"><tr><th>Mes</th><th>Tokens</th><th>Costo</th></tr>' +
