@@ -8,6 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 const { sql } = require('@vercel/postgres');
+const { sumarAlMes } = require('./_lib/uso-mensual');
 const { formatearCampanaSeleccionada } = require('./_lib/campana-temporada');
 const { camposUso } = require('./_lib/cache-claude');
 
@@ -108,6 +109,9 @@ async function registrarUsoTokens(clienteId, endpoint, usage) {
     // inputTokens = TODA la entrada (nueva + escrita en caché + leída de caché), más cacheReadTokens y cacheWriteTokens.
     items.push({ date: new Date().toISOString(), endpoint, ...camposUso(usage) });
     await escribirJSON(key, items.slice(-500));
+    // Resumen mensual permanente (el registro de arriba solo guarda los últimos 500 usos).
+    const keyMes = `${clienteId}:uso-tokens-mensual`;
+    await escribirJSON(keyMes, sumarAlMes(await leerJSON(keyMes).catch(() => null), items[items.length - 1]));
   } catch (err) {
     // No bloquear la respuesta al usuario si falla el registro de uso.
   }

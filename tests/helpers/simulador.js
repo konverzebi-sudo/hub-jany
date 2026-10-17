@@ -94,6 +94,11 @@ function registroUso(cliente) {
   return v ? JSON.parse(v) : [];
 }
 
+function resumenMensual(cliente) {
+  const v = db.get(`${cliente}:uso-tokens-mensual`);
+  return v ? JSON.parse(v) : null;
+}
+
 // Cuántos puntos de caché lleva una petición (máximo permitido por la API: 4).
 function puntosDeCache(cuerpo) {
   let n = 0;
@@ -120,4 +125,4 @@ function conversacion(n) {
   return msgs;
 }
 
-module.exports = { reiniciar, llamar, cargar, enviados, registroUso, puntosDeCache, historialCacheado, conversacion, respuestaJSON, respuestaStream };
+module.exports = { reiniciar, llamar, cargar, enviados, registroUso, resumenMensual, puntosDeCache, historialCacheado, conversacion, respuestaJSON, respuestaStream };
