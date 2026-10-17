@@ -105,6 +105,7 @@
   }
 
   /* Pastilla de tokens, abajo a la derecha */
+  .tokens-pill[hidden]{ display:none; }
   .tokens-pill{
     position: fixed; bottom: 24px; right: 24px; z-index: 10;
     font-size: 12px; color: var(--chalk-dim);
@@ -172,9 +173,8 @@
   <span>Centro de Control</span><span style="opacity:.4;">·</span>
   <span id="brand-marca-label" style="color:#B8F725;">Óptica One</span>
 </div>
-<span class="graph-hint">Arrastra los nodos · Click para entrar</span>
 
-<div class="tokens-pill" id="tokens-pill">🔢 Cargando tokens…</div>
+<div class="tokens-pill" id="tokens-pill" hidden>🔢 Cargando tokens…</div>
 
 
 <div class="guia-overlay" id="guiaOverlay" hidden>
@@ -267,7 +267,7 @@ const REQUISITO_TEXTO = {
   let rx, ry, distJefe;
   function calcAnillo(){
     ry = Math.max(150, height/2 - Math.max(margenArriba, 90) - 30);
-    rx = Math.max(140, Math.min(width/2 - 110, ry * 1.9));
+    rx = Math.max(140, Math.min(width/2 - 110, ry * 2.4));
     ry = Math.min(ry, rx * 2.2);
     distJefe = (rx + ry) / 2;
   }
@@ -300,10 +300,13 @@ const REQUISITO_TEXTO = {
   adnNode.x = width/2; adnNode.y = height/2;
   adnNode.fx = width/2; adnNode.fy = height/2; // fijo en el centro siempre
 
+  // Cada Jefe tiene su propia distancia al centro (55%-110% del anillo) para que se vean
+  // dispersos y no formados en un ovalo; se alternan cerca/lejos para no encimarse.
   jefes.forEach((d,i)=>{
+    d.anilloF = (i % 2 ? 0.58 : 0.86) + Math.random() * 0.24;
     const angle = (i/jefes.length)*2*Math.PI;
-    d.x = width/2 + rx*Math.cos(angle);
-    d.y = height/2 + ry*Math.sin(angle);
+    d.x = width/2 + rx*d.anilloF*Math.cos(angle);
+    d.y = height/2 + ry*d.anilloF*Math.sin(angle);
   });
 
   // Jala cada Jefe hacia su punto en la elipse (se reparten solos por la repulsion entre ellos).
@@ -311,9 +314,11 @@ const REQUISITO_TEXTO = {
     const cx = width/2, cy = height/2;
     for (const d of nodesData){
       if (d.esADN || d.esSatelite) continue;
+      const f = vw < 720 ? 1 : (d.anilloF || 1);
+      const k = vw < 720 ? 0.6 : 0.3;
       const ang = Math.atan2((d.y - cy) / ry, (d.x - cx) / rx);
-      d.vx += (cx + rx*Math.cos(ang) - d.x) * 0.6 * alpha;
-      d.vy += (cy + ry*Math.sin(ang) - d.y) * 0.6 * alpha;
+      d.vx += (cx + rx*f*Math.cos(ang) - d.x) * k * alpha;
+      d.vy += (cy + ry*f*Math.sin(ang) - d.y) * k * alpha;
     }
   }
 
@@ -517,6 +522,9 @@ const REQUISITO_TEXTO = {
     }catch(e){}
 
     try{
+      // Uso interno: el contador solo se muestra con ?tokens en la URL (el panel /hubs ya lo tiene por hub).
+      if (!/[?&]tokens/.test(location.search)) throw 'oculto';
+      document.getElementById('tokens-pill').hidden = false;
       const r = await window.storage.get(CLIENTE_ID + ':uso-tokens-log');
       const items = r && r.value ? JSON.parse(r.value) : [];
       const inputT = items.reduce((s, it) => s + (it.inputTokens || 0), 0);
@@ -526,6 +534,7 @@ const REQUISITO_TEXTO = {
         ? `🔢 ${total.toLocaleString('es-MX')} tokens (entrada: ${inputT.toLocaleString('es-MX')} · salida: ${outputT.toLocaleString('es-MX')})`
         : '🔢 Todavía no hay uso registrado';
     }catch(e){
+      if (e === 'oculto') return;
       document.getElementById('tokens-pill').textContent = '🔢 No se pudo cargar el uso';
     }
   })();
