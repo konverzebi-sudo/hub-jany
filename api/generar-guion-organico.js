@@ -546,9 +546,9 @@ module.exports = async function handler(req, res) {
     if (modo === 'pregunta') {
       const mensajeSuelto = (body.mensaje || '').toString().trim();
       const messagesRaw = Array.isArray(body.messages) ? body.messages : null;
+      const validos = messagesRaw ? messagesRaw.filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim()) : [];
       const historial = messagesRaw
-        ? messagesRaw
-            .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+        ? validos
             .slice(-PREGUNTA_MAX_MESSAGES)
             .map((m) => ({ role: m.role, content: m.content }))
         : mensajeSuelto
@@ -573,7 +573,7 @@ module.exports = async function handler(req, res) {
       const arranque = body.fase === 'arranque' ? '\n\n' + cargarPromptArranque() : '';
       const system = systemConCache(promptPreguntas + arranque, contexto);
 
-      const { texto, usage } = await llamarClaudeTexto({ system, messages: historialConCache(historial), maxTokens: 1100, conBusqueda: true });
+      const { texto, usage } = await llamarClaudeTexto({ system, messages: historialConCache(historial, { noReutilizable: imagenes.length > 0, total: validos.length, max: PREGUNTA_MAX_MESSAGES }), maxTokens: 1100, conBusqueda: true });
       if (!texto) {
         return res.status(502).json({ error: 'El Agente no devolvió respuesta. Intenta de nuevo.' });
       }
