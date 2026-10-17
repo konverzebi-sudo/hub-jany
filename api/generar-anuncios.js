@@ -1006,10 +1006,10 @@ async function manejarModoChat(body, res) {
   const grupoId = body.grupo_id ? body.grupo_id.toString() : '';
   const productoId = body.producto_id ? body.producto_id.toString() : '';
   const messagesRaw = Array.isArray(body.messages) ? body.messages : [];
-  const historial = messagesRaw
+  const validos = messagesRaw
     .map((m) => (m && (m.role === 'user' || m.role === 'assistant')) ? { role: m.role, content: sanitizarContenidoChat(m.content) } : null)
-    .filter((m) => m && m.content)
-    .slice(-CHAT_MAX_MESSAGES);
+    .filter((m) => m && m.content);
+  const historial = validos.slice(-CHAT_MAX_MESSAGES);
 
   if (!historial.length || historial[historial.length - 1].role !== 'user') {
     return res.status(400).json({ error: 'Falta el mensaje del usuario.' });
@@ -1020,7 +1020,7 @@ async function manejarModoChat(body, res) {
   const bloqueProducto = formatearProducto(catalogo, productoId, 'si aplica al anuncio que se está desarrollando en esta conversación');
   const system = systemConCache(promptFijo, contexto, bloqueProducto);
 
-  const { ok, status, data } = await llamarClaudeConHistorial(system, historialConCache(historial), 1500);
+  const { ok, status, data } = await llamarClaudeConHistorial(system, historialConCache(historial, { total: validos.length, max: CHAT_MAX_MESSAGES }), 1500);
   if (!ok) {
     return res.status(status).json({ error: data?.error?.message || 'Error al llamar a la API.' });
   }

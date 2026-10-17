@@ -9,6 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const { sql } = require('@vercel/postgres');
 const { formatearCampanaSeleccionada } = require('./_lib/campana-temporada');
+const { camposUso } = require('./_lib/cache-claude');
 
 const DEFAULT_CLIENTE = 'rancho-seco';
 const PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-jefe-estrategia-whatsapp.md');
@@ -104,9 +105,8 @@ async function registrarUsoTokens(clienteId, endpoint, usage) {
   try {
     const key = `${clienteId}:uso-tokens-log`;
     const items = (await leerJSON(key)) || [];
-    // inputTokens = TODA la entrada (nueva + escrita en caché + leída de caché); cacheReadTokens es lo que salió barato.
-    const entrada = (usage?.input_tokens || 0) + (usage?.cache_creation_input_tokens || 0) + (usage?.cache_read_input_tokens || 0);
-    items.push({ date: new Date().toISOString(), endpoint, inputTokens: entrada, outputTokens: usage?.output_tokens || 0, cacheReadTokens: usage?.cache_read_input_tokens || 0 });
+    // inputTokens = TODA la entrada (nueva + escrita en caché + leída de caché), más cacheReadTokens y cacheWriteTokens.
+    items.push({ date: new Date().toISOString(), endpoint, ...camposUso(usage) });
     await escribirJSON(key, items.slice(-500));
   } catch (err) {
     // No bloquear la respuesta al usuario si falla el registro de uso.
@@ -754,10 +754,9 @@ module.exports = async function handler(req, res) {
         tarjetas[campo] = origen ? origen.tarjetas[campo] : '';
       });
     });
-    const entradaTotal = (uso.input_tokens || 0) + (uso.cache_creation_input_tokens || 0) + (uso.cache_read_input_tokens || 0);
     return res.status(200).json({
       tarjetas,
-      usage: { inputTokens: entradaTotal, outputTokens: uso.output_tokens || 0, cacheReadTokens: uso.cache_read_input_tokens || 0 },
+      usage: camposUso(uso),
     });
   } catch (err) {
     return res.status(500).json({ error: 'Error de conexión con el Agente.' });

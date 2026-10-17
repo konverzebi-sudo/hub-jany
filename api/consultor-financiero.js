@@ -334,7 +334,7 @@ function formatearReporteCsv(reporteCsv) {
   return 'REPORTE DE META ADS (CSV exportado de Meta Ads Manager, tal cual lo subió el usuario):\n\n' + truncar(reporteCsv, REPORT_CHAR_LIMIT);
 }
 
-async function llamarClaudeChat({ system, messages, maxTokens }) {
+async function llamarClaudeChat({ system, messages, maxTokens, cacheHistorial }) {
   const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -346,7 +346,7 @@ async function llamarClaudeChat({ system, messages, maxTokens }) {
       model: 'claude-sonnet-4-6',
       max_tokens: maxTokens,
       system,
-      messages: historialConCache(messages),
+      messages: historialConCache(messages, cacheHistorial),
     }),
   });
 
@@ -359,12 +359,14 @@ async function llamarClaudeChat({ system, messages, maxTokens }) {
   return { ok: true, text, usage: data.usage };
 }
 
+// total = mensajes válidos antes del recorte (para decidir si el historial se puede cachear).
 function limpiarMessages(messages, max) {
-  const limpio = (Array.isArray(messages) ? messages : [])
-    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+  const validos = (Array.isArray(messages) ? messages : [])
+    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim());
+  const limpio = validos
     .slice(-max)
     .map((m) => ({ role: m.role, content: m.content }));
-  return limpio;
+  return { limpio, total: validos.length };
 }
 
 // ---------- rama Jefe Finanzas (comportamiento original, sin cambios) ----------
@@ -372,7 +374,7 @@ function limpiarMessages(messages, max) {
 async function handleFinanciero(req, res, body) {
   const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
 
-  const limpio = limpiarMessages(body.messages, MAX_MESSAGES);
+  const { limpio, total } = limpiarMessages(body.messages, MAX_MESSAGES);
   if (limpio.length === 0 || limpio[limpio.length - 1].role !== 'user') {
     return res.status(400).json({ error: 'El último mensaje debe ser del usuario.' });
   }
@@ -382,7 +384,7 @@ async function handleFinanciero(req, res, body) {
   const contextoCalculadora = formatearDatosCalculadora(body.datosCalculadora);
   const system = systemConCache(systemPrompt, contexto, contextoCalculadora);
 
-  const r = await llamarClaudeChat({ system, messages: limpio, maxTokens: 1300 });
+  const r = await llamarClaudeChat({ system, messages: limpio, maxTokens: 1300, cacheHistorial: { total, max: MAX_MESSAGES } });
   if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
   await registrarUsoTokens(clienteId, 'consultor-financiero', r.usage);
   return res.status(200).json({ text: r.text });
@@ -393,7 +395,7 @@ async function handleFinanciero(req, res, body) {
 async function handleDiseno(req, res, body) {
   const clienteId = (body.cliente || DEFAULT_CLIENTE_DISENO).toString();
 
-  const limpio = limpiarMessages(body.messages, MAX_MESSAGES_DISENO);
+  const { limpio, total } = limpiarMessages(body.messages, MAX_MESSAGES_DISENO);
   if (limpio.length === 0 || limpio[limpio.length - 1].role !== 'user') {
     return res.status(400).json({ error: 'El último mensaje debe ser del usuario.' });
   }
@@ -402,7 +404,7 @@ async function handleDiseno(req, res, body) {
   const contexto = await construirContextoDiseno(clienteId);
   const system = systemConCache(systemPrompt, contexto);
 
-  const r = await llamarClaudeChat({ system, messages: limpio, maxTokens: 900 });
+  const r = await llamarClaudeChat({ system, messages: limpio, maxTokens: 900, cacheHistorial: { total, max: MAX_MESSAGES_DISENO } });
   if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
   await registrarUsoTokens(clienteId, 'consultor-produccion-video', r.usage);
   return res.status(200).json({ text: r.text });
@@ -431,7 +433,7 @@ function extraerHtmlDashboard(texto) {
 async function handleMetaAds(req, res, body) {
   const clienteId = (body.cliente || DEFAULT_CLIENTE_METAADS).toString();
 
-  const limpio = limpiarMessages(body.messages, MAX_MESSAGES_METAADS);
+  const { limpio, total } = limpiarMessages(body.messages, MAX_MESSAGES_METAADS);
   if (limpio.length === 0 || limpio[limpio.length - 1].role !== 'user') {
     return res.status(400).json({ error: 'El último mensaje debe ser del usuario.' });
   }
@@ -441,7 +443,7 @@ async function handleMetaAds(req, res, body) {
   const contextoReporte = formatearReporteCsv(body.reporteCsv);
   const system = systemConCache(systemPrompt, [contextoNegocio, contextoReporte].filter(Boolean).join('\n\n'));
 
-  const r = await llamarClaudeChat({ system, messages: limpio, maxTokens: 8000 });
+  const r = await llamarClaudeChat({ system, messages: limpio, maxTokens: 8000, cacheHistorial: { total, max: MAX_MESSAGES_METAADS } });
   if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
   await registrarUsoTokens(clienteId, 'consultor-optimizacion', r.usage);
   return res.status(200).json({ text: extraerHtmlDashboard(r.text) });

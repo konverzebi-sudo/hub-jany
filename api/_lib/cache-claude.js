@@ -21,8 +21,18 @@ function systemConCache(fijo, contexto, ...variables) {
 
 // Chats de varios turnos: marca el último mensaje para que el siguiente turno lea todo el
 // historial anterior de la caché y solo pague completo lo nuevo. No modifica el arreglo original.
-function historialConCache(messages) {
+//
+// opciones.total / opciones.max: cuántos mensajes válidos había antes del recorte y el límite que
+// usa ese chat (40, o 12 en Meta Ads). Cada turno agrega 2 mensajes (respuesta + mensaje nuevo):
+// si total > max - 2, el siguiente turno ya recorta los primeros mensajes, su historial empieza
+// distinto y lo escrito en caché nunca se reutiliza (se pagaría 1.25x sin leerlo). En ese caso el
+// historial no se marca; las instrucciones y el contexto del system siguen saliendo de caché.
+// opciones.noReutilizable: el último mensaje trae adjuntos que el siguiente turno no reenvía.
+function historialConCache(messages, opciones) {
   if (!Array.isArray(messages) || messages.length === 0) return messages;
+  const o = opciones || {};
+  if (o.noReutilizable) return messages;
+  if (Number.isFinite(o.total) && Number.isFinite(o.max) && o.total > o.max - 2) return messages;
   const copia = messages.slice();
   const ultimo = copia[copia.length - 1];
   const contenido = typeof ultimo.content === 'string'
