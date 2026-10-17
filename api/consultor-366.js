@@ -527,8 +527,9 @@ async function manejarChatGuiado(req, res) {
   if (!messages || messages.length === 0) {
     return res.status(400).json({ error: 'Falta el historial de la conversación (messages).' });
   }
-  const limpio = messages
-    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+  const validos = messages
+    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim());
+  const limpio = validos
     .slice(-BUILDER_MAX_MESSAGES)
     .map((m) => ({ role: m.role, content: m.content }));
   // La app escribe sola unos primeros mensajes (bienvenida y prueba de conexión) como del asistente: la API
@@ -592,7 +593,7 @@ async function manejarChatGuiado(req, res) {
       model: 'claude-sonnet-4-6',
       max_tokens: modo === 'documento-maestro' ? 3000 : (primeraVez ? 2800 : 2200),
       system,
-      messages: conAdjuntos ? limpio : historialConCache(limpio),
+      messages: historialConCache(limpio, { noReutilizable: conAdjuntos, total: validos.length, max: BUILDER_MAX_MESSAGES }),
     });
     if (!ok) {
       return res.status(status).json({ error: data?.error?.message || 'Error al llamar a la API.' });
@@ -762,8 +763,9 @@ async function manejarChatTemporada(req, res) {
   if (!messages || messages.length === 0) {
     return res.status(400).json({ error: 'Falta el historial de la conversación (messages).' });
   }
-  const limpio = messages
-    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+  const validos = messages
+    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim());
+  const limpio = validos
     .slice(-BUILDER_MAX_MESSAGES)
     .map((m) => ({ role: m.role, content: m.content }));
   if (limpio.length === 0 || limpio[limpio.length - 1].role !== 'user') {
@@ -838,7 +840,7 @@ async function manejarChatTemporada(req, res) {
       model: 'claude-sonnet-4-6',
       max_tokens: 3200,
       system,
-      messages: conAdjuntos ? limpio : historialConCache(limpio),
+      messages: historialConCache(limpio, { noReutilizable: conAdjuntos, total: validos.length, max: BUILDER_MAX_MESSAGES }),
     });
     if (!ok) {
       return res.status(status).json({ error: data?.error?.message || 'Error al llamar a la API.' });
