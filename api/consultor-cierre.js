@@ -604,8 +604,9 @@ module.exports = async function handler(req, res) {
       if (!messages || messages.length === 0) {
         return res.status(400).json({ error: 'Falta el historial de la conversación (messages).' });
       }
-      const limpio = messages
-        .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+      const validos = messages
+        .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim());
+      const limpio = validos
         .slice(-MAX_MESSAGES)
         .map((m) => ({ role: m.role, content: m.content }));
       if (limpio.length === 0 || limpio[limpio.length - 1].role !== 'user') {
@@ -617,7 +618,7 @@ module.exports = async function handler(req, res) {
         model: 'claude-sonnet-4-6',
         max_tokens: 1600,
         system,
-        messages: historialConCache(limpio),
+        messages: historialConCache(limpio, { total: validos.length, max: MAX_MESSAGES }),
       };
       if (modo === 'audit-tienda') {
         bodyAnthropic.tools = [WEB_FETCH_TOOL];
