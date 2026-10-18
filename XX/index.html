@@ -2056,6 +2056,7 @@
 
   var editingProjectId = null;
   var editingProjTaskId = null;
+  var projectsOpen = {};
 
   function renameProject(p, newName){
     newName = (newName || '').trim();
@@ -2152,11 +2153,54 @@
       if(addProjectField(p, nl.value, nv.value, allChk.checked)){ save(); renderProducts(); }
     });
     ed.appendChild(addBtn);
+    var delProj = document.createElement('button');
+    delProj.className = 'jd-btn'; delProj.style.cssText = 'width:100%;margin-top:6px;color:#F08C82;'; delProj.textContent = 'Eliminar proyecto';
+    var delArmed = false, delTimer = null;
+    delProj.addEventListener('click', function(){
+      if(!delArmed){
+        delArmed = true; delProj.textContent = '¿Seguro? Toca otra vez para eliminar'; delProj.style.background = '#3B211E';
+        delTimer = setTimeout(function(){ delArmed = false; delProj.textContent = 'Eliminar proyecto'; delProj.style.background = ''; }, 4000);
+        return;
+      }
+      clearTimeout(delTimer);
+      data.products = data.products.filter(function(x){ return x.id !== p.id; });
+      data.agenda.forEach(function(a){ if(a.project === p.name) a.project = undefined; });
+      editingProjectId = null;
+      save(); renderProducts(); renderAgenda();
+    });
+    ed.appendChild(delProj);
     var done = document.createElement('button');
     done.className = 'jd-btn jd-btn-lima'; done.style.cssText = 'width:100%;margin-top:6px;'; done.textContent = 'Listo';
     done.addEventListener('click', function(){ editingProjectId = null; renderProducts(); });
     ed.appendChild(done);
     card.appendChild(ed);
+  }
+
+  function buildProjectTaskEditor(p, t){
+    var er = document.createElement('div');
+    er.style.cssText = 'padding:6px 0;border-bottom:1px solid #232A1E;';
+    var ti = document.createElement('input'); ti.className = 'jd-input'; ti.value = t.text; ti.style.marginBottom = '6px';
+    var ts = document.createElement('select'); ts.className = 'jd-input'; ts.style.marginBottom = '6px';
+    ts.innerHTML = areaOptionsHtml(t.area, 'Meta: automática');
+    var tb = document.createElement('div'); tb.className = 'jd-row'; tb.style.gap = '6px';
+    tb.innerHTML = '<button class="jd-btn jd-btn-lima" data-save style="flex:1;">Guardar</button><button class="jd-btn" data-del>Borrar</button><button class="jd-btn" data-cancel>Cancelar</button>';
+    er.appendChild(ti); er.appendChild(ts); er.appendChild(tb);
+    function saveEdit(){
+      var v = ti.value.trim();
+      if(v) t.text = v;
+      if(ts.value !== (t.area || '')) setItemArea(t, ts.value || undefined, t.done);
+      editingProjTaskId = null;
+      save(); renderProducts(); renderBalance();
+    }
+    tb.querySelector('[data-save]').addEventListener('click', saveEdit);
+    ti.addEventListener('keydown', function(e){ if(e.key === 'Enter') saveEdit(); });
+    tb.querySelector('[data-del]').addEventListener('click', function(){
+      p.tasks = p.tasks.filter(function(x){ return x.id !== t.id; });
+      editingProjTaskId = null;
+      save(); renderProducts(); renderBalance();
+    });
+    tb.querySelector('[data-cancel]').addEventListener('click', function(){ editingProjTaskId = null; renderProducts(); });
+    return er;
   }
 
   function renderProducts(){
@@ -2166,15 +2210,20 @@
       var color = PROJECT_COLORS[p.name] || p.color;
       var card = document.createElement('div');
       card.className = 'jd-card';
-      var pendingCount = p.tasks.filter(function(t){ return !t.done; }).length;
-      var doneCount = p.tasks.length - pendingCount;
-      var pct = p.tasks.length ? Math.round(doneCount/p.tasks.length*100) : 0;
+      var pendingTasks = p.tasks.filter(function(t){ return !t.done; });
+      var doneTasks = p.tasks.filter(function(t){ return t.done; });
+      var pct = p.tasks.length ? Math.round(doneTasks.length / p.tasks.length * 100) : 0;
+      var open = !!projectsOpen[p.id];
       var head = document.createElement('div');
-      head.className = 'jd-row'; head.style.cssText='justify-content:space-between;margin-bottom:6px;';
-      head.innerHTML = '<div class="jd-row" style="gap:6px;"><span style="width:9px;height:9px;border-radius:50%;background:'+color+';display:inline-block;"></span>'+
-        '<span style="font-size:12.5px;font-weight:600;">'+p.name+'</span></div>'+
-        '<span class="jd-row" style="gap:6px;"><button class="jd-sub" data-edit style="background:transparent;border:none;cursor:pointer;padding:0;text-decoration:underline;">'+(editingProjectId === p.id ? 'listo' : 'editar')+'</button>'+
-        '<span class="jd-chip" style="background:#1B2117;color:#B9C0AF;">'+pendingCount+' pend.</span></span>';
+      head.className = 'jd-row'; head.style.cssText = 'justify-content:space-between;margin-bottom:6px;';
+      head.innerHTML = '<div class="jd-row" style="gap:6px;min-width:0;"><span style="width:9px;height:9px;border-radius:50%;background:'+color+';display:inline-block;flex:none;"></span>'+
+        '<button data-open style="background:transparent;border:none;color:#F2F5EC;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;padding:0;text-align:left;" title="Ver detalles y tareas hechas">'+p.name+' <span style="color:#8B9186;font-weight:400;">'+(open ? '▾' : '▸')+'</span></button></div>'+
+        '<span class="jd-row" style="gap:6px;flex:none;"><button class="jd-sub" data-edit style="background:transparent;border:none;cursor:pointer;padding:0;text-decoration:underline;">'+(editingProjectId === p.id ? 'listo' : 'editar')+'</button>'+
+        '<span class="jd-chip" style="background:#1B2117;color:#B9C0AF;">'+pendingTasks.length+' pend.</span></span>';
+      head.querySelector('[data-open]').addEventListener('click', function(){
+        projectsOpen[p.id] = !projectsOpen[p.id];
+        renderProducts();
+      });
       head.querySelector('[data-edit]').addEventListener('click', function(){
         editingProjectId = (editingProjectId === p.id) ? null : p.id;
         renderProducts();
@@ -2187,67 +2236,83 @@
 
       if(editingProjectId === p.id){
         renderProjectEditor(p, card);
-      } else if(p.fields && p.fields.length){
+      } else if(open){
         var info = document.createElement('div');
-        info.style.cssText = 'margin-bottom:8px;';
-        p.fields.forEach(function(f){
-          var line = document.createElement('div');
-          line.className = 'jd-sub'; line.style.cssText = 'font-size:11px;line-height:1.5;';
-          line.innerHTML = '<span style="color:#B9C0AF;">'+f.label+':</span> '+(f.value ? f.value : '<span style="color:#4A5A3C;">—</span>');
-          info.appendChild(line);
-        });
+        info.style.cssText = 'margin-bottom:8px;padding:8px;background:#0F140D;border:1px solid #232A1E;border-radius:10px;';
+        var fieldsHtml = (p.fields && p.fields.length) ? p.fields.map(function(f){
+          return '<div class="jd-sub" style="font-size:11px;line-height:1.5;"><span style="color:#B9C0AF;">'+f.label+':</span> '+(f.value ? f.value : '<span style="color:#4A5A3C;">—</span>')+'</div>';
+        }).join('') : '<div class="jd-sub" style="font-size:11px;">Sin datos todavía. Toca "editar" para agregar conceptos.</div>';
+        info.innerHTML = '<div class="jd-sub" style="color:#B9C0AF;margin-bottom:4px;">Detalles</div>'+fieldsHtml;
         card.appendChild(info);
+
+        var folder = document.createElement('div');
+        folder.style.cssText = 'margin-bottom:8px;padding:8px;background:#0F140D;border:1px solid #232A1E;border-radius:10px;';
+        folder.innerHTML = '<div class="jd-sub" style="color:#8FE39E;margin-bottom:4px;">✓ Hechas ('+doneTasks.length+')</div>';
+        if(doneTasks.length === 0){
+          var none = document.createElement('div'); none.className = 'jd-sub'; none.style.fontSize = '11px';
+          none.textContent = 'Aquí van las tareas que marques como hechas.';
+          folder.appendChild(none);
+        }
+        doneTasks.slice().reverse().forEach(function(t){
+          if(editingProjTaskId === t.id){ folder.appendChild(buildProjectTaskEditor(p, t)); return; }
+          var row = document.createElement('div');
+          row.className = 'jd-row'; row.style.cssText = 'gap:6px;padding:3px 0;align-items:flex-start;';
+          var when = t.doneAt ? new Date(t.doneAt + 'T00:00:00').toLocaleDateString('es-MX', {day:'numeric', month:'short'}) : '';
+          row.innerHTML = '<button type="button" data-restore class="jd-sub" title="Regresar a pendientes" style="background:transparent;border:none;cursor:pointer;padding:0 2px;flex:none;color:#8FE39E;">↩</button>'+
+            '<span data-text style="font-size:11.5px;flex:1;color:#7A8270;text-decoration:line-through;cursor:pointer;">'+t.text+'</span>'+
+            '<span class="jd-sub" style="font-size:10px;flex:none;">'+when+'</span>';
+          row.querySelector('[data-restore]').addEventListener('click', function(){
+            t.done = false; delete t.doneAt;
+            var ar = resolveArea(t.text, t.area); ensureArea(ar);
+            data.areaStats[ar].done = Math.max(0, data.areaStats[ar].done - 1);
+            save(); renderProducts(); renderBalance();
+          });
+          row.querySelector('[data-text]').addEventListener('click', function(){ editingProjTaskId = t.id; renderProducts(); });
+          folder.appendChild(row);
+        });
+        card.appendChild(folder);
       }
 
-      p.tasks.forEach(function(t){
-        if(editingProjTaskId === t.id){
-          var er = document.createElement('div');
-          er.style.cssText = 'padding:6px 0;border-bottom:1px solid #232A1E;';
-          var ti = document.createElement('input'); ti.className = 'jd-input'; ti.value = t.text; ti.style.marginBottom = '6px';
-          var ts = document.createElement('select'); ts.className = 'jd-input'; ts.style.marginBottom = '6px';
-          ts.innerHTML = areaOptionsHtml(t.area, 'Meta: automática');
-          var tb = document.createElement('div'); tb.className = 'jd-row'; tb.style.gap = '6px';
-          tb.innerHTML = '<button class="jd-btn jd-btn-lima" data-save style="flex:1;">Guardar</button><button class="jd-btn" data-del>Borrar</button><button class="jd-btn" data-cancel>Cancelar</button>';
-          er.appendChild(ti); er.appendChild(ts); er.appendChild(tb);
-          tb.querySelector('[data-save]').addEventListener('click', function(){
-            var v = ti.value.trim();
-            if(v) t.text = v;
-            if(ts.value !== (t.area || '')) setItemArea(t, ts.value || undefined, t.done);
-            editingProjTaskId = null;
-            save(); renderProducts(); renderBalance();
-          });
-          tb.querySelector('[data-del]').addEventListener('click', function(){
-            p.tasks = p.tasks.filter(function(x){ return x.id !== t.id; });
-            editingProjTaskId = null;
-            save(); renderProducts(); renderBalance();
-          });
-          tb.querySelector('[data-cancel]').addEventListener('click', function(){ editingProjTaskId = null; renderProducts(); });
-          card.appendChild(er);
-          return;
-        }
-        var row = document.createElement('label');
+      pendingTasks.forEach(function(t){
+        if(editingProjTaskId === t.id){ card.appendChild(buildProjectTaskEditor(p, t)); return; }
+        var row = document.createElement('div');
         row.className = 'jd-row';
-        row.style.cssText = 'gap:6px;padding:2px 0;cursor:pointer;';
+        row.style.cssText = 'gap:6px;padding:3px 0;align-items:flex-start;';
         var areaObj = t.area ? data.areas.find(function(ar){ return ar.id === t.area; }) : null;
-        row.innerHTML = '<input type="checkbox" '+(t.done?'checked':'')+' style="width:13px;height:13px;accent-color:'+color+';flex:none;">'+
-          '<span style="font-size:11.5px;flex:1;'+(t.done?'color:#5C6157;text-decoration:line-through;':'color:#9BA294;')+'">'+t.text+(areaObj ? ' <span class="jd-chip" style="background:#1B2117;color:'+areaObj.color+';font-size:9.5px;">◎ '+areaObj.name+'</span>' : '')+'</span>'+
-          '<button type="button" data-edit-task class="jd-sub" style="background:transparent;border:none;cursor:pointer;padding:0 2px;flex:none;" aria-label="Editar">✎</button>';
-        row.querySelector('[data-edit-task]').addEventListener('click', function(e){
-          e.preventDefault(); e.stopPropagation();
+        row.innerHTML = '<input type="checkbox" style="width:15px;height:15px;accent-color:'+color+';flex:none;margin-top:1px;cursor:pointer;">'+
+          '<span data-text style="font-size:11.5px;flex:1;color:#9BA294;cursor:pointer;line-height:1.5;">'+t.text+(areaObj ? ' <span class="jd-chip" style="background:#1B2117;color:'+areaObj.color+';font-size:9.5px;">◎ '+areaObj.name+'</span>' : '')+'</span>';
+        row.querySelector('[data-text]').addEventListener('click', function(){
           editingProjTaskId = t.id;
           renderProducts();
         });
         row.querySelector('input').addEventListener('change', function(e){
-          t.done = e.target.checked;
-          if(e.target.checked){
-            data.history.unshift(Object.assign({id:uid('hist'), project:p.name, text:t.text, minutes:null}, historyStamp()));
-            if(data.history.length > 50) data.history.length = 50;
-            bumpAreaDone(t.text, t.area);
-          }
+          if(!e.target.checked) return;
+          t.done = true;
+          t.doneAt = todayKey;
+          data.history.unshift(Object.assign({id:uid('hist'), project:p.name, text:t.text, minutes:null}, historyStamp()));
+          if(data.history.length > 50) data.history.length = 50;
+          bumpAreaDone(t.text, t.area);
           save(); renderProducts(); renderProgressMini(); renderHistory(); renderCalendar(); renderWeekGrid(); renderBalance();
         });
         card.appendChild(row);
       });
+
+      var addRow = document.createElement('div');
+      addRow.className = 'jd-row'; addRow.style.cssText = 'gap:4px;margin-top:8px;';
+      addRow.innerHTML = '<input class="jd-input" placeholder="+ Nueva tarea..." style="flex:1;font-size:11.5px;padding:6px 8px;">';
+      var addInput = addRow.querySelector('input');
+      addInput.addEventListener('keydown', function(e){
+        if(e.key !== 'Enter') return;
+        var v = addInput.value.trim();
+        if(!v) return;
+        p.tasks.push({id:uid('pt'), text:v, done:false});
+        bumpAreaTotal(v);
+        save(); renderProducts(); renderBalance();
+        var cards = document.getElementById('jd-products').children;
+        var idx = data.products.indexOf(p);
+        if(cards[idx]){ var again = cards[idx].querySelector('input[placeholder^="+ Nueva"]'); if(again) again.focus(); }
+      });
+      card.appendChild(addRow);
       box.appendChild(card);
     });
   }
@@ -2257,6 +2322,7 @@
     box.style.display = box.style.display === 'none' ? 'block' : 'none';
   });
 
+  document.getElementById('jd-project-name').addEventListener('keydown', function(e){ if(e.key === 'Enter') document.getElementById('jd-project-add').click(); });
   document.getElementById('jd-project-add').addEventListener('click', function(){
     var input = document.getElementById('jd-project-name');
     if(createProject(input.value)) input.value = '';
