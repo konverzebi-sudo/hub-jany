@@ -300,6 +300,8 @@ body {
 .sec-fav { width: 18px; height: 18px; border-radius: 4px; object-fit: contain; flex: none; }
 .card .sec-fav { width: 28px; height: 28px; border-radius: 7px; }
 .sec-x { position: absolute; top: -7px; right: -7px; width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--gris2); background: var(--negro2); color: var(--gris); font-size: 11px; line-height: 18px; padding: 0; cursor: pointer; }
+.sec-e { position: absolute; top: -7px; right: 17px; width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--gris2); background: var(--negro2); color: var(--gris); font-size: 11px; line-height: 18px; padding: 0; cursor: pointer; }
+.sec-e:hover { background: var(--verde); border-color: var(--verde); color: #fff; }
 .sec-x:hover { background: #e5484d; border-color: #e5484d; color: #fff; }
 button.sec-add { cursor: pointer; border-style: dashed; background: transparent; font-family: inherit; color: var(--verde); }
 button.sec-add .sec-plus { width: 22px; height: 22px; border-radius: 7px; background: var(--verde); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; line-height: 1; flex: none; }
@@ -414,7 +416,16 @@ button.sec-add .sec-plus { width: 22px; height: 22px; border-radius: 7px; backgr
     <div class="section-line"></div>
   </div>
 
-  <div class="pages-row" data-sec="cc">
+  <div class="pages-row" data-sec="cc"></div>
+
+  <!-- ── MIS HUBS ── -->
+  <div class="section-header">
+    <span class="section-icon">🧭</span>
+    <span class="section-title">Mis hubs</span>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="pages-row" data-sec="hubs">
     <a class="cc-btn" href="https://agentes.jefeshub.com/hubs" target="_blank">
       <span class="cc-label">CC</span>
       <span class="cc-name">Hub de Hubs</span>
@@ -776,7 +787,7 @@ button.sec-add .sec-plus { width: 22px; height: 22px; border-radius: 7px; backgr
 </div>
 
 <div id="sec-velo"><div id="sec-modal" role="dialog" aria-modal="true">
-  <h3>Agregar a <span id="sec-dest"></span></h3>
+  <h3><span id="sec-accion">Agregar a</span> <span id="sec-dest"></span></h3>
   <p>Escribe la dirección y su icono se busca solo.</p>
   <input type="text" id="sec-nombre" placeholder="Nombre (opcional)" autocomplete="off">
   <input type="text" id="sec-url" placeholder="Dirección, ej. mi-sitio.com" autocomplete="off" inputmode="url">
@@ -929,14 +940,20 @@ button.sec-add .sec-plus { width: 22px; height: 22px; border-radius: 7px; backgr
 </script>
 
 <script>
-// "+ Agregar" en cada sección: accesos propios por sección (se guardan aquí y, con token, en todos tus dispositivos)
-// y los hubs de clientes se listan solos desde el Hub de hubs.
+// "+ Agregar" en cada sección: accesos propios por sección (se guardan aquí y, con token, en todos tus dispositivos).
+// Business Manager Admin es una lista editable (✎ cambia, ✕ quita, + agrega) y los hubs de clientes se listan solos en "Mis hubs".
 (function () {
   var API = location.hostname === 'agentes.jefeshub.com' ? '' : 'https://agentes.jefeshub.com';
   var KEY = 'x:secciones', LS = 'x_secciones', TK = 'jefeshub_storage_token';
   var BASE_SLUGS = ['jefeshub', 'rancho-seco', 'rim', 'optica-one'];
-  var NOMBRES = { cc: 'Business Manager Admin', vivo: 'Páginas en vivo', jefes: 'Los Jefes', clientes: 'Sitios de clientes y proyectos', analisis: 'Análisis y métricas', infra: 'Infraestructura', herr: 'Herramientas de creación', docs: 'Documentos de trabajo', material: 'Material fotográfico', links: 'Links rápidos' };
-  var data = {}, hubs = [], destino = '', pidioToken = false, aviso;
+  var NOMBRES = { cc: 'Business Manager Admin', hubs: 'Mis hubs', vivo: 'Páginas en vivo', jefes: 'Los Jefes', clientes: 'Sitios de clientes y proyectos', analisis: 'Análisis y métricas', infra: 'Infraestructura', herr: 'Herramientas de creación', docs: 'Documentos de trabajo', material: 'Material fotográfico', links: 'Links rápidos' };
+  // Lo que trae Business Manager Admin la primera vez; después es tuyo (se edita, se quita o se agrega).
+  var DEFAULT_BM = [
+    { nombre: 'Hub de Jefes', url: 'https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=249570119&business_id=866362100434617' },
+    { nombre: 'Rancho Seco', url: 'https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=367530927509444&business_id=155293885449367' },
+    { nombre: 'Red Impulso Mujer', url: 'https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=699951080591339&business_id=123335278994707' }
+  ];
+  var data = {}, hubs = [], destino = '', editando = -1, pidioToken = false, aviso;
 
   function esc(t) { var d = document.createElement('div'); d.textContent = t == null ? '' : String(t); return d.innerHTML; }
   function normalizar(u) {
@@ -962,6 +979,13 @@ button.sec-add .sec-plus { width: 22px; height: 22px; border-radius: 7px; backgr
   }
   function cambio() { guardarLocal(); pintar(); guardarServidor(); }
 
+  // La lista de una sección; Business Manager Admin arranca con los tres de arriba hasta que se cambie algo.
+  function lista(key) { return key === 'cc' && !Array.isArray(data.cc) ? DEFAULT_BM : (data[key] || []); }
+  function editable(key) {
+    if (key === 'cc' && !Array.isArray(data.cc)) data.cc = DEFAULT_BM.map(function (b) { return { nombre: b.nombre, url: b.url }; });
+    return (data[key] = data[key] || []);
+  }
+
   function favicon(url) { return 'https://www.google.com/s2/favicons?domain=' + encodeURIComponent(hostDe(url)) + '&sz=64'; }
   function conFallback(root) {
     root.querySelectorAll('img[data-ini]').forEach(function (img) { img.onerror = function () { var s = document.createElement('span'); s.className = 'sec-fav'; s.textContent = img.dataset.ini; s.style.cssText = 'text-align:center;font-weight:700;'; img.replaceWith(s); }; });
@@ -969,21 +993,22 @@ button.sec-add .sec-plus { width: 22px; height: 22px; border-radius: 7px; backgr
   function pintar() {
     document.querySelectorAll('.sec-gen').forEach(function (n) { n.remove(); });
     document.querySelectorAll('[data-sec]').forEach(function (box) {
-      var key = box.dataset.sec, esFila = box.classList.contains('pages-row'), esCC = key === 'cc', frag = document.createDocumentFragment();
+      var key = box.dataset.sec, esFila = box.classList.contains('pages-row'), esBtn = key === 'cc' || key === 'hubs', frag = document.createDocumentFragment();
       function nodo(html) { var t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; }
-      if (esCC) {
+      if (key === 'hubs') {
         hubs.forEach(function (hb) {
           frag.appendChild(nodo('<a class="cc-btn sec-gen" href="https://agentes.jefeshub.com/' + esc(hb.slug) + '" target="_blank"><span class="cc-label">CC</span><span class="cc-name">' + esc(hb.nombre || hb.slug) + '</span><span class="cc-arrow">→</span></a>'));
         });
       }
-      (data[key] || []).forEach(function (it, i) {
+      lista(key).forEach(function (it, i) {
         var ini = esc((it.nombre || hostDe(it.url)).charAt(0).toUpperCase()), img = '<img class="sec-fav" src="' + esc(favicon(it.url)) + '" alt="" data-ini="' + ini + '">';
-        var x = '<button type="button" class="sec-x" data-key="' + key + '" data-i="' + i + '" aria-label="Quitar ' + esc(it.nombre) + '">✕</button>';
-        if (esCC) frag.appendChild(nodo('<a class="cc-btn sec-gen" href="' + esc(it.url) + '" target="_blank" rel="noopener">' + img + '<span class="cc-name">' + esc(it.nombre) + '</span><span class="cc-arrow">→</span>' + x + '</a>'));
+        var x = '<button type="button" class="sec-e" data-key="' + key + '" data-i="' + i + '" aria-label="Editar ' + esc(it.nombre) + '">✎</button>' +
+          '<button type="button" class="sec-x" data-key="' + key + '" data-i="' + i + '" aria-label="Quitar ' + esc(it.nombre) + '">✕</button>';
+        if (esBtn) frag.appendChild(nodo('<a class="cc-btn sec-gen" href="' + esc(it.url) + '" target="_blank" rel="noopener"><span class="cc-label">' + (key === 'cc' ? 'BM' : 'CC') + '</span><span class="cc-name">' + esc(it.nombre) + '</span><span class="cc-arrow">→</span>' + x + '</a>'));
         else if (esFila) frag.appendChild(nodo('<a class="page-btn sec-gen" href="' + esc(it.url) + '" target="_blank" rel="noopener">' + img + ' ' + esc(it.nombre) + x + '</a>'));
         else frag.appendChild(nodo('<a class="card sec-gen" href="' + esc(it.url) + '" target="_blank" rel="noopener"><div class="card-icon">' + img + '</div><div class="card-body"><div class="card-name">' + esc(it.nombre) + '</div><div class="card-desc">' + esc(hostDe(it.url)) + '</div></div><div class="card-arrow">→</div>' + x + '</a>'));
       });
-      var mas = esCC ? '<button type="button" class="cc-btn sec-add sec-gen" data-add="' + key + '"><span class="sec-plus">+</span><span class="cc-name">Agregar</span></button>'
+      var mas = esBtn ? '<button type="button" class="cc-btn sec-add sec-gen" data-add="' + key + '"><span class="sec-plus">+</span><span class="cc-name">Agregar</span></button>'
         : esFila ? '<button type="button" class="page-btn sec-add sec-gen" data-add="' + key + '"><span class="sec-plus">+</span> Agregar</button>'
         : '<button type="button" class="card sec-add sec-gen" data-add="' + key + '"><div class="card-icon"><span class="sec-plus">+</span></div><div class="card-body"><div class="card-name">Agregar página</div></div></button>';
       frag.appendChild(nodo(mas));
@@ -991,21 +1016,34 @@ button.sec-add .sec-plus { width: 22px; height: 22px; border-radius: 7px; backgr
       conFallback(box);
     });
     document.querySelectorAll('.sec-x').forEach(function (b) {
-      b.onclick = function (e) { e.preventDefault(); e.stopPropagation(); (data[b.dataset.key] || []).splice(+b.dataset.i, 1); cambio(); };
+      b.onclick = function (e) { e.preventDefault(); e.stopPropagation(); editable(b.dataset.key).splice(+b.dataset.i, 1); cambio(); };
     });
-    document.querySelectorAll('[data-add]').forEach(function (b) { b.onclick = function () { abrir(b.dataset.add); }; });
+    document.querySelectorAll('.sec-e').forEach(function (b) {
+      b.onclick = function (e) { e.preventDefault(); e.stopPropagation(); abrir(b.dataset.key, +b.dataset.i); };
+    });
+    document.querySelectorAll('[data-add]').forEach(function (b) { b.onclick = function () { abrir(b.dataset.add, -1); }; });
   }
 
-  var velo = document.getElementById('sec-velo'), inN = document.getElementById('sec-nombre'), inU = document.getElementById('sec-url'), msg = document.getElementById('sec-msg');
-  function abrir(key) { destino = key; document.getElementById('sec-dest').textContent = NOMBRES[key] || 'esta sección'; msg.textContent = ''; velo.classList.add('on'); inU.focus(); }
-  function cerrar() { velo.classList.remove('on'); inN.value = ''; inU.value = ''; msg.textContent = ''; }
+  var velo = document.getElementById('sec-velo'), inN = document.getElementById('sec-nombre'), inU = document.getElementById('sec-url'), msg = document.getElementById('sec-msg'), btnOk = document.getElementById('sec-ok');
+  function abrir(key, idx) {
+    destino = key; editando = idx;
+    var it = idx >= 0 ? lista(key)[idx] : null;
+    document.getElementById('sec-accion').textContent = it ? 'Editar en' : 'Agregar a';
+    document.getElementById('sec-dest').textContent = NOMBRES[key] || 'esta sección';
+    inN.value = it ? it.nombre : ''; inU.value = it ? it.url : ''; msg.textContent = '';
+    btnOk.textContent = it ? 'Guardar' : 'Agregar';
+    velo.classList.add('on'); (it ? inN : inU).focus();
+  }
+  function cerrar() { velo.classList.remove('on'); inN.value = ''; inU.value = ''; msg.textContent = ''; editando = -1; }
   function agregar() {
     var url = normalizar(inU.value);
     if (!url) { msg.textContent = 'Escribe una dirección válida, ej. mi-sitio.com'; return; }
-    (data[destino] = data[destino] || []).push({ nombre: (inN.value.trim() || hostDe(url)).slice(0, 40), url: url });
+    var nombre = (inN.value.trim() || hostDe(url)).slice(0, 40), arr = editable(destino);
+    if (editando >= 0 && arr[editando]) { arr[editando].nombre = nombre; arr[editando].url = url; }
+    else arr.push({ nombre: nombre, url: url });
     cerrar(); cambio();
   }
-  document.getElementById('sec-ok').onclick = agregar;
+  btnOk.onclick = agregar;
   document.getElementById('sec-cancel').onclick = cerrar;
   velo.addEventListener('click', function (e) { if (e.target === velo) cerrar(); });
   velo.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); agregar(); } else if (e.key === 'Escape') cerrar(); });
