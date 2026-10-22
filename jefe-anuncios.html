@@ -436,6 +436,16 @@
   .cx-edit:hover{color:var(--accent-text);border-color:var(--accent);}
   .cx-pill{display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:100px;padding:4px 6px 4px 14px;box-shadow:var(--shadow-card);animation:cxSlide .22s ease both;}
   .cx-pill:focus-within{border-color:var(--accent);}
+  .cx-help{width:26px;height:26px;border-radius:50%;border:1.5px solid var(--line);background:var(--surface);color:var(--text-dim);font:700 13px 'Sora',sans-serif;cursor:pointer;flex-shrink:0;}
+  .cx-help:hover{border-color:var(--accent-text);color:var(--accent-text);background:var(--accent-soft);}
+  .ay-overlay{position:fixed;inset:0;background:rgba(16,16,58,.45);z-index:2100;display:flex;align-items:center;justify-content:center;padding:18px;}
+  .ay-box{position:relative;background:#fff;border-radius:22px;width:min(520px,100%);max-height:92vh;overflow-y:auto;padding:26px 28px;box-shadow:0 30px 80px rgba(0,0,0,.35);}
+  .ay-box h3{font-family:'Sora',sans-serif;font-size:19px;font-weight:800;margin:0 36px 14px 0;line-height:1.3;}
+  .ay-box ol{margin:0 0 14px;padding-left:22px;display:flex;flex-direction:column;gap:9px;font-size:15.5px;line-height:1.5;}
+  .ay-box li::marker{font-weight:800;color:var(--accent-text);}
+  .ay-nota{font-size:13.5px;color:var(--text-dim);background:var(--surface-2);border-radius:12px;padding:9px 12px;margin:0 0 14px;}
+  .ay-x{position:absolute;top:14px;right:14px;width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:#fff;cursor:pointer;color:var(--text-dim);}
+  .ay-btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;}
   .cx-pill input{border:none;outline:none;background:transparent;font-family:'Inter',sans-serif;font-size:15px;color:var(--text);width:230px;max-width:42vw;padding:7px 0;}
   .cx-pill input::placeholder{color:var(--text-dim);}
   .cx-pill button{border:none;background:var(--accent);color:#1A1A1A;font:700 14px 'Sora',sans-serif;padding:8px 14px;border-radius:100px;cursor:pointer;}
@@ -1153,6 +1163,54 @@ const LINK_ICONOS = [
     get:()=>linkBM, set:v=>{ linkBM=v; scheduleBMSave(); },
     editando:()=>bmEditando, setEditando:v=>{ bmEditando=v; } },
 ];
+// Pasos cortos para sacar cada link (Drive y Business Manager). Se abren en un popup con el botón "?" de cada link.
+const AYUDA_LINKS = {
+  carpeta: {
+    titulo: 'Cómo sacar el link de tu carpeta de trabajo (Drive)',
+    pasos: [
+      'Entra a Google Drive y crea una carpeta para tu material de trabajo (por ejemplo, “Material de anuncios”).',
+      'Sube ahí tus fotos, videos, logotipo y los anuncios que ya terminaste.',
+      'Pícale clic derecho a la carpeta y elige <b>Compartir</b>.',
+      'En “Acceso general” elige <b>Cualquier persona con el enlace</b>; así los archivos se pueden ver desde aquí.',
+      'Pícale <b>Copiar vínculo</b>.',
+      'Regresa y pega el link en la casilla de arriba; pícale <b>Listo</b>. Queda guardado y ya lo tienes a la mano.',
+    ],
+    abrir: { texto: 'Abrir Google Drive ↗', url: 'https://drive.google.com' },
+  },
+  bm: {
+    titulo: 'Cómo sacar el link de tu Business Manager (administrador comercial de Meta)',
+    pasos: [
+      'Entra a business.facebook.com con la cuenta que administra tu negocio.',
+      'Arriba a la izquierda elige tu negocio (el portafolio comercial donde están tus anuncios).',
+      'Abre <b>Configuración</b> (el engranaje) y entra a la sección de tu negocio, o al <b>Administrador de anuncios</b> si ahí es donde publicas.',
+      'Copia la dirección completa de la barra del navegador (empieza con business.facebook.com).',
+      'Pégala en la casilla de arriba y pícale <b>Listo</b>.',
+    ],
+    nota: 'Si tu pantalla se ve distinta, no importa: lo que guardas es el link de la página donde administras tus anuncios.',
+    abrir: { texto: 'Abrir Business Manager ↗', url: 'https://business.facebook.com' },
+  },
+};
+function abrirAyudaLink(id){
+  const a = AYUDA_LINKS[id]; if(!a) return;
+  document.querySelectorAll('.ay-overlay').forEach(x=>x.remove());
+  const ov = document.createElement('div');
+  ov.className = 'ay-overlay';
+  ov.innerHTML = `<div class="ay-box" role="dialog" aria-modal="true">
+    <button type="button" class="ay-x" aria-label="Cerrar">✕</button>
+    <h3>${escHtml(a.titulo)}</h3>
+    <ol>${a.pasos.map(p=>`<li>${p}</li>`).join('')}</ol>
+    ${a.nota ? `<p class="ay-nota">${escHtml(a.nota)}</p>` : ''}
+    <div class="ay-btns"><a class="btn btn-outline" href="${a.abrir.url}" target="_blank" rel="noopener">${escHtml(a.abrir.texto)}</a><button type="button" class="btn btn-solid ay-ok">Entendido</button></div>
+  </div>`;
+  document.body.appendChild(ov);
+  const cerrar = ()=>{ ov.remove(); document.removeEventListener('keydown', tecla); };
+  const tecla = (e)=>{ if(e.key==='Escape') cerrar(); };
+  document.addEventListener('keydown', tecla);
+  ov.addEventListener('mousedown',(e)=>{ if(e.target===ov) cerrar(); });
+  ov.querySelector('.ay-x').addEventListener('click', cerrar);
+  ov.querySelector('.ay-ok').addEventListener('click', cerrar);
+}
+
 function pintarIconos(){
   const host=document.getElementById('cx-icons');
   if(!host) return;
@@ -1174,8 +1232,10 @@ function pintarIconos(){
     if(mostrarInput){
       html+=`<div class="cx-pill"><input type="text" data-link-input="${cfg.id}" placeholder="Pega tu link aquí" value="${escHtml(link)}" aria-label="Link: ${titulo}"><button type="button" data-ok="${cfg.id}">Listo</button>${link?`<button type="button" class="ghost" data-cancel="${cfg.id}" aria-label="Cancelar">✕</button>`:''}</div>`;
     }
+    html+=`<button type="button" class="cx-help" data-help="${cfg.id}" title="¿Cómo saco este link?" aria-label="Ayuda: cómo sacar el link de ${titulo}">?</button>`;
     box.innerHTML=html;
     host.appendChild(box);
+    box.querySelector('[data-help]').addEventListener('click',()=>abrirAyudaLink(cfg.id));
 
     const input=box.querySelector('[data-link-input]');
     if(input){
@@ -2589,6 +2649,15 @@ GuiaJefe.registrar({
   id:'anuncios', nombre:'Jefe de Anuncios',
   antes:()=>{ if(currentTab!=='generador'){ const t=document.querySelector('.tab[data-tab="generador"]'); if(t) t.click(); } },
   pasos:[
+    { selector:'#cx-icons', titulo:'Tus dos links de trabajo',
+      texto:'Aquí guardas dos links fijos que quedan a la mano: la carpeta de Drive con tu material de trabajo y tu Business Manager (el administrador comercial de Meta). Pega el link y pícale “Listo”. Si no sabes cómo sacarlo, pícale al “?” de cada uno: te explica paso a paso.' },
+    { selector:'.jn-redes', titulo:'Tus redes sociales',
+      texto:()=>{
+        const reg = document.querySelectorAll('.jn-redes .jn-red[data-k]:not(.jn-red-off)').length;
+        const faltan = [...document.querySelectorAll('.jn-redes .jn-red-off')].map(b=>(b.getAttribute('title')||'').replace(/^Agregar\s+/i,'')).filter(Boolean);
+        return 'A la izquierda, abajo de la barra, ya están tus redes sociales: se toman de tu ADN. Las que ya tienes registradas se ven en gris fuerte y las que faltan en gris claro (con borde punteado).'
+          + (faltan.length ? ' Hoy te faltan: '+faltan.join(', ')+'. Llénalas dándoles clic al icono (o en “ADN del negocio”): son importantes porque el Jefe las usa para armar tus anuncios y los links de contacto.' : (reg ? ' ¡Ya tienes todas registradas!' : ''));
+      } },
     { selector:'#anuncios-grupo-sel', titulo:'Grupo de negocio',
       texto:()=>'Aquí eliges la línea de negocio para la que quieres anuncios.'+(productoNombre&&grupoId?' Ya lo dejé en el grupo del producto que veníamos trabajando.':'') },
     { selector:'#anuncios-producto-sel', titulo:'Producto',
