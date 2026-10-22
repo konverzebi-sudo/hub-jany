@@ -101,6 +101,12 @@
   .grupo-chip button{border:none;background:transparent;color:var(--text-dim);cursor:pointer;font-size:12px;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;}
   .grupo-chip button:hover{background:#EF4444;color:#fff;}
   .grupo-chip button.completar:hover{background:var(--accent);color:#0F0B16;}
+  .grupos-ayuda{font-size:13.5px;line-height:1.5;color:var(--text-dim);margin:0 0 10px;}
+  .grupos-asignar{margin-top:14px;display:flex;flex-direction:column;gap:8px;}
+  .grupos-asignar-tit{font-weight:700;font-size:14px;}
+  .grupos-asignar-fila{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .grupos-asignar-fila span{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;font-family:Inter,sans-serif;font-size:14px;letter-spacing:0;text-transform:none;color:var(--text);}
+  .grupos-asignar-fila select{flex:0 0 45%;max-width:45%;}
   .grupos-add-row{display:flex;gap:8px;margin-top:10px;}
   .grupos-add-row input{flex:1;font-family:'Inter',sans-serif;font-size:13px;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--surface-2);color:var(--text);}
   .grupos-add-row .ask-btn{white-space:nowrap;}
@@ -752,17 +758,7 @@ Al terminar, dame cada respuesta con su etiqueta en orden para copiar y pegar di
        6. CATÁLOGO
   ══════════════════════════════════════════════ -->
   <section class="tab-panel" id="panel-catalogo">
-    <div class="panel-head"><h2>Catálogo de productos</h2><div class="panel-desc">El margen se calcula solo con precio y costo.</div></div>
-
-    <div class="field">
-      <label>Grupos de negocio — organiza tus productos por línea (ej. Publicidad, Torneos, Academia). Estos mismos nombres aparecen como pestañas en el Jefe 366.</label>
-      <div class="chips" id="grupos-chips"></div>
-      <div class="grupos-add-row">
-        <input type="text" id="grupo-nuevo-input" placeholder="Nombre del nuevo grupo" maxlength="40" onkeydown="if(event.key==='Enter'){event.preventDefault();addGrupoNegocio();}">
-        <button class="ask-btn" type="button" onclick="addGrupoNegocio()">+ Agregar grupo</button>
-      </div>
-      <div id="grupos-status" class="log-status"></div>
-    </div>
+    <div class="panel-head"><h2>Catálogo de productos</h2><div class="panel-desc">Primero agrega tus productos o servicios (el margen se calcula solo con precio y costo). Después podrás agruparlos, si hace falta.</div></div>
 
     <div class="table-scroll">
       <table class="data-table">
@@ -774,6 +770,18 @@ Al terminar, dame cada respuesta con su etiqueta en orden para copiar y pegar di
     </div>
     <button class="ask-btn add-row-btn" onclick="addCatalogoRow()">+ Agregar fila</button>
     <div id="catalogo-status" class="log-status"></div>
+
+    <div class="field">
+      <label>¿Varios de estos productos van juntos en una misma línea?</label>
+      <p class="grupos-ayuda">Es opcional. Crea un grupo solo si varios de tus productos o servicios forman una línea propia (por ejemplo "Servicios" o "Línea de verano") y marca abajo a cuál pertenece cada uno. Cada grupo aparece como pestaña en el Jefe 366. Si todo va junto, déjalo vacío y toca "Terminar".</p>
+      <div class="chips" id="grupos-chips"></div>
+      <div class="grupos-add-row">
+        <input type="text" id="grupo-nuevo-input" placeholder="Nombre del nuevo grupo" maxlength="40" onkeydown="if(event.key==='Enter'){event.preventDefault();addGrupoNegocio();}">
+        <button class="ask-btn" type="button" onclick="addGrupoNegocio()">+ Agregar grupo</button>
+      </div>
+      <div id="grupos-asignar" class="grupos-asignar"></div>
+      <div id="grupos-status" class="log-status"></div>
+    </div>
 
     <div class="ai-prompt-wrap">
       <button type="button" class="ai-prompt-toggle" onclick="toggleAIPrompt('catalogo')">🤖 Prompt de IA — lléname esta sección con ayuda de ChatGPT o Claude</button>
@@ -1738,7 +1746,26 @@ function renderGruposChips(){
   const wrap = document.getElementById('grupos-chips');
   wrap.innerHTML = gruposState.length ? gruposState.map(g=>`
     <span class="grupo-chip">${escapeHtml(g.nombre)}<button type="button" class="completar" title="Crear en Jefe 366 el Perfil/Producto/Sistema que le falten a este grupo" onclick="completarPestanas366ParaGrupo('${g.id}')">↻</button><button type="button" title="Quitar grupo" onclick="deleteGrupoNegocio('${g.id}')">✕</button></span>
-  `).join('') : '<span class="log-empty" style="padding:4px 0;">Todavía no hay grupos. Agrega uno arriba.</span>';
+  `).join('') : '<span class="log-empty" style="padding:4px 0;">Todavía no hay grupos (es opcional).</span>';
+  renderGruposAsignar();
+}
+/* Debajo de los grupos: cada producto con su selector de grupo (el mismo dato que la columna "Grupo" de la tabla). */
+function renderGruposAsignar(){
+  const el = document.getElementById('grupos-asignar');
+  if(!el) return;
+  const productos = (typeof catalogoState !== 'undefined' ? catalogoState : []).filter(p => (p.nombre||'').trim());
+  if(!gruposState.length || !productos.length){ el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="grupos-asignar-tit">¿A qué grupo pertenece cada producto?</div>' + productos.map(p => `
+    <label class="grupos-asignar-fila"><span>${escapeHtml(p.nombre)}</span>
+      <select data-asignar="${p.id}"><option value="">Sin grupo</option>${gruposState.map(g=>`<option value="${g.id}"${p.grupo_id===g.id?' selected':''}>${escapeHtml(g.nombre)}</option>`).join('')}</select>
+    </label>`).join('');
+  el.querySelectorAll('select[data-asignar]').forEach(sel => sel.addEventListener('change', () => {
+    const row = catalogoState.find(r => r.id === sel.dataset.asignar);
+    if(!row) return;
+    row.grupo_id = sel.value;
+    renderCatalogo();
+    scheduleCatalogoSave();
+  }));
 }
 function slugify(str){
   return String(str).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'') || newId();
@@ -1844,6 +1871,7 @@ function calcMargen(p,c){
 let dragSrcId = null;
 function renderCatalogo(){
   const tbody = document.getElementById('catalogo-tbody');
+  renderGruposAsignar();
   if(!catalogoState.length){
     tbody.innerHTML='<tr><td colspan="11" class="log-empty">Todavía no hay productos. Usa "+ Agregar fila".</td></tr>';
     return;
