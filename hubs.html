@@ -39,6 +39,13 @@
   .tokdet td{padding:3px 0;color:var(--dim)}
   .tokdet td:last-child{text-align:right;color:var(--text);font-variant-numeric:tabular-nums}
   .tokdet .nota{font-size:11.5px;color:var(--dim);margin-top:6px}
+  .tokdet .tit{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);margin-top:10px}
+  .tokdet table.meses td{color:var(--text)}
+  .tokdet table.meses td:first-child{color:var(--dim)}
+  .tokdet table.meses th{font-size:11px;font-weight:600;color:var(--dim);text-align:right;padding:2px 0}
+  .tokdet table.meses th:first-child{text-align:left}
+  .tokdet table.meses td:nth-child(2),.tokdet table.meses td:nth-child(3){text-align:right;font-variant-numeric:tabular-nums}
+  .tokdet table.meses tr.actual td{font-weight:700}
   .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto}
   .btn{background:var(--lime);color:#111;font-weight:700;font-size:14px;padding:10px 16px;border-radius:11px;text-decoration:none;display:inline-block}
   .btn:hover{background:var(--lime-deep)}
@@ -85,7 +92,7 @@
     </svg>
     <h1>Hub de Hubs</h1>
   </div>
-  <p class="sub">Todos los hubs de tus clientes en un solo lugar. Crea uno nuevo, mándale su link para que llene su ADN y revisa cuántos tokens lleva usados.</p>
+  <p class="sub">Todos los hubs de tus clientes en un solo lugar. Crea uno nuevo, mándale su link para que llene su ADN y revisa cuántos tokens y dólares lleva usados, mes por mes.</p>
   <div class="grid" id="grid"></div>
   <div class="msg" id="msg"></div>
 </div>
@@ -109,10 +116,27 @@
     ['jefe-optimizacion', 'Jefe de Mejora Constante'], ['jefe-temporada', 'Campañas de Temporada'], ['jefe-agenda', 'Jefe de Agenda']];
   var RESERVADOS = ['adn', 'jefes', 'hubs', 'api', 'js', 'css', 'img', 'pre-hub', 'adn-previo', 'adn-previo-admin', 'nodisenes', 'herramientas', 'prospeccion',
     'taller-gracias', 'jefeshub', 'rancho-seco', 'rim', 'optica-one', 'hub', 'index', 'admin', 'login', 'terminos', 'aviso-privacidad', 'bienvenida', 'oficial'];
-  // Tarifa de Claude Sonnet (el modelo que usan los Jefes): USD por millon de tokens. Es una estimacion.
-  var USD_ENTRADA = 3, USD_SALIDA = 15, DIA = 86400000;
-  var NOMBRES_ENDPOINT = { 'consultor-366': 'Jefe 366', 'consultor-cierre': 'Jefe de Conversión', 'consultor-financiero': 'Jefe de Finanzas', 'consultor-radar': 'Jefe del Faro',
-    'generar-anuncios': 'Jefe de Anuncios', 'generar-guion-organico': 'Jefe de Contenido', 'generar-ideas-366': 'Jefe 366 (ideas)', 'jefe-conversion': 'WhatsApp y Ventas', 'jefe-estrategia-whatsapp': 'WhatsApp y Ventas' };
+  // Tarifa de Claude Sonnet 4.6 (el modelo que usan los Jefes): USD por millon de tokens. Es una estimacion.
+  // Con caché: escribir cuesta 1.25x la entrada y leer 0.1x.
+  var USD_ENTRADA = 3, USD_SALIDA = 15, USD_CACHE_ESCRITURA = 3.75, USD_CACHE_LECTURA = 0.30, DIA = 86400000;
+  var MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  // Costo de un uso (o de la suma de varios): inputTokens es el total de entrada; lo que no salió de caché se cobra completo.
+  function costoDe(u) {
+    var i = u.inputTokens || 0, cr = u.cacheReadTokens || 0, cw = u.cacheWriteTokens || 0, normal = Math.max(0, i - cr - cw);
+    return (normal * USD_ENTRADA + cw * USD_CACHE_ESCRITURA + cr * USD_CACHE_LECTURA + (u.outputTokens || 0) * USD_SALIDA) / 1e6;
+  }
+  function costoSinCache(u) { return ((u.inputTokens || 0) * USD_ENTRADA + (u.outputTokens || 0) * USD_SALIDA) / 1e6; }
+  // Mes en hora de México (igual que el resumen mensual del servidor).
+  function mesDe(fecha) { var d = new Date(fecha); return isNaN(d) ? null : d.toLocaleDateString('sv-SE', { timeZone: 'America/Mexico_City' }).slice(0, 7); }
+  function nombreMes(m) { var p = m.split('-'); return MESES[+p[1] - 1] + ' ' + p[0]; }
+  function usdCorto(n) { return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  // Nombre del Jefe a partir del servicio que quedó en el registro (cada Jefe usa varios, ej. generar-anuncios-pieza-imagen).
+  var JEFE_POR_PREFIJO = [['consultor-366', 'Jefe 366'], ['consultor-evergreen', 'Jefe 366'], ['generar-ideas-366', 'Jefe 366'], ['generar-ideas-evergreen', 'Jefe 366'],
+    ['consultor-temporada', 'Campañas de Temporada'], ['consultor-cierre', 'Jefe de Conversión'], ['consultor-financiero', 'Jefe de Finanzas'],
+    ['consultor-optimizacion', 'Jefe de Mejora Constante'], ['consultor-produccion-video', 'Jefe Productor IA'], ['consultor-radar', 'Jefe del Faro'],
+    ['generar-anuncios', 'Jefe de Anuncios'], ['generar-guion-organico', 'Jefe de Contenido'],
+    ['jefe-conversion', 'WhatsApp y Ventas'], ['agente-conversion', 'WhatsApp y Ventas'], ['jefe-estrategia-whatsapp', 'WhatsApp y Ventas'], ['agente-estrategia-whatsapp', 'WhatsApp y Ventas']];
+  function jefeDe(ep) { for (var i = 0; i < JEFE_POR_PREFIJO.length; i++) if (ep.indexOf(JEFE_POR_PREFIJO[i][0]) === 0) return JEFE_POR_PREFIJO[i][1]; return ep; }
   var KEY = 'jefeshub_storage_token';
   function usd(n) { return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: n < 1 ? 4 : 2 }) + ' USD'; }
   function fechaMx(d) { return d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }); }
@@ -154,20 +178,36 @@
   }
 
   async function datosDe(h) {
-    var res = await Promise.all([leer(h.slug + ':brand-book.visual'), leer(h.slug + ':brand-book.identidad'), leer(h.slug + ':uso-tokens-log')]);
+    var res = await Promise.all([leer(h.slug + ':brand-book.visual'), leer(h.slug + ':brand-book.identidad'), leer(h.slug + ':uso-tokens-log'), leer(h.slug + ':uso-tokens-mensual'),
+      fetch('/api/storage/saldo?cliente=' + encodeURIComponent(h.slug), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })]);
     var logo = res[0] && res[0].logo ? res[0].logo : '';
     var nombre = (res[1] && res[1].nombre) || h.nombre || h.slug;
     var items = Array.isArray(res[2]) ? res[2] : [];
-    var inT = 0, outT = 0, fechas = [], por = {};
+    var resumen = res[3] && typeof res[3] === 'object' && res[3].meses ? res[3] : null;
+    // Meses: el resumen mensual del servidor (completo desde que existe) + los usos del registro anteriores a él.
+    var desde = resumen && resumen.desde ? new Date(resumen.desde).getTime() : Infinity;
+    var meses = {}, fechas = [], por = {};
+    function sumar(m, u, llamadas) {
+      var x = meses[m] || (meses[m] = { llamadas: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 });
+      x.llamadas += llamadas; x.inputTokens += u.inputTokens || 0; x.outputTokens += u.outputTokens || 0;
+      x.cacheReadTokens += u.cacheReadTokens || 0; x.cacheWriteTokens += u.cacheWriteTokens || 0;
+    }
     items.forEach(function (it) {
-      var i = it.inputTokens || 0, o = it.outputTokens || 0; inT += i; outT += o;
-      var d = it.date ? new Date(it.date) : null; if (d && !isNaN(d)) fechas.push(d.getTime());
-      var ep = it.endpoint || 'otro'; por[ep] = (por[ep] || 0) + i + o;
+      var t = it.date ? new Date(it.date).getTime() : NaN;
+      if (!isNaN(t)) fechas.push(t);
+      var jefe = jefeDe(it.endpoint || 'otro'); por[jefe] = (por[jefe] || 0) + costoDe(it);
+      var m = mesDe(it.date);
+      if (m && !(t >= desde)) sumar(m, it, 1);
     });
-    var tokens = inT + outT;
+    if (resumen) Object.keys(resumen.meses).forEach(function (m) { var x = resumen.meses[m]; sumar(m, x, x.llamadas || 0); });
+    var lista = Object.keys(meses).sort().reverse().map(function (m) {
+      var x = meses[m]; return { mes: m, llamadas: x.llamadas, tokens: x.inputTokens + x.outputTokens, usd: costoDe(x), sinCache: costoSinCache(x), inT: x.inputTokens, outT: x.outputTokens };
+    });
+    var tot = lista.reduce(function (a, x) { a.tokens += x.tokens; a.usd += x.usd; a.sinCache += x.sinCache; a.inT += x.inT; a.outT += x.outT; return a; }, { tokens: 0, usd: 0, sinCache: 0, inT: 0, outT: 0 });
     var primero = fechas.length ? new Date(Math.min.apply(null, fechas)) : null;
-    var desglose = Object.keys(por).map(function (k) { return [NOMBRES_ENDPOINT[k] || k, por[k]]; }).sort(function (x, y) { return y[1] - x[1]; }).slice(0, 4);
-    return { logo: logo, nombre: nombre, tokens: tokens, inT: inT, outT: outT, primero: primero, desglose: desglose, registros: items.length, creado: h.creado ? new Date(h.creado) : null };
+    if (resumen && resumen.desde && (!primero || new Date(resumen.desde) < primero)) primero = new Date(resumen.desde);
+    var desglose = Object.keys(por).map(function (k) { return [k, por[k]]; }).sort(function (x, y) { return y[1] - x[1]; }).slice(0, 5);
+    return { saldo: res[4], logo: logo, nombre: nombre, tokens: tot.tokens, inT: tot.inT, outT: tot.outT, usd: tot.usd, sinCache: tot.sinCache, meses: lista, primero: primero, desglose: desglose, registros: items.length, creado: h.creado ? new Date(h.creado) : null };
   }
 
   function tarjeta(h, d) {
@@ -175,7 +215,7 @@
     return '<article class="card" data-slug="' + esc(h.slug) + '">' +
       '<div class="logo">' + cab + '</div>' +
       '<div><div class="nom">' + esc(d.nombre) + '</div><div class="ruta">' + (h.slug === 'jefeshub' ? 'agentes.jefeshub.com' : '/' + esc(h.slug)) + (h.fijo ? '' : ' · nuevo') + '</div></div>' +
-      '<button type="button" class="tok" data-tok="' + esc(h.slug) + '" aria-expanded="false" title="Ver costo y días">🔢 ' + (d.tokens ? d.tokens.toLocaleString('es-MX') + ' tokens' : 'Sin uso todavía') + '</button>' +
+      '<button type="button" class="tok" data-tok="' + esc(h.slug) + '" aria-expanded="false" title="Ver costo y días">🔢 ' + (d.tokens ? d.tokens.toLocaleString('es-MX') + ' tokens · ' + usdCorto(d.usd) : 'Sin uso todavía') + '</button>' +
       '<div class="tokdet" id="det-' + esc(h.slug) + '" hidden></div>' +
       '<div class="acts"><a class="btn" href="' + esc(h.home) + '" target="_blank" rel="noopener">Abrir hub</a>' +
       '<a class="btn sec" href="' + esc(h.adn) + '" target="_blank" rel="noopener">ADN</a>' +
@@ -184,22 +224,44 @@
 
   function detalleTokens(d) {
     if (!d || !d.tokens) return '<div>Este hub todavía no ha usado la IA.' + (d && d.creado ? '<br>Creado hace <b>' + diasTxt(d.creado) + '</b> (' + fechaMx(d.creado) + ').' : '') + '</div>';
-    var cIn = d.inT / 1e6 * USD_ENTRADA, cOut = d.outT / 1e6 * USD_SALIDA, total = cIn + cOut;
+    var cOut = d.outT / 1e6 * USD_SALIDA, total = d.usd, cIn = total - cOut, ahorro = d.sinCache - total;
     var inicio = d.creado || d.primero, etiqueta = d.creado ? 'Creado' : 'Primer uso';
     var dias = inicio ? Math.max(1, Math.floor((Date.now() - inicio.getTime()) / DIA)) : 0;
     var html = '<div class="gr">' + usd(total) + '<small>costo estimado</small></div>' +
       '<table><tr><td>Entrada · ' + d.inT.toLocaleString('es-MX') + ' tokens</td><td>' + usd(cIn) + '</td></tr>' +
       '<tr><td>Salida · ' + d.outT.toLocaleString('es-MX') + ' tokens</td><td>' + usd(cOut) + '</td></tr>';
+    if (ahorro > 0.005) html += '<tr><td>Ahorro por caché</td><td>' + usd(ahorro) + '</td></tr>';
     if (inicio) {
       html += '<tr><td>' + etiqueta + '</td><td>' + fechaMx(inicio) + '</td></tr>' +
         '<tr><td>Lleva</td><td><b>' + diasTxt(inicio) + '</b></td></tr>' +
         '<tr><td>Promedio por día</td><td>' + usd(total / dias) + '</td></tr>';
     }
     html += '</table>';
-    if (d.desglose && d.desglose.length) {
-      html += '<table>' + d.desglose.map(function (x) { return '<tr><td>' + esc(x[0]) + '</td><td>' + x[1].toLocaleString('es-MX') + '</td></tr>'; }).join('') + '</table>';
+    if (d.saldo) {
+      var sp = d.saldo, venceP = sp.paquetes && sp.paquetes.length ? sp.paquetes[sp.paquetes.length - 1].vence : null;
+      html += '<div class="tit">Plan del ciclo (tope $15 USD)</div><table>' +
+        '<tr><td>Consumido</td><td><b>' + sp.porcentaje + '%</b>' + (sp.sinTope ? ' · sin tope' : sp.bloqueado ? ' · <b style="color:var(--err)">bloqueado</b>' : '') + '</td></tr>' +
+        '<tr><td>Se renueva</td><td>' + fechaMx(new Date(sp.renueva)) + '</td></tr>' +
+        (sp.paquetes && sp.paquetes.length ? '<tr><td>Paquetes activos</td><td>' + sp.paquetes.length + ' (vence ' + fechaMx(new Date(venceP)) + ')</td></tr>' : '') +
+        '</table>';
     }
-    html += '<div class="nota">Estimado con la tarifa de Claude Sonnet ($' + USD_ENTRADA + ' entrada / $' + USD_SALIDA + ' salida por millón de tokens). El registro guarda los últimos 500 usos, así que los hubs muy activos pueden mostrar menos tokens de los reales y un "primer uso" más reciente.</div>';
+    if (d.meses && d.meses.length) {
+      var actual = mesDe(new Date());
+      html += '<div class="tit">Uso por mes</div><table class="meses"><tr><th>Mes</th><th>Tokens</th><th>Costo</th></tr>' +
+        d.meses.slice(0, 12).map(function (x) {
+          return '<tr' + (x.mes === actual ? ' class="actual"' : '') + ' title="' + x.llamadas + ' usos de IA"><td>' + nombreMes(x.mes) + (x.mes === actual ? ' (en curso)' : '') + '</td><td>' + x.tokens.toLocaleString('es-MX') + '</td><td>' + usdCorto(x.usd) + '</td></tr>';
+        }).join('') + '</table>';
+      var cerrados = d.meses.filter(function (x) { return x.mes !== actual; });
+      if (cerrados.length) {
+        var prom = cerrados.reduce(function (a, x) { return a + x.usd; }, 0) / cerrados.length;
+        html += '<table><tr><td>Promedio por mes cerrado</td><td>' + usd(prom) + '</td></tr></table>';
+      }
+    }
+    if (d.desglose && d.desglose.length) {
+      html += '<div class="tit">Costo por Jefe (últimos usos)</div>';
+      html += '<table>' + d.desglose.map(function (x) { return '<tr><td>' + esc(x[0]) + '</td><td>' + usdCorto(x[1]) + '</td></tr>'; }).join('') + '</table>';
+    }
+    html += '<div class="nota">Estimado con la tarifa de Claude Sonnet 4.6 por millón de tokens: entrada $' + USD_ENTRADA + ', salida $' + USD_SALIDA + ', caché $' + USD_CACHE_ESCRITURA + ' al guardar y $' + USD_CACHE_LECTURA.toFixed(2) + ' al leer. Los meses se cuentan en hora de México. Antes del resumen mensual solo se conservaban los últimos 500 usos, así que los meses más antiguos de los hubs muy activos pueden salir incompletos.</div>';
     return html;
   }
 

@@ -452,6 +452,12 @@
 
     var activo = nav.querySelector('.is-active');
     if (activo && activo.scrollIntoView) activo.scrollIntoView({ block: 'nearest' });
+
+    // Aviso de tope de tokens (js/saldo.js): solo aparece si el hub va arriba del 90% o ya llegó al tope.
+    var sc = document.createElement('script');
+    sc.src = '/js/saldo.js';
+    sc.onload = function () { if (window.__saldo) window.__saldo.montarEnJefe(tenant || 'jefeshub'); };
+    document.head.appendChild(sc);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', montar);
