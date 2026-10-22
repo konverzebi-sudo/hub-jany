@@ -177,6 +177,20 @@
     } catch (e) { aviso('Error de conexión.', 'err'); return ''; }
   }
 
+  // Link de acceso del hub: con la llave dentro (?k=...), el cliente guarda sin escribir ninguna clave.
+  async function linkAcceso(h) {
+    var t = token();
+    if (!t) { t = (window.prompt('Token de acceso:') || '').trim(); if (!t) return ''; }
+    try {
+      var r = await fetch('/api/storage/acceso-hub?cliente=' + encodeURIComponent(h.slug), { headers: { 'X-Storage-Token': t }, cache: 'no-store' });
+      var d = await r.json().catch(function () { return {}; });
+      if (r.status === 401) { try { localStorage.removeItem(KEY); } catch (e) {} aviso('Token incorrecto.', 'err'); return ''; }
+      if (!r.ok || !d.codigo) { aviso(d.error || 'No se pudo generar el link de acceso.', 'err'); return ''; }
+      try { localStorage.setItem(KEY, t); } catch (e) {}
+      return location.origin + h.home + '?k=' + d.codigo;
+    } catch (e) { aviso('Error de conexión.', 'err'); return ''; }
+  }
+
   async function datosDe(h) {
     var res = await Promise.all([leer(h.slug + ':brand-book.visual'), leer(h.slug + ':brand-book.identidad'), leer(h.slug + ':uso-tokens-log'), leer(h.slug + ':uso-tokens-mensual'),
       fetch('/api/storage/saldo?cliente=' + encodeURIComponent(h.slug), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })]);
@@ -219,7 +233,8 @@
       '<div class="tokdet" id="det-' + esc(h.slug) + '" hidden></div>' +
       '<div class="acts"><a class="btn" href="' + esc(h.home) + '" target="_blank" rel="noopener">Abrir hub</a>' +
       '<a class="btn sec" href="' + esc(h.adn) + '" target="_blank" rel="noopener">ADN</a>' +
-      '<button class="btn sec" data-link="' + esc(h.slug) + '" title="Copiar link para que el cliente llene su ADN">🔗 Link</button></div></article>';
+      '<button class="btn sec" data-link="' + esc(h.slug) + '" title="Copiar link para que el cliente llene su ADN">🔗 Link</button>' +
+      '<button class="btn sec" data-acceso="' + esc(h.slug) + '" title="Copiar el link de acceso del cliente: con él guarda sin escribir ninguna clave">🔑 Acceso</button></div></article>';
   }
 
   function detalleTokens(d) {
@@ -281,6 +296,13 @@
         var slug = b.dataset.tok, panel = document.getElementById('det-' + slug), abierto = !panel.hidden;
         if (abierto) { panel.hidden = true; b.setAttribute('aria-expanded', 'false'); return; }
         panel.innerHTML = detalleTokens(DATOS[slug]); panel.hidden = false; b.setAttribute('aria-expanded', 'true');
+      };
+    });
+    grid.querySelectorAll('[data-acceso]').forEach(function (b) {
+      b.onclick = async function () {
+        var h = hubs.filter(function (x) { return x.slug === b.dataset.acceso; })[0];
+        var l = h ? await linkAcceso(h) : '';
+        if (l) { await copiar(l); aviso('Link de acceso copiado ✓ — mándaselo a tu cliente: al abrirlo una vez, ese dispositivo guarda sin pedir clave', 'ok'); }
       };
     });
     grid.querySelectorAll('[data-link]').forEach(function (b) {

@@ -353,6 +353,44 @@ async function manejarLeads(req, res) {
 // ese código solo se pueden escribir las secciones de ADN de ESE cliente, con campos permitidos,
 // y solo si la sección está vacía o sigue tal cual la dejó este formulario (firma en
 // "{cliente}:adn-previo-firmas") -- nunca pisa lo que ya se editó en el ADN.
+// Llave de acceso de un hub: va dentro del link que se le manda al cliente (?k=...), se queda
+// guardada en su dispositivo y le deja guardar SOLO las llaves de su hub ("<hub>:...") sin
+// escribir ninguna clave. Se deriva del token maestro (HMAC), así que no hay que guardarla en
+// ningún lado y cambia sola si algún día se cambia STORAGE_WRITE_TOKEN.
+function codigoAccesoHub(slug) {
+  const secreto = (process.env.STORAGE_WRITE_TOKEN || '').trim();
+  if (!secreto) return '';
+  return crypto.createHmac('sha256', secreto).update('acceso-hub:' + slug).digest('hex').slice(0, 24);
+}
+
+function iguales24(a, b) {
+  const x = Buffer.from(String(a)), y = Buffer.from(String(b));
+  return x.length === y.length && crypto.timingSafeEqual(x, y);
+}
+
+// ¿La llave del hub que manda el navegador le permite escribir esta key?
+function accesoHubValido(req, key) {
+  const codigo = (req.headers['x-hub-codigo'] || '').toString().trim();
+  const i = key.indexOf(':');
+  if (!codigo || i < 1) return false;
+  const slug = key.slice(0, i);
+  if (!SLUG_HUB.test(slug) || slug === 'hubs') return false;
+  const esperado = codigoAccesoHub(slug);
+  return !!esperado && iguales24(codigo, esperado);
+}
+
+// GET acceso-hub?cliente=<hub> (solo con el token maestro): devuelve la llave de acceso de ese
+// hub para armar su link (/hubs la usa en el botón "Acceso").
+async function manejarAccesoHub(req, res) {
+  if (req.method !== 'GET') { res.setHeader('Allow', 'GET'); return res.status(405).json({ error: 'Method not allowed' }); }
+  const token = (req.headers['x-storage-token'] || '').toString().trim();
+  const expected = (process.env.STORAGE_WRITE_TOKEN || '').trim();
+  if (!token || !expected || token !== expected) return res.status(401).json({ error: 'No autorizado.' });
+  const slug = (req.query.cliente || '').toString();
+  if (!SLUG_HUB.test(slug) || !(await hubExiste(slug))) return res.status(400).json({ error: 'Hub inválido.' });
+  return res.status(200).json({ codigo: codigoAccesoHub(slug) });
+}
+
 function codigoAdnPrevio(cliente) {
   const secreto = (process.env.STORAGE_WRITE_TOKEN || '').trim();
   if (!secreto) return '';
@@ -810,7 +848,7 @@ module.exports = async function handler(req, res) {
   // (Vercel) — sin esto el navegador bloquea el fetch desde /davilada o el diagnóstico.
   res.setHeader('Access-Control-Allow-Origin', 'https://jefeshub.com');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Storage-Token, X-Leads-Token, X-Evento-Codigo');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Storage-Token, X-Hub-Codigo, X-Leads-Token, X-Evento-Codigo');
   if (req.method === 'OPTIONS') {
     return res.status(204).end();
   }
@@ -841,6 +879,10 @@ module.exports = async function handler(req, res) {
 
   if (key === 'stripe-webhook') {
     return manejarStripeWebhook(req, res);
+  }
+
+  if (key === 'acceso-hub') {
+    return manejarAccesoHub(req, res);
   }
 
   // El saldo y los registros de uso de cada hub solo los escribe el servidor: el token
@@ -875,7 +917,8 @@ module.exports = async function handler(req, res) {
       // vuelva a pedirlo en cada guardado.
       const token = (req.headers['x-storage-token'] || '').toString().trim();
       const expected = (process.env.STORAGE_WRITE_TOKEN || '').trim();
-      if (!token || !expected || token !== expected) {
+      // Token maestro (dueña / equipo) o la llave de acceso del hub dueño de esta key (clientes).
+      if (!(token && expected && token === expected) && !accesoHubValido(req, key)) {
         return res.status(401).json({ error: 'No autorizado.' });
       }
     }
