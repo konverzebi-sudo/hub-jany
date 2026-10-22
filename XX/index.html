@@ -696,7 +696,7 @@
       if(!userId) return {status:'no-auth'};
       var result = await supabaseClient.from(DASHBOARD_TABLE).select('data').eq('user_id', userId).maybeSingle();
       if(result.error) return {status:'error'};
-      if(!result.data) return {status:'empty'};
+      if(!result.data || !result.data.data) return {status:'empty'};
       return {status:'ok', data: result.data.data};
     }catch(e){
       return {status:'error'};
@@ -713,10 +713,35 @@
     queueCloudSync();
   }
 
+  // Antes de que la nube reemplace lo de este dispositivo: se guarda una copia y se rescatan los dias de habitos que solo estaban aqui.
+  function rescueFromLocal(local, raw){
+    if(!local || typeof local !== 'object') return;
+    if(raw !== JSON.stringify(data)){
+      try{
+        var d = new Date();
+        localStorage.setItem('jany-respaldo-' + localISO(d).replace(/-/g,'') + '-' + time24(d).replace(':',''), raw);
+        var olds = Object.keys(localStorage).filter(function(k){ return k.indexOf('jany-respaldo-') === 0; }).sort();
+        while(olds.length > 10) localStorage.removeItem(olds.shift());
+      }catch(e){}
+    }
+    if(local.habitChecks){
+      if(!data.habitChecks) data.habitChecks = {};
+      Object.keys(local.habitChecks).forEach(function(day){
+        if(day === todayKey || !local.habitChecks[day]) return;
+        var dc = data.habitChecks[day] || (data.habitChecks[day] = {});
+        Object.keys(local.habitChecks[day]).forEach(function(hid){ if(!dc[hid]) dc[hid] = local.habitChecks[day][hid]; });
+      });
+    }
+    if(local.startDate && data.startDate && local.startDate < data.startDate) data.startDate = local.startDate;
+  }
+
   async function load(){
     var cloud = await fetchCloudData();
     if(cloud.status === 'ok'){
+      var localRaw = null;
+      try{ localRaw = localStorage.getItem('jany-dashboard-v2'); }catch(e){}
       data = cloud.data;
+      if(localRaw){ try{ rescueFromLocal(JSON.parse(localRaw), localRaw); }catch(e){ console.error('rescue error', e); } }
       window.storage.set('jany-dashboard-v2', JSON.stringify(data));
     } else {
       try{
