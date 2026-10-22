@@ -516,6 +516,11 @@
   .cx-edit:hover{color:var(--accent-text);border-color:var(--accent);}
   .cx-pill{display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:100px;padding:4px 6px 4px 14px;box-shadow:var(--shadow-card);animation:cxSlide .22s ease both;}
   .cx-pill:focus-within{border-color:var(--accent);}
+  #jnx-links .jnx-fila{display:flex;flex-wrap:wrap;align-items:center;gap:5px;padding:8px 4px 4px;}
+  .jn-min #jnx-links .jnx-fila{flex-direction:column;padding:8px 0 4px;}
+  #jnx-links .jnx-off{background:transparent;cursor:pointer;padding:0;opacity:.38;border-style:dashed;}
+  #jnx-links .jnx-off:hover{opacity:1;}
+  #jnx-links .jnx-editar{background:transparent;cursor:pointer;padding:0;font-size:13px;color:var(--text-dim);}
   .cx-help{width:26px;height:26px;border-radius:50%;border:1.5px solid var(--line);background:var(--surface);color:var(--text-dim);font:700 13px 'Sora',sans-serif;cursor:pointer;flex-shrink:0;}
   .cx-help:hover{border-color:var(--accent-text);color:var(--accent-text);background:var(--accent-soft);}
   .ay-overlay{position:fixed;inset:0;background:rgba(16,16,58,.45);z-index:2100;display:flex;align-items:center;justify-content:center;padding:18px;}
@@ -1250,7 +1255,7 @@ const AYUDA_LINKS = {
       'Pícale clic derecho a la carpeta y elige <b>Compartir</b>.',
       'En “Acceso general” elige <b>Cualquier persona con el enlace</b>; así los archivos se pueden ver desde aquí.',
       'Pícale <b>Copiar vínculo</b>.',
-      'Regresa y pega el link en la casilla de arriba; pícale <b>Listo</b>. Queda guardado y ya lo tienes a la mano.',
+      'Regresa y pega el link en la casilla de arriba; pícale <b>Listo</b>. Queda guardado y fijo abajo en la barra de la izquierda, a la mano.',
     ],
     abrir: { texto: 'Abrir Google Drive ↗', url: 'https://drive.google.com' },
   },
@@ -1288,6 +1293,54 @@ function abrirAyudaLink(id){
   ov.querySelector('.ay-ok').addEventListener('click', cerrar);
 }
 
+// ─── LINKS DE TRABAJO FIJOS EN LA BARRA DE LA IZQUIERDA ──────────────────────────────────────────
+// Una vez pegados, la carpeta de Drive y el Business Manager quedan siempre a la mano abajo en la barra lateral
+// (arriba de las redes). Círculo sólido = ya está guardado (clic lo abre); punteado = falta (clic te lleva a pegarlo);
+// el lápiz permite cambiarlos. El bloque lo agrega esta página, así que se vuelve a poner si la barra se redibuja.
+function irAPegarLink(id){
+  window.scrollTo({ top:0, behavior:'smooth' });
+  setTimeout(()=>{ const i = document.querySelector('[data-link-input="'+id+'"]'); if(i) i.focus(); }, 250);
+}
+function pintarLinksBarra(){
+  const redes = document.querySelector('nav.jn .jn-redes');
+  if(!redes) return false;
+  let box = document.getElementById('jnx-links');
+  if(!box){
+    box = document.createElement('div');
+    box.id = 'jnx-links';
+    redes.parentNode.insertBefore(box, redes);
+  }
+  const algunoGuardado = LINK_ICONOS.some(c=>(c.get()||'').trim());
+  box.innerHTML = '<div class="jn-sec">Links de trabajo</div><div class="jnx-fila">' +
+    LINK_ICONOS.map(c=>{
+      const link = (c.get()||'').trim();
+      return link
+        ? `<a class="jn-red" href="${escHtml(linkHref(link))}" target="_blank" rel="noopener" title="${escHtml(c.titulo)} · clic para abrir" aria-label="${escHtml(c.titulo)}">${ICONOS_SVG[c.icono]}</a>`
+        : `<button type="button" class="jn-red jnx-off" data-jnx-pegar="${c.id}" title="Pega aquí el link: ${escHtml(c.titulo)}" aria-label="Pegar el link: ${escHtml(c.titulo)}">${ICONOS_SVG[c.icono]}</button>`;
+    }).join('') +
+    (algunoGuardado ? '<button type="button" class="jn-red jnx-editar" title="Cambiar mis links de trabajo" aria-label="Cambiar mis links de trabajo">✎</button>' : '') +
+    '</div>';
+  box.querySelectorAll('[data-jnx-pegar]').forEach(b=>b.addEventListener('click',()=>irAPegarLink(b.dataset.jnxPegar)));
+  const ed = box.querySelector('.jnx-editar');
+  if(ed) ed.addEventListener('click',()=>{
+    let primero = '';
+    LINK_ICONOS.forEach(c=>{ if((c.get()||'').trim()){ c.setEditando(true); if(!primero) primero = c.id; } });
+    pintarIconos(); irAPegarLink(primero);
+  });
+  return true;
+}
+// La barra de la izquierda la inyecta js/jefes-nav.js después de cargar: se espera a que exista y se vigila por si se redibuja.
+function vigilarBarraLinks(){
+  if(pintarLinksBarra() && window.__jnxObs) return;
+  if(window.__jnxObs) return;
+  let ocupado = false;
+  window.__jnxObs = new MutationObserver(()=>{
+    if(ocupado) return; ocupado = true;
+    setTimeout(()=>{ ocupado = false; if(!document.getElementById('jnx-links')) pintarLinksBarra(); }, 60);
+  });
+  window.__jnxObs.observe(document.body, { childList:true, subtree:true });
+}
+
 function pintarIconos(){
   const host=document.getElementById('cx-icons');
   if(!host) return;
@@ -1295,6 +1348,8 @@ function pintarIconos(){
   LINK_ICONOS.forEach(cfg=>{
     const link=(cfg.get()||'').trim();
     const editando=cfg.editando();
+    // Un link ya pegado se queda fijo abajo en la barra de la izquierda; aquí solo se pide el que falta o el que se está editando.
+    if(link && !editando) return;
     const mostrarInput=!link||editando;
     const box=document.createElement('div');
     box.className='cx-ic';
@@ -1330,6 +1385,8 @@ function pintarIconos(){
     const vacio=box.querySelector('[data-focus]');
     if(vacio) vacio.addEventListener('click',()=>{ const i=box.querySelector('input'); if(i) i.focus(); });
   });
+  host.style.display = host.children.length ? '' : 'none';
+  pintarLinksBarra();
 }
 
 function renderGuardadas(container){
@@ -2960,7 +3017,9 @@ GuiaJefe.registrar({
   antes:()=>{ if(currentTab!=='generador'){ const t=document.querySelector('.tab[data-tab="generador"]'); if(t) t.click(); } },
   pasos:[
     { selector:'#cx-icons', titulo:'Tus dos links de trabajo',
-      texto:'Aquí guardas dos links fijos que quedan a la mano: la carpeta de Drive con tu material de trabajo y tu Business Manager (el administrador comercial de Meta). Pega el link y pícale “Listo”. Si no sabes cómo sacarlo, pícale al “?” de cada uno: te explica paso a paso.' },
+      texto:'Aquí guardas dos links fijos que quedan a la mano: la carpeta de Drive con tu material de trabajo y tu Business Manager (el administrador comercial de Meta). Pega el link y pícale “Listo”: se queda fijo abajo en la barra de la izquierda (“Links de trabajo”) para que lo tengas a la mano en todo momento; ahí mismo puedes cambiarlo con el lápiz. Si no sabes cómo sacarlo, pícale al “?” de cada uno: te explica paso a paso.' },
+    { selector:'#jnx-links', titulo:'Tus links, siempre a la mano',
+      texto:'Aquí abajo a la izquierda quedan tus links de trabajo ya pegados: el círculo sólido abre el link y el punteado te lleva a pegarlo. El lápiz sirve para cambiarlos.' },
     { selector:'.jn-redes', titulo:'Tus redes sociales',
       texto:()=>{
         const reg = document.querySelectorAll('.jn-redes .jn-red[data-k]:not(.jn-red-off)').length;
@@ -3019,6 +3078,7 @@ cargarInicial().then(async ()=>{
   await cargarChatPersistido(false);
   if(window.__foco) window.__foco.onChange(f=>{ if(aplicarFocoAEstado(f)) render(); });
   pintarIconos();
+  vigilarBarraLinks();
   render();
   if(llegada) GuiaJefe.iniciar('anuncios');
 });
