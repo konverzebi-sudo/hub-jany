@@ -48,6 +48,18 @@
   @media (max-width:720px){ body.jn-on .topbar h1{left:0;} }
   .back-link{justify-self:start;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-flex;align-items:center;gap:8px;font-family:'Inter',sans-serif;font-weight:600;font-size:13px;color:var(--text-dim);text-decoration:none;padding:7px 16px;border:1px solid var(--line);border-radius:100px;background:var(--surface);transition:.15s;}
   .back-link:hover{border-color:var(--accent);color:var(--accent-text);}
+  .topbar-izq{justify-self:start;display:flex;align-items:center;gap:10px;min-width:0;max-width:100%;}
+  .topbar-izq .back-link{flex:0 5 auto;min-width:0;}
+  .topbar-izq #foco-slot{flex:0 0 auto;}
+  @media (max-width:900px){
+    /* En pantallas angostas la pastilla de foco baja a una segunda fila de la barra fija */
+    body .topbar{height:auto;padding:8px 10px;grid-template-columns:auto minmax(0,1fr);grid-template-areas:"back titulo" "foco foco";row-gap:8px;}
+    .topbar-izq{display:contents;}
+    .topbar-izq .back-link{grid-area:back;}
+    .topbar-izq #foco-slot{grid-area:foco;}
+    .topbar h1{grid-area:titulo;}
+    body{padding-top:96px;}
+  }
   *{scrollbar-width:thin;scrollbar-color:rgba(0,0,0,.22) transparent;}
   *::-webkit-scrollbar{width:8px;height:8px;}
   *::-webkit-scrollbar-track{background:transparent;}
@@ -531,7 +543,8 @@
   .ed-mas[open]>summary::before{content:'▾';}
   .ed-mas .ed-block{margin-top:12px;}
   .ed-medios{display:flex;flex-direction:column;gap:12px;}
-  .ed-ctl-prod select{max-width:230px;}
+  .ed-ctl-prod .foco-wrap{min-width:0;}
+  .ed-ctl-prod .foco-menu{z-index:90;}
   .ed-auto{font-style:normal;font-size:11.5px;font-weight:700;color:var(--accent-text);background:var(--accent-soft);border-radius:100px;padding:1px 8px;margin-left:6px;}
   .ed-prodline{padding:8px 26px 0;}
   .ed-prodline[hidden]{display:none;}
@@ -619,12 +632,17 @@
 </head>
 <body>
 <div class="topbar">
-  <a id="back-hub" href="/" class="back-link">&lt;&lt; Hub de Jefes <span style="opacity:.4;">//</span> <span id="brand-marca-label">—</span></a>
+  <div class="topbar-izq">
+    <a id="back-hub" href="/" class="back-link">&lt;&lt; Hub de Jefes <span style="opacity:.4;">//</span> <span id="brand-marca-label">—</span></a>
+    <div id="foco-slot"></div>
+  </div>
   <h1>Jefe de Contenido</h1>
 </div>
 <div class="wrap">
   <script>(function(){var p=location.pathname;var b=window.__hub.slug!=='jefeshub'?'/'+window.__hub.slug:null;if(b)document.getElementById('back-hub').href=b;})();</script>
   <script src="/js/storage-client.js"></script>
+  <script>window.__focoConfig = { grupos: true, productos366: true }; // la pastilla también deja elegir un grupo completo</script>
+  <script src="/js/jefes-foco.js"></script>
   <script src="/js/guia-jefe.js"></script>
   <script>(async function(){
     var BRANDS=window.__hub.marcas({'rancho-seco':{fallback:'Rancho Seco',color:'#F2C230'},'rim':{fallback:'RIM',color:'#F472B6'},'optica-one':{fallback:'Óptica One',color:'#38BDF8'},'jefeshub':{fallback:'JefesHub',color:'#B8F725'}});
@@ -844,7 +862,19 @@ const dashHostEl = document.getElementById('dash-host');
 
 // Lista que muestra la vista actual. En "ambos" mezcla las dos (son los mismos objetos de state,
 // así que editar una tarjeta edita el dato real).
-function listaActual(){ return currentTab==='ambos' ? [...state.historias,...state.contenido] : (state[currentTab]||[]); }
+// Filtro de arriba (pastilla de foco): con "ecosistema completo" se ve todo; con un producto o un grupo solo salen
+// los posts e historias de ese producto o de los productos de ese grupo.
+function pasaFoco(r){
+  const f = window.__foco ? window.__foco.get() : null;
+  if(!f || f.esTodo) return true;
+  if(f.productoId) return r.productoId===f.productoId;
+  if(f.esGrupo && f.grupoId){
+    const p = productosCatalogo().find(x=>x.id===r.productoId);
+    return !!p && p.grupo_id===f.grupoId;
+  }
+  return true;
+}
+function listaActual(){ return (currentTab==='ambos' ? [...state.historias,...state.contenido] : (state[currentTab]||[])).filter(pasaFoco); }
 function tabDeItem(r){ return state.historias.includes(r) ? 'historias' : 'contenido'; }
 function findItem(id){
   const orden = currentTab==='contenido' ? ['contenido','historias'] : ['historias','contenido'];
@@ -852,8 +882,8 @@ function findItem(id){
   return null;
 }
 function actualizarContadores(){
-  document.getElementById('count-historias').textContent = state.historias.length;
-  document.getElementById('count-contenido').textContent = state.contenido.length;
+  document.getElementById('count-historias').textContent = state.historias.filter(pasaFoco).length;
+  document.getElementById('count-contenido').textContent = state.contenido.filter(pasaFoco).length;
   const cb=document.getElementById('count-banco'); if(cb) cb.textContent = state.bancoIdeas.length;
 }
 actualizarContadores();
@@ -905,6 +935,11 @@ function cerrarDashboard(){
   const w=document.getElementById('widget-host');
   if(w) w.scrollIntoView({behavior:'smooth',block:'start'});
 }
+if(window.__foco){
+  const repintarPorFoco=()=>{ actualizarContadores(); refrescarVistas(); if(typeof actualizarHeroBar==='function') actualizarHeroBar(); };
+  window.__foco.onChange(repintarPorFoco);
+  Promise.resolve(window.__foco.ready).then(repintarPorFoco).catch(()=>{});
+}
 function refrescarVistas(){
   renderWidget();
   if(dashHostEl.classList.contains('open')) render();
@@ -937,7 +972,7 @@ filterTipoEl.addEventListener('change',()=>{ filterTipo=filterTipoEl.value; rend
 filterProductoEl.addEventListener('change',()=>{ filterProducto=filterProductoEl.value; render(); });
 function buildProductoFilter(){
   const prods=productosCatalogo();
-  filterProductoEl.hidden=!prods.length;
+  filterProductoEl.hidden=true; // el filtro de producto es la pastilla de arriba
   filterProductoEl.innerHTML='<option value="">Todos los productos</option>'+prods.map(p=>`<option value="${escHtml(p.id)}">${escHtml(p.nombre)}</option>`).join('');
   filterProductoEl.value=filterProducto;
 }
@@ -1062,7 +1097,6 @@ function render(){
     if(filterFase && r.fase!==filterFase) return false;
     if(filterEtapa && et!==filterEtapa) return false;
     if(filterTipo && tp!==filterTipo) return false;
-    if(filterProducto && r.productoId!==filterProducto) return false;
     if(searchTerm){
       const hay=(r.gancho+' '+r.descripcion+' '+r.dolor+' '+r.instrucciones+' '+r.recomendacion).toLowerCase();
       if(!hay.includes(searchTerm)) return false;
@@ -1440,8 +1474,8 @@ function renderCalendario(){
   wrap.appendChild(toolbar);
 
   const allItems=[
-    ...(calFiltro==='contenido'?[]:state.historias.map(r=>({...r,_tab:'historias',_icon:'⭕'}))),
-    ...(calFiltro==='historias'?[]:state.contenido.map(r=>({...r,_tab:'contenido',_icon:'🎬'}))),
+    ...(calFiltro==='contenido'?[]:state.historias.filter(pasaFoco).map(r=>({...r,_tab:'historias',_icon:'⭕'}))),
+    ...(calFiltro==='historias'?[]:state.contenido.filter(pasaFoco).map(r=>({...r,_tab:'contenido',_icon:'🎬'}))),
   ];
 
   const porDia={};
@@ -1532,44 +1566,6 @@ function irACalendarioItem(tab,id,gancho){
 const AGENTE_MODES = [
   {key:'ideas',  label:'Estrategia 366',  desc:'Banco de ideas por categoría (viral, educativo, venta, entretenimiento, testimonio) listo para mandar a Historias/Contenido.',
    custom:'evergreen-ideas'
-  },
-  {key:'post-de-post',label:'Hacer post de un post',  desc:'Pega el link de un post (tuyo o de referencia), lo que quieres lograr y lo que quieras que considere — arma un prompt para que la extensión de Claude investigue ese post real y te escriba uno nuevo para tu marca.',
-   instant:true,
-   fields:[
-     {id:'ag-link-pdp',label:'Link del post',type:'text',placeholder:'https://www.instagram.com/p/...'},
-     {id:'ag-objetivo-pdp',label:'¿Qué quieres lograr con el post nuevo?',type:'text',placeholder:'ej. alcance, generar confianza, venta directa'},
-     {id:'ag-notas-pdp',label:'Notas importantes a considerar (opcional)',type:'textarea',placeholder:'Formato que prefieres, producto que quieres mencionar, qué cambiar o qué mantener del original...'},
-   ],
-   buildPrompt: f=>`Actúa como Creador de Contenido para redes sociales. Ya conoces mi marca, mi cliente ideal, mi tono y mi Sistema 366 — no me los vuelvas a preguntar.
-
-Abre este link y analiza el post real directamente ahí — plataforma, tipo de contenido, copy, gancho, estructura y métricas reales (likes, comentarios, guardados/compartidos). No me preguntes estos datos, investígalos tú mismo en el link:
-${f['ag-link-pdp']||'(sin link)'}
-
-Con ese post como base, quiero un post nuevo para mi marca. Lo que quiero lograr con el post nuevo: ${f['ag-objetivo-pdp']||'no especificado'}
-${f['ag-notas-pdp']?`Notas importantes a considerar: ${f['ag-notas-pdp']}`:''}
-
-No copies el post: toma lo que lo hace funcionar (gancho, estructura, ritmo, formato) y reescríbelo con mi voz, mi cliente ideal y mi oferta.
-
-Reglas para escribir el post nuevo:
-- No fuerces mi marca donde no encaja. Si la idea del original es viral, de tendencia o de entretenimiento, desarróllala con su propio gancho; solo conecta con mi producto o marca si la conexión es natural y breve. Si un espectador normal notaría que de repente quieres venderle algo que no pega con el tema, quita esa parte.
-- Comunicación 1 a 1, siempre en primera persona del singular hacia segunda persona del singular. Habla UNA persona (yo, voy, tengo, hago) y le habla a UNA persona (tú, vas, tienes). Nunca "nosotros", "vamos", "ustedes".
-- No inventes nada de mi marca: usa lo que ya conoces de mi ADN, mi Sistema 366 y mi Radar de Mercado. Si falta un dato (precio, link, dirección), no lo supongas.
-- Para los 3 ganchos parte de estas familias, adaptando los corchetes al negocio y a la idea (nunca los dejes literales ni copies el ejemplo tal cual; si algo más natural encaja mejor, úsalo):
-  Identificación: "Este eres tú intentando [LOGRAR RESULTADO]." / "Si te pasa esto cuando [SITUACIÓN], escucha esto."
-  Error común: "El error que casi todos cometen cuando [ACCIÓN]." / "Deja de hacer esto si quieres [RESULTADO]."
-  Curiosidad: "Esto es algo que casi nadie te dice sobre [TEMA]." / "Hay una razón por la que esto funciona tan bien."
-  Deseo: "Si quieres [RESULTADO], escucha esto." / "Así es como puedes lograr [RESULTADO]."
-  Deseo postergado: "¿Cuánto tiempo llevas queriendo [ACCIÓN]?" / "Si llevas meses queriendo [ACCIÓN], mira esto."
-  Mito vs realidad: "La gente cree que [MITO]… pero en realidad es [REALIDAD]." / "No necesitas [MITO] para [RESULTADO]."
-  Problema directo: "Si estás perdiendo [RESULTADO], puede ser por esto." / "Si te frustras cuando [SITUACIÓN], escucha esto."
-  Autoridad: "Después de trabajar con [TIPO DE CLIENTES], aprendí esto."
-  Contraste: "No pierdes [RESULTADO] cuando haces [ACCIÓN]… lo pierdes cuando haces [ERROR]." / "El problema no es [CREENCIA]… es esto."
-
-Dame el resultado en este orden exacto:
-QUÉ HACE FUNCIONAR AL ORIGINAL: gancho, estructura y formato, en 3 líneas.
-AUDITORÍA RÁPIDA DEL ORIGINAL: cómo se lee su desempeño (métricas reales) frente a lo que yo quiero lograr, qué funcionó y qué mejorarías, en 4 líneas como máximo.
-POST NUEVO: formato recomendado, 3 opciones de gancho (de familias distintas), guion o texto por escena, caption completo y CTA.
-CÓMO PUBLICARLO: mejor momento, redes donde ponerlo y qué medir para saber si funcionó.`
   },
   {key:'banco',label:'Ideas por ángulo',desc:'Escribe una idea y la IA arma su tabla de 7 ángulos (problema, error, deseo, historia, descubrimiento, objeción y comparación) para mandarla a Historias o Contenido.',
    custom:'banco-angulos'
@@ -1919,7 +1915,16 @@ async function agregarImagenesPegadasPostIA(e){
   pintarGuionOrgImgPreview();
 }
 
-async function preguntarAgentePostIA(){
+// ¿Hay un post que se está armando por preguntas? Se sabe por el último mensaje marcado como "armar" que todavía
+// no tiene su respuesta con CAPTION.
+function enArmar(){
+  let ult=-1;
+  guionOrgChat.forEach((m,i)=>{ if(m.role==='user' && m.armar) ult=i; });
+  if(ult<0) return false;
+  return !guionOrgChat.slice(ult).some(m=>m.role==='assistant' && /CAPTION:/i.test(m.content));
+}
+async function preguntarAgentePostIA(opts){
+  opts = (opts && opts.armar) ? opts : {};
   const pregunta = (guionOrgPreguntaDraft||'').trim();
   chatPlegado=false;
   const statusEl = document.getElementById('go-pregunta-status');
@@ -1931,8 +1936,9 @@ async function preguntarAgentePostIA(){
   const previewsParaMostrar = guionOrgImagenesAdjuntas.map(img=>img.previewUrl);
   ocultarSugerencias();
   const faseArranque = enArranque();
+  const faseArmar = !faseArranque && (!!opts.armar || enArmar());
   if(faseArranque && !guionOrgChat.length) guionOrgChat.push({role:'assistant', content:BIENVENIDA_ARRANQUE, local:true});
-  guionOrgChat.push({role:'user', content: pregunta || '(revisa la imagen adjunta)', imagenes: previewsParaMostrar});
+  guionOrgChat.push({role:'user', content: pregunta || '(revisa la imagen adjunta)', imagenes: previewsParaMostrar, ...(opts.armar ? {armar:true} : {})});
   guionOrgPreguntaDraft = '';
   guionOrgImagenesAdjuntas = [];
   scheduleGuionOrgChatSave();
@@ -1950,7 +1956,9 @@ async function preguntarAgentePostIA(){
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
         cliente: CLIENTE_ID, modo:'pregunta',
-        fase: faseArranque ? 'arranque' : 'libre',
+        fase: faseArranque ? 'arranque' : (faseArmar ? 'armar' : 'libre'),
+        producto_id: (window.__foco ? window.__foco.get().productoId : '') || '',
+        grupo_id: (window.__foco ? window.__foco.get().grupoId : '') || '',
         messages: guionOrgChat.filter(m=>!m.local).map(m=>({role:m.role, content:m.content})),
         imagenes: imagenesParaEnviar,
       }),
@@ -1967,6 +1975,8 @@ async function preguntarAgentePostIA(){
     if(faseArranque && /CAPTION:/i.test(data.text||'')) guardarArranque(true);
     guionOrgPreguntaStatus = '✅ Listo';
     scheduleGuionOrgChatSave();
+    // Armar un post con el chat: al llegar el post (CAPTION) se guarda solo en Próximos posts.
+    if(faseArmar && /CAPTION:/i.test(data.text||'')) usarRespuestaChatEnContenido(guionOrgChat.length-1);
   }catch(err){
     guionOrgChat.pop();
     scheduleGuionOrgChatSave();
@@ -2037,7 +2047,8 @@ function usarRespuestaChatEnContenido(idx){
     agregadoEn: Date.now()
   });
   const itemNuevo = state.contenido[state.contenido.length-1];
-  const productoDetectado = detectarProductoAuto(itemNuevo);
+  const focoChat = window.__foco ? window.__foco.get() : null;
+  const productoDetectado = (focoChat && focoChat.productoId) || detectarProductoAuto(itemNuevo);
   if(productoDetectado){ itemNuevo.productoId = productoDetectado; itemNuevo.productoNombre = nombreProducto(productoDetectado); }
   msg.usada = true;
   msg.contenidoId = newId;
@@ -2581,12 +2592,16 @@ function actualizarHeroBar(){
 const SUGERENCIAS_BASE = [
   {t:'¿Cómo hago mi siguiente post?', g:'comun'},
   {t:'Dame un gancho para un post de ', g:'comun', completa:true},
+  {t:'Hacer un post de un post que vi', g:'comun', accion:'armar', msg:'Quiero hacer un post a partir de un post que vi'},
+  {t:'¿Hacemos el contenido de esta semana?', g:'siguiente'},
+  {t:'Hagamos un reel de ', g:'siguiente', completa:true},
+  {t:'No sé, dame ideas padres', g:'siguiente'},
+  {t:'Armemos un post paso a paso', g:'inicio', accion:'armar', msg:'Quiero armar un post paso a paso'},
   {t:'Dame 5 ideas para mi siguiente post', g:'inicio'},
   {t:'¿Qué debería publicar esta semana?', g:'inicio'},
   {t:'Dame 5 ideas para un post de ', g:'plantilla', completa:true},
   {t:'Escríbeme un post sobre ', g:'plantilla', completa:true},
   {t:'Dame 5 ganchos para un reel', g:'inicio'},
-  {t:'Hazme un post a partir de uno que me gustó', g:'inicio'},
   {t:'Escríbeme el caption y el guion de la mejor idea', g:'ideas'},
   {t:'Dame otras 5 ideas', g:'ideas'},
   {t:'Hazlo más corto', g:'post'},
@@ -2619,6 +2634,7 @@ function sugerenciasChat(texto){
   const aplica = s=>{
     if(s.g==='post') return hayPost;
     if(s.g==='ideas') return conv;
+    if(s.g==='siguiente') return arranqueHecho;
     if(s.g==='cero') return !conv;
     if(s.g==='tablero-ideas') return nIdeas>0;
     if(s.g==='tablero-proceso') return nSinFecha>0;
@@ -2626,14 +2642,17 @@ function sugerenciasChat(texto){
     return true;
   };
   // Las dos más comunes van siempre primero; el resto cambia según el momento.
-  const orden = hayPost ? ['comun','post','ideas','tablero-proceso','tablero-ideas','tablero-historias','inicio','plantilla','cero']
-    : conv ? ['comun','ideas','inicio','tablero-proceso','tablero-ideas','tablero-historias','plantilla','cero']
-    : ['comun','inicio','tablero-ideas','tablero-proceso','tablero-historias','plantilla','cero'];
-  const candidatos = SUGERENCIAS_BASE.filter(aplica).sort((a,b)=>orden.indexOf(a.g)-orden.indexOf(b.g));
+  const orden = hayPost ? ['comun','post','ideas','siguiente','tablero-proceso','tablero-ideas','tablero-historias','inicio','plantilla','cero']
+    : conv ? ['comun','ideas','siguiente','inicio','tablero-proceso','tablero-ideas','tablero-historias','plantilla','cero']
+    : ['comun','siguiente','inicio','tablero-ideas','tablero-proceso','tablero-historias','plantilla','cero'];
+  const focoSug = window.__foco ? window.__foco.get() : null;
+  const deProducto = (focoSug && !focoSug.esTodo && focoSug.nombre) ? focoSug.nombre : '';
+  const base = deProducto ? SUGERENCIAS_BASE.map(x=>x.completa ? {...x, t:x.t+deProducto} : x) : SUGERENCIAS_BASE;
+  const candidatos = base.filter(aplica).sort((a,b)=>orden.indexOf(a.g)-orden.indexOf(b.g));
   const q = normSug(texto).trim();
-  if(!q) return candidatos.slice(0,5);
+  if(!q) return candidatos.slice(0,6);
   // Al escribir, "dame otras 5 ideas" y similares también salen aunque todavía no haya conversación.
-  const paraBuscar = SUGERENCIAS_BASE.filter(s=>aplica(s) || s.g==='ideas').sort((a,b)=>orden.indexOf(a.g)-orden.indexOf(b.g));
+  const paraBuscar = base.filter(s=>aplica(s) || s.g==='ideas').sort((a,b)=>orden.indexOf(a.g)-orden.indexOf(b.g));
   const palabras = q.split(/\s+/).filter(Boolean);
   return paraBuscar.filter(s=>{ const n=normSug(s.t); return palabras.every(p=>n.includes(p)); }).slice(0,5);
 }
@@ -2669,6 +2688,7 @@ function elegirSugerencia(i){
   if(!s) return;
   ocultarSugerencias();
   if(s.accion==='arranque'){ reiniciarArranque(); return; }
+  if(s.accion==='armar'){ guionOrgPreguntaDraft = s.msg || s.t; preguntarAgentePostIA({armar:true}); return; }
   guionOrgPreguntaDraft = s.t;
   if(s.completa){
     // Plantilla: queda escrita en la barra para que la persona la termine.
@@ -2792,6 +2812,8 @@ function abrirEditor(tab, id, opts){
     draft=draftDeItem(tab,{fase:tab==='historias'?'Semana 1 · Atraer/Conexión':'Semana 1', gancho:'', fecha:opts.fecha||''});
     draft.gancho='';
     draft.fecha=opts.fecha||'';
+    const focoNuevo=window.__foco?window.__foco.get():null;
+    if(focoNuevo && focoNuevo.productoId) draft.productoId=focoNuevo.productoId;
   }
   if(draft.productoId){ draft.productoManual=true; }
   else {
@@ -2827,6 +2849,72 @@ function detectarProductoAuto(o){
   });
   return (mejor && !empate) ? mejor.id : '';
 }
+// Productos para el selector: el catálogo del ADN más las ofertas de Producto 366 que ya sabe la pastilla de arriba.
+function productosParaSelector(){
+  const prods=productosCatalogo().slice();
+  if(window.__foco) window.__foco.lista().forEach(p=>{ if(p && p.id && p.nombre && !prods.some(x=>x.id===p.id)) prods.push(p); });
+  return prods;
+}
+function precioCorto(v){
+  const n=parseFloat(String(v==null?'':v).replace(/[^0-9.-]/g,''));
+  return isFinite(n) && n>0 ? '$'+Math.round(n).toLocaleString('es-MX') : '';
+}
+// Mismo estilo que la pastilla de arriba (clases foco-*): botón con el producto y lista agrupada con tipo y precio.
+function enlazarProductoSel(ov){
+  const d=editorCtx.draft;
+  const pill=ov.querySelector('#ed-prod-pill'), txt=ov.querySelector('#ed-prod-txt'), menu=ov.querySelector('#ed-prod-menu');
+  const sel=ov.querySelector('select[data-ed="productoId"]');
+  const nombreDe=id=>{ const p=productosParaSelector().find(x=>x.id===id); return p?String(p.nombre).trim():''; };
+  const cerrar=()=>{ menu.hidden=true; pill.setAttribute('aria-expanded','false'); };
+  const pintar=()=>{
+    txt.textContent = d.productoId ? (nombreDe(d.productoId) || '(producto ya no está en el catálogo)') : 'General (sin producto)';
+    pill.classList.toggle('on',!!d.productoId);
+  };
+  const elegir=(id)=>{
+    if(id && !Array.from(sel.options).some(o=>o.value===id)){ const o=document.createElement('option'); o.value=id; o.textContent=nombreDe(id); sel.appendChild(o); }
+    sel.value=id;
+    sel.dispatchEvent(new Event('change',{bubbles:true}));
+    pintar(); cerrar();
+  };
+  const opcion=(id,nombre,sub,extra)=>{
+    const b=document.createElement('button');
+    b.type='button'; b.className='foco-op'+((d.productoId||'')===id?' sel':''); b.setAttribute('role','option');
+    const izq=document.createElement('span'); izq.className='n'; izq.textContent=((d.productoId||'')===id?'✓ ':'')+nombre;
+    if(sub){ const s2=document.createElement('span'); s2.className='foco-sub'; s2.textContent=sub; izq.appendChild(s2); }
+    b.appendChild(izq);
+    if(extra){ const e=document.createElement('small'); e.textContent=extra; b.appendChild(e); }
+    b.addEventListener('click',()=>elegir(id));
+    return b;
+  };
+  const titulo=t=>{ const h=document.createElement('div'); h.className='foco-titulo'; h.textContent=t; return h; };
+  const abrirMenu=()=>{
+    menu.textContent='';
+    menu.appendChild(opcion('','General (sin producto)','Contenido que no es de un producto en particular'));
+    const prods=productosParaSelector().filter(p=>p&&p.nombre);
+    const grupos=(evergreenGrupos||[]).filter(g=>g&&g.id);
+    if(!prods.length){
+      const v=document.createElement('div'); v.className='foco-pie'; v.style.borderTop='none'; v.textContent='Todavía no hay productos en el Catálogo de tu ADN.'; menu.appendChild(v);
+    } else {
+      const usados=new Set();
+      grupos.forEach(g=>{
+        const ps=prods.filter(p=>p.grupo_id===g.id);
+        if(!ps.length) return;
+        menu.appendChild(titulo(g.nombre||'Grupo'));
+        ps.forEach(p=>{ usados.add(p.id); menu.appendChild(opcion(p.id,String(p.nombre).trim(),p.tipo||'',precioCorto(p.precio))); });
+      });
+      const sueltos=prods.filter(p=>!usados.has(p.id));
+      if(sueltos.length){
+        menu.appendChild(titulo(grupos.length?'Sin grupo':'Productos y servicios'));
+        sueltos.forEach(p=>menu.appendChild(opcion(p.id,String(p.nombre).trim(),p.tipo||'',precioCorto(p.precio))));
+      }
+    }
+    menu.hidden=false; pill.setAttribute('aria-expanded','true');
+  };
+  pill.addEventListener('click',e=>{ e.stopPropagation(); if(menu.hidden) abrirMenu(); else cerrar(); });
+  ov.addEventListener('click',e=>{ if(!e.target.closest('#ed-prodsel')) cerrar(); });
+  editorCtx.pintarProducto=pintar;
+  pintar();
+}
 function enlazarProductoAuto(ov){
   const d=editorCtx.draft;
   const sel=ov.querySelector('select[data-ed="productoId"]');
@@ -2837,8 +2925,8 @@ function enlazarProductoAuto(ov){
   const reevaluar=()=>{
     if(d.productoManual) return;
     const id=detectarProductoAuto(d);
-    if(id && id!==d.productoId){ d.productoId=id; d.productoAuto=true; sel.value=id; actualizarPreviewEditor(); }
-    else if(!id && d.productoAuto){ d.productoId=''; d.productoAuto=false; sel.value=''; actualizarPreviewEditor(); }
+    if(id && id!==d.productoId){ d.productoId=id; d.productoAuto=true; sel.value=id; if(editorCtx.pintarProducto) editorCtx.pintarProducto(); actualizarPreviewEditor(); }
+    else if(!id && d.productoAuto){ d.productoId=''; d.productoAuto=false; sel.value=''; if(editorCtx.pintarProducto) editorCtx.pintarProducto(); actualizarPreviewEditor(); }
     pintarTag();
   };
   ['gancho','caption','guion','descripcion','notas'].forEach(f=>{
@@ -3043,8 +3131,12 @@ function pintarEditor(){
           <select data-ed="estado">${Object.keys(ESTADO_LABEL).map(k=>`<option value="${k}" ${draft.estado===k?'selected':''}>${ESTADO_LABEL[k]}</option>`).join('')}</select></label>
         <label class="ed-ctl"><span>Fecha</span><input type="date" data-ed="fecha" value="${escHtml(draft.fecha)}"></label>
         <label class="ed-ctl"><span>Hora</span><input type="time" data-ed="hora" value="${escHtml(draft.hora)}"></label>
-        <label class="ed-ctl ed-ctl-prod"><span>Producto <em class="ed-auto" id="ed-prod-auto" hidden>sugerido</em></span>
-          <select data-ed="productoId">${opcionesProductoHTML(draft.productoId)}</select></label>
+        <div class="ed-ctl ed-ctl-prod"><span>Producto <em class="ed-auto" id="ed-prod-auto" hidden>sugerido</em></span>
+          <div class="foco-wrap" id="ed-prodsel">
+            <button type="button" class="foco-pill" id="ed-prod-pill" aria-haspopup="listbox" aria-expanded="false"><span class="foco-txt" id="ed-prod-txt"></span><span class="foco-caret">▾</span></button>
+            <div class="foco-menu" id="ed-prod-menu" role="listbox" hidden></div>
+          </div>
+          <select data-ed="productoId" hidden>${opcionesProductoHTML(draft.productoId)}</select></div>
       </div>
       <div class="ed-prodline" id="ed-prodline" hidden><div class="ed-prodinfo" id="ed-prodinfo"></div></div>
       <div class="ed-body">
@@ -3249,6 +3341,7 @@ function enlazarEditor(ov){
   });
   enlazarMedios(ov);
   enlazarMaterial(ov);
+  enlazarProductoSel(ov);
   enlazarProductoAuto(ov);
   ov.querySelector('#ed-fuentes').addEventListener('click',e=>{
     const b=e.target.closest('[data-fuente]'); if(!b) return;
@@ -3425,7 +3518,7 @@ function proximosPorEstado(lista){
   const rank={programado:0,proceso:1,idea:2};
   const estDe=r=>ESTADO_LABEL[r.estado]?r.estado:'idea';
   const grupoFecha=r=>{ const f=r.fecha||''; if(!/^\d{4}-\d{2}-\d{2}$/.test(f)) return 1; return f>=hoy?0:2; }; // con fecha próxima, sin fecha, ya pasada
-  return lista.filter(r=>estDe(r)!=='publicado').slice().sort((a,b)=>{
+  return lista.filter(r=>estDe(r)!=='publicado' && pasaFoco(r)).slice().sort((a,b)=>{
     const n=(esNuevo(b)?1:0)-(esNuevo(a)?1:0); if(n) return n;
     if(esNuevo(a) && esNuevo(b)) return b.agregadoEn-a.agregadoEn;
     const d=rank[estDe(a)]-rank[estDe(b)]; if(d) return d;
