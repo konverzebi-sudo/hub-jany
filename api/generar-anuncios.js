@@ -761,7 +761,8 @@ async function manejarModoIdeas(body, res) {
     (bloqueProducto ? '\n\n' + bloqueProducto : '') +
     (bloqueTexto ? '\n\n' + bloqueTexto : '');
 
-  const system = systemConCache(promptFijo, contexto, instruccion);
+  const yaCreado = await formatearTrabajoPrevioAnuncios(clienteId, grupoId, productoId, { soloAnuncios: true }).catch(() => null);
+  const system = systemConCache(promptFijo, contexto, [instruccion, yaCreado ? yaCreado + '\nLas ideas nuevas deben ser distintas a esos anuncios.' : ''].filter(Boolean).join('\n\n'));
   const { ok, status, data } = await llamarClaude(
     system,
     `Genera las ${cantidadPorEtapa * 3} ideas de anuncios pedidas, en el formato JSON indicado. Sé breve por campo -- son ideas de referencia para elegir, no el anuncio terminado.`,
@@ -1008,6 +1009,53 @@ function sanitizarContenidoChat(content) {
   return bloques.length ? bloques : null;
 }
 
+// Trabajo que el usuario ya hizo en este Jefe para el foco elegido (anuncios guardados + Estructura de Ads).
+// Es lo que le da continuidad a la estrategia: el chat sabe qué ya existe, en qué estado está y cómo se agrupa
+// en campañas, en lugar de partir de cero en cada conversación. Todo sale del storage del hub (nada de marca aquí).
+const ETAPA_NOMBRE = { adquisicion: 'Adquisición', consideracion: 'Consideración', conversion: 'Conversión' };
+async function formatearTrabajoPrevioAnuncios(clienteId, grupoId, productoId, opciones) {
+  const soloAnuncios = !!(opciones && opciones.soloAnuncios);
+  const [cardsRaw, estrRaw] = await Promise.all([
+    leerJSON(`${clienteId}:agente-anuncios`).catch(() => null),
+    soloAnuncios ? Promise.resolve(null) : leerJSON(`${clienteId}:anuncios-estructura`).catch(() => null),
+  ]);
+  const delFoco = (x) => (productoId ? x && x.producto_id === productoId : grupoId ? x && x.grupo_id === grupoId : !!x);
+  const cards = (Array.isArray(cardsRaw) ? cardsRaw : []).filter(delFoco);
+  const estructuras = (Array.isArray(estrRaw) ? estrRaw : []).filter(delFoco);
+  const partes = [];
+
+  if (cards.length) {
+    const lineas = cards.slice(0, 25).map((c) => {
+      const etapa = ETAPA_NOMBRE[c.etapa] || c.etapa || '';
+      const estado = c.estado || 'idea';
+      const hook = truncar((c.hook || '').toString().replace(/\s+/g, ' '), 140);
+      return `- [${etapa} · ${estado}] ${truncar((c.titulo || '(sin título)').toString(), 120)}${hook ? ' — ' + hook : ''}`;
+    });
+    partes.push(`ANUNCIOS YA CREADOS POR EL USUARIO (${cards.length}${cards.length > 25 ? ', se muestran 25' : ''}; no los repitas, construye sobre ellos):\n` + lineas.join('\n'));
+  }
+
+  if (estructuras.length) {
+    const porId = {};
+    cards.forEach((c) => { porId[c.id] = c; });
+    const bloques = estructuras.slice(0, 10).map((camp, i) => {
+      const l = [`Campaña ${i + 1}${camp.guardada ? ' (guardada)' : ' (en armado)'}`];
+      if (camp.objetivo) l.push(`  Objetivo: ${camp.objetivo}${camp.tipo ? ' · ' + camp.tipo : ''}`);
+      if (camp.resultado_esperado) l.push(`  Resultado esperado: ${truncar(camp.resultado_esperado.toString(), 160)}`);
+      if (camp.fecha_inicio) l.push(`  Inicio: ${camp.fecha_inicio}`);
+      (Array.isArray(camp.conjuntos) ? camp.conjuntos : []).slice(0, 6).forEach((cj, j) => {
+        const datos = [cj.ubicacion, cj.edad && `edad ${cj.edad}`, cj.genero, cj.intereses && truncar(cj.intereses.toString(), 100), cj.presupuesto_diario && `presupuesto ${cj.presupuesto_diario}`].filter(Boolean).join(' · ');
+        const anuncios = (Array.isArray(cj.anuncios_ids) ? cj.anuncios_ids : []).map((id) => porId[id] && porId[id].titulo).filter(Boolean).slice(0, 8);
+        l.push(`  Conjunto ${j + 1}: ${datos || 'sin público definido'}${anuncios.length ? ' | anuncios: ' + anuncios.join(' ; ') : ' | sin anuncios vinculados'}`);
+      });
+      return l.join('\n');
+    });
+    partes.push('ESTRUCTURA DE ADS YA ARMADA (campañas y conjuntos; cuando propongas algo, encájalo aquí o dilo si falta una campaña):\n' + bloques.join('\n\n'));
+  }
+
+  if (!partes.length) return null;
+  return truncar('TRABAJO PREVIO DE ESTE JEFE PARA EL FOCO ACTUAL (da continuidad a la estrategia: retoma lo ya decidido, señala qué falta y propone el siguiente paso, sin repetir lo hecho):\n\n' + partes.join('\n\n'), 6000);
+}
+
 async function manejarModoChat(body, res) {
   const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
   const grupoId = body.grupo_id ? body.grupo_id.toString() : '';
@@ -1025,7 +1073,8 @@ async function manejarModoChat(body, res) {
   const promptFijo = cargarPromptChat();
   const { contexto, catalogo } = await construirContexto(clienteId, grupoId);
   const bloqueProducto = formatearProducto(catalogo, productoId, 'si aplica al anuncio que se está desarrollando en esta conversación');
-  const system = systemConCache(promptFijo, contexto, bloqueProducto);
+  const trabajoPrevio = await formatearTrabajoPrevioAnuncios(clienteId, grupoId, productoId).catch(() => null);
+  const system = systemConCache(promptFijo, contexto, [bloqueProducto, trabajoPrevio].filter(Boolean).join('\n\n'));
 
   const { ok, status, data } = await llamarClaudeConHistorial(system, historialConCache(historial, { total: validos.length, max: CHAT_MAX_MESSAGES }), 1500);
   if (!ok) {
