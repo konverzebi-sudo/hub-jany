@@ -10,11 +10,15 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/jefe-whatsapp-blanco.css">
+<link rel="stylesheet" href="/css/jefes-piel-blanca.css">
 </head>
-<body>
+<body class="piel-blanca">
 
 <div class="topbar">
+  <div class="topbar-izq">
   <a id="back-hub" href="/" class="back-link">&lt;&lt; Hub de Jefes <span style="opacity:.4;">//</span> <span id="brand-marca-label">JefesHub</span></a>
+    <div id="foco-slot"></div>
+  </div>
   <h1>Jefe WhatsApp y Ventas</h1>
   <div class="topbar-actions">
     <button type="button" class="topbar-ia" id="estToggleBtn" onclick="pedirActualizarEstrategia()">✨ <span>Actualizar Estrategia con IA</span></button>
@@ -43,14 +47,13 @@
       }
     })();
   </script>
-  <span class="hero-logo"><img src="/img/jefe-whatsapp-logo-lima.webp" alt="Jefe WhatsApp y Ventas" width="150" height="156"></span>
-  <p class="hero-tagline">¡Vamos a cerrar esas ventas y sacarle provecho a cada conversación! Tu manual de ventas por mensaje, listo para copiar y pegar. Sube o baja por el termómetro según qué tan caliente esté la conversación.</p>
+  <img class="jefe-logo" src="/img/jefe-whatsapp-logo-lima.webp" alt="Jefe WhatsApp y Ventas" width="128" height="133">
   <div class="hero-search" id="chatPill">
     <span class="hero-lupa" aria-hidden="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
     </span>
     <span class="hero-search-sep"></span>
-    <textarea id="liveInput" rows="1" placeholder="¿Qué te escribió el cliente? Pégalo aquí…"></textarea>
+    <textarea id="liveInput" rows="3" placeholder="¡Vamos a cerrar esas ventas y sacarle provecho a cada conversación! Tu manual de ventas por mensaje, listo para copiar y pegar. Sube o baja por el termómetro según qué tan caliente esté la conversación."></textarea>
     <label class="hero-attach" title="Adjuntar captura" aria-label="Adjuntar captura">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
       <input type="file" id="liveImage" accept="image/*" hidden>
@@ -64,7 +67,7 @@
   <div id="liveAnswer" class="live-answer"></div>
   <div id="searchResults"></div>
   <div class="group-tabs" id="groupTabs"></div>
-  <button type="button" class="mostrar-todas-btn" id="mostrarTodasBtn" onclick="toggleMostrarTodas()" hidden>Ver todas las pestañas (sin filtrar por grupo)</button>
+  <p class="campana-hint" id="focoHint" hidden></p>
   <p class="campana-hint" id="campanaHint" hidden>Estás trabajando el manual de esta campaña de temporada: se guarda aparte del manual de todo el año. Las respuestas y la asesoría se basan en ella. Si está vacío, dale &ldquo;Actualizar Estrategia con IA&rdquo;.</p>
 </header>
 
@@ -308,6 +311,8 @@
 <footer id="ventas-footer">Jefe WhatsApp y Ventas — construido sobre tu manual de ventas por mensaje</footer>
 
 <script src="/js/storage-client.js"></script>
+<script>window.__focoConfig = { grupos: true, productos366: true }; // la pastilla también deja elegir un grupo completo</script>
+<script src="/js/jefes-foco.js"></script>
 <script src="/js/guia-jefe.js"></script>
 <script>
 // ---------- DATA ----------
@@ -353,9 +358,14 @@ const resultsBox = document.getElementById('searchResults');
 
 function normalize(s){return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");}
 
-input.addEventListener('input', () => {
+function ajustarAltoChat(){
   input.style.height = 'auto';
   input.style.height = Math.min(input.scrollHeight, 220) + 'px';
+}
+window.addEventListener('resize', ajustarAltoChat);
+setTimeout(ajustarAltoChat, 600);
+input.addEventListener('input', () => {
+  ajustarAltoChat();
   const crudo = input.value.trim();
   const q = normalize(crudo);
   // Mensajes largos son para el Jefe (Enter); la búsqueda rápida es para frases cortas.
@@ -540,7 +550,6 @@ async function cargarGruposNegocio(){
     const r = await window.storage.get(CLIENTE_ID + ':grupos-negocio');
     gruposNegocioState = r && r.value ? JSON.parse(r.value) : [];
   }catch(e){ gruposNegocioState = []; }
-  renderGroupTabs();
 }
 
 // Los textos del panel de IA dicen de dónde sale la información según la pestaña elegida.
@@ -562,6 +571,13 @@ function fuenteContexto(){
       status: 'Leyendo tu ADN y el producto «' + n + '» de tu Jefe 366...'
     };
   }
+  if(!mostrarTodasLasPestanas && grupoActivo){
+    const n = grupoActivo.nombre;
+    return {
+      sub: 'La IA llena las 5 tarjetas de abajo con tu ADN de marca (identidad, tono, catálogo) y todo el grupo «' + n + '» de tu Jefe 366 (su cliente, comunicación, ángulos, frases)' + TEXTO_FUENTE_COLA,
+      status: 'Leyendo tu ADN y el grupo «' + n + '» de tu Jefe 366...'
+    };
+  }
   return { sub: TEXTO_FUENTE_ORIGINAL, status: 'Leyendo tu ADN y tu Jefe 366...' };
 }
 
@@ -570,71 +586,96 @@ function actualizarTextosFuente(){
   if(el) el.textContent = fuenteContexto().sub;
 }
 
-function renderGroupTabs(){
+// ---------- FILTRO DE PRODUCTO / SERVICIO (js/jefes-foco.js, el mismo de todos los Jefes) ----------
+// La pastilla de la barra de arriba decide con qué se trabaja: "Tu ecosistema completo" (manual general),
+// un grupo completo o un producto/servicio. Filtra TODO el Jefe: tarjetas, seguimiento, reactivación,
+// el chat con el Jefe y la generación con IA. Cada foco guarda su manual aparte (llave :foco-<id>); lo que
+// ya se había generado antes por grupo o por producto 366 se sigue mostrando mientras ese foco no tenga el suyo.
+const HUB_KEY = (typeof CLIENTE_ID !== 'undefined') ? CLIENTE_ID : 'rancho-seco';
+
+function slugFoco(id){
+  return String(id || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'x';
+}
+
+function aplicarFoco(){
+  const f = window.__foco ? window.__foco.get() : null;
+  campanaActiva = null;
+  if(!f || f.esTodo){
+    mostrarTodasLasPestanas = true; productoActivo = null; grupoActivo = null;
+  } else if(f.esGrupo){
+    mostrarTodasLasPestanas = false; productoActivo = null;
+    grupoActivo = gruposNegocioState.find((g) => g.id === f.grupoId) || null;
+  } else {
+    mostrarTodasLasPestanas = false;
+    const g = f.grupoId ? (gruposNegocioState.find((x) => x.id === f.grupoId) || null) : null;
+    grupoActivo = g;
+    productoActivo = {
+      nombre: f.nombre,
+      grupo: g ? { id: g.id, nombre: g.nombre } : null,
+      sufijo: ':foco-' + slugFoco(f.id),
+      candidatos: [':prod-' + slugProducto(f.nombre)].concat(g ? [':' + g.id] : []),
+    };
+  }
+  estPreguntasPendientes = null;
+  renderEstPreguntas(null);
+  renderCampanaChips();
+}
+
+// Dónde pudo haber quedado guardado el manual antes de existir el filtro de arriba (solo se lee, no se borra).
+function sufijosLegado(){
+  if(campanaActiva) return [];
+  const primerGrupo = gruposNegocioState[0] ? ':' + gruposNegocioState[0].id : null;
+  if(productoActivo){
+    const l = productoActivo.candidatos.slice();
+    if(!gruposNegocioState.length || (productoActivo.grupo && ':' + productoActivo.grupo.id === primerGrupo)) l.push('');
+    return l;
+  }
+  if(grupoActivo && ':' + grupoActivo.id === primerGrupo) return [''];
+  return [];
+}
+
+function mostrarAvisoFoco(respaldo){
+  const el = document.getElementById('focoHint');
+  if(!el) return;
+  let texto = '';
+  if(!campanaActiva){
+    if(respaldo) texto = 'Todavía no hay un manual propio de «' + nombrePestanaActiva() + '»: ves el manual anterior. Pulsa "Actualizar Estrategia con IA" para crear el suyo.';
+    else if(mostrarTodasLasPestanas && window.__foco && window.__foco.lista().length) texto = 'Estás viendo el manual general de todo tu ecosistema. Elige un producto o servicio arriba para trabajar solo sobre él.';
+  }
+  el.textContent = texto;
+  el.hidden = !texto;
+}
+
+// Campañas de temporada (Jefe de Temporada): no están en el filtro de arriba, se eligen aquí.
+function renderCampanaChips(){
   const wrap = document.getElementById('groupTabs');
-  const btnTodas = document.getElementById('mostrarTodasBtn');
   const hint = document.getElementById('campanaHint');
   if(campanaActiva && !campanasState.some((c) => c.id === campanaActiva.id)) campanaActiva = null;
-  if(!gruposNegocioState.length) grupoActivo = null;
-  else if(!productoActivo && (!grupoActivo || !gruposNegocioState.some((g) => g.id === grupoActivo.id))) grupoActivo = gruposNegocioState[0];
-
-  // Una sola fila de pestañas, cada una con el nombre real de lo que se vende:
-  // productos de Jefe 366 + campañas vigentes de Jefe de Temporada (🗓️).
-  // Si el negocio aún no tiene productos 366 guardados, se usan los grupos de negocio como pestañas.
-  const tabs = [];
-  const sinSeleccionEspecial = !campanaActiva && !mostrarTodasLasPestanas;
-  productos366Tabs.forEach((p, i) => {
-    tabs.push(`<button type="button" class="group-tab${(sinSeleccionEspecial && productoActivo === p) ? ' active' : ''}" data-kind="p" data-idx="${i}" title="${escGrupoHtml(p.nombre)}">${escGrupoHtml(textoCorto(p.nombre))}</button>`);
-  });
-  gruposNegocioState.forEach((g, i) => {
-    if(productos366Tabs.length && productos366Tabs.some((p) => p.grupo && p.grupo.id === g.id)) return;
-    tabs.push(`<button type="button" class="group-tab${(sinSeleccionEspecial && !productoActivo && grupoActivo && g.id === grupoActivo.id) ? ' active' : ''}" data-kind="g" data-idx="${i}">${escGrupoHtml(g.nombre)}</button>`);
-  });
-  if(!productos366Tabs.length && !gruposNegocioState.length && campanasState.length){
-    tabs.push(`<button type="button" class="group-tab${campanaActiva ? '' : ' active'}" data-kind="base">Todo el año (366)</button>`);
+  if(!campanasState.length){
+    wrap.innerHTML = '';
+    hint.hidden = true;
+    actualizarTextosFuente();
+    return;
   }
+  const chips = ['<span class="campana-label">Campaña</span>',
+    `<button type="button" class="group-tab${campanaActiva ? '' : ' active'}" data-id="">Sin campaña</button>`];
   campanasState.forEach((c) => {
     const et = etiquetaCampana(c);
-    tabs.push(`<button type="button" class="group-tab${campanaActiva && c.id === campanaActiva.id ? ' active' : ''}" data-kind="c" data-id="${escGrupoHtml(c.id)}" title="${escGrupoHtml(et)}">🗓️ ${escGrupoHtml(textoCorto(et))}</button>`);
+    chips.push(`<button type="button" class="group-tab${campanaActiva && c.id === campanaActiva.id ? ' active' : ''}" data-id="${escGrupoHtml(c.id)}" title="${escGrupoHtml(et)}">🗓️ ${escGrupoHtml(textoCorto(et))}</button>`);
   });
-  wrap.innerHTML = tabs.join('');
+  wrap.innerHTML = chips.join('');
   wrap.querySelectorAll('.group-tab').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      if(btn.dataset.kind === 'p') switchProducto(+btn.dataset.idx);
-      else if(btn.dataset.kind === 'g') switchGroup(+btn.dataset.idx);
-      else if(btn.dataset.kind === 'c') switchCampana(btn.dataset.id);
-      else switchCampana('');
-    });
+    btn.addEventListener('click', () => switchCampana(btn.dataset.id));
   });
-  btnTodas.hidden = !gruposNegocioState.length;
   hint.hidden = !campanaActiva;
   actualizarTextosFuente();
 }
 
-function toggleMostrarTodas(){
-  mostrarTodasLasPestanas = !mostrarTodasLasPestanas;
-  campanaActiva = null;
-  const btn = document.getElementById('mostrarTodasBtn');
-  btn.classList.toggle('activo', mostrarTodasLasPestanas);
-  btn.textContent = mostrarTodasLasPestanas ? 'Volver a filtrar por grupo' : 'Ver todas las pestañas (sin filtrar por grupo)';
-  renderGroupTabs();
-  estPreguntasPendientes = null;
-  renderEstPreguntas(null);
-  cargarTarjetas();
-}
-
-function switchGroup(idx){
-  mostrarTodasLasPestanas = false;
-  campanaActiva = null;
-  productoActivo = null;
-  const btnTodas = document.getElementById('mostrarTodasBtn');
-  btnTodas.classList.remove('activo');
-  btnTodas.textContent = 'Ver todas las pestañas (sin filtrar por grupo)';
-  grupoActivo = gruposNegocioState[idx];
-  renderGroupTabs();
-  estPreguntasPendientes = null;
-  renderEstPreguntas(null);
-  cargarTarjetas();
+async function alCambiarFoco(){
+  // Lo que se estaba editando se guarda en SU foco antes de cambiar.
+  if(tarjetasSaveTimer){ clearTimeout(tarjetasSaveTimer); tarjetasSaveTimer = null; await guardarTarjetas(); }
+  aplicarFoco();
+  await cargarTarjetas();
 }
 
 // El id de grupo que hay que mandarle al backend en cada request -- null si el negocio no tiene
@@ -651,11 +692,7 @@ function sufijoGrupo(){
   return grupoActivo ? ':' + grupoActivo.id : '';
 }
 
-// ---------- PRODUCTOS 366 (una pestaña por producto, con su nombre) ----------
-// Cada producto de Jefe 366 trae su propio cliente, deseos, miedos y forma de hablar, así que cada uno
-// tiene su manual aparte. El primer producto de cada grupo conserva la llave del grupo (:publicidad,
-// :torneo...) para no perder lo ya generado; los demás usan :prod-<nombre>.
-let productos366Tabs = [];
+// ---------- NOMBRES ----------
 let productoActivo = null;
 
 function slugProducto(n){
@@ -673,58 +710,6 @@ function etiquetaCampana(c){
   if(nombre && !/^(temporal|nueva campa[nñ]a|campa[nñ]a|sin nombre)$/i.test(nombre)) return nombre;
   const producto = (c.producto_origen === 'nuevo' ? c.producto_nuevo : c.producto_nombre) || '';
   return (producto.trim() || (c.temporada || '').trim() || nombre || '(sin nombre)');
-}
-
-async function cargarProductos366(){
-  let lista = [];
-  try{
-    let r = await window.storage.get(CLIENTE_ID + ':brand-book.366-producto');
-    if(!r || !r.value) r = await window.storage.get(CLIENTE_ID + ':brand-book.evergreen-producto');
-    if(r && r.value){
-      const v = JSON.parse(r.value);
-      lista = Array.isArray(v) ? v : (v && Array.isArray(v.lista) ? v.lista : (v && v.nombre ? [v] : []));
-    }
-  }catch(e){ lista = []; }
-  const validos = lista.filter((p) => p && p.nombre && String(p.nombre).trim());
-  const conGrupo = (p) => p.grupo_id && gruposNegocioState.some((g) => g.id === p.grupo_id);
-  const ordenados = validos.filter(conGrupo).concat(validos.filter((p) => !conGrupo(p)));
-  const gruposVistos = new Set();
-  const slugsVistos = new Map();
-  productos366Tabs = ordenados.map((p, i) => {
-    const gid = conGrupo(p) ? p.grupo_id : '';
-    let sufijo;
-    if(gid && !gruposVistos.has(gid)){ gruposVistos.add(gid); sufijo = ':' + gid; }
-    else if(!gid && !gruposNegocioState.length && i === 0){ sufijo = ''; }
-    else {
-      const s = slugProducto(p.nombre);
-      const n = (slugsVistos.get(s) || 0) + 1;
-      slugsVistos.set(s, n);
-      sufijo = ':prod-' + s + (n > 1 ? '-' + n : '');
-    }
-    const g = gid ? gruposNegocioState.find((x) => x.id === gid) : null;
-    return { nombre: String(p.nombre).trim(), grupo: g ? { id: g.id, nombre: g.nombre } : null, sufijo };
-  });
-  // Por defecto, el producto que hereda el contenido ya generado del primer grupo (si lo hay).
-  const primerGrupo = gruposNegocioState[0];
-  const porDefecto = productos366Tabs.find((p) => primerGrupo && p.sufijo === ':' + primerGrupo.id);
-  if(porDefecto){ productos366Tabs.splice(productos366Tabs.indexOf(porDefecto), 1); productos366Tabs.unshift(porDefecto); }
-  productoActivo = productos366Tabs.length ? productos366Tabs[0] : null;
-  if(productoActivo) grupoActivo = productoActivo.grupo ? gruposNegocioState.find((g) => g.id === productoActivo.grupo.id) : null;
-  renderGroupTabs();
-}
-
-function switchProducto(idx){
-  mostrarTodasLasPestanas = false;
-  campanaActiva = null;
-  const btnTodas = document.getElementById('mostrarTodasBtn');
-  btnTodas.classList.remove('activo');
-  btnTodas.textContent = 'Ver todas las pestañas (sin filtrar por grupo)';
-  productoActivo = productos366Tabs[idx];
-  grupoActivo = productoActivo.grupo ? gruposNegocioState.find((g) => g.id === productoActivo.grupo.id) : null;
-  renderGroupTabs();
-  estPreguntasPendientes = null;
-  renderEstPreguntas(null);
-  cargarTarjetas();
 }
 
 function producto366ParaEnvio(){
@@ -748,13 +733,12 @@ async function cargarCampanas(){
     const hoy = new Date().toISOString().slice(0, 10);
     campanasState = Array.isArray(todas) ? todas.filter((c) => c && c.id && (!c.fecha_fin_activa || c.fecha_fin_activa >= hoy)) : [];
   }catch(e){ campanasState = []; }
-  renderGroupTabs();
+  renderCampanaChips();
 }
 
 function switchCampana(id){
   campanaActiva = id ? (campanasState.find((c) => c.id === id) || null) : null;
-  mostrarTodasLasPestanas = false;
-  renderGroupTabs();
+  renderCampanaChips();
   estPreguntasPendientes = null;
   renderEstPreguntas(null);
   cargarTarjetas();
@@ -762,15 +746,6 @@ function switchCampana(id){
 
 function campanaActivaParaEnvio(){ return campanaActiva ? campanaActiva.id : null; }
 function sufijoCampana(){ return campanaActiva ? ':camp-' + campanaActiva.id : ''; }
-
-// El primer grupo de la lista es, por convención, el que ya existía antes de que este negocio
-// definiera grupos -- es el único candidato válido para heredar el contenido de la llave vieja
-// sin sufijo (ver cargarTarjetas). Los demás grupos son nuevos de verdad, nunca deben heredar nada.
-function esGrupoOriginal(){
-  if(campanaActiva || mostrarTodasLasPestanas || !gruposNegocioState[0]) return false;
-  if(productoActivo) return productoActivo.sufijo === ':' + gruposNegocioState[0].id;
-  return !!(grupoActivo && grupoActivo.id === gruposNegocioState[0].id);
-}
 
 function tarjetasKey(){ return CLIENTE_ID + ':whatsapp-estrategia-tarjetas' + sufijoGrupo() + sufijoCampana(); }
 function tarjetasKeyVieja(){ return CLIENTE_ID + ':whatsapp-estrategia-tarjetas'; }
@@ -785,16 +760,15 @@ function pintarTarjetas(data){
 async function cargarTarjetas(){
   const data = Object.assign({}, DEFAULT_TARJETAS);
   let hayGuardado = false;
+  let respaldo = false;
   try{
     let r = await window.storage.get(tarjetasKey());
-    if((!r || !r.value) && esGrupoOriginal()){
-      // Migración: antes de que existieran grupos de negocio, todo vivía en la llave sin sufijo.
-      // Si la llave nueva del primer grupo todavía está vacía, recuperamos de ahí y la migramos
-      // -- así el contenido real generado antes no se queda "escondido" detrás de "Ver todas".
-      const viejo = await window.storage.get(tarjetasKeyVieja());
-      if(viejo && viejo.value){
-        r = viejo;
-        window.storage.set(tarjetasKey(), viejo.value).catch(() => {});
+    if(!r || !r.value){
+      // Mientras este foco no tenga manual propio se muestra (solo lectura) el que había antes por grupo o producto.
+      const base = HUB_KEY + ':whatsapp-estrategia-tarjetas';
+      for(const suf of sufijosLegado()){
+        const v = await window.storage.get(base + suf);
+        if(v && v.value){ r = v; respaldo = true; break; }
       }
     }
     if(r && r.value){
@@ -804,6 +778,7 @@ async function cargarTarjetas(){
     }
   }catch(e){}
   tarjetasConContenido = hayGuardado;
+  mostrarAvisoFoco(respaldo);
   // Una campaña sin manual todavía arranca vacía: el texto por defecto es de la venta general.
   if(campanaActiva && !hayGuardado){
     const vacias = {};
@@ -830,7 +805,7 @@ async function guardarTarjetas(){
     await window.storage.set(tarjetasKey(), JSON.stringify(data));
     tarjetasConContenido = true;
     // El guión derivado alimenta a Jefe 366 (todo el año): una campaña no debe pisarlo.
-    if(!campanaActiva && !String(sufijoGrupo()).startsWith(':prod-')) await window.storage.set(waGuionesKey(), JSON.stringify(tarjetasAGuiones(data)));
+    if(!campanaActiva && (!productoActivo || productoActivo.grupo)) await window.storage.set(waGuionesKey(), JSON.stringify(tarjetasAGuiones(data)));
     if(status){ status.textContent = 'Guardado ✓'; setTimeout(() => { if(status.textContent === 'Guardado ✓') status.textContent = ''; }, 1800); }
   }catch(e){
     if(status) status.textContent = e.status === 401 ? 'Token incorrecto — vuelve a intentar guardar.' : 'No se pudo guardar, intenta de nuevo.';
@@ -849,7 +824,7 @@ function scheduleGuardarTarjetas(){
 // El Jefe 366 lee esta misma llave para su sección "Guión de WhatsApp". Antes se llenaba a mano
 // en un modulo aparte (redundante con las Tarjetas de arriba); ahora se deriva automático de las
 // Tarjetas cada vez que se guardan, para que no haya que llenar lo mismo dos veces ni se desincronicen.
-function waGuionesKey(){ return CLIENTE_ID + ':brand-book.whatsapp-guiones' + sufijoGrupo(); }
+function waGuionesKey(){ return HUB_KEY + ':brand-book.whatsapp-guiones' + (productoActivo && productoActivo.grupo ? ':' + productoActivo.grupo.id : sufijoGrupo()); }
 
 function unirNoVacios(...partes){
   return partes.filter((p) => p && p.trim()).join('\n\n');
@@ -1248,21 +1223,23 @@ function leerLlegada366(){
     return d;
   }catch(e){ return null; }
 }
-function aplicarLlegada366(d){
-  const norm = (s) => (s || '').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/s+/g, ' ').trim();
+async function aplicarLlegada366(d){
+  if(!window.__foco) return;
+  const norm = (s) => (s || '').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
   const n = norm(d.producto_nombre);
-  let i = n ? productos366Tabs.findIndex((p) => norm(p.nombre) === n) : -1;
-  if(i < 0 && n) i = productos366Tabs.findIndex((p) => norm(p.nombre).includes(n) || n.includes(norm(p.nombre)));
-  if(i >= 0){ switchProducto(i); return; }
-  const g = gruposNegocioState.findIndex((x) => x.id === d.grupo_id || (norm(x.nombre) && norm(x.nombre) === norm(d.grupo_nombre)));
-  if(g >= 0) switchGroup(g);
+  const lista = window.__foco.lista();
+  let item = n ? lista.find((p) => norm(p.nombre) === n) : null;
+  if(!item && n) item = lista.find((p) => norm(p.nombre).includes(n) || n.includes(norm(p.nombre)));
+  if(item){ window.__foco.set(item.id); return; }
+  const g = (window.__foco.grupos() || []).find((x) => x.id === d.grupo_id || (norm(x.nombre) && norm(x.nombre) === norm(d.grupo_nombre)));
+  if(g) window.__foco.set('g:' + g.id);
 }
 
 GuiaJefe.registrar({
   id: 'whatsapp', nombre: 'Jefe WhatsApp y Ventas',
   pasos: [
-    { selector: '#groupTabs .group-tab.active', titulo: 'Producto o grupo en el que trabajas',
-      texto: 'Cada pestaña de arriba es un producto (o un grupo de negocio) con su propio manual de WhatsApp, y no se mezclan entre sí. La pestaña resaltada es con la que estás trabajando; si vienes de Jefe 366, es el producto que veníamos viendo. Para cambiar, pícale a otra.' },
+    { selector: '#foco-slot', titulo: 'Producto o servicio en el que trabajas',
+      texto: 'Esta pastilla de arriba filtra TODO el Jefe: las respuestas al cliente, el manual por temperatura, el seguimiento y la reactivación. Con "Tu ecosistema completo" ves el manual general; elige un producto, servicio o grupo para trabajar solo sobre él. Cada uno guarda su manual aparte.' },
     { selector: '#liveInput', titulo: 'Tu chat con el Jefe de WhatsApp y Ventas',
       texto: 'Pega aquí lo que te escribió el cliente (o adjunta una captura con el clip) y pulsa Enter: el Jefe te aconseja la mejor respuesta según en qué punto va la venta. Si escribes una frase corta ("está caro", "tarjeta"...), abajo también te salen las respuestas que ya tienes en tu manual.' },
     { selector: '#estToggleBtn', titulo: 'Pícale aquí para armar tu estrategia',
@@ -1284,11 +1261,13 @@ GuiaJefe.registrar({
 
 (async () => {
   await cargarGruposNegocio();
-  await cargarProductos366();
   await cargarCampanas();
+  if(window.__foco){ try{ await window.__foco.ready; }catch(e){} }
   const llegada = leerLlegada366();
-  if(llegada) aplicarLlegada366(llegada);
+  if(llegada) await aplicarLlegada366(llegada);
+  aplicarFoco();
   await cargarTarjetas();
+  if(window.__foco) window.__foco.onChange(alCambiarFoco);
   if(llegada) GuiaJefe.iniciar('whatsapp');
 })();
 </script>

@@ -218,7 +218,7 @@ function filtrarProducto(items, nombre) {
   return sel.length ? sel : items;
 }
 
-async function construirContextoNegocio(clienteId, { soloAdnBasico = false, grupoId = '' } = {}) {
+async function construirContextoNegocio(clienteId, { soloAdnBasico = false, grupoId = '', productoNombre = '' } = {}) {
   const [identidad, tono, audiencia, catalogo, guiones, grupos] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
@@ -233,7 +233,7 @@ async function construirContextoNegocio(clienteId, { soloAdnBasico = false, grup
     formatearTono(tono),
     soloAdnBasico ? null : formatearGrupos(grupos),
     soloAdnBasico ? null : formatearAudiencias(filtrarPorGrupo(audiencia, grupoId), grupos),
-    formatearCatalogo(filtrarPorGrupo(catalogo, grupoId), grupos),
+    formatearCatalogo(filtrarProducto(filtrarPorGrupo(catalogo, grupoId), productoNombre), grupos),
     soloAdnBasico ? null : formatearGuionesGuardados(guiones),
   ].filter(Boolean);
 
@@ -502,7 +502,7 @@ module.exports = async function handler(req, res) {
     const campanaSel = Array.isArray(campanasTemporada) ? campanasTemporada.find((c) => c && c.id === campanaIdSel) : null;
     const campanaBloque = formatearCampanaSeleccionada(campanaSel);
     const [contexto, contexto366] = await Promise.all([
-      construirContextoNegocio(clienteId, { soloAdnBasico: !!campanaBloque, grupoId: !campanaBloque && grupoSeleccionado ? grupoSeleccionado.id : '' }),
+      construirContextoNegocio(clienteId, { soloAdnBasico: !!campanaBloque, grupoId: !campanaBloque && grupoSeleccionado ? grupoSeleccionado.id : '', productoNombre: !campanaBloque && productoSel ? productoSel.nombre : '' }),
       campanaBloque ? Promise.resolve('') : construirContexto366(clienteId, { grupoId: grupoSeleccionado ? grupoSeleccionado.id : '', productoNombre: productoSel ? productoSel.nombre : '' }),
     ]);
     // Con caché: cada consulta en los siguientes 5 minutos lee el prompt y el contexto a 10% del costo.
@@ -517,10 +517,10 @@ module.exports = async function handler(req, res) {
     }
     const partesTexto = [];
     if (grupoSeleccionado) {
-      partesTexto.push(`GRUPO DE NEGOCIO SELECCIONADO POR EL USUARIO (desde las pestañas de arriba): "${grupoSeleccionado.nombre}". Responde usando ÚNICAMENTE la información etiquetada [Grupo: ${grupoSeleccionado.nombre}] (o sin etiqueta de grupo, si aplica al negocio en general) -- no uses precios ni datos de otros grupos.`);
+      partesTexto.push(`GRUPO DE NEGOCIO SELECCIONADO POR EL USUARIO (desde el filtro de arriba): "${grupoSeleccionado.nombre}". Responde usando ÚNICAMENTE la información etiquetada [Grupo: ${grupoSeleccionado.nombre}] (o sin etiqueta de grupo, si aplica al negocio en general) -- no uses precios ni datos de otros grupos.`);
     }
     if (productoSel && !campanaBloque) {
-      partesTexto.push(`PRODUCTO 366 SELECCIONADO POR EL USUARIO (pestaña de arriba): "${productoSel.nombre}". Este cliente pregunta por ESE producto/servicio: responde y asesora usando únicamente su oferta, su precio y los perfiles de cliente (deseos, dolores, miedos, motivaciones) de ese producto; no mezcles datos de otros productos.`);
+      partesTexto.push(`PRODUCTO 366 SELECCIONADO POR EL USUARIO (filtro de arriba): "${productoSel.nombre}". Este cliente pregunta por ESE producto/servicio: responde y asesora usando únicamente su oferta, su precio y los perfiles de cliente (deseos, dolores, miedos, motivaciones) de ese producto; no mezcles datos de otros productos.`);
     }
     partesTexto.push('Mensaje del cliente / captura a analizar:\n' + (mensaje || '(ver captura adjunta)'));
     content.push({

@@ -234,7 +234,7 @@ function filtrarProducto(items, nombre) {
   return sel.length ? sel : items;
 }
 
-async function construirContextoNegocio(clienteId, { soloAdnBasico = false, grupoId = '' } = {}) {
+async function construirContextoNegocio(clienteId, { soloAdnBasico = false, grupoId = '', productoNombre = '' } = {}) {
   const [identidad, tono, audiencia, catalogo, grupos] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
@@ -248,7 +248,7 @@ async function construirContextoNegocio(clienteId, { soloAdnBasico = false, grup
     formatearTono(tono),
     soloAdnBasico ? null : formatearGrupos(grupos),
     soloAdnBasico ? null : formatearAudiencias(filtrarPorGrupo(audiencia, grupoId), grupos),
-    formatearCatalogo(filtrarPorGrupo(catalogo, grupoId), grupos),
+    formatearCatalogo(filtrarProducto(filtrarPorGrupo(catalogo, grupoId), productoNombre), grupos),
   ].filter(Boolean);
 
   if (bloques.length === 0) {
@@ -591,7 +591,7 @@ module.exports = async function handler(req, res) {
     const campanaSel = Array.isArray(campanasTemporada) ? campanasTemporada.find((c) => c && c.id === campanaId) : null;
     const campanaBloque = formatearCampanaSeleccionada(campanaSel);
     const [contextoNegocio, contexto366] = await Promise.all([
-      construirContextoNegocio(clienteId, { soloAdnBasico: !!campanaBloque, grupoId: !campanaBloque && grupo ? grupo.id : '' }),
+      construirContextoNegocio(clienteId, { soloAdnBasico: !!campanaBloque, grupoId: !campanaBloque && grupo ? grupo.id : '', productoNombre: !campanaBloque && producto366 ? producto366.nombre : '' }),
       // Con campaña seleccionada, el contexto es ADN básico + Jefe de Temporada: no se carga Jefe 366
       // (menos tokens, más rápido y sin mezclar la venta de todo el año con la campaña).
       campanaBloque ? Promise.resolve('') : construirContexto366(clienteId, { grupoId: grupo ? grupo.id : '', productoNombre: producto366 ? producto366.nombre : '' }),
@@ -607,12 +607,12 @@ module.exports = async function handler(req, res) {
     const partesUsuario = [];
     if (grupo) {
       partesUsuario.push(
-        `GRUPO DE NEGOCIO SELECCIONADO POR EL USUARIO (desde las pestañas de arriba): "${grupo.nombre}". Usa ÚNICAMENTE la información etiquetada [Grupo: ${grupo.nombre}] (o sin etiqueta de grupo, si aplica al negocio en general) -- NO uses información de otros grupos, y NO preguntes cuál grupo es, ya se te dijo explícitamente.`
+        `GRUPO DE NEGOCIO SELECCIONADO POR EL USUARIO (desde el filtro de arriba): "${grupo.nombre}". Usa ÚNICAMENTE la información etiquetada [Grupo: ${grupo.nombre}] (o sin etiqueta de grupo, si aplica al negocio en general) -- NO uses información de otros grupos, y NO preguntes cuál grupo es, ya se te dijo explícitamente.`
       );
     }
     if (producto366 && !campanaBloque) {
       partesUsuario.push(
-        `PRODUCTO 366 SELECCIONADO POR EL USUARIO (pestaña de arriba): "${producto366.nombre}". Este manual es SOLO de ese producto/servicio: usa únicamente su oferta (el bloque "Oferta 366" con ese nombre), su precio del catálogo y, de los perfiles de cliente, los de su grupo cuyo "producto relacionado" lo incluya (si hay varios, prioriza esos). NO mezcles datos de otros productos aunque sean del mismo grupo, y usa a fondo los deseos, dolores, miedos, motivaciones y la forma de hablar (frases) de ese producto y su cliente. NO preguntes cuál producto es, ya se te dijo.`
+        `PRODUCTO 366 SELECCIONADO POR EL USUARIO (filtro de arriba): "${producto366.nombre}". Este manual es SOLO de ese producto/servicio: usa únicamente su oferta (el bloque "Oferta 366" con ese nombre, si existe), su precio del catálogo y, de los perfiles de cliente, los de su grupo cuyo "producto relacionado" lo incluya (si hay varios, prioriza esos). NO mezcles datos de otros productos aunque sean del mismo grupo, y usa a fondo los deseos, dolores, miedos, motivaciones y la forma de hablar (frases) de ese producto y su cliente. NO preguntes cuál producto es, ya se te dijo.`
       );
     }
     if (!campanaBloque) {
