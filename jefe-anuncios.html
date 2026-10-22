@@ -50,8 +50,6 @@
   *::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,.36);}
 
   /* HERO: logo + frase en pastilla */
-  .hero-logo{display:block;margin:0 auto 14px;}
-  .hero-logo img{width:150px;height:auto;max-width:60%;object-fit:contain;display:block;margin:0 auto;}
   /* Al abrir (sin pestaña elegida) el bloque logo + chat + botones queda centrado en la pantalla */
   .wrap.modo-inicio .page-header{padding-top:max(40px,11vh);}
 
@@ -465,8 +463,9 @@
   }
 </style>
 <link rel="stylesheet" href="/css/plataforma-dash.css">
+<link rel="stylesheet" href="/css/jefes-piel-blanca.css">
 </head>
-<body>
+<body class="piel-blanca">
 <div class="topbar">
   <div class="topbar-izq">
     <a id="back-hub" href="/" class="back-link">&lt;&lt; Hub de Jefes <span style="opacity:.4;">//</span> <span id="brand-marca-label">—</span></a>
@@ -494,7 +493,7 @@
   <div class="cx-icons" id="cx-icons"></div>
 
   <div class="page-header">
-    <span class="hero-logo"><img src="/img/jefe-anuncios-logo-lima.webp" alt="Jefe de Anuncios" width="150" height="141"></span>
+    <img class="jefe-logo" src="/img/jefe-anuncios-logo-lima.webp" alt="Jefe de Anuncios">
   </div>
 
   <!-- Chat del Jefe: fijo arriba, activo en los 3 módulos -->
@@ -573,7 +572,7 @@ let draggedCardId = null;
 let estructuras = [];
 let linkCarpeta = '';
 let linkBM = '';
-let chatMessages = []; // {role:'user'|'assistant', content, usada?:boolean} -- efímero, no se guarda (mismo patrón que Jefe Contenido)
+let chatMessages = []; // {role:'user'|'assistant', content, usada?:boolean} -- se guarda por producto/grupo del filtro (CHAT_KEY)
 let chatDraft = '';
 let chatStatus = '';
 let formatoSel = FORMATOS[0];
@@ -713,6 +712,7 @@ window.addEventListener('pagehide',()=>{ if(cardsPendingSave) doSaveCards({keepa
 
 // ─── TABS ─────────────────────────────────────────────────────────────────
 function render(){
+  if(chatClave!==null && claveChatActual()!==chatClave){ chatMessages = []; cargarChatPersistido(); }
   const contentEl = document.getElementById('content');
   contentEl.innerHTML='';
   document.querySelector('.wrap').classList.toggle('modo-inicio', !currentTab);
@@ -1664,7 +1664,7 @@ function renderChat(container){
   const wrap = document.createElement('div');
   wrap.className = 'chat-hero';
   wrap.innerHTML = `
-    <div class="hero-search">
+    <div class="hero-search pb-pregunta">
       <label class="hero-attach" for="chat-file-input" title="Adjuntar una imagen del anuncio" aria-label="Adjuntar imagen">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
       </label>
@@ -1675,6 +1675,7 @@ function renderChat(container){
         <img src="/img/jefe-anuncios-logo-negro.webp" alt="" aria-hidden="true">
       </button>
     </div>
+    <div class="pb-sugerencias" id="chat-sugerencias"></div>
     <div class="chat-adjunto-row">
       <span class="chat-adjunto-hint" id="chat-adjunto-hint">Puedes adjuntar o pegar (Ctrl+V) una imagen de tu anuncio</span>
       <span class="chat-adjunto-preview" id="chat-adjunto-preview"><img alt=""><span></span><button type="button" id="chat-adjunto-quitar" title="Quitar imagen">✕</button></span>
@@ -1683,10 +1684,11 @@ function renderChat(container){
       <span class="mode-status" id="chat-status">${escHtml(chatStatus)}</span>
       ${chatMessages.length?'<button class="link-btn" id="chat-reset-btn" type="button">Nueva conversación</button>':''}
     </div>
-    <div id="chat-thread" class="chat-thread"></div>
+    <div id="chat-thread" class="chat-thread builder-chat"></div>
   `;
   container.appendChild(wrap);
   pintarChatThread();
+  pintarSugerenciasChat();
 
   const chatInputEl = document.getElementById('chat-input');
   const autoAltoChat = ()=>{ chatInputEl.style.height='auto'; chatInputEl.style.height=Math.min(chatInputEl.scrollHeight, chatInputEl.value?150:260)+'px'; };
@@ -1707,8 +1709,54 @@ function renderChat(container){
   if(resetBtn) resetBtn.addEventListener('click', ()=>{
     chatMessages = []; chatDraft = ''; chatStatus = '';
     chatImagenBase64=''; chatImagenNombre='';
+    guardarChatPersistido();
     render();
   });
+}
+
+// ─── MEMORIA DEL CHAT (una conversación guardada por cada producto / grupo del filtro de arriba) ───
+const CHAT_KEY = CLIENTE_ID + ':anuncios-chat:';
+let chatClave = null;
+function claveChatActual(){ return productoId ? 'p-'+productoId : (grupoId ? 'g-'+grupoId : 'all'); }
+async function cargarChatPersistido(conRender){
+  const clave = claveChatActual(); chatClave = clave; chatMessages = [];
+  try{
+    const r = await window.storage.get(CHAT_KEY+clave);
+    const d = r && r.value ? JSON.parse(r.value) : [];
+    if(Array.isArray(d)) chatMessages = d.filter(m=>m && (m.role==='user'||m.role==='assistant') && typeof m.content==='string');
+  }catch(e){}
+  if(claveChatActual()!==clave) return; // el filtro cambió mientras cargaba: ya hay otra carga en curso
+  if(conRender!==false) render();
+}
+function guardarChatPersistido(){
+  if(chatClave===null) return;
+  const arr = chatMessages.slice(-60).map(m=>({ role:m.role, content:m.content, etapa:m.etapa||'', usada:!!m.usada, imagenNombre:m.imagenNombre||'' }));
+  window.storage.set(CHAT_KEY+chatClave, JSON.stringify(arr)).catch(()=>{});
+}
+
+// Sugerencias rápidas bajo el chat: cambian según lo que ya existe (anuncios, campañas) para el filtro elegido.
+function sugerenciasChat(){
+  const f = window.__foco ? window.__foco.get() : null;
+  const nombre = (f && !f.esTodo && f.nombre) ? f.nombre : '';
+  const de = nombre ? ' de '+nombre : '';
+  const delFoco = x=> x && (productoId ? x.producto_id===productoId : grupoId ? x.grupo_id===grupoId : true);
+  const misCards = cards.filter(delFoco), misEstr = estructuras.filter(delFoco);
+  let s;
+  if(!misCards.length) s = [`Armemos las primeras ideas de anuncios${de}`, 'Quiero un anuncio para gente que no conoce mi marca', '¿Por dónde empiezo con mis anuncios?'];
+  else if(!misEstr.length) s = [`¿Cómo armo mi primera campaña con los anuncios${de} que ya tengo?`, 'Revisa mis anuncios y dime cuál mejorar primero', '¿Qué anuncio me falta para cubrir adquisición, consideración y conversión?'];
+  else s = ['¿Qué anuncio me falta para completar mi campaña?', 'Propón el siguiente conjunto de anuncios con un público nuevo', '¿Cómo voy a medir si esta campaña funciona?'];
+  if(chatMessages.length) s.unshift('Resume lo que hemos decidido y dime el siguiente paso');
+  return s.slice(0,4);
+}
+function pintarSugerenciasChat(){
+  const box = document.getElementById('chat-sugerencias'); if(!box) return;
+  box.innerHTML = sugerenciasChat().map((t,i)=>`<button type="button" class="pb-sugerencia" data-sug="${i}">${escHtml(t)}</button>`).join('');
+  const lista = sugerenciasChat();
+  box.querySelectorAll('[data-sug]').forEach(b=>b.addEventListener('click',()=>{
+    chatDraft = lista[+b.dataset.sug];
+    const inp = document.getElementById('chat-input'); if(inp) inp.value = chatDraft;
+    enviarMensajeChat();
+  }));
 }
 
 function pintarChatThread(){
@@ -1721,10 +1769,10 @@ function pintarChatThread(){
   box.innerHTML = chatMessages.map((m,i)=>{
     if(m.role==='user'){
       const tagImagen = m.imagenNombre ? `<div class="chat-msg-imagen-tag">📎 ${escHtml(m.imagenNombre)}</div>` : '';
-      return `<div class="chat-msg chat-msg-user">${tagImagen}${escHtml(m.content)}</div>`;
+      return `<div class="bubble user">${tagImagen}${escHtml(m.content)}</div>`;
     }
     const badgeEtapa = m.etapa ? `<span class="badge badge-${m.etapa}" style="margin-bottom:6px;">${ETAPA_LABEL[m.etapa]||m.etapa}</span><br>` : '';
-    return `<div class="chat-msg chat-msg-assistant">${badgeEtapa}${escHtml(m.content)}
+    return `<div class="bubble assistant">${badgeEtapa}${escHtml(m.content)}
       <div class="chat-msg-actions">
         <button type="button" data-copy-idx="${i}">📋 Copiar</button>
         <button type="button" data-usar-idx="${i}" class="${m.usada?'done':''}">${m.usada?'✅ Agregado a Campañas guardadas':'✅ Guardar como campaña'}</button>
@@ -1780,7 +1828,7 @@ async function enviarMensajeChat(){
       body: JSON.stringify({ modo:'chat', cliente: CLIENTE_ID, grupo_id: grupoId, producto_id: productoId, messages: historialParaEnviar }),
     });
     const data = await res.json();
-    if(!res.ok) throw new Error(data.error || 'Error al consultar al Jefe.');
+    if(!res.ok){ const e = new Error(data.error || 'Error al consultar al Jefe.'); e.tope = res.status===402 || !!data.tope; throw e; }
     // Cuando el Jefe entrega un guion completo, la 1a línea trae "ETAPA: adquisicion|consideracion|
     // conversion" (metadata para clasificar la tarjeta si se guarda como campaña) -- se separa del
     // texto que se muestra/copia, nunca se le enseña esa línea cruda al usuario.
@@ -1790,10 +1838,12 @@ async function enviarMensajeChat(){
     const textoLimpio = matchEtapa ? textoCrudo.slice(matchEtapa[0].length) : textoCrudo;
     chatMessages.push({role:'assistant', content:textoLimpio, etapa: etapaDetectada});
     chatStatus = '✅ Listo';
+    guardarChatPersistido();
   }catch(err){
     chatMessages.pop();
     chatDraft = mensaje;
-    chatStatus = '❌ ' + (err.message || 'Error al consultar al Jefe.');
+    // 402 = tope de tokens del hub: el aviso del servidor se muestra tal cual (no es un error de conexión)
+    chatStatus = err.tope ? err.message : '❌ ' + (err.message || 'Error al consultar al Jefe.');
   }
   render();
 }
@@ -1822,6 +1872,7 @@ function usarRespuestaChatComoCampana(idx){
     link_archivo_final: '',
   });
   msg.usada = true;
+  guardarChatPersistido();
   document.getElementById('count-cards').textContent = cards.length;
   scheduleCardsSave();
   chatStatus = '✅ Se guardó como campaña -- revísala y complétala en "Campañas guardadas".';
@@ -2588,6 +2639,7 @@ cargarInicial().then(async ()=>{
   if(window.__foco) window.__foco.lista().forEach(p=>{ if(p.origen366 && !productos.some(x=>x&&x.id===p.id)) productos.push(p); });
   if(window.__foco) aplicarFocoAEstado(window.__foco.get());
   if(llegada){ aplicarLlegada366(llegada); sincronizarFoco(); }
+  await cargarChatPersistido(false);
   if(window.__foco) window.__foco.onChange(f=>{ if(aplicarFocoAEstado(f)) render(); });
   pintarIconos();
   render();
