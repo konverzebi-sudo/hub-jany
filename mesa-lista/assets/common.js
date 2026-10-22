@@ -52,11 +52,11 @@ function deriveTheme(t){
 }
 function themeVars(t){
   const d=deriveTheme(t);
-  return `--c-bg:${d.bg};--c-surface:${d.surface};--c-ink:${d.ink};--c-muted:${d.muted};--c-line:${d.line};--c-head:${d.head};--c-head-ink:${d.headInk};--c-brand:${d.brand};--c-brand-ink:${d.brandInk};--c-soft:${d.soft};--c-accent:${d.accent};--c-accent-ink:${d.accentInk};--c-tile:${d.tile}`;
+  return `--c-bg:${d.bg};--c-surface:${d.surface};--c-ink:${d.ink};--c-muted:${d.muted};--c-line:${d.line};--c-head:${d.head};--c-head-ink:${d.headInk};--c-brand:${d.brand};--c-brand-ink:${d.brandInk};--c-soft:${d.soft};--c-accent:${d.accent};--c-accent-ink:${d.accentInk};--c-tile:${d.tile};--c-brand-text:${ensureContrast(d.brand,d.surface,4.5)}`;
 }
 
 /* ---------- Datos ---------- */
-const DEFAULT_THEME={name:'Predeterminado',head:'#111111',brand:'#FF4A1A',accent:'#FF8C2E',bg:'#F5F5F5',surface:'#FFFFFF',ink:'#111111'};
+const DEFAULT_THEME={name:'Predeterminado',head:'#000000',brand:'#C9F802',accent:'#C9F802',bg:'#F5F5F2',surface:'#FFFFFF',ink:'#0D0D0D'};
 const PAY_LABEL={terminal:"📟 Terminal con mesero",efectivo:"💵 Efectivo"};
 const STATUS_CLIENT={pendiente:"Esperando que el restaurante confirme tu pedido",confirmado:"Confirmado, en la fila de cocina",preparando:"Tu pedido se está preparando",listo:"¡Listo! Ya va a tu mesa",entregado:"Entregado, buen provecho",rechazado:"El restaurante no pudo tomar este pedido"};
 const money=n=>"$"+Number(n||0).toLocaleString("es-MX");
@@ -109,7 +109,7 @@ function demoBar(active){
   const items=[['cliente','Cliente',`${BASE}/`],['cocina','Cocina',`${BASE}/panel?modo=cocina`],['admin','Admin',`${BASE}/panel`]];
   const el=document.createElement('nav');
   el.className='demo-bar';el.setAttribute('aria-label','Cambiar de vista (demo)');
-  el.innerHTML=`<span>Demo · ver como</span><div class="demo-seg">${items.map(([k,l,h])=>
+  el.innerHTML=`<span class="demo-brand"><img src="${BASE}/assets/alm.png" alt="A la Mesa"><b>A la Mesa</b></span><div class="demo-seg">${items.map(([k,l,h])=>
     `<a href="${h}"${k===active?' aria-current="page"':''}>${l}</a>`).join('')}</div>`;
   document.body.prepend(el);document.body.classList.add('has-demo');
   return true;
