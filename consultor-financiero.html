@@ -1207,6 +1207,11 @@ function escaparHtmlFin(str) {
   return d.innerHTML;
 }
 
+// El modelo a veces marca **negritas**: se escapa todo el texto y solo eso se convierte a <b>, sin mostrar asteriscos.
+function negritasSeguras(str) {
+  return escaparHtmlFin(str).replace(/\*\*([^*\n]+?)\*\*/g, '<b>$1</b>').replace(/\*\*/g, '');
+}
+
 function copyText(btn, text) {
   navigator.clipboard.writeText(text).then(() => {
     const orig = btn.textContent;
@@ -1311,7 +1316,7 @@ function renderAgentChat() {
     const chips = (m.aplicados || []).map((a) =>
       `<button type="button" class="campo-chip" onclick="irACampo('${a.id}')" title="Ir a ${escaparHtmlFin(TAB_NOMBRE[a.tab] || '')}">✓ ${escaparHtmlFin(a.label)}: ${escaparHtmlFin(a.valor)} <small>· ${escaparHtmlFin(TAB_NOMBRE[a.tab] || '')}</small></button>`
     ).join('');
-    return `<div class="bubble assistant">${escaparHtmlFin(m.content)}</div>` +
+    return `<div class="bubble assistant">${negritasSeguras(m.content)}</div>` +
       (chips ? `<div class="campos-chips">${chips}</div>` : '') +
       `<button class="copy-btn" onclick="copyText(this, agentMessages[${i}].content)">Copiar</button>`;
   });
