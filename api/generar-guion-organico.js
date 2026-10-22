@@ -7,6 +7,9 @@
 const fs = require('fs');
 const path = require('path');
 const { sql } = require('@vercel/postgres');
+const { sumarAlMes } = require('./_lib/uso-mensual');
+const { revisar: revisarSaldo, cobrar: cobrarSaldo } = require('./_lib/saldo');
+const { systemConCache, historialConCache, camposUso } = require('./_lib/cache-claude');
 
 const DEFAULT_CLIENTE = 'jefeshub';
 const PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-guion-organico.md');
@@ -95,8 +98,13 @@ async function registrarUsoTokens(clienteId, endpoint, usage) {
   try {
     const key = `${clienteId}:uso-tokens-log`;
     const items = (await leerJSON(key)) || [];
-    items.push({ date: new Date().toISOString(), endpoint, inputTokens: usage?.input_tokens || 0, outputTokens: usage?.output_tokens || 0 });
+    items.push({ date: new Date().toISOString(), endpoint, ...camposUso(usage) });
     await escribirJSON(key, items.slice(-500));
+    // Resumen mensual permanente (el registro de arriba solo guarda los últimos 500 usos).
+    const keyMes = `${clienteId}:uso-tokens-mensual`;
+    await escribirJSON(keyMes, sumarAlMes(await leerJSON(keyMes).catch(() => null), items[items.length - 1]));
+    // Descuenta el costo real de esta llamada del tope del hub (api/_lib/saldo.js).
+    await cobrarSaldo(clienteId, items[items.length - 1], leerJSON, escribirJSON);
   } catch (err) {
     // No bloquear la respuesta al usuario si falla el registro de uso.
   }
@@ -487,6 +495,11 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // Tope de uso de IA del hub (api/_lib/saldo.js): al llegar al tope los Jefes no usan la IA hasta
+  // que se renueva el ciclo o se compra un paquete. La interfaz sigue funcionando.
+  const bloqueoSaldo = await revisarSaldo((((req.body || {}).cliente) || DEFAULT_CLIENTE).toString(), leerJSON);
+  if (bloqueoSaldo) return res.status(bloqueoSaldo.status).json(bloqueoSaldo.cuerpo);
+
   const ip = (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown')
     .toString()
     .split(',')[0]
@@ -533,7 +546,7 @@ module.exports = async function handler(req, res) {
       const partes = imagenes.map((img) => ({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.data } }));
       partes.push({ type: 'text', text: lineas.join('\n') });
       const { contexto } = await construirContexto(clienteId, grupoId);
-      const system = cargarPromptMedios() + '\n\n' + contexto;
+      const system = systemConCache(cargarPromptMedios(), contexto);
       const { texto, usage } = await llamarClaudeTexto({ system, messages: [{ role: 'user', content: partes }], maxTokens: 1000, conBusqueda: false });
       if (!texto) {
         return res.status(502).json({ error: 'No se pudo crear el prompt. Intenta de nuevo.' });
@@ -545,9 +558,9 @@ module.exports = async function handler(req, res) {
     if (modo === 'pregunta') {
       const mensajeSuelto = (body.mensaje || '').toString().trim();
       const messagesRaw = Array.isArray(body.messages) ? body.messages : null;
+      const validos = messagesRaw ? messagesRaw.filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim()) : [];
       const historial = messagesRaw
-        ? messagesRaw
-            .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+        ? validos
             .slice(-PREGUNTA_MAX_MESSAGES)
             .map((m) => ({ role: m.role, content: m.content }))
         : mensajeSuelto
@@ -570,9 +583,9 @@ module.exports = async function handler(req, res) {
       const promptPreguntas = cargarPromptPreguntas();
       const { contexto } = await construirContexto(clienteId, grupoId);
       const arranque = body.fase === 'arranque' ? '\n\n' + cargarPromptArranque() : '';
-      const system = promptPreguntas + arranque + '\n\n' + contexto;
+      const system = systemConCache(promptPreguntas + arranque, contexto);
 
-      const { texto, usage } = await llamarClaudeTexto({ system, messages: historial, maxTokens: 1100, conBusqueda: true });
+      const { texto, usage } = await llamarClaudeTexto({ system, messages: historialConCache(historial, { noReutilizable: imagenes.length > 0, total: validos.length, max: PREGUNTA_MAX_MESSAGES }), maxTokens: 1100, conBusqueda: true });
       if (!texto) {
         return res.status(502).json({ error: 'El Agente no devolvió respuesta. Intenta de nuevo.' });
       }
@@ -595,7 +608,7 @@ module.exports = async function handler(req, res) {
         (bloqueProducto ? '\n\n' + bloqueProducto : '') +
         (esTendencia ? '\n\nEl objetivo es "tendencia": usa la herramienta de búsqueda web para encontrar qué está pasando AHORA antes de responder. Basa las ideas en hallazgos reales, no en suposiciones.' : '');
 
-      const system = [promptFijo, contexto, instruccion].join('\n\n');
+      const system = systemConCache(promptFijo, contexto, instruccion);
       const { parsed, usage } = await llamarClaude({
         system,
         mensaje: 'Genera las ideas de contenido orgánico pedidas, siguiendo el formato JSON obligatorio del MODO "ideas" al pie de la letra.',
@@ -608,7 +621,7 @@ module.exports = async function handler(req, res) {
         return res.status(502).json({ error: 'El modelo no devolvió ideas. Intenta de nuevo.' });
       }
       await registrarUsoTokens(clienteId, 'generar-guion-organico-ideas', usage);
-      return res.status(200).json({ ideas, usage: { inputTokens: usage?.input_tokens || 0, outputTokens: usage?.output_tokens || 0 } });
+      return res.status(200).json({ ideas, usage: camposUso(usage) });
     }
 
     // modo === 'contenido'
@@ -625,7 +638,7 @@ module.exports = async function handler(req, res) {
       (bloqueProducto ? '\n\n' + bloqueProducto : '') +
       (esTendencia ? '\n\nEl objetivo es "tendencia": si es útil, usa la herramienta de búsqueda web para confirmar el hallazgo antes de escribir el contenido.' : '');
 
-    const system = [promptFijo, contexto, instruccion].join('\n\n');
+    const system = systemConCache(promptFijo, contexto, instruccion);
     const { parsed, usage } = await llamarClaude({
       system,
       mensaje: 'Genera el caption y el guion pedidos para la idea elegida, siguiendo el formato JSON obligatorio del MODO "contenido" al pie de la letra.',
@@ -642,7 +655,7 @@ module.exports = async function handler(req, res) {
       guion: parsed.guion || '',
       notas_grabacion: parsed.notas_grabacion || '',
       duracion_aproximada: parsed.duracion_aproximada || '',
-      usage: { inputTokens: usage?.input_tokens || 0, outputTokens: usage?.output_tokens || 0 },
+      usage: camposUso(usage),
     });
   } catch (err) {
     return res.status(err.status || 500).json({ error: err.status ? err.message : 'Error de conexión con el Agente.' });

@@ -3,6 +3,7 @@
 
 const crypto = require('crypto');
 const { sql } = require('@vercel/postgres');
+const saldo = require('../_lib/saldo');
 
 async function ensureTable() {
   await sql`CREATE TABLE IF NOT EXISTS kv_store (
@@ -728,6 +729,78 @@ async function manejarRegistrosEvento(req, res) {
   return res.status(405).json({ error: 'Method not allowed' });
 }
 
+// ─── Tope de tokens por hub y paquetes extra (api/_lib/saldo.js) ───
+// Vive aquí por el mismo límite de funciones del plan Hobby.
+// - GET saldo?cliente=<hub>: estado para la barra de consumo (porcentaje, tokens, renovación, link de compra).
+// - POST stripe-webhook: aviso de pago de Stripe. No se confía en el contenido del aviso: se vuelve a
+//   consultar la sesión de pago directo a Stripe con STRIPE_SECRET_KEY y solo se acredita si está
+//   pagada, en MXN, por el precio del paquete y con un hub válido en client_reference_id.
+// - Las llaves <hub>:saldo y los registros de uso solo los escribe el servidor (ver más abajo).
+const SLUG_HUB = /^[a-z0-9][a-z0-9-]{1,39}$/;
+const HUBS_FIJOS = ['jefeshub', 'rancho-seco', 'rim', 'optica-one'];
+const LLAVES_SOLO_SERVIDOR = /:(saldo|uso-tokens-log|uso-tokens-mensual)$/;
+
+async function hubExiste(slug) {
+  if (HUBS_FIJOS.includes(slug)) return true;
+  const reg = await kvLeer('hubs:registro').catch(() => null);
+  return !!(reg && Array.isArray(reg.hubs) && reg.hubs.some((h) => h && h.slug === slug));
+}
+
+async function manejarSaldo(req, res) {
+  if (req.method !== 'GET') { res.setHeader('Allow', 'GET'); return res.status(405).json({ error: 'Method not allowed' }); }
+  const slug = (req.query.cliente || '').toString();
+  if (!SLUG_HUB.test(slug)) return res.status(400).json({ error: 'Hub inválido.' });
+  try {
+    const ahora = new Date().toISOString();
+    const e = saldo.estado(await saldo.cargar(slug, kvLeer, ahora), slug, ahora);
+    const link = (process.env.STRIPE_LINK_PAQUETE || '').trim();
+    e.linkCompra = link ? link + (link.includes('?') ? '&' : '?') + 'client_reference_id=' + encodeURIComponent(slug) : null;
+    return res.status(200).json(e);
+  } catch (err) {
+    return res.status(500).json({ error: 'No se pudo leer el saldo.' });
+  }
+}
+
+async function manejarStripeWebhook(req, res) {
+  if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return res.status(405).json({ error: 'Method not allowed' }); }
+  const evento = req.body || {};
+  const tipos = ['checkout.session.completed', 'checkout.session.async_payment_succeeded'];
+  const idSesion = evento && evento.data && evento.data.object && evento.data.object.id;
+  // Otros avisos de Stripe se ignoran con 200 para que no los reintente.
+  if (!tipos.includes(evento.type) || typeof idSesion !== 'string' || !/^cs_[A-Za-z0-9_]+$/.test(idSesion)) {
+    return res.status(200).json({ ok: true, ignorado: true });
+  }
+  const clave = (process.env.STRIPE_SECRET_KEY || '').trim();
+  if (!clave) return res.status(500).json({ error: 'Falta configurar STRIPE_SECRET_KEY.' });
+  let sesion;
+  try {
+    const r = await fetch('https://api.stripe.com/v1/checkout/sessions/' + encodeURIComponent(idSesion), {
+      headers: { Authorization: 'Bearer ' + clave },
+    });
+    if (r.status === 404) return res.status(200).json({ ok: true, ignorado: true });
+    if (!r.ok) return res.status(502).json({ error: 'No se pudo confirmar el pago con Stripe.' }); // Stripe reintenta
+    sesion = await r.json();
+  } catch (err) {
+    return res.status(502).json({ error: 'No se pudo confirmar el pago con Stripe.' });
+  }
+  const slug = (sesion.client_reference_id || '').toString();
+  const pagado = sesion.payment_status === 'paid';
+  const monto = sesion.currency === 'mxn' && sesion.amount_total === saldo.PRECIO_MXN * 100;
+  if (!pagado) return res.status(200).json({ ok: true, pendiente: true }); // OXXO: llega después como async_payment_succeeded
+  if (!monto || !SLUG_HUB.test(slug) || !(await hubExiste(slug))) {
+    return res.status(200).json({ ok: true, ignorado: true, motivo: 'pago que no corresponde a un paquete de un hub' });
+  }
+  try {
+    const ahora = new Date().toISOString();
+    const doc = await saldo.cargar(slug, kvLeer, ahora);
+    const nuevo = saldo.agregarPaquete(doc, sesion.id, ahora, 'stripe');
+    if (nuevo) await kvEscribir(`${slug}:saldo`, doc);
+    return res.status(200).json({ ok: true, acreditado: nuevo, hub: slug });
+  } catch (err) {
+    return res.status(500).json({ error: 'No se pudo acreditar el paquete.' }); // Stripe reintenta
+  }
+}
+
 module.exports = async function handler(req, res) {
   // Los datos cambian por dispositivo en cualquier momento: nunca cachear
   // esta respuesta (ni en el browser ni en el edge de Vercel), o un refresh
@@ -760,6 +833,20 @@ module.exports = async function handler(req, res) {
 
   if (key === 'registros-evento') {
     return manejarRegistrosEvento(req, res);
+  }
+
+  if (key === 'saldo') {
+    return manejarSaldo(req, res);
+  }
+
+  if (key === 'stripe-webhook') {
+    return manejarStripeWebhook(req, res);
+  }
+
+  // El saldo y los registros de uso de cada hub solo los escribe el servidor: el token
+  // compartido también lo usan los clientes para guardar su ADN, así que no basta.
+  if (req.method === 'POST' && LLAVES_SOLO_SERVIDOR.test(key)) {
+    return res.status(403).json({ error: 'Esta información solo la actualiza el sistema.' });
   }
 
   try {

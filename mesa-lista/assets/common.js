@@ -8,6 +8,7 @@ const mesaPath=n=>`${BASE}/mesa/${n}/`;
 const MAX_TABLES=100; // hay una carpeta mesa/1 … mesa/100
 const TOGO_MARK='🥡 PARA LLEVAR'; // va al inicio del comentario del pedido
 let HAS_PHOTO=false; // la base de datos ya tiene la columna de fotos (5-fotos.sql)
+let HAS_VIDEO=false; // y la de videos (6-videos.sql)
 
 /* ---------- Conexión con Supabase ---------- */
 const CFG=window.MESA_CONFIG||{};
@@ -51,11 +52,11 @@ function deriveTheme(t){
 }
 function themeVars(t){
   const d=deriveTheme(t);
-  return `--c-bg:${d.bg};--c-surface:${d.surface};--c-ink:${d.ink};--c-muted:${d.muted};--c-line:${d.line};--c-head:${d.head};--c-head-ink:${d.headInk};--c-brand:${d.brand};--c-brand-ink:${d.brandInk};--c-soft:${d.soft};--c-accent:${d.accent};--c-accent-ink:${d.accentInk};--c-tile:${d.tile}`;
+  return `--c-bg:${d.bg};--c-surface:${d.surface};--c-ink:${d.ink};--c-muted:${d.muted};--c-line:${d.line};--c-head:${d.head};--c-head-ink:${d.headInk};--c-brand:${d.brand};--c-brand-ink:${d.brandInk};--c-soft:${d.soft};--c-accent:${d.accent};--c-accent-ink:${d.accentInk};--c-tile:${d.tile};--c-brand-text:${ensureContrast(d.brand,d.surface,4.5)}`;
 }
 
 /* ---------- Datos ---------- */
-const DEFAULT_THEME={name:'Predeterminado',head:'#111111',brand:'#FF4A1A',accent:'#FF8C2E',bg:'#F5F5F5',surface:'#FFFFFF',ink:'#111111'};
+const DEFAULT_THEME={name:'Predeterminado',head:'#000000',brand:'#C9F802',accent:'#C9F802',bg:'#F5F5F2',surface:'#FFFFFF',ink:'#0D0D0D'};
 const PAY_LABEL={terminal:"📟 Terminal con mesero",efectivo:"💵 Efectivo"};
 const STATUS_CLIENT={pendiente:"Esperando que el restaurante confirme tu pedido",confirmado:"Confirmado, en la fila de cocina",preparando:"Tu pedido se está preparando",listo:"¡Listo! Ya va a tu mesa",entregado:"Entregado, buen provecho",rechazado:"El restaurante no pudo tomar este pedido"};
 const money=n=>"$"+Number(n||0).toLocaleString("es-MX");
@@ -71,12 +72,12 @@ function settingsFromRow(r){
     categories:Array.isArray(r.categories)?r.categories:[],tables:r.tables_count||8};
 }
 function productFromRow(r){
-  return {id:r.id,cat:r.cat,name:r.name,desc:r.description||'',price:Number(r.price)||0,emoji:r.emoji||'🍽️',photo:r.photo||'',
+  return {id:r.id,cat:r.cat,name:r.name,desc:r.description||'',price:Number(r.price)||0,emoji:r.emoji||'🍽️',photo:r.photo||'',video:r.video||'',
     available:!!r.available,options:Array.isArray(r.options)?r.options:[],sort:r.sort||0,created:r.created_at||''};
 }
 function productToRow(p){
   return {id:p.id,cat:p.cat,name:p.name,description:p.desc,price:Math.max(0,Number(p.price)||0),emoji:p.emoji,
-    available:p.available,options:p.options,sort:p.sort||0,...(HAS_PHOTO?{photo:p.photo||''}:{})};
+    available:p.available,options:p.options,sort:p.sort||0,...(HAS_PHOTO?{photo:p.photo||''}:{}),...(HAS_VIDEO?{video:(p.video||'').trim()}:{})};
 }
 const byMenuOrder=(a,b)=>(a.sort-b.sort)||String(a.created).localeCompare(String(b.created));
 function orderFromRow(r){
@@ -108,7 +109,7 @@ function demoBar(active){
   const items=[['cliente','Cliente',`${BASE}/`],['cocina','Cocina',`${BASE}/panel?modo=cocina`],['admin','Admin',`${BASE}/panel`]];
   const el=document.createElement('nav');
   el.className='demo-bar';el.setAttribute('aria-label','Cambiar de vista (demo)');
-  el.innerHTML=`<span>Demo · ver como</span><div class="demo-seg">${items.map(([k,l,h])=>
+  el.innerHTML=`<span class="demo-brand"><img src="${BASE}/assets/alm.png" alt="A la Mesa"><b>A la Mesa</b></span><div class="demo-seg">${items.map(([k,l,h])=>
     `<a href="${h}"${k===active?' aria-current="page"':''}>${l}</a>`).join('')}</div>`;
   document.body.prepend(el);document.body.classList.add('has-demo');
   return true;
@@ -117,3 +118,11 @@ function photoTag(p,cls='tile'){
   return p.photo?`<div class="${cls} ph" aria-hidden="true"><img src="${esc(p.photo)}" alt="" loading="lazy"></div>`
     :`<div class="${cls}" aria-hidden="true">${esc(p.emoji)}</div>`;
 }
+
+/* Imagen grande de un platillo: video en loop (si tiene), si no la foto, si no el ícono */
+function mediaInner(p){
+  if(p.video) return `<video src="${esc(p.video)}" ${p.photo?`poster="${esc(p.photo)}"`:''} autoplay muted loop playsinline preload="metadata" aria-label="${esc(p.name)}"></video>`;
+  if(p.photo) return `<img src="${esc(p.photo)}" alt="${esc(p.name)}">`;
+  return `<span aria-hidden="true">${esc(p.emoji)}</span>`;
+}
+const videoBadge=p=>p.video?'<span class="vid-badge" aria-label="Tiene video">▶</span>':'';

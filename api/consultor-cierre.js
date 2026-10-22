@@ -15,6 +15,9 @@
 const fs = require('fs');
 const path = require('path');
 const { sql } = require('@vercel/postgres');
+const { sumarAlMes } = require('./_lib/uso-mensual');
+const { revisar: revisarSaldo, cobrar: cobrarSaldo } = require('./_lib/saldo');
+const { systemConCache, historialConCache, camposUso } = require('./_lib/cache-claude');
 
 const DEFAULT_CLIENTE = 'rancho-seco';
 
@@ -107,8 +110,13 @@ async function registrarUsoTokens(clienteId, endpoint, usage) {
   try {
     const key = `${clienteId}:uso-tokens-log`;
     const items = (await leerJSON(key)) || [];
-    items.push({ date: new Date().toISOString(), endpoint, inputTokens: usage?.input_tokens || 0, outputTokens: usage?.output_tokens || 0 });
+    items.push({ date: new Date().toISOString(), endpoint, ...camposUso(usage) });
     await escribirJSON(key, items.slice(-500));
+    // Resumen mensual permanente (el registro de arriba solo guarda los últimos 500 usos).
+    const keyMes = `${clienteId}:uso-tokens-mensual`;
+    await escribirJSON(keyMes, sumarAlMes(await leerJSON(keyMes).catch(() => null), items[items.length - 1]));
+    // Descuenta el costo real de esta llamada del tope del hub (api/_lib/saldo.js).
+    await cobrarSaldo(clienteId, items[items.length - 1], leerJSON, escribirJSON);
   } catch (err) {
     // No bloquear la respuesta al usuario si falla el registro de uso.
   }
@@ -530,6 +538,11 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // Tope de uso de IA del hub (api/_lib/saldo.js): al llegar al tope los Jefes no usan la IA hasta
+  // que se renueva el ciclo o se compra un paquete. La interfaz sigue funcionando.
+  const bloqueoSaldo = await revisarSaldo((((req.body || {}).cliente) || DEFAULT_CLIENTE).toString(), leerJSON);
+  if (bloqueoSaldo) return res.status(bloqueoSaldo.status).json(bloqueoSaldo.cuerpo);
+
   const ip = (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown')
     .toString()
     .split(',')[0]
@@ -569,7 +582,7 @@ module.exports = async function handler(req, res) {
       await escribirJSON(`${clienteId}:conversion-cierre-diagnostico-${sufijoRuta}`, datos).catch(() => {});
 
       const contextoDatos = formatearContextoDiagnostico(modo, datos, tasas);
-      const system = [promptBase, promptModo, contextoNegocio, contextoDatos].join('\n\n');
+      const system = systemConCache([promptBase, promptModo].join('\n\n'), contextoNegocio, contextoDatos);
 
       const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -603,20 +616,21 @@ module.exports = async function handler(req, res) {
       if (!messages || messages.length === 0) {
         return res.status(400).json({ error: 'Falta el historial de la conversación (messages).' });
       }
-      const limpio = messages
-        .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+      const validos = messages
+        .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim());
+      const limpio = validos
         .slice(-MAX_MESSAGES)
         .map((m) => ({ role: m.role, content: m.content }));
       if (limpio.length === 0 || limpio[limpio.length - 1].role !== 'user') {
         return res.status(400).json({ error: 'El último mensaje debe ser del usuario.' });
       }
 
-      const system = [promptBase, promptModo, contextoNegocio].join('\n\n');
+      const system = systemConCache([promptBase, promptModo].join('\n\n'), contextoNegocio);
       const bodyAnthropic = {
         model: 'claude-sonnet-4-6',
         max_tokens: 1600,
         system,
-        messages: limpio,
+        messages: historialConCache(limpio, { total: validos.length, max: MAX_MESSAGES }),
       };
       if (modo === 'audit-tienda') {
         bodyAnthropic.tools = [WEB_FETCH_TOOL];

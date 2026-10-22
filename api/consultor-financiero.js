@@ -38,6 +38,9 @@
 const fs = require('fs');
 const path = require('path');
 const { sql } = require('@vercel/postgres');
+const { sumarAlMes } = require('./_lib/uso-mensual');
+const { revisar: revisarSaldo, cobrar: cobrarSaldo } = require('./_lib/saldo');
+const { systemConCache, historialConCache, camposUso } = require('./_lib/cache-claude');
 
 const PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-consultor-financiero.md');
 const DEFAULT_CLIENTE = 'jefeshub';
@@ -139,8 +142,13 @@ async function registrarUsoTokens(clienteId, endpoint, usage) {
   try {
     const key = `${clienteId}:uso-tokens-log`;
     const items = (await leerJSON(key)) || [];
-    items.push({ date: new Date().toISOString(), endpoint, inputTokens: usage?.input_tokens || 0, outputTokens: usage?.output_tokens || 0 });
+    items.push({ date: new Date().toISOString(), endpoint, ...camposUso(usage) });
     await escribirJSON(key, items.slice(-500));
+    // Resumen mensual permanente (el registro de arriba solo guarda los últimos 500 usos).
+    const keyMes = `${clienteId}:uso-tokens-mensual`;
+    await escribirJSON(keyMes, sumarAlMes(await leerJSON(keyMes).catch(() => null), items[items.length - 1]));
+    // Descuenta el costo real de esta llamada del tope del hub (api/_lib/saldo.js).
+    await cobrarSaldo(clienteId, items[items.length - 1], leerJSON, escribirJSON);
   } catch (err) {
     // No bloquear la respuesta al usuario si falla el registro de uso.
   }
@@ -333,7 +341,7 @@ function formatearReporteCsv(reporteCsv) {
   return 'REPORTE DE META ADS (CSV exportado de Meta Ads Manager, tal cual lo subió el usuario):\n\n' + truncar(reporteCsv, REPORT_CHAR_LIMIT);
 }
 
-async function llamarClaudeChat({ system, messages, maxTokens }) {
+async function llamarClaudeChat({ system, messages, maxTokens, cacheHistorial }) {
   const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -345,7 +353,7 @@ async function llamarClaudeChat({ system, messages, maxTokens }) {
       model: 'claude-sonnet-4-6',
       max_tokens: maxTokens,
       system,
-      messages,
+      messages: historialConCache(messages, cacheHistorial),
     }),
   });
 
@@ -358,12 +366,14 @@ async function llamarClaudeChat({ system, messages, maxTokens }) {
   return { ok: true, text, usage: data.usage };
 }
 
+// total = mensajes válidos antes del recorte (para decidir si el historial se puede cachear).
 function limpiarMessages(messages, max) {
-  const limpio = (Array.isArray(messages) ? messages : [])
-    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+  const validos = (Array.isArray(messages) ? messages : [])
+    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim());
+  const limpio = validos
     .slice(-max)
     .map((m) => ({ role: m.role, content: m.content }));
-  return limpio;
+  return { limpio, total: validos.length };
 }
 
 // ---------- rama Jefe Finanzas (comportamiento original, sin cambios) ----------
@@ -371,7 +381,7 @@ function limpiarMessages(messages, max) {
 async function handleFinanciero(req, res, body) {
   const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
 
-  const limpio = limpiarMessages(body.messages, MAX_MESSAGES);
+  const { limpio, total } = limpiarMessages(body.messages, MAX_MESSAGES);
   if (limpio.length === 0 || limpio[limpio.length - 1].role !== 'user') {
     return res.status(400).json({ error: 'El último mensaje debe ser del usuario.' });
   }
@@ -379,9 +389,9 @@ async function handleFinanciero(req, res, body) {
   const systemPrompt = cargarPromptFijo();
   const contexto = await construirContextoNegocio(clienteId);
   const contextoCalculadora = formatearDatosCalculadora(body.datosCalculadora);
-  const system = [systemPrompt, contexto, contextoCalculadora].join('\n\n');
+  const system = systemConCache(systemPrompt, contexto, contextoCalculadora);
 
-  const r = await llamarClaudeChat({ system, messages: limpio, maxTokens: 1300 });
+  const r = await llamarClaudeChat({ system, messages: limpio, maxTokens: 1300, cacheHistorial: { total, max: MAX_MESSAGES } });
   if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
   await registrarUsoTokens(clienteId, 'consultor-financiero', r.usage);
   return res.status(200).json({ text: r.text });
@@ -392,16 +402,16 @@ async function handleFinanciero(req, res, body) {
 async function handleDiseno(req, res, body) {
   const clienteId = (body.cliente || DEFAULT_CLIENTE_DISENO).toString();
 
-  const limpio = limpiarMessages(body.messages, MAX_MESSAGES_DISENO);
+  const { limpio, total } = limpiarMessages(body.messages, MAX_MESSAGES_DISENO);
   if (limpio.length === 0 || limpio[limpio.length - 1].role !== 'user') {
     return res.status(400).json({ error: 'El último mensaje debe ser del usuario.' });
   }
 
   const systemPrompt = cargarPromptDiseno();
   const contexto = await construirContextoDiseno(clienteId);
-  const system = [systemPrompt, contexto].join('\n\n');
+  const system = systemConCache(systemPrompt, contexto);
 
-  const r = await llamarClaudeChat({ system, messages: limpio, maxTokens: 900 });
+  const r = await llamarClaudeChat({ system, messages: limpio, maxTokens: 900, cacheHistorial: { total, max: MAX_MESSAGES_DISENO } });
   if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
   await registrarUsoTokens(clienteId, 'consultor-produccion-video', r.usage);
   return res.status(200).json({ text: r.text });
@@ -430,7 +440,7 @@ function extraerHtmlDashboard(texto) {
 async function handleMetaAds(req, res, body) {
   const clienteId = (body.cliente || DEFAULT_CLIENTE_METAADS).toString();
 
-  const limpio = limpiarMessages(body.messages, MAX_MESSAGES_METAADS);
+  const { limpio, total } = limpiarMessages(body.messages, MAX_MESSAGES_METAADS);
   if (limpio.length === 0 || limpio[limpio.length - 1].role !== 'user') {
     return res.status(400).json({ error: 'El último mensaje debe ser del usuario.' });
   }
@@ -438,9 +448,9 @@ async function handleMetaAds(req, res, body) {
   const systemPrompt = cargarPromptMetaAds();
   const contextoNegocio = await construirContextoMetaAds(clienteId);
   const contextoReporte = formatearReporteCsv(body.reporteCsv);
-  const system = [systemPrompt, contextoNegocio, contextoReporte].join('\n\n');
+  const system = systemConCache(systemPrompt, [contextoNegocio, contextoReporte].filter(Boolean).join('\n\n'));
 
-  const r = await llamarClaudeChat({ system, messages: limpio, maxTokens: 8000 });
+  const r = await llamarClaudeChat({ system, messages: limpio, maxTokens: 8000, cacheHistorial: { total, max: MAX_MESSAGES_METAADS } });
   if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
   await registrarUsoTokens(clienteId, 'consultor-optimizacion', r.usage);
   return res.status(200).json({ text: extraerHtmlDashboard(r.text) });
@@ -541,6 +551,11 @@ module.exports = async function handler(req, res) {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: 'Method not allowed' });
   }
+
+  // Tope de uso de IA del hub (api/_lib/saldo.js): al llegar al tope los Jefes no usan la IA hasta
+  // que se renueva el ciclo o se compra un paquete. La interfaz sigue funcionando.
+  const bloqueoSaldo = await revisarSaldo((((req.body || {}).cliente) || ({ diseno: DEFAULT_CLIENTE_DISENO, metaads: DEFAULT_CLIENTE_METAADS, 'diseno-imagen': DEFAULT_CLIENTE_IMGGEN }[(req.body || {}).agente] || DEFAULT_CLIENTE)).toString(), leerJSON);
+  if (bloqueoSaldo) return res.status(bloqueoSaldo.status).json(bloqueoSaldo.cuerpo);
 
   const ip = (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown')
     .toString()

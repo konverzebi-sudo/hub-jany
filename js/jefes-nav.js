@@ -20,8 +20,8 @@
   // slug = ultimo tramo de la URL; files = archivo real por si se abre sin rewrites.
   var JEFES = [
     { slug: 'jefe-366',              files: ['consultor-366.html'],            icono: 'jefe-366-gris',          nombre: 'Jefe 366' },
-    { slug: 'jefe-contenido',        files: ['jefe-contenido-v2.html'],        icono: 'jefe-contenido-logo-negro', iconoOscuro: 'jefe-contenido-logo-blanco', nombre: 'Jefe de Contenido' },
     { slug: 'jefe-anuncios',         files: ['jefe-anuncios.html'],            icono: 'jefe-anuncios-logo-negro', iconoOscuro: 'jefe-anuncios-logo-blanco', nombre: 'Jefe de Anuncios' },
+    { slug: 'jefe-contenido',        files: ['jefe-contenido-v2.html'],        icono: 'jefe-contenido-logo-negro', iconoOscuro: 'jefe-contenido-logo-blanco', nombre: 'Jefe de Contenido' },
     { slug: 'jefe-produccion-video', files: ['consultor-produccion-video.html'], icono: 'jefe-produccion-video-logo-negro', iconoOscuro: 'jefe-produccion-video-logo-blanco', nombre: 'Jefe Productor IA' },
     { slug: 'jefe-whatsapp',         files: ['jefe-conversion-ventas.html', 'jefe-conversion-ventas-rancho-seco.html'], icono: 'jefe-whatsapp-logo-negro', iconoOscuro: 'jefe-whatsapp-logo-blanco', nombre: 'WhatsApp y Ventas' },
     { slug: 'jefe-financiero',       files: ['consultor-financiero.html'],     icono: 'jefe-finanzas-logo-negro', iconoOscuro: 'jefe-finanzas-logo-blanco', nombre: 'Jefe de Finanzas' },
@@ -452,6 +452,12 @@
 
     var activo = nav.querySelector('.is-active');
     if (activo && activo.scrollIntoView) activo.scrollIntoView({ block: 'nearest' });
+
+    // Aviso de tope de tokens (js/saldo.js): solo aparece si el hub va arriba del 90% o ya llegó al tope.
+    var sc = document.createElement('script');
+    sc.src = '/js/saldo.js';
+    sc.onload = function () { if (window.__saldo) window.__saldo.montarEnJefe(tenant || 'jefeshub'); };
+    document.head.appendChild(sc);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', montar);

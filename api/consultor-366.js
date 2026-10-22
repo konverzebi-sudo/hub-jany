@@ -8,6 +8,9 @@
 const fs = require('fs');
 const path = require('path');
 const { sql } = require('@vercel/postgres');
+const { sumarAlMes } = require('./_lib/uso-mensual');
+const { revisar: revisarSaldo, cobrar: cobrarSaldo } = require('./_lib/saldo');
+const { systemConCache, historialConCache, camposUso } = require('./_lib/cache-claude');
 
 const DEFAULT_CLIENTE = 'rancho-seco'; // no rompe la ruta actual, que todavia no manda `cliente`
 
@@ -137,10 +140,14 @@ async function registrarUsoTokens(clienteId, endpoint, usage) {
     items.push({
       date: new Date().toISOString(),
       endpoint,
-      inputTokens: usage?.input_tokens || 0,
-      outputTokens: usage?.output_tokens || 0,
+      ...camposUso(usage),
     });
     await escribirJSON(key, items.slice(-500));
+    // Resumen mensual permanente (el registro de arriba solo guarda los últimos 500 usos).
+    const keyMes = `${clienteId}:uso-tokens-mensual`;
+    await escribirJSON(keyMes, sumarAlMes(await leerJSON(keyMes).catch(() => null), items[items.length - 1]));
+    // Descuenta el costo real de esta llamada del tope del hub (api/_lib/saldo.js).
+    await cobrarSaldo(clienteId, items[items.length - 1], leerJSON, escribirJSON);
   } catch (err) {
     // No bloquear la respuesta al usuario si falla el registro de uso.
   }
@@ -527,8 +534,9 @@ async function manejarChatGuiado(req, res) {
   if (!messages || messages.length === 0) {
     return res.status(400).json({ error: 'Falta el historial de la conversación (messages).' });
   }
-  const limpio = messages
-    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+  const validos = messages
+    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim());
+  const limpio = validos
     .slice(-BUILDER_MAX_MESSAGES)
     .map((m) => ({ role: m.role, content: m.content }));
   // La app escribe sola unos primeros mensajes (bienvenida y prueba de conexión) como del asistente: la API
@@ -554,12 +562,14 @@ async function manejarChatGuiado(req, res) {
   try {
     const promptFijo = cargarPromptBuilder(modo);
     const contexto = await builderConstruirContextoNegocio(clienteId);
-    const partesSystem = [promptFijo, contexto];
+    const partesContexto = [contexto];
     const bancoConversaciones = await formatearBancoConversacionesWhatsApp(clienteId).catch(() => null);
-    if (bancoConversaciones) partesSystem.push(bancoConversaciones);
+    if (bancoConversaciones) partesContexto.push(bancoConversaciones);
     // Se inyecta siempre (no solo en modo documento-maestro) para que el chat guiado normal
     // también sepa qué ya está guardado y pueda comparar en vez de proponer siempre desde cero.
-    partesSystem.push(await builderFormatearNotasGuardadas(clienteId));
+    partesContexto.push(await builderFormatearNotasGuardadas(clienteId));
+    // Lo que cambia según el turno (activado, foco, primera vez) va aparte y al final para no romper la caché.
+    const partesSystem = [];
     // Primera vez de la usuaria en este chat (todavia no hay ninguna respuesta tuya): la bienvenida es lo primero,
     // y debe explicar quien es el Jefe y que van a hacer ahora. Se refuerza aqui para que no se la salte
     // aunque su primer mensaje sea una peticion concreta ("quiero empezar a construir mi oferta...").
@@ -582,13 +592,15 @@ async function manejarChatGuiado(req, res) {
         'ES LA PRIMERA VEZ QUE LA USUARIA TE ESCRIBE (no hay ninguna respuesta tuya antes en esta conversación). Tu mensaje DEBE EMPEZAR con la bienvenida de "Al iniciar la conversación", completa y en este orden: (1) saludo cálido, quién eres y para qué existes, (2) que aquí puede preguntarte lo que sea y que ya vienes preparado con su ADN y la estrategia 366, (3) QUÉ VAN A HACER AHORA JUNTOS y cómo funciona, (4) el mini-diagnóstico, (5) "arrancamos" con UNA sola pregunta. NO empieces con el mini-diagnóstico ni con una pregunta: primero la bienvenida y la explicación. Háblale en primera persona y con frases cortas, fáciles de leer.'
       );
     }
-    const system = partesSystem.join('\n\n');
+    const system = systemConCache(promptFijo, partesContexto.join('\n\n'), ...partesSystem);
+    // Con adjuntos el siguiente turno ya no los vuelve a mandar: ese mensaje no se cachea.
+    const conAdjuntos = imagenes.length > 0 || !!txtConversacion.trim();
 
     const { ok, status, data } = await llamarClaude(system, {
       model: 'claude-sonnet-4-6',
       max_tokens: modo === 'documento-maestro' ? 3000 : (primeraVez ? 2800 : 2200),
       system,
-      messages: limpio,
+      messages: historialConCache(limpio, { noReutilizable: conAdjuntos, total: validos.length, max: BUILDER_MAX_MESSAGES }),
     });
     if (!ok) {
       return res.status(status).json({ error: data?.error?.message || 'Error al llamar a la API.' });
@@ -601,7 +613,7 @@ async function manejarChatGuiado(req, res) {
     await registrarUsoTokens(clienteId, 'consultor-366-builder', data.usage);
     return res.status(200).json({
       text,
-      usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 },
+      usage: camposUso(data.usage),
     });
   } catch (err) {
     return res.status(500).json({ error: 'Error de conexión con el Agente.' });
@@ -758,8 +770,9 @@ async function manejarChatTemporada(req, res) {
   if (!messages || messages.length === 0) {
     return res.status(400).json({ error: 'Falta el historial de la conversación (messages).' });
   }
-  const limpio = messages
-    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+  const validos = messages
+    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim());
+  const limpio = validos
     .slice(-BUILDER_MAX_MESSAGES)
     .map((m) => ({ role: m.role, content: m.content }));
   if (limpio.length === 0 || limpio[limpio.length - 1].role !== 'user') {
@@ -822,18 +835,19 @@ async function manejarChatTemporada(req, res) {
     // fase. Se manda como fecha real del servidor, no la que diga el navegador del usuario.
     const hoyISO = new Date().toISOString().slice(0, 10);
     const fechaHoyContexto = `FECHA DE HOY: ${hoyISO} (fecha real, no la calcules ni la asumas de otra forma). Usa esto como referencia para TODAS las fechas: si vas a proponer o calcular una fecha, nunca propongas una que ya sea anterior a hoy. Si alguna fecha ya guardada en CAMPAÑA DE TEMPORADA EN CURSO (fecha de campaña activa, del calendario final, de precampaña, etc.) ya pasó y no hay indicio de que esa fase ya se ejecutó, dilo explícito ANTES de seguir (ej. "la fecha de precampaña que tenías ya pasó, ¿quieres recalcular las fechas o ya arrancaste?") en vez de asumir que sigue vigente o de ignorarlo.`;
-    const partesSystem = [cargarPromptTemporada(), fechaHoyContexto, contextoNegocio, notasEvergreen];
-    if (clienteRecurrente) partesSystem.push(clienteRecurrente);
+    const partesContexto = [fechaHoyContexto, contextoNegocio, notasEvergreen];
+    if (clienteRecurrente) partesContexto.push(clienteRecurrente);
     const otrasCampanas = temporadaFormatearOtrasCampanas(campanas, campanaId);
-    if (otrasCampanas) partesSystem.push(otrasCampanas);
-    partesSystem.push(temporadaFormatearCampana(campana, catalogoProd, gruposNegocio));
-    const system = partesSystem.join('\n\n');
+    if (otrasCampanas) partesContexto.push(otrasCampanas);
+    // La campaña en curso se edita durante el chat: va al final, fuera de la caché.
+    const system = systemConCache(cargarPromptTemporada(), partesContexto.join('\n\n'), temporadaFormatearCampana(campana, catalogoProd, gruposNegocio));
+    const conAdjuntos = imagenes.length > 0 || !!txtConversacion.trim();
 
     const { ok, status, data } = await llamarClaude(system, {
       model: 'claude-sonnet-4-6',
       max_tokens: 3200,
       system,
-      messages: limpio,
+      messages: historialConCache(limpio, { noReutilizable: conAdjuntos, total: validos.length, max: BUILDER_MAX_MESSAGES }),
     });
     if (!ok) {
       return res.status(status).json({ error: data?.error?.message || 'Error al llamar a la API.' });
@@ -846,7 +860,7 @@ async function manejarChatTemporada(req, res) {
     await registrarUsoTokens(clienteId, 'consultor-temporada-chat', data.usage);
     return res.status(200).json({
       text,
-      usage: { inputTokens: data.usage?.input_tokens || 0, outputTokens: data.usage?.output_tokens || 0 },
+      usage: camposUso(data.usage),
     });
   } catch (err) {
     return res.status(500).json({ error: 'Error de conexión con el Agente.' });
@@ -865,6 +879,11 @@ module.exports = async function handler(req, res) {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: 'Method not allowed' });
   }
+
+  // Tope de uso de IA del hub (api/_lib/saldo.js): al llegar al tope los Jefes no usan la IA hasta
+  // que se renueva el ciclo o se compra un paquete. La interfaz sigue funcionando.
+  const bloqueoSaldo = await revisarSaldo((((req.body || {}).cliente) || DEFAULT_CLIENTE).toString(), leerJSON);
+  if (bloqueoSaldo) return res.status(bloqueoSaldo.status).json(bloqueoSaldo.cuerpo);
 
   const body = req.body || {};
   if (Array.isArray(body.messages)) {
