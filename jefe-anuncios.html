@@ -348,6 +348,14 @@
 
   /* CONSULTA CON EL JEFE: pastilla grande tipo Jefe de Contenido (clip + texto + enviar) */
   .chat-hero{display:flex;flex-direction:column;align-items:stretch;margin:0 auto 24px;max-width:900px;}
+  .hero-pill-wrap{position:relative;margin:0 auto 10px;width:100%;max-width:760px;}
+  .hero-pill-wrap .hero-search{margin-bottom:0;max-width:none;}
+  .ac-lista{position:absolute;left:12px;right:12px;top:calc(100% + 6px);z-index:60;background:#fff;border:1px solid var(--line);border-radius:20px;box-shadow:0 16px 40px rgba(0,0,0,.16);padding:8px;max-height:min(60vh,420px);overflow-y:auto;}
+  .ac-lista[hidden]{display:none;}
+  .ac-item{display:flex;align-items:center;gap:14px;width:100%;text-align:left;background:none;border:none;border-radius:12px;padding:11px 14px;cursor:pointer;font:500 16px Inter,sans-serif;color:var(--text);}
+  .ac-item svg{width:18px;height:18px;flex-shrink:0;color:var(--text-dim);}
+  .ac-item b{font-weight:700;}
+  .ac-item:hover,.ac-item.on{background:var(--surface-2);}
   .hero-search{display:flex;align-items:center;gap:12px;width:100%;margin:0 auto 10px;padding:8px 10px 8px 18px;min-height:64px;background:var(--surface);border:1px solid var(--line);border-radius:34px;box-shadow:0 8px 30px rgba(0,0,0,.10);transition:border-color .18s,box-shadow .18s;text-align:left;}
   .hero-search:focus-within{border-color:var(--accent);box-shadow:0 8px 30px rgba(0,0,0,.10),0 0 0 4px rgba(192,248,0,.28);}
   .hero-attach{flex:0 0 auto;width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-dim);cursor:pointer;border-radius:50%;transition:.15s;}
@@ -366,6 +374,7 @@
 
   /* Adjuntar imagen en el chat */
   .chat-adjunto-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:4px;}
+  .chat-adjunto-hint:empty{display:none;}
   .chat-adjunto-hint{font-size:14px;color:var(--text-dim);}
   .chat-adjunto-preview{display:none;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--line);border-radius:100px;padding:5px 12px 5px 6px;font-size:14px;color:var(--text-dim);}
   .chat-adjunto-preview img{width:34px;height:34px;object-fit:cover;border-radius:50%;}
@@ -436,6 +445,7 @@
   .ay-op:has(input:checked){border-color:var(--accent-text);background:var(--accent-soft);}
   .ay-op small{display:block;color:var(--text-dim);font-size:13px;margin-top:2px;line-height:1.4;}
   .ay-op input{margin-top:4px;accent-color:#4E7A00;}
+  .ay-op.ay-off{opacity:.55;cursor:not-allowed;}
   .pb-toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:2200;background:#10101A;color:#fff;border-radius:16px;padding:14px 20px;max-width:min(560px,92vw);box-shadow:0 14px 40px rgba(0,0,0,.35);font-size:15px;line-height:1.45;}
   .pb-toast .link-btn{color:var(--accent);font-weight:800;}
   @media (max-width:900px){.res-mapa{grid-template-columns:1fr;}}
@@ -1540,8 +1550,23 @@ function objetivoDesdeTexto(t){
   return '';
 }
 // Pone los anuncios en el primer conjunto de la campaña elegida o de una campaña nueva (se crea con su conjunto).
+// Una campaña respeta lo que se definió al crearla: si es de un producto o servicio, solo entran anuncios de ese
+// producto; si es de un grupo, solo anuncios de ese grupo; si no tiene producto ni grupo es publicidad general
+// del ecosistema y acepta cualquier anuncio.
+function campanaAcepta(camp, ids){
+  if(!camp.producto_id && !camp.grupo_id) return true;
+  return ids.every(id=>{
+    const c = cards.find(x=>x.id===id); if(!c) return false;
+    return camp.producto_id ? c.producto_id===camp.producto_id : c.grupo_id===camp.grupo_id;
+  });
+}
+function motivoNoAcepta(camp){
+  return camp.producto_id ? 'es de otro producto o servicio' : 'es de otro grupo';
+}
+// Devuelve la campaña, o null si la campaña elegida no acepta esos anuncios (otro producto/grupo).
 function agregarAnunciosACampana(ids, campanaId){
   let camp = campanaId ? estructuras.find(c=>c.id===campanaId) : null;
+  if(camp && !campanaAcepta(camp, ids)) return null;
   if(!camp){
     camp = mkCampana();
     const c0 = cards.find(c=>c.id===ids[0]);
@@ -1579,8 +1604,7 @@ function proponerCampanaParaLote(ids){
   if(!ids.length) return;
   document.querySelectorAll('.ay-overlay').forEach(x=>x.remove());
   const c0 = cards.find(c=>c.id===ids[0]) || {};
-  const mismaAlcance = c=>(c0.producto_id ? c.producto_id===c0.producto_id : c0.grupo_id ? c.grupo_id===c0.grupo_id : true);
-  const existentes = estructuras.map((c,i)=>({c,i})).sort((a,b)=>(mismaAlcance(b.c)?1:0)-(mismaAlcance(a.c)?1:0));
+  const existentes = estructuras.map((c,i)=>({c,i,ok:campanaAcepta(c, ids)})).sort((a,b)=>(b.ok?1:0)-(a.ok?1:0));
   const nombreNueva = nombreAlcance({ producto_id:c0.producto_id||'', grupo_id:c0.grupo_id||'' });
   const ov = document.createElement('div');
   ov.className = 'ay-overlay';
@@ -1588,7 +1612,7 @@ function proponerCampanaParaLote(ids){
     <h3>¿En qué campaña van estos ${ids.length} anuncios?</h3>
     <p class="ay-nota" style="margin-top:-4px;">Para no confundirte, propongo esto. Tú decides:</p>
     <label class="ay-op"><input type="radio" name="ay-camp" value="" checked><span><b>🆕 Una campaña nueva</b> con todos estos anuncios<small>Campaña: ${escHtml(nombreNueva)} · se crea con su primer conjunto de anuncios (público #1). Después completas objetivo y público en “Estructura de Ads”.</small></span></label>
-    ${existentes.map(({c,i})=>`<label class="ay-op"><input type="radio" name="ay-camp" value="${c.id}"><span><b>➕ Agregarlos a una campaña que ya tengo</b><small>${escHtml(etiquetaCampana(c,i))}${mismaAlcance(c)?' · mismo producto/grupo':''}</small></span></label>`).join('')}
+    ${existentes.map(({c,i,ok})=>`<label class="ay-op${ok?'':' ay-off'}"><input type="radio" name="ay-camp" value="${c.id}"${ok?'':' disabled'}><span><b>➕ Agregarlos a una campaña que ya tengo</b><small>${escHtml(etiquetaCampana(c,i))}${ok ? (c.producto_id||c.grupo_id ? ' · mismo producto/grupo' : ' · campaña general') : ' · no se puede: '+motivoNoAcepta(c)}</small></span></label>`).join('')}
     <div class="ay-btns"><button type="button" class="btn btn-outline" data-ay-luego>Decidir después</button><button type="button" class="btn btn-solid" data-ay-ok>Aceptar</button></div>
   </div>`;
   document.body.appendChild(ov);
@@ -1599,6 +1623,7 @@ function proponerCampanaParaLote(ids){
   ov.querySelector('[data-ay-ok]').addEventListener('click',()=>{
     const v = (ov.querySelector('input[name="ay-camp"]:checked')||{}).value || '';
     const camp = agregarAnunciosACampana(ids, v);
+    if(!camp){ mostrarToast('⚠️ Esa campaña es de otro producto o grupo: no se pueden agregar estos anuncios.'); return; }
     cerrar(); render();
     mostrarToast(`✅ ${ids.length} anuncio(s) ${v ? 'agregados a la campaña' : 'en una campaña nueva'}: <b>${escHtml(nombreAlcance(camp))}</b>. <button type="button" class="link-btn" data-ir-estructura>Verla en Estructura de Ads →</button>`);
   });
@@ -1620,7 +1645,7 @@ function pintarCampanaDelAnuncio(item, modal){
       cuerpo = `<div class="pm-camp-vacio"><p>Este anuncio todavía no está en ninguna campaña.</p>
         <div class="pm-camp-add"><select data-camp-destino>
           <option value="">🆕 Crear una campaña nueva con este anuncio</option>
-          ${estructuras.map((c,i)=>`<option value="${c.id}">➕ Agregar a: ${escHtml(etiquetaCampana(c,i))}</option>`).join('')}
+          ${estructuras.map((c,i)=>{ const ok = campanaAcepta(c, [item.id]); return `<option value="${c.id}"${ok?'':' disabled'}>➕ Agregar a: ${escHtml(etiquetaCampana(c,i))}${ok?'':' — no se puede: '+motivoNoAcepta(c)}</option>`; }).join('')}
         </select><button type="button" class="btn btn-solid btn-sm" data-camp-agregar>Aceptar</button></div></div>`;
     }
   }
@@ -1630,6 +1655,7 @@ function pintarCampanaDelAnuncio(item, modal){
   const ag = box.querySelector('[data-camp-agregar]');
   if(ag) ag.addEventListener('click',()=>{
     const camp = agregarAnunciosACampana([item.id], box.querySelector('[data-camp-destino]').value);
+    if(!camp){ mostrarToast('⚠️ Esa campaña es de otro producto o grupo: no se puede agregar este anuncio.'); return; }
     pintarCampanaDelAnuncio(item);
     mostrarToast(`✅ Anuncio agregado a la campaña <b>${escHtml(nombreAlcance(camp))}</b>.`);
   });
@@ -1782,6 +1808,9 @@ function buildCampanaEstructuraCard(campana){
 }
 
 function buildConjuntoCard(campana, conjunto){
+  const vinculados = conjunto.anuncios_ids || [];
+  const cardsElegibles = cards.filter(c=>campanaAcepta(campana,[c.id]) || vinculados.includes(c.id));
+  const ocultos = cards.length - cardsElegibles.length;
   const card = document.createElement('div');
   card.className = 'conjunto-card';
   card.innerHTML = `
@@ -1825,13 +1854,14 @@ function buildConjuntoCard(campana, conjunto){
     <div class="anuncios-nota-box">
       <p><b>📌 No olvides utilizar formatos:</b> UGC · Testimonio · Demostración · Ángulos...</p>
       <div class="anuncios-link-list">
-        ${cards.length ? cards.map(c=>`
+        ${cardsElegibles.length ? cardsElegibles.map(c=>`
           <label class="anuncio-link-row">
             <input type="checkbox" data-conjunto-anuncio="${conjunto.id}" data-card="${c.id}"${(conjunto.anuncios_ids||[]).includes(c.id)?' checked':''}>
             <span class="badge badge-${c.etapa}">${ETAPA_LABEL[c.etapa]||c.etapa}</span>
             <span class="anuncio-link-titulo" data-editar-card="${c.id}" title="Abrir y editar esta campaña">${escHtml(c.titulo)} ✎</span>
           </label>
-        `).join('') : '<p class="mode-status" style="margin:0;">Todavía no hay campañas guardadas para vincular.</p>'}
+        `).join('') : '<p class="mode-status" style="margin:0;">Todavía no hay anuncios guardados para vincular a esta campaña.</p>'}
+        ${ocultos ? `<p class="mode-status" style="margin:6px 0 0;">Solo se muestran los anuncios de ${campana.producto_id ? 'este producto o servicio' : 'este grupo'}: la campaña respeta lo que se definió al crearla (${ocultos} anuncio(s) de otros productos no se listan).</p>` : ''}
       </div>
       <div class="anuncios-footer">
         <button type="button" class="btn-pill-gray" data-ir-guardadas="1">Crear más anuncios</button>
@@ -1919,6 +1949,7 @@ function renderChat(container){
   const wrap = document.createElement('div');
   wrap.className = 'chat-hero';
   wrap.innerHTML = `
+    <div class="hero-pill-wrap">
     <div class="hero-search pb-pregunta">
       <label class="hero-attach" for="chat-file-input" title="Adjuntar una imagen del anuncio" aria-label="Adjuntar imagen">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
@@ -1930,9 +1961,10 @@ function renderChat(container){
         <img src="/img/jefe-anuncios-logo-negro.webp" alt="" aria-hidden="true">
       </button>
     </div>
-    <div class="pb-sugerencias" id="chat-sugerencias"></div>
+      <div class="ac-lista" id="chat-ac" role="listbox" aria-label="Sugerencias" hidden></div>
+    </div>
     <div class="chat-adjunto-row">
-      <span class="chat-adjunto-hint" id="chat-adjunto-hint">Puedes adjuntar o pegar (Ctrl+V) una imagen de tu anuncio</span>
+      <span class="chat-adjunto-hint" id="chat-adjunto-hint"></span>
       <span class="chat-adjunto-preview" id="chat-adjunto-preview"><img alt=""><span></span><button type="button" id="chat-adjunto-quitar" title="Quitar imagen">✕</button></span>
     </div>
     <div class="hero-meta">
@@ -1943,13 +1975,24 @@ function renderChat(container){
   `;
   container.appendChild(wrap);
   pintarChatThread();
-  pintarSugerenciasChat();
 
   const chatInputEl = document.getElementById('chat-input');
   const autoAltoChat = ()=>{ chatInputEl.style.height='auto'; chatInputEl.style.height=Math.min(chatInputEl.scrollHeight, chatInputEl.value?150:260)+'px'; };
   autoAltoChat();
-  chatInputEl.addEventListener('input',(e)=>{ chatDraft = e.target.value; autoAltoChat(); });
-  chatInputEl.addEventListener('keydown',(e)=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); enviarMensajeChat(); } });
+  chatInputEl.addEventListener('input',(e)=>{ chatDraft = e.target.value; autoAltoChat(); pintarAC(); });
+  chatInputEl.addEventListener('focus', pintarAC);
+  chatInputEl.addEventListener('blur', ()=>setTimeout(cerrarAC, 120));
+  chatInputEl.addEventListener('keydown',(e)=>{
+    const abierta = !document.getElementById('chat-ac').hidden;
+    if(abierta && e.key==='ArrowDown'){ e.preventDefault(); moverAC(1); return; }
+    if(abierta && e.key==='ArrowUp'){ e.preventDefault(); moverAC(-1); return; }
+    if(abierta && e.key==='Escape'){ cerrarAC(); return; }
+    if(e.key==='Enter' && !e.shiftKey){
+      e.preventDefault();
+      if(abierta && acIdx>=0){ elegirAC(acIdx); return; }
+      cerrarAC(); enviarMensajeChat();
+    }
+  });
   document.getElementById('chat-send-btn').addEventListener('click', enviarMensajeChat);
   document.getElementById('chat-file-input').addEventListener('change',(e)=>{
     procesarArchivoChatImagen(e.target.files && e.target.files[0]);
@@ -1957,7 +2000,7 @@ function renderChat(container){
   document.getElementById('chat-adjunto-quitar').addEventListener('click',()=>{
     chatImagenBase64=''; chatImagenNombre='';
     document.getElementById('chat-adjunto-preview').style.display='none';
-    document.getElementById('chat-adjunto-hint').textContent='Puedes adjuntar o pegar (Ctrl+V) una imagen de tu anuncio';
+    document.getElementById('chat-adjunto-hint').textContent='';
     document.getElementById('chat-file-input').value='';
   });
   const resetBtn = document.getElementById('chat-reset-btn');
@@ -1989,29 +2032,103 @@ function guardarChatPersistido(){
   window.storage.set(CHAT_KEY+chatClave, JSON.stringify(arr)).catch(()=>{});
 }
 
-// Sugerencias rápidas bajo el chat: cambian según lo que ya existe (anuncios, campañas) para el filtro elegido.
-function sugerenciasChat(){
+// ─── AUTOCOMPLETAR DEL CHAT (estilo buscador): al enfocar o escribir, una lista sugiere lo que puedes decir ───
+// Las frases cambian según lo que ya existe para el filtro elegido (anuncios, campañas, conversación). Genéricas:
+// nada de marca va aquí; solo se inserta el nombre del producto del filtro si lo hay.
+const normAC = t=>(t||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
+function bancoSugerenciasChat(){
   const f = window.__foco ? window.__foco.get() : null;
   const nombre = (f && !f.esTodo && f.nombre) ? f.nombre : '';
   const de = nombre ? ' de '+nombre : '';
   const delFoco = x=> x && (productoId ? x.producto_id===productoId : grupoId ? x.grupo_id===grupoId : true);
   const misCards = cards.filter(delFoco), misEstr = estructuras.filter(delFoco);
-  let s;
-  if(!misCards.length) s = [`Armemos las primeras ideas de anuncios${de}`, 'Quiero un anuncio para gente que no conoce mi marca', '¿Por dónde empiezo con mis anuncios?'];
-  else if(!misEstr.length) s = [`¿Cómo armo mi primera campaña con los anuncios${de} que ya tengo?`, 'Revisa mis anuncios y dime cuál mejorar primero', '¿Qué anuncio me falta para cubrir adquisición, consideración y conversión?'];
-  else s = ['¿Qué anuncio me falta para completar mi campaña?', 'Propón el siguiente conjunto de anuncios con un público nuevo', '¿Cómo voy a medir si esta campaña funciona?'];
-  if(chatMessages.length) s.unshift('Resume lo que hemos decidido y dime el siguiente paso');
-  return s.slice(0,4);
+  const crear = [
+    `Armemos las primeras ideas de anuncios${de}`,
+    'Quiero un anuncio para gente que no conoce mi marca',
+    'Quiero un anuncio para gente que ya conoce la marca pero no se decide',
+    'Quiero un anuncio para gente lista para comprar',
+    `Dame 3 ideas de anuncios de conversión${de}`,
+    `Dame ideas de anuncios${de} para el siguiente mes`,
+    'Escríbeme un hook que detenga el scroll',
+    'Dame 3 hooks distintos para mi próximo anuncio',
+  ];
+  const estrategia = [
+    '¿Por dónde empiezo con mis anuncios?',
+    '¿Qué objetivo de campaña me conviene?',
+    '¿Cuánto presupuesto diario debería usar?',
+    '¿Qué público debería usar en mi primer conjunto de anuncios?',
+    '¿Qué formato me conviene: reel, imagen o carrusel?',
+  ];
+  const revisar = [
+    'Revisa mis anuncios y dime cuál mejorar primero',
+    '¿Qué anuncio me falta para cubrir adquisición, consideración y conversión?',
+    'Mejora el copy de mi último anuncio',
+    'Analiza la imagen de mi anuncio y dime qué opinas',
+  ];
+  const campana = [
+    `¿Cómo armo mi primera campaña con los anuncios${de} que ya tengo?`,
+    '¿Qué anuncio me falta para completar mi campaña?',
+    'Propón el siguiente conjunto de anuncios con un público nuevo',
+  ];
+  const medir = [
+    '¿Cómo voy a medir si esta campaña funciona?',
+    '¿Qué hago si mi anuncio no genera mensajes?',
+    '¿Cuándo debo apagar un anuncio y cuándo escalarlo?',
+  ];
+  // lo más útil según lo que ya hay va primero
+  let orden;
+  if(!misCards.length) orden = [crear.slice(0,3), estrategia, crear.slice(3), revisar.slice(0,0), medir];
+  else if(!misEstr.length) orden = [campana.slice(0,1), revisar, crear, estrategia, campana.slice(1), medir];
+  else orden = [campana.slice(1), medir, revisar, crear, estrategia];
+  const lista = [];
+  if(chatMessages.length) lista.push('Resume lo que hemos decidido y dime el siguiente paso');
+  orden.forEach(g=>g.forEach(t=>{ if(!lista.includes(t)) lista.push(t); }));
+  return lista;
 }
-function pintarSugerenciasChat(){
-  const box = document.getElementById('chat-sugerencias'); if(!box) return;
-  box.innerHTML = sugerenciasChat().map((t,i)=>`<button type="button" class="pb-sugerencia" data-sug="${i}">${escHtml(t)}</button>`).join('');
-  const lista = sugerenciasChat();
-  box.querySelectorAll('[data-sug]').forEach(b=>b.addEventListener('click',()=>{
-    chatDraft = lista[+b.dataset.sug];
-    const inp = document.getElementById('chat-input'); if(inp) inp.value = chatDraft;
-    enviarMensajeChat();
-  }));
+let acItems = [], acIdx = -1;
+function sugerenciasParaTexto(texto){
+  const todas = bancoSugerenciasChat();
+  const q = normAC(texto);
+  if(!q) return todas.slice(0,6);
+  const tokens = q.split(' ');
+  return todas
+    .map(t=>({ t, n:normAC(t) }))
+    .filter(x=>tokens.every(k=>x.n.includes(k)))
+    .map(x=>({ t:x.t, r: x.n.startsWith(q) ? 0 : (x.n.split(' ').some(w=>w.startsWith(tokens[0])) ? 1 : 2) }))
+    .sort((a,b)=>a.r-b.r)
+    .map(x=>x.t).slice(0,8);
+}
+function cerrarAC(){ const b = document.getElementById('chat-ac'); if(b){ b.hidden = true; b.innerHTML = ''; } acItems = []; acIdx = -1; }
+function pintarAC(){
+  const box = document.getElementById('chat-ac'); const inp = document.getElementById('chat-input');
+  if(!box || !inp) return;
+  acItems = sugerenciasParaTexto(inp.value);
+  acIdx = -1;
+  if(!acItems.length){ cerrarAC(); return; }
+  const q = normAC(inp.value);
+  box.innerHTML = acItems.map((t,i)=>{
+    const empieza = q && normAC(t).startsWith(q);
+    const ya = empieza ? t.slice(0, inp.value.trim().length) : '';
+    const resto = empieza ? t.slice(inp.value.trim().length) : t;
+    return `<button type="button" class="ac-item" role="option" data-ac="${i}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span>${escHtml(ya)}<b>${escHtml(resto)}</b></span></button>`;
+  }).join('');
+  box.hidden = false;
+  box.querySelectorAll('[data-ac]').forEach(b=>{
+    b.addEventListener('mousedown',(e)=>e.preventDefault()); // que el clic no le quite el foco al chat antes de elegir
+    b.addEventListener('click',()=>elegirAC(+b.dataset.ac));
+  });
+}
+function moverAC(delta){
+  if(!acItems.length) return;
+  acIdx = (acIdx + delta + acItems.length) % acItems.length;
+  document.querySelectorAll('#chat-ac .ac-item').forEach((el,i)=>el.classList.toggle('on', i===acIdx));
+}
+function elegirAC(i){
+  const t = acItems[i]; if(!t) return;
+  chatDraft = t;
+  const inp = document.getElementById('chat-input'); if(inp) inp.value = t;
+  cerrarAC();
+  enviarMensajeChat();
 }
 
 function pintarChatThread(){
