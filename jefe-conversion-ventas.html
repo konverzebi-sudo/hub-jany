@@ -66,7 +66,6 @@
   <span id="liveImageName" class="file-name"></span>
   <div id="liveAnswer" class="live-answer"></div>
   <div id="searchResults"></div>
-  <div class="group-tabs" id="groupTabs"></div>
   <p class="campana-hint" id="focoHint" hidden></p>
   <p class="campana-hint" id="campanaHint" hidden>Estás trabajando el manual de esta campaña de temporada: se guarda aparte del manual de todo el año. Las respuestas y la asesoría se basan en ella. Si está vacío, dale &ldquo;Actualizar Estrategia con IA&rdquo;.</p>
 </header>
@@ -311,7 +310,7 @@
 <footer id="ventas-footer">Jefe WhatsApp y Ventas — construido sobre tu manual de ventas por mensaje</footer>
 
 <script src="/js/storage-client.js"></script>
-<script>window.__focoConfig = { grupos: true, productos366: true }; // la pastilla también deja elegir un grupo completo</script>
+<script>window.__focoConfig = { grupos: true, productos366: true, campanas: true }; // la pastilla también deja elegir un grupo completo</script>
 <script src="/js/jefes-foco.js"></script>
 <script src="/js/guia-jefe.js"></script>
 <script>
@@ -599,9 +598,11 @@ function slugFoco(id){
 
 function aplicarFoco(){
   const f = window.__foco ? window.__foco.get() : null;
-  campanaActiva = null;
+  campanaActiva = (f && f.esCampana) ? (campanasState.find((c) => c.id === f.campanaId) || null) : null;
   if(!f || f.esTodo){
     mostrarTodasLasPestanas = true; productoActivo = null; grupoActivo = null;
+  } else if(f.esCampana){
+    mostrarTodasLasPestanas = false; productoActivo = null; grupoActivo = null;
   } else if(f.esGrupo){
     mostrarTodasLasPestanas = false; productoActivo = null;
     grupoActivo = gruposNegocioState.find((g) => g.id === f.grupoId) || null;
@@ -646,28 +647,11 @@ function mostrarAvisoFoco(respaldo){
   el.hidden = !texto;
 }
 
-// Campañas de temporada (Jefe de Temporada): no están en el filtro de arriba, se eligen aquí.
+// Aviso de la campaña activa (la campaña se elige en la pastilla de arriba).
 function renderCampanaChips(){
-  const wrap = document.getElementById('groupTabs');
   const hint = document.getElementById('campanaHint');
   if(campanaActiva && !campanasState.some((c) => c.id === campanaActiva.id)) campanaActiva = null;
-  if(!campanasState.length){
-    wrap.innerHTML = '';
-    hint.hidden = true;
-    actualizarTextosFuente();
-    return;
-  }
-  const chips = ['<span class="campana-label">Campaña</span>',
-    `<button type="button" class="group-tab${campanaActiva ? '' : ' active'}" data-id="">Sin campaña</button>`];
-  campanasState.forEach((c) => {
-    const et = etiquetaCampana(c);
-    chips.push(`<button type="button" class="group-tab${campanaActiva && c.id === campanaActiva.id ? ' active' : ''}" data-id="${escGrupoHtml(c.id)}" title="${escGrupoHtml(et)}">🗓️ ${escGrupoHtml(textoCorto(et))}</button>`);
-  });
-  wrap.innerHTML = chips.join('');
-  wrap.querySelectorAll('.group-tab').forEach((btn) => {
-    btn.addEventListener('click', () => switchCampana(btn.dataset.id));
-  });
-  hint.hidden = !campanaActiva;
+  if(hint) hint.hidden = !campanaActiva;
   actualizarTextosFuente();
 }
 
@@ -734,14 +718,6 @@ async function cargarCampanas(){
     campanasState = Array.isArray(todas) ? todas.filter((c) => c && c.id && (!c.fecha_fin_activa || c.fecha_fin_activa >= hoy)) : [];
   }catch(e){ campanasState = []; }
   renderCampanaChips();
-}
-
-function switchCampana(id){
-  campanaActiva = id ? (campanasState.find((c) => c.id === id) || null) : null;
-  renderCampanaChips();
-  estPreguntasPendientes = null;
-  renderEstPreguntas(null);
-  cargarTarjetas();
 }
 
 function campanaActivaParaEnvio(){ return campanaActiva ? campanaActiva.id : null; }

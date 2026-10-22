@@ -24,7 +24,11 @@
   // OPCIONAL (window.__focoConfig.productos366): suma las ofertas de "Producto 366" de Jefe 366 que todavia
   // no estan en el Catalogo del ADN (id '366-<nombre-sin-acentos>'), para poder enfocarse en ellas.
   var conOfertas366 = !!(window.__focoConfig && window.__focoConfig.productos366);
-  var actual = { id: TODO, nombre: '', item: null, grupo: null };
+  // OPCIONAL (window.__focoConfig.campanas): suma las campañas vigentes de Jefe de Temporada (llave "<hub>:temporada-campanas",
+  // id 'c:<campana_id>'). foco.get() trae entonces esCampana y campanaId. Sin la bandera nada cambia en los demas Jefes.
+  var conCampanas = !!(window.__focoConfig && window.__focoConfig.campanas);
+  var campanas = [];
+  var actual = { id: TODO, nombre: '', item: null, grupo: null, campana: null };
   var oyentes = [];
 
   // ---------- estilos (piel blanca, mismos tokens que el resto de los Jefes) ----------
@@ -67,7 +71,23 @@
     for (var i = 0; i < grupos.length; i++) if (grupos[i] && grupos[i].id === id) return grupos[i];
     return null;
   }
+  function buscarCampana(id) {
+    for (var i = 0; i < campanas.length; i++) if (campanas[i] && campanas[i].id === id) return campanas[i];
+    return null;
+  }
+  // "Temporal" / "Nueva campaña" no dicen de que es: se usa el producto o el titulo de la temporada.
+  function etiquetaCampana(c) {
+    var nombre = String(c.nombre || '').trim();
+    if (nombre && !/^(temporal|nueva campa[nñ]a|campa[nñ]a|sin nombre)$/i.test(nombre)) return nombre;
+    var producto = String((c.producto_origen === 'nuevo' ? c.producto_nuevo : c.producto_nombre) || '').trim();
+    return producto || String(c.temporada || '').trim() || nombre || '(sin nombre)';
+  }
   function aplicar(id) {
+    var camp = conCampanas && typeof id === 'string' && id.indexOf('c:') === 0 ? buscarCampana(id.slice(2)) : null;
+    if (camp) {
+      actual = { id: id, nombre: etiquetaCampana(camp), item: null, grupo: null, campana: camp };
+      return;
+    }
     var grupo = conGrupos && typeof id === 'string' && id.indexOf('g:') === 0 ? buscarGrupo(id.slice(2)) : null;
     if (grupo) {
       actual = { id: id, nombre: String(grupo.nombre || '').trim(), item: null, grupo: grupo };
@@ -82,6 +102,7 @@
     return {
       id: actual.id, nombre: actual.nombre, item: actual.item, esTodo: actual.id === TODO,
       esGrupo: !!actual.grupo,
+      esCampana: !!actual.campana, campanaId: actual.campana ? actual.campana.id : '', campana: actual.campana || null,
       // atajos para quien trabaja con grupo_id / producto_id: ecosistema = ambos vacios
       grupoId: actual.grupo ? actual.grupo.id : (actual.item ? (actual.item.grupo_id || '') : ''),
       productoId: actual.item ? actual.item.id : ''
@@ -158,7 +179,7 @@
 
   function pintar() {
     var especifico = actual.id !== TODO;
-    txt.textContent = especifico ? (actual.grupo ? 'Grupo: ' : '') + (actual.nombre || 'Producto') : 'Tu ecosistema completo';
+    txt.textContent = especifico ? (actual.campana ? '🗓️ ' : (actual.grupo ? 'Grupo: ' : '')) + (actual.nombre || 'Producto') : 'Tu ecosistema completo';
     pill.classList.toggle('on', especifico);
     pill.title = especifico
       ? 'Estás trabajando solo sobre: ' + (actual.nombre || 'este producto') + '. Clic para cambiar.'
@@ -186,6 +207,13 @@
         porGrupo[gid].forEach(function (p) {
           menu.appendChild(opcion(p.id, String(p.nombre).trim(), p.tipo || '', precioTexto(p.precio)));
         });
+      });
+    }
+
+    if (conCampanas && campanas.length) {
+      menu.appendChild(titulo('Campañas de temporada'));
+      campanas.forEach(function (c) {
+        menu.appendChild(opcion('c:' + c.id, '🗓️ ' + etiquetaCampana(c), 'Campaña de Jefe de Temporada'));
       });
     }
 
@@ -245,6 +273,11 @@
       sumarOfertas366(ofertas);
     }
     grupos = Array.isArray(gr) ? gr : [];
+    if (conCampanas) {
+      var cs = await leer('temporada-campanas');
+      var hoy = new Date().toISOString().slice(0, 10);
+      campanas = Array.isArray(cs) ? cs.filter(function (c) { return c && c.id && (!c.fecha_fin_activa || c.fecha_fin_activa >= hoy); }) : [];
+    }
     var guardado = leerLS();
     aplicar(guardado ? guardado.id : TODO); // si el producto ya no existe, vuelve a "ecosistema completo"
     pintar();
@@ -256,6 +289,7 @@
     onChange: function (fn) { if (typeof fn === 'function') oyentes.push(fn); },
     lista: function () { return lista.slice(); },
     grupos: function () { return grupos.slice(); },
+    campanas: function () { return campanas.slice(); },
     registrarOfertas366: function (ofertas) {
       // Jefe 366 avisa cuando agregas o renombras un producto, para que la pastilla lo muestre al momento
       lista = lista.filter(function (p) { return !p.origen366; });
