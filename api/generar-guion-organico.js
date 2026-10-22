@@ -9,6 +9,7 @@ const path = require('path');
 const { sql } = require('@vercel/postgres');
 const { sumarAlMes } = require('./_lib/uso-mensual');
 const { revisar: revisarSaldo, cobrar: cobrarSaldo } = require('./_lib/saldo');
+const { formatearCampanaSeleccionada } = require('./_lib/campana-temporada');
 const { systemConCache, historialConCache, camposUso } = require('./_lib/cache-claude');
 
 const DEFAULT_CLIENTE = 'jefeshub';
@@ -16,6 +17,7 @@ const PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-guion-o
 const PREGUNTAS_PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-post-ia-preguntas.md');
 const ARRANQUE_PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-post-ia-arranque.md');
 const MEDIOS_PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-prompt-medios.md');
+const ARMAR_PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-post-ia-armar.md');
 const CONTEXT_CHAR_LIMIT = 10000;
 
 let fixedPromptCache = null;
@@ -35,6 +37,14 @@ function cargarPromptPreguntas() {
 // Guía de la primera conversación (¿ya publicas?, capturas de su estilo, 5 ideas, primer post).
 // Se agrega al prompt de preguntas solo cuando el cliente manda fase 'arranque'.
 // Prompt para crear el prompt de imagen o de video de un post (modo 'prompt-medio').
+// Guía para armar un post con preguntas en el chat (fase 'armar'): link o idea, objetivo y algo más.
+let armarPromptCache = null;
+function cargarPromptArmar() {
+  if (armarPromptCache) return armarPromptCache;
+  armarPromptCache = fs.readFileSync(ARMAR_PROMPT_PATH, 'utf-8');
+  return armarPromptCache;
+}
+
 let mediosPromptCache = null;
 function cargarPromptMedios() {
   if (mediosPromptCache) return mediosPromptCache;
@@ -349,6 +359,57 @@ async function leerComunicacion366(clienteId) {
   return await leerJSON(`${clienteId}:brand-book.evergreen-comunicacion`).catch(() => null);
 }
 
+// ─── ENFOQUE POR PRODUCTO ──────────────────────────────────────────────────────────────────
+// Cuando la pastilla de arriba tiene un producto o servicio, el chat responde solo sobre él: su ficha del
+// catálogo del ADN, su oferta de Producto 366 (si existe) y su campaña de temporada más reciente (si existe).
+function slugOferta(s) {
+  return (s || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+async function leerOfertas366(clienteId) {
+  const nuevo = await leerJSON(`${clienteId}:brand-book.366-producto`).catch(() => null);
+  if (nuevo && Array.isArray(nuevo.lista) && nuevo.lista.length) return nuevo.lista;
+  if (nuevo && Object.keys(nuevo).length) return [Object.assign({ nombre: 'Producto Principal' }, nuevo)];
+  return [];
+}
+async function construirEnfoqueProducto(clienteId, catalogo, productoId) {
+  if (!productoId) return null;
+  const ficha = Array.isArray(catalogo) ? catalogo.find((it) => it && it.id === productoId) : null;
+  const ofertas = await leerOfertas366(clienteId).catch(() => []);
+  let oferta = null;
+  let nombre = ficha ? ficha.nombre : '';
+  if (productoId.indexOf('366-') === 0) {
+    oferta = ofertas.find((o) => o && '366-' + slugOferta(o.nombre) === productoId) || null;
+    if (oferta) nombre = oferta.nombre;
+  } else if (nombre) {
+    oferta = ofertas.find((o) => o && slugOferta(o.nombre) === slugOferta(nombre)) || null;
+  }
+  if (!nombre) return null;
+
+  const lineas = [`PRODUCTO ESPECÍFICO A ENFOCAR: ${nombre}`];
+  if (ficha) {
+    if (ficha.tipo) lineas.push(`Tipo: ${ficha.tipo}`);
+    if (ficha.precio) lineas.push(`Precio: ${ficha.precio}`);
+    if (ficha.notas) lineas.push(`Notas: ${truncar(ficha.notas, 700)}`);
+  }
+  if (oferta) {
+    if (oferta.que_vendemos) lineas.push(`Qué vendemos: ${truncar(oferta.que_vendemos, 500)}`);
+    if (oferta.por_que_potencial) lineas.push(`Por qué tiene potencial 366: ${truncar(oferta.por_que_potencial, 500)}`);
+    if (oferta.oferta_irresistible) lineas.push(`Oferta irresistible 366: ${truncar(oferta.oferta_irresistible, 500)}`);
+    if (oferta.insight_estrategico) lineas.push(`Insight estratégico: ${truncar(oferta.insight_estrategico, 500)}`);
+  }
+  lineas.push('Todo lo que respondas debe servir para este producto o servicio; no mezcles otros del catálogo ni inventes precios o promociones que no estén aquí o en el ADN.');
+
+  const campanas = await leerJSON(`${clienteId}:temporada-campanas`).catch(() => null);
+  const delProducto = (Array.isArray(campanas) ? campanas : []).filter((c) => c && c.producto_id === productoId);
+  if (delProducto.length) {
+    const clave = (c) => String(c.fecha_fin_activa || c.fecha_inicio_activa || '');
+    const camp = delProducto.slice().sort((a, b) => clave(b).localeCompare(clave(a)))[0];
+    const texto = formatearCampanaSeleccionada(camp);
+    if (texto) lineas.push('', 'CAMPAÑA DE TEMPORADA DE ESTE PRODUCTO (úsala si la conversación es de esa temporada):', truncar(texto, 3500));
+  }
+  return lineas.join('\n');
+}
+
 async function construirContexto(clienteId, grupoId) {
   const [identidad, tono, audiencia, catalogo, grupos, comunicacion, radarHistorial, conversacionReciente, bancoConversaciones, redes] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
@@ -581,9 +642,11 @@ module.exports = async function handler(req, res) {
       }
 
       const promptPreguntas = cargarPromptPreguntas();
-      const { contexto } = await construirContexto(clienteId, grupoId);
+      const { contexto, catalogo } = await construirContexto(clienteId, grupoId);
       const arranque = body.fase === 'arranque' ? '\n\n' + cargarPromptArranque() : '';
-      const system = systemConCache(promptPreguntas + arranque, contexto);
+      const armar = body.fase === 'armar' ? '\n\n' + cargarPromptArmar() : '';
+      const enfoque = await construirEnfoqueProducto(clienteId, catalogo, productoId).catch(() => null);
+      const system = systemConCache(promptPreguntas + arranque + armar, contexto, enfoque);
 
       const { texto, usage } = await llamarClaudeTexto({ system, messages: historialConCache(historial, { noReutilizable: imagenes.length > 0, total: validos.length, max: PREGUNTA_MAX_MESSAGES }), maxTokens: 1100, conBusqueda: true });
       if (!texto) {
