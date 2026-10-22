@@ -169,6 +169,8 @@
   .pm-bar{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:14px 26px;background:#F0F0F0;font-weight:600;color:var(--text-dim);}
   .pm-bar label{display:flex;align-items:center;gap:10px;font-size:15px;}
   .pm-bar .fecha-input{width:auto;background:#fff;}
+  .pm-bar-alcance{flex:1 1 280px;min-width:220px;}
+  .pm-bar-alcance select{flex:1;min-width:0;max-width:100%;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 12px;font:600 15px 'Inter',sans-serif;color:var(--text);}
   .pm-body{display:grid;grid-template-columns:minmax(0,1fr) 300px;min-height:0;flex:1;overflow:hidden;}
   .pm-form{overflow-y:auto;padding:20px 26px;display:flex;flex-direction:column;gap:20px;min-width:0;}
   .pm-label{font-weight:800;font-size:16px;margin-bottom:10px;}
@@ -770,25 +772,15 @@ function recalcularAngulos366(){
 function renderGenerador(container){
   recalcularAngulos366();
   const datos = datosActuales();
-  const productosDisponibles = productos.filter(p => p && p.nombre && (!grupoId || p.grupo_id === grupoId));
-
   const wrap = document.createElement('div');
 
   const toolbar = document.createElement('div');
   toolbar.className='anuncios-toolbar';
   toolbar.innerHTML = `
-    <div class="mode-field" style="min-width:200px;">
-      <label>Producto o servicio a vender</label>
-      <select id="anuncios-producto-sel">
-        <option value="">Todo el grupo</option>
-        ${productosDisponibles.map(p=>`<option value="${p.id}"${productoId===p.id?' selected':''}>${escHtml(p.nombre)}</option>`).join('')}
-      </select>
-    </div>
-    <div class="mode-field" style="min-width:200px;">
-      <label>Grupo de negocio</label>
-      <select id="anuncios-grupo-sel">
-        <option value="">General (sin grupo)</option>
-        ${grupos.map(g=>`<option value="${g.id}"${grupoId===g.id?' selected':''}>${escHtml(g.nombre)}</option>`).join('')}
+    <div class="mode-field" style="min-width:260px;flex:1 1 260px;">
+      <label>Producto, servicio o grupo</label>
+      <select id="anuncios-alcance-sel">
+        ${opcionesAlcanceDe(productoId, grupoId)}
       </select>
     </div>
     <div class="mode-field" style="min-width:200px;">
@@ -877,8 +869,12 @@ function renderGenerador(container){
 
   updateSelCount();
 
-  document.getElementById('anuncios-grupo-sel').addEventListener('change',(e)=>{ grupoId=e.target.value; productoId=''; productoNombre=''; productoTexto=''; sincronizarFoco(); render(); });
-  document.getElementById('anuncios-producto-sel').addEventListener('change',(e)=>{ productoId=e.target.value; productoNombre=''; productoTexto=''; /* eligió a mano: ya no aplica el producto que traía de Jefe 366 */ sincronizarFoco(); });
+  document.getElementById('anuncios-alcance-sel').addEventListener('change',(e)=>{
+    const a = alcanceDesdeValor(e.target.value);
+    grupoId = a.grupo_id; productoId = a.producto_id;
+    productoNombre = ''; productoTexto = ''; // eligió a mano: ya no aplica el producto que traía de Jefe 366
+    sincronizarFoco(); render();
+  });
   document.getElementById('anuncios-angulo-sel').addEventListener('change',(e)=>{ anguloIdx=e.target.value; });
   document.getElementById('anuncios-cantidad-sel').addEventListener('change',(e)=>{ cantidadPorEtapa=parseInt(e.target.value,10)||3; });
   document.getElementById('anuncios-formato-sel').addEventListener('change',(e)=>{ formatoSel=e.target.value; });
@@ -1450,8 +1446,15 @@ async function guardarCampana(campana){
 }
 
 // Un solo selector: cada grupo con "Todo el grupo" y sus productos/servicios debajo.
-function opcionesAlcance(campana){
-  const sel = campana.producto_id ? 'p:'+campana.producto_id : (campana.grupo_id ? 'g:'+campana.grupo_id : '');
+// Valor del selector único -> producto_id / grupo_id (un producto fija también su grupo).
+function alcanceDesdeValor(v){
+  const [kind,id] = (v||'').split(':');
+  if(kind==='p'){ const pr = productos.find(x=>x&&x.id===id); return { producto_id:id, grupo_id: pr ? (pr.grupo_id||'') : '' }; }
+  return { producto_id:'', grupo_id: kind==='g' ? id : '' };
+}
+function opcionesAlcance(campana){ return opcionesAlcanceDe(campana.producto_id, campana.grupo_id); }
+function opcionesAlcanceDe(prodId, grpId){
+  const sel = prodId ? 'p:'+prodId : (grpId ? 'g:'+grpId : '');
   const opt = (v,t)=>`<option value="${v}"${sel===v?' selected':''}>${escHtml(t)}</option>`;
   const prods = productos.filter(p=>p&&p.nombre);
   let html = opt('','General (sin grupo)');
@@ -2489,6 +2492,8 @@ function abrirPostModal(id){
           </select></label>
         <label>Fecha <input type="date" class="fecha-input" value="${item.fecha||''}" data-id="${item.id}" data-field="fecha"></label>
         <label>Hora <input type="time" class="fecha-input hora-input" value="${item.hora||''}" data-id="${item.id}" data-field="hora"></label>
+        <label class="pm-bar-alcance">Producto, servicio o grupo
+          <select class="pm-alcance" aria-label="Producto, servicio o grupo del anuncio">${opcionesAlcanceDe(item.producto_id, item.grupo_id)}</select></label>
       </div>
       <div class="pm-body">
         <div class="pm-form">
@@ -2497,7 +2502,6 @@ function abrirPostModal(id){
           <div class="pm-sec"><div class="pm-label">Redes donde se publica</div>
             <div class="pm-pills" id="pm-redes">${REDES.map(([k,n])=>`<button type="button" class="pm-pill${redesDe(item).includes(k)?' on':''}" data-red="${k}">${n}</button>`).join('')}</div></div>
           <div class="detail-grid">
-            <div class="clasif-row" style="display:flex;gap:10px;flex-wrap:wrap;">${clasifFieldsHtml(item)}</div>
             ${textFieldHtml(item,'objetivo','Objetivo del anuncio')}
             <div class="detail-field retro-field">
               <label>💬 Retroalimentación (se usa en las próximas generaciones)</label>
@@ -2541,6 +2545,11 @@ function abrirPostModal(id){
     b.classList.toggle('on', set.has(b.dataset.red));
     scheduleCardsSave(); pintarPreviewPost(item);
   }));
+  el.querySelector('.pm-alcance').addEventListener('change',(e)=>{
+    const a = alcanceDesdeValor(e.target.value);
+    item.producto_id = a.producto_id; item.grupo_id = a.grupo_id;
+    scheduleCardsSave(); pintarPreviewPost(item);
+  });
   el.querySelector('.estado-select').addEventListener('change',(e)=>{
     e.target.className = 'estado-select '+e.target.value;
     el.querySelector('#pm-chip-estado').textContent = ESTADO_LABEL[e.target.value]||e.target.value;
@@ -2658,12 +2667,10 @@ GuiaJefe.registrar({
         return 'A la izquierda, abajo de la barra, ya están tus redes sociales: se toman de tu ADN. Las que ya tienes registradas se ven en gris fuerte y las que faltan en gris claro (con borde punteado).'
           + (faltan.length ? ' Hoy te faltan: '+faltan.join(', ')+'. Llénalas dándoles clic al icono (o en “ADN del negocio”): son importantes porque el Jefe las usa para armar tus anuncios y los links de contacto.' : (reg ? ' ¡Ya tienes todas registradas!' : ''));
       } },
-    { selector:'#anuncios-grupo-sel', titulo:'Grupo de negocio',
-      texto:()=>'Aquí eliges la línea de negocio para la que quieres anuncios.'+(productoNombre&&grupoId?' Ya lo dejé en el grupo del producto que veníamos trabajando.':'') },
-    { selector:'#anuncios-producto-sel', titulo:'Producto',
+    { selector:'#anuncios-alcance-sel', titulo:'Producto, servicio o grupo',
       texto:()=>productoNombre
-        ? 'Los anuncios van a girar en torno a "'+productoNombre+'", el producto que veníamos trabajando en Jefe 366. Si quieres anuncios de otro producto, cámbialo aquí.'
-        : 'Elige el producto puntual para que todos los anuncios giren en torno a él. Si lo dejas en "Todo el grupo", mezcla los productos del grupo.' },
+        ? 'Los anuncios van a girar en torno a "'+productoNombre+'", el producto que veníamos trabajando en Jefe 366. Si quieres anuncios de otro producto, servicio o de todo un grupo, cámbialo aquí (es el mismo filtro de la barra de arriba).'
+        : 'Elige el producto, el servicio o el grupo completo para el que quieres anuncios. Es el mismo filtro de la barra de arriba: todo el Jefe (chat, ideas y campañas) trabaja sobre lo que elijas.' },
     { selector:'#anuncios-angulo-sel', titulo:'Ángulo 366',
       texto:'Los ángulos son los que ya guardaste en la Comunicación 366 (por ejemplo, un dolor o un deseo de tu cliente). Si eliges uno, todos los anuncios se enfocan en ese. Si lo dejas en "Todos", la IA los mezcla.' },
     { selector:'#anuncios-cantidad-sel', titulo:'Cuántas por etapa',
