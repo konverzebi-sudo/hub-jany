@@ -748,6 +748,14 @@
       migratedList = true;
     }
     if(!data.areas) data.areas = JSON.parse(JSON.stringify(AREA_DEFAULTS));
+    if(!data.areaMenteAdded){
+      data.areaMenteAdded = true;
+      if(!data.areas.some(function(a){ return a.id === 'mente' || String(a.name||'').toLowerCase() === 'mente'; })){
+        var bodyIdx = data.areas.findIndex(function(a){ return a.id === 'ejercicio'; });
+        data.areas.splice(bodyIdx > -1 ? bodyIdx + 1 : data.areas.length, 0, {id:'mente', name:'Mente', color:'#9B8CFF'});
+      }
+      migratedList = true;
+    }
     if(!data.tools) data.tools = JSON.parse(JSON.stringify(DEFAULT_TOOLS));
     data.products.forEach(function(p){ if(p.color && p.color.toUpperCase() === '#C6FF4B') p.color = '#7BC62D'; });
     data.areas.forEach(function(a){ if(a.color && a.color.toUpperCase() === '#C6FF4B') a.color = '#7BC62D'; });
@@ -760,6 +768,11 @@
       saveLocalOnly();
     }
     data.areas.forEach(function(ar){ ensureArea(ar.id); });
+    if(!data.projectTagBackfill){
+      data.projectTagBackfill = true;
+      data.agenda.forEach(function(a){ if(!a.project){ var mp = matchProject(a.text); if(mp) a.project = mp; } });
+      migratedList = true;
+    }
     if(migratedList) saveLocalOnly();
     processSubscriptionBillings();
     renderAll();
@@ -2014,6 +2027,7 @@
   var AREA_KEYWORDS = {
     espiritualidad: ['oré','ore','agradecí','agradeci','gracias','iglesia','medité','medite','meditación'],
     ejercicio: ['ejercicio','correr','gym','caminar','entrené','entrene','entrenamiento'],
+    mente: ['leí','leer','libro','estudi','aprend'],
     familia: ['familia','hijos','hijo','hija','esposo','esposa','mamá','mama','papá','papa'],
     disfrute: ['disfruté','disfrute','película','pelicula','descanso','diversión','diversion','relajar','viaje','salí','sali']
   };
@@ -2029,6 +2043,7 @@
   var AREA_DEFAULTS = [
     {id:'espiritualidad', name:'Espíritu', color:'#BB6BD9'},
     {id:'ejercicio', name:'Cuerpo', color:'#56CCF2'},
+    {id:'mente', name:'Mente', color:'#9B8CFF'},
     {id:'trabajo', name:'Trabajo', color:'#7BC62D'},
     {id:'familia', name:'Familia', color:'#FF4FA3'},
     {id:'disfrute', name:'Disfrute', color:'#F2C94C'}
@@ -2981,7 +2996,7 @@
     if(!text) return;
     var color = document.getElementById('jd-task-color').value;
     var area = document.getElementById('jd-task-area').value;
-    data.agenda.push({id:uid('a'), text:text, reto:true, color:color, area:area || undefined});
+    data.agenda.push({id:uid('a'), text:text, reto:true, color:color, area:area || undefined, project:matchProject(text) || undefined});
     bumpAreaTotal(text, area || undefined);
     input.value = '';
     save(); renderAgenda(); renderBalance();
@@ -3002,6 +3017,17 @@
     return null;
   }
 
+  function plainText(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+  // Negocio/proyecto que nombra el texto (null si ninguno). Acepta el nombre completo o, en nombres de 3+ palabras, sus dos primeras.
+  function matchProject(text){
+    var t = plainText(text), best = null, bestLen = 0;
+    data.products.forEach(function(p){
+      var full = plainText(p.name).trim(), words = full.split(/\s+/), keys = [full];
+      if(words.length >= 3) keys.push(words.slice(0,2).join(' '));
+      keys.forEach(function(k){ if(k && t.indexOf(k) > -1 && k.length > bestLen){ best = p.name; bestLen = k.length; } });
+    });
+    return best;
+  }
   function guessProject(lower){
     var found = data.products.find(function(p){ return lower.indexOf(p.name.toLowerCase()) > -1; });
     return found ? found.name : 'General';
@@ -3381,7 +3407,7 @@
       'PREGUNTA cuanto dura (en minutos u horas) antes de responder status:done. No preguntes duracion si es evento de todo el dia '+
       'o de varios dias (viaje, vacaciones) — en ese caso solo llena date y endDate. Si ya tienes fecha, y (hora + duracion) o "todo el dia" confirmado, responde status:done sin seguir preguntando. '+
       'Si el evento pertenece claramente a uno de los proyectos/negocios existentes (lo menciono por nombre, o es obvio por el cliente/tema), '+
-      'llena tambien "project" con el nombre EXACTO de la lista, aunque el type sea evento (no solo proyecto). Si no es claro o es un pendiente personal, deja "project" en null, no lo inventes. '+
+      'llena tambien "project" con el nombre EXACTO de la lista, aunque el type sea evento o reto (no solo proyecto). Si no es claro o es un pendiente personal, deja "project" en null, no lo inventes. '+
       'type=proyecto es una tarea que pertenece claramente a uno de los proyectos existentes (pon el nombre EXACTO en "project"). '+
       'type=movimiento es cualquier compra, ingreso, pago de deuda, o ahorro (corto o largo plazo): llena "finType" (compra|ingreso|pago_deuda|ahorro_corto|ahorro_largo), '+
       '"paymentType" (unico|plazos — pregunta si no es obvio si fue de un solo pago o a plazos), "account" (banco/cuenta si lo menciono, o null), '+
@@ -3484,7 +3510,7 @@
       // no matching id: cae al flujo de creacion normal como evento nuevo
     }
     if(action.type === 'evento' && action.date){
-      var eventProject = (action.project && data.products.some(function(p){ return p.name === action.project; })) ? action.project : undefined;
+      var eventProject = (action.project && data.products.some(function(p){ return p.name === action.project; })) ? action.project : (matchProject(action.text) || undefined);
       scheduleAgendaItem({
         id: uid('a'), text: action.text || 'Evento',
         startDate: action.date, endDate: action.endDate || action.date,
@@ -3562,7 +3588,8 @@
       bumpAreaTotal(action.text);
       save(); renderProducts(); renderProgressMini(); renderBalance();
     } else {
-      data.agenda.push({id:uid('a'), text: action.text, reto:true, color:'amarillo'});
+      var retoProject = (action.project && data.products.some(function(p){ return p.name === action.project; })) ? action.project : matchProject(action.text);
+      data.agenda.push({id:uid('a'), text: action.text, reto:true, color:'amarillo', project: retoProject || undefined});
       bumpAreaTotal(action.text);
       save(); renderAgenda(); renderBalance();
     }
