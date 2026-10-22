@@ -366,6 +366,7 @@
 
   /* Adjuntar imagen en el chat */
   .chat-adjunto-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:4px;}
+  .chat-adjunto-hint:empty{display:none;}
   .chat-adjunto-hint{font-size:14px;color:var(--text-dim);}
   .chat-adjunto-preview{display:none;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--line);border-radius:100px;padding:5px 12px 5px 6px;font-size:14px;color:var(--text-dim);}
   .chat-adjunto-preview img{width:34px;height:34px;object-fit:cover;border-radius:50%;}
@@ -436,6 +437,7 @@
   .ay-op:has(input:checked){border-color:var(--accent-text);background:var(--accent-soft);}
   .ay-op small{display:block;color:var(--text-dim);font-size:13px;margin-top:2px;line-height:1.4;}
   .ay-op input{margin-top:4px;accent-color:#4E7A00;}
+  .ay-op.ay-off{opacity:.55;cursor:not-allowed;}
   .pb-toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:2200;background:#10101A;color:#fff;border-radius:16px;padding:14px 20px;max-width:min(560px,92vw);box-shadow:0 14px 40px rgba(0,0,0,.35);font-size:15px;line-height:1.45;}
   .pb-toast .link-btn{color:var(--accent);font-weight:800;}
   @media (max-width:900px){.res-mapa{grid-template-columns:1fr;}}
@@ -1540,8 +1542,23 @@ function objetivoDesdeTexto(t){
   return '';
 }
 // Pone los anuncios en el primer conjunto de la campaña elegida o de una campaña nueva (se crea con su conjunto).
+// Una campaña respeta lo que se definió al crearla: si es de un producto o servicio, solo entran anuncios de ese
+// producto; si es de un grupo, solo anuncios de ese grupo; si no tiene producto ni grupo es publicidad general
+// del ecosistema y acepta cualquier anuncio.
+function campanaAcepta(camp, ids){
+  if(!camp.producto_id && !camp.grupo_id) return true;
+  return ids.every(id=>{
+    const c = cards.find(x=>x.id===id); if(!c) return false;
+    return camp.producto_id ? c.producto_id===camp.producto_id : c.grupo_id===camp.grupo_id;
+  });
+}
+function motivoNoAcepta(camp){
+  return camp.producto_id ? 'es de otro producto o servicio' : 'es de otro grupo';
+}
+// Devuelve la campaña, o null si la campaña elegida no acepta esos anuncios (otro producto/grupo).
 function agregarAnunciosACampana(ids, campanaId){
   let camp = campanaId ? estructuras.find(c=>c.id===campanaId) : null;
+  if(camp && !campanaAcepta(camp, ids)) return null;
   if(!camp){
     camp = mkCampana();
     const c0 = cards.find(c=>c.id===ids[0]);
@@ -1579,8 +1596,7 @@ function proponerCampanaParaLote(ids){
   if(!ids.length) return;
   document.querySelectorAll('.ay-overlay').forEach(x=>x.remove());
   const c0 = cards.find(c=>c.id===ids[0]) || {};
-  const mismaAlcance = c=>(c0.producto_id ? c.producto_id===c0.producto_id : c0.grupo_id ? c.grupo_id===c0.grupo_id : true);
-  const existentes = estructuras.map((c,i)=>({c,i})).sort((a,b)=>(mismaAlcance(b.c)?1:0)-(mismaAlcance(a.c)?1:0));
+  const existentes = estructuras.map((c,i)=>({c,i,ok:campanaAcepta(c, ids)})).sort((a,b)=>(b.ok?1:0)-(a.ok?1:0));
   const nombreNueva = nombreAlcance({ producto_id:c0.producto_id||'', grupo_id:c0.grupo_id||'' });
   const ov = document.createElement('div');
   ov.className = 'ay-overlay';
@@ -1588,7 +1604,7 @@ function proponerCampanaParaLote(ids){
     <h3>¿En qué campaña van estos ${ids.length} anuncios?</h3>
     <p class="ay-nota" style="margin-top:-4px;">Para no confundirte, propongo esto. Tú decides:</p>
     <label class="ay-op"><input type="radio" name="ay-camp" value="" checked><span><b>🆕 Una campaña nueva</b> con todos estos anuncios<small>Campaña: ${escHtml(nombreNueva)} · se crea con su primer conjunto de anuncios (público #1). Después completas objetivo y público en “Estructura de Ads”.</small></span></label>
-    ${existentes.map(({c,i})=>`<label class="ay-op"><input type="radio" name="ay-camp" value="${c.id}"><span><b>➕ Agregarlos a una campaña que ya tengo</b><small>${escHtml(etiquetaCampana(c,i))}${mismaAlcance(c)?' · mismo producto/grupo':''}</small></span></label>`).join('')}
+    ${existentes.map(({c,i,ok})=>`<label class="ay-op${ok?'':' ay-off'}"><input type="radio" name="ay-camp" value="${c.id}"${ok?'':' disabled'}><span><b>➕ Agregarlos a una campaña que ya tengo</b><small>${escHtml(etiquetaCampana(c,i))}${ok ? (c.producto_id||c.grupo_id ? ' · mismo producto/grupo' : ' · campaña general') : ' · no se puede: '+motivoNoAcepta(c)}</small></span></label>`).join('')}
     <div class="ay-btns"><button type="button" class="btn btn-outline" data-ay-luego>Decidir después</button><button type="button" class="btn btn-solid" data-ay-ok>Aceptar</button></div>
   </div>`;
   document.body.appendChild(ov);
@@ -1599,6 +1615,7 @@ function proponerCampanaParaLote(ids){
   ov.querySelector('[data-ay-ok]').addEventListener('click',()=>{
     const v = (ov.querySelector('input[name="ay-camp"]:checked')||{}).value || '';
     const camp = agregarAnunciosACampana(ids, v);
+    if(!camp){ mostrarToast('⚠️ Esa campaña es de otro producto o grupo: no se pueden agregar estos anuncios.'); return; }
     cerrar(); render();
     mostrarToast(`✅ ${ids.length} anuncio(s) ${v ? 'agregados a la campaña' : 'en una campaña nueva'}: <b>${escHtml(nombreAlcance(camp))}</b>. <button type="button" class="link-btn" data-ir-estructura>Verla en Estructura de Ads →</button>`);
   });
@@ -1620,7 +1637,7 @@ function pintarCampanaDelAnuncio(item, modal){
       cuerpo = `<div class="pm-camp-vacio"><p>Este anuncio todavía no está en ninguna campaña.</p>
         <div class="pm-camp-add"><select data-camp-destino>
           <option value="">🆕 Crear una campaña nueva con este anuncio</option>
-          ${estructuras.map((c,i)=>`<option value="${c.id}">➕ Agregar a: ${escHtml(etiquetaCampana(c,i))}</option>`).join('')}
+          ${estructuras.map((c,i)=>{ const ok = campanaAcepta(c, [item.id]); return `<option value="${c.id}"${ok?'':' disabled'}>➕ Agregar a: ${escHtml(etiquetaCampana(c,i))}${ok?'':' — no se puede: '+motivoNoAcepta(c)}</option>`; }).join('')}
         </select><button type="button" class="btn btn-solid btn-sm" data-camp-agregar>Aceptar</button></div></div>`;
     }
   }
@@ -1630,6 +1647,7 @@ function pintarCampanaDelAnuncio(item, modal){
   const ag = box.querySelector('[data-camp-agregar]');
   if(ag) ag.addEventListener('click',()=>{
     const camp = agregarAnunciosACampana([item.id], box.querySelector('[data-camp-destino]').value);
+    if(!camp){ mostrarToast('⚠️ Esa campaña es de otro producto o grupo: no se puede agregar este anuncio.'); return; }
     pintarCampanaDelAnuncio(item);
     mostrarToast(`✅ Anuncio agregado a la campaña <b>${escHtml(nombreAlcance(camp))}</b>.`);
   });
@@ -1782,6 +1800,9 @@ function buildCampanaEstructuraCard(campana){
 }
 
 function buildConjuntoCard(campana, conjunto){
+  const vinculados = conjunto.anuncios_ids || [];
+  const cardsElegibles = cards.filter(c=>campanaAcepta(campana,[c.id]) || vinculados.includes(c.id));
+  const ocultos = cards.length - cardsElegibles.length;
   const card = document.createElement('div');
   card.className = 'conjunto-card';
   card.innerHTML = `
@@ -1825,13 +1846,14 @@ function buildConjuntoCard(campana, conjunto){
     <div class="anuncios-nota-box">
       <p><b>📌 No olvides utilizar formatos:</b> UGC · Testimonio · Demostración · Ángulos...</p>
       <div class="anuncios-link-list">
-        ${cards.length ? cards.map(c=>`
+        ${cardsElegibles.length ? cardsElegibles.map(c=>`
           <label class="anuncio-link-row">
             <input type="checkbox" data-conjunto-anuncio="${conjunto.id}" data-card="${c.id}"${(conjunto.anuncios_ids||[]).includes(c.id)?' checked':''}>
             <span class="badge badge-${c.etapa}">${ETAPA_LABEL[c.etapa]||c.etapa}</span>
             <span class="anuncio-link-titulo" data-editar-card="${c.id}" title="Abrir y editar esta campaña">${escHtml(c.titulo)} ✎</span>
           </label>
-        `).join('') : '<p class="mode-status" style="margin:0;">Todavía no hay campañas guardadas para vincular.</p>'}
+        `).join('') : '<p class="mode-status" style="margin:0;">Todavía no hay anuncios guardados para vincular a esta campaña.</p>'}
+        ${ocultos ? `<p class="mode-status" style="margin:6px 0 0;">Solo se muestran los anuncios de ${campana.producto_id ? 'este producto o servicio' : 'este grupo'}: la campaña respeta lo que se definió al crearla (${ocultos} anuncio(s) de otros productos no se listan).</p>` : ''}
       </div>
       <div class="anuncios-footer">
         <button type="button" class="btn-pill-gray" data-ir-guardadas="1">Crear más anuncios</button>
@@ -1932,7 +1954,7 @@ function renderChat(container){
     </div>
     <div class="pb-sugerencias" id="chat-sugerencias"></div>
     <div class="chat-adjunto-row">
-      <span class="chat-adjunto-hint" id="chat-adjunto-hint">Puedes adjuntar o pegar (Ctrl+V) una imagen de tu anuncio</span>
+      <span class="chat-adjunto-hint" id="chat-adjunto-hint"></span>
       <span class="chat-adjunto-preview" id="chat-adjunto-preview"><img alt=""><span></span><button type="button" id="chat-adjunto-quitar" title="Quitar imagen">✕</button></span>
     </div>
     <div class="hero-meta">
@@ -1957,7 +1979,7 @@ function renderChat(container){
   document.getElementById('chat-adjunto-quitar').addEventListener('click',()=>{
     chatImagenBase64=''; chatImagenNombre='';
     document.getElementById('chat-adjunto-preview').style.display='none';
-    document.getElementById('chat-adjunto-hint').textContent='Puedes adjuntar o pegar (Ctrl+V) una imagen de tu anuncio';
+    document.getElementById('chat-adjunto-hint').textContent='';
     document.getElementById('chat-file-input').value='';
   });
   const resetBtn = document.getElementById('chat-reset-btn');
