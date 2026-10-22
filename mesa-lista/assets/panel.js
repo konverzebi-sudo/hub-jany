@@ -402,6 +402,10 @@ function editorHTML(p){
           ${p.photo?`<button class="btn btn-ghost btn-sm" data-act="nophoto" data-p="${id}">Quitar foto</button>`:''}
           <span class="muted small">Si no subes foto se usa el ícono. Al subirla eliges qué parte se ve.</span></div>`
         :`<span class="muted small">Para usar fotos, primero corre el archivo <b>5-fotos.sql</b> en Supabase (una sola vez). Mientras, se usa el ícono.</span>`}</div></div>
+      <label class="f wide"><span>Video (opcional)</span>${HAS_VIDEO
+        ?`<input class="inp" data-fk="pv-${id}" data-field="video" data-p="${id}" value="${esc(p.video)}" placeholder="Link del video .mp4, ej. https://jefeshub.com/mesa-lista/videos/latte.mp4">
+          <span class="muted small">Se reproduce solo, sin sonido y en loop, al abrir el platillo. Usa clips cortos (5 a 8 segundos, menos de 2 MB).</span>`
+        :`<span class="muted small">Para usar videos, primero corre el archivo <b>6-videos.sql</b> en Supabase (una sola vez).</span>`}</label>
     </div>
     <div><h4>Opciones de este producto</h4>${p.options.length?'':`<p class="muted small" style="margin:4px 0 0">Sin opciones. Agrega solo si el cliente debe elegir algo.</p>`}</div>
     ${p.options.map(g=>{const gid=esc(g.id);return `<div class="og-edit">
@@ -592,7 +596,10 @@ function render(){
 /* =========================================================
    Fotos de platillos: subir y recortar (todas quedan 4:3)
    ========================================================= */
-if(sb) sb.from('products').select('photo').limit(1).then(({error})=>{HAS_PHOTO=!error;if(ui.editing)renderMenuAdmin();});
+if(sb){
+  sb.from('products').select('photo').limit(1).then(({error})=>{HAS_PHOTO=!error;if(ui.editing)renderMenuAdmin();});
+  sb.from('products').select('video').limit(1).then(({error})=>{HAS_VIDEO=!error;if(ui.editing)renderMenuAdmin();});
+}
 function pickPhoto(){
   return new Promise(resolve=>{
     const inp=document.createElement('input');inp.type='file';inp.accept='image/*';

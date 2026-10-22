@@ -21,7 +21,8 @@ let token=store.get('mesalista-device',null);
 if(!token){token=newUUID();store.set('mesalista-device',token);}
 
 const state={settings:settingsFromRow(null),products:[],orders:[]};
-const ui={loaded:false,started:true,toGo:false,accType:store.get('mesalista-acc','mesa'),guest:PREVIEW?'Ana':store.get('mesalista-guest',''),
+const LAYOUTS=['lista','iconos','tarjetas'];
+const ui={loaded:false,started:true,toGo:false,layout:LAYOUTS.includes(store.get('mesalista-layout'))?store.get('mesalista-layout'):'lista',accType:store.get('mesalista-acc','mesa'),guest:PREVIEW?'Ana':store.get('mesalista-guest',''),
   cat:"Todo",q:"",cart:[],pay:"terminal",gnote:"",sheet:null,ptab:"menu",sending:false};
 /* El carrito se guarda en el celular: sobrevive al pasar de la portada a la mesa */
 const CART_KEY='mesalista-cart',CART_TTL=3*3600e3;
@@ -142,22 +143,47 @@ function renderMenu(){
     <div class="hi-bar"><span>${BROWSE?'Elige lo que se te antoje. Para enviar tu pedido escaneas el QR de tu mesa.'
       :ui.guest?`Hola, <b>${esc(ui.guest)}</b>. Estás en la mesa ${TABLE}.`:`Estás en la mesa ${TABLE}. Elige lo que se te antoje.`}</span></div>
     <div class="search"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="search" placeholder="Buscar platillo" value="${esc(ui.q)}" aria-label="Buscar platillo"></div>
+    <div class="c-views" role="group" aria-label="Forma de ver el menú">${[
+      ['lista','Lista','<path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>'],
+      ['iconos','Íconos','<rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/>'],
+      ['tarjetas','Tarjetas','<rect x="3.5" y="3.5" width="17" height="11" rx="2"/><path d="M4 18.5h16"/>']
+    ].map(([k,l,ic])=>`<button data-layout="${k}" aria-pressed="${ui.layout===k}"><svg viewBox="0 0 24 24" aria-hidden="true">${ic}</svg>${l}</button>`).join('')}</div>
     <div class="c-cats" role="group" aria-label="Categorías">${cats.map(c=>`<button data-cat="${esc(c)}" aria-pressed="${c===ui.cat}">${esc(c)}</button>`).join('')}</div>
-    <div class="c-list">${!state.products.length?`<p style="color:var(--c-muted);text-align:center;padding:20px 0">El menú todavía no está disponible.</p>`
-      :groups.length?groups.map(([c,ps])=>`${ui.cat==='Todo'?`<div class="c-sec">${esc(c)}</div>`:''}${ps.map(itemHTML).join('')}`).join('')
+    <div class="c-list v-${ui.layout}">${!state.products.length?`<p style="color:var(--c-muted);text-align:center;padding:20px 0">El menú todavía no está disponible.</p>`
+      :groups.length?groups.map(([c,ps])=>`${ui.cat==='Todo'?`<div class="c-sec">${esc(c)}</div>`:''}${ps.map(ITEM[ui.layout]).join('')}`).join('')
       :`<p style="color:var(--c-muted);text-align:center;padding:20px 0">No encontramos platillos con “${esc(ui.q)}”.</p>`}</div>`;
   document.getElementById('search').oninput=e=>{ui.q=e.target.value;const pos=e.target.selectionStart;renderMenu();const s=document.getElementById('search');s.focus();try{s.setSelectionRange(pos,pos);}catch(_){}};
   pBody.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>{ui.cat=b.dataset.cat;renderMenu();});
+  pBody.querySelectorAll('[data-layout]').forEach(b=>b.onclick=()=>{ui.layout=b.dataset.layout;store.set('mesalista-layout',ui.layout);renderMenu();});
   pBody.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openProduct(b.dataset.open));
 }
 function itemHTML(p){
-  const n=ui.cart.filter(l=>l.pid===p.id).reduce((s,l)=>s+l.q,0);
+  const n=inCart(p);
   return `<button class="c-item" data-open="${esc(p.id)}" ${p.available?'':'disabled'} aria-label="${esc(p.name)}">
     ${photoTag(p)}
     <div><h4>${esc(p.name)}</h4><p>${esc(p.desc)}</p><div class="c-price">${money(p.price)}${p.options.length?'<span class="c-tag">Personalizable</span>':''}</div></div>
     ${p.available?`<span class="c-add" aria-hidden="true">+${n?`<span class="n">${n}</span>`:''}</span>`:'<span class="c-out">Agotado</span>'}
   </button>`;
 }
+const inCart=p=>ui.cart.filter(l=>l.pid===p.id).reduce((s,l)=>s+l.q,0);
+/* Vista 2: íconos tipo app, con el nombre abajo */
+function iconHTML(p){
+  const n=inCart(p);
+  return `<button class="c-ico" data-open="${esc(p.id)}" ${p.available?'':'disabled'} aria-label="${esc(p.name)}, ${money(p.price)}">
+    <span class="ico-wrap">${photoTag(p,'ico-tile')}${videoBadge(p)}</span>${n?`<span class="n">${n}</span>`:''}
+    <span class="nm">${esc(p.name)}</span><span class="pr">${p.available?money(p.price):'Agotado'}</span>
+  </button>`;
+}
+/* Vista 3: tarjetas con la imagen grande */
+function cardHTML(p){
+  const n=inCart(p);
+  return `<button class="c-card" data-open="${esc(p.id)}" ${p.available?'':'disabled'} aria-label="${esc(p.name)}">
+    <div class="card-media">${p.photo?`<img src="${esc(p.photo)}" alt="" loading="lazy">`:`<span aria-hidden="true">${esc(p.emoji)}</span>`}<span class="card-tag">${esc(p.cat)}</span>${videoBadge(p)}</div>
+    <div class="card-body"><h4>${esc(p.name)}</h4><p>${esc(p.desc)}</p>
+      <div class="card-foot"><b>${money(p.price)}</b>${p.available?`<span class="c-add" aria-hidden="true">+${n?`<span class="n">${n}</span>`:''}</span>`:'<span class="c-out">Agotado</span>'}</div></div>
+  </button>`;
+}
+const ITEM={lista:itemHTML,iconos:iconHTML,tarjetas:cardHTML};
 function renderCartBar(){
   const bar=document.getElementById('cartBar');
   const show=ui.started&&ui.ptab==='menu'&&ui.cart.length&&!ui.sheet;
@@ -204,11 +230,19 @@ function productSheet(el,s){
   if(!p||!p.available){ui.sheet=null;el.classList.add('hidden');return;}
   el.classList.remove('hidden');
   const unit=unitOf(p,s),ok=validOf(p,s);
+  const post=ui.layout!=='lista',biz=state.settings;
+  const vt=el.querySelector('video')?.currentTime||0; // el video sigue donde iba al elegir opciones
   el.innerHTML=`<div class="sheet-back" data-close></div>
-  <div class="sheet-panel" role="dialog" aria-modal="true" aria-label="Personalizar ${esc(p.name)}"><div class="grab"></div>
+  <div class="sheet-panel${post?' post':''}" role="dialog" aria-modal="true" aria-label="Personalizar ${esc(p.name)}">${post
+    ?`<div class="post-head"><div class="p-logo">${biz.logo?`<img src="${esc(biz.logo)}" alt="">`:'<span aria-hidden="true">🍽️</span>'}</div>
+       <div><b>${esc(biz.name)}</b><small>${esc(p.cat)}</small></div><button class="x" data-close aria-label="Cerrar">✕</button></div>`
+    :'<div class="grab"></div>'}
     <div class="sheet-body">
-      ${p.photo?`<div class="s-photo"><img src="${esc(p.photo)}" alt="${esc(p.name)}"></div>`:''}
-      <div class="s-head">${photoTag(p)}<div><h3>${esc(p.name)}</h3><p>${esc(p.desc)}</p><b>${money(p.price)}</b></div><button class="x" data-close aria-label="Cerrar">✕</button></div>
+      ${post?`<div class="post-media">${mediaInner(p)}</div>
+      <div class="post-title"><h3>${esc(p.name)}</h3><b>${money(p.price)}</b></div>
+      ${p.desc?`<p class="post-desc">${esc(p.desc)}</p>`:''}`
+      :`${p.photo||p.video?`<div class="s-photo">${mediaInner(p)}</div>`:''}
+      <div class="s-head">${photoTag(p)}<div><h3>${esc(p.name)}</h3><p>${esc(p.desc)}</p><b>${money(p.price)}</b></div><button class="x" data-close aria-label="Cerrar">✕</button></div>`}
       ${p.options.map(g=>{const has=(s.sel[g.id]||[]).length>0;
         return `<fieldset class="og"><legend>${esc(g.name)} ${g.required?`<span class="req ${has?'ok':''}">${has?'Listo':'Obligatorio'}</span>`:`<span class="optl">Opcional${g.multi?', elige varias':''}</span>`}</legend>
           <div class="chips">${g.choices.map((c,ci)=>`<button data-g="${esc(g.id)}" data-c="${ci}" aria-pressed="${(s.sel[g.id]||[]).includes(ci)}">${esc(c.name)}${+c.price?`<small>+${money(c.price)}</small>`:''}</button>`).join('')}</div></fieldset>`;}).join('')}
@@ -218,6 +252,7 @@ function productSheet(el,s){
       <div class="stepper"><button data-sq="-1" aria-label="Menos">−</button><span>${s.q}</span><button data-sq="1" aria-label="Más">+</button></div>
       <button class="c-cta" id="addLine" ${ok?'':'disabled'}><span>${ok?'Agregar':'Elige lo obligatorio'}</span><span>${money(unit*s.q)}</span></button>
     </div></div>`;
+  const nv=el.querySelector('video'); if(nv&&vt){try{nv.currentTime=vt;}catch(e){}}
   el.querySelectorAll('[data-close]').forEach(b=>b.onclick=closeSheet);
   el.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{
     const g=p.options.find(x=>x.id===b.dataset.g),ci=+b.dataset.c,cur=s.sel[g.id]||[];
