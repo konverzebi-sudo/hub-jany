@@ -332,12 +332,29 @@
       menu.appendChild(opcion('crear', '➕ Crear campaña de temporada nueva', 'Con un producto que ya tienes o uno 100% nuevo', '', function () { cfgT.crear(); }, 'foco-crear'));
     }
 
+    // Jefe 366: solo los productos que ya empezaron su 366; los demas quedan tras "Ver otros productos".
     var sin = lista.filter(function (p) { return p && p.nombre && !tieneCampana(p); });
-    if (sin.length) {
+    var en366 = sin.filter(function (p) { return estadoDe(p).empezado; });
+    var otros366 = sin.filter(function (p) { return !estadoDe(p).empezado; });
+    if (en366.length) {
       menu.appendChild(titulo('Jefe 366 · productos sin campaña de temporada'));
-      sin.forEach(function (p) {
+      en366.forEach(function (p) {
         menu.appendChild(opcion(p.id, String(p.nombre).trim(), 'Se abre en Jefe 366', precioTexto(p.precio), function () { irAJefe366(p); }));
       });
+    }
+    if (otros366.length) {
+      var mas = document.createElement('button');
+      mas.type = 'button';
+      mas.className = 'foco-mas';
+      mas.textContent = verOtros ? 'Ocultar otros productos' : 'Ver otros productos (' + otros366.length + ')';
+      mas.addEventListener('click', function (e) { e.stopPropagation(); verOtros = !verOtros; pintar(); });
+      menu.appendChild(mas);
+      if (verOtros) {
+        menu.appendChild(titulo('Productos sin empezar su 366'));
+        otros366.forEach(function (p) {
+          menu.appendChild(opcion(p.id, String(p.nombre).trim(), 'Sin empezar · se abre en Jefe 366', precioTexto(p.precio), function () { irAJefe366(p); }));
+        });
+      }
     }
 
     var pie = document.createElement('div');
