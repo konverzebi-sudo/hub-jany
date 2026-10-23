@@ -204,6 +204,9 @@
   .ac-item b{font-weight:700;}
   .ac-item:hover,.ac-item.on{background:var(--surface-2);}
   .tt-acciones{display:flex;align-items:center;gap:10px;justify-content:center;flex-wrap:wrap;}
+  .tt-acciones[hidden]{display:none;}
+  #chat-inline-status{display:block;text-align:center;}
+  #chat-inline-status:empty{display:none;}
   .file-btn{background:#F0F0F0;color:var(--text);border:1px solid #E2E2E2;font-family:Inter,sans-serif;font-size:13px;font-weight:600;}
   .file-btn:hover{border-color:var(--accent);background:var(--accent-soft);}
   .file-name{color:var(--text-dim);}
@@ -591,7 +594,7 @@ function guardarChatsEnCampana(){
   camp.chat_general = chatMessages.slice(-60);
   scheduleGuardarCampanas();
 }
-function cambiarCampana(id){ campanaActivaId=id||null; pasoAbierto=null; modulosTocados=new Set(); sincronizarChatsDesdeCampana(); render(); renderToolbar(); sincronizarFocoConCampana(); }
+function cambiarCampana(id){ campanaActivaId=id||null; chatAbierto=false; pasoAbierto=null; modulosTocados=new Set(); sincronizarChatsDesdeCampana(); render(); renderToolbar(); sincronizarFocoConCampana(); }
 function actualizarNombreCampana(valor){
   const camp=activeCampana(); if(!camp) return;
   camp.nombre=valor;
@@ -1246,7 +1249,7 @@ function render(){
         <label class="hero-search" for="chat-input">
           <svg class="lupa" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>
           <span class="sep"></span>
-          <textarea id="chat-input" rows="1" placeholder="Cuéntame qué temporada quieres planear" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,140)+'px';pintarAC()" onfocus="pintarAC()" onblur="cerrarAC()" onkeydown="teclaChat(event)" autocomplete="off"></textarea>
+          <textarea id="chat-input" rows="1" placeholder="Cuéntame qué temporada quieres planear" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,140)+'px';pintarAC()" onfocus="abrirChat();pintarAC()" onblur="cerrarAC()" onkeydown="teclaChat(event)" autocomplete="off"></textarea>
           <button type="button" class="hero-send" id="chat-send-btn" onclick="enviarMensajeChat()" aria-label="Enviar"><img src="/img/jefe-temporada.webp" alt=""></button>
         </label>
         <div class="ac-lista" id="chat-ac" role="listbox" aria-label="Sugerencias" hidden></div>
@@ -1256,11 +1259,11 @@ function render(){
           <span>✅ Hay contenido listo para guardar en tu tablero de respuestas.</span>
           <button type="button" class="btn" onclick="confirmarChat()">Guardar (CONFIRMO JEFE)</button>
         </div>
-        <div class="tt-acciones">
+        <span id="chat-inline-status" class="chat-inline-status"></span>
+        <div class="tt-acciones" id="tt-acciones"${(chatAbierto||chatMessages.length)?'':' hidden'}>
           <label class="file-btn">📎 Subir capturas<input type="file" id="chat-capturas" accept="image/*" multiple hidden onchange="onArchivosChat('general')"></label>
           <label class="file-btn">📄 Subir .txt<input type="file" id="chat-txt" accept=".txt" multiple hidden onchange="onArchivosChat('general')"></label>
           <span id="chat-files-name" class="file-name"></span>
-          <span id="chat-inline-status" class="chat-inline-status"></span>
           <button type="button" class="btn-outline" onclick="reiniciarChat()">Reiniciar chat</button>
         </div>
       </div>
@@ -1279,6 +1282,9 @@ function render(){
 // TABLERO DE RESPUESTAS: los 12 módulos del Documento como línea de tiempo (círculo numerado + botón gris, igual que
 // el Jefe 366). Cada módulo abre su propio formulario (el mismo de siempre, con sus mismos campos y guardado); el
 // círculo se pone negro cuando el módulo está completo y el que sigue lleva aro. Se abre uno a la vez.
+// Subir capturas / .txt y Reiniciar chat aparecen hasta que se abre el chat (clic en la barra o ya hay conversación)
+let chatAbierto = false;
+function abrirChat(){ chatAbierto=true; const a=document.getElementById('tt-acciones'); if(a) a.hidden=false; }
 let pasoAbierto = null;          // número del módulo abierto
 let modulosTocados = new Set();  // módulos que llenó el último CONFIRMO JEFE ("· actualizado")
 function moduloDeCampo(c){
