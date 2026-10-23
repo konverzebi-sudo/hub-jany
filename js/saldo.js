@@ -35,7 +35,7 @@
     '.sld-aviso.alto{border-color:#F5A623}',
     '.sld-aviso .sld-btn{flex:none;white-space:nowrap}',
     '.sld-aviso .sld-x{flex:none;background:none;border:0;color:#fff;opacity:.6;font-size:18px;cursor:pointer;padding:0 2px}',
-    '@media (max-width:720px){.sld-hub{left:12px;right:12px;bottom:12px;width:auto}.sld-aviso{flex-wrap:wrap;bottom:74px}.sld-aviso .sld-btn{flex:1 1 100%}}'
+    '@media (max-width:720px){.sld-hub{left:12px;right:12px;bottom:12px;width:auto;padding:10px 14px}.sld-hub .sld-top{margin-bottom:6px}.sld-hub .sld-sub{margin-top:5px}.sld-aviso{flex-wrap:wrap;bottom:74px}.sld-aviso .sld-btn{flex:1 1 100%}}'
   ].join('');
 
   function ponerCss() {
@@ -67,10 +67,9 @@
       caja.setAttribute('role', 'status');
       var html = '<div class="sld-top"><b>Tokens de tu plan</b><span class="sld-pct">' + e.porcentaje + '%</span></div>' +
         '<div class="sld-bar" aria-hidden="true"><i class="' + claseBarra(e) + '" style="width:' + Math.min(100, e.porcentaje) + '%"></i></div>' +
-        '<div class="sld-sub">' + millones(e.tokensUsados).replace(/ millones?$/, '') + ' de ' + millones(e.tokensTotales) + ' de tokens · se renueva el ' + fechaCorta(e.renueva) +
-        (e.sinTope ? ' · sin tope' : '') + '</div>';
+        '<div class="sld-sub">Se renueva el ' + fechaCorta(e.renueva) + '</div>';
       if (e.paquetes && e.paquetes.length) {
-        html += '<div class="sld-sub">Paquete extra activo hasta el ' + fechaCorta(e.paquetes[e.paquetes.length - 1].vence) + '</div>';
+        html += '<div class="sld-sub">+ paquete extra hasta el ' + fechaCorta(e.paquetes[e.paquetes.length - 1].vence) + '</div>';
       }
       if (e.bloqueado) {
         html += '<div class="sld-tope"><p><b>Llegaste al tope de tokens de este ciclo.</b> Tus Jefes no pueden usar la IA hasta el ' +

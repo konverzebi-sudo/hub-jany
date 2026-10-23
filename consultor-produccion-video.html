@@ -171,6 +171,12 @@
   .px-modal-card h3{margin:0 40px 14px 0;font:800 18px 'Sora',sans-serif;}
   .px-modal-x{position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:50%;border:none;background:rgba(0,0,0,.07);color:var(--text);font-size:15px;cursor:pointer;}
   .px-modal .px-detalle{border-top:none;margin:0;padding:0;}
+  .px-ficha{display:flex;flex-direction:column;gap:12px;margin-top:14px;}
+  .px-f span{display:block;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--accent-text);margin-bottom:3px;}
+  .px-f input,.px-f textarea,.px-f select{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font:500 15px 'Inter',sans-serif;line-height:1.45;background:var(--surface-2);color:var(--text);outline:none;resize:vertical;}
+  .px-f input:focus,.px-f textarea:focus,.px-f select:focus{border-color:var(--accent-text);}
+  .px-ficha .px-confirm-btns{position:sticky;bottom:-26px;background:var(--surface);padding:12px 0 4px;margin-top:4px;}
+  .px-f-fila{display:flex;gap:10px;}.px-f-fila .px-f{flex:1;min-width:0;}
   .px-modal-img{display:block;width:100%;max-height:70vh;object-fit:contain;border-radius:14px;}
   .px-modal .px-confirm-btns{margin-top:12px;}
   @media (min-width:700px){.px-modal{align-items:center;padding:24px;}.px-modal-card{border-radius:24px;}}
@@ -958,7 +964,7 @@ function pintarProximos(){
   const sec = (titulo, lista, tab) => lista.length
     ? `<div class="px-sec"><div class="px-sec-tit">${titulo}</div><div class="px-row">${lista.map((r) => tarjetaPx(r, tab)).join('')}</div></div>` : '';
   host.innerHTML = sec('Próximos posts', posts, 'contenido') + sec('Próximas historias', hist, 'historias') + sec('Próximas campañas', camps, 'campanas');
-  host.querySelectorAll('.px-card').forEach((b) => b.addEventListener('click', () => elegirTrabajoPx(b.dataset.tab, b.dataset.id)));
+  host.querySelectorAll('.px-card').forEach((b) => b.addEventListener('click', () => { seleccionarPostPx(b.dataset.tab, b.dataset.id); abrirPopupPx('post'); }));
 }
 function itemPx(){
   if (!trabajoPx) return null;
@@ -994,7 +1000,7 @@ function txtPx(v){
   return String(v).trim();
 }
 // "Ver post": lo que la publicación (post, historia o campaña) tiene guardado; solo se muestra lo que tenga datos.
-function detalleHtmlPx(r, tab, copyPrimero){
+function detalleHtmlPx(r, tab, modoDetalle){
   const c = r.raw || {}; // campañas: la card original del Jefe de Anuncios
   const esCamp = tab === 'campanas';
   const chips = [];
@@ -1023,7 +1029,8 @@ function detalleHtmlPx(r, tab, copyPrimero){
     ['Título', r.gancho], ['Idea', r.ganchoIdea || r.descripcion], ['Caption', r.caption], ['Guion', r.guion], ['Notas', notas],
     ['Prompt de imagen', r.promptImagen], ['Prompt de video', r.promptVideo],
   ]).map(([t, v]) => [t, txtPx(v)]).filter(([, v]) => v);
-  if (copyPrimero) bloques.sort((a, b) => (/^(Caption|Copy)/.test(b[0]) ? 1 : 0) - (/^(Caption|Copy)/.test(a[0]) ? 1 : 0));
+  if (modoDetalle === 'chips') return `<div class="px-chips">${chips.map(([k, v]) => `<span class="px-chip"><b>${escHtml(k)}</b>${escHtml(v)}</span>`).join('')}</div>`;
+  if (modoDetalle === 'copy') bloques.sort((a, b) => (/^(Caption|Copy)/.test(b[0]) ? 1 : 0) - (/^(Caption|Copy)/.test(a[0]) ? 1 : 0));
   return `<div class="px-detalle">
     <div class="px-chips">${chips.map(([k, v]) => `<span class="px-chip"><b>${escHtml(k)}</b>${escHtml(v)}</span>`).join('')}</div>
     ${bloques.map(([t, v]) => `<div class="px-bloque"><span class="px-bloque-t">${escHtml(t)}</span><p>${escHtml(v)}</p></div>`).join('')}
@@ -1099,7 +1106,93 @@ function ejecutarAccionPx(accion, specs){
     el.value = ''; autoAlto();
   }
 }
-// Ventana con el post, la publicación completa, el prompt de imagen o la imagen.
+// ─── FICHA EDITABLE: los mismos datos que la ficha del Jefe de Contenido / Jefe de Anuncios (se guardan allá) ───
+function camposFichaPx(r, tab){
+  const estados = [['idea', 'Idea'], ['proceso', 'En proceso'], ['programado', 'Programado'], ['publicado', 'Publicado']];
+  if (tab === 'campanas') {
+    const c = r.raw || {};
+    return [
+      { k: 'titulo', t: 'Título', v: c.titulo, tipo: 'text' }, { k: 'hook', t: 'Hook', v: c.hook, tipo: 'area', filas: 2 },
+      { k: 'objetivo', t: 'Objetivo', v: c.objetivo, tipo: 'area', filas: 2 }, { k: 'copy_publicacion', t: 'Copy de la publicación', v: c.copy_publicacion, tipo: 'area', filas: 4 },
+      { k: 'guion', t: 'Guion', v: c.guion, tipo: 'area', filas: 5 }, { k: 'visual_sugerido', t: 'Visual sugerido', v: c.visual_sugerido, tipo: 'area', filas: 3 },
+      { k: 'prompt_imagen', t: 'Prompt de imagen', v: c.prompt_imagen, tipo: 'area', filas: 4 }, { k: 'prompt_video', t: 'Prompt de video', v: c.prompt_video, tipo: 'area', filas: 4 },
+      { k: 'fecha', t: 'Fecha', v: c.fecha, tipo: 'fecha' },
+    ];
+  }
+  const kIdea = (r.ganchoIdea == null || r.ganchoIdea === '') && r.descripcion ? 'descripcion' : 'ganchoIdea';
+  return [
+    { k: 'gancho', t: 'Título', v: r.gancho, tipo: 'text' }, { k: kIdea, t: 'Idea', v: r[kIdea], tipo: 'area', filas: 3 },
+    { k: 'caption', t: 'Caption / copy', v: r.caption, tipo: 'area', filas: 5 }, { k: 'guion', t: 'Guion', v: r.guion, tipo: 'area', filas: 6 },
+    { k: 'notas', t: 'Notas', v: r.notas, tipo: 'area', filas: 3 },
+    { k: 'promptImagen', t: 'Prompt de imagen', v: r.promptImagen, tipo: 'area', filas: 4 }, { k: 'promptVideo', t: 'Prompt de video', v: r.promptVideo, tipo: 'area', filas: 4 },
+    { k: 'estado', t: 'Estado', v: estadoPx(r), tipo: 'estado', opciones: estados }, { k: 'fecha', t: 'Fecha', v: r.fecha, tipo: 'fecha' },
+  ];
+}
+function fichaHtmlPx(r, tab){
+  const campo = (c) => {
+    const v = escHtml(txtPx(c.v));
+    let ctl;
+    if (c.tipo === 'text') ctl = `<input type="text" name="${c.k}" value="${v}">`;
+    else if (c.tipo === 'fecha') ctl = `<input type="date" name="${c.k}" value="${/^\d{4}-\d{2}-\d{2}$/.test(c.v || '') ? c.v : ''}">`;
+    else if (c.tipo === 'estado') ctl = `<select name="${c.k}">${c.opciones.map(([val, txt]) => `<option value="${val}"${c.v === val ? ' selected' : ''}>${txt}</option>`).join('')}</select>`;
+    else ctl = `<textarea name="${c.k}" rows="${c.filas || 3}">${v}</textarea>`;
+    return `<label class="px-f"><span>${c.t}</span>${ctl}</label>`;
+  };
+  const cs = camposFichaPx(r, tab);
+  const fechaEstado = cs.filter((c) => c.tipo === 'estado' || c.tipo === 'fecha');
+  return `${detalleHtmlPx(r, tab, 'chips')}
+    <form class="px-ficha" id="px-ficha">${cs.filter((c) => !fechaEstado.includes(c)).map(campo).join('')}
+      <div class="px-f-fila">${fechaEstado.map(campo).join('')}</div>
+      <div class="px-confirm-btns"><button type="submit" class="px-btn px-btn-ok">💾 Guardar cambios</button><button type="button" class="link-btn" data-m="cerrar">Cancelar</button></div>
+    </form>`;
+}
+async function guardarCamposPx(tab, id, cambios){
+  const key = tab === 'campanas' ? ANUNCIOS_KEY : CONTENIDO_KEY;
+  const rr = await window.storage.get(key);
+  const d = rr && rr.value ? JSON.parse(rr.value) : null;
+  const lista = tab === 'campanas' ? d : (d && d[tab]);
+  const it = Array.isArray(lista) ? lista.find((x) => x && x.id === id) : null;
+  if (!it) throw new Error('No encontré la publicación para guardar los cambios.');
+  Object.assign(it, cambios);
+  await window.storage.set(key, JSON.stringify(d));
+}
+function aplicarCamposLocalPx(r, tab, cambios){
+  if (tab !== 'campanas') { Object.assign(r, cambios); return; }
+  const raw = r.raw || (r.raw = {});
+  Object.assign(raw, cambios);
+  if ('titulo' in cambios) r.gancho = cambios.titulo;
+  if ('copy_publicacion' in cambios) r.caption = cambios.copy_publicacion;
+  if ('objetivo' in cambios) r.descripcion = cambios.objetivo;
+  if ('prompt_imagen' in cambios) r.promptImagen = cambios.prompt_imagen;
+  if ('prompt_video' in cambios) r.promptVideo = cambios.prompt_video;
+  if ('fecha' in cambios) r.fecha = cambios.fecha;
+}
+function enlazarFichaPx(m, foco){
+  const f = m.querySelector('#px-ficha'); if (!f) return;
+  f.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const r = itemPx(); if (!r) return;
+    const tab = trabajoPx.tab, id = r.id;
+    const cambios = {};
+    camposFichaPx(r, tab).forEach((c) => {
+      const el = f.elements[c.k]; if (!el) return;
+      const nuevo = el.value.trim(), antes = txtPx(c.v);
+      if (nuevo !== antes) cambios[c.k] = nuevo;
+    });
+    const btn = f.querySelector('button[type=submit]');
+    if (!Object.keys(cambios).length) { cerrarPopupPx(); return; }
+    btn.disabled = true; btn.textContent = 'Guardando…';
+    try {
+      await guardarCamposPx(tab, id, cambios);
+      aplicarCamposLocalPx(r, tab, cambios);
+      pintarProximos(); pintarTrabajoPx();
+      btn.textContent = '✅ Guardado';
+      setTimeout(cerrarPopupPx, 600);
+    } catch (err) { btn.disabled = false; btn.textContent = '⚠️ No se pudo guardar — reintentar'; }
+  });
+  if (foco === 'copy') { const t = f.querySelector('[name=caption],[name=copy_publicacion]'); if (t) setTimeout(() => t.focus({ preventScroll: false }), 50); }
+}
+// Ventana con la ficha del post, el prompt de imagen o la imagen.
 function cerrarPopupPx(){
   const m = $('px-modal'); if (m) m.remove();
   document.removeEventListener('keydown', escPopupPx);
@@ -1110,7 +1203,7 @@ async function abrirPopupPx(id){
   const tab = trabajoPx.tab;
   await cargarCatalogoPx();
   let titulo, cuerpo;
-  if (id === 'post' || id === 'copy') { titulo = id === 'copy' ? 'Publicación completa' : 'Post'; cuerpo = detalleHtmlPx(r, tab, id === 'copy'); }
+  if (id === 'post' || id === 'copy') { titulo = 'Ficha del post'; cuerpo = fichaHtmlPx(r, tab); }
   else if (id === 'pimg') {
     titulo = 'Prompt de imagen';
     cuerpo = `<textarea class="px-confirm-txt" rows="9" readonly>${escHtml(r.promptImagen || '')}</textarea>
@@ -1121,8 +1214,10 @@ async function abrirPopupPx(id){
   m.className = 'px-modal'; m.id = 'px-modal';
   m.innerHTML = `<div class="px-modal-card" role="dialog" aria-modal="true"><button type="button" class="px-modal-x" aria-label="Cerrar">✕</button><h3>${escHtml(titulo)}</h3>${cuerpo}</div>`;
   m.addEventListener('click', (e) => { if (e.target === m || e.target.closest('.px-modal-x')) cerrarPopupPx(); });
+  if (id === 'post' || id === 'copy') enlazarFichaPx(m, id);
   m.querySelectorAll('[data-m]').forEach((b) => b.addEventListener('click', () => {
-    if (b.dataset.m === 'copiar') {
+    if (b.dataset.m === 'cerrar') cerrarPopupPx();
+    else if (b.dataset.m === 'copiar') {
       const antes = b.textContent;
       navigator.clipboard.writeText(r.promptImagen || '').then(() => { b.textContent = '✅ Copiado'; setTimeout(() => { b.textContent = antes; }, 1800); });
     } else { cerrarPopupPx(); ejecutarAccionPx('img', ''); }
