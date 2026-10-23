@@ -194,11 +194,15 @@
   .hero-send:disabled{opacity:.45;cursor:wait;}
   .hero-send img{width:36px;height:36px;object-fit:contain;}
   /* Sugerencias estilo buscador: tarjeta blanca debajo de la barra, una por renglón con su lupa (como en Jefe de Contenido) */
-  #chat-sugerencias{width:100%;max-width:700px;margin:6px auto 2px;background:#fff;border:1px solid #E5E7EB;border-radius:22px;box-shadow:0 10px 30px rgba(0,0,0,.10);padding:8px;}
-  #chat-sugerencias:empty{display:none;}
-  .pb-sugerencia{display:flex;align-items:center;gap:14px;width:100%;text-align:left;border:0;background:transparent;color:var(--text);border-radius:14px;padding:12px 14px;font:500 15.5px Inter,sans-serif;cursor:pointer;transition:background .15s;}
-  .pb-sugerencia:hover{background:var(--accent-soft);}
-  .pb-sugerencia svg{width:20px;height:20px;flex:0 0 auto;color:#6B7280;}
+  /* Autocompletar estilo buscador (Google / YouTube): aparece bajo la barra al enfocar o escribir y se filtra con lo que escribes */
+  .hero-pill-wrap{position:relative;width:100%;max-width:760px;margin:0 auto 10px;}
+  .hero-pill-wrap .hero-search{margin-bottom:0;max-width:none;}
+  .ac-lista{position:absolute;left:12px;right:12px;top:calc(100% + 6px);z-index:60;background:#fff;border:1px solid var(--line);border-radius:20px;box-shadow:0 16px 40px rgba(0,0,0,.16);padding:8px;max-height:min(60vh,420px);overflow-y:auto;}
+  .ac-lista[hidden]{display:none;}
+  .ac-item{display:flex;align-items:center;gap:14px;width:100%;text-align:left;background:none;border:none;border-radius:12px;padding:11px 14px;cursor:pointer;font:400 16px Inter,sans-serif;color:var(--text);}
+  .ac-item svg{width:18px;height:18px;flex-shrink:0;color:var(--text-dim);}
+  .ac-item b{font-weight:700;}
+  .ac-item:hover,.ac-item.on{background:var(--surface-2);}
   .tt-acciones{display:flex;align-items:center;gap:10px;justify-content:center;flex-wrap:wrap;}
   .file-btn{background:#F0F0F0;color:var(--text);border:1px solid #E2E2E2;font-family:Inter,sans-serif;font-size:13px;font-weight:600;}
   .file-btn:hover{border-color:var(--accent);background:var(--accent-soft);}
@@ -1238,13 +1242,15 @@ function render(){
     <div id="temporada-main">
       <div id="general-chat-box" class="chat-box">
         <img class="tt-hero-logo" src="/img/jefe-temporada.webp" alt="Jefe de Temporada">
+        <div class="hero-pill-wrap">
         <label class="hero-search" for="chat-input">
           <svg class="lupa" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>
           <span class="sep"></span>
-          <textarea id="chat-input" rows="1" placeholder="Cuéntame qué temporada quieres planear" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,140)+'px';document.getElementById('chat-sugerencias').style.display=this.value.trim()?'none':''" onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();enviarMensajeChat();}"></textarea>
+          <textarea id="chat-input" rows="1" placeholder="Cuéntame qué temporada quieres planear" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,140)+'px';pintarAC()" onfocus="pintarAC()" onblur="cerrarAC()" onkeydown="teclaChat(event)" autocomplete="off"></textarea>
           <button type="button" class="hero-send" id="chat-send-btn" onclick="enviarMensajeChat()" aria-label="Enviar"><img src="/img/jefe-temporada.webp" alt=""></button>
         </label>
-        <div id="chat-sugerencias"></div>
+        <div class="ac-lista" id="chat-ac" role="listbox" aria-label="Sugerencias" hidden></div>
+        </div>
         <div class="chat-thread" id="chat-thread"></div>
         <div class="confirmo-banner" id="chat-confirmo-banner" style="display:none">
           <span>✅ Hay contenido listo para guardar en tu tablero de respuestas.</span>
@@ -1267,7 +1273,6 @@ function render(){
   renderChatThread();
   renderDocumento(document.getElementById('doc-sections'), camp);
   construirLineaTiempo(document.getElementById('doc-sections'), camp);
-  renderSugerencias();
   renderToolbar();
 }
 
@@ -1329,21 +1334,77 @@ function construirLineaTiempo(container, camp){
   if(conecta){ conecta.id='tt-conecta'; container.insertBefore(tl,conecta); container.appendChild(conecta); }
   else container.appendChild(tl);
 }
-// Sugerencias rápidas debajo de la barra: cambian según lo que ya llevas llenado
-function renderSugerencias(){
-  const el=document.getElementById('chat-sugerencias'); const camp=activeCampana();
-  if(!el||!camp) return;
-  const est=calcularCompletitudCampana(camp), sig=est.find(m=>!m.completo);
-  const lupa='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>';
-  const lista=[
+// Autocompletar del chat (mismo patrón que Jefe de Anuncios): al enfocar muestra 5 sugerencias según lo que llevas
+// llenado y al escribir se filtran; elegir una la envía.
+function normAC(t){ return String(t||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim(); }
+function bancoSugerenciasChat(){
+  const camp=activeCampana();
+  const sig=camp ? calcularCompletitudCampana(camp).find(m=>!m.completo) : null;
+  const base=[
     chatMessages.length ? 'Retomemos: ¿en qué punto vamos con esta campaña?' : 'Empecemos: quiero planear una temporada',
     sig ? 'Sigamos con el módulo '+sig.num+' — '+sig.nombre : 'Revisemos la campaña completa antes de compartirla',
     '¿Qué me falta por llenar?',
     '¿Qué fechas debo tener en mi calendario?',
     'Dame ideas de contenido y anuncios para esta campaña',
   ];
-  el.innerHTML=lista.map((t,i)=>'<button type="button" class="pb-sugerencia" data-i="'+i+'">'+lupa+'<span>'+escHtml(t)+'</span></button>').join('');
-  el.querySelectorAll('button').forEach((b,i)=>b.addEventListener('click',()=>{ document.getElementById('chat-input').value=lista[i]; enviarMensajeChat(); }));
+  const extra=[
+    'Ayúdame a definir el incentivo y la urgencia real de esta campaña',
+    'Calcula mis metas de ventas y los leads que necesito',
+    'Arma el plan de calentamiento con fechas de precampaña',
+    'Propón el mensaje principal y las frases de la campaña',
+    '¿Qué objeciones tendrá mi cliente en esta temporada?',
+    'Prepara el calendario final de ejecución con fechas',
+    'Resume lo que llevamos y dime el siguiente paso',
+  ];
+  return base.concat(extra);
+}
+let acItems=[], acIdx=-1;
+function sugerenciasParaTexto(texto){
+  const todas=bancoSugerenciasChat();
+  const q=normAC(texto);
+  if(!q) return todas.slice(0,5);
+  const tokens=q.split(' ');
+  return todas.map(t=>({t,n:normAC(t)})).filter(x=>tokens.every(k=>x.n.includes(k)))
+    .map(x=>({t:x.t,r:x.n.startsWith(q)?0:(x.n.split(' ').some(w=>w.startsWith(tokens[0]))?1:2)}))
+    .sort((a,b)=>a.r-b.r).map(x=>x.t).slice(0,6);
+}
+function cerrarAC(){ const b=document.getElementById('chat-ac'); if(b){ b.hidden=true; b.innerHTML=''; } acItems=[]; acIdx=-1; }
+function pintarAC(){
+  const box=document.getElementById('chat-ac'), inp=document.getElementById('chat-input');
+  if(!box||!inp||!activeCampana()) return;
+  acItems=sugerenciasParaTexto(inp.value); acIdx=-1;
+  if(!acItems.length){ cerrarAC(); return; }
+  const q=normAC(inp.value), largo=inp.value.trim().length;
+  box.innerHTML=acItems.map((t,i)=>{
+    const empieza=q&&normAC(t).startsWith(q);
+    const ya=empieza?t.slice(0,largo):'', resto=empieza?t.slice(largo):t;
+    return '<button type="button" class="ac-item" role="option" data-ac="'+i+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span>'+(ya?escHtml(ya)+'<b>'+escHtml(resto)+'</b>':escHtml(resto))+'</span></button>';
+  }).join('');
+  box.hidden=false;
+  box.querySelectorAll('[data-ac]').forEach(b=>{
+    b.addEventListener('mousedown',e=>e.preventDefault()); // el clic no le quita el foco al chat antes de elegir
+    b.addEventListener('click',()=>elegirAC(+b.dataset.ac));
+  });
+}
+function moverAC(d){
+  if(!acItems.length) return;
+  acIdx=(acIdx+d+acItems.length)%acItems.length;
+  document.querySelectorAll('#chat-ac .ac-item').forEach((el,i)=>el.classList.toggle('on',i===acIdx));
+}
+function elegirAC(i){
+  const t=acItems[i]; if(!t) return;
+  const inp=document.getElementById('chat-input'); if(inp) inp.value=t;
+  cerrarAC();
+  enviarMensajeChat();
+}
+function teclaChat(e){
+  if(e.key==='ArrowDown'){ e.preventDefault(); moverAC(1); }
+  else if(e.key==='ArrowUp'){ e.preventDefault(); moverAC(-1); }
+  else if(e.key==='Escape'){ cerrarAC(); }
+  else if(e.key==='Enter' && !e.shiftKey){
+    e.preventDefault();
+    if(acIdx>=0) elegirAC(acIdx); else enviarMensajeChat();
+  }
 }
 
 function campoTexto(campo,label,tipo){
@@ -1647,7 +1708,7 @@ async function enviarMensajeChat(){
   const texto=input.value.trim();
   if(!texto) return;
   const camp=activeCampana(); if(!camp) return;
-  input.value=''; input.style.height='auto'; { const sg=document.getElementById('chat-sugerencias'); if(sg) sg.style.display=''; }
+  input.value=''; input.style.height='auto'; cerrarAC();
   if(esConfirmoJefe(texto)) confirmarChat();
   chatMessages.push({role:'user',content:texto});
   ocultarBanner();
@@ -1675,7 +1736,6 @@ async function enviarMensajeChat(){
     document.getElementById('chat-send-btn').disabled=false;
     renderChatThread();
     actualizarBanner();
-    renderSugerencias();
     guardarChatsEnCampana();
   }
 }
