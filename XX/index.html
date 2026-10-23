@@ -1626,6 +1626,8 @@
       var m = e ? toMin(e.time) : null;
       if(m !== null) entries.push({h:h, min:m, color:HABIT_PALETTE[hi % HABIT_PALETTE.length]});
     });
+    // marcas hechas que no tienen hora (por ejemplo las restauradas): se listan aparte para que el dia no se vea vacio
+    var noTime = data.habits.filter(function(h){ var e = dayChecks[h.id]; return e && toMin(e.time) === null; });
 
     var head = document.createElement('div');
     head.className = 'jd-row'; head.style.cssText = 'justify-content:space-between;margin-bottom:8px;';
@@ -1645,12 +1647,12 @@
     head.appendChild(nav);
     box.appendChild(head);
 
-    if(entries.length === 0){
+    if(entries.length === 0 && noTime.length === 0){
       var emptyMsg = document.createElement('div');
       emptyMsg.className = 'jd-sub'; emptyMsg.style.marginBottom = '6px';
       emptyMsg.textContent = tlDay === todayKey ? 'Cuando marques un hábito aparece aquí con su hora. Arrastra el punto para corregir la hora.' : 'Sin marcas este día.';
       box.appendChild(emptyMsg);
-    } else {
+    } else if(entries.length > 0){
       var mins = entries.map(function(e){ return e.min; });
       var lo = Math.min.apply(null, mins), hi = Math.max.apply(null, mins);
       var startH = Math.max(0, Math.floor(lo / 60) - 1);
@@ -1768,6 +1770,40 @@
           save(); refreshHabitViews(); renderHabitsStats();
         });
       }
+    }
+
+    if(noTime.length){
+      var ntBox = document.createElement('div');
+      ntBox.style.cssText = 'margin-top:8px;';
+      var ntHead = document.createElement('div');
+      ntHead.className = 'jd-row'; ntHead.style.cssText = 'gap:8px;margin-bottom:6px;justify-content:space-between;';
+      ntHead.innerHTML = '<span class="jd-sub" style="color:#5B5784;">Hechos este día, sin hora</span>';
+      var allInp = document.createElement('input');
+      allInp.type = 'time'; allInp.className = 'jd-input'; allInp.title = 'Ponerles la misma hora a todos'; allInp.style.cssText = 'width:100px;padding:4px 6px;';
+      allInp.addEventListener('change', function(){
+        if(!allInp.value) return;
+        noTime.forEach(function(h){ data.habitChecks[tlDay][h.id].time = allInp.value; });
+        save(); refreshHabitViews(); renderHabitsStats();
+      });
+      ntHead.appendChild(allInp);
+      ntBox.appendChild(ntHead);
+      noTime.forEach(function(h){
+        var st = getHabitStreak(h.id);
+        var row = document.createElement('div');
+        row.className = 'jd-row'; row.style.cssText = 'gap:8px;margin-bottom:4px;';
+        var lab = document.createElement('span');
+        lab.style.cssText = 'font-size:12.5px;color:#2F2A55;flex:1;';
+        lab.textContent = '✓ ' + h.text + (st > 0 ? ' 🔥' + st : '');
+        var inp = document.createElement('input');
+        inp.type = 'time'; inp.className = 'jd-input'; inp.style.cssText = 'width:100px;padding:4px 6px;';
+        inp.addEventListener('change', function(){
+          if(!inp.value) return;
+          data.habitChecks[tlDay][h.id].time = inp.value;
+          save(); refreshHabitViews(); renderHabitsStats();
+        });
+        row.appendChild(lab); row.appendChild(inp); ntBox.appendChild(row);
+      });
+      box.appendChild(ntBox);
     }
 
     var missing = data.habits.filter(function(h){ return !(dayChecks[h.id]); });
