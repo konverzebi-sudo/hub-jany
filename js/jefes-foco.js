@@ -46,6 +46,7 @@
   // de Jefe de Temporada que ya trae el "por qué este producto hace sentido". No esconde nada; solo marca.
   var marcar = soloCompletos || !!(window.__focoConfig && window.__focoConfig.marcarDesglose);
   var desgTemp = {};
+  var campsRaw = [];
   var pagina = (window.__focoConfig && window.__focoConfig.pagina) || '';
   var listarCampanas = conCampanas || (soloCompletos && pagina !== 'temporada');
   var campanasRedirigen = soloCompletos && !conCampanas && pagina !== 'temporada';
@@ -300,6 +301,18 @@
   function desgloseTexto(m) {
     return m.c366 && m.temp ? 'Desglose completo en Jefe 366 y en Temporada' : (m.c366 ? 'Desglose completo en Jefe 366' : 'Desglose en Jefe de Temporada');
   }
+  // Producto que se trabaja en Jefe de Temporada (tiene desglose de campaña) y que en el 366 está en cero: en Jefe 366 no se elige,
+  // al tocarlo se abre su campaña en Jefe de Temporada.
+  function soloTemporada(p) {
+    var st = estadoDe(p);
+    return (!!desgTemp[p.id] || tieneCampana(p)) && st.faltan.length >= TODO_FALTA.length;
+  }
+  function campanaDeProducto(p) {
+    var n = norm(p.nombre);
+    var coincide = function (x) { return x && x.id && x.producto_origen !== 'nuevo' && (x.producto_id === p.id || (x.producto_nombre && norm(x.producto_nombre) === n)); };
+    var c = campanasVivas().filter(coincide)[0] || campsRaw.filter(coincide)[0];
+    return c ? c.id : '';
+  }
   function marcaDesglose(p) {
     if (!marcar) return null;
     var c366 = !!estadoDe(p).completo, temp = !!desgTemp[p.id];
@@ -307,6 +320,7 @@
   }
   function calcularDesgTemp(camps) {
     desgTemp = {};
+    campsRaw = Array.isArray(camps) ? camps : [];
     lista.forEach(function (p) {
       var n = norm(p.nombre);
       var ok = (camps || []).some(function (c) {
@@ -409,7 +423,7 @@
   // En Jefe 366 no hay "ecosistema completo" ni "todo el grupo": siempre se trabaja un producto ya dado de alta (empezado) en el 366.
   function sinEco() { return soloCompletos && pagina === '366'; }
   function primerEmpezado() {
-    var emp = lista.filter(function (p) { return p && p.nombre && estadoDe(p).empezado; });
+    var emp = lista.filter(function (p) { return p && p.nombre && estadoDe(p).empezado && !(sinEco() && soloTemporada(p)); });
     var pos = function (p) { var i = orden366.indexOf(norm(p.nombre)); return i < 0 ? 9999 : i; };
     emp.sort(function (a, b) { return pos(a) - pos(b); });
     return emp[0] || null;
@@ -459,7 +473,9 @@
         porGrupo[gid].forEach(function (p) {
           var st = estadoDe(p);
           var sub = soloCompletos && !st.completo ? 'En proceso · ' + (TODO_FALTA.length - st.faltan.length) + ' de ' + TODO_FALTA.length + ' partes del 366' : (p.tipo || '');
-          menu.appendChild(opcion(p.id, String(p.nombre).trim(), sub, precioTexto(p.precio), null, '', marcaDesglose(p)));
+          var aTemp = sinEco() && soloTemporada(p);
+          menu.appendChild(opcion(p.id, String(p.nombre).trim(), aTemp ? '' : sub, precioTexto(p.precio),
+            aTemp ? function () { var cid = campanaDeProducto(p); irA('/jefe-temporada' + (cid ? '?campana=' + encodeURIComponent(cid) : '')); } : null, '', marcaDesglose(p)));
         });
       });
     }
@@ -563,7 +579,7 @@
     }
     var guardado = leerLS();
     aplicar(guardado ? guardado.id : TODO); // si el producto ya no existe, vuelve a "ecosistema completo"
-    if (sinEco() && (actual.id === TODO || actual.grupo || actual.campana)) {
+    if (sinEco() && (actual.id === TODO || actual.grupo || actual.campana || (actual.item && soloTemporada(actual.item)))) {
       var pri = primerEmpezado(); // en Jefe 366 siempre hay un producto elegido: el primero ya empezado
       if (pri) { aplicar(pri.id); guardarLS(); }
     }
