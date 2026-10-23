@@ -154,6 +154,17 @@
   .sug-sep{margin:4px 14px;border-top:1px solid var(--line);}
 
   /* "Trabajando en": Ver post (características) · Imagen (pronto) · Prompt de video */
+  .px-progreso{flex:1 0 100%;display:flex;flex-direction:column;gap:10px;}
+  .px-pasos{display:flex;gap:0;width:100%;overflow-x:auto;padding:6px 2px 2px;}
+  .px-paso{position:relative;flex:1 0 auto;min-width:78px;display:flex;flex-direction:column;align-items:center;gap:8px;border:none;background:none;cursor:pointer;padding:0 4px;font:600 12.5px ui-monospace,'SFMono-Regular',Menlo,monospace;text-transform:uppercase;letter-spacing:.04em;color:var(--text);}
+  .px-paso::after{content:'';position:absolute;top:calc(100% - 15px);left:calc(50% + 20px);right:calc(-50% + 20px);border-top:2px dashed #8aa13a;}
+  .px-paso:last-child::after{display:none;}
+  .px-paso-c{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:#fff;border:2px dashed #8aa13a;color:#fff;font-size:16px;line-height:1;transition:.15s;}
+  .px-paso.ok .px-paso-c{background:#0B6B54;border:2px solid #0B6B54;}
+  .px-paso.sig .px-paso-c{border:2.5px solid var(--text);box-shadow:0 0 0 4px var(--accent);}
+  .px-paso:hover .px-paso-c{transform:scale(1.1);}
+  .px-falta{font-size:14px;color:var(--text);margin:0;}
+  .px-falta b{font-weight:700;}
   .px-btn:disabled{opacity:.55;cursor:default;border-style:dashed;}
   .px-btn:disabled:hover{background:var(--surface);color:var(--text);}
   .px-detalle{flex:1 1 100%;margin-top:4px;padding-top:12px;border-top:1px dashed var(--accent-text);display:flex;flex-direction:column;gap:12px;}
@@ -748,6 +759,7 @@ async function generarImagen(){
   const el = $('chat-input');
   const prompt = el.value.trim();
   const sel = itemPx();
+  const selTab = trabajoPx ? trabajoPx.tab : null;
   if (!prompt && !refImagen && !sel) { setStatus('⚠️ Describe primero la imagen que necesitas, elige un post, o adjunta una de referencia.', true); return; }
   const galeria = $('imggen-result');
   const conReferencia = !!refImagen;
@@ -783,7 +795,23 @@ async function generarImagen(){
         <div class="imggen-acciones">
           <a class="imggen-download" href="${data.image}" download="imagen-${Date.now()}.png">Descargar</a>
           <button type="button" class="imggen-usar">Usar como referencia</button>
+          ${sel ? '<button type="button" class="imggen-usar imggen-guardar">📌 Guardar en el post</button>' : ''}
         </div>`;
+      if (sel) {
+        const tabSel = selTab, idSel = sel.id;
+        const bg = card.querySelector('.imggen-guardar');
+        bg.addEventListener('click', async () => {
+          bg.disabled = true; bg.textContent = 'Guardando…';
+          try {
+            const mini = await miniaturaChicaPx(data.image);
+            if (!mini) throw new Error('No se pudo preparar la imagen.');
+            await guardarMiniaturaEnPostPx(tabSel, idSel, mini);
+            sel.miniatura = mini; if (sel.raw) sel.raw.miniatura = mini;
+            bg.textContent = '✅ Guardada en el post';
+            pintarTrabajoPx(); pintarProximos();
+          } catch (e) { bg.disabled = false; bg.textContent = '⚠️ No se pudo guardar — reintentar'; }
+        });
+      }
       card.querySelector('.imggen-usar').addEventListener('click', () => {
         adjuntarReferencia(data.image, 'Imagen generada');
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -986,10 +1014,10 @@ function pintarTrabajoPx(){
   box.innerHTML = `<div class="px-trabajo-txt"><span class="px-trabajo-lbl">Trabajando en</span><strong>${escHtml(r.gancho || '(sin título)')}</strong></div>
     <div class="px-trabajo-btns">
       <button type="button" class="px-btn" data-px="ver" aria-expanded="${detallePx}">👁️ ${detallePx ? 'Ocultar post' : 'Ver post'}</button>
-      <button type="button" class="px-btn" disabled title="Muy pronto">🖼️ Imagen (pronto)</button>
+      <button type="button" class="px-btn" data-px="imagen">🖼️ Imagen con IA</button>
       <button type="button" class="px-btn" data-px="video">🎬 Prompt de video</button>
       <button type="button" class="link-btn" data-px="quitar">Quitar</button>
-    </div>${detallePx ? detalleHtmlPx(r, trabajoPx.tab) : ''}${confirmarPxHtml()}`;
+    </div>${progresoPxHtml(r, trabajoPx.tab)}${detallePx ? detalleHtmlPx(r, trabajoPx.tab) : ''}${confirmarPxHtml()}`;
   box.querySelectorAll('[data-px]').forEach((b) => b.addEventListener('click', async () => {
     const a = b.dataset.px;
     if (a === 'quitar') quitarTrabajoPx();
@@ -998,9 +1026,78 @@ function pintarTrabajoPx(){
       if (detallePx) await cargarCatalogoPx();
       pintarTrabajoPx();
     }
+    else if (a === 'imagen') accionPasoPx('img', false);
     else usarPromptPx(a);
   }));
+  box.querySelectorAll('[data-paso]').forEach((b) => b.addEventListener('click', () => accionPasoPx(b.dataset.paso, b.classList.contains('ok'))));
   enlazarConfirmarPx(box);
+}
+// Avance de la publicación: qué ya tiene (✓) y qué le falta; tocar un paso pendiente hace que el Jefe te ayude ahí mismo.
+function pasosPx(r, tab){
+  const c = r.raw || {};
+  const esCamp = tab === 'campanas';
+  const formato = esCamp ? c.formato : (r.formato || (tab === 'historias' ? 'historia' : 'reel'));
+  const hay = (...v) => v.some((x) => txtPx(x));
+  const pasos = [
+    { id: 'post', t: 'Post', ok: esCamp ? hay(c.guion, c.hook, c.visual_sugerido, c.objetivo) : hay(r.guion, r.ganchoIdea, r.descripcion), falta: 'el guion o la idea', accion: 'armar el guion con el Jefe' },
+    { id: 'copy', t: 'Copy', ok: hay(r.caption), falta: 'el copy', accion: 'escribir el copy con el Jefe' },
+    { id: 'pimg', t: 'Prompt imagen', ok: hay(r.promptImagen), falta: 'el prompt de imagen', accion: 'crear el prompt de imagen' },
+    { id: 'img', t: 'Imagen', ok: !!r.miniatura, falta: 'la imagen', accion: 'crear la imagen con IA' },
+  ];
+  if (['reel', 'video', 'historia'].includes(formato)) pasos.push({ id: 'pvid', t: 'Prompt video', ok: hay(r.promptVideo), falta: 'el prompt de video', accion: 'crear el prompt de video' });
+  return pasos;
+}
+function progresoPxHtml(r, tab){
+  const pasos = pasosPx(r, tab);
+  const faltan = pasos.filter((p) => !p.ok);
+  const sig = faltan[0];
+  const lista = faltan.map((p) => p.falta);
+  const txtFalta = lista.length ? `Te falta ${lista.length > 1 ? lista.slice(0, -1).join(', ') + ' y ' + lista[lista.length - 1] : lista[0]}.` : '✅ Esta publicación ya tiene todo.';
+  return `<div class="px-progreso">
+    <div class="px-pasos" role="list">${pasos.map((p) => `<button type="button" class="px-paso${p.ok ? ' ok' : ''}${sig && sig.id === p.id ? ' sig' : ''}" role="listitem" data-paso="${p.id}" title="${p.ok ? 'Listo — toca para verlo' : 'Falta — toca para ' + p.accion}"><span class="px-paso-c">${p.ok ? '✓' : ''}</span>${p.t}</button>`).join('')}</div>
+    <p class="px-falta"><b>${ESTADO_PX[estadoPx(r)].txt}.</b> ${txtFalta}</p>
+    ${sig ? `<div><button type="button" class="px-btn px-btn-ok" data-paso="${sig.id}">✨ Siguiente: ${sig.accion}</button></div>` : ''}
+  </div>`;
+}
+function accionPasoPx(id, ok){
+  const r = itemPx(); if (!r) return;
+  const alChat = () => { const b = $('px-chat-box'); if (b && !b.hidden) b.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
+  if (ok) {
+    if (id === 'pimg') usarPromptPx('imagen');
+    else if (id === 'pvid') usarPromptPx('video');
+    else { detallePx = true; cargarCatalogoPx().then(pintarTrabajoPx); }
+    return;
+  }
+  if (id === 'post') { setModo('guia'); enviarMensajeChat('Este post todavía no tiene guion. Propónme uno dividido en escenas, con base en su título y su idea.'); alChat(); }
+  else if (id === 'copy') { setModo('guia'); enviarMensajeChat('Este post todavía no tiene copy. Escríbeme el caption listo para copiar, con el tono de mi marca.'); alChat(); }
+  else if (id === 'pimg') usarPromptPx('imagen');
+  else if (id === 'pvid') usarPromptPx('video');
+  else if (id === 'img') { setModo('imagen'); const el = $('chat-input'); el.value = r.promptImagen || ''; autoAlto(); generarImagen(); }
+}
+// La imagen creada se puede dejar como imagen del post (se reduce para que pese poco).
+function miniaturaChicaPx(dataUrl){
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, 540 / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(img.naturalWidth * k)); c.height = Math.max(1, Math.round(img.naturalHeight * k));
+      const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(img, 0, 0, c.width, c.height);
+      resolve(c.toDataURL('image/jpeg', 0.8));
+    };
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
+  });
+}
+async function guardarMiniaturaEnPostPx(tab, id, miniatura){
+  const key = tab === 'campanas' ? ANUNCIOS_KEY : CONTENIDO_KEY;
+  const rr = await window.storage.get(key);
+  const d = rr && rr.value ? JSON.parse(rr.value) : null;
+  const lista = tab === 'campanas' ? d : (d && d[tab]);
+  const it = Array.isArray(lista) ? lista.find((x) => x && x.id === id) : null;
+  if (!it) throw new Error('No encontré la publicación para guardar la imagen.');
+  it.miniatura = miniatura;
+  await window.storage.set(key, JSON.stringify(d));
 }
 function textoVideoPx(titulo, prompt){
   return `Este es el prompt de video para mi post «${titulo}». Ayúdame a elegir la herramienta de IA ideal y a afinarlo:\n\n${prompt}`;
@@ -1163,7 +1260,7 @@ async function cargarContenidoPx(){
     contenidoPx.campanas = (Array.isArray(lista) ? lista : []).filter((c) => c && c.id).map((c) => ({
       id: c.id, gancho: c.titulo || '', estado: c.estado || 'idea', fecha: c.fecha || '', hora: c.hora || '',
       caption: c.copy_publicacion || '', descripcion: c.objetivo || '',
-      promptImagen: c.prompt_imagen || '', promptVideo: c.prompt_video || '',
+      promptImagen: c.prompt_imagen || '', promptVideo: c.prompt_video || '', miniatura: c.miniatura || '',
       raw: c,
     }));
   } catch (e) {}
