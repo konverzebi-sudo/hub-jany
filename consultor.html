@@ -261,11 +261,15 @@ const REQUISITO_TEXTO = {
   let escala = calcEscala();
   let width = vw / escala, height = vh / escala;
   let margenArriba = Math.min(140, vh * 0.22) / escala; // deja espacio para el breadcrumb + instrucciones de arriba
+  // En celular la tarjeta de tokens ocupa la parte de abajo: la red se centra en el espacio libre entre
+  // el título y la tarjeta para que ningún Jefe quede tapado.
+  let margenAbajo = (vw < 720 ? 104 : 0) / escala;
+  function centroY(){ return (Math.max(margenArriba, 90) + (height - margenAbajo)) / 2; }
   // Anillo de Jefes en forma de elipse que sigue la forma de la pantalla: ancho en compu,
   // alto en celular. rx/ry son los radios; distJefe, el largo de las lineas al ADN.
   let rx, ry, distJefe;
   function calcAnillo(){
-    ry = Math.max(150, height/2 - Math.max(margenArriba, 90) - 30);
+    ry = Math.max(140, (height - Math.max(margenArriba, 90) - margenAbajo)/2 - 30);
     rx = Math.max(140, Math.min(width/2 - 110, ry * 2.4));
     ry = Math.min(ry, rx * 2.2);
     distJefe = (rx + ry) / 2;
@@ -299,8 +303,8 @@ const REQUISITO_TEXTO = {
   }
   pintarEstrellas();
 
-  adnNode.x = width/2; adnNode.y = height/2;
-  adnNode.fx = width/2; adnNode.fy = height/2; // fijo en el centro siempre
+  adnNode.x = width/2; adnNode.y = centroY();
+  adnNode.fx = width/2; adnNode.fy = centroY(); // fijo en el centro siempre
 
   // Cada Jefe tiene su propia distancia al centro (55%-110% del anillo) para que se vean
   // dispersos y no formados en un ovalo; se alternan cerca/lejos para no encimarse.
@@ -308,12 +312,12 @@ const REQUISITO_TEXTO = {
     d.anilloF = (i % 2 ? 0.58 : 0.86) + Math.random() * 0.24;
     const angle = (i/jefes.length)*2*Math.PI;
     d.x = width/2 + rx*d.anilloF*Math.cos(angle);
-    d.y = height/2 + ry*d.anilloF*Math.sin(angle);
+    d.y = centroY() + ry*d.anilloF*Math.sin(angle);
   });
 
   // Jala cada Jefe hacia su punto en la elipse (se reparten solos por la repulsion entre ellos).
   function fuerzaAnillo(alpha){
-    const cx = width/2, cy = height/2;
+    const cx = width/2, cy = centroY();
     for (const d of nodesData){
       if (d.esADN || d.esSatelite) continue;
       const f = vw < 720 ? 1 : (d.anilloF || 1);
@@ -348,7 +352,7 @@ const REQUISITO_TEXTO = {
       .distance(d => d.esSatelite ? 26 + Math.random()*22 : distJefe)
       .strength(d => d.esSatelite ? 0.7 : 0.08))
     .force('charge', d3.forceManyBody().strength(d => d.esSatelite ? -6 : -340))
-    .force('center', d3.forceCenter(width/2, height/2))
+    .force('center', d3.forceCenter(width/2, centroY()))
     .force('collide', d3.forceCollide(d => d.esSatelite ? 5 : radioDe(d)+16))
     .force('vida', fuerzaVida)
     .force('anillo', fuerzaAnillo)
@@ -460,7 +464,7 @@ const REQUISITO_TEXTO = {
       if (d.esADN || d.esSatelite) continue;
       const r = radioDe(d) + 58;
       d.x = Math.max(r, Math.min(width - r, d.x));
-      d.y = Math.max(r, Math.min(height - r, d.y)); // pared dura solo pegado al borde real -- el margen del breadcrumb ya lo maneja el empuje suave de arriba
+      d.y = Math.max(r, Math.min(height - margenAbajo - r, d.y)); // pared dura solo pegado al borde real -- el margen del breadcrumb ya lo maneja el empuje suave de arriba
     }
     for (const d of nodesData){
       if (d.esSatelite && d.parentRef){
@@ -508,13 +512,14 @@ const REQUISITO_TEXTO = {
     escala = calcEscala();
     width = vw / escala; height = vh / escala;
     margenArriba = Math.min(140, vh * 0.22) / escala;
+    margenAbajo = (vw < 720 ? 104 : 0) / escala;
     svg.attr('viewBox', [0,0,vw,vh]);
     escalaG.attr('transform', `scale(${escala})`);
     ajustarLetras();
     calcAnillo();
     simulation.force('link').distance(d => d.esSatelite ? 26 + Math.random()*22 : distJefe);
-    adnNode.fx = width/2; adnNode.fy = height/2;
-    simulation.force('center', d3.forceCenter(width/2, height/2));
+    adnNode.fx = width/2; adnNode.fy = centroY();
+    simulation.force('center', d3.forceCenter(width/2, centroY()));
     simulation.alpha(0.3).restart();
     pintarEstrellas();
   });
