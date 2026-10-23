@@ -367,17 +367,26 @@
     menu.appendChild(pie);
   }
 
+  // En Jefe 366 no hay "ecosistema completo" ni "todo el grupo": siempre se trabaja un producto ya dado de alta (empezado) en el 366.
+  function sinEco() { return soloCompletos && pagina === '366'; }
+  function primerEmpezado() {
+    var emp = lista.filter(function (p) { return p && p.nombre && estadoDe(p).empezado; });
+    var pos = function (p) { var i = orden366.indexOf(norm(p.nombre)); return i < 0 ? 9999 : i; };
+    emp.sort(function (a, b) { return pos(a) - pos(b); });
+    return emp[0] || null;
+  }
+
   function pintar() {
     if (modoTemporada) return pintarTemporada();
     var especifico = actual.id !== TODO;
-    txt.textContent = especifico ? (actual.campana ? '🗓️ ' : (actual.grupo ? 'Grupo: ' : '')) + (actual.nombre || 'Producto') : 'Tu ecosistema completo';
+    txt.textContent = especifico ? (actual.campana ? '🗓️ ' : (actual.grupo ? 'Grupo: ' : '')) + (actual.nombre || 'Producto') : (sinEco() ? 'Elige un producto' : 'Tu ecosistema completo');
     pill.classList.toggle('on', especifico);
     pill.title = especifico
       ? 'Estás trabajando solo sobre: ' + (actual.nombre || 'este producto') + '. Clic para cambiar.'
-      : 'Estás trabajando sobre todo tu ecosistema. Clic para elegir un producto o servicio.';
+      : (sinEco() ? 'Clic para elegir el producto en el que vas a trabajar.' : 'Estás trabajando sobre todo tu ecosistema. Clic para elegir un producto o servicio.');
 
     menu.textContent = '';
-    menu.appendChild(opcion(TODO, 'Tu ecosistema completo', 'Todos tus productos y servicios juntos'));
+    if (!sinEco()) menu.appendChild(opcion(TODO, 'Tu ecosistema completo', 'Todos tus productos y servicios juntos'));
 
     var conNombre = lista.filter(function (p) { return p && p.nombre; });
     var visibles = soloCompletos ? conNombre.filter(function (p) { return estadoDe(p).empezado; }) : conNombre;
@@ -407,7 +416,7 @@
       orden.forEach(function (gid) {
         var g = grupos.filter(function (x) { return x.id === gid; })[0];
         menu.appendChild(titulo(g && g.nombre ? g.nombre : (grupos.length ? 'Sin grupo' : 'Productos y servicios')));
-        if (conGrupos && g && g.nombre) menu.appendChild(opcion('g:' + g.id, 'Todo el grupo: ' + String(g.nombre).trim(), 'Todos los productos y servicios de este grupo'));
+        if (conGrupos && !sinEco() && g && g.nombre) menu.appendChild(opcion('g:' + g.id, 'Todo el grupo: ' + String(g.nombre).trim(), 'Todos los productos y servicios de este grupo'));
         porGrupo[gid].forEach(function (p) {
           var st = estadoDe(p);
           var sub = soloCompletos && !st.completo ? 'En proceso · ' + (TODO_FALTA.length - st.faltan.length) + ' de ' + TODO_FALTA.length + ' partes del 366' : (p.tipo || '');
@@ -508,6 +517,10 @@
     }
     var guardado = leerLS();
     aplicar(guardado ? guardado.id : TODO); // si el producto ya no existe, vuelve a "ecosistema completo"
+    if (sinEco() && (actual.id === TODO || actual.grupo || actual.campana)) {
+      var pri = primerEmpezado(); // en Jefe 366 siempre hay un producto elegido: el primero ya empezado
+      if (pri) { aplicar(pri.id); guardarLS(); }
+    }
     pintar();
   })();
 
