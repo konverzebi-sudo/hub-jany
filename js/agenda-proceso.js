@@ -12,11 +12,15 @@
      definir, estrategia, grabar y editar terminan ANTES de que empiece;
    - precampaña, campaña y postcampaña se muestran como referencia y de ahí sale el promedio real de cada una.
 
+   ES UNA SECUENCIA: ninguna etapa empieza antes de que termine la anterior. Si atrasas o alargas una, las que siguen se
+   recorren lo necesario. Y hay PAREDES: la preparación no puede meterse a la campaña y lo que pasa durante la campaña no puede
+   pasarse a la postcampaña (limitarMovimiento recorta un movimiento hasta donde sí cabe).
+
    Qué se guarda por campaña ("<hub>:agenda-proceso"):
    - { n }            duración congelada de la etapa (la primera vez que se ve la campaña, con el promedio de ese momento),
                       para que acomodar una campaña nunca mueva las marcas de otra que ya está en marcha;
-   - { d, n, u: 1 }   etapa que el usuario acomodó a mano ("ajustada por ti"): d = días desde el arranque hasta su primer
-                      día (negativo = antes), n = cuántos días dura. Solo estas cuentan para el promedio real del negocio.
+   - { d, n, u: 1 }   etapa que el usuario acomodó a mano ("ajustada por ti"): d = días desde el arranque hasta donde la quiere
+                      empezar (negativo = antes), n = cuántos días dura. Solo estas cuentan para el promedio real del negocio.
    Las posiciones de lo demás se calculan en vivo, así que si cambia una fecha en Temporada todo se recorre solo. */
 (function (raiz, fabrica) {
   if (typeof module === 'object' && module.exports) module.exports = fabrica();
@@ -180,10 +184,12 @@
     if (preFechas.length) { pre = preFechas[0]; preFuente = 'filas'; }
     else { var dp = diasDeTexto(c.pre_duracion); if (dp) { pre = sumarDias(arr, -dp); preFuente = 'duracion'; } }
 
+    // Postcampaña: empieza el día después de que termina la campaña; si Temporada ya fechó sus acciones, termina en la última.
+    // Sin fecha de fin de campaña ni acciones fechadas no hay postcampaña que considerar.
     var postFechas = filas(c.post_acciones).map(function (r) { return r.fecha; }).filter(function (f) { return esISO(f) && f > arr; }).sort();
     var postFin = postFechas.length ? postFechas[postFechas.length - 1] : '';
-    var postIni = postFin ? (fin ? sumarDias(fin, 1) : postFechas[0]) : '';
-    if (postIni && postIni > postFin) postIni = postFechas[0];
+    var postIni = fin ? sumarDias(fin, 1) : (postFechas.length ? postFechas[0] : '');
+    if (postIni && postFin && postIni > postFin) postIni = postFechas[0];
 
     var etapas = {};
     filas(c.calendario).forEach(function (r) {
@@ -228,10 +234,13 @@
   //   prom: promedio real del negocio (promedios()) para campañas que todavía no congelan duraciones
   //   anclas: anclasDeCampana(campaña) o null
   // -> { plan: { <id>: { d, n } },
-  //      origen: { <id>: 'usuario' | 'jefe' (fecha del calendario de Temporada) | 'precampana' (se corrió para terminar antes de que empiece) | 'sugerido' },
+  //      origen: { <id>: 'usuario' | 'jefe' (fecha del calendario de Temporada) | 'precampana' (se corrió para terminar antes de que empiece)
+  //                       | 'secuencia' (la empujó una etapa anterior que se atrasó) | 'sugerido' },
   //      fuente: { <id>: { campo, rowId, iso } } (fila de Temporada que dio la fecha),
-  //      avisos: [ { tipo: 'orden', etapa, antes } (queda antes que la etapa anterior: choque entre fechas de Temporada)
-  //              | { tipo: 'precampana', etapa } (termina después de que empieza la precampaña) ] }
+  //      empujada: { <id>: días que la recorrió la secuencia },
+  //      avisos: [ { tipo: 'orden', etapa, antes } (se encima con la anterior: choque con una fecha de Temporada)
+  //              | { tipo: 'precampana', etapa } (termina después de que empieza la precampaña)
+  //              | { tipo: 'campana', etapa } (preparación que se mete a la campaña) | { tipo: 'postcampana', etapa } (pasa a la postcampaña) ] }
   function detalleEfectivo(guardado, prom, anclas) {
     guardado = guardado || {}; prom = prom || {};
     var dur = {};
@@ -268,26 +277,83 @@
       }
     }
 
-    // 3) lo que el usuario acomodó a mano gana sobre todo lo demás
-    var plan = {};
-    ETAPAS.forEach(function (e) {
-      var s = guardado[e.id];
-      if (s && s.u && isFinite(Number(s.d))) { plan[e.id] = { d: s.d, n: s.n }; origen[e.id] = 'usuario'; }
-      else plan[e.id] = { d: pos[e.id], n: dur[e.id] };
+    // 3) SECUENCIA: lo que el usuario acomodó a mano manda donde quiere empezar cada etapa, pero ninguna puede empezar antes de que
+    //    termine la anterior: si una se atrasa o se alarga, las que siguen se recorren lo necesario (y si la vuelves a adelantar,
+    //    regresan). Solo una fecha que puso Temporada no se recorre sola: si choca, se avisa.
+    var plan = {}, empujada = {}, prevFin = null;
+    ETAPAS.forEach(function (e, i) {
+      var s = guardado[e.id], usuario = !!(s && s.u && isFinite(Number(s.d)));
+      var n = usuario ? entero(s.n, 1, MAX_DURACION, 1) : dur[e.id];
+      var deseado = usuario ? entero(s.d, -MAX_DESPLAZO, MAX_DESPLAZO, 0) : pos[e.id];
+      var inicio = deseado;
+      if (i > 0 && prevFin !== null && inicio <= prevFin && (usuario || origen[e.id] !== 'jefe')) {
+        inicio = prevFin + 1;
+        empujada[e.id] = inicio - deseado;
+        if (!usuario) origen[e.id] = 'secuencia';
+      }
+      if (usuario) origen[e.id] = 'usuario';
+      plan[e.id] = { d: inicio, n: n };
+      prevFin = inicio + n - 1;
     });
-    // Choques entre fechas que puso el usuario o Temporada: se avisan, no se corrigen a escondidas.
-    var avisos = [], i;
+
+    var det = { plan: plan, origen: origen, fuente: fuente, empujada: empujada, avisos: [] };
+    // Choques entre fechas: se avisan, no se corrigen a escondidas.
+    var i;
     for (i = 1; i < ETAPAS.length; i++) {
       var ant = ETAPAS[i - 1].id, act = ETAPAS[i].id;
-      if (plan[act].d < plan[ant].d && origen[act] !== 'usuario' && origen[ant] !== 'usuario') avisos.push({ tipo: 'orden', etapa: act, antes: ant });
+      if (plan[act].d <= plan[ant].d + plan[ant].n - 1) det.avisos.push({ tipo: 'orden', etapa: act, antes: ant });   // solo pasa con una fecha de Temporada
     }
     if (anclas && anclas.preInicio) {
       var tope = diasEntre(anclas.arranque, anclas.preInicio) - 1;
       ANTES_DE_PRECAMPANA.forEach(function (id) {
-        if (plan[id].d + plan[id].n - 1 > tope && origen[id] !== 'usuario') avisos.push({ tipo: 'precampana', etapa: id });
+        if (plan[id].d + plan[id].n - 1 > tope && origen[id] !== 'usuario') det.avisos.push({ tipo: 'precampana', etapa: id });
       });
     }
-    return { plan: plan, origen: origen, fuente: fuente, avisos: avisos };
+    violaciones(det, anclas).forEach(function (v) { if (origen[v.etapa] !== 'usuario') det.avisos.push(v); });
+    return det;
+  }
+
+  // PAREDES: la preparación (todo lo que va antes del arranque) no puede meterse a la campaña, y lo que pasa durante la campaña
+  // no puede pasarse a la postcampaña (si la campaña ya tiene fecha de fin). -> [ { tipo: 'campana' | 'postcampana', etapa } ]
+  function violaciones(det, anclas) {
+    var out = [];
+    if (!anclas) return out;
+    var finCampana = anclas.fin ? diasEntre(anclas.arranque, anclas.fin) : null;
+    ETAPAS.forEach(function (e, i) {
+      var p = det.plan[e.id], fin = p.d + p.n - 1;
+      if (i < IDX_ARRANQUE && fin >= 0) out.push({ tipo: 'campana', etapa: e.id });
+      else if (i >= IDX_ARRANQUE && finCampana !== null && fin > finCampana) out.push({ tipo: 'postcampana', etapa: e.id });
+    });
+    return out;
+  }
+  // Copia de lo guardado con una etapa acomodada por el usuario (para probar un movimiento antes de aplicarlo).
+  function conAjuste(guardado, etapaId, ed) {
+    var g = {};
+    Object.keys(guardado || {}).forEach(function (k) { g[k] = guardado[k]; });
+    var v = limpiarEtapa({ d: ed.d, n: ed.n, u: 1 });
+    if (v) g[etapaId] = v;
+    return g;
+  }
+  // Un movimiento que haría chocar con la campaña o la postcampaña se recorta hasta donde sí cabe (nunca empeora lo que ya chocaba).
+  // pedido: { d, n }. -> { ed: { d, n }, recortado, motivo ('campana' | 'postcampana' | ''), etapa (la que chocaría) }
+  function limitarMovimiento(guardado, prom, anclas, etapaId, pedido) {
+    var actualDet = detalleEfectivo(guardado, prom, anclas);
+    var actual = actualDet.plan[etapaId];
+    var yaChocaban = {};
+    violaciones(actualDet, anclas).forEach(function (v) { yaChocaban[v.tipo + ':' + v.etapa] = 1; });
+    function nuevasViolaciones(ed) {
+      return violaciones(detalleEfectivo(conAjuste(guardado, etapaId, ed), prom, anclas), anclas).filter(function (v) { return !yaChocaban[v.tipo + ':' + v.etapa]; });
+    }
+    var pide = limpiarEtapa({ d: pedido.d, n: pedido.n, u: 1 });
+    if (!pide) return { ed: actual, recortado: false, motivo: '', etapa: '' };
+    var primera = nuevasViolaciones(pide);
+    if (!primera.length) return { ed: { d: pide.d, n: pide.n }, recortado: false, motivo: '', etapa: '' };
+    var dd = pide.d - actual.d, dn = pide.n - actual.n, pasos = Math.max(Math.abs(dd), Math.abs(dn));
+    for (var p = pasos - 1; p >= 0; p--) {
+      var f = p / pasos, ed = { d: actual.d + Math.round(dd * f), n: actual.n + Math.round(dn * f) };
+      if (!nuevasViolaciones(ed).length) return { ed: ed, recortado: true, motivo: primera[0].tipo, etapa: primera[0].etapa };
+    }
+    return { ed: { d: actual.d, n: actual.n }, recortado: true, motivo: primera[0].tipo, etapa: primera[0].etapa };
   }
   function planEfectivo(guardado, prom, anclas) { return detalleEfectivo(guardado, prom, anclas).plan; }
   // Sin ajustes ni fechas de Temporada: lo recomendado (o el promedio, si se pasa).
@@ -330,6 +396,7 @@
     recomendado: recomendado, promedios: promedios, instantanea: instantanea,
     anclasDeCampana: anclasDeCampana, etapaDeFila: etapaDeFila, diasDeTexto: diasDeTexto, promedioPrePost: promedioPrePost,
     detalleEfectivo: detalleEfectivo, planEfectivo: planEfectivo, planBase: planBase,
+    violaciones: violaciones, conAjuste: conAjuste, limitarMovimiento: limitarMovimiento,
     limpiarProceso: limpiarProceso, limpiarEtapa: limpiarEtapa,
     fechasDe: fechasDe, desdeFechas: desdeFechas, mover: mover, alargarHasta: alargarHasta, marcas: marcas
   };

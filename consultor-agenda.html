@@ -133,6 +133,8 @@
     .g-dur small { font: 500 11.5px Inter, sans-serif; color: var(--text-dim); }
     .g-dur .mio { color: var(--accent-texto); }
     .pc-pie { margin: 10px 2px 0; font-size: 13px; color: var(--text-dim); }
+    .ag-toast { position: fixed; left: 50%; bottom: 88px; transform: translateX(-50%); z-index: 120; max-width: min(560px, calc(100vw - 32px)); padding: 12px 18px; border-radius: 14px; background: #1A1A1A; color: #fff; font: 600 14px/1.45 Inter, sans-serif; box-shadow: 0 10px 30px rgba(0,0,0,.3); }
+    .ag-toast[hidden] { display: none; }
     .pc-aviso { margin: 12px 2px 0; padding: 10px 14px; border-radius: 12px; background: var(--temp-soft, #FFF4D6); color: #7A4B00; font-size: 13.5px; line-height: 1.5; }
 
     /* ── Ventanas ── */
@@ -226,7 +228,7 @@
 
   <section class="ag-sec" id="sec-proceso">
     <h2>Tiempos del proceso de campaña</h2>
-    <p class="ag-intro">Cuando tu campaña tiene fecha de arranque, aquí se ponen todas las etapas de antes y de después: definir, estrategia y copys, grabar, editar, WhatsApp, programar, revisar y optimizar. Si ya pusiste fechas en el Jefe de Temporada (calendario final, precampaña o postcampaña) las respeto: las etapas se acomodan alrededor de ellas y lo que se produce para la precampaña termina antes de que empiece. Arrastra una barra para recorrer la etapa o toma su orilla derecha para alargarla; con lo que acomodes calculo cuánto dura realmente cada etapa en tu negocio. Toca una etapa para abrir el Jefe que te ayuda en ese momento.</p>
+    <p class="ag-intro">Cuando tu campaña tiene fecha de arranque, aquí se ponen todas las etapas de antes y de después: definir, estrategia y copys, grabar, editar, WhatsApp, programar, revisar y optimizar. Si ya pusiste fechas en el Jefe de Temporada (calendario final, precampaña o postcampaña) las respeto: las etapas se acomodan alrededor de ellas y lo que se produce para la precampaña termina antes de que empiece. Las etapas van en secuencia: si atrasas o alargas una, la que sigue se recorre; y la preparación no puede meterse a la campaña ni lo de la campaña pasarse a la postcampaña. Arrastra una barra para recorrer la etapa o toma su orilla derecha para alargarla; con lo que acomodes calculo cuánto dura realmente cada etapa en tu negocio. Toca una etapa para abrir el Jefe que te ayuda en ese momento.</p>
     <div class="ag-estado" id="ag-estado" role="status" aria-live="polite"></div>
     <div id="proceso-resumen"></div>
     <div id="proceso-lista"></div>
@@ -290,6 +292,7 @@
     <div class="pc-sub" id="et-camp"></div>
     <h3 id="et-titulo">Etapa</h3>
     <p class="m-sub" id="et-info"></p>
+    <p class="m-sub" id="et-aviso" style="color:#B42318;" hidden></p>
     <div class="m-fila">
       <label>Empieza<input type="date" id="et-inicio"></label>
       <label>Termina<input type="date" id="et-fin"></label>
@@ -316,6 +319,8 @@
     <div class="m-acciones"><span></span><button type="button" class="pb-btn pb-btn-sec" id="dia-cerrar">Cerrar</button></div>
   </div>
 </div>
+
+<div class="ag-toast" id="ag-toast" role="status" aria-live="polite" hidden></div>
 
 <script src="/js/storage-client.js"></script>
 <script>
@@ -478,16 +483,48 @@ async function guardarProceso(ids, ganaRemoto) {
     setEstado(e && e.status === 401 ? 'Token incorrecto, intenta de nuevo.' : 'No se pudo guardar. Intenta otra vez.', true);
   }
 }
+// Aviso flotante (se ve aunque la tarjeta esté lejos del encabezado de la sección).
+let toastTimer = null;
+function avisarToast(texto, fijo) {
+  const t = $('ag-toast');
+  t.textContent = texto;
+  t.hidden = false;
+  clearTimeout(toastTimer);
+  if (!fijo) toastTimer = setTimeout(() => { t.hidden = true; }, 8000);
+}
+function cerrarToast() { clearTimeout(toastTimer); $('ag-toast').hidden = true; }
+// Por qué un movimiento no cabe: la preparación no puede meterse a la campaña ni lo de la campaña pasarse a la postcampaña.
+function mensajePared(lim, anclas) {
+  const e = AP.etapaPorId(lim.etapa);
+  if (lim.motivo === 'campana') return 'No cabe: "' + e.corto + '" se metería a la campaña (empieza el ' + fmtCorta(anclas.arranque) + '). Acorta otra etapa, adelanta las anteriores o cambia la fecha de arranque en el Jefe de Temporada.';
+  return 'No cabe: la campaña termina el ' + fmtCorta(anclas.fin) + ' y "' + e.corto + '" caería en la postcampaña.';
+}
+// Mueve o alarga una etapa como SECUENCIA: las que siguen se recorren, y no se deja entrar a la campaña / postcampaña.
+// Devuelve el aviso (texto) si el movimiento se recortó o no se pudo hacer tal cual.
 async function fijarEtapa(campId, etapaId, ed) {
   const c = campanas.find((x) => x.id === campId);
-  const v = AP.limpiarEtapa({ d: ed.d, n: ed.n, u: 1 });
-  if (!c || !v) return;
-  const fuente = detalleDe(c).fuente[etapaId];      // si la fecha venía del calendario de Temporada, de qué fila
+  if (!c) return '';
+  const anclas = anclasDe(c), guardado = proceso.campanas[campId] || {};
+  const antes = AP.detalleEfectivo(guardado, promedio, anclas);
+  const actual = antes.plan[etapaId];
+  const lim = AP.limitarMovimiento(guardado, promedio, anclas, etapaId, ed);
+  let aviso = lim.recortado ? mensajePared(lim, anclas) : '';
+  if (lim.ed.d === actual.d && lim.ed.n === actual.n) {       // no hubo movimiento posible
+    cerrarToast(); render();
+    if (!aviso && (ed.d !== actual.d || ed.n !== actual.n)) aviso = 'Esa etapa no puede empezar antes de que termine la anterior.';
+    if (aviso) avisarToast(aviso);
+    return aviso;
+  }
+  const v = AP.limpiarEtapa({ d: lim.ed.d, n: lim.ed.n, u: 1 });
+  if (!v) return '';
   (proceso.campanas[campId] = proceso.campanas[campId] || {})[etapaId] = v;
+  if (!aviso && detalleDe(c).plan[etapaId].d !== v.d) aviso = 'Esa etapa no puede empezar antes de que termine la anterior.';
   calcularPromedio();
   render();
   await guardarProceso([campId], false);
-  await ofrecerActualizarTemporada(c, etapaId, v, fuente);
+  if (aviso) avisarToast(aviso); else cerrarToast();
+  await ofrecerActualizarTemporada(c, etapaId, v, antes.fuente[etapaId]);   // si la fecha venía del calendario de Temporada, de qué fila
+  return aviso;
 }
 // La fecha de esta etapa la había puesto Jefe de Temporada: si el usuario la cambia aquí, se le pregunta si también se
 // actualiza allá (igual que al editar un evento), para que las dos copias no se desincronicen.
@@ -762,11 +799,12 @@ function renderProceso() {
   }
 }
 
-const ETIQUETA_ORIGEN = { usuario: 'ajustada', jefe: 'de Temporada', precampana: 'por precampaña', sugerido: 'sugerido' };
+const ETIQUETA_ORIGEN = { usuario: 'ajustada', jefe: 'de Temporada', precampana: 'por precampaña', secuencia: 'en secuencia', sugerido: 'sugerido' };
 const AYUDA_ORIGEN = {
   usuario: 'La acomodaste tú.',
   jefe: 'Su fecha viene del calendario del Jefe de Temporada.',
   precampana: 'Se acomodó para terminar antes de que empiece la precampaña.',
+  secuencia: 'Se recorrió porque una etapa anterior se atrasó o se alargó.',
   sugerido: 'Tiempo sugerido según el arranque de la campaña.',
 };
 
@@ -776,7 +814,7 @@ function tarjetaCampana(c) {
   const bandas = [];
   if (anc.preInicio) bandas.push({ corto: 'Precampaña', sub: anc.preFuente === 'filas' ? 'Plan de calentamiento' : 'Duración en Temporada', ini: anc.preInicio, fin: AP.sumarDias(arr, -1), color: '#F2C230' });
   bandas.push({ corto: 'Campaña', sub: 'Fechas de Temporada', ini: arr, fin: anc.fin || arr, color: '#84CC16' });
-  if (anc.postInicio) bandas.push({ corto: 'Postcampaña', sub: 'Acciones de Temporada', ini: anc.postInicio, fin: anc.postFin, color: '#38BDF8' });
+  if (anc.postInicio) bandas.push({ corto: 'Postcampaña', sub: anc.postFin ? 'Acciones de Temporada' : 'Empieza al terminar la campaña', ini: anc.postInicio, fin: anc.postFin || anc.postInicio, color: '#38BDF8', soloInicio: !anc.postFin });
 
   let min = null, max = null;
   const abarca = (ini, fin) => { if (min === null || ini < min) min = ini; if (max === null || fin > max) max = fin; };
@@ -839,12 +877,12 @@ function tarjetaCampana(c) {
     bar.style.background = b.color + '66';
     bar.style.borderColor = b.color;
     bar.title = b.corto + ' · ' + fmtCorta(b.ini) + (n > 1 ? ' → ' + fmtCorta(b.fin) : '') + ' (fechas del Jefe de Temporada)';
-    bar.textContent = n > 1 ? n + ' d' : '';
+    bar.textContent = n > 1 && !b.soloInicio ? n + ' d' : '';
     track.appendChild(bar);
     row.appendChild(track);
     const dur = document.createElement('div');
     dur.className = 'g-dur';
-    dur.innerHTML = '<span>' + n + ' d</span><small>de Temporada</small>';
+    dur.innerHTML = b.soloInicio ? '<span>desde</span><small>de Temporada</small>' : '<span>' + n + ' d</span><small>de Temporada</small>';
     row.appendChild(dur);
     g.appendChild(row);
   });
@@ -880,7 +918,7 @@ function tarjetaCampana(c) {
     bar.style.width = (ed.n / N * 100) + '%';
     bar.textContent = ed.n > 1 ? ed.n + ' d' : '';
     bar.title = e.titulo + ' · ' + fmtCorta(f.inicio) + (ed.n > 1 ? ' → ' + fmtCorta(f.fin) : '');
-    bar.dataset.n = ed.n; bar.dataset.inicio = f.inicio;
+    bar.dataset.n = ed.n; bar.dataset.inicio = f.inicio; bar.dataset.etapa = e.id;
     const grip = document.createElement('span');
     grip.className = 'g-grip';
     grip.title = 'Arrastra para alargar o acortar';
@@ -890,8 +928,8 @@ function tarjetaCampana(c) {
       const i = Math.max(0, Math.min(N - 1, Math.floor((ev.clientX - r.left) / (r.width / N))));
       return isoDe(i);
     };
-    bar.addEventListener('pointerdown', (ev) => iniciarArrastre(ev, { campId: c.id, etapaId: e.id, modo: 'mover', iso: isoBajo(ev), contenedor: g, bar, track, N, inicio: f.inicio, n: ed.n }));
-    grip.addEventListener('pointerdown', (ev) => { ev.stopPropagation(); iniciarArrastre(ev, { campId: c.id, etapaId: e.id, modo: 'redim', iso: isoBajo(ev), contenedor: g, bar, track, N, inicio: f.inicio, n: ed.n }); });
+    bar.addEventListener('pointerdown', (ev) => iniciarArrastre(ev, { campId: c.id, etapaId: e.id, modo: 'mover', iso: isoBajo(ev), contenedor: g, bar, track, N, iso0, inicio: f.inicio, n: ed.n }));
+    grip.addEventListener('pointerdown', (ev) => { ev.stopPropagation(); iniciarArrastre(ev, { campId: c.id, etapaId: e.id, modo: 'redim', iso: isoBajo(ev), contenedor: g, bar, track, N, iso0, inicio: f.inicio, n: ed.n }); });
     bar.addEventListener('click', () => { if (Date.now() - ultimoArrastre < 400) return; abrirModalEtapa(c.id, e.id); });
     bar.addEventListener('keydown', (ev) => {
       if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); abrirModalEtapa(c.id, e.id); }
@@ -917,13 +955,15 @@ function tarjetaCampana(c) {
     aviso.innerHTML = '⚠️ ' + det.avisos.slice(0, 3).map((a) => {
       const e = AP.etapaPorId(a.etapa);
       if (a.tipo === 'orden') return '<b>' + esc(e.corto) + '</b> queda antes que <b>' + esc(AP.etapaPorId(a.antes).corto) + '</b>: revisa las fechas del Jefe de Temporada o acomódalas aquí.';
+      if (a.tipo === 'campana') return '<b>' + esc(e.corto) + '</b> se mete a la campaña (empieza el ' + esc(fmtCorta(anc.arranque)) + '): cambia esa fecha en el Jefe de Temporada o acomódala aquí.';
+      if (a.tipo === 'postcampana') return '<b>' + esc(e.corto) + '</b> cae en la postcampaña (la campaña termina el ' + esc(fmtCorta(anc.fin)) + ').';
       return '<b>' + esc(e.corto) + '</b> termina después de que empieza la precampaña (' + esc(fmtCorta(anc.preInicio)) + ').';
     }).join(' ');
     card.appendChild(aviso);
   }
   const pie = document.createElement('p');
   pie.className = 'pc-pie';
-  pie.textContent = 'Arrastra una barra para recorrerla, toma su orilla derecha para alargarla, o tócala para abrir el Jefe que te ayuda en esa etapa.';
+  pie.textContent = 'Arrastra una barra para recorrerla (las que siguen se recorren con ella), toma su orilla derecha para alargarla, o tócala para abrir el Jefe que te ayuda en esa etapa.';
   card.appendChild(pie);
   return card;
 }
@@ -954,11 +994,24 @@ function alMover(ev) {
   if (!iso) return;
   a.destino = iso;
   a.contenedor.querySelectorAll('[data-iso="' + iso + '"]').forEach((n) => n.classList.add('ag-destino'));
-  if (a.bar) {      // en la línea de tiempo la barra sigue al puntero día por día
-    const colW = a.track.getBoundingClientRect().width / a.N;
-    if (a.modo === 'mover') a.bar.style.transform = 'translateX(' + (AP.diasEntre(a.iso, iso) * colW) + 'px)';
-    else a.bar.style.width = (Math.max(1, Math.min(AP.MAX_DURACION, AP.diasEntre(a.inicio, iso) + 1)) * colW) + 'px';
+  if (a.bar) {      // en la línea de tiempo se ve en vivo cómo se recorre toda la secuencia (y hasta dónde cabe)
+    const c = campanas.find((x) => x.id === a.campId);
+    if (!c) return;
+    const anclas = anclasDe(c), guardado = proceso.campanas[c.id] || {};
+    const lim = AP.limitarMovimiento(guardado, promedio, anclas, a.etapaId, pedidoDeArrastre(a, c, iso));
+    const det = AP.detalleEfectivo(AP.conAjuste(guardado, a.etapaId, lim.ed), promedio, anclas);
+    a.contenedor.querySelectorAll('.g-bar[data-etapa]').forEach((b) => {
+      const p = det.plan[b.dataset.etapa], f = AP.fechasDe(c.fecha_inicio_activa, p);
+      b.style.left = (AP.diasEntre(a.iso0, f.inicio) / a.N * 100) + '%';
+      b.style.width = (p.n / a.N * 100) + '%';
+    });
+    if (lim.recortado) avisarToast(mensajePared(lim, anclas), true); else cerrarToast();
   }
+}
+// Cómo quedaría la etapa si se suelta en el día "destino": mover = recorrerla ese tanto; redim = que termine ese día.
+function pedidoDeArrastre(a, c, destino) {
+  const ed = planDe(c)[a.etapaId];
+  return a.modo === 'mover' ? AP.mover(ed, AP.diasEntre(a.iso, destino)) : AP.alargarHasta(ed, AP.diasEntre(c.fecha_inicio_activa, destino));
 }
 function terminarArrastre() {
   window.removeEventListener('pointermove', alMover);
@@ -967,6 +1020,7 @@ function terminarArrastre() {
   window.removeEventListener('keydown', alTeclaArrastre);
   document.body.classList.remove('ag-arrastrando');
   document.querySelectorAll('.ag-destino').forEach((n) => n.classList.remove('ag-destino'));
+  cerrarToast();
 }
 function alCancelar() {
   const a = arrastre; arrastre = null;
@@ -982,8 +1036,8 @@ async function alSoltar() {
   const c = campanas.find((x) => x.id === a.campId);
   if (!c || !a.destino) { render(); return; }
   const ed = planDe(c)[a.etapaId];
-  const nuevo = a.modo === 'mover' ? AP.mover(ed, AP.diasEntre(a.iso, a.destino)) : AP.alargarHasta(ed, AP.diasEntre(c.fecha_inicio_activa, a.destino));
-  if (nuevo.d === ed.d && nuevo.n === ed.n) { render(); return; }
+  const nuevo = pedidoDeArrastre(a, c, a.destino);
+  if (nuevo.d === ed.d && nuevo.n === ed.n) { cerrarToast(); render(); return; }
   await fijarEtapa(a.campId, a.etapaId, nuevo);
 }
 
@@ -1022,6 +1076,7 @@ let etapaActiva = null;
 function abrirModalEtapa(campId, etapaId) {
   etapaActiva = { campId, etapaId };
   pintarModalEtapa();
+  $('et-aviso').hidden = true;
   abrir('overlay-etapa');
 }
 function pintarModalEtapa() {
@@ -1059,8 +1114,10 @@ function pintarModalEtapa() {
 }
 async function cambiarEtapa(nuevo) {
   const a = etapaActiva; if (!a) return;
-  await fijarEtapa(a.campId, a.etapaId, nuevo);
+  const aviso = await fijarEtapa(a.campId, a.etapaId, nuevo);
   pintarModalEtapa();
+  $('et-aviso').textContent = aviso || '';
+  $('et-aviso').hidden = !aviso;
 }
 document.querySelectorAll('[data-et]').forEach((b) => b.addEventListener('click', () => {
   const a = etapaActiva; const c = a && campanas.find((x) => x.id === a.campId); if (!c) return;
