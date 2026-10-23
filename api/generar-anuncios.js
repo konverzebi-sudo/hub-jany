@@ -17,6 +17,7 @@ const { sql } = require('@vercel/postgres');
 const { sumarAlMes } = require('./_lib/uso-mensual');
 const { revisar: revisarSaldo, cobrar: cobrarSaldo } = require('./_lib/saldo');
 const { systemConCache, historialConCache, camposUso } = require('./_lib/cache-claude');
+const { formatearCampanaSeleccionada } = require('./_lib/campana-temporada');
 
 const DEFAULT_CLIENTE = 'jefeshub';
 const PROMPT_PATH_IDEAS = path.join(__dirname, '..', 'prompts', 'system-prompt-ideas-anuncios.md');
@@ -548,6 +549,21 @@ function formatearProducto(items, productoId, etiqueta) {
   return `PRODUCTO ESPECÍFICO A ENFOCAR (${etiqueta}). Todo lo que generes debe servir para VENDER este producto o servicio (su precio, a quién le sirve, qué problema resuelve); no mezcles otros productos del catálogo:\n- ` + partes.join(' · ');
 }
 
+// Campaña de Jefe de Temporada del producto en foco (la más reciente): los anuncios nacen ya alineados a su oferta,
+// fechas, ángulos y frases, sin volver a explicarlos. Sin campaña para ese producto, devuelve el bloque tal cual.
+async function conCampanaTemporada(clienteId, productoId, bloque) {
+  if (!productoId) return bloque;
+  const campanas = await leerJSON(`${clienteId}:temporada-campanas`).catch(() => null);
+  const delProducto = (Array.isArray(campanas) ? campanas : []).filter((c) => c && c.producto_id === productoId);
+  if (!delProducto.length) return bloque;
+  const clave = (c) => String(c.fecha_fin_activa || c.fecha_inicio_activa || '');
+  const camp = delProducto.slice().sort((a, b) => clave(b).localeCompare(clave(a)))[0];
+  const texto = formatearCampanaSeleccionada(camp);
+  if (!texto) return bloque;
+  const extra = 'CAMPAÑA DE TEMPORADA DE ESTE PRODUCTO (úsala si el anuncio es de esa temporada; respeta su oferta, fechas, ángulos y frases):\n' + truncar(texto, 3500);
+  return bloque ? bloque + '\n\n' + extra : extra;
+}
+
 // Datos del producto que se venía trabajando en Jefe 366 (llegan en modo guiado, aunque el producto
 // no esté en el catálogo del ADN). Texto plano ya armado por el cliente; solo se limita el largo.
 function formatearProductoTexto(body, etiqueta) {
@@ -750,7 +766,7 @@ async function manejarModoIdeas(body, res) {
 
   const promptFijo = cargarPrompt(PROMPT_PATH_IDEAS);
   const { contexto, catalogo } = await construirContexto(clienteId, grupoId);
-  const bloqueProducto = formatearProducto(catalogo, productoId, 'las ideas deben girar en torno a este producto puntual, no al grupo completo');
+  const bloqueProducto = await conCampanaTemporada(clienteId, productoId, formatearProducto(catalogo, productoId, 'las ideas deben girar en torno a este producto puntual, no al grupo completo'));
   const bloqueTexto = formatearProductoTexto(body, 'las ideas deben girar en torno a este producto');
 
   const instruccion = 'INSTRUCCIÓN DE ESTA GENERACIÓN:\n' +
@@ -816,7 +832,7 @@ async function manejarModoDetalle(body, res) {
 
   const promptFijo = cargarPrompt(PROMPT_PATH_DETALLE);
   const { contexto, catalogo, linkContacto } = await construirContexto(clienteId, grupoId);
-  const bloqueProducto = formatearProducto(catalogo, productoId, 'el detalle debe girar en torno a este producto puntual');
+  const bloqueProducto = await conCampanaTemporada(clienteId, productoId, formatearProducto(catalogo, productoId, 'el detalle debe girar en torno a este producto puntual'));
   const bloqueTexto = formatearProductoTexto(body, 'el detalle debe girar en torno a este producto');
 
   const listaIdeas = ideas.map((idea, i) =>
@@ -885,7 +901,7 @@ async function manejarModoTargeting(body, res) {
 
   const promptFijo = cargarPrompt(PROMPT_PATH_TARGETING);
   const { contexto, catalogo } = await construirContexto(clienteId, grupoId);
-  const bloqueProducto = formatearProducto(catalogo, productoId, 'el perfil de targeting debe pensarse para este producto puntual');
+  const bloqueProducto = await conCampanaTemporada(clienteId, productoId, formatearProducto(catalogo, productoId, 'el perfil de targeting debe pensarse para este producto puntual'));
 
   const instruccion = 'INSTRUCCIÓN DE ESTA GENERACIÓN:\n' +
     'Sugiere el perfil de targeting (ubicación, edad, género, intereses) para un Conjunto de Anuncios de Meta Ads, en el formato JSON indicado.' +
@@ -1072,7 +1088,7 @@ async function manejarModoChat(body, res) {
 
   const promptFijo = cargarPromptChat();
   const { contexto, catalogo } = await construirContexto(clienteId, grupoId);
-  const bloqueProducto = formatearProducto(catalogo, productoId, 'si aplica al anuncio que se está desarrollando en esta conversación');
+  const bloqueProducto = await conCampanaTemporada(clienteId, productoId, formatearProducto(catalogo, productoId, 'si aplica al anuncio que se está desarrollando en esta conversación'));
   const trabajoPrevio = await formatearTrabajoPrevioAnuncios(clienteId, grupoId, productoId).catch(() => null);
   const system = systemConCache(promptFijo, contexto, [bloqueProducto, trabajoPrevio].filter(Boolean).join('\n\n'));
 
@@ -1133,7 +1149,7 @@ async function manejarModoPieza(body, res) {
 
   const promptFijo = cargarPrompt(PROMPT_PATH_PIEZA);
   const { contexto, catalogo } = await construirContexto(clienteId, grupoId);
-  const bloqueProducto = formatearProducto(catalogo, productoId, 'la pieza debe girar en torno a este producto puntual');
+  const bloqueProducto = await conCampanaTemporada(clienteId, productoId, formatearProducto(catalogo, productoId, 'la pieza debe girar en torno a este producto puntual'));
   const bloqueTexto = formatearProductoTexto(body, 'la pieza debe girar en torno a este producto');
   const system = systemConCache(promptFijo, contexto, bloqueProducto, bloqueTexto);
 

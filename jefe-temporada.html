@@ -284,7 +284,6 @@
   .nota-box p[style*="3B0764"]{color:var(--text-dim)!important;}
   .chk-chip{display:inline-flex;align-items:center;gap:4px;font:600 12.5px Inter,sans-serif;padding:4px 10px;border-radius:100px;background:#F0F0F0;color:#444;border:1px solid #E2E2E2;}
   .chk-chip.ok{background:#E9F9C4;color:#33520a;border-color:#C0F800;}
-  #tt-conecta{max-width:1040px;margin:0 auto 16px;}
 </style>
 </head>
 <body class="piel-blanca">
@@ -1302,9 +1301,26 @@ function moduloDeCampo(c){
   if(c==='calendario') return 12;
   return 0;
 }
+const PASOS_SIGUIENTES=[
+  { num:13, titulo:'¡Haz tu contenido!', jefe:'contenido' },
+  { num:14, titulo:'Tus anuncios de la campaña', jefe:'anuncios' },
+  { num:15, titulo:'Chats estratégicos de WhatsApp', jefe:'whatsapp' },
+];
+// Deja la campaña "en foco" para el otro Jefe y se pasa a él: Contenido y Anuncios leen la campaña de ese producto
+// directo del almacén; Conversión/WhatsApp la reciben por la pastilla (id c:<campaña>). Así llegan con todo cargado.
+function abrirJefeConCampana(nombre){
+  const camp=activeCampana(); if(!camp) return;
+  if(!confirmarCompletitudAntesDeCompartir(camp)) return;
+  let foco='all';
+  if(nombre==='whatsapp') foco='c:'+camp.id;
+  else if(camp.producto_origen!=='nuevo' && camp.producto_id) foco=camp.producto_id;
+  else if(camp.producto_origen!=='nuevo' && camp.grupo_id) foco='g:'+camp.grupo_id;
+  try{ localStorage.setItem('jefeshub_foco_'+CLIENTE_ID, JSON.stringify({ id:foco, nombre:camp.producto_nombre||camp.nombre||'' })); }catch(e){}
+  window.location.href=rutaJefe(nombre);
+}
 function abrirPaso(n, desdeChat){
   pasoAbierto = (pasoAbierto===n && !desdeChat) ? null : n;
-  document.querySelectorAll('#tt-tl .tt-row').forEach(r=>{
+  document.querySelectorAll('#tt-tl .tt-row:not(.ext)').forEach(r=>{
     const m=+r.dataset.mod, ab=m===pasoAbierto;
     r.classList.toggle('open',ab);
     if(ab){ r.classList.remove('actualizado'); modulosTocados.delete(m); }
@@ -1337,8 +1353,15 @@ function construirLineaTiempo(container, camp){
     row.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>abrirPaso(num)));
     tl.appendChild(row); tl.appendChild(slot);
   });
-  if(conecta){ conecta.id='tt-conecta'; container.insertBefore(tl,conecta); container.appendChild(conecta); }
-  else container.appendChild(tl);
+  // Siguientes pasos del ecosistema: llevan a otro Jefe con esta campaña ya cargada (ver abrirJefeConCampana)
+  PASOS_SIGUIENTES.forEach((ps,k)=>{
+    const row=document.createElement('div');
+    row.className='tt-row ext'; row.dataset.mod=ps.num; row.style.setProperty('--i',secciones.length+k);
+    row.innerHTML='<div></div><div class="tt-c"><button type="button" class="tt-n" aria-label="Paso '+ps.num+'">'+ps.num+'</button></div><div class="tt-r"><button type="button" class="tt-btn">'+escHtml(ps.titulo)+'</button></div>';
+    row.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>abrirJefeConCampana(ps.jefe)));
+    tl.appendChild(row);
+  });
+  container.appendChild(tl);
 }
 // Autocompletar del chat (mismo patrón que Jefe de Anuncios): al enfocar muestra 5 sugerencias según lo que llevas
 // llenado y al escribir se filtran; elegir una la envía.
@@ -1418,17 +1441,6 @@ function campoTexto(campo,label,tipo){
 }
 function renderDocumento(container, camp){
   container.innerHTML = `
-    <div class="nota-box" style="display:flex;flex-direction:column;gap:10px;">
-      <p><b>Conecta esta campaña con otros Jefes:</b> copia el resumen (dolores, deseos, objeciones, ángulos, frases y todo lo demás ya construido) y pégalo en el chat de Contenido, Anuncios o WhatsApp para que generen piezas o una buena conversación ya alineadas a esta temporada — no hace falta volver a explicar nada.</p>
-      <p style="margin:0;font-weight:600;">¿Qué tan lleno está el Documento?</p>
-      ${renderChecklistCompletitud(camp)}
-      <div style="display:flex;gap:10px;flex-wrap:wrap;">
-        <button type="button" class="btn-outline" onclick="copiarResumenParaOtrosJefes(this)">📋 Copiar resumen de campaña</button>
-        <button type="button" class="btn btn-solid" onclick="irAJefe('contenido')">→ Ir a Jefe de Contenido</button>
-        <button type="button" class="btn btn-solid" onclick="irAJefe('anuncios')">→ Ir a Jefe de Anuncios</button>
-        <button type="button" class="btn btn-solid" onclick="irAJefe('whatsapp')">→ Ir a Jefe de WhatsApp</button>
-      </div>
-    </div>
     <div class="doc-section">
       <div class="doc-section-head"><span class="doc-num">1</span><h3 class="doc-title">Definición de campaña</h3></div>
       <div class="fields-grid">
@@ -1778,8 +1790,8 @@ GuiaJefe.registrar({
       texto: 'Este es el recorrido de tu campaña, en orden. Pícale a un número para abrir su módulo. Lo que confirmes en el chat se llena aquí solo y el módulo se marca como actualizado. El círculo se pone negro cuando el módulo está completo.' },
     { selector: ['.tt-row.next .tt-n', '#tt-tl .tt-n'], titulo: 'Aquí sigues',
       texto: 'El círculo con aro es el módulo que sigue. Ábrelo para ver lo que ya llevas y, si quieres, completarlo a mano.' },
-    { selector: '#tt-conecta', titulo: 'Conecta con tus otros Jefes',
-      texto: 'Cuando tu campaña esté lista, copia el resumen o pásate a Contenido, Anuncios o WhatsApp: ya llevan todo lo de esta campaña, sin explicar nada de nuevo. Las fechas de tu calendario también aparecen solas en el Jefe de Agenda.' },
+    { selector: '.tt-row.ext .tt-n', titulo: 'Y después, a vender',
+      texto: 'Cuando tu campaña esté lista, estos pasos te llevan a tus otros Jefes: contenido, anuncios y chats de WhatsApp. Llegan con la campaña ya cargada (oferta, fechas, ángulos y frases), sin explicar nada de nuevo. Las fechas de tu calendario también aparecen solas en el Jefe de Agenda.' },
     { selector: '#viewToggleBtn', titulo: 'Vista dividida o normal',
       texto: 'Cambia entre ver el chat y el tablero lado a lado, o cada cosa en pantalla completa.' },
   ],
