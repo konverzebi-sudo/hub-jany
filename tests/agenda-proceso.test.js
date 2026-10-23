@@ -42,19 +42,43 @@ test('sumarDias no depende del horario ni de la zona: fin de mes, bisiesto y cam
   assert.equal(AP.esISO('2026-11-12'), true);
 });
 
-test('lo que el usuario acomoda gana sobre lo recomendado, y solo en esa etapa', () => {
-  const plan = AP.planEfectivo({ grabar: { d: -5, n: 4, u: 1 } }, {}, null);
-  assert.deepEqual(plan.grabar, { d: -5, n: 4 });
-  assert.deepEqual(plan.editar, AP.planEfectivo({}, {}, null).editar);
+test('lo que el usuario acomoda gana sobre lo recomendado', () => {
+  const plan = AP.planEfectivo({ optimizar: { d: 9, n: 2, u: 1 } }, {}, null);
+  assert.deepEqual(plan.optimizar, { d: 9, n: 2 });
+  assert.deepEqual(plan.revisar, AP.planEfectivo({}, {}, null).revisar);   // no había nada detrás que empujar
 });
 
-test('acomodar una etapa NO mueve a las demás (aunque la alargue)', () => {
+test('SECUENCIA: si atrasas una etapa, la que sigue se recorre (y la que sigue de esa)', () => {
   const normal = AP.planEfectivo({}, {}, null);
-  const alargada = AP.planEfectivo({ estrategia: { d: -10, n: 9, u: 1 } }, {}, null);
-  ['definir', 'grabar', 'editar', 'whatsapp', 'campana', 'programar', 'revisar', 'optimizar'].forEach((id) => assert.deepEqual(alargada[id], normal[id], id));
+  // "Revisa" pasa del día 13 al 19 (d +7): "Optimiza" estaba en +6 y ya no puede empezar antes de que termine "Revisa"
+  const det = AP.detalleEfectivo({ revisar: { d: 7, n: 1, u: 1 } }, {}, null);
+  assert.deepEqual(det.plan.revisar, { d: 7, n: 1 });
+  assert.equal(det.plan.optimizar.d, 8);
+  assert.equal(det.origen.optimizar, 'secuencia');
+  assert.equal(det.empujada.optimizar, 2);
+  // lo anterior no se mueve
+  ['definir', 'estrategia', 'grabar', 'editar', 'whatsapp', 'campana', 'programar'].forEach((id) => assert.deepEqual(det.plan[id], normal[id], id));
+  // si alcanza el hueco que ya había (el recomendado entre el día 13 y el 18), no se mueve nada
+  assert.deepEqual(AP.planEfectivo({ revisar: { d: 4, n: 1, u: 1 } }, {}, null).optimizar, normal.optimizar);
 });
 
-// ───────────────────────── promedio y plan congelado por campaña ─────────────────────────
+test('SECUENCIA: alargar una etapa también empuja a la que sigue, y al adelantarla todo regresa', () => {
+  const anclas = AP.anclasDeCampana(campana({ pre_calentamiento: [{ fecha: '2026-11-03' }] }));   // hay hueco antes del arranque
+  const base = AP.detalleEfectivo({}, {}, anclas).plan;
+  const alargada = AP.detalleEfectivo({ estrategia: { d: base.estrategia.d, n: base.estrategia.n + 2, u: 1 } }, {}, anclas);
+  assert.equal(alargada.plan.estrategia.n, base.estrategia.n + 2);
+  assert.equal(alargada.plan.grabar.d, base.grabar.d + 2);
+  assert.equal(alargada.plan.editar.d, base.editar.d + 2);
+  assert.equal(alargada.origen.grabar, 'secuencia');
+  assert.deepEqual(alargada.plan.whatsapp, base.whatsapp);                // había hueco: no se mueve
+  assert.deepEqual(AP.detalleEfectivo({}, {}, anclas).plan, base);       // sin el ajuste, todo regresa
+});
+
+test('SECUENCIA: una etapa no puede empezar antes de que termine la anterior', () => {
+  const normal = AP.planEfectivo({}, {}, null);
+  const det = AP.detalleEfectivo({ grabar: { d: -9, n: 2, u: 1 } }, {}, null);     // la quiere encimar con "Estrategia"
+  assert.equal(det.plan.grabar.d, normal.estrategia.d + normal.estrategia.n);      // empieza el día después de que termina
+});
 
 test('el promedio sale solo de las etapas que el usuario acomodó a mano (u:1)', () => {
   const prom = AP.promedios({
@@ -232,22 +256,30 @@ test('la fecha que puso Temporada manda sobre el corrimiento por precampaña, y 
 });
 
 test('si cambia una fecha en Temporada, las etapas sin ajustar se recorren solas; las acomodadas no', () => {
-  const guardado = Object.assign(AP.instantanea({}), { grabar: { d: -7, n: 2, u: 1 } });
+  const guardado = Object.assign(AP.instantanea({}), { optimizar: { d: 9, n: 1, u: 1 } });
   const antes = AP.detalleEfectivo(guardado, {}, AP.anclasDeCampana(campana({ pre_calentamiento: [{ fecha: '2026-11-03' }] })));
   const despues = AP.detalleEfectivo(guardado, {}, AP.anclasDeCampana(campana({ pre_calentamiento: [{ fecha: '2026-10-30' }] })));
   assert.equal(despues.plan.editar.d, antes.plan.editar.d - 4);
-  assert.deepEqual(despues.plan.grabar, antes.plan.grabar);
+  assert.deepEqual(despues.plan.optimizar, antes.plan.optimizar);
 });
 
 test('AVISOS: si dos fechas de Temporada chocan se avisa, no se corrige a escondidas', () => {
-  // "Definición" el 28 oct pero la precampaña empieza el 1 nov: no caben estrategia, grabar y editar entre las dos
+  // "Definición" el 28 oct y la precampaña empieza el 1 nov: la secuencia empuja el resto y ya no alcanza a terminar antes de la precampaña
   const anclas = AP.anclasDeCampana(campana({
     pre_calentamiento: [{ fecha: '2026-11-01' }],
     calendario: [{ id: 'k1', fecha: '2026-10-28', fase: 'Definición de campaña', accion: 'Confirmar oferta' }],
   }));
   const det = AP.detalleEfectivo({}, {}, anclas);
-  assert.equal(det.plan.definir.d, -15);                            // la fecha de Temporada se respeta
-  assert.ok(det.avisos.some((a) => a.tipo === 'orden' && a.etapa === 'estrategia' && a.antes === 'definir'));
+  assert.equal(det.plan.definir.d, -15);                                              // la fecha de Temporada se respeta
+  assert.equal(det.plan.estrategia.d, -14);                                           // y lo demás va en secuencia después de ella
+  assert.ok(det.avisos.some((a) => a.tipo === 'precampana' && a.etapa === 'editar'));
+  // dos fechas de Temporada que se encima: no se mueve ninguna, se avisa
+  const choque = AP.detalleEfectivo({}, {}, AP.anclasDeCampana(campana({ calendario: [
+    { id: 'a', fecha: '2026-11-08', fase: 'Creación de contenido', accion: 'Grabar' },
+    { id: 'b', fecha: '2026-11-08', fase: 'Creación de contenido', accion: 'Editar' },
+  ] })));
+  assert.equal(choque.plan.grabar.d, choque.plan.editar.d);
+  assert.ok(choque.avisos.some((a) => a.tipo === 'orden' && a.etapa === 'editar' && a.antes === 'grabar'));
   // una etapa de Temporada que termina después de que empiece la precampaña
   const anclas2 = AP.anclasDeCampana(campana({
     pre_calentamiento: [{ fecha: '2026-11-01' }],
@@ -258,6 +290,61 @@ test('AVISOS: si dos fechas de Temporada chocan se avisa, no se corrige a escond
   assert.deepEqual(AP.detalleEfectivo({}, {}, null).avisos, []);
   assert.deepEqual(AP.detalleEfectivo({}, {}, AP.anclasDeCampana(campana({ pre_calentamiento: [{ fecha: '2026-11-03' }] }))).avisos, []);
   assert.deepEqual(AP.detalleEfectivo({ editar: { d: -1, n: 1, u: 1 }, grabar: { d: -9, n: 1, u: 1 } }, {}, anclas2).avisos.filter((a) => a.etapa === 'editar'), []);
+  // una fecha de Temporada que cae en la campaña o en la postcampaña también se avisa
+  const paredes = AP.detalleEfectivo({}, {}, AP.anclasDeCampana(campana({ fecha_fin_activa: '2026-11-14', calendario: [
+    { id: 'p', fecha: '2026-11-12', fase: 'Preparación de campaña', accion: 'Programar anuncios' },
+    { id: 'q', fecha: '2026-11-20', fase: 'Campaña activa', accion: 'Optimizar anuncios' },
+  ] })));
+  assert.ok(paredes.avisos.some((a) => a.tipo === 'campana' && a.etapa === 'campana'));
+  assert.ok(paredes.avisos.some((a) => a.tipo === 'postcampana' && a.etapa === 'optimizar'));
+});
+
+test('PAREDES: la preparación no se mete a la campaña; el movimiento se recorta hasta donde sí cabe', () => {
+  const anclas = AP.anclasDeCampana(campana());                       // sin precampaña: la preparación va pegada al arranque, sin holgura
+  const normal = AP.planEfectivo({}, {}, anclas);
+  const sinHolgura = AP.limitarMovimiento({}, {}, anclas, 'definir', AP.mover(normal.definir, 1));
+  assert.equal(sinHolgura.recortado, true);
+  assert.equal(sinHolgura.motivo, 'campana');
+  assert.deepEqual(sinHolgura.ed, normal.definir);                    // ni un día cabe
+  // con precampaña hay hueco: un poco se puede atrasar, mucho no
+  const conHueco = AP.anclasDeCampana(campana({ pre_calentamiento: [{ fecha: '2026-11-03' }] }));
+  const base = AP.planEfectivo({}, {}, conHueco);
+  const poco = AP.limitarMovimiento({}, {}, conHueco, 'estrategia', AP.mover(base.estrategia, 2));
+  assert.equal(poco.recortado, false);
+  assert.equal(poco.ed.d, base.estrategia.d + 2);
+  const mucho = AP.limitarMovimiento({}, {}, conHueco, 'estrategia', AP.mover(base.estrategia, 30));
+  assert.equal(mucho.recortado, true);
+  assert.equal(mucho.motivo, 'campana');
+  assert.ok(mucho.ed.d > base.estrategia.d && mucho.ed.d < base.estrategia.d + 30);
+  const resultado = AP.detalleEfectivo(AP.conAjuste({}, 'estrategia', mucho.ed), {}, conHueco);
+  assert.deepEqual(AP.violaciones(resultado, conHueco), []);          // lo que quedó sí cabe
+  // "muy lejos" por poquito: un día más ya no cabría
+  const justo = AP.limitarMovimiento({}, {}, conHueco, 'estrategia', AP.mover(mucho.ed, 1));
+  assert.equal(justo.recortado, true);
+});
+
+test('PAREDES: lo que pasa durante la campaña no se pasa a la postcampaña', () => {
+  const anclas = AP.anclasDeCampana(campana({ fecha_fin_activa: '2026-11-15' }));    // la campaña dura hasta el día +3
+  const base = AP.planEfectivo({}, {}, anclas);                                       // "Revisa" en +1
+  const dentro = AP.limitarMovimiento({}, {}, anclas, 'revisar', { d: 3, n: 1 });
+  assert.equal(dentro.recortado, false);
+  const fuera = AP.limitarMovimiento({}, {}, anclas, 'revisar', { d: 5, n: 1 });
+  assert.equal(fuera.recortado, true);
+  assert.equal(fuera.motivo, 'postcampana');
+  assert.equal(fuera.ed.d, 3);
+  // sin fecha de fin de campaña no hay pared de postcampaña
+  assert.equal(AP.limitarMovimiento({}, {}, AP.anclasDeCampana(campana()), 'revisar', { d: 5, n: 1 }).recortado, false);
+  // lo que ya chocaba (la sugerida "Optimiza" cae después del fin) no se castiga ni se empeora sin motivo nuevo
+  assert.ok(AP.violaciones(AP.detalleEfectivo({}, {}, anclas), anclas).some((v) => v.tipo === 'postcampana' && v.etapa === 'optimizar'));
+  assert.equal(AP.limitarMovimiento({}, {}, anclas, 'optimizar', AP.mover(base.optimizar, -1)).recortado, false);
+});
+
+test('la postcampaña empieza el día siguiente al fin de la campaña, aunque Temporada no haya fechado sus acciones', () => {
+  const a = AP.anclasDeCampana(campana({ fecha_fin_activa: '2026-11-20' }));
+  assert.equal(a.postInicio, '2026-11-21');
+  assert.equal(a.postFin, '');
+  assert.equal(AP.anclasDeCampana(campana()).postInicio, '');
+  assert.deepEqual(AP.promedioPrePost([a]), { pre: 0, post: 0, nPre: 0, nPost: 0 });   // sin fin de postcampaña no hay duración que promediar
 });
 
 test('promedio real de precampaña y postcampaña, según las fechas de cada campaña', () => {
