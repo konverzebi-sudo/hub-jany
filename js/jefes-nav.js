@@ -26,8 +26,7 @@
     { slug: 'jefe-whatsapp',         files: ['jefe-conversion-ventas.html', 'jefe-conversion-ventas-rancho-seco.html'], icono: 'jefe-whatsapp-logo-negro', iconoOscuro: 'jefe-whatsapp-logo-blanco', nombre: 'WhatsApp y Ventas' },
     { slug: 'jefe-financiero',       files: ['consultor-financiero.html'],     icono: 'jefe-finanzas-logo-negro', iconoOscuro: 'jefe-finanzas-logo-blanco', nombre: 'Jefe de Finanzas' },
     { slug: 'jefe-radar',            files: ['consultor-radar-mercado.html'],  icono: 'jefe-radar',            nombre: 'Jefe del Faro' },
-    { slug: 'jefe-cierre',           files: ['consultor-cierre.html'],         icono: 'jefe-conversion',       nombre: 'Jefe de Conversión' },
-    { slug: 'jefe-optimizacion',     files: ['consultor-optimizacion.html'],   icono: 'jefe-optimizacion',     nombre: 'Jefe de Mejora Constante' },
+    { slug: 'jefe-cierre',           files: ['consultor-cierre.html', 'consultor-optimizacion.html'], icono: 'jefe-resultados-logo-negro', iconoOscuro: 'jefe-resultados-logo-blanco', nombre: 'Jefe de Resultados' },
     { slug: 'jefe-temporada',        files: ['jefe-temporada.html'],           icono: 'jefe-temporada-logo-negro', iconoOscuro: 'jefe-temporada-logo-blanco', nombre: 'Jefe de Temporada' },
     { slug: 'jefe-agenda',           files: ['consultor-agenda.html'],         icono: 'jefe-agenda-logo-negro', iconoOscuro: 'jefe-agenda-logo-blanco', nombre: 'Jefe de Agenda' },
     { slug: 'herramientas',         files: ['jefe-herramientas.html'],        icono: 'jefe-herramientas-logo-negro', iconoOscuro: 'jefe-herramientas-logo-blanco', nombre: 'Jefe de Herramientas' }

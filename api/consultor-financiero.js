@@ -19,7 +19,7 @@
 // 'diseno' => Jefe de Producción de Video (rama nueva, prompt y contexto propios, ver
 // PROMPT_PATH_DISENO / construirContextoDiseno más abajo). Cada rama es independiente.
 //
-// Segunda fusión: 'metaads' => Agente Analista de Meta Ads (Card 9 "Jefe de Optimización").
+// Segunda fusión: 'metaads' => Agente Analista de Meta Ads (módulo "Resultados en Campañas" del Jefe de Resultados (antes Jefe de Mejora Constante)).
 // Mismo patron de discriminador. A diferencia de financiero/diseno, este agente no vive de
 // datos del ADN sino del reporte CSV que el usuario sube/pega en la página -- se manda fresco
 // en cada llamada como `reporteCsv` (mismo patron que `datosCalculadora` de Jefe Finanzas, NO
@@ -458,7 +458,7 @@ async function handleMetaAds(req, res, body) {
   const contextoReporte = formatearReporteCsv(body.reporteCsv);
   const system = systemConCache(systemPrompt, [contextoNegocio, contextoReporte].filter(Boolean).join('\n\n'));
 
-  const r = await llamarClaudeChat({ system, messages: limpio, maxTokens: 8000, cacheHistorial: { total, max: MAX_MESSAGES_METAADS } });
+  const r = await llamarClaudeChat({ system, messages: limpio, maxTokens: 12000, cacheHistorial: { total, max: MAX_MESSAGES_METAADS } });
   if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
   await registrarUsoTokens(clienteId, 'consultor-optimizacion', r.usage);
   return res.status(200).json({ text: extraerHtmlDashboard(r.text) });

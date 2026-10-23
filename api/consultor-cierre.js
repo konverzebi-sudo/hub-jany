@@ -1,4 +1,4 @@
-// Endpoint server-side para el Jefe de Conversión — multi-tenant, multi-modo.
+// Endpoint server-side para el Jefe de Resultados (antes Jefe de Conversión) — multi-tenant, multi-modo.
 // Sigue el mismo patron que api/consultor-366.js / api/consultor-financiero.js:
 // prompt fijo generico (sin datos de negocio hardcoded) + CONTEXTO DEL NEGOCIO cargado en tiempo
 // real desde el ADN de cada marca. `modo` decide que fragmento de prompt se concatena.
@@ -285,7 +285,7 @@ function formatearComunicaciones366(items, grupos) {
 }
 
 // Jefe de Temporada no escribe nada en brand-book.* -- sus campañas viven en su propia llave
-// (temporada-campanas, un arreglo). Se la damos a Jefe de Conversión para que la landing/manual/
+// (temporada-campanas, un arreglo). Se la damos a Jefe de Resultados para que la landing/manual/
 // auditoría reflejen la promoción y urgencia reales de esa campaña en vez de una genérica.
 // Importante: NO se filtra solo por "ya está corriendo hoy" -- lo normal es armar la landing
 // ANTES de que arranque la campaña, no durante. Por eso se incluyen también las que todavía no

@@ -2,10 +2,17 @@
 <html lang="es">
 <head>
 <script src="/js/hub-tenant.js"></script>
+<script>
+  // Este módulo ahora vive dentro del Jefe de Resultados (/jefe-cierre, ruta "Resultados en Campañas").
+  // Incrustado (?embed=1) se muestra sin barra ni encabezado; abierto solo, lleva al Jefe de Resultados.
+  window.__EMBED = /[?&]embed=1/.test(location.search);
+  if (!window.__EMBED) location.replace(window.__hub.prefijo() + '/jefe-cierre?ruta=campanas');
+  else document.documentElement.classList.add('embed');
+</script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Jefe de Mejora Constante — JefesHub</title>
-<link rel="icon" type="image/png" href="/img/fav/jefe-optimizacion.png">
+  <title>Resultados en Campañas — Jefe de Resultados</title>
+<link rel="icon" type="image/png" href="/img/fav/jefe-cierre.png">
 <link rel="apple-touch-icon" href="/img/favicon-180.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -129,6 +136,16 @@
     .agent-suggestion { font-family: "JetBrains Mono", monospace; font-size: 11.5px; padding: 6px 12px; border-radius: 20px; border: 1px solid var(--line); background: transparent; color: var(--text-dim); cursor: pointer; transition: 0.15s; }
     .agent-suggestion:hover { border-color: var(--accent); color: var(--accent-texto, var(--accent)); }
 
+    /* ── INCRUSTADO en el Jefe de Resultados: sin barra, encabezado ni pie; el scroll es del propio módulo ── */
+    html.embed .topbar, html.embed header, html.embed footer { display: none; }
+    html.embed body { padding-top: 0; }
+    html.embed .gj-fab { display: none !important; } /* el botón ❓ Guía del Jefe de Resultados ya está afuera; aquí va "Cómo usar este módulo" */
+    html.embed main { padding-top: 6px; padding-bottom: 28px; max-width: 1240px; }
+    .modulo-intro { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+    .modulo-intro p { margin: 0; flex: 1 1 360px; font-size: 15px; line-height: 1.55; color: var(--text-dim); }
+    .modulo-intro .pb-btn { min-height: 40px; padding: 8px 14px; font-size: 13px; white-space: nowrap; }
+    .dashboard-frame-wrap { background: #fff; }
+    .dashboard-frame-wrap iframe { height: max(560px, 82vh); }
     footer { text-align: center; padding: 24px 20px; font-size: 12px; color: var(--text-dim); font-family: "JetBrains Mono", monospace; border-top: 1px solid var(--line); margin-top: 20px; }
   </style>
 <link rel="stylesheet" href="/css/jefes-piel-blanca.css">
@@ -138,7 +155,7 @@
 
 <div class="topbar">
   <a id="opt-back-hub" href="/" class="back-link">&lt;&lt; Hub de Jefes <span style="opacity:.4;">//</span> <span id="brand-marca-label">—</span></a>
-  <h1>👁️ Jefe de Mejora Constante</h1>
+  <h1>Resultados en Campañas</h1>
 </div>
 
 <header>
@@ -164,6 +181,11 @@
 
 <main>
 
+  <div class="modulo-intro" id="moduloIntro">
+    <p><b>Resultados en Campañas.</b> Sube el reporte de Meta Ads Manager y recibe tu tablero: qué anuncio escalar, cuál apagar y qué producir la próxima semana.</p>
+    <button type="button" class="pb-btn pb-btn-borde" id="verTutorialBtn">▶ Cómo usar este módulo</button>
+  </div>
+
   <!-- ═══ HISTORIAL ═══ -->
   <section class="card" id="historialSection" style="display:none;">
     <div class="card-label">🕘 Historial de análisis</div>
@@ -181,10 +203,11 @@
     </div>
     <div class="file-ready" id="fileReady"><span>✅</span><span id="fileName"></span></div>
 
-    <div class="how-export" style="margin-top:14px;">
+    <div class="how-export" id="how-export-box" style="margin-top:14px;">
       <b>¿Cómo exportar tu CSV?</b><br>
       Meta Ads Manager → Nivel Anuncio → Sin desglose → Exportar → CSV (.csv)<br>
       <button type="button" class="link-btn" id="verInstruccionesBtn" style="margin-top:8px;">📋 Ver instrucciones — qué columnas activar antes de exportar →</button>
+      <div style="margin-top:10px;"><button type="button" class="pb-btn pb-btn-borde" id="descargarTutorialBtn" style="min-height:38px;padding:7px 14px;font-size:13px;">⬇️ Descargar tutorial para bajar tus métricas (.html)</button></div>
     </div>
 
     <button type="button" class="analyze-btn" id="analyzeBtn" style="margin-top:16px;" disabled>Analizar reporte completo</button>
@@ -222,6 +245,7 @@
       <a href="#" class="sec-btn" id="downloadBtn">⬇️ Descargar dashboard (.html)</a>
       <button type="button" class="sec-btn" id="newAnalysisBtn">🔄 Analizar otro reporte</button>
       <button type="button" class="sec-btn" id="openTabBtn">↗️ Abrir en pestaña nueva</button>
+      <button type="button" class="sec-btn" id="printBtn">🖨️ Imprimir / guardar PDF</button>
     </div>
     <div class="dashboard-frame-wrap">
       <iframe id="dashboardFrame" title="Dashboard Ejecutivo"></iframe>
@@ -230,10 +254,12 @@
 
   <!-- ═══ CHAT DE SEGUIMIENTO ═══ -->
   <section class="agent-box" id="agentBox">
-    <div class="agent-title">💬 Pregúntale al Jefe de Mejora Constante</div>
+    <div class="agent-title">💬 Pregúntale al Jefe de Resultados</div>
     <div class="agent-sub">Sobre el mismo reporte que ya subiste: compara anuncios, pide el resumen exprés, un plan de escalamiento o un diagnóstico puntual.</div>
     <div class="agent-suggestions" id="agentSuggestions">
       <button type="button" class="agent-suggestion" onclick="preguntaSugerida('Dame solo el resumen exprés.')">Resumen exprés</button>
+      <button type="button" class="agent-suggestion" onclick="preguntaSugerida('Hazme la radiografía de mi sistema en 6 pasos con mis números y dime en cuál paso está la fuga.')">Radiografía en 6 pasos</button>
+      <button type="button" class="agent-suggestion" onclick="preguntaSugerida('¿Qué creativos debo producir la próxima semana y con qué ángulo, según lo que funcionó?')">Qué producir</button>
       <button type="button" class="agent-suggestion" onclick="preguntaSugerida('Gasté y no me llegaron resultados, ¿qué está pasando?')">Gasté y no vendí</button>
       <button type="button" class="agent-suggestion" onclick="preguntaSugerida('Ya tengo ganadores, ¿cómo los escalo?')">Plan de escalamiento</button>
     </div>
@@ -246,7 +272,7 @@
 
 </main>
 
-<footer>Jefe de Mejora Constante · JefesHub</footer>
+<footer>Jefe de Resultados · Resultados en Campañas · JefesHub</footer>
 
 <script>
   var csvText = null;
@@ -308,6 +334,66 @@
 
   var ultimoDashboardHtml = '';
 
+  // El modelo a veces antepone su "pre-análisis" o envuelve el HTML en ```html. Aquí se deja solo el documento
+  // (también limpia análisis viejos del historial que se guardaron con ese texto de más).
+  function limpiarDashboardHtml(texto){
+    var t = String(texto || '');
+    var fence = t.match(/```(?:html)?\s*([\s\S]*?)```/i);
+    if (fence && /<!DOCTYPE|<html[\s>]/i.test(fence[1])) t = fence[1];
+    var ini = t.search(/<!DOCTYPE html|<html[\s>]/i);
+    if (ini > 0) t = t.slice(ini);
+    var fin = t.search(/<\/html\s*>/i);
+    if (fin > -1) t = t.slice(0, fin + 7);
+    return t.trim();
+  }
+
+  // ── TUTORIAL DESCARGABLE: cómo bajar las métricas de Meta Ads Manager ──
+  function generarTutorialHtml(){
+    var chips = function(arr){ return arr.map(function(c){ return '<span class="chip">' + escaparAtributoOpt(c) + '</span>'; }).join(''); };
+    var grupos = COLUMNAS_REQUERIDAS.map(function(g){
+      return '<h3>' + escaparAtributoOpt(g.grupo) + '</h3><div class="chips">' + chips(g.cols) + '</div>';
+    }).join('');
+    return '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+      + '<title>Tutorial: cómo bajar tus métricas de Meta Ads</title><style>'
+      + 'body{font-family:Inter,system-ui,Arial,sans-serif;color:#1A1A1A;background:#fff;max-width:820px;margin:0 auto;padding:32px 20px 60px;line-height:1.6}'
+      + 'h1{font-size:28px;margin:0 0 6px}h2{font-size:20px;margin:32px 0 10px;border-bottom:3px solid #C0F800;padding-bottom:6px}h3{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#4E7A00;margin:18px 0 6px}'
+      + '.sub{color:#6B6B6B;margin:0 0 20px}ol{padding-left:22px}li{margin-bottom:10px}.chips{display:flex;flex-wrap:wrap;gap:6px}'
+      + '.chip{background:#F0F0F0;border:1px solid #E2E2E2;border-radius:6px;padding:4px 9px;font:12px ui-monospace,Menlo,Consolas,monospace}'
+      + '.box{background:#F1FFC2;border:1px solid #C0F800;border-radius:12px;padding:12px 16px;margin:16px 0}'
+      + '@media print{body{padding:0}h2{break-after:avoid}li,.chips{break-inside:avoid}}'
+      + '</style></head><body>'
+      + '<h1>Cómo bajar tus métricas de Meta Ads</h1>'
+      + '<p class="sub">Guía para exportar el reporte que analiza el Jefe de Resultados (módulo Resultados en Campañas). Toma unos 5 minutos la primera vez.</p>'
+      + '<div class="box"><b>Lo esencial:</b> reporte a <b>nivel Anuncio</b>, con el rango de fechas que quieres revisar, <b>sin desglose</b>, en formato <b>CSV</b>.</div>'
+      + '<h2>Paso a paso</h2><ol>'
+      + '<li>Entra a <b>Meta Ads Manager</b> (business.facebook.com/adsmanager) y elige la cuenta publicitaria correcta.</li>'
+      + '<li>Ve a la pestaña <b>Anuncios</b> (no Campañas ni Conjuntos de anuncios).</li>'
+      + '<li>Arriba a la derecha elige el <b>rango de fechas</b> (ej. últimos 7 o 30 días, o el periodo de tu campaña).</li>'
+      + '<li>Abre el menú <b>Columnas</b> → <b>Personalizar columnas</b>.</li>'
+      + '<li>Activa (marca) las columnas de la lista de abajo, sin quitar las que ya tengas. Si una no aparece, tu tipo de campaña no la usa: es normal, sigue con las demás.</li>'
+      + '<li>Guarda la selección como plantilla con el nombre <b>Jefe de Resultados</b> para no repetirlo cada vez.</li>'
+      + '<li>Haz clic en <b>Exportar</b> → <b>Exportar datos de la tabla</b> → formato <b>.csv</b> → desglose: <b>Ninguno</b>.</li>'
+      + '<li>Descarga el archivo y súbelo en el módulo Resultados en Campañas del Jefe de Resultados.</li>'
+      + '</ol>'
+      + '<h2>Columnas que debes activar</h2>' + grupos
+      + '<h2>Módulos del menú Columnas</h2><p>Si prefieres activarlos por bloques, estos son los que conviene tener encendidos:</p><div class="chips">' + chips(MODULOS_COLUMNAS) + '</div>'
+      + '<h2>Consejos para un buen reporte</h2><ol>'
+      + '<li>Analiza periodos de al menos 7 días: con menos datos las tasas (CTR, costo por resultado) engañan.</li>'
+      + '<li>Si tu campaña es de WhatsApp, el reporte no trae la venta final; ten a la mano cuántas conversaciones se volvieron venta y tu tiempo de respuesta para completar el análisis en el chat.</li>'
+      + '<li>Nombra tus anuncios con un patrón (concepto_formato_versión): ahorra horas al comparar.</li>'
+      + '<li>Sube un reporte nuevo cada semana para comparar la evolución.</li>'
+      + '</ol></body></html>';
+  }
+  function descargarTutorial(){
+    var blob = new Blob([generarTutorialHtml()], { type: 'text/html' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'tutorial-descargar-metricas-meta-ads.html';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 2000);
+  }
+  document.getElementById('descargarTutorialBtn').addEventListener('click', descargarTutorial);
+
   // ── INSTRUCCIONES DE EXPORTACIÓN (qué columnas activar en Meta Ads Manager) ──
   // Basado en la seccion 5 (Que contiene un reporte de Meta Ads) del Documento
   // Maestro del Jefe de Optimizacion -- prompts/system-prompt-analista-metaads.md
@@ -317,9 +403,12 @@
     { grupo: 'Resultado y gasto', cols: ['Importe gastado (MXN)', 'Resultados', 'Indicador de resultado', 'Costo por resultados'] },
     { grupo: 'Rentabilidad (solo campañas de Compras en sitio web)', cols: ['ROAS de resultados', 'Valor de resultados'] },
     { grupo: 'Atención y clic', cols: ['Impresiones', 'Alcance', 'Frecuencia', 'CTR (todos)', 'CTR (porcentaje de clics en el enlace)', 'Clics (todos)', 'CPC (todos)', 'CPM (costo por 1,000 impresiones)'] },
-    { grupo: 'Embudo (solo campañas de sitio web)', cols: ['Visitas a la página de destino', 'Pagos iniciados', 'Costo por pago iniciado'] },
+    { grupo: 'Embudo (solo campañas de sitio web)', cols: ['Visitas a la página de destino', 'Costo por visita a la página de destino', 'Artículos agregados al carrito', 'Costo por artículo agregado al carrito', 'Pagos iniciados', 'Costo por pago iniciado', 'Compras', 'Costo por compra'] },
+    { grupo: 'Comunidad (solo si tu objetivo incluye seguidores)', cols: ['Seguimientos de Instagram', 'Costo por seguimiento de Instagram'] },
     { grupo: 'Calidad (si está disponible para tu cuenta)', cols: ['Clasificación de calidad', 'Clasificación del porcentaje de interacción', 'Clasificación del porcentaje de conversiones'] },
   ];
+  // Los "módulos" del menú Columnas que conviene tener activos (lista de la estrategia de Optimización).
+  var MODULOS_COLUMNAS = ['Entrega', 'Acciones', 'Presupuesto', 'Resultados', 'Costo por resultado', 'Importe gastado', 'ROAS de resultados', 'Valor de resultados', 'CTR (todos)', 'Frecuencia', 'Impresiones', 'Alcance', 'Visitas a la página de destino', 'Costo por visita a la página de destino', 'Pagos iniciados', 'Costo por pago iniciado', 'Clics (todos)', 'Seguimientos de Instagram', 'Costo por seguimiento de Instagram', 'Nombre del conjunto de anuncios', 'Nombre de la campaña'];
 
   function escaparAtributoOpt(str){
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -342,7 +431,7 @@
       + '<li>Elige el rango de fechas que quieres analizar (arriba a la derecha).</li>'
       + '<li>Haz clic en el menú <b>Columnas</b> → <b>Personalizar columnas</b>.</li>'
       + '<li>Activa (marca el check) estas columnas, sin quitar las que ya tengas:' + renderColumnasHtml() + '</li>'
-      + '<li>Da clic en <b>Guardar</b> — si quieres, guárdala como plantilla nueva llamada "Jefe de Optimización" para no repetir esto cada vez.</li>'
+      + '<li>Da clic en <b>Guardar</b> — si quieres, guárdala como plantilla nueva llamada "Jefe de Resultados" para no repetir esto cada vez.</li>'
       + '<li>Con las columnas ya aplicadas, haz clic en <b>Exportar</b> → <b>Exportar datos de la tabla</b> → formato <b>.csv</b> → desglose: <b>Ninguno</b>.</li>'
       + '<li>Descarga el archivo y súbelo aquí arriba.</li>'
       + '</ol>';
@@ -376,11 +465,11 @@
       g.cols.forEach(function(c){ lineas.push('   - ' + c); });
     });
     lineas.push('');
-    lineas.push((pasoBase + 1) + '. Guarda esta selección como una plantilla nueva llamada "Jefe de Optimización" para poder reusarla después.');
+    lineas.push((pasoBase + 1) + '. Guarda esta selección como una plantilla nueva llamada "Jefe de Resultados" para poder reusarla después.');
     lineas.push((pasoBase + 2) + '. Aplica los cambios y confirma que la tabla ya muestra esas columnas.');
     lineas.push((pasoBase + 3) + '. Si no te he dicho qué rango de fechas quiero analizar, pregúntamelo antes de exportar.');
     lineas.push((pasoBase + 4) + '. Haz clic en "Exportar" → "Exportar datos de la tabla" → formato CSV → desglose: Ninguno.');
-    lineas.push((pasoBase + 5) + '. Descarga el archivo y dime el nombre exacto que descargaste para que lo suba al Jefe de Optimización.');
+    lineas.push((pasoBase + 5) + '. Descarga el archivo y dime el nombre exacto que descargaste para que lo suba al Jefe de Resultados.');
     return lineas.join('\n');
   }
 
@@ -496,12 +585,12 @@
   function verAnalisisGuardado(id){
     var entry = historial.find(function(h){ return h.id === id; });
     if (!entry) return;
-    ultimoDashboardHtml = entry.html;
+    ultimoDashboardHtml = limpiarDashboardHtml(entry.html);
     csvFileName = entry.archivo;
     csvText = null; // solo se guardo el HTML resultante, no el CSV original -- sin chat de seguimiento aqui
     document.getElementById('upload-section').style.display = 'none';
     document.getElementById('historialSection').style.display = 'none';
-    mostrarDashboard(entry.html);
+    mostrarDashboard(ultimoDashboardHtml);
     document.getElementById('agentBox').style.display = 'none';
   }
 
@@ -543,7 +632,7 @@
         showUploadError(data.error || 'No se pudo generar el análisis. Intenta de nuevo.');
         return;
       }
-      ultimoDashboardHtml = data.text;
+      ultimoDashboardHtml = limpiarDashboardHtml(data.text);
       guardarEnHistorial(csvFileName, ultimoDashboardHtml);
       mostrarDashboard(ultimoDashboardHtml);
     } catch (err) {
@@ -557,6 +646,7 @@
 
   function mostrarDashboard(html){
     document.getElementById('dashboardFrame').srcdoc = html;
+    document.getElementById('historialSection').style.display = 'none';
     document.getElementById('resultBlock').style.display = 'flex';
     document.getElementById('agentBox').style.display = 'block';
     var blob = new Blob([html], { type: 'text/html' });
@@ -565,6 +655,10 @@
     dlBtn.href = url;
     dlBtn.download = 'dashboard-optimizacion-' + CLIENTE_ID + '-' + new Date().toISOString().slice(0,10) + '.html';
     document.getElementById('openTabBtn').onclick = function(){ window.open(url, '_blank'); };
+    document.getElementById('printBtn').onclick = function(){
+      var f = document.getElementById('dashboardFrame');
+      try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) { window.open(url, '_blank'); }
+    };
   }
 
   document.getElementById('newAnalysisBtn').addEventListener('click', function(){
@@ -650,6 +744,26 @@
   }
 </script>
 
-<script src="/js/jefes-nav.js" defer></script>
+<script src="/js/guia-jefe.js"></script>
+<script>
+// ─── RECORRIDO (popup paso a paso): la primera vez se abre solo; después con "Cómo usar este módulo" ───
+GuiaJefe.registrar({
+  id: 'campanas', nombre: 'Recorrido: Resultados en Campañas',
+  pasos: [
+    { selector: '#how-export-box', titulo: '1. Baja tu reporte de Meta',
+      texto: 'En Meta Ads Manager: nivel Anuncio → elige las fechas → Exportar → CSV. Antes activa las columnas que pide el tutorial para que el tablero salga completo.' },
+    { selector: '#descargarTutorialBtn', titulo: 'Tutorial descargable',
+      texto: 'Aquí bajas una guía con los pasos y la lista exacta de columnas por activar. Úsala o mándasela a quien te maneja los anuncios.' },
+    { selector: '#dropzone', titulo: '2. Sube tu CSV',
+      texto: 'Arrastra el archivo o haz clic para elegirlo. Solo se necesita el reporte a nivel anuncio, sin desglose.' },
+    { selector: '#analyzeBtn', titulo: '3. Analiza',
+      texto: 'El Jefe lee cada anuncio, calcula su puntaje y arma tu tablero: resumen exprés arriba, la radiografía de tu sistema en 6 pasos y el detalle abajo, en secciones que abres solo si quieres profundizar. Tarda hasta un minuto.' },
+    { selector: '#historialSection', titulo: 'Tus análisis anteriores',
+      texto: 'Cada análisis se guarda aquí para que lo veas otra vez sin volver a subir el archivo.' }
+  ],
+});
+setTimeout(() => { if (!GuiaJefe.vista('campanas')) GuiaJefe.iniciar('campanas'); }, 2200);
+document.getElementById('verTutorialBtn').addEventListener('click', () => GuiaJefe.iniciar('campanas'));
+</script>
 </body>
 </html>
