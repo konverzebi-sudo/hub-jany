@@ -28,7 +28,7 @@
     { slug: 'jefe-radar',            files: ['consultor-radar-mercado.html'],  icono: 'jefe-radar',            nombre: 'Jefe del Faro' },
     { slug: 'jefe-cierre',           files: ['consultor-cierre.html'],         icono: 'jefe-conversion',       nombre: 'Jefe de Conversión' },
     { slug: 'jefe-optimizacion',     files: ['consultor-optimizacion.html'],   icono: 'jefe-optimizacion',     nombre: 'Jefe de Mejora Constante' },
-    { slug: 'jefe-temporada',        files: ['jefe-temporada.html'],           icono: 'jefe-temporada',        nombre: 'Campañas de Temporada' },
+    { slug: 'jefe-temporada',        files: ['jefe-temporada.html'],           icono: 'jefe-temporada-logo-negro', iconoOscuro: 'jefe-temporada-logo-blanco', nombre: 'Campañas de Temporada' },
     { slug: 'jefe-agenda',           files: ['consultor-agenda.html'],         icono: 'jefe-agenda',           nombre: 'Jefe de Agenda' },
     { slug: 'herramientas',         files: ['jefe-herramientas.html'],        icono: 'jefe-herramientas-logo-negro', iconoOscuro: 'jefe-herramientas-logo-blanco', nombre: 'Jefe de Herramientas' }
   ];
