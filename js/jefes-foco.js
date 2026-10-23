@@ -71,6 +71,8 @@
     '.foco-crear{background:#F1FFC2;margin:6px 0}',
     '.foco-crear:hover{background:#C0F800}',
     '.foco-sub{display:block;font-weight:500;font-size:12.5px;color:#5F5F5F;margin-top:2px}',
+    '.foco-marcas{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}',
+    '.foco-marca{display:inline-block;font-family:Inter,sans-serif;font-weight:700;font-size:11.5px;color:#3D6300;background:#F1FFC2;border:1px solid #CDE98A;border-radius:100px;padding:1px 8px}',
     '.foco-mas{display:block;width:100%;text-align:center;margin:8px 0 2px;padding:10px;border-radius:10px;border:1.5px dashed #C9C9C9;background:#fff;font-family:Inter,sans-serif;font-size:14px;font-weight:700;color:#1A1A1A;cursor:pointer}',
     '.foco-mas:hover{border-color:#4E7A00;background:#F8FFE0}',
     '.foco-nota{font-family:Inter,sans-serif;font-size:12.5px;color:#5F5F5F;padding:2px 10px 6px;line-height:1.45}',
@@ -200,7 +202,7 @@
     var n = parseFloat(String(v == null ? '' : v).replace(/[^0-9.\-]/g, ''));
     return isFinite(n) && n > 0 ? '$' + Math.round(n).toLocaleString('es-MX') : '';
   }
-  function opcion(id, nombre, sub, extra, alElegir, clase) {
+  function opcion(id, nombre, sub, extra, alElegir, clase, marcas) {
     var b = document.createElement('button');
     b.type = 'button';
     b.className = 'foco-op' + (actual.id === id ? ' sel' : '') + (clase ? ' ' + clase : '');
@@ -214,6 +216,18 @@
       s.className = 'foco-sub';
       s.textContent = sub;
       izq.appendChild(s);
+    }
+    if (marcas && marcas.length) {
+      var ms = document.createElement('span');
+      ms.className = 'foco-marcas';
+      marcas.forEach(function (t) {
+        var m = document.createElement('span');
+        m.className = 'foco-marca';
+        m.textContent = '✔ ' + t;
+        m.title = t === 'Temporada' ? 'Este producto ya tiene una campaña de temporada registrada' : 'Este producto ya tiene su 366 completo: ficha, cliente ideal, sistema y comunicación';
+        ms.appendChild(m);
+      });
+      izq.appendChild(ms);
     }
     b.appendChild(izq);
     if (extra) {
@@ -275,6 +289,13 @@
       out[n] = { empezado: true, completo: !faltan.length, faltan: faltan };
     });
     return out;
+  }
+  // Palomitas de la lista: 366 completo (ficha, cliente ideal, sistema y comunicación) y campaña de temporada vigente.
+  function marcasDe(p) {
+    var m = [];
+    if (p && soloCompletos && estadoDe(p).completo) m.push('366 completo');
+    if (p && campanas.some(function (c) { return c && c.producto_id === p.id; })) m.push('Temporada');
+    return m;
   }
   function estadoDe(p) { return estado366[norm(p && p.nombre)] || { empezado: false, completo: false, faltan: TODO_FALTA.slice() }; }
   async function refrescar366(forzar) {
@@ -420,7 +441,7 @@
         porGrupo[gid].forEach(function (p) {
           var st = estadoDe(p);
           var sub = soloCompletos && !st.completo ? 'En proceso · ' + (TODO_FALTA.length - st.faltan.length) + ' de ' + TODO_FALTA.length + ' partes del 366' : (p.tipo || '');
-          menu.appendChild(opcion(p.id, String(p.nombre).trim(), sub, precioTexto(p.precio)));
+          menu.appendChild(opcion(p.id, String(p.nombre).trim(), sub, precioTexto(p.precio), null, '', marcasDe(p)));
         });
       });
     }
@@ -533,6 +554,7 @@
     campanas: function () { return campanasVivas().slice(); },
     // la pagina avisa que cambiaron sus campanas (nombre, producto, alta o baja) para repintar la pastilla
     refrescar: function () { aplicar(actual.id); guardarLS(); pintar(); },
+    marcas: function (id) { return marcasDe(buscar(id)); },
     es366Completo: function (id) { var p = buscar(id); return p ? estadoDe(p).completo : false; },
     es366Empezado: function (id) { var p = buscar(id); return p ? estadoDe(p).empezado : false; },
     refrescar366: function () { return refrescar366(true); },
