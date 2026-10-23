@@ -62,3 +62,22 @@ Reglas específicas:
 3. Una idea por oración. Frases cortas, directas.
 4. Prioriza ejemplos concretos sobre abstracciones — en vez de "domina el conjunto", di "es lo que más se repite" o "es lo que mejor funciona".
 5. Aplica esto a TODAS las salidas del Consultor: diagnóstico, análisis por cuenta, análisis general, insights, ideas — no solo a un formato en particular.
+
+## Investigación externa dentro del hub (cómo entra la información)
+
+Ningún Jefe puede entrar a Instagram o TikTok con una sesión: sin iniciar sesión, Instagram muestra un muro de login y TikTok un captcha (verificado). Por eso la información llega por cuatro vías, todas al mismo texto del paso 2 (la caja "Material para el diagnóstico"), de modo que el diagnóstico, el análisis por cuenta, los insights y las ideas no cambian según la vía:
+
+1. **Buscar en la web** (`modo: investigar-web`): Claude con `web_search` y `web_fetch` lee páginas públicas (sitios, YouTube, prensa, entrevistas). Instagram/TikTok/Facebook no se abren; de esas cuentas se trae lo que haya en su sitio o en la prensa, y lo demás sale con 🔒. Cada bloque dice en `FUENTE` qué páginas vio de verdad.
+2. **Subir capturas** (`modo: analisis-capturas`): Claude lee capturas de pantalla que sube la persona (hasta 6) y transcribe solo lo que se ve. Funciona con cualquier red.
+3. **Lectura automática** (`modo: lectura-automatica`, `estado-lectura`): YouTube se lee gratis (RSS público del canal). Instagram, TikTok y Facebook solo se leen si el servidor tiene `SCRAPECREATORS_API_KEY` (proveedor externo de pago; zona gris de los términos de cada red, decisión de la dueña). Va apagado por defecto y tiene un tope mensual por hub (`RADAR_LECTURA_MAX_MES`, 60 por defecto) guardado en `<hub>:radar-lectura-uso`. No usa IA: no cuenta contra el tope de tokens.
+4. **Pegar texto de Chrome**: el flujo original con el prompt de la Sección 1.
+
+Reglas que no cambian con ninguna vía: nunca inventar lo que no se vio, reportar los bloqueos con 🔒 en una sola línea y no copiar contenido ajeno.
+
+## Foco por producto, servicio o grupo
+
+El Faro usa la pastilla de arriba (`js/jefes-foco.js`). Cada diagnóstico, análisis y brief guarda el foco con el que se hizo (`foco: { id, nombre }`). Con "Tu ecosistema completo" se ve todo; con un producto o grupo, solo lo suyo, y los análisis parten del diagnóstico de ESE foco, nunca del de otro. Los registros anteriores a este cambio no traen foco y cuentan como del ecosistema completo.
+
+## Brief de estilo para Contenido y Anuncios
+
+El paso 6 convierte el diagnóstico (y los insights, si ya hay) en un brief: voz y tono a tomar, hooks, formatos, temas, qué NO copiar, cómo mezclarlo con la marca, y instrucciones concretas para Contenido y para Anuncios. Se guarda en `<hub>:radar-estilo` (lista, máximo 10) y NO dentro de `radar-historial`: Contenido y Anuncios leen la última entrada del historial buscando `insights`, y una entrada sin ellos haría desaparecer el radar de sus prompts. Mientras Contenido y Anuncios no lean `radar-estilo`, el brief se pasa con los botones "Copiar para Contenido" y "Copiar para Anuncios".

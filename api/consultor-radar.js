@@ -11,6 +11,17 @@
 //   4. Analisis general siempre fresco, combinando el diagnostico + web_search
 //      de tendencias de industria (no de las cuentas) -> 'analisis-general'.
 //   5. Insights/ideas para Sección 5 vienen en el mismo response de 'analisis-general'.
+//
+// INVESTIGACIÓN EXTERNA DENTRO DEL HUB (todas terminan en el mismo texto que el paso 2, así que el
+// resto del flujo no cambia). Ningún Jefe puede entrar a Instagram/TikTok con una sesión: estas son
+// las vías reales, de la más abierta a la más limitada:
+//   - 'investigar-web':        Claude busca y lee páginas PÚBLICAS (sitios, YouTube, prensa) con web_search/web_fetch.
+//   - 'analisis-capturas':     Claude lee capturas de pantalla que sube la persona (funciona con cualquier red).
+//   - 'lectura-automatica':    YouTube es gratis (RSS); Instagram/TikTok/Facebook solo si el servidor tiene
+//                              SCRAPECREATORS_API_KEY (proveedor externo de pago, con tope mensual por hub).
+//   - 'estado-lectura':        dice qué redes se pueden leer solas en este servidor y cuánto queda del mes.
+//   - 'brief-estilo':          convierte el diagnóstico en un brief que Contenido y Anuncios pueden usar.
+//   - 'chat':                  conversación libre del Faro sobre lo que ya hay en el radar.
 
 const fs = require('fs');
 const path = require('path');
@@ -145,11 +156,11 @@ async function leerHistorial(cliente) {
   return Array.isArray(items) ? items : [];
 }
 
-async function guardarHistorialEntry(cliente, datos) {
+async function guardarHistorialEntry(cliente, datos, foco) {
   const key = `${cliente}:radar-historial`;
   const items = await leerHistorial(cliente);
   const entry = Object.assign(
-    { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), date: fechaHoy() },
+    { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), date: fechaHoy(), foco: { id: (foco && foco.id) || 'all', nombre: (foco && foco.nombre) || '' } },
     datos
   );
   items.push(entry);
@@ -160,9 +171,31 @@ async function guardarHistorialEntry(cliente, datos) {
   return entry;
 }
 
-function ultimaEntradaPorTipo(items, tipo) {
+// ---------- foco (pastilla de producto/servicio/grupo de arriba, js/jefes-foco.js) ----------
+// El navegador manda { id, nombre, esGrupo }. 'all' = ecosistema completo (todo el hub, sin filtrar).
+function normalizarFoco(f) {
+  const nombre = f && typeof f === 'object' ? String(f.nombre || '').trim().slice(0, 120) : '';
+  const id = f && typeof f === 'object' && f.id ? String(f.id).slice(0, 80) : 'all';
+  if (!nombre || id === 'all') return { id: 'all', nombre: '', esGrupo: false };
+  return { id, nombre, esGrupo: !!f.esGrupo };
+}
+
+function lineaFoco(foco) {
+  if (!foco || foco.id === 'all') return '';
+  const que = foco.esGrupo ? 'el GRUPO' : 'el PRODUCTO O SERVICIO';
+  return `FOCO ELEGIDO ARRIBA: la persona eligió ${que} "${foco.nombre}". Todo lo que respondas (patrones, insights, ideas, estilo) debe servir para VENDER ${foco.esGrupo ? 'ese grupo' : 'ese producto o servicio'}, no el negocio en general; no le preguntes cuál es.`;
+}
+
+// Un registro del historial pertenece al foco si se hizo con ese foco; con "ecosistema completo" cuenta todo.
+// Los registros viejos (sin foco guardado) se consideran del ecosistema completo.
+function coincideFoco(entry, focoId) {
+  if (!focoId || focoId === 'all') return true;
+  return !!(entry && entry.foco && entry.foco.id === focoId);
+}
+
+function ultimaEntradaPorTipo(items, tipo, focoId) {
   for (let i = items.length - 1; i >= 0; i--) {
-    if (items[i].tipo === tipo) return items[i];
+    if (items[i].tipo === tipo && coincideFoco(items[i], focoId)) return items[i];
   }
   return null;
 }
@@ -214,17 +247,41 @@ async function construirContexto(cliente, campos) {
   return 'CONTEXTO DEL NEGOCIO (Brand Book y datos guardados):\n' + truncar(bloques.join('\n\n'), CONTEXT_CHAR_LIMIT);
 }
 
+// Contexto del negocio + producto en foco + línea de foco, listo para pegar en el prompt.
+async function armarContexto(cliente, campos, foco) {
+  const [base, producto] = await Promise.all([
+    construirContexto(cliente, campos).catch(() => ''),
+    contextoProductoFoco(cliente, foco).catch(() => ''),
+  ]);
+  return [base, producto, lineaFoco(foco)].filter(Boolean).join('\n\n');
+}
+
+// Producto del catálogo del ADN que corresponde al foco (solo nombre, tipo y notas: no se inventan precios).
+async function contextoProductoFoco(cliente, foco) {
+  if (!foco || foco.id === 'all' || foco.esGrupo) return '';
+  const catalogo = await leerJSON(`${cliente}:catalogo-productos`).catch(() => null);
+  const p = Array.isArray(catalogo) ? catalogo.find((it) => it && it.id === foco.id) : null;
+  if (!p) return '';
+  const partes = [p.nombre];
+  if (p.tipo) partes.push(p.tipo);
+  if (p.notas) partes.push(`notas: ${p.notas}`);
+  return 'DATOS DEL PRODUCTO EN FOCO (del ADN):\n- ' + truncar(partes.join(' · '), 600);
+}
+
 // ---------- llamada a Claude ----------
 
-async function llamarClaude({ promptCompleto, webSearch, maxTokens }) {
+async function llamarClaude({ promptCompleto, system, messages, webSearch, webFetch, maxTokens }) {
   const body = {
     model: 'claude-sonnet-4-6',
     max_tokens: maxTokens || 3000,
-    messages: [{ role: 'user', content: promptCompleto }],
+    messages: messages || [{ role: 'user', content: promptCompleto }],
   };
-  if (webSearch) {
-    body.tools = [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }];
-  }
+  if (system) body.system = system;
+  const tools = [];
+  if (webSearch) tools.push({ type: 'web_search_20250305', name: 'web_search', max_uses: 5 });
+  // web_fetch (igual que api/consultor-cierre.js) solo puede abrir URLs que ya vienen escritas en el mensaje.
+  if (webFetch) tools.push({ type: 'web_fetch_20260209', name: 'web_fetch', max_uses: 4, max_content_tokens: 8000 });
+  if (tools.length) body.tools = tools;
 
   let anthropicRes;
   try {
@@ -296,14 +353,15 @@ function instruccionAnalisisContenidoJSON(link, contenidoPegado) {
 async function handleDiagnosticoGeneral(req, res, clienteId, systemPrompt) {
   const textoPegado = ((req.body && req.body.extra) || '').toString().trim();
   if (!textoPegado) return res.status(400).json({ error: 'Falta el texto pegado.' });
+  const foco = normalizarFoco(req.body && req.body.foco);
 
-  const contexto = await construirContexto(clienteId, [
+  const contexto = await armarContexto(clienteId, [
     'brand-book.identidad',
     'brand-book.tono',
     'brand-book.audiencia',
     'brand-book.contenido_actual',
     'lista-maestra-cliente-ideal',
-  ]).catch(() => '');
+  ], foco);
 
   const instruccion =
     'Analiza el siguiente texto, que contiene datos extraídos manualmente de varias cuentas de referencia ' +
@@ -328,7 +386,7 @@ async function handleDiagnosticoGeneral(req, res, clienteId, systemPrompt) {
       textoPegado,
       diagnostico: r.text,
       porCuenta: {},
-    });
+    }, foco);
   } catch (err) {
     // No bloquear la respuesta al usuario si falla el guardado del historial.
   }
@@ -343,14 +401,15 @@ async function handleAnalisisCuentaGuardada(req, res, clienteId, systemPrompt) {
   const accountLink = ((req.body && req.body.accountLink) || '').toString().trim();
   if (!accountId) return res.status(400).json({ error: 'Falta accountId.' });
 
+  const foco = normalizarFoco(req.body && req.body.foco);
   const key = `${clienteId}:radar-historial`;
   const items = await leerHistorial(clienteId);
-  const entry = ultimaEntradaPorTipo(items, 'diagnostico-general');
+  const entry = ultimaEntradaPorTipo(items, 'diagnostico-general', foco.id);
   if (!entry) {
-    return res.status(400).json({ error: 'Genera el diagnóstico general primero (Sección 2).' });
+    return res.status(400).json({ error: 'Genera el diagnóstico general primero (pasos 2 y 3).' });
   }
 
-  const contexto = await construirContexto(clienteId, ['brand-book.identidad', 'brand-book.tono', 'brand-book.audiencia', 'lista-maestra-cliente-ideal']).catch(() => '');
+  const contexto = await armarContexto(clienteId, ['brand-book.identidad', 'brand-book.tono', 'brand-book.audiencia', 'lista-maestra-cliente-ideal'], foco);
   const instruccion = instruccionAnalisisCuentaJSON({ label: accountLabel, handle: accountHandle, link: accountLink }, entry.textoPegado);
   const promptCompleto = [systemPrompt, contexto, instruccion].filter(Boolean).join('\n\n');
 
@@ -382,7 +441,8 @@ async function handleAnalisisContenido(req, res, clienteId, systemPrompt) {
     return res.status(400).json({ error: 'Falta el link o el contenido pegado.' });
   }
 
-  const contexto = await construirContexto(clienteId, ['brand-book.identidad', 'brand-book.tono', 'brand-book.audiencia']).catch(() => '');
+  const foco = normalizarFoco(req.body && req.body.foco);
+  const contexto = await armarContexto(clienteId, ['brand-book.identidad', 'brand-book.tono', 'brand-book.audiencia'], foco);
   const instruccion = instruccionAnalisisContenidoJSON(link, contenidoPegado);
   const promptCompleto = [systemPrompt, contexto, instruccion].filter(Boolean).join('\n\n');
 
@@ -395,19 +455,20 @@ async function handleAnalisisContenido(req, res, clienteId, systemPrompt) {
 }
 
 async function handleAnalisisGeneral(req, res, clienteId, systemPrompt) {
+  const foco = normalizarFoco(req.body && req.body.foco);
   const items = await leerHistorial(clienteId);
-  const diagEntry = ultimaEntradaPorTipo(items, 'diagnostico-general');
+  const diagEntry = ultimaEntradaPorTipo(items, 'diagnostico-general', foco.id);
   if (!diagEntry) {
-    return res.status(400).json({ error: 'Genera el diagnóstico general primero (Sección 2).' });
+    return res.status(400).json({ error: 'Genera el diagnóstico general primero (pasos 2 y 3).' });
   }
 
-  const contexto = await construirContexto(clienteId, [
+  const contexto = await armarContexto(clienteId, [
     'brand-book.identidad',
     'brand-book.tono',
     'brand-book.audiencia',
     'brand-book.contenido_actual',
     'lista-maestra-cliente-ideal',
-  ]).catch(() => '');
+  ], foco);
 
   // Las 10 ideas accionables ya NO se piden aquí — se generan aparte, bajo
   // demanda, en 'ideas-accionables' (botón de la Sección 5) para no gastar
@@ -450,7 +511,7 @@ async function handleAnalisisGeneral(req, res, clienteId, systemPrompt) {
       insights,
       insightsRaw,
       ideas: null,
-    });
+    }, foco);
   } catch (err) {
     // No bloquear la respuesta al usuario si falla el guardado del historial.
   }
@@ -459,14 +520,15 @@ async function handleAnalisisGeneral(req, res, clienteId, systemPrompt) {
 }
 
 async function handleIdeasAccionables(req, res, clienteId, systemPrompt) {
+  const foco = normalizarFoco(req.body && req.body.foco);
   const key = `${clienteId}:radar-historial`;
   const items = await leerHistorial(clienteId);
   let idx = -1;
   for (let i = items.length - 1; i >= 0; i--) {
-    if (items[i].tipo === 'analisis-general') { idx = i; break; }
+    if (items[i].tipo === 'analisis-general' && coincideFoco(items[i], foco.id)) { idx = i; break; }
   }
   if (idx === -1) {
-    return res.status(400).json({ error: 'Genera el análisis general primero (Sección 4).' });
+    return res.status(400).json({ error: 'Genera el análisis general primero (paso 4).' });
   }
   const entry = items[idx];
   // Array.isArray(entry.ideas) && length===0 significa que un intento anterior
@@ -477,7 +539,7 @@ async function handleIdeasAccionables(req, res, clienteId, systemPrompt) {
     return res.status(200).json({ ideas: entry.ideas, ideasRaw: entry.ideasRaw });
   }
 
-  const contexto = await construirContexto(clienteId, ['brand-book.identidad', 'brand-book.tono', 'brand-book.audiencia', 'lista-maestra-cliente-ideal']).catch(() => '');
+  const contexto = await armarContexto(clienteId, ['brand-book.identidad', 'brand-book.tono', 'brand-book.audiencia', 'lista-maestra-cliente-ideal'], foco);
   const instruccion =
     'A partir del análisis general y los insights ya generados (abajo), da EXACTAMENTE 10 ideas de contenido accionables. ' +
     'Responde ÚNICAMENTE con un arreglo JSON de exactamente 10 objetos, sin texto adicional antes ni después, con este formato exacto:\n' +
@@ -502,6 +564,503 @@ async function handleIdeasAccionables(req, res, clienteId, systemPrompt) {
   return res.status(200).json({ ideas, ideasRaw: r.text });
 }
 
+// ---------- lectura automática de cuentas (YouTube gratis; Instagram/TikTok/Facebook con proveedor externo) ----------
+// Instagram y TikTok no dejan leer un perfil sin iniciar sesión (verificado: muro de login / captcha), así que
+// leerlos solos solo es posible con un proveedor externo de pago (ScrapeCreators). Va APAGADO por defecto:
+// se activa con la variable SCRAPECREATORS_API_KEY del servidor y tiene un tope mensual por hub
+// (RADAR_LECTURA_MAX_MES, 60 lecturas por defecto) para que un hub no se gaste los créditos de todos.
+// El resultado sale en el mismo texto que le pedimos a Claude en Chrome ("CUENTA: @usuario ..."), así que
+// entra al mismo diagnóstico sin cambiar nada más.
+
+const LECTURA_MAX_MES_DEFAULT = 60;
+const MAX_POSTS_LECTURA = 8;
+const REDES_CON_PROVEEDOR = ['instagram', 'tiktok', 'facebook'];
+const NOMBRE_RED = { instagram: 'Instagram', tiktok: 'TikTok', facebook: 'Facebook', youtube: 'YouTube' };
+
+function lecturaLimiteMes() {
+  const n = Number(process.env.RADAR_LECTURA_MAX_MES);
+  return Number.isFinite(n) && n > 0 ? n : LECTURA_MAX_MES_DEFAULT;
+}
+
+function proveedorActivo() {
+  return !!process.env.SCRAPECREATORS_API_KEY;
+}
+
+function mesActual() {
+  return new Date().toISOString().slice(0, 7);
+}
+
+async function leerUsoLectura(cliente) {
+  const doc = await leerJSON(`${cliente}:radar-lectura-uso`).catch(() => null);
+  return doc && doc.mes === mesActual() ? Number(doc.usadas) || 0 : 0;
+}
+
+// De un link de perfil saca la red y el usuario. null = no es un perfil que se pueda leer.
+function analizarLinkRed(link) {
+  let u;
+  try {
+    u = new URL(/^https?:\/\//i.test(link) ? link : 'https://' + link);
+  } catch (err) {
+    return null;
+  }
+  const host = u.hostname.toLowerCase().replace(/^www\./, '');
+  const segs = u.pathname.split('/').filter(Boolean);
+  if (host.endsWith('instagram.com')) {
+    const h = (segs[0] || '').replace(/^@/, '');
+    if (!h || ['p', 'reel', 'reels', 'explore', 'stories', 'tv'].includes(h.toLowerCase())) return null;
+    return { red: 'instagram', handle: h };
+  }
+  if (host.endsWith('tiktok.com')) {
+    const h = segs.find((x) => x.startsWith('@'));
+    return h && h.length > 1 ? { red: 'tiktok', handle: h.slice(1) } : null;
+  }
+  if (host.endsWith('facebook.com') || host === 'fb.com') {
+    if (!segs.length) return null;
+    if (segs[0] === 'profile.php') {
+      const id = u.searchParams.get('id');
+      return id ? { red: 'facebook', handle: id, url: `https://www.facebook.com/profile.php?id=${id}` } : null;
+    }
+    return { red: 'facebook', handle: segs[0], url: `https://www.facebook.com/${segs[0]}` };
+  }
+  if (host.endsWith('youtube.com')) {
+    const primero = segs[0] || '';
+    if (primero.startsWith('@')) return { red: 'youtube', handle: primero.slice(1) };
+    if (primero === 'channel' && segs[1]) return { red: 'youtube', handle: segs[1], channelId: segs[1] };
+    if ((primero === 'c' || primero === 'user') && segs[1]) return { red: 'youtube', handle: segs[1], ruta: `${primero}/${segs[1]}` };
+    return null;
+  }
+  return null;
+}
+
+function numeroMx(n) {
+  return n != null && Number.isFinite(Number(n)) ? Number(n).toLocaleString('es-MX') : null;
+}
+
+function fechaISO(seg) {
+  const n = Number(seg);
+  return n > 0 ? new Date(n * 1000).toISOString().slice(0, 10) : '';
+}
+
+function promedioEntero(valores) {
+  const v = valores.map(Number).filter((n) => Number.isFinite(n));
+  return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null;
+}
+
+function frecuenciaPosts(posts) {
+  const f = posts.map((p) => Number(p.fecha)).filter((n) => n > 0).sort((a, b) => a - b);
+  if (f.length < 2) return '';
+  const dias = (f[f.length - 1] - f[0]) / 86400;
+  if (dias < 1) return `${f.length} publicaciones en menos de un día`;
+  const porSemana = ((f.length - 1) / dias) * 7;
+  return `aprox. ${porSemana.toFixed(1)} publicaciones por semana (${f.length} revisadas, del ${fechaISO(f[0])} al ${fechaISO(f[f.length - 1])})`;
+}
+
+function primeraLinea(texto, max) {
+  const l = String(texto || '').split(/\n/).map((x) => x.trim()).find(Boolean) || '';
+  return l.length > max ? l.slice(0, max).trim() + '…' : l;
+}
+
+// Un bloque con los mismos encabezados que el prompt de la Sección 1 (lo que ya sabe leer el diagnóstico).
+function bloqueDeCuenta({ handle, red, posts, comentarios }) {
+  const lineas = [`CUENTA: @${handle}`, `FUENTE: lectura automática de ${NOMBRE_RED[red]} (datos públicos del perfil; ningún usuario inició sesión)`];
+  const freq = frecuenciaPosts(posts);
+  if (freq) lineas.push(`CADA CUÁNTO PUBLICAN: ${freq}`);
+
+  const tipos = {};
+  posts.forEach((p) => { if (p.tipo) tipos[p.tipo] = (tipos[p.tipo] || 0) + 1; });
+  const formatos = Object.keys(tipos).map((t) => `${t} x${tipos[t]}`).join(', ');
+  if (formatos) lineas.push(`FORMATOS USADOS: ${formatos}`);
+
+  const prom = [
+    ['me gusta', promedioEntero(posts.map((p) => p.likes))],
+    ['comentarios', promedioEntero(posts.map((p) => p.comentarios))],
+    ['vistas', promedioEntero(posts.map((p) => p.vistas))],
+  ].filter(([, v]) => v != null).map(([k, v]) => `${numeroMx(v)} ${k}`);
+  lineas.push(`ENGAGEMENT VISIBLE: ${prom.length ? 'promedio por publicación: ' + prom.join(', ') : 'no disponible'}`);
+
+  const hooks = posts.map((p) => primeraLinea(p.texto, 140)).filter(Boolean);
+  lineas.push('HOOKS USADOS (uno por post):');
+  lineas.push(...(hooks.length ? hooks.map((h) => `- ${h}`) : ['- (los posts no traen texto)']));
+
+  lineas.push('CAPTIONS COMPLETOS de los posts revisados:');
+  posts.forEach((p, i) => {
+    const datos = [fechaISO(p.fecha), p.tipo, numeroMx(p.likes) != null ? `${numeroMx(p.likes)} me gusta` : '', numeroMx(p.comentarios) != null ? `${numeroMx(p.comentarios)} comentarios` : '', numeroMx(p.vistas) != null ? `${numeroMx(p.vistas)} vistas` : ''].filter(Boolean).join(' · ');
+    const texto = String(p.texto || '').replace(/\s+/g, ' ').trim().slice(0, 800);
+    lineas.push(`${i + 1}) [${datos}] ${texto || '(sin texto)'}`);
+  });
+
+  lineas.push(`COMENTARIOS DESTACADOS del público: ${comentarios && comentarios.length ? comentarios.map((c) => `"${String(c).replace(/\s+/g, ' ').slice(0, 200)}"`).join(' | ') : 'no disponible en la lectura automática'}`);
+  return lineas.join('\n');
+}
+
+function normalizarPostsInstagram(data) {
+  const items = (data && (data.items || (data.data && data.data.items))) || [];
+  return items.slice(0, MAX_POSTS_LECTURA).map((it) => ({
+    fecha: it.taken_at || (it.created_at ? Date.parse(it.created_at) / 1000 : 0),
+    texto: (it.caption && it.caption.text) || '',
+    likes: it.like_count,
+    comentarios: it.comment_count,
+    vistas: it.play_count != null ? it.play_count : it.ig_play_count,
+    tipo: it.product_type === 'clips' ? 'reel' : it.media_type === 8 ? 'carrusel' : it.media_type === 2 ? 'video' : 'imagen',
+  }));
+}
+
+function normalizarPostsTikTok(data) {
+  const items = (data && data.aweme_list) || [];
+  return items.slice(0, MAX_POSTS_LECTURA).map((it) => {
+    const st = it.statistics || {};
+    return { fecha: it.create_time, texto: it.desc || '', likes: st.digg_count, comentarios: st.comment_count, vistas: st.play_count, tipo: 'video' };
+  });
+}
+
+function normalizarPostsFacebook(data) {
+  const items = (data && data.posts) || [];
+  return items.slice(0, MAX_POSTS_LECTURA).map((it) => ({
+    fecha: it.publishTime,
+    texto: it.text || '',
+    likes: it.reactionCount,
+    comentarios: it.commentCount,
+    vistas: it.videoViewCount,
+    tipo: it.videoDetails ? 'video' : 'publicación',
+    top: (Array.isArray(it.topComments) ? it.topComments : []).slice(0, 2).map((c) => (c && (c.text || c.body || c.message)) || '').filter(Boolean),
+  }));
+}
+
+async function fetchConTiempo(url, opciones, ms) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms || 20000);
+  try {
+    return await fetch(url, Object.assign({}, opciones, { signal: ctrl.signal }));
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+// Llamada al proveedor. Devuelve { ok, data } o { ok:false, error } con un motivo corto en español.
+async function pedirAlProveedor(ruta, params) {
+  try {
+    const r = await fetchConTiempo(`https://api.scrapecreators.com${ruta}?${new URLSearchParams(params).toString()}`, { headers: { 'x-api-key': process.env.SCRAPECREATORS_API_KEY } }, 25000);
+    const data = await r.json().catch(() => null);
+    if (!r.ok) {
+      const motivo = r.status === 401 || r.status === 403 ? 'el servicio de lectura rechazó la llave (revisa SCRAPECREATORS_API_KEY)' : r.status === 402 ? 'se acabaron los créditos del servicio de lectura' : r.status === 404 ? 'la cuenta no existe o es privada' : `el servicio de lectura respondió ${r.status}`;
+      return { ok: false, error: motivo };
+    }
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, error: err && err.name === 'AbortError' ? 'el servicio de lectura tardó demasiado' : 'no hubo conexión con el servicio de lectura' };
+  }
+}
+
+function decodificarXml(t) {
+  return String(t || '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+}
+
+function leerRssYouTube(xml) {
+  const entradas = xml.match(/<entry>[\s\S]*?<\/entry>/g) || [];
+  return entradas.slice(0, MAX_POSTS_LECTURA).map((e) => {
+    const tag = (n) => {
+      const m = e.match(new RegExp('<' + n + '[^>]*>([\\s\\S]*?)</' + n + '>'));
+      return m ? decodificarXml(m[1]).trim() : '';
+    };
+    const vistas = e.match(/<media:statistics views="(\d+)"/);
+    const likes = e.match(/<media:starRating count="(\d+)"/);
+    const titulo = tag('title');
+    const descripcion = tag('media:description').replace(/\s+/g, ' ').slice(0, 400);
+    return {
+      fecha: Date.parse(tag('published')) / 1000,
+      texto: descripcion ? `${titulo} — ${descripcion}` : titulo,
+      likes: likes ? Number(likes[1]) : null,
+      vistas: vistas ? Number(vistas[1]) : null,
+      tipo: 'video',
+    };
+  });
+}
+
+// YouTube no necesita proveedor: cada canal publica su RSS abierto.
+async function leerYouTube(info) {
+  const cab = { 'User-Agent': 'Mozilla/5.0 (compatible; JefesHubFaro/1.0)', 'Accept-Language': 'es-MX,es;q=0.9' };
+  try {
+    let id = info.channelId;
+    if (!id) {
+      const pag = await fetchConTiempo(`https://www.youtube.com/${info.ruta || '@' + info.handle}`, { headers: cab }, 15000);
+      if (!pag.ok) return { ok: false, error: 'no se pudo abrir el canal de YouTube' };
+      const html = await pag.text();
+      // "externalId" y el link canónico son el canal de la página; "channelId" suelto puede ser de un canal relacionado.
+      const m = html.match(/"externalId":"(UC[\w-]{22})"/) || html.match(/<link rel="canonical" href="https:\/\/www\.youtube\.com\/channel\/(UC[\w-]{22})"/);
+      if (!m) return { ok: false, error: 'no se encontró el canal de YouTube' };
+      id = m[1];
+    }
+    const rss = await fetchConTiempo(`https://www.youtube.com/feeds/videos.xml?channel_id=${id}`, { headers: cab }, 15000);
+    if (!rss.ok) return { ok: false, error: 'el canal de YouTube no tiene lista pública de videos' };
+    const posts = leerRssYouTube(await rss.text());
+    return posts.length ? { ok: true, posts } : { ok: false, error: 'el canal no tiene videos recientes' };
+  } catch (err) {
+    return { ok: false, error: 'no se pudo leer YouTube' };
+  }
+}
+
+// Lee UNA cuenta. { ok, texto } | { ok:false, motivo, cobrada }
+async function leerCuentaAutomatica(info) {
+  if (info.red === 'youtube') {
+    const r = await leerYouTube(info);
+    return r.ok ? { ok: true, texto: bloqueDeCuenta({ handle: info.handle, red: 'youtube', posts: r.posts }) } : { ok: false, motivo: r.error };
+  }
+  let r;
+  let posts;
+  let comentarios = [];
+  if (info.red === 'instagram') {
+    r = await pedirAlProveedor('/v2/instagram/user/posts', { handle: info.handle });
+    if (r.ok) posts = normalizarPostsInstagram(r.data);
+  } else if (info.red === 'tiktok') {
+    r = await pedirAlProveedor('/v3/tiktok/profile/videos', { handle: info.handle, sort_by: 'latest' });
+    if (r.ok) posts = normalizarPostsTikTok(r.data);
+  } else {
+    r = await pedirAlProveedor('/v1/facebook/profile/posts', { url: info.url });
+    if (r.ok) {
+      posts = normalizarPostsFacebook(r.data);
+      comentarios = posts.flatMap((p) => p.top || []).slice(0, 4);
+    }
+  }
+  if (!r.ok) return { ok: false, motivo: r.error };
+  if (!posts.length) return { ok: false, motivo: 'la cuenta no tiene publicaciones visibles', cobrada: true };
+  return { ok: true, cobrada: true, texto: bloqueDeCuenta({ handle: info.handle, red: info.red, posts, comentarios }) };
+}
+
+async function handleEstadoLectura(req, res, clienteId) {
+  const usadas = await leerUsoLectura(clienteId);
+  const prov = proveedorActivo();
+  return res.status(200).json({
+    redes: { youtube: true, instagram: prov, tiktok: prov, facebook: prov },
+    usadas,
+    limite: lecturaLimiteMes(),
+  });
+}
+
+async function handleLecturaAutomatica(req, res, clienteId) {
+  const entrada = Array.isArray(req.body && req.body.cuentas) ? req.body.cuentas.slice(0, 10) : [];
+  const links = entrada.map((c) => (c && typeof c === 'object' ? c.link : c)).map((l) => String(l || '').trim()).filter(Boolean);
+  if (!links.length) return res.status(400).json({ error: 'Agrega al menos una cuenta en "Tus referentes" para leerla.' });
+
+  const prov = proveedorActivo();
+  const plan = links.map((link) => {
+    const info = analizarLinkRed(link);
+    if (!info) return { link, motivo: 'ese link no es de un perfil que se pueda leer (usa el link del perfil, no de una publicación)' };
+    if (REDES_CON_PROVEEDOR.includes(info.red) && !prov) return { link, info, motivo: `la lectura automática de ${NOMBRE_RED[info.red]} no está activada en tu plataforma` };
+    return { link, info };
+  });
+
+  const usadas = await leerUsoLectura(clienteId);
+  const limite = lecturaLimiteMes();
+  const aCobrar = plan.filter((p) => p.info && REDES_CON_PROVEEDOR.includes(p.info.red)).length;
+  if (aCobrar && usadas + aCobrar > limite) {
+    return res.status(429).json({ error: `Este mes ya usaste ${usadas} de ${limite} lecturas automáticas y esta lectura necesita ${aCobrar} más. Mientras tanto puedes subir capturas o pegar el texto.`, usadas, limite });
+  }
+
+  const resultados = await Promise.all(plan.map(async (p) => {
+    if (!p.info || p.motivo) return { link: p.link, handle: p.info ? p.info.handle : '', red: p.info ? p.info.red : '', ok: false, motivo: p.motivo };
+    const r = await leerCuentaAutomatica(p.info);
+    return Object.assign({ link: p.link, handle: p.info.handle, red: p.info.red }, r);
+  }));
+
+  const cobradas = resultados.filter((r) => r.cobrada).length;
+  let usadasFinal = usadas;
+  if (cobradas) {
+    usadasFinal = usadas + cobradas;
+    try {
+      await escribirJSON(`${clienteId}:radar-lectura-uso`, { mes: mesActual(), usadas: usadasFinal });
+    } catch (err) {
+      // No bloquear la lectura si falla el contador.
+    }
+  }
+
+  const bloques = resultados.map((r) => (r.ok ? r.texto : `🔒 ${r.handle ? '@' + r.handle : r.link} — no accesible (${r.motivo})`));
+  return res.status(200).json({
+    texto: bloques.join('\n---\n'),
+    resultados: resultados.map((r) => ({ link: r.link, handle: r.handle || '', red: r.red || '', ok: !!r.ok, motivo: r.motivo || '' })),
+    leidas: resultados.filter((r) => r.ok).length,
+    usadas: usadasFinal,
+    limite,
+  });
+}
+
+// ---------- investigación externa con Claude (web pública y capturas) ----------
+
+const FORMATO_BLOQUE_CUENTA =
+  '---\n' +
+  'CUENTA: @usuario (o nombre de la marca/persona)\n' +
+  'FUENTE: qué páginas o capturas viste de verdad\n' +
+  'TIPO DE CUENTA/NICHO:\n' +
+  'CADA CUÁNTO PUBLICAN (frecuencia estimada):\n' +
+  'TIPO DE CONTENIDO QUE PUBLICA:\n' +
+  'TEMAS QUE REPITE:\n' +
+  'HOOKS USADOS (uno por post):\n' +
+  'FORMATOS USADOS:\n' +
+  'ENGAGEMENT VISIBLE:\n' +
+  'CAPTIONS COMPLETOS de los posts revisados:\n' +
+  'COMENTARIOS DESTACADOS del público:\n' +
+  '---';
+
+function listaLinks(links) {
+  return (Array.isArray(links) ? links : []).map((l) => String(l || '').trim()).filter(Boolean).slice(0, 10);
+}
+
+// Investiga en la web PÚBLICA (sitios, YouTube, prensa). No entra a Instagram/TikTok: ahí pide login.
+async function handleInvestigarWeb(req, res, clienteId, systemPrompt) {
+  const consulta = ((req.body && req.body.consulta) || '').toString().trim().slice(0, 1500);
+  const links = listaLinks(req.body && req.body.links);
+  if (!consulta && !links.length) return res.status(400).json({ error: 'Escribe a quién quieres investigar o agrega cuentas en "Tus referentes".' });
+  const foco = normalizarFoco(req.body && req.body.foco);
+
+  const contexto = await armarContexto(clienteId, ['brand-book.identidad', 'brand-book.tono', 'brand-book.audiencia', 'lista-maestra-cliente-ideal'], foco);
+  const instruccion =
+    'INVESTIGACIÓN EXTERNA EN LA WEB PÚBLICA. Usa web_search y web_fetch para investigar a estas personas, marcas o cuentas de referencia (competencia, o gente en la que la persona quiere inspirarse):\n' +
+    (links.length ? links.map((l) => `- ${l}`).join('\n') + '\n' : '') +
+    (consulta ? `Además, esto es lo que pidió la persona: """${consulta}"""\n` : '') +
+    '\nReglas:\n' +
+    '1. Reporta SOLO lo que viste de verdad en una página que abriste o en los resultados de búsqueda. Nada inventado ni "lo que seguramente publican".\n' +
+    '2. Instagram, TikTok y Facebook casi siempre piden iniciar sesión y no se pueden leer así: no insistas en abrirlos. Busca en cambio su sitio web, su canal de YouTube, entrevistas, prensa, blogs y resultados de búsqueda que citen o describan sus publicaciones. Si de una cuenta no encontraste nada útil, escribe solo "🔒 @cuenta — no accesible" y sigue con la siguiente.\n' +
+    '3. Para cada uno que SÍ tenga datos, entrega un bloque con este formato exacto (en FUENTE pon las páginas reales que viste; si un campo no lo pudiste ver, escribe "no se vio"):\n' + FORMATO_BLOQUE_CUENTA + '\n' +
+    '4. No copies frases ni guiones completos: describe patrones.\n' +
+    '5. Al final agrega una línea "FUENTES:" con las direcciones web que usaste.\n' +
+    'Entrega todo en un solo bloque de texto que se pueda copiar y pegar tal cual, sin saludos ni explicaciones técnicas.';
+
+  const promptCompleto = [systemPrompt, contexto, instruccion].filter(Boolean).join('\n\n');
+  const r = await llamarClaude({ promptCompleto, webSearch: true, webFetch: true, maxTokens: 3800 });
+  if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
+  await registrarUsoTokens(clienteId, 'consultor-radar-investigar-web', r.usage);
+  return res.status(200).json({ texto: r.text });
+}
+
+const TIPOS_IMAGEN = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+const MAX_IMAGENES = 6;
+// Vercel acepta cuerpos de hasta ~4.5 MB; el navegador reduce cada captura antes de mandarla.
+const MAX_BASE64_TOTAL = 4000000;
+
+// Lee capturas de pantalla (perfil, publicaciones, comentarios) y las pasa al mismo texto del paso 2.
+async function handleAnalisisCapturas(req, res, clienteId, systemPrompt) {
+  const bruto = Array.isArray(req.body && req.body.imagenes) ? req.body.imagenes : [];
+  const imagenes = bruto
+    .filter((i) => i && TIPOS_IMAGEN.has(i.media_type) && typeof i.data === 'string' && i.data.length > 100)
+    .slice(0, MAX_IMAGENES);
+  if (!imagenes.length) return res.status(400).json({ error: 'Sube al menos una captura (JPG, PNG o WEBP).' });
+  if (imagenes.reduce((a, i) => a + i.data.length, 0) > MAX_BASE64_TOTAL) {
+    return res.status(413).json({ error: 'Las capturas pesan demasiado juntas. Sube menos capturas a la vez.' });
+  }
+  const nota = ((req.body && req.body.nota) || '').toString().trim().slice(0, 500);
+
+  const instruccion =
+    'Estas son capturas de pantalla de perfiles, publicaciones o comentarios de redes sociales que subió la persona para su investigación de referentes' +
+    (nota ? ` (nota de la persona: "${nota}")` : '') + '. ' +
+    'Transcribe SOLO lo que se ve en las capturas, con este formato exacto, un bloque por cuenta (junta las capturas de una misma cuenta en un solo bloque):\n' + FORMATO_BLOQUE_CUENTA + '\n' +
+    'Reglas: en FUENTE escribe "captura de pantalla subida por la persona". Si un dato no se ve en las capturas, escribe "no se ve en la captura" — nunca lo deduzcas ni lo inventes. Si no se alcanza a ver de qué cuenta es, usa "CUENTA: (no se ve el nombre)". En CAPTIONS y COMENTARIOS copia el texto tal como aparece. ' +
+    'Entrega todo en un solo bloque de texto, sin saludos ni explicaciones.';
+
+  const content = imagenes.map((i) => ({ type: 'image', source: { type: 'base64', media_type: i.media_type, data: i.data } }));
+  content.push({ type: 'text', text: instruccion });
+  const r = await llamarClaude({ system: systemPrompt, messages: [{ role: 'user', content }], maxTokens: 3500 });
+  if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
+  await registrarUsoTokens(clienteId, 'consultor-radar-analisis-capturas', r.usage);
+  return res.status(200).json({ texto: r.text });
+}
+
+// ---------- brief de estilo para Jefe de Contenido y Jefe de Anuncios ----------
+// Se guarda en <hub>:radar-estilo (lista, lo más reciente al final). Va en una llave aparte y NO dentro de
+// radar-historial: Contenido y Anuncios leen la última entrada del historial buscando "insights", y una
+// entrada sin ellos haría desaparecer el radar de sus prompts.
+
+async function handleBriefEstilo(req, res, clienteId, systemPrompt) {
+  const foco = normalizarFoco(req.body && req.body.foco);
+  const items = await leerHistorial(clienteId);
+  const diag = ultimaEntradaPorTipo(items, 'diagnostico-general', foco.id);
+  if (!diag) return res.status(400).json({ error: 'Genera el diagnóstico general primero (paso 3).' });
+  const analisis = ultimaEntradaPorTipo(items, 'analisis-general', foco.id);
+
+  const contexto = await armarContexto(clienteId, ['brand-book.identidad', 'brand-book.tono', 'brand-book.audiencia', 'brand-book.contenido_actual', 'lista-maestra-cliente-ideal'], foco);
+  const instruccion =
+    'Arma el BRIEF DE ESTILO DE REFERENTES: un resumen corto que el Jefe de Contenido y el Jefe de Anuncios van a leer ANTES de escribir, para darle estilo a los guiones y a las campañas ' +
+    'mezclando lo que se aprendió de los referentes con la marca de este negocio (su voz y su tono vienen en el contexto de arriba). Es inspiración para adaptar, nunca para copiar: ' +
+    'no incluyas frases exactas, guiones, claims ni identidad visual de nadie. Si algún referente usa presión falsa o promesas exageradas, ponlo en "que_no_copiar".\n\n' +
+    'Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional antes ni después, con este formato exacto (cada arreglo con 3 a 5 puntos cortos, en lenguaje cotidiano):\n' +
+    '{"resumen": "2 o 3 frases", "voz_y_tono_a_tomar": ["..."], "hooks_que_funcionan": ["..."], "formatos": ["..."], "temas": ["..."], "que_no_copiar": ["..."], "como_mezclarlo_con_la_marca": "2 o 3 frases", "para_contenido": ["instrucción concreta para guiones y publicaciones orgánicas"], "para_anuncios": ["instrucción concreta para anuncios y campañas"]}\n\n' +
+    `DIAGNÓSTICO DE LOS REFERENTES:\n"""\n${truncar(diag.diagnostico || '', 7000)}\n"""` +
+    (analisis ? `\n\nINSIGHTS DEL ANÁLISIS GENERAL:\n"""\n${truncar(JSON.stringify(analisis.insights || []), 3000)}\n"""` : '');
+
+  const promptCompleto = [systemPrompt, contexto, instruccion].filter(Boolean).join('\n\n');
+  const r = await llamarClaude({ promptCompleto, webSearch: false, maxTokens: 2000 });
+  if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
+  await registrarUsoTokens(clienteId, 'consultor-radar-brief-estilo', r.usage);
+
+  const brief = extractJson(r.text);
+  let entry = null;
+  if (brief) {
+    try {
+      const key = `${clienteId}:radar-estilo`;
+      const previos = await leerJSON(key).catch(() => null);
+      entry = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), date: fechaHoy(), foco: { id: foco.id, nombre: foco.nombre }, brief };
+      await escribirJSON(key, (Array.isArray(previos) ? previos : []).concat([entry]).slice(-10));
+    } catch (err) {
+      // No bloquear la respuesta si falla el guardado.
+    }
+  }
+  return res.status(200).json({ brief, raw: r.text, date: entry ? entry.date : fechaHoy(), guardado: !!entry });
+}
+
+// ---------- chat libre del Faro ----------
+
+const INSTRUCCION_CHAT =
+  'ESTÁS EN EL CHAT DEL JEFE DEL FARO. La persona te hace preguntas sueltas sobre su investigación de referentes y tendencias. Responde corto (unas 150 palabras como máximo, salvo que pida más), ' +
+  'en lenguaje cotidiano y usando SOLO el contexto del negocio y los datos del radar que aparecen abajo. Si todavía no hay diagnóstico, dile cuál es el siguiente paso en la página ' +
+  '(1 agregar referentes, 2 investigar, 3 diagnóstico, 4 análisis y tendencias, 5 ideas, 6 pasar el estilo a Contenido y Anuncios). ' +
+  'No puedes entrar a Instagram ni a TikTok en vivo: nunca digas qué publicó una cuenta si no está en los datos de abajo. ' +
+  'Si pide investigar a alguien nuevo o tendencias frescas, dile que use el paso 2 "Investiga" de esta página. Termina con un siguiente paso corto o una pregunta.';
+
+function lineasReferentes(items) {
+  if (!Array.isArray(items) || !items.length) return '';
+  const lineas = items.slice(0, 10).map((it) => {
+    const p = (it.plataformas && it.plataformas[0]) || {};
+    const partes = [it.nombre_cuenta || p.link || 'Sin nombre', p.plataforma, it.tipo].filter(Boolean);
+    return '- ' + partes.join(' · ');
+  });
+  return 'REFERENTES GUARDADOS:\n' + lineas.join('\n');
+}
+
+async function handleChat(req, res, clienteId, systemPrompt) {
+  const bruto = Array.isArray(req.body && req.body.mensajes) ? req.body.mensajes : [];
+  let mensajes = bruto
+    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+    .map((m) => ({ role: m.role, content: m.content.trim().slice(0, 4000) }))
+    .slice(-14);
+  while (mensajes.length && mensajes[0].role !== 'user') mensajes.shift();
+  if (!mensajes.length || mensajes[mensajes.length - 1].role !== 'user') return res.status(400).json({ error: 'Escribe tu pregunta.' });
+
+  const foco = normalizarFoco(req.body && req.body.foco);
+  const [contexto, referentes, items, estilos] = await Promise.all([
+    armarContexto(clienteId, ['brand-book.identidad', 'brand-book.tono', 'brand-book.audiencia', 'brand-book.contenido_actual', 'lista-maestra-cliente-ideal'], foco),
+    leerJSON(`${clienteId}:radar-referentes`).catch(() => null),
+    leerHistorial(clienteId),
+    leerJSON(`${clienteId}:radar-estilo`).catch(() => null),
+  ]);
+  const diag = ultimaEntradaPorTipo(items, 'diagnostico-general', foco.id);
+  const analisis = ultimaEntradaPorTipo(items, 'analisis-general', foco.id);
+  const estilo = (Array.isArray(estilos) ? estilos : []).filter((e) => coincideFoco(e, foco.id)).pop();
+
+  const bloques = [
+    lineasReferentes(referentes),
+    diag ? `ÚLTIMO DIAGNÓSTICO (${diag.date}):\n${truncar(diag.diagnostico || '', 3500)}` : 'TODAVÍA NO HAY DIAGNÓSTICO.',
+    analisis && Array.isArray(analisis.insights) && analisis.insights.length ? `ÚLTIMOS INSIGHTS (${analisis.date}):\n${truncar(JSON.stringify(analisis.insights), 2000)}` : '',
+    estilo ? `ÚLTIMO BRIEF DE ESTILO (${estilo.date}):\n${truncar(JSON.stringify(estilo.brief), 2500)}` : '',
+  ].filter(Boolean);
+
+  const system = [systemPrompt, INSTRUCCION_CHAT, contexto, bloques.join('\n\n')].filter(Boolean).join('\n\n');
+  const r = await llamarClaude({ system, messages: mensajes, maxTokens: 1400 });
+  if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
+  await registrarUsoTokens(clienteId, 'consultor-radar-chat', r.usage);
+  return res.status(200).json({ respuesta: r.text });
+}
+
+// Modos que no llaman a Claude: no cuentan contra el tope de tokens del hub (api/_lib/saldo.js).
+const MODOS_SIN_IA = new Set(['estado-lectura', 'lectura-automatica']);
+
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
 
@@ -510,10 +1069,22 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  const { modo, cliente } = req.body || {};
+  const clienteId = (cliente || DEFAULT_CLIENTE).toString();
+
+  try {
+    if (modo === 'estado-lectura') return await handleEstadoLectura(req, res, clienteId);
+  } catch (err) {
+    return res.status(500).json({ error: 'No se pudo revisar la lectura automática.' });
+  }
+
   // Tope de uso de IA del hub (api/_lib/saldo.js): al llegar al tope los Jefes no usan la IA hasta
-  // que se renueva el ciclo o se compra un paquete. La interfaz sigue funcionando.
-  const bloqueoSaldo = await revisarSaldo((((req.body || {}).cliente) || DEFAULT_CLIENTE).toString(), leerJSON);
-  if (bloqueoSaldo) return res.status(bloqueoSaldo.status).json(bloqueoSaldo.cuerpo);
+  // que se renueva el ciclo o se compra un paquete. La interfaz sigue funcionando. Responde 402 con
+  // { error, tope: true }: la página muestra ese texto tal cual.
+  if (!MODOS_SIN_IA.has(modo)) {
+    const bloqueoSaldo = await revisarSaldo(clienteId, leerJSON);
+    if (bloqueoSaldo) return res.status(bloqueoSaldo.status).json(bloqueoSaldo.cuerpo);
+  }
 
   const ip = (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown')
     .toString()
@@ -523,8 +1094,11 @@ module.exports = async function handler(req, res) {
     return res.status(429).json({ error: 'Demasiadas solicitudes, espera unos minutos.' });
   }
 
-  const { modo, cliente } = req.body || {};
-  const clienteId = (cliente || DEFAULT_CLIENTE).toString();
+  try {
+    if (modo === 'lectura-automatica') return await handleLecturaAutomatica(req, res, clienteId);
+  } catch (err) {
+    return res.status(500).json({ error: 'No se pudo hacer la lectura automática.' });
+  }
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return res.status(500).json({ error: 'Falta configurar ANTHROPIC_API_KEY en el servidor.' });
@@ -538,9 +1112,16 @@ module.exports = async function handler(req, res) {
     if (modo === 'analisis-contenido') return await handleAnalisisContenido(req, res, clienteId, systemPrompt);
     if (modo === 'analisis-general') return await handleAnalisisGeneral(req, res, clienteId, systemPrompt);
     if (modo === 'ideas-accionables') return await handleIdeasAccionables(req, res, clienteId, systemPrompt);
+    if (modo === 'investigar-web') return await handleInvestigarWeb(req, res, clienteId, systemPrompt);
+    if (modo === 'analisis-capturas') return await handleAnalisisCapturas(req, res, clienteId, systemPrompt);
+    if (modo === 'brief-estilo') return await handleBriefEstilo(req, res, clienteId, systemPrompt);
+    if (modo === 'chat') return await handleChat(req, res, clienteId, systemPrompt);
   } catch (err) {
     return res.status(500).json({ error: 'Error de conexión con el Agente.' });
   }
 
   return res.status(400).json({ error: `Modo desconocido: ${modo}` });
 };
+
+// Solo para las pruebas (tests/radar-investigacion.test.js): funciones puras, sin red.
+module.exports._probar = { analizarLinkRed, bloqueDeCuenta, normalizarPostsInstagram, normalizarPostsTikTok, normalizarPostsFacebook, leerRssYouTube, normalizarFoco, lineaFoco, coincideFoco, ultimaEntradaPorTipo, frecuenciaPosts };
