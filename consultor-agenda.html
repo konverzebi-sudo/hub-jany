@@ -8,95 +8,175 @@
 <link rel="icon" type="image/png" href="/img/fav/jefe-agenda.png">
 <link rel="apple-touch-icon" href="/img/favicon-180.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
   <style>
+    /* Valores de respaldo: la piel blanca común (css/jefes-piel-blanca.css) los vuelve a definir bajo body.piel-blanca. */
     :root {
-      --bg: #0F0B16;
-      --surface: #181120;
-      --surface-2: #211829;
-      --line: #332A3D;
-      --text: #F3EEF9;
-      --text-dim: #B6A9C7;
-      --accent: #B8F725;
-      --accent-soft: #2E3610;
+      --bg: #FFFFFF; --surface: #FFFFFF; --surface-2: #F0F0F0; --line: #E2E2E2;
+      --text: #1A1A1A; --text-dim: #6B6B6B; --accent: #C0F800; --accent-soft: #F1FFC2; --accent-texto: #4E7A00;
     }
     * { box-sizing: border-box; }
-    body { margin: 0; background: radial-gradient(1200px 600px at 50% -10%, #241733 0%, var(--bg) 55%); color: var(--text); font-family: Inter, sans-serif; -webkit-font-smoothing: antialiased; min-height: 100vh; }
-    h1, h2, h3 { font-family: Sora, sans-serif; }
+    body { margin: 0; padding-top: 70px; background: var(--bg); color: var(--text); font-family: Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; min-height: 100vh; }
+    h1, h2, h3 { font-family: Sora, Inter, sans-serif; }
+    button { font-family: inherit; }
 
-    header { padding: 92px 20px 20px; text-align: center; max-width: 900px; margin: 0 auto; }
+    /* ── Barra fija: "<< Hub de Jefes" + filtro de producto a la izquierda, título al centro ── */
     .topbar { position: fixed; top: 0; left: 0; right: 0; height: 70px; z-index: 60; display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); align-items: center; gap: 10px; padding: 0 18px; background: var(--surface); border-bottom: 1px solid var(--line); }
     .topbar h1 { justify-self: center; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-    .back-link { justify-self: start; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: .13em; text-transform: uppercase; color: var(--text-dim); text-decoration: none; display: inline-flex; align-items: center; gap: 8px; padding: 6px 16px; border: 1px solid rgba(255,255,255,.14); border-radius: 100px; background: rgba(255,255,255,.03); transition: .15s; }
-    .back-link:hover { color: var(--accent-texto, var(--accent)); border-color: var(--accent); }
-    h1 { font-size: clamp(26px, 4vw, 38px); font-weight: 800; line-height: 1.15; }
-    header p { color: var(--text-dim); font-size: 15px; margin: 0 0 20px; }
-    * { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.18) transparent; }
-    *::-webkit-scrollbar { width: 8px; height: 8px; }
-    *::-webkit-scrollbar-track { background: transparent; }
-    *::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); border-radius: 8px; }
-    *::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.32); }
+    .topbar-izq { justify-self: start; display: flex; align-items: center; gap: 10px; min-width: 0; max-width: 100%; }
+    .topbar-izq .back-link { flex: 0 5 auto; min-width: 0; }
+    .topbar-izq #foco-slot { flex: 0 0 auto; }
+    .back-link { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: .13em; text-transform: uppercase; color: var(--text-dim); text-decoration: none; display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border: 1px solid var(--line); border-radius: 100px; background: var(--surface); transition: .15s; }
+    .back-link:hover { color: var(--accent-texto); border-color: var(--accent); }
+    @media (max-width: 900px) {
+      /* En pantallas angostas la pastilla de foco baja a una segunda fila de la barra fija */
+      body .topbar { height: auto; padding: 8px 10px; grid-template-columns: auto minmax(0,1fr); grid-template-areas: "back titulo" "foco foco"; row-gap: 8px; }
+      .topbar-izq { display: contents; }
+      .topbar-izq .back-link { grid-area: back; }
+      .topbar-izq #foco-slot { grid-area: foco; }
+      .topbar h1 { grid-area: titulo; }
+      body { padding-top: 96px; }
+    }
 
-    main { max-width: 900px; margin: 0 auto; padding: 8px 20px 80px; display: flex; flex-direction: column; gap: 20px; }
+    /* ── Encabezado y secciones ── */
+    .ag-hero { max-width: 1240px; margin: 0 auto; padding: 34px 20px 0; text-align: center; }
+    .ag-hero .pb-sub { margin: 0 auto; }
+    main { max-width: 1240px; margin: 0 auto; padding: 8px clamp(16px, 3vw, 32px) 80px; }
+    .ag-sec { margin-top: 8px; }
+    .ag-sec > h2 { font-size: clamp(22px, 3vw, 28px); font-weight: 800; line-height: 1.2; margin: 38px 0 6px; }
+    .ag-intro { color: var(--text-dim); font-size: 15.5px; line-height: 1.6; max-width: 72ch; margin: 0 0 18px; }
+    .ag-link { background: none; border: 0; padding: 0; color: var(--accent-texto); font: 600 13.5px Inter, sans-serif; text-decoration: underline; cursor: pointer; }
+    a.ag-link { text-decoration: underline; }
 
-    .cal-toolbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
-    .cal-nav{display:flex;align-items:center;gap:10px;}
-    .cal-nav button{background:var(--surface-2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:6px 12px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:12px;}
-    .cal-nav button:hover{border-color:var(--accent);color:var(--accent-texto, var(--accent));}
-    .cal-month-label{font-family:'Sora',sans-serif;font-weight:700;font-size:16px;min-width:150px;text-align:center;}
-    .btn-primary{background:var(--accent);border:none;color:#0F0B16;font-weight:700;font-size:13px;padding:9px 16px;border-radius:9px;cursor:pointer;transition:.15s;}
-    .btn-primary:hover{filter:brightness(1.1);}
+    /* ── Calendario ── */
+    .cal-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 22px 0 14px; }
+    .cal-nav { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .nav-btn { min-width: 44px; min-height: 44px; padding: 0 16px; border-radius: 100px; border: 1px solid var(--line); background: var(--surface); color: var(--text); font: 600 14px Inter, sans-serif; cursor: pointer; transition: .15s; }
+    .nav-btn:hover { border-color: var(--accent); background: var(--accent-soft); }
+    .cal-month-label { font-family: Sora, sans-serif; font-weight: 800; font-size: clamp(20px, 3vw, 28px); min-width: 190px; text-align: center; }
+    .ag-filtro { margin: 0 0 14px; padding: 10px 16px; border-radius: 12px; background: var(--accent-soft); font-size: 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .ag-filtro[hidden] { display: none; }
 
-    .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
-    .cal-dow{font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;color:var(--text-dim);text-align:center;padding-bottom:4px;}
-    .cal-cell{background:var(--surface);border:1px solid var(--line);border-radius:10px;min-height:100px;padding:6px;display:flex;flex-direction:column;gap:4px;overflow:hidden;position:relative;}
-    .cal-cell.cal-empty{background:transparent;border:none;}
-    .cal-cell.cal-today{border-color:var(--accent);}
-    .cal-daynum{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim);}
-    .cal-temporada-label{font-family:'JetBrains Mono',monospace;font-size:9.5px;font-weight:700;padding:2px 5px;border-radius:5px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-    .cal-chip{font-size:10.5px;line-height:1.3;padding:3px 6px;border-radius:6px;background:var(--surface-2);border-left:3px solid var(--accent);cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-    .cal-chip:hover{background:var(--accent-soft);}
-    .cal-chip.origen-anuncios{border-left-color:#F472B6;}
-    .cal-chip.origen-contenido{border-left-color:#38BDF8;}
-    .cal-chip.origen-temporada{border-left-color:#FBBF24;}
-    .cal-chip-mas{font-size:10px;color:var(--text-dim);padding-left:6px;}
+    .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap: 8px; }
+    .cal-dow { font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim); text-align: center; padding: 4px 0 2px; }
+    .cal-cell { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; min-height: 118px; padding: 8px; display: flex; flex-direction: column; gap: 5px; overflow: hidden; position: relative; transition: border-color .12s, background .12s; }
+    .cal-cell.fin-sem { background: #FAFAFA; }
+    .cal-cell.cal-empty { background: transparent; border: none; }
+    .cal-cell.tiene { cursor: pointer; }
+    .cal-cell.tiene:hover { border-color: #C9C9C9; }
+    .cal-cell.cal-today { border: 2px solid var(--accent); }
+    .cal-cell.ag-destino { border-color: var(--accent-texto); background: var(--accent-soft); }
+    .cal-daynum { font: 700 12.5px "JetBrains Mono", monospace; color: var(--text-dim); }
+    .cal-today .cal-daynum { display: inline-flex; align-self: flex-start; min-width: 26px; height: 22px; padding: 0 7px; align-items: center; justify-content: center; border-radius: 99px; background: var(--accent); color: #0F0B16; }
+    .cal-temporada-label { font: 700 10.5px "JetBrains Mono", monospace; padding: 3px 7px; border-radius: 6px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #0F0B16; }
 
-    .temporadas-section{display:flex;flex-direction:column;gap:10px;}
-    .temporadas-section h2{font-size:15px;margin:0;}
-    .temporadas-list{display:flex;flex-wrap:wrap;gap:8px;}
-    .temporada-chip{font-family:'JetBrains Mono',monospace;font-size:11.5px;padding:6px 12px;border-radius:20px;border:1.5px solid var(--line);cursor:pointer;transition:.15s;}
-    .temporada-chip:hover{filter:brightness(1.15);}
-    .temporadas-empty{font-size:12.5px;color:var(--text-dim);}
+    .cal-chip { display: block; width: 100%; text-align: left; border: 0; font: 600 11.5px/1.3 Inter, sans-serif; padding: 4px 7px; border-radius: 7px; background: var(--surface-2); border-left: 3px solid #C9C9C9; color: var(--text); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cal-chip:hover { filter: brightness(.96); }
+    .cal-chip.origen-contenido { border-left-color: #38BDF8; background: #EAF7FE; }
+    .cal-chip.origen-anuncios { border-left-color: #F472B6; background: #FEEFF6; }
+    .cal-chip.origen-temporada { border-left-color: #FBBF24; background: #FFF6DD; }
+    .cal-chip.mk { position: relative; padding-right: 16px; cursor: grab; touch-action: none; user-select: none; }
+    .cal-chip.mk .mk-grip { position: absolute; right: 0; top: 0; bottom: 0; width: 12px; cursor: ew-resize; }
+    .cal-chip.mk .mk-grip::after { content: ""; position: absolute; right: 4px; top: 25%; bottom: 25%; width: 2px; border-radius: 2px; background: rgba(0,0,0,.35); }
+    .cal-chip-mas { font: 600 11px Inter, sans-serif; color: var(--text-dim); padding-left: 4px; }
+    body.ag-arrastrando, body.ag-arrastrando * { cursor: grabbing !important; user-select: none; }
 
-    .legend{display:flex;flex-wrap:wrap;gap:16px;font-size:12px;color:var(--text-dim);align-items:center;}
-    .legend span{display:inline-flex;align-items:center;gap:6px;}
-    .legend .dot{width:9px;height:9px;border-radius:3px;display:inline-block;}
+    .legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: var(--text-dim); align-items: center; margin: 16px 0 0; }
+    .legend span { display: inline-flex; align-items: center; gap: 7px; }
+    .legend .dot { width: 11px; height: 11px; border-radius: 4px; display: inline-block; }
 
-    /* ── MODALES ── */
-    .overlay{position:fixed;inset:0;background:rgba(10,6,16,.72);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50;}
-    .overlay[hidden]{display:none;}
-    .modal{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px;width:100%;max-width:420px;display:flex;flex-direction:column;gap:14px;}
-    .modal h3{margin:0;font-size:17px;}
-    .modal label{font-size:12px;color:var(--text-dim);display:flex;flex-direction:column;gap:5px;}
-    .modal input[type=text], .modal input[type=date], .modal select{background:var(--surface-2);border:1.5px solid var(--line);border-radius:9px;color:var(--text);padding:9px 11px;font-family:Inter,sans-serif;font-size:14px;color-scheme:dark;}
-    .modal input:focus, .modal select:focus{outline:none;border-color:var(--accent);}
-    .swatches{display:flex;gap:8px;flex-wrap:wrap;}
-    .swatch{width:26px;height:26px;border-radius:50%;cursor:pointer;border:2px solid transparent;}
-    .swatch.selected{border-color:var(--text);}
-    .modal-actions{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;}
-    .modal-actions-right{display:flex;gap:8px;}
-    .btn-secondary{background:transparent;border:1px solid var(--line);color:var(--text-dim);font-size:12.5px;padding:9px 14px;border-radius:8px;cursor:pointer;}
-    .btn-secondary:hover{border-color:var(--text-dim);color:var(--text);}
-    .btn-danger{background:transparent;border:1px solid #7A3A1E;color:#FF9466;font-size:12.5px;padding:9px 14px;border-radius:8px;cursor:pointer;}
-    .btn-danger:hover{background:#3A2013;}
+    .temporadas-list { display: flex; flex-wrap: wrap; gap: 8px; }
+    .temporada-chip { font: 600 13px Inter, sans-serif; padding: 8px 14px; border-radius: 100px; border: 1.5px solid var(--line); background: var(--surface); color: var(--text); cursor: pointer; transition: .15s; }
+    .temporada-chip:hover { filter: brightness(.96); }
+    .vacio { font-size: 14px; color: var(--text-dim); }
+
+    /* ── Tiempos del proceso de campaña ── */
+    .ag-estado { font: 600 12.5px "JetBrains Mono", monospace; color: var(--accent-texto); min-height: 18px; }
+    .ag-estado.error { color: #B42318; }
+    .prom-fila { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px; }
+    .prom-chip { font: 600 12.5px Inter, sans-serif; padding: 6px 12px; border-radius: 99px; background: var(--surface-2); color: var(--text); }
+    .prom-chip b { font-weight: 800; }
+    .pc { margin: 0 0 22px; padding: 18px clamp(12px, 2vw, 22px) 14px; }
+    .pc-head { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; margin-bottom: 12px; }
+    .pc-dot { width: 14px; height: 14px; border-radius: 5px; flex: 0 0 auto; }
+    .pc-head h3 { margin: 0; font-size: 19px; font-weight: 800; }
+    .pc-sub { color: var(--text-dim); font-size: 14px; }
+    .pc-arranque { font: 700 12.5px "JetBrains Mono", monospace; padding: 5px 11px; border-radius: 99px; background: var(--accent-soft); color: var(--accent-texto); }
+    .pc-head .ag-link { margin-left: auto; }
+    .gantt-wrap { overflow-x: auto; padding-bottom: 6px; -webkit-overflow-scrolling: touch; }
+    .gantt { --colw: 30px; --lab: 196px; min-width: calc(var(--lab) + var(--n) * var(--colw) + 100px); }
+    .g-row { display: grid; grid-template-columns: var(--lab) minmax(0,1fr) 100px; align-items: stretch; border-bottom: 1px solid var(--line); }
+    .g-row:last-child { border-bottom: 0; }
+    .g-label { position: sticky; left: 0; z-index: 3; background: var(--surface); padding: 8px 12px 8px 2px; display: flex; flex-direction: column; justify-content: center; gap: 1px; min-width: 0; border: 0; text-align: left; cursor: pointer; color: var(--text); }
+    .g-label b { font: 700 14px Inter, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .g-label small { font: 500 12px Inter, sans-serif; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .g-label:hover b { text-decoration: underline; }
+    a.g-label { text-decoration: none; }
+    .g-ref .g-label b { color: var(--text-dim); }
+    .g-ref + .g-row:not(.g-ref) { border-top: 2px solid var(--line); }
+    .g-bar.ref { pointer-events: none; cursor: default; box-shadow: none; border: 2px solid; color: var(--text); touch-action: auto; }
+    .g-head > div:first-child { position: sticky; left: 0; z-index: 3; background: var(--surface); }
+    .g-track { position: relative; display: grid; grid-template-columns: repeat(var(--n), minmax(0,1fr)); }
+    .g-cell { min-height: 50px; border-left: 1px solid #F0F0F0; }
+    .g-cell.fin-sem { background: #FAFAFA; }
+    .g-cell.ag-destino { background: var(--accent-soft); }
+    .g-head .g-cell { min-height: 0; padding: 4px 0 6px; text-align: center; display: flex; flex-direction: column; align-items: center; line-height: 1.15; }
+    .g-head .g-m { font: 700 10px "JetBrains Mono", monospace; text-transform: uppercase; color: var(--accent-texto); height: 12px; }
+    .g-head .g-d { font: 600 12px "JetBrains Mono", monospace; color: var(--text-dim); }
+    .g-head .es-arranque { background: var(--accent); border-radius: 8px; }
+    .g-head .es-arranque .g-d, .g-head .es-arranque .g-m { color: #0F0B16; }
+    .g-bar { position: absolute; top: 8px; bottom: 8px; border-radius: 10px; color: #fff; display: flex; align-items: center; justify-content: center; font: 700 11.5px Inter, sans-serif; box-shadow: 0 2px 6px rgba(0,0,0,.16); cursor: grab; touch-action: none; user-select: none; overflow: hidden; }
+    .g-bar:focus-visible { outline: 3px solid var(--text); outline-offset: 1px; }
+    .g-bar .g-grip { position: absolute; right: 0; top: 0; bottom: 0; width: 14px; cursor: ew-resize; }
+    .g-bar .g-grip::after { content: ""; position: absolute; right: 5px; top: 28%; bottom: 28%; width: 2px; border-radius: 2px; background: rgba(255,255,255,.85); }
+    .g-dur { padding: 8px 4px 8px 10px; display: flex; flex-direction: column; justify-content: center; font: 700 13px Inter, sans-serif; white-space: nowrap; }
+    .g-dur small { font: 500 11.5px Inter, sans-serif; color: var(--text-dim); }
+    .g-dur .mio { color: var(--accent-texto); }
+    .pc-pie { margin: 10px 2px 0; font-size: 13px; color: var(--text-dim); }
+    .pc-aviso { margin: 12px 2px 0; padding: 10px 14px; border-radius: 12px; background: var(--temp-soft, #FFF4D6); color: #7A4B00; font-size: 13.5px; line-height: 1.5; }
+
+    /* ── Ventanas ── */
+    .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 100; }
+    .overlay[hidden] { display: none; }
+    .modal { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 22px; width: 100%; max-width: 460px; max-height: calc(100vh - 40px); overflow-y: auto; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 24px 60px rgba(0,0,0,.25); }
+    .modal h3 { margin: 0; font-size: 20px; font-weight: 800; line-height: 1.25; }
+    .modal .m-sub { margin: -8px 0 0; font-size: 14px; color: var(--text-dim); }
+    .modal label { font-size: 13px; font-weight: 600; color: var(--text-dim); display: flex; flex-direction: column; gap: 6px; }
+    .modal input[type=text], .modal input[type=date], .modal select { background: var(--surface); border: 1.5px solid var(--line); border-radius: 11px; color: var(--text); padding: 11px 12px; font: 16px Inter, sans-serif; min-height: 46px; }
+    .modal input:focus, .modal select:focus { outline: none; border-color: var(--accent-texto); }
+    .m-fila { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .m-pasos { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .m-lista { display: flex; flex-direction: column; gap: 8px; }
+    .m-item { text-align: left; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font: 600 14px Inter, sans-serif; color: var(--text); cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
+    .m-item small { font: 500 12.5px Inter, sans-serif; color: var(--text-dim); }
+    .m-item:hover { border-color: var(--accent-texto); background: var(--accent-soft); }
+    .m-acciones { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .m-acciones .der { display: flex; gap: 8px; flex-wrap: wrap; }
+    .swatches { display: flex; gap: 10px; flex-wrap: wrap; }
+    .swatch { width: 30px; height: 30px; border-radius: 50%; cursor: pointer; border: 3px solid transparent; }
+    .swatch.selected { border-color: var(--text); }
+    .btn-peligro { min-height: 44px; padding: 0 16px; border-radius: 11px; border: 1.5px solid #F04438; background: transparent; color: #B42318; font: 600 14px Inter, sans-serif; cursor: pointer; }
+    .btn-peligro:hover { background: #FEF3F2; }
 
     footer { text-align: center; padding: 24px 20px; font-size: 12px; color: var(--text-dim); font-family: "JetBrains Mono", monospace; border-top: 1px solid var(--line); margin-top: 20px; }
 
+    @media (max-width: 520px) { .back-link .bk-marca { display: none; } }
     @media (max-width: 640px) {
-      .cal-grid{gap:4px;}
-      .cal-cell{min-height:64px;padding:4px;}
-      .cal-chip{font-size:9.5px;}
-      .cal-dow{font-size:9px;}
+      .cal-grid { gap: 4px; }
+      .cal-cell { min-height: 74px; padding: 5px; border-radius: 10px; gap: 3px; }
+      .cal-daynum { font-size: 11px; }
+      /* en celular las marcas son rayitas de color: se toca el día para ver la lista */
+      .cal-chip { font-size: 0; padding: 0; height: 7px; border-radius: 4px; border-left-width: 0; background: #C9C9C9; }
+      .cal-chip.origen-contenido { background: #38BDF8; }
+      .cal-chip.origen-anuncios { background: #F472B6; }
+      .cal-chip.origen-temporada { background: #FBBF24; }
+      .cal-chip.mk .mk-grip { display: none; }
+      .cal-chip-mas { font-size: 10px; padding: 0; }
+      .cal-temporada-label { font-size: 0; padding: 0; height: 5px; }
+      .cal-dow { font-size: 10px; letter-spacing: 0; }
+      .cal-month-label { min-width: 0; flex: 1 1 100%; order: -1; text-align: left; }
+      .m-fila, .m-pasos { grid-template-columns: 1fr; }
+      .gantt { --lab: 128px; --colw: 28px; }
     }
   </style>
 <link rel="stylesheet" href="/css/jefes-piel-blanca.css">
@@ -105,69 +185,61 @@
 <body class="piel-blanca">
 
 <div class="topbar">
-  <a id="agenda-back-hub" href="/" class="back-link">&lt;&lt; Hub de Jefes <span style="opacity:.4;">//</span> <span id="brand-marca-label">—</span></a>
-  <h1>🗓️ Jefe de Agenda</h1>
+  <div class="topbar-izq">
+    <a id="agenda-back-hub" href="/" class="back-link">&lt;&lt; Hub de Jefes <span class="bk-marca"><span style="opacity:.4;">//</span> <span id="brand-marca-label">—</span></span></a>
+    <div id="foco-slot"></div>
+  </div>
+  <h1>Jefe de Agenda</h1>
 </div>
 
-<header>
-  <script src="/js/storage-client.js"></script>
-  <script>
-    function detectClienteId(){ return window.__hub.slug; }
-    var CLIENTE_ID = detectClienteId();
-    var AGENDA_KEY = CLIENTE_ID + ':agenda-eventos';
-    var CONTENIDO_KEY = CLIENTE_ID + ':agente-contenido';
-    var ANUNCIOS_KEY = CLIENTE_ID + ':agente-anuncios';
-    var TEMPORADA_KEY = CLIENTE_ID + ':temporada-campanas';
-    var HUB_POR_CLIENTE = window.__hub.portadas();
-    document.getElementById('agenda-back-hub').href = HUB_POR_CLIENTE[CLIENTE_ID];
-  </script>
-  <script>(async function(){
-    var BRANDS=window.__hub.marcas({'rancho-seco':{fallback:'Rancho Seco',color:'#F2C230'},'rim':{fallback:'RIM',color:'#F472B6'},'optica-one':{fallback:'Óptica One',color:'#38BDF8'},'jefeshub':{fallback:'JefesHub',color:'#B8F725'}});
-    var b=BRANDS[CLIENTE_ID];
-    var bar=document.getElementById('agenda-back-hub');
-    bar.style.color=b.color;
-    bar.style.borderColor=b.color.replace('#','rgba(').slice(0,-1)+',0.3)';
-    var el=document.getElementById('brand-marca-label');
-    el.textContent=b.fallback;
-    try{var r=await window.storage.get(CLIENTE_ID+':brand-book.identidad');if(r&&r.value){var d=JSON.parse(r.value);if(d.nombre)el.textContent=d.nombre;}}catch(e){}
-  })();</script>
-  <p>Todo lo que ya tiene fecha en tus demás Jefes (Contenido, Anuncios), de un vistazo. Marca temporadas para ver campañas y fechas clave en contexto.</p>
+<header class="ag-hero">
+  <img class="jefe-logo" src="/img/jefe-agenda-logo-lima.webp" alt="Jefe de Agenda">
+  <p class="pb-sub">Todo lo que ya tiene fecha en tus Jefes, en un solo calendario. Elige un producto o servicio arriba para ver solo lo suyo.</p>
 </header>
 
 <main>
-  <div class="cal-toolbar">
-    <div class="cal-nav">
-      <button type="button" id="cal-prev" title="Mes anterior">←</button>
-      <span class="cal-month-label" id="cal-month-label"></span>
-      <button type="button" id="cal-next" title="Mes siguiente">→</button>
-      <button type="button" id="cal-hoy">Hoy</button>
+  <section class="ag-sec" id="sec-calendario">
+    <div class="cal-toolbar">
+      <div class="cal-nav">
+        <button type="button" class="nav-btn" id="cal-prev" aria-label="Mes anterior">←</button>
+        <span class="cal-month-label" id="cal-month-label"></span>
+        <button type="button" class="nav-btn" id="cal-next" aria-label="Mes siguiente">→</button>
+        <button type="button" class="nav-btn" id="cal-hoy">Hoy</button>
+      </div>
+      <button type="button" class="pb-btn" id="btn-nueva-temporada">+ Nueva temporada</button>
     </div>
-    <button type="button" class="btn-primary" id="btn-nueva-temporada">+ Nueva temporada</button>
-  </div>
+    <div class="ag-filtro" id="ag-filtro" hidden></div>
 
-  <div class="cal-grid" id="cal-grid"></div>
+    <div class="cal-grid" id="cal-grid"></div>
 
-  <div class="legend">
-    <span><span class="dot" style="background:#38BDF8;"></span> Contenido</span>
-    <span><span class="dot" style="background:#F472B6;"></span> Anuncios</span>
-    <span><span class="dot" style="background:#FBBF24;"></span> Campaña de Temporada</span>
-    <span><span class="dot" style="background:var(--accent);"></span> Temporada (rango)</span>
-    <span style="opacity:.7;">Click en un evento o temporada para editarlo</span>
-  </div>
+    <div class="legend" id="leyenda">
+      <span><span class="dot" style="background:#38BDF8;"></span> Contenido</span>
+      <span><span class="dot" style="background:#F472B6;"></span> Anuncios</span>
+      <span><span class="dot" style="background:#FBBF24;"></span> Fechas de campañas de temporada</span>
+      <span><span class="dot" style="background:var(--accent);"></span> Rango de temporada</span>
+    </div>
+    <div class="legend" id="leyenda-campanas" style="margin-top:8px;"></div>
 
-  <div class="temporadas-section">
     <h2>Temporadas de este mes</h2>
     <div class="temporadas-list" id="temporadas-list"></div>
-  </div>
+  </section>
+
+  <section class="ag-sec" id="sec-proceso">
+    <h2>Tiempos del proceso de campaña</h2>
+    <p class="ag-intro">Cuando tu campaña tiene fecha de arranque, aquí se ponen todas las etapas de antes y de después: definir, estrategia y copys, grabar, editar, WhatsApp, programar, revisar y optimizar. Si ya pusiste fechas en el Jefe de Temporada (calendario final, precampaña o postcampaña) las respeto: las etapas se acomodan alrededor de ellas y lo que se produce para la precampaña termina antes de que empiece. Arrastra una barra para recorrer la etapa o toma su orilla derecha para alargarla; con lo que acomodes calculo cuánto dura realmente cada etapa en tu negocio. Toca una etapa para abrir el Jefe que te ayuda en ese momento.</p>
+    <div class="ag-estado" id="ag-estado" role="status" aria-live="polite"></div>
+    <div id="proceso-resumen"></div>
+    <div id="proceso-lista"></div>
+  </section>
 </main>
 
 <footer>Jefe de Agenda</footer>
 
-<!-- Modal: editar evento espejado -->
+<!-- Ventana: editar evento espejado -->
 <div class="overlay" id="overlay-evento" hidden>
-  <div class="modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-evento-title">
     <h3 id="modal-evento-title">Evento</h3>
-    <a id="ev-origen-link" href="#" target="_blank" rel="noopener" style="display:none;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--accent-texto, var(--accent));text-decoration:none;">Ver/editar el original →</a>
+    <a id="ev-origen-link" class="ag-link" href="#" target="_blank" rel="noopener" style="display:none;">Ver/editar el original →</a>
     <label>Título<input type="text" id="ev-titulo"></label>
     <label>Fecha<input type="date" id="ev-fecha"></label>
     <label>Estado
@@ -177,336 +249,1010 @@
         <option value="publicado">🔥 Publicado</option>
       </select>
     </label>
-    <div class="modal-actions">
-      <button type="button" class="btn-danger" id="ev-quitar">Quitar del calendario</button>
-      <div class="modal-actions-right">
-        <button type="button" class="btn-secondary" id="ev-cancelar">Cancelar</button>
-        <button type="button" class="btn-primary" id="ev-guardar">Guardar</button>
+    <div class="m-acciones">
+      <button type="button" class="btn-peligro" id="ev-quitar">Quitar del calendario</button>
+      <div class="der">
+        <button type="button" class="pb-btn pb-btn-sec" id="ev-cancelar">Cancelar</button>
+        <button type="button" class="pb-btn" id="ev-guardar">Guardar</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Modal: temporada -->
+<!-- Ventana: temporada (rango de fechas) -->
 <div class="overlay" id="overlay-temporada" hidden>
-  <div class="modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-temporada-title">
     <h3 id="modal-temporada-title">Nueva temporada</h3>
-    <label>Nombre<input type="text" id="tmp-nombre" placeholder="ej. Temporada Navideña"></label>
-    <label>Fecha inicio<input type="date" id="tmp-inicio"></label>
-    <label>Fecha fin<input type="date" id="tmp-fin"></label>
+    <label>Nombre<input type="text" id="tmp-nombre" placeholder="Ej. Buen Fin, Navidad, aniversario"></label>
+    <div class="m-fila">
+      <label>Fecha inicio<input type="date" id="tmp-inicio"></label>
+      <label>Fecha fin<input type="date" id="tmp-fin"></label>
+    </div>
+    <label id="tmp-producto-wrap">Producto o servicio (opcional)
+      <select id="tmp-producto"></select>
+    </label>
     <label>Color
       <div class="swatches" id="tmp-swatches"></div>
     </label>
-    <div class="modal-actions">
-      <button type="button" class="btn-danger" id="tmp-borrar" style="display:none;">Borrar temporada</button>
-      <div class="modal-actions-right">
-        <button type="button" class="btn-secondary" id="tmp-cancelar">Cancelar</button>
-        <button type="button" class="btn-primary" id="tmp-guardar">Guardar</button>
+    <div class="m-acciones">
+      <button type="button" class="btn-peligro" id="tmp-borrar" style="display:none;">Borrar temporada</button>
+      <div class="der">
+        <button type="button" class="pb-btn pb-btn-sec" id="tmp-cancelar">Cancelar</button>
+        <button type="button" class="pb-btn" id="tmp-guardar">Guardar</button>
       </div>
     </div>
   </div>
 </div>
 
+<!-- Ventana: etapa del proceso de campaña -->
+<div class="overlay" id="overlay-etapa" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="et-titulo">
+    <div class="pc-sub" id="et-camp"></div>
+    <h3 id="et-titulo">Etapa</h3>
+    <p class="m-sub" id="et-info"></p>
+    <div class="m-fila">
+      <label>Empieza<input type="date" id="et-inicio"></label>
+      <label>Termina<input type="date" id="et-fin"></label>
+    </div>
+    <div class="m-pasos">
+      <button type="button" class="pb-btn pb-btn-sec" data-et="ant">← Un día antes</button>
+      <button type="button" class="pb-btn pb-btn-sec" data-et="sig">Un día después →</button>
+      <button type="button" class="pb-btn pb-btn-sec" data-et="menos">− Acortar un día</button>
+      <button type="button" class="pb-btn pb-btn-sec" data-et="mas">+ Alargar un día</button>
+    </div>
+    <div class="m-lista" id="et-jefes"></div>
+    <div class="m-acciones">
+      <button type="button" class="ag-link" id="et-reset">Volver al tiempo sugerido</button>
+      <button type="button" class="pb-btn pb-btn-sec" id="et-cerrar">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Ventana: lista de un día -->
+<div class="overlay" id="overlay-dia" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="dia-titulo">
+    <h3 id="dia-titulo">Día</h3>
+    <div class="m-lista" id="dia-lista"></div>
+    <div class="m-acciones"><span></span><button type="button" class="pb-btn pb-btn-sec" id="dia-cerrar">Cerrar</button></div>
+  </div>
+</div>
+
+<script src="/js/storage-client.js"></script>
 <script>
+  // Filtro de arriba (js/jefes-foco.js): el calendario y los tiempos del proceso muestran solo lo del producto,
+  // servicio o grupo elegido. Las opciones salen del Catálogo del ADN de cada hub.
+  window.__focoConfig = { grupos: true, productos366: true };
+</script>
+<script src="/js/jefes-foco.js"></script>
+<script src="/js/agenda-proceso.js"></script>
+<script>
+const AP = window.AgendaProceso;
+const HUB = window.__hub.slug;
+const AGENDA_KEY = HUB + ':agenda-eventos';
+const CONTENIDO_KEY = HUB + ':agente-contenido';
+const ANUNCIOS_KEY = HUB + ':agente-anuncios';
+const TEMPORADA_KEY = HUB + ':temporada-campanas';
+const PROCESO_KEY = HUB + ':agenda-proceso';
+
 const MESES_LABEL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const MESES_CORTO = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 const COLORES_TEMPORADA = ['#F2C230','#F472B6','#38BDF8','#B8F725','#FB7185','#A78BFA'];
+// Un color por campaña (oscuros, para que se lean sobre blanco).
+const COLORES_CAMPANA = ['#2563EB','#DB2777','#D97706','#059669','#7C3AED','#DC2626','#0E7490','#65A30D'];
 const NOMBRE_ORIGEN = { contenido: 'Jefe de Contenido', anuncios: 'Jefe de Anuncios', temporada: 'Jefe de Temporada' };
+const NOMBRE_JEFE = {
+  'jefe-366': 'Jefe 366', 'jefe-temporada': 'Jefe de Temporada', 'jefe-contenido': 'Jefe de Contenido',
+  'jefe-produccion-video': 'Jefe Productor IA', 'jefe-whatsapp': 'WhatsApp y Ventas',
+  'jefe-anuncios': 'Jefe de Anuncios', 'jefe-optimizacion': 'Jefe de Mejora Constante',
+};
 const RUTA_ORIGEN = {
   contenido: window.__hub.rutas('/jefe-contenido'),
   anuncios: window.__hub.rutas('/jefe-anuncios'),
   temporada: window.__hub.rutas('/jefe-temporada'),
 };
+const rutaJefe = (slug) => window.__hub.rutas('/' + slug)[HUB];
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const esMovil = () => window.matchMedia('(max-width: 640px)').matches;
 
 let calMonth = new Date().getMonth();
 let calYear = new Date().getFullYear();
 let agendaData = { eventos: [], temporadas: [] };
-let editandoTemporadaId = null; // null = creando
+let campanas = [];                 // campañas de Jefe de Temporada (llave <hub>:temporada-campanas)
+let proceso = { campanas: {} };    // plan de cada campaña (llave <hub>:agenda-proceso)
+let catalogo = [];                 // productos del ADN (los da la pastilla de foco)
+let idxContenido = {}, idxAnuncios = {};   // a qué producto/grupo pertenece cada evento
+let promedio = {};                 // promedio real por etapa (se recalcula en cada render)
+let editandoTemporadaId = null;    // null = creando
 
-async function cargarAgenda(){
-  try{
-    const r = await window.storage.get(AGENDA_KEY);
-    if(r && r.value){
-      const d = JSON.parse(r.value);
-      agendaData = { eventos: Array.isArray(d.eventos)?d.eventos:[], temporadas: Array.isArray(d.temporadas)?d.temporadas:[] };
-    }
-  }catch(e){}
+// ───────────────────────── lectura / escritura ─────────────────────────
+async function leerJSON(key, vacio) {
+  try {
+    const r = await window.storage.get(key);
+    if (!r || r.value == null) return vacio;
+    return typeof r.value === 'string' ? JSON.parse(r.value) : r.value;
+  } catch (e) { return vacio; }
+}
+async function guardarAgenda() {
+  await window.storage.set(AGENDA_KEY, JSON.stringify(agendaData));
+}
+function setEstado(texto, error) {
+  const el = $('ag-estado');
+  el.textContent = texto || '';
+  el.classList.toggle('error', !!error);
+}
+
+// ───────────────────────── producto de cada cosa (para el filtro) ─────────────────────────
+function nombreCampana(c) {
+  const n = String(c.nombre || '').trim();
+  if (n && !/^(temporal|nueva campa[nñ]a|campa[nñ]a|sin nombre)$/i.test(n)) return n;
+  return String(c.temporada || '').trim() || n || '(sin nombre)';
+}
+function nombreProducto(c) {
+  let p = c.producto_origen === 'nuevo' ? String(c.producto_nuevo || '').split('\n')[0].trim() : String(c.producto_nombre || '').trim();
+  if (!p && c.producto_origen !== 'nuevo' && c.grupo_id) {
+    const g = (window.__foco && window.__foco.grupos ? window.__foco.grupos() : []).find((x) => x && x.id === c.grupo_id);
+    p = g && g.nombre ? 'Todo el grupo: ' + String(g.nombre).trim() : '';
+  }
+  if (p.length > 48) p = p.slice(0, 47) + '…';
+  return p || nombreCampana(c);
+}
+function colorCampana(c) {
+  let h = 0; const s = String(c.id);
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return COLORES_CAMPANA[h % COLORES_CAMPANA.length];
+}
+const alcanceDeCampana = (c) => ({ p: c.producto_origen === 'nuevo' ? '' : (c.producto_id || ''), g: c.grupo_id || '' });
+function alcanceDeEvento(ev) {
+  if (ev.origen === 'contenido') return idxContenido[(ev.origenTab || '') + ':' + ev.origenId] || { p: '', g: '' };
+  if (ev.origen === 'anuncios') return idxAnuncios[ev.origenId] || { p: '', g: '' };
+  if (ev.origen === 'temporada') {
+    const c = campanas.find((x) => x.id === String(ev.origenId || '').split(':')[0]);
+    return c ? alcanceDeCampana(c) : { p: '', g: '' };
+  }
+  return { p: '', g: '' };
+}
+// null = general (de todo el negocio): se ve siempre.
+function alcanceDeFranja(t) {
+  if (t.origen === 'temporada') {
+    const c = campanas.find((x) => x.id === t.campanaId);
+    return c ? alcanceDeCampana(c) : null;
+  }
+  return t.productoId ? { p: t.productoId, g: '' } : null;
+}
+// Misma regla que el resto de los Jefes: ecosistema completo = todo; producto = solo ese; grupo = los de ese grupo.
+function pasaFoco(a) {
+  const f = window.__foco ? window.__foco.get() : null;
+  if (!f || f.esTodo) return true;
+  if (f.productoId) return a.p === f.productoId;
+  if (f.esGrupo && f.grupoId) {
+    const g = a.g || (a.p ? ((catalogo.find((x) => x.id === a.p) || {}).grupo_id || '') : '');
+    return g === f.grupoId;
+  }
+  return true;
+}
+const eventoVisible = (ev) => pasaFoco(alcanceDeEvento(ev));
+function franjaVisible(t) { const a = alcanceDeFranja(t); return a === null ? true : pasaFoco(a); }
+
+// ───────────────────────── proceso de campaña ─────────────────────────
+const campanasConArranque = () => campanas.filter((c) => AP.esISO(c.fecha_inicio_activa) && c.estado !== 'cerrada');
+const planesVivos = () => {
+  const out = {};
+  campanas.forEach((c) => { if (proceso.campanas[c.id]) out[c.id] = proceso.campanas[c.id]; });
+  return out;
+};
+// Plan de una campaña respetando las fechas que ya tiene en Jefe de Temporada (calendario final, precampaña, postcampaña).
+const anclasDe = (c) => AP.anclasDeCampana(c);
+const detalleDe = (c) => AP.detalleEfectivo(proceso.campanas[c.id], promedio, anclasDe(c));
+const planDe = (c) => detalleDe(c).plan;
+const calcularPromedio = () => { promedio = AP.promedios(planesVivos()); };
+
+// Cada campaña guarda su plan la primera vez que se ve (con el promedio de ese momento).
+async function asegurarPlanes() {
+  calcularPromedio();
+  const nuevos = [];
+  campanasConArranque().forEach((c) => {
+    if (!proceso.campanas[c.id]) { proceso.campanas[c.id] = AP.instantanea(promedio); nuevos.push(c.id); }
+  });
+  if (nuevos.length) await guardarProceso(nuevos, true);
+}
+
+// Guarda solo las campañas indicadas y junta con lo último guardado, para no pisar lo de otra pestaña o dispositivo.
+// ganaRemoto: si ya existe un plan guardado de esa campaña (otro dispositivo se adelantó), gana el guardado.
+async function guardarProceso(ids, ganaRemoto) {
+  setEstado('Guardando…');
+  try {
+    const remoto = AP.limpiarProceso(await leerJSON(PROCESO_KEY, null)).campanas;
+    const merged = Object.assign({}, proceso.campanas, remoto);
+    ids.forEach((id) => {
+      if (ganaRemoto && remoto[id]) merged[id] = remoto[id];
+      else if (proceso.campanas[id]) merged[id] = proceso.campanas[id];
+      else delete merged[id];
+    });
+    proceso.campanas = merged;
+    await window.storage.set(PROCESO_KEY, JSON.stringify({ campanas: merged }));
+    setEstado('Guardado ✓');
+    setTimeout(() => { if ($('ag-estado').textContent === 'Guardado ✓') setEstado(''); }, 2200);
+  } catch (e) {
+    setEstado(e && e.status === 401 ? 'Token incorrecto, intenta de nuevo.' : 'No se pudo guardar. Intenta otra vez.', true);
+  }
+}
+async function fijarEtapa(campId, etapaId, ed) {
+  const c = campanas.find((x) => x.id === campId);
+  const v = AP.limpiarEtapa({ d: ed.d, n: ed.n, u: 1 });
+  if (!c || !v) return;
+  const fuente = detalleDe(c).fuente[etapaId];      // si la fecha venía del calendario de Temporada, de qué fila
+  (proceso.campanas[campId] = proceso.campanas[campId] || {})[etapaId] = v;
+  calcularPromedio();
+  render();
+  await guardarProceso([campId], false);
+  await ofrecerActualizarTemporada(c, etapaId, v, fuente);
+}
+// La fecha de esta etapa la había puesto Jefe de Temporada: si el usuario la cambia aquí, se le pregunta si también se
+// actualiza allá (igual que al editar un evento), para que las dos copias no se desincronicen.
+async function ofrecerActualizarTemporada(c, etapaId, v, fuente) {
+  if (!fuente) return;
+  const nuevo = AP.fechasDe(c.fecha_inicio_activa, v).inicio;
+  if (nuevo === fuente.iso) return;
+  const e = AP.etapaPorId(etapaId);
+  if (!confirm('La fecha de "' + e.titulo + '" venía del calendario del Jefe de Temporada (' + fmtCorta(fuente.iso) + '). ¿Actualizarla también allá a ' + fmtCorta(nuevo) + '?')) return;
+  const row = (c.calendario || []).find((r) => r && r.id === fuente.rowId);
+  if (!row) return;
+  await sincronizarConFuente({ origen: 'temporada', origenId: c.id + ':' + fuente.campo + ':' + fuente.rowId, fecha: nuevo, estado: row.estado });
+  row.fecha = nuevo;
+  // la copia de ese evento en la Agenda también cambia (Temporada la vuelve a espejar cuando guarde)
+  const ev = agendaData.eventos.find((x) => x.id === 'temporada-' + c.id + '-' + fuente.campo + '-' + fuente.rowId);
+  if (ev) { ev.fecha = nuevo; try { await guardarAgenda(); } catch (err) {} }
+  render();
+}
+async function reiniciarEtapa(campId, etapaId) {
+  const plan = proceso.campanas[campId];
+  if (!plan || !plan[etapaId]) return;
+  // El tiempo sugerido se calcula sin el ajuste que se está descartando (si no, el promedio se sugeriría a sí mismo).
+  const planes = {};
+  Object.keys(planesVivos()).forEach((id) => { planes[id] = Object.assign({}, proceso.campanas[id]); });
+  delete planes[campId][etapaId];
+  const base = AP.instantanea(AP.promedios(planes));
+  plan[etapaId] = { n: base[etapaId].n };   // vuelve a la duración sugerida y a su lugar según las fechas: ya no cuenta como "ajustada por ti"
+  calcularPromedio();
+  render();
+  await guardarProceso([campId], false);
+}
+
+// A qué Jefe manda cada etapa: deja la campaña "en foco" para ese Jefe (igual que Jefe de Temporada) y se pasa a él.
+function abrirJefe(slug, c) {
+  let foco = 'all';
+  if (c) {
+    if (slug === 'jefe-whatsapp') foco = 'c:' + c.id;
+    else if (c.producto_origen !== 'nuevo' && c.producto_id) foco = c.producto_id;
+    else if (c.producto_origen !== 'nuevo' && c.grupo_id) foco = 'g:' + c.grupo_id;
+  }
+  try { localStorage.setItem('jefeshub_foco_' + HUB, JSON.stringify({ id: foco, nombre: c ? nombreProducto(c) : '' })); } catch (e) {}
+  let ruta = rutaJefe(slug);
+  if (slug === 'jefe-366' && c && c.producto_origen !== 'nuevo' && c.producto_id) ruta += '?producto=' + encodeURIComponent(c.producto_id);
+  if (slug === 'jefe-temporada' && c) ruta += '?campana=' + encodeURIComponent(c.id);
+  window.location.href = ruta;
+}
+
+// ───────────────────────── carga ─────────────────────────
+async function cargar() {
+  const [ag, tem, con, anu, pro] = await Promise.all([
+    leerJSON(AGENDA_KEY, null), leerJSON(TEMPORADA_KEY, []), leerJSON(CONTENIDO_KEY, null), leerJSON(ANUNCIOS_KEY, []), leerJSON(PROCESO_KEY, null),
+  ]);
+  agendaData = { eventos: Array.isArray(ag && ag.eventos) ? ag.eventos : [], temporadas: Array.isArray(ag && ag.temporadas) ? ag.temporadas : [] };
+  campanas = Array.isArray(tem) ? tem.filter((c) => c && c.id) : [];
+  idxContenido = {};
+  ['historias', 'contenido'].forEach((tab) => { ((con && con[tab]) || []).forEach((it) => { if (it && it.id) idxContenido[tab + ':' + it.id] = { p: it.productoId || '', g: '' }; }); });
+  idxAnuncios = {};
+  (Array.isArray(anu) ? anu : []).forEach((it) => { if (it && it.id) idxAnuncios[it.id] = { p: it.producto_id || '', g: it.grupo_id || '' }; });
+  proceso = AP.limpiarProceso(pro);
+  if (window.__foco) {
+    try { await Promise.race([window.__foco.ready, new Promise((r) => setTimeout(r, 4000))]); } catch (e) {}
+    catalogo = window.__foco.lista();
+  }
+  calcularPromedio();
+  render();
+  await asegurarPlanes();
   render();
 }
 
-async function guardarAgenda(){
-  await window.storage.set(AGENDA_KEY, JSON.stringify(agendaData));
+// ───────────────────────── pintar ─────────────────────────
+function fechaISO(anio, mes, dia) { return anio + '-' + String(mes).padStart(2, '0') + '-' + String(dia).padStart(2, '0'); }
+function fmtCorta(iso) { return new Date(iso + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }); }
+function fmtLarga(iso) { return new Date(iso + 'T00:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' }); }
+const diasTxt = (n) => n + (n === 1 ? ' día' : ' días');
+
+function franjasVisibles() { return agendaData.temporadas.filter(franjaVisible); }
+function temporadasDelMes() {
+  const ini = fechaISO(calYear, calMonth + 1, 1), fin = fechaISO(calYear, calMonth + 1, new Date(calYear, calMonth + 1, 0).getDate());
+  return franjasVisibles().filter((t) => t.fechaInicio <= fin && t.fechaFin >= ini);
 }
-
-function fechaISO(anio,mes,dia){ return anio+'-'+String(mes).padStart(2,'0')+'-'+String(dia).padStart(2,'0'); }
-
-function temporadasEnFecha(iso){
-  return agendaData.temporadas.filter(t=> t.fechaInicio<=iso && iso<=t.fechaFin);
-}
-
-function temporadasDelMes(){
-  const inicioMes = fechaISO(calYear, calMonth+1, 1);
-  const finMes = fechaISO(calYear, calMonth+1, new Date(calYear,calMonth+1,0).getDate());
-  return agendaData.temporadas.filter(t=> t.fechaInicio<=finMes && t.fechaFin>=inicioMes);
-}
-
-function render(){
-  document.getElementById('cal-month-label').textContent = MESES_LABEL[calMonth]+' '+calYear;
+function render() {
+  $('cal-month-label').textContent = MESES_LABEL[calMonth] + ' ' + calYear;
+  renderFiltro();
   renderGrid();
+  renderLeyenda();
   renderTemporadasList();
+  renderProceso();
+}
+function renderFiltro() {
+  const f = window.__foco ? window.__foco.get() : null;
+  const el = $('ag-filtro');
+  if (f && !f.esTodo) {
+    el.hidden = false;
+    el.innerHTML = 'Mostrando solo lo de <b>' + esc(f.nombre || 'este producto') + '</b> <button type="button" class="ag-link" id="ag-ver-todo">Ver todo</button>';
+    $('ag-ver-todo').onclick = () => window.__foco.set('all');
+  } else el.hidden = true;
 }
 
-function renderGrid(){
-  const grid = document.getElementById('cal-grid');
-  grid.innerHTML='';
-  ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].forEach(d=>{
-    const el=document.createElement('div'); el.className='cal-dow'; el.textContent=d; grid.appendChild(el);
+// Todo lo que cae en cada día: marcas del proceso + eventos de los demás Jefes.
+function itemsPorDia() {
+  const por = {};
+  const poner = (iso, it) => { (por[iso] = por[iso] || []).push(it); };
+  campanasConArranque().filter((c) => pasaFoco(alcanceDeCampana(c))).forEach((c) => {
+    AP.marcas(c.fecha_inicio_activa, planDe(c)).forEach((m) => poner(m.iso, { tipo: 'mk', camp: c, m }));
   });
-
-  const eventosPorDia = {};
-  agendaData.eventos.forEach(ev=>{
-    if(!/^\d{4}-\d{2}-\d{2}$/.test(ev.fecha||'')) return;
-    if(!eventosPorDia[ev.fecha]) eventosPorDia[ev.fecha]=[];
-    eventosPorDia[ev.fecha].push(ev);
+  agendaData.eventos.forEach((ev) => {
+    if (!AP.esISO(ev.fecha) || !eventoVisible(ev)) return;
+    poner(ev.fecha, { tipo: 'ev', ev });
   });
+  return por;
+}
 
-  const primerDiaSemana=(new Date(calYear,calMonth,1).getDay()+6)%7;
-  const diasEnMes=new Date(calYear,calMonth+1,0).getDate();
-  const hoy=new Date();
-  const esHoy=(d)=> hoy.getFullYear()===calYear && hoy.getMonth()===calMonth && hoy.getDate()===d;
+function chipEvento(ev) {
+  const chip = document.createElement('button');
+  chip.type = 'button';
+  chip.className = 'cal-chip origen-' + ev.origen;
+  const icon = ev.origen === 'contenido' ? (ev.origenTab === 'historias' ? '🎬' : '📄') : ev.origen === 'temporada' ? '🗓️' : '📣';
+  chip.textContent = icon + ' ' + (ev.titulo || '(sin título)');
+  chip.title = ev.titulo || '';
+  chip.addEventListener('click', (e) => { e.stopPropagation(); abrirModalEvento(ev); });
+  return chip;
+}
+function chipMarca(it) {
+  const { camp, m } = it;
+  const e = AP.etapaPorId(m.etapa), color = colorCampana(camp);
+  const chip = document.createElement('div');
+  chip.className = 'cal-chip mk';
+  chip.setAttribute('role', 'button');
+  chip.tabIndex = 0;
+  chip.style.borderLeftColor = color;
+  chip.style.background = color + '22';
+  chip.textContent = e.corto + (m.de > 1 ? ' ' + m.parte + '/' + m.de : '');
+  chip.title = nombreProducto(camp) + ' · ' + e.titulo + (m.de > 1 ? ' (día ' + m.parte + ' de ' + m.de + ')' : '');
+  chip.dataset.dia = m.iso;
+  chip.addEventListener('click', (ev) => { ev.stopPropagation(); if (Date.now() - ultimoArrastre < 400) return; abrirModalEtapa(camp.id, m.etapa); });
+  chip.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); abrirModalEtapa(camp.id, m.etapa); } });
+  if (!esMovil()) {
+    chip.addEventListener('pointerdown', (ev) => iniciarArrastre(ev, { campId: camp.id, etapaId: m.etapa, modo: 'mover', iso: m.iso, contenedor: $('cal-grid') }));
+    if (m.parte === m.de) {
+      const grip = document.createElement('span');
+      grip.className = 'mk-grip';
+      grip.title = 'Arrastra para alargar o acortar la etapa';
+      grip.addEventListener('pointerdown', (ev) => { ev.stopPropagation(); iniciarArrastre(ev, { campId: camp.id, etapaId: m.etapa, modo: 'redim', iso: m.iso, contenedor: $('cal-grid') }); });
+      chip.appendChild(grip);
+    }
+  }
+  return chip;
+}
 
-  for(let i=0;i<primerDiaSemana;i++){ const el=document.createElement('div'); el.className='cal-cell cal-empty'; grid.appendChild(el); }
+function renderGrid() {
+  const grid = $('cal-grid');
+  grid.textContent = '';
+  ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].forEach((d) => { const el = document.createElement('div'); el.className = 'cal-dow'; el.textContent = d; grid.appendChild(el); });
+  const porDia = itemsPorDia();
+  const franjas = franjasVisibles();
+  const primero = (new Date(calYear, calMonth, 1).getDay() + 6) % 7;
+  const dias = new Date(calYear, calMonth + 1, 0).getDate();
+  const hoy = new Date();
+  const esHoy = (d) => hoy.getFullYear() === calYear && hoy.getMonth() === calMonth && hoy.getDate() === d;
+  const MAX = esMovil() ? 5 : 3;
 
-  for(let d=1; d<=diasEnMes; d++){
-    const iso = fechaISO(calYear, calMonth+1, d);
-    const cell=document.createElement('div');
-    cell.className='cal-cell'+(esHoy(d)?' cal-today':'');
+  for (let i = 0; i < primero; i++) { const el = document.createElement('div'); el.className = 'cal-cell cal-empty'; grid.appendChild(el); }
+  for (let d = 1; d <= dias; d++) {
+    const iso = fechaISO(calYear, calMonth + 1, d);
+    const items = porDia[iso] || [];
+    const cell = document.createElement('div');
+    cell.className = 'cal-cell' + (esHoy(d) ? ' cal-today' : '') + ((primero + d - 1) % 7 >= 5 ? ' fin-sem' : '') + (items.length ? ' tiene' : '');
+    cell.dataset.iso = iso;
 
-    const temporadasDia = temporadasEnFecha(iso);
-    if(temporadasDia.length){
-      const t = temporadasDia[0];
-      cell.style.background = t.color+'26';
-      cell.style.borderColor = t.color+'80';
-      if(iso===t.fechaInicio || (d===1 && t.fechaInicio<iso)){
-        const label=document.createElement('div');
-        label.className='cal-temporada-label';
-        label.style.background=t.color; label.style.color='#0F0B16';
-        label.textContent=t.nombre;
-        label.addEventListener('click',(e)=>{ e.stopPropagation(); abrirModalTemporada(t); });
+    const dEnDia = franjas.filter((t) => t.fechaInicio <= iso && iso <= t.fechaFin);
+    if (dEnDia.length) {
+      const t = dEnDia[0];
+      cell.style.background = t.color + '26';
+      cell.style.borderColor = t.color + '80';
+      dEnDia.filter((x) => iso === x.fechaInicio || (d === 1 && x.fechaInicio < iso)).slice(0, 2).forEach((x) => {
+        const label = document.createElement('div');
+        label.className = 'cal-temporada-label';
+        label.style.background = x.color;
+        label.textContent = x.nombre;
+        label.title = x.nombre;
+        label.addEventListener('click', (e) => { e.stopPropagation(); abrirModalTemporada(x); });
         cell.appendChild(label);
-      }
+      });
     }
 
-    const dayNum=document.createElement('div');
-    dayNum.className='cal-daynum';
-    dayNum.textContent=d;
-    cell.appendChild(dayNum);
+    const num = document.createElement('div');
+    num.className = 'cal-daynum';
+    num.textContent = d;
+    cell.appendChild(num);
 
-    const items=(eventosPorDia[iso]||[]).slice(0,4);
-    items.forEach(ev=>{
-      const chip=document.createElement('div');
-      chip.className='cal-chip origen-'+ev.origen;
-      const icon = ev.origen==='contenido' ? (ev.origenTab==='historias'?'🎬':'📄') : ev.origen==='temporada' ? '🗓️' : '📣';
-      chip.textContent = icon+' '+(ev.titulo||'(sin título)');
-      chip.title = ev.titulo||'';
-      chip.addEventListener('click',()=>abrirModalEvento(ev));
-      cell.appendChild(chip);
-    });
-    const total=(eventosPorDia[iso]||[]).length;
-    if(total>4){
-      const mas=document.createElement('div');
-      mas.className='cal-chip-mas';
-      mas.textContent='+'+(total-4)+' más';
+    items.slice(0, MAX).forEach((it) => cell.appendChild(it.tipo === 'mk' ? chipMarca(it) : chipEvento(it.ev)));
+    if (items.length > MAX) {
+      const mas = document.createElement('div');
+      mas.className = 'cal-chip-mas';
+      mas.textContent = '+' + (items.length - MAX) + ' más';
       cell.appendChild(mas);
     }
-
+    if (items.length) cell.addEventListener('click', () => abrirDia(iso, items));
     grid.appendChild(cell);
   }
-
-  document.getElementById('cal-prev').onclick=()=>{ calMonth--; if(calMonth<0){calMonth=11;calYear--;} render(); };
-  document.getElementById('cal-next').onclick=()=>{ calMonth++; if(calMonth>11){calMonth=0;calYear++;} render(); };
-  document.getElementById('cal-hoy').onclick=()=>{ const n=new Date(); calMonth=n.getMonth(); calYear=n.getFullYear(); render(); };
+  $('cal-prev').onclick = () => { calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; } render(); };
+  $('cal-next').onclick = () => { calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; } render(); };
+  $('cal-hoy').onclick = () => { const n = new Date(); calMonth = n.getMonth(); calYear = n.getFullYear(); render(); };
 }
 
-function renderTemporadasList(){
-  const wrap = document.getElementById('temporadas-list');
+function renderLeyenda() {
+  const cont = $('leyenda-campanas');
+  const cs = campanasConArranque().filter((c) => pasaFoco(alcanceDeCampana(c)));
+  cont.innerHTML = cs.length
+    ? '<span style="font-weight:600;color:var(--text);">Etapas del proceso:</span>' + cs.map((c) => '<span><span class="dot" style="background:' + colorCampana(c) + ';"></span>' + esc(nombreProducto(c)) + '</span>').join('')
+    : '';
+}
+
+function renderTemporadasList() {
+  const wrap = $('temporadas-list');
   const del = temporadasDelMes();
-  if(!del.length){
-    wrap.innerHTML = '<span class="temporadas-empty">Sin temporadas marcadas este mes.</span>';
-    return;
-  }
-  wrap.innerHTML='';
-  del.forEach(t=>{
-    const chip=document.createElement('button');
-    chip.type='button';
-    chip.className='temporada-chip';
-    chip.style.background=t.color+'26';
-    chip.style.color=t.color;
-    chip.style.borderColor=t.color+'80';
-    chip.textContent=t.nombre+' · '+t.fechaInicio+' → '+t.fechaFin;
-    chip.addEventListener('click',()=>abrirModalTemporada(t));
+  if (!del.length) { wrap.innerHTML = '<span class="vacio">Sin temporadas marcadas este mes.</span>'; return; }
+  wrap.textContent = '';
+  del.forEach((t) => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'temporada-chip';
+    chip.style.background = t.color + '26';
+    chip.style.borderColor = t.color + '99';
+    chip.textContent = t.nombre + ' · ' + fmtCorta(t.fechaInicio) + ' → ' + fmtCorta(t.fechaFin);
+    chip.addEventListener('click', () => abrirModalTemporada(t));
     wrap.appendChild(chip);
   });
 }
 
-/* ─── MODAL EVENTO ─── */
-let eventoActivo = null;
-function abrirModalEvento(ev){
-  eventoActivo = ev;
-  document.getElementById('modal-evento-title').textContent = ev.origen ? ('Evento · '+NOMBRE_ORIGEN[ev.origen]) : 'Evento';
-  const origenLink = document.getElementById('ev-origen-link');
-  const ruta = ev.origen && RUTA_ORIGEN[ev.origen] ? RUTA_ORIGEN[ev.origen][CLIENTE_ID] : null;
-  if(ruta){ origenLink.href = ruta; origenLink.style.display='inline-block'; }
-  else { origenLink.style.display='none'; }
-  document.getElementById('ev-titulo').value = ev.titulo||'';
-  document.getElementById('ev-fecha').value = ev.fecha||'';
-  document.getElementById('ev-estado').value = ev.estado||'idea';
-  document.getElementById('overlay-evento').hidden = false;
+// ───────────────────────── tiempos del proceso (línea de tiempo) ─────────────────────────
+function renderProceso() {
+  const lista = $('proceso-lista'), resumen = $('proceso-resumen');
+  lista.textContent = '';
+  resumen.textContent = '';
+  const todas = campanasConArranque();
+  const visibles = todas.filter((c) => pasaFoco(alcanceDeCampana(c)));
+  const sinFecha = campanas.filter((c) => !AP.esISO(c.fecha_inicio_activa) && c.estado !== 'cerrada' && pasaFoco(alcanceDeCampana(c)));
+
+  // Promedio real: las etapas salen de lo que el usuario ha acomodado; precampaña y postcampaña, de las fechas que ya puso en Temporada.
+  const pp = AP.promedioPrePost(todas.map(anclasDe));
+  if (Object.keys(promedio).length || pp.nPre || pp.nPost) {
+    const fila = document.createElement('div');
+    fila.className = 'prom-fila';
+    const chip = (html) => { const c = document.createElement('span'); c.className = 'prom-chip'; c.innerHTML = html; fila.appendChild(c); };
+    AP.ETAPAS.filter((e) => promedio[e.id]).forEach((e) => {
+      chip(esc(e.corto) + ': <b>' + diasTxt(promedio[e.id]) + '</b> <span style="color:var(--text-dim);">(recomendado ' + AP.recomendado(e.id).n + ')</span>');
+    });
+    if (pp.nPre) chip('Precampaña: <b>' + diasTxt(pp.pre) + '</b> <span style="color:var(--text-dim);">(' + pp.nPre + (pp.nPre === 1 ? ' campaña' : ' campañas') + ')</span>');
+    if (pp.nPost) chip('Postcampaña: <b>' + diasTxt(pp.post) + '</b> <span style="color:var(--text-dim);">(' + pp.nPost + (pp.nPost === 1 ? ' campaña' : ' campañas') + ')</span>');
+    const t = document.createElement('p');
+    t.className = 'ag-intro';
+    t.style.margin = '0 0 8px';
+    t.textContent = 'Tu promedio real. Las etapas salen de lo que has acomodado (las campañas nuevas nacen con esos tiempos); la precampaña y la postcampaña, de las fechas que ya pusiste en el Jefe de Temporada.';
+    resumen.appendChild(t);
+    resumen.appendChild(fila);
+  }
+
+  if (!todas.length) {
+    lista.innerHTML = '<div class="pb-card"><p class="vacio" style="margin:0 0 12px;">Todavía no hay campañas con fecha de arranque. Pon la “Fecha inicio campaña activa” en el Jefe de Temporada y aquí aparecen todas las etapas, antes y después de esa fecha.</p><a class="pb-btn" href="' + esc(rutaJefe('jefe-temporada')) + '">Ir al Jefe de Temporada →</a></div>';
+  } else if (!visibles.length) {
+    lista.innerHTML = '<div class="pb-card"><p class="vacio" style="margin:0;">Ninguna campaña con fecha de arranque es del producto o grupo que elegiste arriba.</p></div>';
+  } else {
+    visibles.forEach((c) => lista.appendChild(tarjetaCampana(c)));
+  }
+
+  if (sinFecha.length) {
+    const p = document.createElement('p');
+    p.className = 'vacio';
+    p.innerHTML = 'Sin fecha de arranque (no aparecen aquí todavía): ' + sinFecha.map((c) => '<a class="ag-link" href="' + esc(rutaJefe('jefe-temporada') + '?campana=' + encodeURIComponent(c.id)) + '">' + esc(nombreCampana(c)) + '</a>').join(', ') + '.';
+    lista.appendChild(p);
+  }
 }
-document.getElementById('ev-cancelar').addEventListener('click',()=>{ document.getElementById('overlay-evento').hidden=true; eventoActivo=null; });
-document.getElementById('overlay-evento').addEventListener('click',(e)=>{ if(e.target.id==='overlay-evento'){ e.target.hidden=true; eventoActivo=null; } });
 
-document.getElementById('ev-guardar').addEventListener('click', async ()=>{
-  if(!eventoActivo) return;
-  const nuevoTitulo = document.getElementById('ev-titulo').value.trim() || '(sin título)';
-  const nuevaFecha = document.getElementById('ev-fecha').value;
-  const nuevoEstado = document.getElementById('ev-estado').value;
-  if(!nuevaFecha){ alert('La fecha no puede quedar vacía — usa "Quitar del calendario" si ya no aplica.'); return; }
-  eventoActivo.titulo = nuevoTitulo;
-  eventoActivo.fecha = nuevaFecha;
-  eventoActivo.estado = nuevoEstado;
-  await guardarAgenda();
-  document.getElementById('overlay-evento').hidden=true;
-  render();
-  if(eventoActivo.origen){
-    if(confirm('¿Actualizar también en el '+NOMBRE_ORIGEN[eventoActivo.origen]+' de origen?')){
-      await sincronizarConFuente(eventoActivo);
-    }
+const ETIQUETA_ORIGEN = { usuario: 'ajustada', jefe: 'de Temporada', precampana: 'por precampaña', sugerido: 'sugerido' };
+const AYUDA_ORIGEN = {
+  usuario: 'La acomodaste tú.',
+  jefe: 'Su fecha viene del calendario del Jefe de Temporada.',
+  precampana: 'Se acomodó para terminar antes de que empiece la precampaña.',
+  sugerido: 'Tiempo sugerido según el arranque de la campaña.',
+};
+
+function tarjetaCampana(c) {
+  const det = detalleDe(c), plan = det.plan, anc = anclasDe(c), arr = c.fecha_inicio_activa, color = colorCampana(c);
+  // Fechas de referencia que ya tiene la campaña en Jefe de Temporada: precampaña, campaña y postcampaña (solo se ven, se editan allá).
+  const bandas = [];
+  if (anc.preInicio) bandas.push({ corto: 'Precampaña', sub: anc.preFuente === 'filas' ? 'Plan de calentamiento' : 'Duración en Temporada', ini: anc.preInicio, fin: AP.sumarDias(arr, -1), color: '#F2C230' });
+  bandas.push({ corto: 'Campaña', sub: 'Fechas de Temporada', ini: arr, fin: anc.fin || arr, color: '#84CC16' });
+  if (anc.postInicio) bandas.push({ corto: 'Postcampaña', sub: 'Acciones de Temporada', ini: anc.postInicio, fin: anc.postFin, color: '#38BDF8' });
+
+  let min = null, max = null;
+  const abarca = (ini, fin) => { if (min === null || ini < min) min = ini; if (max === null || fin > max) max = fin; };
+  AP.ETAPAS.forEach((e) => { const f = AP.fechasDe(arr, plan[e.id]); abarca(f.inicio, f.fin); });
+  bandas.forEach((b) => abarca(b.ini, b.fin));
+  const iso0 = AP.sumarDias(min, -3), iso1 = AP.sumarDias(max, 3);
+  const N = AP.diasEntre(iso0, iso1) + 1;
+  const isoDe = (i) => AP.sumarDias(iso0, i);
+
+  const card = document.createElement('article');
+  card.className = 'pb-card pc';
+  const nomProd = nombreProducto(c), nomCamp = nombreCampana(c);
+  card.innerHTML =
+    '<div class="pc-head"><span class="pc-dot" style="background:' + color + ';"></span>' +
+    '<h3>' + esc(nomProd) + '</h3>' + (nomCamp !== nomProd ? '<span class="pc-sub">' + esc(nomCamp) + '</span>' : '') +
+    '<span class="pc-arranque">Arranque: ' + esc(fmtLarga(arr)) + '</span>' +
+    '<a class="ag-link" href="' + esc(rutaJefe('jefe-temporada') + '?campana=' + encodeURIComponent(c.id)) + '">Cambiar la fecha en el Jefe de Temporada →</a></div>';
+
+  const wrap = document.createElement('div');
+  wrap.className = 'gantt-wrap';
+  const g = document.createElement('div');
+  g.className = 'gantt';
+  g.style.setProperty('--n', N);
+  if (N > 34) g.style.setProperty('--colw', esMovil() ? '24px' : '22px');   // línea de tiempo larga (precampaña y postcampaña): columnas más angostas
+  g.dataset.camp = c.id;
+
+  // encabezado con los días
+  const head = document.createElement('div');
+  head.className = 'g-row g-head';
+  const dias = [];
+  for (let i = 0; i < N; i++) {
+    const iso = isoDe(i), dia = +iso.slice(8);
+    dias.push('<div class="g-cell' + (iso === arr ? ' es-arranque' : '') + '"><span class="g-m">' + ((i === 0 || dia === 1) ? MESES_CORTO[+iso.slice(5, 7) - 1] : '') + '</span><span class="g-d">' + dia + '</span></div>');
   }
-  eventoActivo = null;
-});
+  head.innerHTML = '<div></div><div class="g-track">' + dias.join('') + '</div><div></div>';
+  g.appendChild(head);
 
-document.getElementById('ev-quitar').addEventListener('click', async ()=>{
-  if(!eventoActivo) return;
+  const celdasDeFondo = () => {
+    let celdas = '';
+    for (let i = 0; i < N; i++) { const dow = new Date(isoDe(i) + 'T00:00:00Z').getUTCDay(); celdas += '<div class="g-cell' + ((dow === 0 || dow === 6) ? ' fin-sem' : '') + '"></div>'; }
+    return celdas;
+  };
+  bandas.forEach((b) => {
+    const row = document.createElement('div');
+    row.className = 'g-row g-ref';
+    const label = document.createElement('a');
+    label.className = 'g-label';
+    label.href = rutaJefe('jefe-temporada') + '?campana=' + encodeURIComponent(c.id);
+    label.title = 'Estas fechas se cambian en el Jefe de Temporada';
+    label.innerHTML = '<b>' + esc(b.corto) + '</b><small>' + esc(b.sub) + '</small>';
+    row.appendChild(label);
+    const track = document.createElement('div');
+    track.className = 'g-track';
+    track.innerHTML = celdasDeFondo();      // sin data-iso: no son destino de arrastre
+    const n = AP.diasEntre(b.ini, b.fin) + 1;
+    const bar = document.createElement('div');
+    bar.className = 'g-bar ref';
+    bar.style.left = (AP.diasEntre(iso0, b.ini) / N * 100) + '%';
+    bar.style.width = (n / N * 100) + '%';
+    bar.style.background = b.color + '66';
+    bar.style.borderColor = b.color;
+    bar.title = b.corto + ' · ' + fmtCorta(b.ini) + (n > 1 ? ' → ' + fmtCorta(b.fin) : '') + ' (fechas del Jefe de Temporada)';
+    bar.textContent = n > 1 ? n + ' d' : '';
+    track.appendChild(bar);
+    row.appendChild(track);
+    const dur = document.createElement('div');
+    dur.className = 'g-dur';
+    dur.innerHTML = '<span>' + n + ' d</span><small>de Temporada</small>';
+    row.appendChild(dur);
+    g.appendChild(row);
+  });
+
+  AP.ETAPAS.forEach((e) => {
+    const ed = plan[e.id], f = AP.fechasDe(arr, ed), origen = det.origen[e.id];
+    const row = document.createElement('div');
+    row.className = 'g-row';
+
+    const label = document.createElement('button');
+    label.type = 'button';
+    label.className = 'g-label';
+    label.title = e.titulo;
+    label.innerHTML = '<b>' + esc(e.corto) + '</b><small>Con ' + esc(NOMBRE_JEFE[e.jefes[0]] || e.jefes[0]) + '</small>';
+    label.addEventListener('click', () => abrirModalEtapa(c.id, e.id));
+    row.appendChild(label);
+
+    const track = document.createElement('div');
+    track.className = 'g-track';
+    let celdas = '';
+    for (let i = 0; i < N; i++) {
+      const iso = isoDe(i), dow = new Date(iso + 'T00:00:00Z').getUTCDay();
+      celdas += '<div class="g-cell' + ((dow === 0 || dow === 6) ? ' fin-sem' : '') + '" data-iso="' + iso + '"></div>';
+    }
+    track.innerHTML = celdas;
+    const ini = AP.diasEntre(iso0, f.inicio);
+    const bar = document.createElement('div');
+    bar.className = 'g-bar';
+    bar.setAttribute('role', 'button');
+    bar.tabIndex = 0;
+    bar.style.background = color;
+    bar.style.left = (ini / N * 100) + '%';
+    bar.style.width = (ed.n / N * 100) + '%';
+    bar.textContent = ed.n > 1 ? ed.n + ' d' : '';
+    bar.title = e.titulo + ' · ' + fmtCorta(f.inicio) + (ed.n > 1 ? ' → ' + fmtCorta(f.fin) : '');
+    bar.dataset.n = ed.n; bar.dataset.inicio = f.inicio;
+    const grip = document.createElement('span');
+    grip.className = 'g-grip';
+    grip.title = 'Arrastra para alargar o acortar';
+    bar.appendChild(grip);
+    const isoBajo = (ev) => {
+      const r = track.getBoundingClientRect();
+      const i = Math.max(0, Math.min(N - 1, Math.floor((ev.clientX - r.left) / (r.width / N))));
+      return isoDe(i);
+    };
+    bar.addEventListener('pointerdown', (ev) => iniciarArrastre(ev, { campId: c.id, etapaId: e.id, modo: 'mover', iso: isoBajo(ev), contenedor: g, bar, track, N, inicio: f.inicio, n: ed.n }));
+    grip.addEventListener('pointerdown', (ev) => { ev.stopPropagation(); iniciarArrastre(ev, { campId: c.id, etapaId: e.id, modo: 'redim', iso: isoBajo(ev), contenedor: g, bar, track, N, inicio: f.inicio, n: ed.n }); });
+    bar.addEventListener('click', () => { if (Date.now() - ultimoArrastre < 400) return; abrirModalEtapa(c.id, e.id); });
+    bar.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); abrirModalEtapa(c.id, e.id); }
+      else if (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') { ev.preventDefault(); fijarEtapa(c.id, e.id, AP.mover(ed, ev.key === 'ArrowLeft' ? -1 : 1)); }
+    });
+    track.appendChild(bar);
+    row.appendChild(track);
+
+    const rec = AP.recomendado(e.id);
+    const dur = document.createElement('div');
+    dur.className = 'g-dur';
+    dur.title = AYUDA_ORIGEN[origen] + ' Recomendado: ' + diasTxt(rec.n) + (promedio[e.id] ? ' · Tu promedio: ' + diasTxt(promedio[e.id]) : '');
+    dur.innerHTML = (origen === 'usuario' ? '<span class="mio">● ' : origen === 'jefe' ? '<span class="mio">📌 ' : '<span>') + ed.n + ' d</span><small>' + ETIQUETA_ORIGEN[origen] + '</small>';
+    row.appendChild(dur);
+    g.appendChild(row);
+  });
+
+  wrap.appendChild(g);
+  card.appendChild(wrap);
+  if (det.avisos.length) {      // fechas que chocan entre sí: se dicen, no se corrigen a escondidas
+    const aviso = document.createElement('p');
+    aviso.className = 'pc-aviso';
+    aviso.innerHTML = '⚠️ ' + det.avisos.slice(0, 3).map((a) => {
+      const e = AP.etapaPorId(a.etapa);
+      if (a.tipo === 'orden') return '<b>' + esc(e.corto) + '</b> queda antes que <b>' + esc(AP.etapaPorId(a.antes).corto) + '</b>: revisa las fechas del Jefe de Temporada o acomódalas aquí.';
+      return '<b>' + esc(e.corto) + '</b> termina después de que empieza la precampaña (' + esc(fmtCorta(anc.preInicio)) + ').';
+    }).join(' ');
+    card.appendChild(aviso);
+  }
+  const pie = document.createElement('p');
+  pie.className = 'pc-pie';
+  pie.textContent = 'Arrastra una barra para recorrerla, toma su orilla derecha para alargarla, o tócala para abrir el Jefe que te ayuda en esa etapa.';
+  card.appendChild(pie);
+  return card;
+}
+
+// ───────────────────────── arrastrar (mover / alargar etapas) ─────────────────────────
+// Sirve igual con mouse que con el dedo: se busca el día que hay bajo el puntero (data-iso) dentro del mismo calendario o línea de tiempo.
+let arrastre = null;
+let ultimoArrastre = 0;
+function diaEnPunto(x, y, contenedor) {
+  const el = document.elementsFromPoint(x, y).find((n) => n.dataset && n.dataset.iso && contenedor.contains(n));
+  return el ? el.dataset.iso : null;
+}
+function iniciarArrastre(ev, info) {
+  if (ev.button !== undefined && ev.button !== 0) return;
+  arrastre = Object.assign({ x0: ev.clientX, y0: ev.clientY, moviendo: false, destino: null }, info);
+  window.addEventListener('pointermove', alMover);
+  window.addEventListener('pointerup', alSoltar);
+  window.addEventListener('pointercancel', alCancelar);
+  window.addEventListener('keydown', alTeclaArrastre);
+}
+function alMover(ev) {
+  const a = arrastre;
+  if (!a) return;
+  if (!a.moviendo && Math.hypot(ev.clientX - a.x0, ev.clientY - a.y0) < 5) return;
+  if (!a.moviendo) { a.moviendo = true; document.body.classList.add('ag-arrastrando'); }
+  const iso = diaEnPunto(ev.clientX, ev.clientY, a.contenedor);
+  document.querySelectorAll('.ag-destino').forEach((n) => n.classList.remove('ag-destino'));
+  if (!iso) return;
+  a.destino = iso;
+  a.contenedor.querySelectorAll('[data-iso="' + iso + '"]').forEach((n) => n.classList.add('ag-destino'));
+  if (a.bar) {      // en la línea de tiempo la barra sigue al puntero día por día
+    const colW = a.track.getBoundingClientRect().width / a.N;
+    if (a.modo === 'mover') a.bar.style.transform = 'translateX(' + (AP.diasEntre(a.iso, iso) * colW) + 'px)';
+    else a.bar.style.width = (Math.max(1, Math.min(AP.MAX_DURACION, AP.diasEntre(a.inicio, iso) + 1)) * colW) + 'px';
+  }
+}
+function terminarArrastre() {
+  window.removeEventListener('pointermove', alMover);
+  window.removeEventListener('pointerup', alSoltar);
+  window.removeEventListener('pointercancel', alCancelar);
+  window.removeEventListener('keydown', alTeclaArrastre);
+  document.body.classList.remove('ag-arrastrando');
+  document.querySelectorAll('.ag-destino').forEach((n) => n.classList.remove('ag-destino'));
+}
+function alCancelar() {
+  const a = arrastre; arrastre = null;
+  terminarArrastre();
+  if (a && a.moviendo) { ultimoArrastre = Date.now(); render(); }
+}
+function alTeclaArrastre(ev) { if (ev.key === 'Escape') alCancelar(); }
+async function alSoltar() {
+  const a = arrastre; arrastre = null;
+  terminarArrastre();
+  if (!a || !a.moviendo) return;     // fue un toque, no un arrastre: el click abre la etapa
+  ultimoArrastre = Date.now();
+  const c = campanas.find((x) => x.id === a.campId);
+  if (!c || !a.destino) { render(); return; }
+  const ed = planDe(c)[a.etapaId];
+  const nuevo = a.modo === 'mover' ? AP.mover(ed, AP.diasEntre(a.iso, a.destino)) : AP.alargarHasta(ed, AP.diasEntre(c.fecha_inicio_activa, a.destino));
+  if (nuevo.d === ed.d && nuevo.n === ed.n) { render(); return; }
+  await fijarEtapa(a.campId, a.etapaId, nuevo);
+}
+
+// ───────────────────────── ventanas ─────────────────────────
+const overlays = ['overlay-evento', 'overlay-temporada', 'overlay-etapa', 'overlay-dia'];
+function abrir(id) { $(id).hidden = false; }
+function cerrar(id) { $(id).hidden = true; }
+overlays.forEach((id) => $(id).addEventListener('click', (e) => { if (e.target.id === id) cerrar(id); }));
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') overlays.forEach((id) => { if (!$(id).hidden) cerrar(id); }); });
+
+// ── lista de un día ──
+function abrirDia(iso, items) {
+  $('dia-titulo').textContent = new Date(iso + 'T00:00:00').toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
+  const lista = $('dia-lista');
+  lista.textContent = '';
+  items.forEach((it) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'm-item';
+    if (it.tipo === 'mk') {
+      const e = AP.etapaPorId(it.m.etapa);
+      b.innerHTML = '<span>' + esc(e.titulo) + '</span><small>' + esc(nombreProducto(it.camp)) + ' · etapa del proceso</small>';
+      b.onclick = () => { cerrar('overlay-dia'); abrirModalEtapa(it.camp.id, it.m.etapa); };
+    } else {
+      b.innerHTML = '<span>' + esc(it.ev.titulo || '(sin título)') + '</span><small>' + esc(NOMBRE_ORIGEN[it.ev.origen] || 'Evento') + '</small>';
+      b.onclick = () => { cerrar('overlay-dia'); abrirModalEvento(it.ev); };
+    }
+    lista.appendChild(b);
+  });
+  abrir('overlay-dia');
+}
+$('dia-cerrar').onclick = () => cerrar('overlay-dia');
+
+// ── etapa del proceso ──
+let etapaActiva = null;
+function abrirModalEtapa(campId, etapaId) {
+  etapaActiva = { campId, etapaId };
+  pintarModalEtapa();
+  abrir('overlay-etapa');
+}
+function pintarModalEtapa() {
+  const a = etapaActiva;
+  const c = a && campanas.find((x) => x.id === a.campId);
+  if (!c) { cerrar('overlay-etapa'); return; }
+  const det = detalleDe(c);
+  const e = AP.etapaPorId(a.etapaId), ed = det.plan[a.etapaId], f = AP.fechasDe(c.fecha_inicio_activa, ed);
+  const origen = det.origen[a.etapaId], propia = origen === 'usuario';
+  const rec = AP.recomendado(e.id), anc = anclasDe(c);
+  $('et-camp').textContent = nombreProducto(c) + (nombreCampana(c) !== nombreProducto(c) ? ' · ' + nombreCampana(c) : '');
+  $('et-titulo').textContent = e.titulo;
+  let porque = AYUDA_ORIGEN[origen];
+  if (origen === 'precampana' && anc.preInicio) porque = 'Se acomodó para terminar antes de que empiece la precampaña (' + fmtCorta(anc.preInicio) + ').';
+  if (propia && det.fuente[a.etapaId]) {
+    porque = det.fuente[a.etapaId].iso === f.inicio
+      ? 'La acomodaste tú y coincide con la fecha del Jefe de Temporada.'
+      : 'La acomodaste tú; en el Jefe de Temporada esta etapa está el ' + fmtCorta(det.fuente[a.etapaId].iso) + '.';
+  }
+  $('et-info').textContent = 'Dura ' + diasTxt(ed.n) + '. Recomendado: ' + diasTxt(rec.n) +
+    (promedio[e.id] ? ' · Tu promedio: ' + diasTxt(promedio[e.id]) : '') + '. ' + porque;
+  $('et-inicio').value = f.inicio;
+  $('et-fin').value = f.fin;
+  const jefes = $('et-jefes');
+  jefes.textContent = '';
+  e.jefes.forEach((slug, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'pb-btn' + (i ? ' pb-btn-sec' : '');
+    b.textContent = (i ? 'También: ' : 'Abrir ') + (NOMBRE_JEFE[slug] || slug) + ' →';
+    b.onclick = () => abrirJefe(slug, c);
+    jefes.appendChild(b);
+  });
+  $('et-reset').style.visibility = propia ? 'visible' : 'hidden';
+}
+async function cambiarEtapa(nuevo) {
+  const a = etapaActiva; if (!a) return;
+  await fijarEtapa(a.campId, a.etapaId, nuevo);
+  pintarModalEtapa();
+}
+document.querySelectorAll('[data-et]').forEach((b) => b.addEventListener('click', () => {
+  const a = etapaActiva; const c = a && campanas.find((x) => x.id === a.campId); if (!c) return;
+  const ed = planDe(c)[a.etapaId], k = b.dataset.et;
+  if (k === 'ant') cambiarEtapa(AP.mover(ed, -1));
+  else if (k === 'sig') cambiarEtapa(AP.mover(ed, 1));
+  else if (k === 'mas') cambiarEtapa({ d: ed.d, n: Math.min(AP.MAX_DURACION, ed.n + 1) });
+  else if (k === 'menos') cambiarEtapa({ d: ed.d, n: Math.max(1, ed.n - 1) });
+}));
+function cambioDeFechas() {
+  const a = etapaActiva; const c = a && campanas.find((x) => x.id === a.campId); if (!c) return;
+  let ini = $('et-inicio').value, fin = $('et-fin').value;
+  if (!AP.esISO(ini)) return;
+  if (!AP.esISO(fin) || fin < ini) fin = ini;
+  cambiarEtapa(AP.desdeFechas(c.fecha_inicio_activa, ini, fin));
+}
+$('et-inicio').addEventListener('change', cambioDeFechas);
+$('et-fin').addEventListener('change', cambioDeFechas);
+$('et-cerrar').onclick = () => cerrar('overlay-etapa');
+$('et-reset').onclick = async () => { const a = etapaActiva; if (!a) return; await reiniciarEtapa(a.campId, a.etapaId); pintarModalEtapa(); };
+
+// ── evento de otro Jefe ──
+let eventoActivo = null;
+function abrirModalEvento(ev) {
+  eventoActivo = ev;
+  $('modal-evento-title').textContent = ev.origen ? ('Evento · ' + NOMBRE_ORIGEN[ev.origen]) : 'Evento';
+  const link = $('ev-origen-link');
+  const ruta = ev.origen && RUTA_ORIGEN[ev.origen] ? RUTA_ORIGEN[ev.origen][HUB] : null;
+  if (ruta) { link.href = ruta; link.style.display = 'inline-block'; } else link.style.display = 'none';
+  $('ev-titulo').value = ev.titulo || '';
+  $('ev-fecha').value = ev.fecha || '';
+  $('ev-estado').value = ev.estado || 'idea';
+  abrir('overlay-evento');
+}
+$('ev-cancelar').onclick = () => { cerrar('overlay-evento'); eventoActivo = null; };
+$('ev-guardar').onclick = async () => {
+  if (!eventoActivo) return;
   const ev = eventoActivo;
-  if(!confirm('¿Quitar "'+(ev.titulo||'este evento')+'" del calendario?')) return;
-  agendaData.eventos = agendaData.eventos.filter(e=>e.id!==ev.id);
-  await guardarAgenda();
-  document.getElementById('overlay-evento').hidden=true;
+  const fecha = $('ev-fecha').value;
+  if (!fecha) { alert('La fecha no puede quedar vacía — usa "Quitar del calendario" si ya no aplica.'); return; }
+  ev.titulo = $('ev-titulo').value.trim() || '(sin título)';
+  ev.fecha = fecha;
+  ev.estado = $('ev-estado').value;
+  try { await guardarAgenda(); } catch (e) { alert('No se pudo guardar en la Agenda. Intenta otra vez.'); return; }
+  cerrar('overlay-evento');
   render();
-  if(ev.origen){
-    if(confirm('¿Quitar también la fecha en el '+NOMBRE_ORIGEN[ev.origen]+' de origen? Si no, puede reaparecer la próxima vez que se guarde ahí.')){
-      await sincronizarConFuente({...ev, fecha:''});
-    }
-  }
+  if (ev.origen && confirm('¿Actualizar también en el ' + NOMBRE_ORIGEN[ev.origen] + ' de origen?')) await sincronizarConFuente(ev);
   eventoActivo = null;
-});
+};
+$('ev-quitar').onclick = async () => {
+  if (!eventoActivo) return;
+  const ev = eventoActivo;
+  if (!confirm('¿Quitar "' + (ev.titulo || 'este evento') + '" del calendario?')) return;
+  agendaData.eventos = agendaData.eventos.filter((e) => e.id !== ev.id);
+  try { await guardarAgenda(); } catch (e) { alert('No se pudo guardar en la Agenda. Intenta otra vez.'); return; }
+  cerrar('overlay-evento');
+  render();
+  if (ev.origen && confirm('¿Quitar también la fecha en el ' + NOMBRE_ORIGEN[ev.origen] + ' de origen? Si no, puede reaparecer la próxima vez que se guarde ahí.')) await sincronizarConFuente({ ...ev, fecha: '' });
+  eventoActivo = null;
+};
 
-async function sincronizarConFuente(ev){
-  if(ev.origen==='temporada'){
-    try{
+async function sincronizarConFuente(ev) {
+  const fallo = () => alert('No se pudo sincronizar con ' + NOMBRE_ORIGEN[ev.origen] + '. El cambio quedó guardado en la Agenda de todas formas.');
+  if (ev.origen === 'temporada') {
+    try {
       const r = await window.storage.get(TEMPORADA_KEY);
-      if(!r || !r.value) return;
-      const campanas = JSON.parse(r.value);
-      // origenId trae "campId:campo:rowId" -- campo es el nombre del array dentro de la campaña
-      // (calendario o pre_calentamiento) donde vive esa fila. Fallback a "calendario" por si el
-      // evento se sincronizó antes de que existiera el Plan de calentamiento (formato viejo de 2 partes).
-      const partes = (ev.origenId||'').split(':');
+      if (!r || !r.value) return;
+      const lista = typeof r.value === 'string' ? JSON.parse(r.value) : r.value;
+      // origenId trae "campId:campo:rowId" -- campo es el array de la campaña (calendario, pre_calentamiento, post_acciones) donde vive esa fila.
+      // Por compatibilidad con eventos viejos de 2 partes ("campId:rowId") se busca en "calendario".
+      const partes = (ev.origenId || '').split(':');
       const campId = partes[0];
-      const campo = partes.length>=3 ? partes[1] : 'calendario';
-      const rowId = partes.length>=3 ? partes[2] : partes[1];
-      const camp = Array.isArray(campanas) ? campanas.find(c=>c.id===campId) : null;
-      const row = camp && Array.isArray(camp[campo]) ? camp[campo].find(x=>x.id===rowId) : null;
-      if(!row) return;
+      const campo = partes.length >= 3 ? partes[1] : 'calendario';
+      const rowId = partes.length >= 3 ? partes[2] : partes[1];
+      const camp = Array.isArray(lista) ? lista.find((c) => c.id === campId) : null;
+      const row = camp && Array.isArray(camp[campo]) ? camp[campo].find((x) => x.id === rowId) : null;
+      if (!row) return;
       row.fecha = ev.fecha;
       row.estado = ev.estado;
-      await window.storage.set(TEMPORADA_KEY, JSON.stringify(campanas));
-    }catch(e){
-      alert('No se pudo sincronizar con '+NOMBRE_ORIGEN[ev.origen]+'. El cambio quedó guardado en la Agenda de todas formas.');
-    }
+      await window.storage.set(TEMPORADA_KEY, JSON.stringify(lista));
+    } catch (e) { fallo(); }
     return;
   }
-  const sourceKey = ev.origen==='contenido' ? CONTENIDO_KEY : ANUNCIOS_KEY;
-  try{
+  const sourceKey = ev.origen === 'contenido' ? CONTENIDO_KEY : ANUNCIOS_KEY;
+  try {
     const r = await window.storage.get(sourceKey);
-    if(!r || !r.value) return;
-    const data = JSON.parse(r.value);
+    if (!r || !r.value) return;
+    const data = typeof r.value === 'string' ? JSON.parse(r.value) : r.value;
     let item = null;
-    if(ev.origen==='contenido'){
-      const list = data[ev.origenTab];
-      if(Array.isArray(list)) item = list.find(it=>it.id===ev.origenId);
-    } else {
-      if(Array.isArray(data)) item = data.find(it=>it.id===ev.origenId);
-    }
-    if(!item) return;
+    if (ev.origen === 'contenido') { const l = data[ev.origenTab]; if (Array.isArray(l)) item = l.find((it) => it.id === ev.origenId); }
+    else if (Array.isArray(data)) item = data.find((it) => it.id === ev.origenId);
+    if (!item) return;
     item.fecha = ev.fecha;
     item.estado = ev.estado;
     await window.storage.set(sourceKey, JSON.stringify(data));
-  }catch(e){
-    alert('No se pudo sincronizar con '+NOMBRE_ORIGEN[ev.origen]+'. El cambio quedó guardado en la Agenda de todas formas.');
-  }
+  } catch (e) { fallo(); }
 }
 
-/* ─── MODAL TEMPORADA ─── */
+// ── temporada (rango de fechas) ──
 let colorSeleccionado = COLORES_TEMPORADA[0];
-function pintarSwatches(){
-  const wrap=document.getElementById('tmp-swatches');
-  wrap.innerHTML='';
-  COLORES_TEMPORADA.forEach(c=>{
-    const sw=document.createElement('div');
-    sw.className='swatch'+(c===colorSeleccionado?' selected':'');
-    sw.style.background=c;
-    sw.addEventListener('click',()=>{ colorSeleccionado=c; pintarSwatches(); });
+function pintarSwatches() {
+  const wrap = $('tmp-swatches');
+  wrap.textContent = '';
+  COLORES_TEMPORADA.forEach((c) => {
+    const sw = document.createElement('div');
+    sw.className = 'swatch' + (c === colorSeleccionado ? ' selected' : '');
+    sw.style.background = c;
+    sw.addEventListener('click', () => { colorSeleccionado = c; pintarSwatches(); });
     wrap.appendChild(sw);
   });
 }
-
-function abrirModalTemporada(t){
+function opcionesProducto(sel) {
+  const s = $('tmp-producto');
+  s.innerHTML = '<option value="">General (todo el negocio)</option>' + catalogo.filter((p) => p && p.id && p.nombre).map((p) => '<option value="' + esc(p.id) + '">' + esc(String(p.nombre).trim()) + '</option>').join('');
+  s.value = sel || '';
+  $('tmp-producto-wrap').style.display = catalogo.length ? '' : 'none';
+}
+function abrirModalTemporada(t) {
   // Las franjas de Precampaña / Campaña / Postcampaña las arma el Jefe de Temporada: se editan allá.
-  if(t && t.origen==='temporada'){
-    const ruta=RUTA_ORIGEN.temporada && RUTA_ORIGEN.temporada[CLIENTE_ID];
-    if(ruta){ window.open(ruta,'_blank','noopener'); return; }
+  if (t && t.origen === 'temporada') {
+    const ruta = RUTA_ORIGEN.temporada[HUB];
+    if (ruta) { window.open(ruta + (t.campanaId ? '?campana=' + encodeURIComponent(t.campanaId) : ''), '_blank', 'noopener'); return; }
   }
   editandoTemporadaId = t ? t.id : null;
-  document.getElementById('modal-temporada-title').textContent = t ? 'Editar temporada' : 'Nueva temporada';
-  document.getElementById('tmp-nombre').value = t ? t.nombre : '';
-  document.getElementById('tmp-inicio').value = t ? t.fechaInicio : fechaISO(calYear,calMonth+1,1);
-  document.getElementById('tmp-fin').value = t ? t.fechaFin : fechaISO(calYear,calMonth+1,1);
+  $('modal-temporada-title').textContent = t ? 'Editar temporada' : 'Nueva temporada';
+  $('tmp-nombre').value = t ? t.nombre : '';
+  $('tmp-inicio').value = t ? t.fechaInicio : fechaISO(calYear, calMonth + 1, 1);
+  $('tmp-fin').value = t ? t.fechaFin : fechaISO(calYear, calMonth + 1, 1);
+  const f = window.__foco ? window.__foco.get() : null;
+  opcionesProducto(t ? t.productoId : (f && f.productoId) || '');
   colorSeleccionado = t ? t.color : COLORES_TEMPORADA[0];
   pintarSwatches();
-  document.getElementById('tmp-borrar').style.display = t ? 'inline-block' : 'none';
-  document.getElementById('overlay-temporada').hidden = false;
+  $('tmp-borrar').style.display = t ? 'inline-flex' : 'none';
+  abrir('overlay-temporada');
 }
-document.getElementById('btn-nueva-temporada').addEventListener('click',()=>abrirModalTemporada(null));
-document.getElementById('tmp-cancelar').addEventListener('click',()=>{ document.getElementById('overlay-temporada').hidden=true; });
-document.getElementById('overlay-temporada').addEventListener('click',(e)=>{ if(e.target.id==='overlay-temporada'){ e.target.hidden=true; } });
-
-document.getElementById('tmp-guardar').addEventListener('click', async ()=>{
-  const nombre = document.getElementById('tmp-nombre').value.trim();
-  const inicio = document.getElementById('tmp-inicio').value;
-  const fin = document.getElementById('tmp-fin').value;
-  if(!nombre || !inicio || !fin){ alert('Completa nombre, fecha inicio y fecha fin.'); return; }
-  if(fin<inicio){ alert('La fecha fin no puede ser antes que la fecha inicio.'); return; }
-  if(editandoTemporadaId){
-    const t = agendaData.temporadas.find(x=>x.id===editandoTemporadaId);
-    if(t){ t.nombre=nombre; t.fechaInicio=inicio; t.fechaFin=fin; t.color=colorSeleccionado; }
+$('btn-nueva-temporada').onclick = () => abrirModalTemporada(null);
+$('tmp-cancelar').onclick = () => cerrar('overlay-temporada');
+$('tmp-guardar').onclick = async () => {
+  const nombre = $('tmp-nombre').value.trim(), inicio = $('tmp-inicio').value, fin = $('tmp-fin').value;
+  const productoId = $('tmp-producto').value;
+  if (!nombre || !inicio || !fin) { alert('Completa nombre, fecha inicio y fecha fin.'); return; }
+  if (fin < inicio) { alert('La fecha fin no puede ser antes que la fecha inicio.'); return; }
+  if (editandoTemporadaId) {
+    const t = agendaData.temporadas.find((x) => x.id === editandoTemporadaId);
+    if (t) { t.nombre = nombre; t.fechaInicio = inicio; t.fechaFin = fin; t.color = colorSeleccionado; if (productoId) t.productoId = productoId; else delete t.productoId; }
   } else {
-    agendaData.temporadas.push({ id:'temp-'+Date.now().toString(36)+Math.random().toString(36).slice(2,7), nombre, fechaInicio:inicio, fechaFin:fin, color:colorSeleccionado });
+    const t = { id: 'temp-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7), nombre, fechaInicio: inicio, fechaFin: fin, color: colorSeleccionado };
+    if (productoId) t.productoId = productoId;
+    agendaData.temporadas.push(t);
   }
-  await guardarAgenda();
-  document.getElementById('overlay-temporada').hidden=true;
+  try { await guardarAgenda(); } catch (e) { alert('No se pudo guardar la temporada. Intenta otra vez.'); return; }
+  cerrar('overlay-temporada');
   render();
-});
-
-document.getElementById('tmp-borrar').addEventListener('click', async ()=>{
-  if(!editandoTemporadaId) return;
-  if(!confirm('¿Borrar esta temporada? No se puede deshacer.')) return;
-  agendaData.temporadas = agendaData.temporadas.filter(t=>t.id!==editandoTemporadaId);
-  await guardarAgenda();
-  document.getElementById('overlay-temporada').hidden=true;
+};
+$('tmp-borrar').onclick = async () => {
+  if (!editandoTemporadaId) return;
+  if (!confirm('¿Borrar esta temporada? No se puede deshacer.')) return;
+  agendaData.temporadas = agendaData.temporadas.filter((t) => t.id !== editandoTemporadaId);
+  try { await guardarAgenda(); } catch (e) { alert('No se pudo borrar la temporada. Intenta otra vez.'); return; }
+  cerrar('overlay-temporada');
   render();
-});
+};
 
-cargarAgenda();
+// ───────────────────────── arranque ─────────────────────────
+(async function () {
+  $('agenda-back-hub').href = window.__hub.portadas()[HUB];
+  // El nombre del negocio sale del ADN de este hub (nada de marca va escrito aquí).
+  const el = $('brand-marca-label');
+  el.textContent = HUB;
+  leerJSON(HUB + ':brand-book.identidad', null).then((d) => { if (d && d.nombre) el.textContent = d.nombre; });
+  if (window.__foco) window.__foco.onChange(() => render());
+  render();
+  cargar();
+})();
+</script>
+<script src="/js/guia-jefe.js"></script>
+<script>
+// ─── GUÍA PASO A PASO (la primera vez se abre sola; después, con el botón "❓ Guía") ───
+GuiaJefe.registrar({
+  id: 'agenda', nombre: 'Tutorial del Jefe de Agenda',
+  pasos: [
+    { selector: '#foco-slot .foco-pill', titulo: 'Elige qué quieres ver',
+      texto: 'Con “Tu ecosistema completo” ves todo junto. Si eliges un producto o servicio, el calendario y los tiempos del proceso muestran solo lo que le corresponde.' },
+    { selector: '#cal-grid', titulo: 'Todo lo que tiene fecha',
+      texto: 'Aquí aparece solo lo que tus Jefes guardan con fecha: contenido, anuncios y las fechas de tus campañas de temporada. Toca un día para ver su lista y un evento para editarlo; al cambiarlo te pregunto si también lo actualizo en el Jefe de origen.' },
+    { selector: '#btn-nueva-temporada', titulo: 'Marca una temporada',
+      texto: 'Una temporada es un rango de fechas con nombre (Buen Fin, Navidad, aniversario). Se ve como una franja de color de fondo para tener en cuenta qué se hace cada día.' },
+    { selector: '#sec-proceso', titulo: 'Tiempos del proceso de campaña',
+      texto: 'Con la fecha de arranque de tu campaña se ponen todas las etapas de antes y de después. Arrastra una barra para recorrerla o su orilla derecha para alargarla; toca una etapa para abrir el Jefe que te ayuda en ese momento.' },
+  ],
+});
+setTimeout(() => { if (!GuiaJefe.vista('agenda')) GuiaJefe.iniciar('agenda'); }, 2600);
 </script>
 <script src="/js/jefes-nav.js" defer></script>
 </body>
