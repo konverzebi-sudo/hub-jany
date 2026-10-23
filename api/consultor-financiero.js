@@ -70,6 +70,7 @@ const IMGGEN_QUALITY = 'medium';
 // mandarla en base64; este tope protege el limite de 4.5 MB del cuerpo de una funcion en Vercel.
 const IMGGEN_REF_TIPOS = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 const IMGGEN_REF_MAX_B64 = 3500000;
+const IMGGEN_LOGO_MAX_B64 = 700000; // el logo del ADN se guarda a ~400px; si pesa más, no se manda
 
 const CONTEXT_CHAR_LIMIT = 6000;
 const CALC_CHAR_LIMIT = 14000; // foco + negocio + todos los productos + detalle del foco
@@ -471,23 +472,45 @@ function fechaKeyHoyUtc() {
 
 // Indicaciones de formato, tipografía y colores del ADN (brand-book.visual) para la imagen; con un post elegido
 // también lo que dice el post. Nada de marca va escrito aquí: todo se lee del ADN de la marca.
+function logoDesdeDataUrl(d) {
+  const m = /^data:(image\/(?:png|jpeg|webp));base64,(.+)$/.exec((d || '').toString());
+  if (!m || m[2].length > IMGGEN_LOGO_MAX_B64) return null;
+  return { tipo: m[1], ext: IMGGEN_REF_TIPOS[m[1]], buffer: Buffer.from(m[2], 'base64') };
+}
+
 async function indicacionesImagen(clienteId, post) {
-  const visual = await leerJSON(`${clienteId}:brand-book.visual`).catch(() => null);
+  const [visual, identidad, tono, catalogo] = await Promise.all([
+    leerJSON(`${clienteId}:brand-book.visual`).catch(() => null),
+    leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
+    leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
+    leerJSON(`${clienteId}:catalogo-productos`).catch(() => null),
+  ]);
   const formato = ((post && post.formato) || '').toString().toLowerCase();
   const vertical = !IMGGEN_FORMATOS_CUADRADOS.includes(formato);
   const lineas = [];
+  // Identidad de la marca (todo sale del ADN de este cliente): que no sea una imagen genérica.
+  if (identidad && identidad.nombre) {
+    const giro = identidad.giro_texto || identidad.giro_categoria;
+    lineas.push(`Es para la marca «${identidad.nombre}»${giro ? ` (${giro})` : ''}: la imagen debe verse y sentirse de esta marca y de su negocio, no como una imagen de stock genérica.`);
+  }
+  const prod = post && post.productoId && Array.isArray(catalogo) && catalogo.find((p) => p && p.id === post.productoId);
+  if (prod && prod.nombre) lineas.push(`Producto de la publicación: ${prod.nombre}${prod.tipo ? ` (${prod.tipo})` : ''}${prod.notas ? ` — ${prod.notas.toString().slice(0, 200)}` : ''}. Muéstralo o haz que sea el protagonista.`);
+  if (tono && Array.isArray(tono.tonos) && tono.tonos.length) lineas.push(`El estilo y la personalidad visual van con el tono de la marca: ${tono.tonos.slice(0, 5).join(', ')}.`);
+  lineas.push('No inventes precios, promociones ni textos que no se pidieron.');
   if (vertical) lineas.push('Formato vertical tipo Reel/Historia (9:16): composición vertical y deja libre la franja superior y la inferior (zonas que tapan las apps) sin elementos importantes.');
   const fuente = visual && IMGGEN_FUENTES[visual.tipografia_combo];
   if (fuente) lineas.push(`Todo texto dentro de la imagen va en la tipografía de la marca: ${fuente}.`);
   if (visual && Array.isArray(visual.paleta) && visual.paleta.length) lineas.push(`Usa exactamente los colores de la marca: ${visual.paleta.slice(0, 6).join(', ')}.`);
-  if (visual && visual.logo) lineas.push('No dibujes ni inventes un logo: deja un espacio limpio en una esquina para pegar el logo real después.');
+  const logo = visual && logoDesdeDataUrl(visual.logo);
+  if (logo) lineas.push('La última imagen adjunta es el logo REAL de la marca: colócalo pequeño y exactamente igual (sin redibujarlo ni cambiar sus colores) en una esquina inferior. La escena es nueva: no copies la composición del logo.');
+  else if (visual && visual.logo) lineas.push('No dibujes ni inventes un logo: deja un espacio limpio en una esquina para pegar el logo real después.');
   const titulo = post && (post.titulo || '').toString().trim().slice(0, 90);
   const contexto = post && (post.contexto || '').toString().trim().slice(0, 2500);
   if (titulo) {
     lineas.push(`La imagen es para esta publicación y debe tener relación directa con su tema:\n${contexto || titulo}`);
     lineas.push(`Incluye como titular, bien legible y sin errores de ortografía, exactamente este texto: «${titulo}».`);
   }
-  return { size: vertical ? IMGGEN_SIZE_VERTICAL : IMGGEN_SIZE, texto: lineas.join('\n'), conPost: !!titulo };
+  return { size: vertical ? IMGGEN_SIZE_VERTICAL : IMGGEN_SIZE, texto: lineas.join('\n'), conPost: !!titulo, logo };
 }
 
 async function handleDisenoImagen(req, res, body) {
@@ -522,17 +545,21 @@ async function handleDisenoImagen(req, res, body) {
   const base = 'Genera una imagen de alta calidad, lista para usar en redes sociales o anuncios.'
     + (ind.conPost ? '' : ' Sin texto en la imagen salvo que se pida explícitamente.')
     + (ind.texto ? `\n\n${ind.texto}` : '');
+  // Imágenes que van adjuntas: la de referencia (si subiste una) y el logo real del ADN.
+  const adjuntas = [];
+  if (referencia) adjuntas.push({ ...referencia, nombre: 'referencia' });
+  if (ind.logo) adjuntas.push({ ...ind.logo, nombre: 'logo' });
   let openaiRes;
   try {
-    if (referencia) {
+    if (adjuntas.length) {
       // Con referencia: endpoint de edicion de OpenAI (multipart) -- la imagen subida guia estilo y composicion.
       const form = new FormData();
       form.append('model', IMGGEN_MODEL);
-      form.append('prompt', `${base}\n\nUsa la imagen adjunta como referencia visual: genera una imagen NUEVA y similar (misma idea, estilo, composición y colores).${prompt ? ` Aplica además esto: ${prompt}` : ''}`);
+      form.append('prompt', `${base}${referencia ? '\n\nLa primera imagen adjunta es una referencia visual: genera una imagen NUEVA y similar (misma idea, estilo, composición y colores).' : ''}${prompt ? `\n\nInstrucción principal: ${prompt}` : ''}`);
       form.append('size', ind.size);
       form.append('quality', IMGGEN_QUALITY);
       form.append('n', '1');
-      form.append('image[]', new Blob([referencia.buffer], { type: referencia.tipo }), `referencia.${referencia.ext}`);
+      adjuntas.forEach((a) => form.append('image[]', new Blob([a.buffer], { type: a.tipo }), `${a.nombre}.${a.ext}`));
       openaiRes = await fetch('https://api.openai.com/v1/images/edits', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` }, // sin Content-Type: fetch pone el boundary
