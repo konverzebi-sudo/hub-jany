@@ -793,6 +793,21 @@
       saveLocalOnly();
     }
     data.areas.forEach(function(ar){ ensureArea(ar.id); });
+    if(!data.rachaRestaurada){
+      // Restauracion de la racha perdida (pedida por Jany): todos los habitos que tocaban cada dia, del 2 de sep hasta ayer, sin hora.
+      data.rachaRestaurada = true;
+      var rEnd = new Date(todayKey + 'T00:00:00');
+      for(var rd = new Date('2026-09-02T00:00:00'); rd < rEnd; rd.setDate(rd.getDate() + 1)){
+        var rKey = localISO(rd), rWd = rd.getDay(), rMWF = (rWd === 1 || rWd === 3 || rWd === 5);
+        data.habits.forEach(function(hb){
+          if(!(hb.daily || rMWF)) return;
+          var rChecks = data.habitChecks[rKey] || (data.habitChecks[rKey] = {});
+          if(!rChecks[hb.id]) rChecks[hb.id] = {done:true};
+        });
+      }
+      if(!data.startDate || data.startDate > '2026-09-02') data.startDate = '2026-09-02';
+      migratedList = true;
+    }
     if(!data.projectTagBackfill){
       data.projectTagBackfill = true;
       data.agenda.forEach(function(a){ if(!a.project){ var mp = matchProject(a.text); if(mp) a.project = mp; } });
