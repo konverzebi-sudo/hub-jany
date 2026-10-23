@@ -49,12 +49,6 @@
   .btn-danger-outline:hover{background:#3A2013;}
 
   /* TOOLBAR de campaña */
-  .campana-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 18px;margin-bottom:16px;}
-  .campana-toolbar select, .campana-toolbar input[type=text]{background:var(--surface-2);border:1px solid var(--line);border-radius:9px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:9px 12px;outline:none;}
-  .campana-toolbar select:focus, .campana-toolbar input[type=text]:focus{border-color:var(--accent);}
-  #campana-select{min-width:220px;}
-  #camp-nombre{min-width:180px;flex:1;}
-  .campana-toolbar-spacer{flex:1;}
   select.estado-pill{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:6px 10px;border-radius:100px;border:1px solid transparent;cursor:pointer;}
   select.estado-pill.borrador{background:#1B2142;color:#A8B4F0;border-color:#3A4380;}
   select.estado-pill.activa{background:var(--temp-soft);color:var(--temp);border-color:#6B4F14;}
@@ -179,9 +173,6 @@
   body.piel-blanca{font-size:16px;}
   .wrap{padding-top:62px;}
   @media (max-width:900px){ .wrap{padding-top:0;} }
-  /* el selector de campaña y "+ Nueva campaña" ya están en la pastilla de arriba: se ocultan (el código los sigue usando) */
-  #campana-select,#btn-nueva{display:none;}
-  .campana-toolbar{box-shadow:none;border-radius:14px;padding:10px 14px;margin-bottom:10px;}
   select.estado-pill{font-family:Inter,sans-serif;font-size:12.5px;letter-spacing:0;text-transform:none;font-weight:700;}
   select.estado-pill.borrador{background:#F0F0F0;color:#444;border-color:#E2E2E2;}
   select.estado-pill.activa{background:#F1FFC2;color:#33520a;border-color:#C0F800;}
@@ -202,9 +193,12 @@
   .hero-send:hover{transform:scale(1.08);}
   .hero-send:disabled{opacity:.45;cursor:wait;}
   .hero-send img{width:36px;height:36px;object-fit:contain;}
-  #chat-sugerencias{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:2px 0 4px;}
-  .pb-sugerencia{border:1.5px solid var(--line);background:#fff;color:var(--text);border-radius:99px;padding:8px 14px;font:500 13.5px Inter,sans-serif;cursor:pointer;transition:border-color .15s,background .15s;}
-  .pb-sugerencia:hover{border-color:var(--accent);background:var(--accent-soft);}
+  /* Sugerencias estilo buscador: tarjeta blanca debajo de la barra, una por renglón con su lupa (como en Jefe de Contenido) */
+  #chat-sugerencias{width:100%;max-width:700px;margin:6px auto 2px;background:#fff;border:1px solid #E5E7EB;border-radius:22px;box-shadow:0 10px 30px rgba(0,0,0,.10);padding:8px;}
+  #chat-sugerencias:empty{display:none;}
+  .pb-sugerencia{display:flex;align-items:center;gap:14px;width:100%;text-align:left;border:0;background:transparent;color:var(--text);border-radius:14px;padding:12px 14px;font:500 15.5px Inter,sans-serif;cursor:pointer;transition:background .15s;}
+  .pb-sugerencia:hover{background:var(--accent-soft);}
+  .pb-sugerencia svg{width:20px;height:20px;flex:0 0 auto;color:#6B7280;}
   .tt-acciones{display:flex;align-items:center;gap:10px;justify-content:center;flex-wrap:wrap;}
   .file-btn{background:#F0F0F0;color:var(--text);border:1px solid #E2E2E2;font-family:Inter,sans-serif;font-size:13px;font-weight:600;}
   .file-btn:hover{border-color:var(--accent);background:var(--accent-soft);}
@@ -245,6 +239,7 @@
   .tt-slot .doc-section{background:transparent;border:0;border-radius:0;padding:0;margin:0;}
   .tt-slot .doc-section-head{display:none;}
   .tt-slot .doc-desc{margin-left:0;font-size:14px;}
+  .acciones-campana{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;padding-top:14px;border-top:1px solid var(--line);}
   @media (max-width:1150px){ .tt-btn{white-space:normal;} }
   @media (max-width:520px){ .tt-tl{--split:34%;} .tt-btn{font-size:17px;padding:11px 14px;} }
   #temporada-main.split-view .tt-tl{--split:34px;max-width:none;}
@@ -313,21 +308,6 @@
     bar.style.color=b.color;bar.style.borderColor=b.color.replace('#','rgba(').slice(0,-1)+',0.3)';
     try{var r=await window.storage.get(key+':brand-book.identidad');if(r&&r.value){var d=JSON.parse(r.value);if(d.nombre)el.textContent=d.nombre;}}catch(e){}
   })();</script>
-
-  <div class="campana-toolbar" id="campana-toolbar">
-    <select id="campana-select" onchange="cambiarCampana(this.value)" disabled></select>
-    <input type="text" id="camp-nombre" placeholder="Nombre de la campaña" oninput="actualizarNombreCampana(this.value)">
-    <select id="camp-estado" class="estado-pill borrador" onchange="actualizarCampo('estado',this.value)">
-      <option value="borrador">📝 Borrador</option>
-      <option value="activa">🔥 Activa</option>
-      <option value="cerrada">✅ Cerrada</option>
-    </select>
-    <div class="campana-toolbar-spacer"></div>
-    <span class="save-status" id="save-status"></span>
-    <button type="button" class="btn-outline" id="btn-duplicar" onclick="duplicarCampana()" disabled>Duplicar</button>
-    <button type="button" class="btn-danger-outline" id="btn-eliminar" onclick="eliminarCampana()" disabled>Eliminar</button>
-    <button type="button" class="btn btn-solid" id="btn-nueva" onclick="abrirCrearCampana()" disabled>+ Nueva campaña</button>
-  </div>
 
   <div id="content"></div>
 </div>
@@ -505,7 +485,6 @@ async function cargarInicial(){
   { const qc = new URLSearchParams(location.search).get('campana'); // viene de la pastilla de otro Jefe: abre esa campaña
     if(qc && campanas.some(c=>c.id===qc)) campanaActivaId = qc; else if(campanas.length) campanaActivaId = campanas[0].id; }
   sincronizarChatsDesdeCampana();
-  ['campana-select','btn-duplicar','btn-eliminar','btn-nueva'].forEach(id=>{ document.getElementById(id).disabled=false; });
   if(localStorage.getItem('temporada-vista-dividida')==='1'){
     document.getElementById('viewToggleBtn').textContent='☰ Vista normal';
   }
@@ -586,27 +565,12 @@ async function syncAgendaEventos(opts){
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'){ if(savePending) doGuardarCampanas({keepalive:true}); if(agendaSyncPending) syncAgendaEventos({keepalive:true}); } });
 window.addEventListener('pagehide',()=>{ if(savePending) doGuardarCampanas({keepalive:true}); if(agendaSyncPending) syncAgendaEventos({keepalive:true}); });
 
-// ─── TOOLBAR DE CAMPAÑA ───────────────────────────────────────────────────────
+// ─── NOMBRE / ESTADO DE LA CAMPAÑA (viven en el módulo 1, "Definición de campaña") ────────────
 function renderToolbar(){
-  const sel=document.getElementById('campana-select');
-  if(!campanas.length){
-    sel.innerHTML='<option value="">Sin campañas todavía</option>';
-  } else {
-    sel.innerHTML=campanas.map(c=>`<option value="${c.id}"${c.id===campanaActivaId?' selected':''}>${escHtml(etiquetaToolbar(c))}</option>`).join('');
-  }
   const camp=activeCampana();
-  document.getElementById('camp-nombre').value = camp?camp.nombre||'':'';
-  document.getElementById('camp-nombre').disabled = !camp;
-  const estadoSel=document.getElementById('camp-estado');
-  estadoSel.value = camp?camp.estado||'borrador':'borrador';
-  estadoSel.className='estado-pill '+(camp?camp.estado||'borrador':'borrador');
-  estadoSel.disabled = !camp;
+  const n=document.getElementById('camp-nombre'); if(n) n.value = camp?camp.nombre||'':'';
+  const e=document.getElementById('camp-estado'); if(e) e.value = camp?camp.estado||'borrador':'borrador';
   if(window.__foco && window.__foco.refrescar) window.__foco.refrescar();
-}
-// "Nombre — temporada" sin repetir la temporada cuando el nombre ya la trae.
-function etiquetaToolbar(c){
-  const n=c.nombre||'(sin nombre)', t=String(c.temporada||'').trim();
-  return t && n.toLowerCase().indexOf(t.toLowerCase())<0 ? n+' — '+t : n;
 }
 // El chat vive guardado en la propia campaña (camp.chat_general), no se borra solo -- cambiar de
 // campaña solo cambia CUÁL conversación se muestra. (Antes también sincronizaba 3 mini-chats por
@@ -627,8 +591,6 @@ function cambiarCampana(id){ campanaActivaId=id||null; pasoAbierto=null; modulos
 function actualizarNombreCampana(valor){
   const camp=activeCampana(); if(!camp) return;
   camp.nombre=valor;
-  const opt=document.querySelector('#campana-select option[value="'+camp.id+'"]');
-  if(opt) opt.textContent = etiquetaToolbar(camp);
   if(window.__foco && window.__foco.refrescar) window.__foco.refrescar();
   scheduleGuardarCampanas();
 }
@@ -666,7 +628,6 @@ function eliminarCampana(){
 function actualizarCampo(campo, valor){
   const camp=activeCampana(); if(!camp) return;
   camp[campo]=valor;
-  if(campo==='estado'){ const estadoSel=document.getElementById('camp-estado'); estadoSel.className='estado-pill '+valor; }
   if(campo==='temporada'||campo==='nombre') renderToolbar();
   scheduleGuardarCampanas();
 }
@@ -1280,7 +1241,7 @@ function render(){
         <label class="hero-search" for="chat-input">
           <svg class="lupa" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>
           <span class="sep"></span>
-          <textarea id="chat-input" rows="1" placeholder="Cuéntame qué temporada quieres planear" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,140)+'px'" onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();enviarMensajeChat();}"></textarea>
+          <textarea id="chat-input" rows="1" placeholder="Cuéntame qué temporada quieres planear" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,140)+'px';document.getElementById('chat-sugerencias').style.display=this.value.trim()?'none':''" onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();enviarMensajeChat();}"></textarea>
           <button type="button" class="hero-send" id="chat-send-btn" onclick="enviarMensajeChat()" aria-label="Enviar"><img src="/img/jefe-temporada.webp" alt=""></button>
         </label>
         <div id="chat-sugerencias"></div>
@@ -1307,6 +1268,7 @@ function render(){
   renderDocumento(document.getElementById('doc-sections'), camp);
   construirLineaTiempo(document.getElementById('doc-sections'), camp);
   renderSugerencias();
+  renderToolbar();
 }
 
 // TABLERO DE RESPUESTAS: los 12 módulos del Documento como línea de tiempo (círculo numerado + botón gris, igual que
@@ -1372,13 +1334,15 @@ function renderSugerencias(){
   const el=document.getElementById('chat-sugerencias'); const camp=activeCampana();
   if(!el||!camp) return;
   const est=calcularCompletitudCampana(camp), sig=est.find(m=>!m.completo);
-  const s=[];
-  if(!chatMessages.length) s.push('Empecemos: quiero planear una temporada');
-  if(sig) s.push('Sigamos con el módulo '+sig.num+' — '+sig.nombre);
-  s.push('¿Qué me falta por llenar?');
-  if(!sig) s.push('Revisemos la campaña completa antes de compartirla');
-  const lista=s.slice(0,3);
-  el.innerHTML=lista.map((t,i)=>'<button type="button" class="pb-sugerencia" data-i="'+i+'">'+escHtml(t)+'</button>').join('');
+  const lupa='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>';
+  const lista=[
+    chatMessages.length ? 'Retomemos: ¿en qué punto vamos con esta campaña?' : 'Empecemos: quiero planear una temporada',
+    sig ? 'Sigamos con el módulo '+sig.num+' — '+sig.nombre : 'Revisemos la campaña completa antes de compartirla',
+    '¿Qué me falta por llenar?',
+    '¿Qué fechas debo tener en mi calendario?',
+    'Dame ideas de contenido y anuncios para esta campaña',
+  ];
+  el.innerHTML=lista.map((t,i)=>'<button type="button" class="pb-sugerencia" data-i="'+i+'">'+lupa+'<span>'+escHtml(t)+'</span></button>').join('');
   el.querySelectorAll('button').forEach((b,i)=>b.addEventListener('click',()=>{ document.getElementById('chat-input').value=lista[i]; enviarMensajeChat(); }));
 }
 
@@ -1401,6 +1365,8 @@ function renderDocumento(container, camp){
     <div class="doc-section">
       <div class="doc-section-head"><span class="doc-num">1</span><h3 class="doc-title">Definición de campaña</h3></div>
       <div class="fields-grid">
+        <div class="field"><label>Nombre de la campaña</label><input type="text" id="camp-nombre" placeholder="Ej. Día de las Madres · Kit Mamá" oninput="actualizarNombreCampana(this.value)"></div>
+        <div class="field"><label>Estado</label><select id="camp-estado" onchange="actualizarCampo('estado',this.value)"><option value="borrador">📝 Borrador</option><option value="activa">🔥 Activa</option><option value="cerrada">✅ Cerrada</option></select></div>
         ${campoTexto('temporada','Temporada o evento')}
         <div class="field"><label>Fecha inicio campaña activa</label><input type="date" id="f-fecha_inicio_activa" oninput="actualizarCampo('fecha_inicio_activa',this.value)"></div>
         <div class="field"><label>Fecha fin campaña activa</label><input type="date" id="f-fecha_fin_activa" oninput="actualizarCampo('fecha_fin_activa',this.value)"></div>
@@ -1426,6 +1392,10 @@ function renderDocumento(container, camp){
       <div class="fields-grid">
         ${campoTexto('objetivo_principal','Objetivo principal')}
         ${campoTexto('incentivo','Incentivo o urgencia real')}
+      </div>
+      <div class="acciones-campana">
+        <button type="button" class="btn-outline" onclick="duplicarCampana()">Duplicar campaña</button>
+        <button type="button" class="btn-danger-outline" onclick="eliminarCampana()">Eliminar campaña</button>
       </div>
     </div>
 
@@ -1677,7 +1647,7 @@ async function enviarMensajeChat(){
   const texto=input.value.trim();
   if(!texto) return;
   const camp=activeCampana(); if(!camp) return;
-  input.value=''; input.style.height='auto';
+  input.value=''; input.style.height='auto'; { const sg=document.getElementById('chat-sugerencias'); if(sg) sg.style.display=''; }
   if(esConfirmoJefe(texto)) confirmarChat();
   chatMessages.push({role:'user',content:texto});
   ocultarBanner();
@@ -1735,11 +1705,9 @@ GuiaJefe.registrar({
   id: 'temporada', nombre: 'Tutorial del Jefe de Temporada',
   pasos: [
     { selector: '.hero-search', titulo: 'Aquí hablas con tu Jefe',
-      texto: 'Este es el chat. Cuéntame qué temporada quieres trabajar (Día de las Madres, Buen Fin, aniversario...) y te voy preguntando una cosa a la vez, con fechas reales.\\n\\nCuando algo te guste, escribe CONFIRMO JEFE y se guarda solo en tu tablero de respuestas.' },
+      texto: 'Este es el chat. Cuéntame qué temporada quieres trabajar (Día de las Madres, Buen Fin, aniversario...) y te voy preguntando una cosa a la vez, con fechas reales.\n\nCuando algo te guste, escribe CONFIRMO JEFE y se guarda solo en tu tablero de respuestas.' },
     { selector: '#foco-slot .foco-pill', titulo: 'Tu campaña y su producto',
-      texto: 'Aquí eliges con qué campaña trabajas (viene por producto) o creas una nueva: puedes ligarla a un producto que ya tienes o hacer uno 100% nuevo, que también se guarda en tu ADN para los demás Jefes.' },
-    { selector: '#campana-toolbar', titulo: 'Tus campañas',
-      texto: 'Cambia de campaña, ponle nombre, márcala como borrador, activa o cerrada, duplícala o crea otra.' },
+      texto: 'Aquí eliges con qué campaña trabajas (viene por producto) o creas una nueva: puedes ligarla a un producto que ya tienes o hacer uno 100% nuevo, que también se guarda en tu ADN para los demás Jefes. El nombre, el estado y duplicar o eliminar la campaña están en el módulo 1.' },
     { selector: '#tt-tl', titulo: 'Tu tablero de respuestas: 12 módulos',
       texto: 'Este es el recorrido de tu campaña, en orden. Pícale a un número para abrir su módulo. Lo que confirmes en el chat se llena aquí solo y el módulo se marca como actualizado. El círculo se pone negro cuando el módulo está completo.' },
     { selector: ['.tt-row.next .tt-n', '#tt-tl .tt-n'], titulo: 'Aquí sigues',
