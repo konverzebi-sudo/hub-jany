@@ -190,7 +190,11 @@
 <div class="wrap">
   <script>(function(){var p=location.pathname;var b=window.__hub.slug!=='jefeshub'?'/'+window.__hub.slug:null;if(b)document.getElementById('back-hub').href=b;})();</script>
   <script src="/js/storage-client.js"></script>
-  <script>window.__focoConfig = { grupos: true, productos366: true, soloCompletos366: true, pagina: 'temporada' }; // la pastilla de foco también deja elegir un grupo completo</script>
+  <script>
+    // Modo Temporada de la pastilla (js/jefes-foco.js): lista las campañas por producto, manda a Jefe 366 los productos
+    // sin campaña y trae "Crear campaña de temporada nueva". `campanas` y abrirCrearCampana viven en el script de abajo.
+    window.__focoConfig = { productos366: true, pagina: 'temporada', temporada: { campanas: function(){ return campanas; }, crear: function(){ abrirCrearCampana(); } } };
+  </script>
   <script src="/js/jefes-foco.js"></script>
   <script>(async function(){
     var BRANDS=window.__hub.marcas({'rancho-seco':{fallback:'Rancho Seco',color:'#F2C230'},'rim':{fallback:'RIM',color:'#F472B6'},'optica-one':{fallback:'Óptica One',color:'#38BDF8'},'jefeshub':{fallback:'JefesHub',color:'#B8F725'}});
@@ -224,12 +228,55 @@
     <span class="save-status" id="save-status"></span>
     <button type="button" class="btn-outline" id="btn-duplicar" onclick="duplicarCampana()" disabled>Duplicar</button>
     <button type="button" class="btn-danger-outline" id="btn-eliminar" onclick="eliminarCampana()" disabled>Eliminar</button>
-    <button type="button" class="btn btn-solid" id="btn-nueva" onclick="nuevaCampana()" disabled>+ Nueva campaña</button>
+    <button type="button" class="btn btn-solid" id="btn-nueva" onclick="abrirCrearCampana()" disabled>+ Nueva campaña</button>
   </div>
 
   <div id="content"></div>
 </div>
 
+<div id="cm-overlay" class="cm-overlay" hidden onclick="if(event.target===this)cerrarCrearCampana()">
+  <div class="cm-box" role="dialog" aria-modal="true" aria-labelledby="cm-titulo">
+    <h2 id="cm-titulo">Crear campaña de temporada nueva</h2>
+    <label class="cm-label" for="cm-temporada">¿Para qué temporada o fecha?</label>
+    <input type="text" id="cm-temporada" placeholder="Ej. Día de las Madres, Buen Fin, aniversario" maxlength="80">
+    <div class="cm-label">¿De qué producto o servicio es?</div>
+    <label class="cm-radio"><input type="radio" name="cm-modo" id="cm-modo-existente" onchange="cmCambiarModo()"> Ligar a un producto que ya tengo</label>
+    <div id="cm-existente"><select id="cm-producto"></select></div>
+    <label class="cm-radio"><input type="radio" name="cm-modo" id="cm-modo-nuevo" onchange="cmCambiarModo()"> Crear un producto 100% nuevo</label>
+    <div id="cm-nuevo" hidden>
+      <input type="text" id="cm-n-nombre" placeholder="Nombre del producto o servicio" maxlength="120">
+      <div class="cm-fila">
+        <select id="cm-n-tipo"><option>Producto</option><option>Servicio</option><option>Paquete</option></select>
+        <input type="text" id="cm-n-precio" placeholder="Precio (opcional)" maxlength="30">
+      </div>
+      <textarea id="cm-n-notas" rows="3" placeholder="¿Qué es y qué incluye? (opcional)"></textarea>
+      <p class="cm-aviso">Se agrega al Catálogo de tu ADN, así que también lo verán Jefe 366, Contenido, Anuncios y los demás Jefes.</p>
+    </div>
+    <div class="cm-estado" id="cm-estado" role="status"></div>
+    <div class="cm-acciones">
+      <button type="button" class="cm-btn cm-sec" onclick="cerrarCrearCampana()">Cancelar</button>
+      <button type="button" class="cm-btn cm-pri" id="cm-crear" onclick="confirmarCrearCampana()">Crear campaña</button>
+    </div>
+  </div>
+</div>
+<style>
+  .cm-overlay{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;}
+  .cm-overlay[hidden]{display:none;}
+  .cm-box{background:#fff;color:#1A1A1A;border-radius:20px;padding:24px;width:100%;max-width:480px;max-height:92vh;overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.25);font-family:'Inter',sans-serif;}
+  .cm-box h2{font-family:'Sora',sans-serif;font-size:20px;margin:0 0 14px;}
+  .cm-label{font-size:13px;font-weight:700;color:#5F5F5F;margin:14px 0 6px;display:block;}
+  .cm-radio{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;margin:8px 0 6px;cursor:pointer;}
+  .cm-box input[type=text],.cm-box select,.cm-box textarea{width:100%;font-family:'Inter',sans-serif;font-size:15px;color:#1A1A1A;background:#F3F3F3;border:1px solid #E2E2E2;border-radius:10px;padding:10px 12px;outline:none;margin-bottom:8px;}
+  .cm-box input[type=text]:focus,.cm-box select:focus,.cm-box textarea:focus{border-color:#4E7A00;}
+  .cm-fila{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .cm-aviso{font-size:13px;color:#5F5F5F;margin:0;}
+  .cm-estado{min-height:20px;font-size:13.5px;color:#B3261E;margin-top:10px;}
+  .cm-acciones{display:flex;gap:10px;justify-content:flex-end;margin-top:12px;}
+  .cm-btn{font-family:'Inter',sans-serif;font-weight:700;font-size:14px;padding:11px 18px;border-radius:100px;cursor:pointer;border:1px solid #E2E2E2;}
+  .cm-sec{background:#fff;color:#1A1A1A;}
+  .cm-pri{background:#C0F800;border-color:#C0F800;color:#1A1A1A;}
+  .cm-btn:disabled{opacity:.5;cursor:wait;}
+</style>
 <script>
 // ─── CLIENTE ID (detectado por pathname — Vercel no expone ?cliente= al browser) ───
 function detectClienteId(){ return window.__hub.slug; }
@@ -453,7 +500,7 @@ function renderToolbar(){
   if(!campanas.length){
     sel.innerHTML='<option value="">Sin campañas todavía</option>';
   } else {
-    sel.innerHTML=campanas.map(c=>`<option value="${c.id}"${c.id===campanaActivaId?' selected':''}>${escHtml(c.nombre||'(sin nombre)')}${c.temporada?' — '+escHtml(c.temporada):''}</option>`).join('');
+    sel.innerHTML=campanas.map(c=>`<option value="${c.id}"${c.id===campanaActivaId?' selected':''}>${escHtml(etiquetaToolbar(c))}</option>`).join('');
   }
   const camp=activeCampana();
   document.getElementById('camp-nombre').value = camp?camp.nombre||'':'';
@@ -462,6 +509,12 @@ function renderToolbar(){
   estadoSel.value = camp?camp.estado||'borrador':'borrador';
   estadoSel.className='estado-pill '+(camp?camp.estado||'borrador':'borrador');
   estadoSel.disabled = !camp;
+  if(window.__foco && window.__foco.refrescar) window.__foco.refrescar();
+}
+// "Nombre — temporada" sin repetir la temporada cuando el nombre ya la trae.
+function etiquetaToolbar(c){
+  const n=c.nombre||'(sin nombre)', t=String(c.temporada||'').trim();
+  return t && n.toLowerCase().indexOf(t.toLowerCase())<0 ? n+' — '+t : n;
 }
 // El chat vive guardado en la propia campaña (camp.chat_general), no se borra solo -- cambiar de
 // campaña solo cambia CUÁL conversación se muestra. (Antes también sincronizaba 3 mini-chats por
@@ -483,7 +536,8 @@ function actualizarNombreCampana(valor){
   const camp=activeCampana(); if(!camp) return;
   camp.nombre=valor;
   const opt=document.querySelector('#campana-select option[value="'+camp.id+'"]');
-  if(opt) opt.textContent = (valor||'(sin nombre)') + (camp.temporada?' — '+camp.temporada:'');
+  if(opt) opt.textContent = etiquetaToolbar(camp);
+  if(window.__foco && window.__foco.refrescar) window.__foco.refrescar();
   scheduleGuardarCampanas();
 }
 function nuevaCampana(){
@@ -862,6 +916,7 @@ function nombreProductoActual(camp){
 }
 function renderRecaps(){
   const camp=activeCampana(); if(!camp) return;
+  if(window.__foco && window.__foco.refrescar) window.__foco.refrescar();
   const el=document.getElementById('recap-producto');
   if(el) el.innerHTML = `
     <div><span class="recap-label">Producto elegido:</span> ${escHtml(nombreProductoActual(camp))}</div>
@@ -869,46 +924,91 @@ function renderRecaps(){
   `;
 }
 
-// ─── FOCO (pastilla de arriba: ecosistema completo / un grupo / un producto) ───────────────────
-// La campaña activa trabaja sobre UN producto o sobre un grupo completo. La pastilla es la misma de
-// Jefe de Finanzas y de Jefe de Anuncios: lo que se elige aquí queda como producto/grupo de la campaña
-// y el chat y todo el Documento se arman para vender eso. Una campaña con producto "nuevo" (oferta
-// exclusiva de la temporada) no se toca hasta que se elija otro foco a propósito.
-function focoDeCampana(camp){
-  if(!camp) return 'all';
-  if(camp.producto_origen!=='nuevo' && camp.producto_id) return camp.producto_id;
-  if(camp.producto_origen!=='nuevo' && camp.grupo_id) return 'g:'+camp.grupo_id;
-  return 'all';
-}
+// ─── FOCO (pastilla de arriba: la campaña de temporada que estás trabajando) ───────────────────
+// En Jefe de Temporada la pastilla (js/jefes-foco.js, modo temporada) lista las campañas por producto;
+// elegir una cambia la campaña activa. Los productos sin campaña salen abajo y mandan a Jefe 366.
+// El producto de cada campaña se cambia dentro de la propia campaña (sección "Producto").
+function focoDeCampana(camp){ return camp ? 'c:'+camp.id : 'all'; }
 function sincronizarFoco(){
-  if(window.__foco && window.__foco.get().id !== focoDeCampana(activeCampana())) window.__foco.set(focoDeCampana(activeCampana()));
-}
-// Si la campaña ya tiene producto/grupo manda la campaña; si no, adopta el foco que ya estaba elegido.
-function sincronizarFocoConCampana(){
   if(!window.__foco) return;
-  const camp=activeCampana(); if(!camp) return;
-  if(focoDeCampana(camp)!=='all' || camp.producto_origen==='nuevo') sincronizarFoco();
-  else aplicarFocoACampana(window.__foco.get());
+  const id=focoDeCampana(activeCampana());
+  if(window.__foco.get().id !== id) window.__foco.set(id);
+  window.__foco.refrescar();
 }
+function sincronizarFocoConCampana(){ sincronizarFoco(); }
 function aplicarFocoACampana(f){
-  const camp=activeCampana(); if(!camp) return false;
-  const nuevoP=f.productoId||'', nuevoG=f.grupoId||'';
-  if(nuevoP===(camp.producto_id||'') && nuevoG===(camp.grupo_id||'')) return false;
-  if(f.esTodo){
-    // "ecosistema" no borra una oferta nueva ni un producto que ya no está en el catálogo (id viejo)
-    if(camp.producto_origen==='nuevo') return false;
-    if(camp.producto_id && !catalogoProductos.some(p=>p&&p.id===camp.producto_id)) return false;
-  }
-  camp.producto_origen='evergreen';
-  camp.producto_id=nuevoP; camp.producto_nombre=f.item?String(f.nombre||''):''; camp.grupo_id=nuevoG;
-  scheduleGuardarCampanas();
-  const sel=document.getElementById('f-producto_id'); if(sel) sel.value=nuevoP;
-  const o=document.getElementById('f-producto_origen'); if(o) o.value='evergreen';
-  const we=document.getElementById('wrap-producto-evergreen'), wn=document.getElementById('wrap-producto-nuevo');
-  if(we) we.style.display='block'; if(wn) wn.style.display='none';
-  renderRecaps();
-  return true;
+  if(f && f.esCampana && f.campanaId && f.campanaId!==campanaActivaId) cambiarCampana(f.campanaId);
 }
+
+// ─── CREAR CAMPAÑA DE TEMPORADA NUEVA (ligada a un producto del catálogo o a uno 100% nuevo) ───────
+// Un producto nuevo se agrega al Catálogo del ADN (llave catalogo-productos), así lo ven los demás Jefes.
+function abrirCrearCampana(){
+  const ov=document.getElementById('cm-overlay'); if(!ov||!campanasLoaded) return;
+  const sel=document.getElementById('cm-producto');
+  const lista=catalogoProductos.filter(p=>p&&p.id&&p.nombre).slice().sort((x,y)=>String(x.nombre).localeCompare(String(y.nombre),'es'));
+  sel.innerHTML='<option value="">— Elige un producto —</option>'+lista.map(p=>`<option value="${escHtml(p.id)}">${escHtml(String(p.nombre).trim())}</option>`).join('');
+  document.getElementById('cm-modo-existente').disabled=!lista.length;
+  document.getElementById('cm-modo-existente').checked=!!lista.length;
+  document.getElementById('cm-modo-nuevo').checked=!lista.length;
+  ['cm-temporada','cm-n-nombre','cm-n-precio','cm-n-notas'].forEach(id=>{ document.getElementById(id).value=''; });
+  document.getElementById('cm-estado').textContent='';
+  document.getElementById('cm-crear').disabled=false;
+  cmCambiarModo();
+  ov.hidden=false;
+  document.getElementById('cm-temporada').focus();
+}
+function cerrarCrearCampana(){ const ov=document.getElementById('cm-overlay'); if(ov) ov.hidden=true; }
+function cmCambiarModo(){
+  const nuevo=document.getElementById('cm-modo-nuevo').checked;
+  document.getElementById('cm-existente').hidden=nuevo;
+  document.getElementById('cm-nuevo').hidden=!nuevo;
+}
+async function confirmarCrearCampana(){
+  const estado=document.getElementById('cm-estado'), btn=document.getElementById('cm-crear');
+  const temporada=document.getElementById('cm-temporada').value.trim();
+  const nuevo=document.getElementById('cm-modo-nuevo').checked;
+  let prod=null;
+  if(nuevo){
+    const nombre=document.getElementById('cm-n-nombre').value.trim();
+    if(!nombre){ estado.textContent='Escribe el nombre del producto o servicio nuevo.'; return; }
+    btn.disabled=true; estado.textContent='Agregando el producto al Catálogo del ADN...';
+    try{
+      // Se vuelve a leer el catálogo antes de escribir, para no pisar lo último que haya en el ADN.
+      const key=CLIENTE_ID+':catalogo-productos';
+      const r=await window.storage.get(key);
+      let lista=[]; try{ lista=r&&r.value?JSON.parse(r.value):[]; }catch(e){ lista=[]; }
+      if(!Array.isArray(lista)) lista=[];
+      prod=lista.find(p=>p&&p.nombre&&String(p.nombre).trim().toLowerCase()===nombre.toLowerCase());
+      if(!prod){
+        prod={ id:'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), nombre, tipo:document.getElementById('cm-n-tipo').value, grupo_id:'',
+          precio:document.getElementById('cm-n-precio').value.trim(), costo:'', margen_pct:'', que_tanto_se_vende:'', inventario:'', notas:document.getElementById('cm-n-notas').value.trim() };
+        lista.push(prod);
+        await window.storage.set(key, JSON.stringify(lista));
+      }
+      if(!catalogoProductos.some(p=>p&&p.id===prod.id)) catalogoProductos.push(prod);
+    }catch(e){
+      btn.disabled=false;
+      estado.textContent='No se pudo guardar el producto en el ADN. Revisa tu conexión o tu token y vuelve a intentar.';
+      return;
+    }
+  } else {
+    const id=document.getElementById('cm-producto').value;
+    prod=catalogoProductos.find(p=>p&&p.id===id);
+    if(!prod){ estado.textContent='Elige el producto de esta campaña.'; return; }
+  }
+  const camp=mkCampana();
+  camp.producto_origen='evergreen'; camp.producto_id=prod.id; camp.producto_nombre=String(prod.nombre||'').trim(); camp.grupo_id=prod.grupo_id||'';
+  camp.temporada=temporada;
+  camp.nombre=temporada ? temporada+' · '+camp.producto_nombre : 'Campaña de '+camp.producto_nombre;
+  campanas.unshift(camp);
+  campanaActivaId=camp.id;
+  sincronizarChatsDesdeCampana();
+  renderToolbar(); render();
+  scheduleGuardarCampanas();
+  sincronizarFoco();
+  cerrarCrearCampana();
+}
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') cerrarCrearCampana(); });
 
 // ─── CONECTAR CON OTROS JEFES (Contenido / Anuncios) ─────────────────────────
 // No se toca el código de esos Jefes -- se les manda el resumen por copiar/pegar en su propio
@@ -1466,7 +1566,7 @@ cargarInicial().then(async ()=>{
   let nuevos = false;
   window.__foco.lista().forEach(p=>{ if(p.origen366 && !catalogoProductos.some(x=>x&&x.id===p.id)){ catalogoProductos.push(p); nuevos = true; } });
   if(nuevos) render();
-  sincronizarFocoConCampana();
+  sincronizarFoco();
   window.__foco.onChange(f=>{ aplicarFocoACampana(f); });
 });
 </script>
