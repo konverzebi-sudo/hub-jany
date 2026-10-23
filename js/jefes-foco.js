@@ -28,7 +28,7 @@
   // id 'c:<campana_id>'). foco.get() trae entonces esCampana y campanaId. Sin la bandera nada cambia en los demas Jefes.
   var conCampanas = !!(window.__focoConfig && window.__focoConfig.campanas);
   var campanas = [];
-  // OPCIONAL (window.__focoConfig.soloCompletos366): la lista solo deja elegir los productos que ya tienen su 366 COMPLETO
+  // OPCIONAL (window.__focoConfig.soloCompletos366): la lista solo deja elegir los productos que ya EMPEZARON su 366 (tienen ficha en Producto 366)
   // (ficha de producto, cliente ideal, sistema y comunicación con contenido). Los demás salen aparte, bajo el botón
   // "Ver otros productos": en Jefe 366 se elige y se empieza a llenar desde cero en el chat; en los demás Jefes llevan a Jefe 366.
   // Las campañas de temporada también se listan y al elegir una abren Jefe de Temporada con esa campaña (así no se duplica la estrategia).
@@ -233,11 +233,11 @@
       if (!hecha(perfiles, true, MINIMO.cliente)) faltan.push('cliente ideal');
       if (!hecha(sistemas, false, MINIMO.sistema)) faltan.push('sistema para vender');
       if (!hecha(coms, false, MINIMO.comunicacion)) faltan.push('comunicación');
-      out[n] = { completo: !faltan.length, faltan: faltan };
+      out[n] = { empezado: true, completo: !faltan.length, faltan: faltan };
     });
     return out;
   }
-  function estadoDe(p) { return estado366[norm(p && p.nombre)] || { completo: false, faltan: TODO_FALTA.slice() }; }
+  function estadoDe(p) { return estado366[norm(p && p.nombre)] || { empezado: false, completo: false, faltan: TODO_FALTA.slice() }; }
   async function refrescar366(forzar) {
     if (!soloCompletos) return;
     var ahora = Date.now();
@@ -276,8 +276,8 @@
     menu.appendChild(opcion(TODO, 'Tu ecosistema completo', 'Todos tus productos y servicios juntos'));
 
     var conNombre = lista.filter(function (p) { return p && p.nombre; });
-    var visibles = soloCompletos ? conNombre.filter(function (p) { return estadoDe(p).completo; }) : conNombre;
-    var otros = soloCompletos ? conNombre.filter(function (p) { return !estadoDe(p).completo; }) : [];
+    var visibles = soloCompletos ? conNombre.filter(function (p) { return estadoDe(p).empezado; }) : conNombre;
+    var otros = soloCompletos ? conNombre.filter(function (p) { return !estadoDe(p).empezado; }) : [];
     if (!conNombre.length) {
       var vacio = document.createElement('div');
       vacio.className = 'foco-pie';
@@ -288,7 +288,7 @@
       if (!visibles.length) {
         var sin = document.createElement('div');
         sin.className = 'foco-nota';
-        sin.textContent = 'Todavía no tienes productos con su 366 completo. Elige uno de abajo para empezarlo en el chat del Jefe 366.';
+        sin.textContent = 'Todavía no has empezado el 366 de ningún producto. Elige uno de abajo para empezarlo en el chat del Jefe 366.';
         menu.appendChild(sin);
       }
       var porGrupo = {};
@@ -300,7 +300,9 @@
         menu.appendChild(titulo(g && g.nombre ? g.nombre : (grupos.length ? 'Sin grupo' : 'Productos y servicios')));
         if (conGrupos && g && g.nombre) menu.appendChild(opcion('g:' + g.id, 'Todo el grupo: ' + String(g.nombre).trim(), 'Todos los productos y servicios de este grupo'));
         porGrupo[gid].forEach(function (p) {
-          menu.appendChild(opcion(p.id, String(p.nombre).trim(), p.tipo || '', precioTexto(p.precio)));
+          var st = estadoDe(p);
+          var sub = soloCompletos && !st.completo ? 'En proceso · ' + (TODO_FALTA.length - st.faltan.length) + ' de ' + TODO_FALTA.length + ' partes del 366' : (p.tipo || '');
+          menu.appendChild(opcion(p.id, String(p.nombre).trim(), sub, precioTexto(p.precio)));
         });
       });
     }
@@ -321,7 +323,7 @@
       mas.addEventListener('click', function (e) { e.stopPropagation(); verOtros = !verOtros; pintar(); });
       menu.appendChild(mas);
       if (verOtros) {
-        menu.appendChild(titulo('Productos sin su 366 completo'));
+        menu.appendChild(titulo('Productos sin empezar su 366'));
         var nota = document.createElement('div');
         nota.className = 'foco-nota';
         nota.textContent = pagina === '366'
@@ -329,9 +331,7 @@
           : 'Al elegir uno te llevo al Jefe 366 para llenarlo desde cero en el chat.';
         menu.appendChild(nota);
         otros.forEach(function (p) {
-          var st = estadoDe(p);
-          var sub = st.faltan.length >= TODO_FALTA.length ? 'Sin empezar' : 'Falta: ' + st.faltan.join(', ');
-          menu.appendChild(opcion(p.id, String(p.nombre).trim(), sub, precioTexto(p.precio), function () { elegirIncompleto(p); }));
+          menu.appendChild(opcion(p.id, String(p.nombre).trim(), 'Sin empezar', precioTexto(p.precio), function () { elegirIncompleto(p); }));
         });
       }
     }
@@ -410,6 +410,7 @@
     grupos: function () { return grupos.slice(); },
     campanas: function () { return campanas.slice(); },
     es366Completo: function (id) { var p = buscar(id); return p ? estadoDe(p).completo : false; },
+    es366Empezado: function (id) { var p = buscar(id); return p ? estadoDe(p).empezado : false; },
     refrescar366: function () { return refrescar366(true); },
     registrarOfertas366: function (ofertas) {
       // Jefe 366 avisa cuando agregas o renombras un producto, para que la pastilla lo muestre al momento

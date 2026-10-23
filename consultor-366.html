@@ -574,6 +574,7 @@
     .epc-tab-btn { padding: 7px 14px; border: 1px solid var(--line); border-radius: 100px; font-size: 12px; font-weight: 600; cursor: pointer; background: var(--surface-2); color: var(--text-dim); transition: .15s; font-family: Inter, sans-serif; }
     .epc-tab-btn.active { background: var(--accent); border-color: var(--accent); color: #0F0B16; }
     .epc-tab-btn.add-epc { border-style: dashed; }
+    .epc-pick-select { max-width: 100%; font-size: 14px; padding: 8px 14px; }
     .epc-tab-btn.add-epc:hover { border-color: var(--accent); color: var(--accent-text); }
     select.epc-add-select { appearance: none; -webkit-appearance: none; font-family: Inter, sans-serif; }
     select.epc-add-select:hover { border-color: var(--accent); color: var(--accent-text); }
@@ -2097,7 +2098,7 @@ async function inicializarFoco366() {
       const it = window.__foco.lista().find((x) => x.id === qp);
       if (it) {
         window.__foco.set(it.id);
-        if (!window.__foco.es366Completo(it.id)) mostrarAvisoDesdeCero366(it.nombre);
+        if (!window.__foco.es366Empezado(it.id)) mostrarAvisoDesdeCero366(it.nombre);
       }
       history.replaceState(null, '', location.pathname);
     }
@@ -3035,33 +3036,35 @@ function actualizarTituloActivo(spanId, base, nombre) {
     : `${escaparHtmlBuilder(base)}${grupoTxt}`;
 }
 
+/* Las fichas de un producto (cliente ideal, sistema, comunicación, producto) se eligen desde una lista, sin flechitas de orden:
+   con una sola ficha sale su nombre; con varias, un selector con todas. */
+function pintarPestanas366(nav, indices, lista, activo, base, alElegir) {
+  if (!indices.length) return;
+  const nombreDe = (i) => (lista[i] && lista[i].nombre) || (base + ' ' + (i + 1));
+  if (indices.length === 1) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'epc-tab-btn active';
+    btn.textContent = nombreDe(indices[0]);
+    btn.onclick = () => alElegir(indices[0]);
+    nav.appendChild(btn);
+    return;
+  }
+  const sel = document.createElement('select');
+  sel.className = 'epc-tab-btn active epc-pick-select';
+  sel.setAttribute('aria-label', 'Elegir ' + base.toLowerCase());
+  sel.innerHTML = indices.map((i) => '<option value="' + i + '"' + (i === activo() ? ' selected' : '') + '>' + escaparHtmlBuilder(nombreDe(i)) + '</option>').join('');
+  sel.onchange = () => alElegir(parseInt(sel.value, 10));
+  nav.appendChild(sel);
+}
+
 function renderEpcTabs() {
   const nav = document.getElementById('epc-tabs-nav');
   if (!nav) return;
   actualizarTituloActivo('epc-titulo-activo', 'Tu cliente ideal', (perfilesState[perfilActivo] || {}).nombre);
   nav.innerHTML = '';
   const indices = indicesDelFoco366(perfilesState, 'perfil');
-  indices.forEach((i, pos) => {
-    const p = perfilesState[i];
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'epc-tab-btn' + (i === perfilActivo ? ' active' : '');
-    btn.textContent = p.nombre || ('Perfil ' + (i + 1));
-    btn.onclick = () => { capturarPerfilesDesdeDOM(); perfilActivo = i; renderEpcTabs(); renderEpcPanels(); };
-    nav.appendChild(btn);
-    if (indices.length > 1 && pos > 0) {
-      const up = document.createElement('button');
-      up.type = 'button'; up.className = 'epc-move-btn'; up.title = 'Subir prioridad de compra'; up.textContent = '↑';
-      up.onclick = () => moverPerfil(i, -1);
-      nav.appendChild(up);
-    }
-    if (indices.length > 1 && pos < indices.length - 1) {
-      const down = document.createElement('button');
-      down.type = 'button'; down.className = 'epc-move-btn'; down.title = 'Bajar prioridad de compra'; down.textContent = '↓';
-      down.onclick = () => moverPerfil(i, 1);
-      nav.appendChild(down);
-    }
-  });
+  pintarPestanas366(nav, indices, perfilesState, () => perfilActivo, 'Perfil', (i) => { capturarPerfilesDesdeDOM(); perfilActivo = i; renderEpcTabs(); renderEpcPanels(); });
   nav.appendChild(selectorAgregarHtml('perfil', perfilesState, '+ Agregar perfil', indices));
 }
 
@@ -3442,27 +3445,7 @@ function renderEpTabs() {
   actualizarTituloActivo('ep-titulo-activo', 'Producto 366', (productosState[productoActivo] || {}).nombre);
   nav.innerHTML = '';
   const indices = indicesDelGrupoActivo(productosState);
-  indices.forEach((i, pos) => {
-    const p = productosState[i];
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'epc-tab-btn' + (i === productoActivo ? ' active' : '');
-    btn.textContent = p.nombre || ('Producto ' + (i + 1));
-    btn.onclick = () => cambiarProductoDesdeTab366(i);
-    nav.appendChild(btn);
-    if (indices.length > 1 && pos > 0) {
-      const up = document.createElement('button');
-      up.type = 'button'; up.className = 'epc-move-btn'; up.title = 'Mover antes'; up.textContent = '↑';
-      up.onclick = () => moverProducto(i, -1);
-      nav.appendChild(up);
-    }
-    if (indices.length > 1 && pos < indices.length - 1) {
-      const down = document.createElement('button');
-      down.type = 'button'; down.className = 'epc-move-btn'; down.title = 'Mover después'; down.textContent = '↓';
-      down.onclick = () => moverProducto(i, 1);
-      nav.appendChild(down);
-    }
-  });
+  pintarPestanas366(nav, indices, productosState, () => productoActivo, 'Producto', (i) => cambiarProductoDesdeTab366(i));
   nav.appendChild(selectorAgregarHtml('producto', productosState, '+ Agregar producto', indices));
 }
 
@@ -3702,27 +3685,7 @@ function renderEsTabs() {
   actualizarTituloActivo('es-titulo-activo', 'Sistema para vender 366', (sistemasState[sistemaActivo] || {}).nombre);
   nav.innerHTML = '';
   const indices = indicesDelFoco366(sistemasState, 'sistema');
-  indices.forEach((i, pos) => {
-    const p = sistemasState[i];
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'epc-tab-btn' + (i === sistemaActivo ? ' active' : '');
-    btn.textContent = p.nombre || ('Sistema ' + (i + 1));
-    btn.onclick = () => { capturarSistemasDesdeDOM(); sistemaActivo = i; renderEsTabs(); renderEsPanels(); };
-    nav.appendChild(btn);
-    if (indices.length > 1 && pos > 0) {
-      const up = document.createElement('button');
-      up.type = 'button'; up.className = 'epc-move-btn'; up.title = 'Mover antes'; up.textContent = '↑';
-      up.onclick = () => moverSistema(i, -1);
-      nav.appendChild(up);
-    }
-    if (indices.length > 1 && pos < indices.length - 1) {
-      const down = document.createElement('button');
-      down.type = 'button'; down.className = 'epc-move-btn'; down.title = 'Mover después'; down.textContent = '↓';
-      down.onclick = () => moverSistema(i, 1);
-      nav.appendChild(down);
-    }
-  });
+  pintarPestanas366(nav, indices, sistemasState, () => sistemaActivo, 'Sistema', (i) => { capturarSistemasDesdeDOM(); sistemaActivo = i; renderEsTabs(); renderEsPanels(); });
   nav.appendChild(selectorAgregarHtml('sistema', sistemasState, '+ Agregar sistema', indices));
 }
 
@@ -3889,27 +3852,7 @@ function renderEcTabs() {
   actualizarTituloActivo('ec-titulo-activo', 'Comunicación 366', (comunicacionesState[comunicacionActivo] || {}).nombre);
   nav.innerHTML = '';
   const indices = indicesDelFoco366(comunicacionesState, 'comunicacion');
-  indices.forEach((i, pos) => {
-    const p = comunicacionesState[i];
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'epc-tab-btn' + (i === comunicacionActivo ? ' active' : '');
-    btn.textContent = p.nombre || ('Comunicación ' + (i + 1));
-    btn.onclick = () => { capturarComunicacionesDesdeDOM(); comunicacionActivo = i; renderEcTabs(); renderEcPanels(); };
-    nav.appendChild(btn);
-    if (indices.length > 1 && pos > 0) {
-      const up = document.createElement('button');
-      up.type = 'button'; up.className = 'epc-move-btn'; up.title = 'Mover antes'; up.textContent = '↑';
-      up.onclick = () => moverComunicacion(i, -1);
-      nav.appendChild(up);
-    }
-    if (indices.length > 1 && pos < indices.length - 1) {
-      const down = document.createElement('button');
-      down.type = 'button'; down.className = 'epc-move-btn'; down.title = 'Mover después'; down.textContent = '↓';
-      down.onclick = () => moverComunicacion(i, 1);
-      nav.appendChild(down);
-    }
-  });
+  pintarPestanas366(nav, indices, comunicacionesState, () => comunicacionActivo, 'Comunicación', (i) => { capturarComunicacionesDesdeDOM(); comunicacionActivo = i; renderEcTabs(); renderEcPanels(); });
   nav.appendChild(selectorAgregarHtml('comunicacion', comunicacionesState, '+ Agregar comunicación', indices));
 }
 
