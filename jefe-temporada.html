@@ -171,9 +171,6 @@
   .file-btn:hover{border-color:var(--accent);}
   .file-name{font-size:11px;color:#3B0764;font-weight:600;}
 
-  .quick-links{display:flex;gap:14px;flex-wrap:wrap;margin:-8px 0 20px;}
-  .quick-links a{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--text-dim);text-decoration:none;border-bottom:1px dashed var(--line);}
-  .quick-links a:hover{color:var(--accent-texto, var(--accent));border-color:var(--accent);}
 </style>
 <link rel="stylesheet" href="/css/jefes-piel-blanca.css">
 <link rel="stylesheet" href="/css/plataforma-dash.css">
@@ -182,8 +179,8 @@
   body.piel-blanca{font-size:16px;}
   .wrap{padding-top:62px;}
   @media (max-width:900px){ .wrap{padding-top:0;} }
-  .quick-links{margin:0 0 14px;justify-content:center;}
-  .quick-links a{font-family:Inter,sans-serif;font-size:13.5px;}
+  /* el selector de campaña y "+ Nueva campaña" ya están en la pastilla de arriba: se ocultan (el código los sigue usando) */
+  #campana-select,#btn-nueva{display:none;}
   .campana-toolbar{box-shadow:none;border-radius:14px;padding:10px 14px;margin-bottom:10px;}
   select.estado-pill{font-family:Inter,sans-serif;font-size:12.5px;letter-spacing:0;text-transform:none;font-weight:700;}
   select.estado-pill.borrador{background:#F0F0F0;color:#444;border-color:#E2E2E2;}
@@ -316,11 +313,6 @@
     bar.style.color=b.color;bar.style.borderColor=b.color.replace('#','rgba(').slice(0,-1)+',0.3)';
     try{var r=await window.storage.get(key+':brand-book.identidad');if(r&&r.value){var d=JSON.parse(r.value);if(d.nombre)el.textContent=d.nombre;}}catch(e){}
   })();</script>
-  <div class="quick-links">
-    <a id="linkADN" href="/adn" target="_blank" rel="noopener">→ Ver ADN del negocio</a>
-    <a id="link366" href="/jefe-366" target="_blank" rel="noopener">→ Ver Sistema de Productos 366</a>
-    <a id="linkAgenda" href="/jefe-agenda" target="_blank" rel="noopener">→ Ver en el Jefe de Agenda</a>
-  </div>
 
   <div class="campana-toolbar" id="campana-toolbar">
     <select id="campana-select" onchange="cambiarCampana(this.value)" disabled></select>
@@ -390,14 +382,8 @@ const CLIENTE_ID = detectClienteId();
 const TEMPORADA_KEY = CLIENTE_ID + ':temporada-campanas';
 const AGENDA_KEY = CLIENTE_ID + ':agenda-eventos';
 
-(function(){
-  const RUTA_ADN = window.__hub.rutas('/adn');
-  const RUTA_366 = window.__hub.rutas('/jefe-366');
-  const RUTA_AGENDA = window.__hub.rutas('/jefe-agenda');
-  document.getElementById('linkADN').href = RUTA_ADN[CLIENTE_ID] || RUTA_ADN.jefeshub;
-  document.getElementById('link366').href = RUTA_366[CLIENTE_ID] || RUTA_366.jefeshub;
-  document.getElementById('linkAgenda').href = RUTA_AGENDA[CLIENTE_ID] || RUTA_AGENDA.jefeshub;
-})();
+// Ruta de Jefe 366 de esta marca (para el aviso de perfil de cliente)
+function rutaJefe366(){ const r=window.__hub.rutas('/jefe-366'); return r[CLIENTE_ID] || r.jefeshub; }
 
 function escHtml(s){
   return (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1640,7 +1626,7 @@ function renderClienteRecurrenteBox(){
     ['Miedo/deseo', d.miedo_deseo],
   ].filter(([,v])=>v && v.toString().trim());
   if(!campos.length){
-    el.innerHTML = `<div class="ref-title">Cliente base (recurrente)</div>Todavía no hay Perfil de Cliente 366 guardado — <a href="${document.getElementById('link366').href}" target="_blank" rel="noopener">complétalo en Jefe 366</a> para que este módulo detecte qué cambia en campaña.`;
+    el.innerHTML = `<div class="ref-title">Cliente base (recurrente)</div>Todavía no hay Perfil de Cliente 366 guardado — <a href="${rutaJefe366()}" target="_blank" rel="noopener">complétalo en Jefe 366</a> para que este módulo detecte qué cambia en campaña.`;
     return;
   }
   el.innerHTML = `<div class="ref-title">Cliente base (recurrente, ya construido en Jefe 366 — solo lectura aquí)</div>` +
