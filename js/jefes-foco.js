@@ -38,6 +38,7 @@
   var listarCampanas = conCampanas || (soloCompletos && pagina !== 'temporada');
   var campanasRedirigen = soloCompletos && !conCampanas && pagina !== 'temporada';
   var estado366 = {};
+  var orden366 = [];
   var verOtros = false;
   var ultimoRefresco366 = 0;
   var actual = { id: TODO, nombre: '', item: null, grupo: null, campana: null };
@@ -248,6 +249,7 @@
     if (!aLista(perf).length) perf = (await leer('brand-book.366-perfil-cliente')) || (await leer('brand-book.evergreen-perfil-cliente'));
     var sis = (await leer('brand-book.366-sistema')) || (await leer('brand-book.evergreen-sistema'));
     var com = (await leer('brand-book.366-comunicacion')) || (await leer('brand-book.evergreen-comunicacion'));
+    orden366 = aLista(prod).map(function (p) { return norm(p.nombre); }).filter(Boolean);
     estado366 = calcular366(aLista(prod), aLista(perf), aLista(sis), aLista(com));
     pintar();
   }
@@ -277,6 +279,11 @@
 
     var conNombre = lista.filter(function (p) { return p && p.nombre; });
     var visibles = soloCompletos ? conNombre.filter(function (p) { return estadoDe(p).empezado; }) : conNombre;
+    // mismo orden que las fichas de Producto 366, para que la lista de arriba y la de la sección coincidan
+    if (soloCompletos) {
+      var pos = function (p) { var i = orden366.indexOf(norm(p.nombre)); return i < 0 ? 9999 : i; };
+      visibles = visibles.map(function (p, i) { return { p: p, i: i }; }).sort(function (a, b) { return (pos(a.p) - pos(b.p)) || (a.i - b.i); }).map(function (x) { return x.p; });
+    }
     var otros = soloCompletos ? conNombre.filter(function (p) { return !estadoDe(p).empezado; }) : [];
     if (!conNombre.length) {
       var vacio = document.createElement('div');
