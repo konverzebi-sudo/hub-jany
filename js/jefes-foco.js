@@ -28,6 +28,18 @@
   // id 'c:<campana_id>'). foco.get() trae entonces esCampana y campanaId. Sin la bandera nada cambia en los demas Jefes.
   var conCampanas = !!(window.__focoConfig && window.__focoConfig.campanas);
   var campanas = [];
+  // OPCIONAL (window.__focoConfig.soloCompletos366): la lista solo deja elegir los productos que ya tienen su 366 COMPLETO
+  // (ficha de producto, cliente ideal, sistema y comunicación con contenido). Los demás salen aparte, bajo el botón
+  // "Ver otros productos": en Jefe 366 se elige y se empieza a llenar desde cero en el chat; en los demás Jefes llevan a Jefe 366.
+  // Las campañas de temporada también se listan y al elegir una abren Jefe de Temporada con esa campaña (así no se duplica la estrategia).
+  // window.__focoConfig.pagina: '366' | 'temporada' | cualquier otra cosa.
+  var soloCompletos = !!(window.__focoConfig && window.__focoConfig.soloCompletos366);
+  var pagina = (window.__focoConfig && window.__focoConfig.pagina) || '';
+  var listarCampanas = conCampanas || (soloCompletos && pagina !== 'temporada');
+  var campanasRedirigen = soloCompletos && !conCampanas && pagina !== 'temporada';
+  var estado366 = {};
+  var verOtros = false;
+  var ultimoRefresco366 = 0;
   var actual = { id: TODO, nombre: '', item: null, grupo: null, campana: null };
   var oyentes = [];
 
@@ -49,6 +61,9 @@
     '.foco-op .n{overflow:hidden;text-overflow:ellipsis;min-width:0}',
     '.foco-op small{font-weight:500;color:#5F5F5F;white-space:nowrap;flex:0 0 auto}',
     '.foco-sub{display:block;font-weight:500;font-size:12.5px;color:#5F5F5F;margin-top:2px}',
+    '.foco-mas{display:block;width:100%;text-align:center;margin:8px 0 2px;padding:10px;border-radius:10px;border:1.5px dashed #C9C9C9;background:#fff;font-family:Inter,sans-serif;font-size:14px;font-weight:700;color:#1A1A1A;cursor:pointer}',
+    '.foco-mas:hover{border-color:#4E7A00;background:#F8FFE0}',
+    '.foco-nota{font-family:Inter,sans-serif;font-size:12.5px;color:#5F5F5F;padding:2px 10px 6px;line-height:1.45}',
     '.foco-pie{border-top:1px solid #E2E2E2;margin-top:6px;padding:10px 10px 6px;font-family:Inter,sans-serif;font-size:13.5px;color:#5F5F5F}',
     '.foco-pie a{color:#4E7A00;font-weight:600;text-decoration:underline}',
     '@media (max-width:1200px){.foco-txt{max-width:175px}}',
@@ -146,7 +161,7 @@
     var n = parseFloat(String(v == null ? '' : v).replace(/[^0-9.\-]/g, ''));
     return isFinite(n) && n > 0 ? '$' + Math.round(n).toLocaleString('es-MX') : '';
   }
-  function opcion(id, nombre, sub, extra) {
+  function opcion(id, nombre, sub, extra, alElegir) {
     var b = document.createElement('button');
     b.type = 'button';
     b.className = 'foco-op' + (actual.id === id ? ' sel' : '');
@@ -167,7 +182,7 @@
       d.textContent = extra;
       b.appendChild(d);
     }
-    b.addEventListener('click', function () { cerrar(); fijar(id); });
+    b.addEventListener('click', function () { cerrar(); if (alElegir) alElegir(); else fijar(id); });
     return b;
   }
   function titulo(t) {
@@ -175,6 +190,78 @@
     h.className = 'foco-titulo';
     h.textContent = t;
     return h;
+  }
+
+  // ---------- ¿tiene el 366 completo? ----------
+  function norm(t) { return String(t == null ? '' : t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim(); }
+  function aLista(o) {
+    if (!o) return [];
+    if (Array.isArray(o.lista)) return o.lista.filter(Boolean);
+    return Object.keys(o).length ? [o] : [];
+  }
+  var IGNORAR = { nombre: 1, uid: 1, producto_uid: 1, grupo_id: 1, producto_relacionado: 1, activa: 1, id: 1, _importantes: 1 };
+  function tieneValor(v) {
+    if (v == null) return false;
+    if (typeof v === 'string') return !!v.trim();
+    if (typeof v === 'number') return true;
+    if (Array.isArray(v)) return v.some(tieneValor);
+    if (typeof v === 'object') return Object.keys(v).some(function (k) { return tieneValor(v[k]); });
+    return false;
+  }
+  function camposLlenos(item) {
+    var n = 0;
+    Object.keys(item || {}).forEach(function (k) { if (!IGNORAR[k] && tieneValor(item[k])) n++; });
+    return n;
+  }
+  // Cuántos campos con contenido debe tener cada parte para contar como "hecha" (ajustable aquí).
+  var MINIMO = { ficha: 2, cliente: 4, sistema: 2, comunicacion: 3 };
+  var TODO_FALTA = ['ficha del producto', 'cliente ideal', 'sistema para vender', 'comunicación'];
+  function calcular366(prods, perfiles, sistemas, coms) {
+    var out = {};
+    prods.forEach(function (p) {
+      var n = norm(p.nombre);
+      if (!n) return;
+      var uid = p.uid || '';
+      function propio(it, esPerfil) {
+        if (!it) return false;
+        if (uid && it.producto_uid === uid) return true;
+        return !!esPerfil && String(it.producto_relacionado || '').split(/\r?\n/).some(function (l) { return norm(l) === n; });
+      }
+      function hecha(lista, esPerfil, min) { return lista.some(function (it) { return propio(it, esPerfil) && camposLlenos(it) >= min; }); }
+      var faltan = [];
+      if (camposLlenos(p) < MINIMO.ficha) faltan.push('ficha del producto');
+      if (!hecha(perfiles, true, MINIMO.cliente)) faltan.push('cliente ideal');
+      if (!hecha(sistemas, false, MINIMO.sistema)) faltan.push('sistema para vender');
+      if (!hecha(coms, false, MINIMO.comunicacion)) faltan.push('comunicación');
+      out[n] = { completo: !faltan.length, faltan: faltan };
+    });
+    return out;
+  }
+  function estadoDe(p) { return estado366[norm(p && p.nombre)] || { completo: false, faltan: TODO_FALTA.slice() }; }
+  async function refrescar366(forzar) {
+    if (!soloCompletos) return;
+    var ahora = Date.now();
+    if (!forzar && ahora - ultimoRefresco366 < 10000) return;
+    ultimoRefresco366 = ahora;
+    var prod = (await leer('brand-book.366-producto')) || (await leer('brand-book.evergreen-producto'));
+    var perf = await leer('brand-book.audiencias');
+    if (!aLista(perf).length) perf = (await leer('brand-book.366-perfil-cliente')) || (await leer('brand-book.evergreen-perfil-cliente'));
+    var sis = (await leer('brand-book.366-sistema')) || (await leer('brand-book.evergreen-sistema'));
+    var com = (await leer('brand-book.366-comunicacion')) || (await leer('brand-book.evergreen-comunicacion'));
+    estado366 = calcular366(aLista(prod), aLista(perf), aLista(sis), aLista(com));
+    pintar();
+  }
+  function irA(ruta) {
+    var pre = window.__hub && window.__hub.prefijo ? window.__hub.prefijo() : '';
+    window.location.href = pre + ruta;
+  }
+  function elegirIncompleto(p) {
+    if (pagina === '366') {
+      fijar(p.id);
+      try { window.dispatchEvent(new CustomEvent('foco-desde-cero', { detail: { id: p.id, nombre: String(p.nombre || '').trim() } })); } catch (e) {}
+    } else {
+      irA('/jefe-366?producto=' + encodeURIComponent(p.id));
+    }
   }
 
   function pintar() {
@@ -189,6 +276,8 @@
     menu.appendChild(opcion(TODO, 'Tu ecosistema completo', 'Todos tus productos y servicios juntos'));
 
     var conNombre = lista.filter(function (p) { return p && p.nombre; });
+    var visibles = soloCompletos ? conNombre.filter(function (p) { return estadoDe(p).completo; }) : conNombre;
+    var otros = soloCompletos ? conNombre.filter(function (p) { return !estadoDe(p).completo; }) : [];
     if (!conNombre.length) {
       var vacio = document.createElement('div');
       vacio.className = 'foco-pie';
@@ -196,8 +285,14 @@
       vacio.textContent = 'Todavía no hay productos en el Catálogo de tu ADN.';
       menu.appendChild(vacio);
     } else {
+      if (!visibles.length) {
+        var sin = document.createElement('div');
+        sin.className = 'foco-nota';
+        sin.textContent = 'Todavía no tienes productos con su 366 completo. Elige uno de abajo para empezarlo en el chat del Jefe 366.';
+        menu.appendChild(sin);
+      }
       var porGrupo = {};
-      conNombre.forEach(function (p) { (porGrupo[p.grupo_id || ''] = porGrupo[p.grupo_id || ''] || []).push(p); });
+      visibles.forEach(function (p) { (porGrupo[p.grupo_id || ''] = porGrupo[p.grupo_id || ''] || []).push(p); });
       var orden = grupos.map(function (g) { return g.id; }).filter(function (id) { return porGrupo[id]; });
       if (porGrupo['']) orden.push('');
       orden.forEach(function (gid) {
@@ -210,13 +305,36 @@
       });
     }
 
-    if (conCampanas && campanas.length) {
+    if (listarCampanas && campanas.length) {
       menu.appendChild(titulo('Campañas de temporada'));
       campanas.forEach(function (c) {
-        menu.appendChild(opcion('c:' + c.id, '🗓️ ' + etiquetaCampana(c), 'Campaña de Jefe de Temporada'));
+        menu.appendChild(opcion('c:' + c.id, '🗓️ ' + etiquetaCampana(c), campanasRedirigen ? 'Se abre en Jefe de Temporada' : 'Campaña de Jefe de Temporada', '',
+          campanasRedirigen ? function () { irA('/jefe-temporada?campana=' + encodeURIComponent(c.id)); } : null));
       });
     }
 
+    if (otros.length) {
+      var mas = document.createElement('button');
+      mas.type = 'button';
+      mas.className = 'foco-mas';
+      mas.textContent = verOtros ? 'Ocultar otros productos' : 'Ver otros productos (' + otros.length + ')';
+      mas.addEventListener('click', function (e) { e.stopPropagation(); verOtros = !verOtros; pintar(); });
+      menu.appendChild(mas);
+      if (verOtros) {
+        menu.appendChild(titulo('Productos sin su 366 completo'));
+        var nota = document.createElement('div');
+        nota.className = 'foco-nota';
+        nota.textContent = pagina === '366'
+          ? 'Al elegir uno empiezas a llenarlo desde cero, aquí en el chat del Jefe 366.'
+          : 'Al elegir uno te llevo al Jefe 366 para llenarlo desde cero en el chat.';
+        menu.appendChild(nota);
+        otros.forEach(function (p) {
+          var st = estadoDe(p);
+          var sub = st.faltan.length >= TODO_FALTA.length ? 'Sin empezar' : 'Falta: ' + st.faltan.join(', ');
+          menu.appendChild(opcion(p.id, String(p.nombre).trim(), sub, precioTexto(p.precio), function () { elegirIncompleto(p); }));
+        });
+      }
+    }
     var pie = document.createElement('div');
     pie.className = 'foco-pie';
     var a = document.createElement('a');
@@ -227,7 +345,7 @@
     menu.appendChild(pie);
   }
 
-  function abrir() { menu.hidden = false; pill.setAttribute('aria-expanded', 'true'); }
+  function abrir() { menu.hidden = false; pill.setAttribute('aria-expanded', 'true'); refrescar366(false); }
   function cerrar() { menu.hidden = true; pill.setAttribute('aria-expanded', 'false'); }
   pill.addEventListener('click', function (e) { e.stopPropagation(); menu.hidden ? abrir() : cerrar(); });
   document.addEventListener('click', function (e) { if (!wrap.contains(e.target)) cerrar(); });
@@ -273,7 +391,8 @@
       sumarOfertas366(ofertas);
     }
     grupos = Array.isArray(gr) ? gr : [];
-    if (conCampanas) {
+    if (soloCompletos) await refrescar366(true);
+    if (listarCampanas) {
       var cs = await leer('temporada-campanas');
       var hoy = new Date().toISOString().slice(0, 10);
       campanas = Array.isArray(cs) ? cs.filter(function (c) { return c && c.id && (!c.fecha_fin_activa || c.fecha_fin_activa >= hoy); }) : [];
@@ -290,6 +409,8 @@
     lista: function () { return lista.slice(); },
     grupos: function () { return grupos.slice(); },
     campanas: function () { return campanas.slice(); },
+    es366Completo: function (id) { var p = buscar(id); return p ? estadoDe(p).completo : false; },
+    refrescar366: function () { return refrescar366(true); },
     registrarOfertas366: function (ofertas) {
       // Jefe 366 avisa cuando agregas o renombras un producto, para que la pastilla lo muestre al momento
       lista = lista.filter(function (p) { return !p.origen366; });

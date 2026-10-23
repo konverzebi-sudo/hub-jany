@@ -350,6 +350,8 @@
     .t3-volver:hover { border-color: var(--accent-text); color: var(--text); }
     body.t3-trabajo .t3-row.open .t3-volver { display: inline-block; }
     .hero-search textarea { resize: none; overflow-y: auto; max-height: 160px; min-height: 24px; line-height: 1.4; display: block; }
+    .aviso-cero { display: flex; align-items: flex-start; gap: 10px; background: #F1FFC2; border: 1.5px solid #C0F800; border-radius: 12px; padding: 10px 12px; margin: 0 0 10px; font-size: 14.5px; line-height: 1.5; color: #111827; text-align: left; }
+    .aviso-cero button { flex: 0 0 auto; background: transparent; border: none; font-size: 16px; cursor: pointer; color: #4B5563; }
     .hero-search-clip { display: none; flex: 0 0 auto; align-items: center; justify-content: center; background: transparent; border: none; padding: 6px; border-radius: 50%; color: #4B5563; cursor: pointer; }
     .hero-search-clip svg { width: 24px; height: 24px; }
     #builderControls { position: relative; }
@@ -647,7 +649,7 @@
 
 <header>
   <script src="/js/storage-client.js"></script>
-  <script>window.__focoConfig = { grupos: true, productos366: true }; // la pastilla también deja elegir un grupo completo y las ofertas de Producto 366</script>
+  <script>window.__focoConfig = { grupos: true, productos366: true, soloCompletos366: true, pagina: '366' }; // la pastilla también deja elegir un grupo completo y las ofertas de Producto 366</script>
   <script src="/js/jefes-foco.js"></script>
   <script src="/js/guia-jefe.js"></script>
   <script>
@@ -2088,7 +2090,38 @@ async function inicializarFoco366() {
   if (!window.__foco) return;
   aplicarFoco366(window.__foco.get());
   window.__foco.onChange((f) => { if (sincronizandoFoco366) return; aplicarFoco366(f); });
+  // viene de la pastilla de otro Jefe con un producto que todavía no tiene su 366 completo
+  try {
+    const qp = new URLSearchParams(location.search).get('producto');
+    if (qp) {
+      const it = window.__foco.lista().find((x) => x.id === qp);
+      if (it) {
+        window.__foco.set(it.id);
+        if (!window.__foco.es366Completo(it.id)) mostrarAvisoDesdeCero366(it.nombre);
+      }
+      history.replaceState(null, '', location.pathname);
+    }
+  } catch (e) {}
 }
+
+/* Aviso al empezar un producto desde cero: se abre el chat y se dice dónde empezar. */
+function mostrarAvisoDesdeCero366(nombre) {
+  activarChat366();
+  const box = document.getElementById('jefe366ChatBox');
+  if (!box) return;
+  let av = document.getElementById('avisoDesdeCero366');
+  if (!av) {
+    av = document.createElement('div');
+    av.id = 'avisoDesdeCero366';
+    av.className = 'aviso-cero';
+    const chat = document.getElementById('builderChat');
+    box.insertBefore(av, chat);
+  }
+  av.innerHTML = '<span><strong>Estás llenando «' + escaparHtmlBuilder(nombre || 'este producto') + '» desde cero.</strong> Empieza aquí en el chat: cuéntale al Jefe qué es y a quién se lo vendes, y él va llenando sus cuadros uno por uno.</span><button type="button" aria-label="Cerrar aviso" onclick="this.parentNode.remove()">✕</button>';
+  const inp = document.getElementById('heroSearchInput') || document.getElementById('builderInput');
+  setTimeout(() => { try { av.scrollIntoView({ block: 'center', behavior: 'smooth' }); if (inp) inp.focus({ preventScroll: true }); } catch (e) {} }, 250);
+}
+window.addEventListener('foco-desde-cero', (e) => mostrarAvisoDesdeCero366(e.detail && e.detail.nombre));
 
 function switchGroup(grupos, idx) {
   document.querySelectorAll('.group-tab').forEach((t, i) => t.classList.toggle('active', i === idx));
