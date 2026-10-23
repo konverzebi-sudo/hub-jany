@@ -58,6 +58,13 @@ const DEFAULT_CLIENTE_IMGGEN = 'rancho-seco'; // unica marca donde se activa por
 const IMGGEN_DAILY_CAP = 15; // tope duro por marca por dia -- ajustable segun costo real observado
 const IMGGEN_MODEL = 'gpt-image-1';
 const IMGGEN_SIZE = '1024x1024';
+const IMGGEN_SIZE_VERTICAL = '1024x1536'; // lo más cercano a un reel (9:16) que da gpt-image-1
+const IMGGEN_FORMATOS_CUADRADOS = ['carrusel', 'imagen']; // el resto (reel, video, historia, campaña) sale vertical
+// Debe reflejar los mismos ids/fuentes que FONT_COMBOS en ADN.html (paso "Logo y Colores").
+const IMGGEN_FUENTES = {
+  'bold-impact': 'Bebas Neue', 'modern-clean': 'Montserrat', 'elegant-luxury': 'Playfair Display', 'sporty-dynamic': 'Oswald',
+  'varsity-sport': 'Anton', 'western-rustic': 'Rye', 'friendly-rounded': 'Quicksand', 'tech-digital': 'Space Grotesk',
+};
 const IMGGEN_QUALITY = 'medium';
 // Imagen de referencia opcional (como subir una foto en ChatGPT): el front la reduce a ~1024px antes de
 // mandarla en base64; este tope protege el limite de 4.5 MB del cuerpo de una funcion en Vercel.
@@ -462,6 +469,27 @@ function fechaKeyHoyUtc() {
   return new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC) -- suficiente para un tope diario aproximado
 }
 
+// Indicaciones de formato, tipografía y colores del ADN (brand-book.visual) para la imagen; con un post elegido
+// también lo que dice el post. Nada de marca va escrito aquí: todo se lee del ADN de la marca.
+async function indicacionesImagen(clienteId, post) {
+  const visual = await leerJSON(`${clienteId}:brand-book.visual`).catch(() => null);
+  const formato = ((post && post.formato) || '').toString().toLowerCase();
+  const vertical = !IMGGEN_FORMATOS_CUADRADOS.includes(formato);
+  const lineas = [];
+  if (vertical) lineas.push('Formato vertical tipo Reel/Historia (9:16): composición vertical y deja libre la franja superior y la inferior (zonas que tapan las apps) sin elementos importantes.');
+  const fuente = visual && IMGGEN_FUENTES[visual.tipografia_combo];
+  if (fuente) lineas.push(`Todo texto dentro de la imagen va en la tipografía de la marca: ${fuente}.`);
+  if (visual && Array.isArray(visual.paleta) && visual.paleta.length) lineas.push(`Usa exactamente los colores de la marca: ${visual.paleta.slice(0, 6).join(', ')}.`);
+  if (visual && visual.logo) lineas.push('No dibujes ni inventes un logo: deja un espacio limpio en una esquina para pegar el logo real después.');
+  const titulo = post && (post.titulo || '').toString().trim().slice(0, 90);
+  const contexto = post && (post.contexto || '').toString().trim().slice(0, 2500);
+  if (titulo) {
+    lineas.push(`La imagen es para esta publicación y debe tener relación directa con su tema:\n${contexto || titulo}`);
+    lineas.push(`Incluye como titular, bien legible y sin errores de ortografía, exactamente este texto: «${titulo}».`);
+  }
+  return { size: vertical ? IMGGEN_SIZE_VERTICAL : IMGGEN_SIZE, texto: lineas.join('\n'), conPost: !!titulo };
+}
+
 async function handleDisenoImagen(req, res, body) {
   if (!process.env.OPENAI_API_KEY) {
     return res.status(500).json({ error: 'Falta configurar OPENAI_API_KEY en el servidor.' });
@@ -482,7 +510,7 @@ async function handleDisenoImagen(req, res, body) {
     }
     referencia = { tipo, ext: IMGGEN_REF_TIPOS[tipo], buffer: Buffer.from(b64ref, 'base64') };
   }
-  if (!prompt && !referencia) return res.status(400).json({ error: 'Falta describir la imagen que quieres generar.' });
+  if (!prompt && !referencia && !(body.post && body.post.titulo)) return res.status(400).json({ error: 'Falta describir la imagen que quieres generar.' });
 
   const capKey = `${clienteId}:jefe-diseno-imagenes-${fechaKeyHoyUtc()}`;
   const usadasHoy = (await leerJSON(capKey).catch(() => null)) || 0;
@@ -490,7 +518,10 @@ async function handleDisenoImagen(req, res, body) {
     return res.status(429).json({ error: `Ya se alcanzó el límite de ${IMGGEN_DAILY_CAP} imágenes de hoy para esta marca. Vuelve mañana.` });
   }
 
-  const base = 'Genera una imagen de alta calidad, lista para usar en redes sociales o anuncios. Sin texto en la imagen salvo que se pida explícitamente.';
+  const ind = await indicacionesImagen(clienteId, body.post);
+  const base = 'Genera una imagen de alta calidad, lista para usar en redes sociales o anuncios.'
+    + (ind.conPost ? '' : ' Sin texto en la imagen salvo que se pida explícitamente.')
+    + (ind.texto ? `\n\n${ind.texto}` : '');
   let openaiRes;
   try {
     if (referencia) {
@@ -498,7 +529,7 @@ async function handleDisenoImagen(req, res, body) {
       const form = new FormData();
       form.append('model', IMGGEN_MODEL);
       form.append('prompt', `${base}\n\nUsa la imagen adjunta como referencia visual: genera una imagen NUEVA y similar (misma idea, estilo, composición y colores).${prompt ? ` Aplica además esto: ${prompt}` : ''}`);
-      form.append('size', IMGGEN_SIZE);
+      form.append('size', ind.size);
       form.append('quality', IMGGEN_QUALITY);
       form.append('n', '1');
       form.append('image[]', new Blob([referencia.buffer], { type: referencia.tipo }), `referencia.${referencia.ext}`);
@@ -517,7 +548,7 @@ async function handleDisenoImagen(req, res, body) {
         body: JSON.stringify({
           model: IMGGEN_MODEL,
           prompt: `${base}\n\n${prompt}`,
-          size: IMGGEN_SIZE,
+          size: ind.size,
           quality: IMGGEN_QUALITY,
           n: 1,
         }),

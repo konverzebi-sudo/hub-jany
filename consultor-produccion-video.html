@@ -144,8 +144,27 @@
   .sug-item{display:flex;align-items:center;gap:12px;width:100%;padding:11px 14px;border:none;border-radius:14px;background:transparent;color:var(--text);font:500 16px 'Inter',sans-serif;text-align:left;cursor:pointer;}
   .sug-item svg{flex:0 0 auto;width:18px;height:18px;color:var(--text-dim);}
   .sug-item:hover,.sug-item.on{background:var(--surface-2);}
+  .sug-post{padding:8px 14px;}
+  .sug-post .sug-mini{flex:0 0 auto;position:relative;display:flex;align-items:center;justify-content:center;width:56px;height:40px;border-radius:9px;overflow:hidden;background:linear-gradient(135deg,var(--a),var(--b));font-size:18px;}
+  .sug-post .sug-mini img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+  .sug-post .sug-txt{display:flex;flex-direction:column;min-width:0;flex:1 1 auto;}
+  .sug-post .sug-txt b{font-weight:600;font-size:15.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .sug-post .sug-txt small{font-size:12.5px;color:var(--text-dim);}
+  .bubble-post{display:block;margin-bottom:4px;font-size:12.5px;font-weight:600;opacity:.75;}
+  .sug-sep{margin:4px 14px;border-top:1px solid var(--line);}
 
   /* "Trabajando en": Ver post (características) · Imagen (pronto) · Prompt de video */
+  .px-progreso{flex:1 0 100%;display:flex;flex-direction:column;gap:10px;}
+  .px-pasos{display:flex;gap:0;width:100%;overflow-x:auto;padding:6px 2px 2px;}
+  .px-paso{position:relative;flex:1 0 auto;min-width:78px;display:flex;flex-direction:column;align-items:center;gap:8px;border:none;background:none;cursor:pointer;padding:0 4px;font:600 12.5px ui-monospace,'SFMono-Regular',Menlo,monospace;text-transform:uppercase;letter-spacing:.04em;color:var(--text);}
+  .px-paso::after{content:'';position:absolute;top:calc(100% - 15px);left:calc(50% + 20px);right:calc(-50% + 20px);border-top:2px dashed #8aa13a;}
+  .px-paso:last-child::after{display:none;}
+  .px-paso-c{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:#fff;border:2px dashed #8aa13a;color:#fff;font-size:16px;line-height:1;transition:.15s;}
+  .px-paso.ok .px-paso-c{background:#0B6B54;border:2px solid #0B6B54;}
+  .px-paso.sig .px-paso-c{border:2.5px solid var(--text);box-shadow:0 0 0 4px var(--accent);}
+  .px-paso:hover .px-paso-c{transform:scale(1.1);}
+  .px-falta{font-size:14px;color:var(--text);margin:0;}
+  .px-falta b{font-weight:700;}
   .px-btn:disabled{opacity:.55;cursor:default;border-style:dashed;}
   .px-btn:disabled:hover{background:var(--surface);color:var(--text);}
   .px-detalle{flex:1 1 100%;margin-top:4px;padding-top:12px;border-top:1px dashed var(--accent-text);display:flex;flex-direction:column;gap:12px;}
@@ -409,6 +428,13 @@ const SUG_ANUNCIO_ORGANICO = [
   { t: 'Es para un anuncio', msg: 'Es para un anuncio.', enviar: true },
   { t: 'Es para contenido orgánico', msg: 'Es para contenido orgánico.', enviar: true },
 ];
+// Con un post elegido, las sugerencias hablan de ese post.
+const SUG_POST = [
+  { t: 'Dame el guion de este post en escenas', msg: 'Dame el guion de este post dividido en escenas.', enviar: true },
+  { t: '¿Qué tipo de grabación le conviene?', msg: '¿Qué tipo de grabación le conviene a este post y por qué?', enviar: true },
+  { t: 'Guíame con el checklist para grabarlo', msg: 'Guíame con el checklist antes de grabar este post.', enviar: true },
+  { t: 'Revisa mi guion o video', ayuda: SUG_AYUDA_GUION },
+];
 const SUG_IMAGEN = [
   { t: 'Foto de producto', msg: 'Foto de producto sobre fondo neutro, luz natural, estilo minimalista' },
   { t: 'Miniatura de video', msg: 'Miniatura llamativa para un video, con espacio para el título, colores vivos' },
@@ -416,11 +442,14 @@ const SUG_IMAGEN = [
 ];
 
 function placeholderActual(){
+  const sel = typeof itemPx === 'function' ? itemPx() : null;
+  if (sel && modo === 'guia') return esMovil() ? `¿Qué necesitas para «${sel.gancho || 'tu post'}»?` : `Escribe qué necesitas para «${sel.gancho || 'tu post'}»: guion en escenas, tipo de grabación, checklist, feedback…`;
   if (modo === 'guia') {
     return esMovil()
       ? 'Soy tu guía para grabar. Pregúntame o pega tu guion…'
       : 'Soy tu guía: antes de grabar revisa el checklist y las mejores herramientas de IA para hacerlo… Pregúntame, o pega tu guion o la descripción de tu video y te doy feedback.';
   }
+  if (sel) return esMovil() ? `Describe la imagen para «${sel.gancho || 'tu post'}» (o envía así)` : `Imagen para «${sel.gancho || 'tu post'}»: sale en formato reel con la tipografía y colores de tu ADN. Añade una indicación o envía tal cual. Límite de ${imggenLimite} imágenes al día por marca.`;
   return esMovil()
     ? `Describe la imagen que necesitas… (máx. ${imggenLimite} al día por marca)`
     : `Describe la imagen que necesitas (para un post, un anuncio, una miniatura) y la IA la genera. Límite de ${imggenLimite} imágenes al día por marca.`;
@@ -461,9 +490,27 @@ function setBusy(v){
 let sugLista = [];
 let sugActiva = -1;
 function normSug(s){ return (s || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+// Publicaciones (posts, historias, campañas) que salen en la lista al buscar, como los videos en el buscador de YouTube.
+const TIPO_POST_PX = { contenido: 'Post', historias: 'Historia', campanas: 'Campaña' };
+function postsBuscadorPx(texto){
+  const todos = [];
+  ['contenido', 'historias', 'campanas'].forEach((tab) => (contenidoPx[tab] || []).forEach((r) => todos.push({ r, tab })));
+  const q = normSug(texto).trim();
+  const actual = trabajoPx ? trabajoPx.id : null;
+  let lista;
+  if (!q) {
+    lista = [].concat(proximosPx(contenidoPx.contenido).map((r) => ({ r, tab: 'contenido' })), proximosPx(contenidoPx.historias).map((r) => ({ r, tab: 'historias' })),
+      proximosPx(contenidoPx.campanas).map((r) => ({ r, tab: 'campanas' }))).slice(0, 3);
+  } else {
+    const pals = q.split(/\s+/).filter(Boolean);
+    lista = todos.filter(({ r, tab }) => { const n = normSug([r.gancho, TIPO_POST_PX[tab], ESTADO_PX[estadoPx(r)].txt].join(' ')); return pals.every((p) => n.includes(p)); }).slice(0, 4);
+  }
+  return lista.filter(({ r }) => r.id !== actual).map(({ r, tab }) => ({ post: r, tab, t: r.gancho || '(sin título)' }));
+}
 function sugerenciasPx(texto){
   let base;
   if (modo === 'imagen') base = SUG_IMAGEN;
+  else if (trabajoPx && itemPx()) base = SUG_POST;
   else if (!chatMessages.length) base = SUG_GUIA_INICIO;
   else {
     const ult = [...chatMessages].reverse().find((m) => m.role === 'assistant' && !m.error);
@@ -471,16 +518,25 @@ function sugerenciasPx(texto){
     base = (preguntaTipo ? SUG_ANUNCIO_ORGANICO : []).concat(SUG_GUIA_SEGUIR);
   }
   const q = normSug(texto).trim();
-  if (!q) return base.slice(0, 5);
-  const pals = q.split(/\s+/).filter(Boolean);
-  return base.filter((s) => { const n = normSug(s.t); return pals.every((p) => n.includes(p)); }).slice(0, 5);
+  const posts = modo === 'guia' ? postsBuscadorPx(texto) : [];
+  const generales = !q ? base.slice(0, 5 - posts.length)
+    : base.filter((s) => { const n = normSug(s.t); return q.split(/\s+/).filter(Boolean).every((p) => n.includes(p)); }).slice(0, 3);
+  return posts.concat(generales).slice(0, 6);
 }
 function pintarSugerencias(){
   const box = $('sug-lista'), ta = $('chat-input');
   sugLista = document.activeElement === ta ? sugerenciasPx(ta.value) : [];
   sugActiva = -1;
   if (!sugLista.length) { ocultarSugerencias(); return; }
-  box.innerHTML = sugLista.map((s, i) => `<button type="button" class="sug-item" role="option" data-i="${i}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span>${escHtml(s.t)}</span></button>`).join('');
+  box.innerHTML = sugLista.map((s, i) => {
+    const sep = (i > 0 && !s.post && sugLista[i - 1].post) ? '<div class="sug-sep"></div>' : '';
+    if (s.post) {
+      const c = ESTADO_PX[estadoPx(s.post)];
+      const mini = s.post.miniatura ? `<img src="${escHtml(s.post.miniatura)}" alt="">` : (s.tab === 'historias' ? '⭕' : s.tab === 'campanas' ? '📣' : '🎬');
+      return `<button type="button" class="sug-item sug-post" role="option" data-i="${i}" style="--a:${c.a};--b:${c.b}"><span class="sug-mini">${mini}</span><span class="sug-txt"><b>${escHtml(s.t)}</b><small>${TIPO_POST_PX[s.tab]} · ${c.txt} · ${fechaCortaPx(s.post.fecha)}</small></span></button>`;
+    }
+    return `${sep}<button type="button" class="sug-item" role="option" data-i="${i}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span>${escHtml(s.t)}</span></button>`;
+  }).join('');
   box.hidden = false;
   box.querySelectorAll('.sug-item').forEach((b) => {
     b.addEventListener('mousedown', (e) => e.preventDefault()); // no le quita el foco a la barra
@@ -505,6 +561,8 @@ function elegirSugerencia(i){
   if (!s) return;
   ocultarSugerencias();
   const el = $('chat-input');
+  // Un post de la lista se elige como al buscar un video: se limpia la búsqueda y se escribe la indicación.
+  if (s.post) { seleccionarPostPx(s.tab, s.post.id); el.value = ''; autoAlto(); el.focus(); return; }
   if (s.enviar) { enviarMensajeChat(s.msg); return; }
   if (s.ayuda) { el.value = ''; el.placeholder = s.ayuda; autoAlto(); el.focus(); return; }  // sin mensaje automático
   el.value = s.msg; autoAlto(); el.focus();
@@ -546,7 +604,7 @@ function pintarChatThread(){
   ubicarComposer();
   if (!chatMessages.length) { box.innerHTML = ''; pintarSugerencias(); return; }
   box.innerHTML = chatMessages.map((m) => {
-    if (m.role === 'user') return `<div class="bubble user">${escHtml(m.content)}</div>`;
+    if (m.role === 'user') return `<div class="bubble user">${m.postTit ? `<span class="bubble-post">📌 ${escHtml(m.postTit)}</span>` : ''}${escHtml(m.content)}</div>`;
     if (m.error) return `<div class="bubble error">${escHtml(m.content)}</div>`;
     return `<div class="bubble assistant">${mdLigero(m.content)}</div>`;
   }).join('') + (chatBusy ? '<div class="bubble assistant px-typing" aria-label="Escribiendo"><span></span><span></span><span></span></div>' : '');
@@ -558,6 +616,24 @@ function persistirConversacion(){
   window.storage.set(CONVERSACION_KEY, JSON.stringify(chatMessages)).catch(() => {});
 }
 
+// Resumen en texto del post elegido: se manda con la indicación del chat para que el Jefe responda sobre ese post.
+function contextoPostPx(r, tab){
+  const c = r.raw || {};
+  const esCamp = tab === 'campanas';
+  const filas = (esCamp ? [
+    ['Título', r.gancho], ['Formato', c.formato], ['Etapa', c.etapa], ['Hook', c.hook], ['Objetivo', c.objetivo], ['Ángulo', c.angulo], ['Audiencia', c.audiencia],
+    ['Copy', c.copy_publicacion], ['Visual sugerido', c.visual_sugerido], ['Duración', c.duracion_sugerida], ['Guion', c.guion],
+  ] : [
+    ['Título', r.gancho], ['Formato', r.formato || (tab === 'historias' ? 'historia' : '')], ['Idea', r.ganchoIdea || r.descripcion], ['Caption', r.caption], ['Guion', r.guion], ['Notas', r.notas],
+  ]).map(([k, v]) => [k, txtPx(v)]).filter(([, v]) => v);
+  filas.push(['Estado', ESTADO_PX[estadoPx(r)].txt]);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(r.fecha || '')) filas.push(['Fecha', r.fecha]);
+  return `[Publicación sobre la que trabajo — ${TIPO_POST_PX[tab]}]\n` + filas.map(([k, v]) => `${k}: ${v.length > 700 ? v.slice(0, 700) + '…' : v}`).join('\n');
+}
+// Lo que se manda al servidor: cada mensaje con el resumen del post si lo trae (solo se ve el texto que escribiste).
+function mensajesParaApi(){
+  return chatMessages.map((m) => ({ role: m.role, content: m.ctx ? m.ctx + '\n\nMi indicación: ' + m.content : m.content }));
+}
 async function llamarAgente(){
   chatBusy = true; setBusy(true);
   setStatus('⏳ Leyendo tu ADN para responderte...');
@@ -566,7 +642,7 @@ async function llamarAgente(){
     const response = await fetch(API, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agente: 'diseno', messages: chatMessages, cliente: CLIENTE_ID }),
+      body: JSON.stringify({ agente: 'diseno', messages: mensajesParaApi(), cliente: CLIENTE_ID }),
     });
     const data = await response.json();
     // Si el servidor responde 402 (tope de tokens) o cualquier error, se muestra data.error tal cual.
@@ -586,7 +662,14 @@ function enviarMensajeChat(textoDirecto){
   const el = $('chat-input');
   const texto = (typeof textoDirecto === 'string' ? textoDirecto : el.value).trim();
   if (!texto) { setStatus('⚠️ Escribe tu mensaje primero.', true); return; }
-  chatMessages.push({ role: 'user', content: texto });
+  const msg = { role: 'user', content: texto };
+  const sel = itemPx();
+  if (sel) {
+    // El resumen del post se manda una vez; si cambias de post, se manda el nuevo.
+    const ultCtx = [...chatMessages].reverse().find((m) => m.role === 'user' && m.postId);
+    if (!ultCtx || ultCtx.postId !== sel.id) { msg.ctx = contextoPostPx(sel, trabajoPx.tab); msg.postId = sel.id; msg.postTit = sel.gancho || '(sin título)'; }
+  }
+  chatMessages.push(msg);
   if (typeof textoDirecto !== 'string') { el.value = ''; autoAlto(); }
   chatPlegado = false;
   pintarChatThread();
@@ -675,7 +758,9 @@ async function generarImagen(){
   if (imggenBusy) return;
   const el = $('chat-input');
   const prompt = el.value.trim();
-  if (!prompt && !refImagen) { setStatus('⚠️ Describe primero la imagen que necesitas, o adjunta una de referencia.', true); return; }
+  const sel = itemPx();
+  const selTab = trabajoPx ? trabajoPx.tab : null;
+  if (!prompt && !refImagen && !sel) { setStatus('⚠️ Describe primero la imagen que necesitas, elige un post, o adjunta una de referencia.', true); return; }
   const galeria = $('imggen-result');
   const conReferencia = !!refImagen;
 
@@ -691,6 +776,8 @@ async function generarImagen(){
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(Object.assign(
         { agente: 'diseno-imagen', prompt, cliente: CLIENTE_ID },
+        // Con un post elegido, la imagen sale sobre ese post (formato reel y tipografía/colores del ADN los pone el servidor).
+        sel ? { post: { titulo: sel.gancho || '', formato: (trabajoPx.tab === 'campanas' ? ((sel.raw || {}).formato || '') : (sel.formato || (trabajoPx.tab === 'historias' ? 'historia' : ''))), contexto: contextoPostPx(sel, trabajoPx.tab) } } : {},
         refImagen ? { imagen: { mediaType: refImagen.mediaType, data: refImagen.data } } : {}
       )),
     });
@@ -702,13 +789,29 @@ async function generarImagen(){
     } else {
       const card = document.createElement('div');
       card.className = 'imggen-card';
-      const titulo = prompt || 'Parecida a la imagen de referencia';
+      const titulo = prompt || (sel ? 'Imagen para «' + (sel.gancho || 'tu post') + '»' : 'Parecida a la imagen de referencia');
       card.innerHTML = `<img src="${data.image}" alt="${escHtml(titulo)}">
-        <p class="imggen-prompt">${conReferencia ? '📎 ' : ''}${escHtml(titulo)}</p>
+        <p class="imggen-prompt">${conReferencia ? '📎 ' : ''}${sel && prompt ? '📌 ' + escHtml(sel.gancho || '') + ' — ' : ''}${escHtml(titulo)}</p>
         <div class="imggen-acciones">
           <a class="imggen-download" href="${data.image}" download="imagen-${Date.now()}.png">Descargar</a>
           <button type="button" class="imggen-usar">Usar como referencia</button>
+          ${sel ? '<button type="button" class="imggen-usar imggen-guardar">📌 Guardar en el post</button>' : ''}
         </div>`;
+      if (sel) {
+        const tabSel = selTab, idSel = sel.id;
+        const bg = card.querySelector('.imggen-guardar');
+        bg.addEventListener('click', async () => {
+          bg.disabled = true; bg.textContent = 'Guardando…';
+          try {
+            const mini = await miniaturaChicaPx(data.image);
+            if (!mini) throw new Error('No se pudo preparar la imagen.');
+            await guardarMiniaturaEnPostPx(tabSel, idSel, mini);
+            sel.miniatura = mini; if (sel.raw) sel.raw.miniatura = mini;
+            bg.textContent = '✅ Guardada en el post';
+            pintarTrabajoPx(); pintarProximos();
+          } catch (e) { bg.disabled = false; bg.textContent = '⚠️ No se pudo guardar — reintentar'; }
+        });
+      }
       card.querySelector('.imggen-usar').addEventListener('click', () => {
         adjuntarReferencia(data.image, 'Imagen generada');
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -838,11 +941,21 @@ function itemPx(){
   if (!trabajoPx) return null;
   return (contenidoPx[trabajoPx.tab] || []).find((r) => r.id === trabajoPx.id) || null;
 }
-function elegirTrabajoPx(tab, id){
+function seleccionarPostPx(tab, id){
   confirmPx = null;
   detallePx = false;
-  trabajoPx = (trabajoPx && trabajoPx.id === id) ? null : { tab, id };
+  trabajoPx = { tab, id };
   pintarTrabajoPx(); pintarProximos();
+  $('chat-input').placeholder = placeholderActual(); autoAlto();
+}
+function elegirTrabajoPx(tab, id){
+  if (trabajoPx && trabajoPx.id === id) { quitarTrabajoPx(); return; }
+  seleccionarPostPx(tab, id);
+}
+function quitarTrabajoPx(){
+  trabajoPx = null; confirmPx = null; detallePx = false;
+  pintarTrabajoPx(); pintarProximos();
+  $('chat-input').placeholder = placeholderActual(); autoAlto();
 }
 async function cargarCatalogoPx(){
   if (catalogoPx) return;
@@ -901,21 +1014,90 @@ function pintarTrabajoPx(){
   box.innerHTML = `<div class="px-trabajo-txt"><span class="px-trabajo-lbl">Trabajando en</span><strong>${escHtml(r.gancho || '(sin título)')}</strong></div>
     <div class="px-trabajo-btns">
       <button type="button" class="px-btn" data-px="ver" aria-expanded="${detallePx}">👁️ ${detallePx ? 'Ocultar post' : 'Ver post'}</button>
-      <button type="button" class="px-btn" disabled title="Muy pronto">🖼️ Imagen (pronto)</button>
+      <button type="button" class="px-btn" data-px="imagen">🖼️ Imagen con IA</button>
       <button type="button" class="px-btn" data-px="video">🎬 Prompt de video</button>
       <button type="button" class="link-btn" data-px="quitar">Quitar</button>
-    </div>${detallePx ? detalleHtmlPx(r, trabajoPx.tab) : ''}${confirmarPxHtml()}`;
+    </div>${progresoPxHtml(r, trabajoPx.tab)}${detallePx ? detalleHtmlPx(r, trabajoPx.tab) : ''}${confirmarPxHtml()}`;
   box.querySelectorAll('[data-px]').forEach((b) => b.addEventListener('click', async () => {
     const a = b.dataset.px;
-    if (a === 'quitar') { trabajoPx = null; confirmPx = null; detallePx = false; pintarTrabajoPx(); pintarProximos(); }
+    if (a === 'quitar') quitarTrabajoPx();
     else if (a === 'ver') {
       detallePx = !detallePx;
       if (detallePx) await cargarCatalogoPx();
       pintarTrabajoPx();
     }
+    else if (a === 'imagen') accionPasoPx('img', false);
     else usarPromptPx(a);
   }));
+  box.querySelectorAll('[data-paso]').forEach((b) => b.addEventListener('click', () => accionPasoPx(b.dataset.paso, b.classList.contains('ok'))));
   enlazarConfirmarPx(box);
+}
+// Avance de la publicación: qué ya tiene (✓) y qué le falta; tocar un paso pendiente hace que el Jefe te ayude ahí mismo.
+function pasosPx(r, tab){
+  const c = r.raw || {};
+  const esCamp = tab === 'campanas';
+  const formato = esCamp ? c.formato : (r.formato || (tab === 'historias' ? 'historia' : 'reel'));
+  const hay = (...v) => v.some((x) => txtPx(x));
+  const pasos = [
+    { id: 'post', t: 'Post', ok: esCamp ? hay(c.guion, c.hook, c.visual_sugerido, c.objetivo) : hay(r.guion, r.ganchoIdea, r.descripcion), falta: 'el guion o la idea', accion: 'armar el guion con el Jefe' },
+    { id: 'copy', t: 'Copy', ok: hay(r.caption), falta: 'el copy', accion: 'escribir el copy con el Jefe' },
+    { id: 'pimg', t: 'Prompt imagen', ok: hay(r.promptImagen), falta: 'el prompt de imagen', accion: 'crear el prompt de imagen' },
+    { id: 'img', t: 'Imagen', ok: !!r.miniatura, falta: 'la imagen', accion: 'crear la imagen con IA' },
+  ];
+  if (['reel', 'video', 'historia'].includes(formato)) pasos.push({ id: 'pvid', t: 'Prompt video', ok: hay(r.promptVideo), falta: 'el prompt de video', accion: 'crear el prompt de video' });
+  return pasos;
+}
+function progresoPxHtml(r, tab){
+  const pasos = pasosPx(r, tab);
+  const faltan = pasos.filter((p) => !p.ok);
+  const sig = faltan[0];
+  const lista = faltan.map((p) => p.falta);
+  const txtFalta = lista.length ? `Te falta ${lista.length > 1 ? lista.slice(0, -1).join(', ') + ' y ' + lista[lista.length - 1] : lista[0]}.` : '✅ Esta publicación ya tiene todo.';
+  return `<div class="px-progreso">
+    <div class="px-pasos" role="list">${pasos.map((p) => `<button type="button" class="px-paso${p.ok ? ' ok' : ''}${sig && sig.id === p.id ? ' sig' : ''}" role="listitem" data-paso="${p.id}" title="${p.ok ? 'Listo — toca para verlo' : 'Falta — toca para ' + p.accion}"><span class="px-paso-c">${p.ok ? '✓' : ''}</span>${p.t}</button>`).join('')}</div>
+    <p class="px-falta"><b>${ESTADO_PX[estadoPx(r)].txt}.</b> ${txtFalta}</p>
+    ${sig ? `<div><button type="button" class="px-btn px-btn-ok" data-paso="${sig.id}">✨ Siguiente: ${sig.accion}</button></div>` : ''}
+  </div>`;
+}
+function accionPasoPx(id, ok){
+  const r = itemPx(); if (!r) return;
+  const alChat = () => { const b = $('px-chat-box'); if (b && !b.hidden) b.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
+  if (ok) {
+    if (id === 'pimg') usarPromptPx('imagen');
+    else if (id === 'pvid') usarPromptPx('video');
+    else { detallePx = true; cargarCatalogoPx().then(pintarTrabajoPx); }
+    return;
+  }
+  if (id === 'post') { setModo('guia'); enviarMensajeChat('Este post todavía no tiene guion. Propónme uno dividido en escenas, con base en su título y su idea.'); alChat(); }
+  else if (id === 'copy') { setModo('guia'); enviarMensajeChat('Este post todavía no tiene copy. Escríbeme el caption listo para copiar, con el tono de mi marca.'); alChat(); }
+  else if (id === 'pimg') usarPromptPx('imagen');
+  else if (id === 'pvid') usarPromptPx('video');
+  else if (id === 'img') { setModo('imagen'); const el = $('chat-input'); el.value = r.promptImagen || ''; autoAlto(); generarImagen(); }
+}
+// La imagen creada se puede dejar como imagen del post (se reduce para que pese poco).
+function miniaturaChicaPx(dataUrl){
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, 540 / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(img.naturalWidth * k)); c.height = Math.max(1, Math.round(img.naturalHeight * k));
+      const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(img, 0, 0, c.width, c.height);
+      resolve(c.toDataURL('image/jpeg', 0.8));
+    };
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
+  });
+}
+async function guardarMiniaturaEnPostPx(tab, id, miniatura){
+  const key = tab === 'campanas' ? ANUNCIOS_KEY : CONTENIDO_KEY;
+  const rr = await window.storage.get(key);
+  const d = rr && rr.value ? JSON.parse(rr.value) : null;
+  const lista = tab === 'campanas' ? d : (d && d[tab]);
+  const it = Array.isArray(lista) ? lista.find((x) => x && x.id === id) : null;
+  if (!it) throw new Error('No encontré la publicación para guardar la imagen.');
+  it.miniatura = miniatura;
+  await window.storage.set(key, JSON.stringify(d));
 }
 function textoVideoPx(titulo, prompt){
   return `Este es el prompt de video para mi post «${titulo}». Ayúdame a elegir la herramienta de IA ideal y a afinarlo:\n\n${prompt}`;
@@ -1078,12 +1260,13 @@ async function cargarContenidoPx(){
     contenidoPx.campanas = (Array.isArray(lista) ? lista : []).filter((c) => c && c.id).map((c) => ({
       id: c.id, gancho: c.titulo || '', estado: c.estado || 'idea', fecha: c.fecha || '', hora: c.hora || '',
       caption: c.copy_publicacion || '', descripcion: c.objetivo || '',
-      promptImagen: c.prompt_imagen || '', promptVideo: c.prompt_video || '',
+      promptImagen: c.prompt_imagen || '', promptVideo: c.prompt_video || '', miniatura: c.miniatura || '',
       raw: c,
     }));
   } catch (e) {}
   await aplicarTraspasoPx();
   pintarProximos(); pintarTrabajoPx();
+  $('chat-input').placeholder = placeholderActual(); autoAlto();
 }
 
 /* ─── INIT ─── */
