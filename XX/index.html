@@ -808,6 +808,28 @@
       if(!data.startDate || data.startDate > '2026-09-02') data.startDate = '2026-09-02';
       migratedList = true;
     }
+    if(!data.horasEstimadas){
+      // Las horas reales de esos dias se perdieron: se estima la de cada habito con el promedio de sus marcas reales y se marca est:true.
+      data.horasEstimadas = true;
+      var eSum = {}, eCnt = {};
+      Object.keys(data.habitChecks).forEach(function(day){
+        Object.keys(data.habitChecks[day] || {}).forEach(function(hid){
+          var en = data.habitChecks[day][hid], mm = en && !en.est && /^(\d{1,2}):(\d{2})/.exec(en.time || '');
+          if(mm){ eSum[hid] = (eSum[hid] || 0) + parseInt(mm[1],10) * 60 + parseInt(mm[2],10); eCnt[hid] = (eCnt[hid] || 0) + 1; }
+        });
+      });
+      Object.keys(data.habitChecks).forEach(function(day){
+        if(day >= todayKey) return;
+        Object.keys(data.habitChecks[day] || {}).forEach(function(hid){
+          var en = data.habitChecks[day][hid];
+          if(!en || en.time || !eCnt[hid]) return;
+          var avg = Math.round(eSum[hid] / eCnt[hid] / 5) * 5;
+          en.time = String(Math.floor(avg / 60)).padStart(2,'0') + ':' + String(avg % 60).padStart(2,'0');
+          en.est = true;
+        });
+      });
+      migratedList = true;
+    }
     if(!data.projectTagBackfill){
       data.projectTagBackfill = true;
       data.agenda.forEach(function(a){ if(!a.project){ var mp = matchProject(a.text); if(mp) a.project = mp; } });
@@ -1624,7 +1646,7 @@
     data.habits.forEach(function(h, hi){
       var e = dayChecks[h.id];
       var m = e ? toMin(e.time) : null;
-      if(m !== null) entries.push({h:h, min:m, color:HABIT_PALETTE[hi % HABIT_PALETTE.length]});
+      if(m !== null) entries.push({h:h, min:m, est:!!(e && e.est), color:HABIT_PALETTE[hi % HABIT_PALETTE.length]});
     });
     // marcas hechas que no tienen hora (por ejemplo las restauradas): se listan aparte para que el dia no se vea vacio
     var noTime = data.habits.filter(function(h){ var e = dayChecks[h.id]; return e && toMin(e.time) === null; });
@@ -1694,10 +1716,10 @@
         var dot = document.createElement('div');
         var selected = tlSelected === en.h.id;
         dot.style.cssText = 'position:absolute;left:calc('+pct+'% - 10px);top:'+top+'px;width:20px;height:20px;border-radius:50%;background:'+en.color+';border:2px solid '+(selected ? '#1F1B3D' : '#FFFFFF')+';cursor:grab;touch-action:none;z-index:2;';
-        dot.title = en.h.text + ' · ' + fromMin(en.min);
+        dot.title = en.h.text + ' · ' + (en.est ? '≈' : '') + fromMin(en.min);
         var timeLbl = document.createElement('div');
         timeLbl.style.cssText = 'position:absolute;left:calc('+pct+'% - 20px);top:'+(top + 21)+'px;width:40px;text-align:center;font-size:9px;color:'+en.color+';z-index:2;pointer-events:none;';
-        timeLbl.textContent = fromMin(en.min);
+        timeLbl.textContent = (en.est ? '≈' : '') + fromMin(en.min);
         wrap.appendChild(dot);
         wrap.appendChild(timeLbl);
 
@@ -1727,6 +1749,7 @@
           dot.style.cursor = 'grab';
           if(moved){
             data.habitChecks[tlDay][en.h.id].time = fromMin(curMin);
+            delete data.habitChecks[tlDay][en.h.id].est;
             tlSelected = en.h.id;
             save(); refreshHabitViews(); renderHabitsStats();
           } else {
@@ -1761,6 +1784,7 @@
         document.getElementById('jd-tl-time').addEventListener('change', function(){
           if(!this.value) return;
           data.habitChecks[tlDay][sel.h.id].time = this.value;
+          delete data.habitChecks[tlDay][sel.h.id].est;
           save(); refreshHabitViews(); renderHabitsStats();
         });
         document.getElementById('jd-tl-remove').addEventListener('click', function(){
@@ -1804,6 +1828,23 @@
         row.appendChild(lab); row.appendChild(inp); ntBox.appendChild(row);
       });
       box.appendChild(ntBox);
+    }
+
+    var hasEst = Object.keys(data.habitChecks).some(function(day){ return Object.keys(data.habitChecks[day] || {}).some(function(hid){ return data.habitChecks[day][hid] && data.habitChecks[day][hid].est; }); });
+    if(hasEst){
+      var estNote = document.createElement('div');
+      estNote.className = 'jd-sub'; estNote.style.cssText = 'margin-top:8px;';
+      estNote.innerHTML = '≈ = hora estimada (las reales de esos días se perdieron). ';
+      var estBtn = document.createElement('button');
+      estBtn.className = 'jd-sub'; estBtn.style.cssText = 'background:transparent;border:none;cursor:pointer;padding:0;text-decoration:underline;';
+      estBtn.textContent = 'Quitar todas las horas estimadas';
+      estBtn.addEventListener('click', function(){
+        if(!window.confirm('¿Quitar todas las horas estimadas? Los días siguen marcados, solo sin hora.')) return;
+        Object.keys(data.habitChecks).forEach(function(day){ Object.keys(data.habitChecks[day] || {}).forEach(function(hid){ var en = data.habitChecks[day][hid]; if(en && en.est){ delete en.time; delete en.est; } }); });
+        save(); refreshHabitViews(); renderHabitsStats();
+      });
+      estNote.appendChild(estBtn);
+      box.appendChild(estNote);
     }
 
     var missing = data.habits.filter(function(h){ return !(dayChecks[h.id]); });
