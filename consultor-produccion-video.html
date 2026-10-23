@@ -155,14 +155,25 @@
 
   /* "Trabajando en": Ver post (características) · Imagen (pronto) · Prompt de video */
   .px-progreso{flex:1 0 100%;display:flex;flex-direction:column;gap:10px;}
-  .px-pasos{display:flex;gap:0;width:100%;overflow-x:auto;padding:6px 2px 2px;}
-  .px-paso{position:relative;flex:1 0 auto;min-width:78px;display:flex;flex-direction:column;align-items:center;gap:8px;border:none;background:none;cursor:pointer;padding:0 4px;font:600 12.5px ui-monospace,'SFMono-Regular',Menlo,monospace;text-transform:uppercase;letter-spacing:.04em;color:var(--text);}
-  .px-paso::after{content:'';position:absolute;top:calc(100% - 15px);left:calc(50% + 20px);right:calc(-50% + 20px);border-top:2px dashed #8aa13a;}
+  .px-pasos{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:0;width:100%;padding:6px 0 2px;}
+  .px-paso{position:relative;min-width:0;display:flex;flex-direction:column;align-items:center;gap:8px;border:none;background:none;cursor:pointer;padding:0 2px;font:600 11.5px/1.2 ui-monospace,'SFMono-Regular',Menlo,monospace;text-transform:uppercase;letter-spacing:.02em;color:var(--text);text-align:center;}
+  .px-paso::after{content:'';position:absolute;top:14px;left:calc(50% + 20px);right:calc(-50% + 20px);border-top:2px dashed #8aa13a;}
   .px-paso:last-child::after{display:none;}
   .px-paso-c{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:#fff;border:2px dashed #8aa13a;color:#fff;font-size:16px;line-height:1;transition:.15s;}
   .px-paso.ok .px-paso-c{background:#0B6B54;border:2px solid #0B6B54;}
   .px-paso.sig .px-paso-c{border:2.5px solid var(--text);box-shadow:0 0 0 4px var(--accent);}
   .px-paso:hover .px-paso-c{transform:scale(1.1);}
+  .px-trabajo{position:relative;padding-right:46px;}
+  .px-quitar{position:absolute;top:10px;right:12px;width:28px;height:28px;border-radius:50%;border:none;background:rgba(0,0,0,.07);color:var(--text);font-size:14px;cursor:pointer;}
+  .px-quitar:hover{background:rgba(0,0,0,.15);}
+  .px-modal{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;}
+  .px-modal-card{position:relative;width:100%;max-width:640px;max-height:88vh;overflow-y:auto;background:var(--surface);border-radius:24px 24px 0 0;padding:20px 18px 26px;}
+  .px-modal-card h3{margin:0 40px 14px 0;font:800 18px 'Sora',sans-serif;}
+  .px-modal-x{position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:50%;border:none;background:rgba(0,0,0,.07);color:var(--text);font-size:15px;cursor:pointer;}
+  .px-modal .px-detalle{border-top:none;margin:0;padding:0;}
+  .px-modal-img{display:block;width:100%;max-height:70vh;object-fit:contain;border-radius:14px;}
+  .px-modal .px-confirm-btns{margin-top:12px;}
+  @media (min-width:700px){.px-modal{align-items:center;padding:24px;}.px-modal-card{border-radius:24px;}}
   .px-falta{font-size:14px;color:var(--text);margin:0;}
   .px-falta b{font-weight:700;}
   .px-btn:disabled{opacity:.55;cursor:default;border-style:dashed;}
@@ -301,7 +312,7 @@
           <span class="mode-status" id="chat-status"></span>
         </div>
         <div class="ref-row" id="ref-row" style="display:none;">
-          <span class="ref-hint" id="ref-hint">Puedes adjuntar con el clip, o pegar (Ctrl+V), una imagen de referencia para que la IA cree una parecida</span>
+          <span class="ref-hint" id="ref-hint">Foto de referencia (opcional): clip 📎 o Ctrl+V</span>
           <span class="ref-preview" id="ref-preview"><img alt=""><span></span><button type="button" id="ref-quitar" title="Quitar imagen" aria-label="Quitar imagen">✕</button></span>
         </div>
       </div>
@@ -443,16 +454,14 @@ const SUG_IMAGEN = [
 
 function placeholderActual(){
   const sel = typeof itemPx === 'function' ? itemPx() : null;
-  if (sel && modo === 'guia') return esMovil() ? `¿Qué necesitas para «${sel.gancho || 'tu post'}»?` : `Escribe qué necesitas para «${sel.gancho || 'tu post'}»: guion en escenas, tipo de grabación, checklist, feedback…`;
+  if (sel && modo === 'guia') return '¿Qué necesitas para este post?';
   if (modo === 'guia') {
     return esMovil()
-      ? 'Soy tu guía para grabar. Pregúntame o pega tu guion…'
-      : 'Soy tu guía: antes de grabar revisa el checklist y las mejores herramientas de IA para hacerlo… Pregúntame, o pega tu guion o la descripción de tu video y te doy feedback.';
+      ? 'Pregunta algo o busca un post…'
+      : 'Pregunta algo, pega tu guion o busca uno de tus posts…';
   }
-  if (sel) return esMovil() ? `Describe la imagen para «${sel.gancho || 'tu post'}» (o envía así)` : `Imagen para «${sel.gancho || 'tu post'}»: sale en formato reel con la tipografía y colores de tu ADN. Añade una indicación o envía tal cual. Límite de ${imggenLimite} imágenes al día por marca.`;
-  return esMovil()
-    ? `Describe la imagen que necesitas… (máx. ${imggenLimite} al día por marca)`
-    : `Describe la imagen que necesitas (para un post, un anuncio, una miniatura) y la IA la genera. Límite de ${imggenLimite} imágenes al día por marca.`;
+  if (sel) return 'Describe la imagen (opcional) y envía';
+  return 'Describe la imagen que necesitas…';
 }
 
 // Con el cuadro vacío, la altura se mide con el texto de ayuda (placeholder) para que se lea completo.
@@ -493,6 +502,7 @@ function normSug(s){ return (s || '').toString().toLowerCase().normalize('NFD').
 // Publicaciones (posts, historias, campañas) que salen en la lista al buscar, como los videos en el buscador de YouTube.
 const TIPO_POST_PX = { contenido: 'Post', historias: 'Historia', campanas: 'Campaña' };
 function postsBuscadorPx(texto){
+  if (trabajoPx && !normSug(texto).trim()) return []; // con un post elegido y sin escribir, solo van sus acciones
   const todos = [];
   ['contenido', 'historias', 'campanas'].forEach((tab) => (contenidoPx[tab] || []).forEach((r) => todos.push({ r, tab })));
   const q = normSug(texto).trim();
@@ -506,6 +516,19 @@ function postsBuscadorPx(texto){
     lista = todos.filter(({ r, tab }) => { const n = normSug([r.gancho, TIPO_POST_PX[tab], ESTADO_PX[estadoPx(r)].txt].join(' ')); return pals.every((p) => n.includes(p)); }).slice(0, 4);
   }
   return lista.filter(({ r }) => r.id !== actual).map(({ r, tab }) => ({ post: r, tab, t: r.gancho || '(sin título)' }));
+}
+// Lo que le falta al post elegido, como acciones al inicio de la lista del buscador. Lo que escribas en la barra va como indicaciones.
+function accionesPostPx(){
+  const r = itemPx(); if (!r) return [];
+  const p = Object.fromEntries(pasosPx(r, trabajoPx.tab).map((x) => [x.id, x.ok]));
+  const out = [];
+  if (modo === 'imagen') return [{ t: r.miniatura ? 'Hacer otra imagen de este post' : 'Hacer la imagen de este post', accion: 'img', ico: '🖼️' }];
+  if (!p.post) out.push({ t: 'Armar el guion de este post', accion: 'post', ico: '✨' });
+  if (!p.copy) out.push({ t: 'Escribir el copy de este post', accion: 'copy', ico: '✨' });
+  if (!p.pimg) out.push({ t: 'Hacer el prompt de imagen de este post', accion: 'pimg', ico: '🖼️' });
+  else out.push({ t: r.miniatura ? 'Hacer otra imagen de este post' : 'Hacer la imagen de este post', accion: 'img', ico: '🖼️' });
+  if (p.pvid === false) out.push({ t: 'Hacer el prompt de video de este post', accion: 'pvid', ico: '🎬' });
+  return out.slice(0, 3);
 }
 function sugerenciasPx(texto){
   let base;
@@ -521,7 +544,7 @@ function sugerenciasPx(texto){
   const posts = modo === 'guia' ? postsBuscadorPx(texto) : [];
   const generales = !q ? base.slice(0, 5 - posts.length)
     : base.filter((s) => { const n = normSug(s.t); return q.split(/\s+/).filter(Boolean).every((p) => n.includes(p)); }).slice(0, 3);
-  return posts.concat(generales).slice(0, 6);
+  return accionesPostPx().concat(posts, generales).slice(0, 7);
 }
 function pintarSugerencias(){
   const box = $('sug-lista'), ta = $('chat-input');
@@ -529,7 +552,8 @@ function pintarSugerencias(){
   sugActiva = -1;
   if (!sugLista.length) { ocultarSugerencias(); return; }
   box.innerHTML = sugLista.map((s, i) => {
-    const sep = (i > 0 && !s.post && sugLista[i - 1].post) ? '<div class="sug-sep"></div>' : '';
+    const sep = (i > 0 && !s.post && !s.accion && (sugLista[i - 1].post || sugLista[i - 1].accion)) ? '<div class="sug-sep"></div>' : '';
+    if (s.accion) return `<button type="button" class="sug-item" role="option" data-i="${i}"><span style="flex:0 0 auto;width:18px;text-align:center;">${s.ico}</span><span><b>${escHtml(s.t)}</b></span></button>`;
     if (s.post) {
       const c = ESTADO_PX[estadoPx(s.post)];
       const mini = s.post.miniatura ? `<img src="${escHtml(s.post.miniatura)}" alt="">` : (s.tab === 'historias' ? '⭕' : s.tab === 'campanas' ? '📣' : '🎬');
@@ -563,6 +587,7 @@ function elegirSugerencia(i){
   const el = $('chat-input');
   // Un post de la lista se elige como al buscar un video: se limpia la búsqueda y se escribe la indicación.
   if (s.post) { seleccionarPostPx(s.tab, s.post.id); el.value = ''; autoAlto(); el.focus(); return; }
+  if (s.accion) { ejecutarAccionPx(s.accion, el.value); return; }
   if (s.enviar) { enviarMensajeChat(s.msg); return; }
   if (s.ayuda) { el.value = ''; el.placeholder = s.ayuda; autoAlto(); el.focus(); return; }  // sin mensaje automático
   el.value = s.msg; autoAlto(); el.focus();
@@ -791,7 +816,7 @@ async function generarImagen(){
       card.className = 'imggen-card';
       const titulo = prompt || (sel ? 'Imagen para «' + (sel.gancho || 'tu post') + '»' : 'Parecida a la imagen de referencia');
       card.innerHTML = `<img src="${data.image}" alt="${escHtml(titulo)}">
-        <p class="imggen-prompt">${conReferencia ? '📎 ' : ''}${sel && prompt ? '📌 ' + escHtml(sel.gancho || '') + ' — ' : ''}${escHtml(titulo)}</p>
+        <p class="imggen-prompt">${conReferencia ? '📎 ' : ''}${sel && prompt ? '📌 ' + escHtml(sel.gancho || '') + ' — ' : ''}${escHtml(titulo.length > 140 ? titulo.slice(0, 140) + '…' : titulo)}</p>
         <div class="imggen-acciones">
           <a class="imggen-download" href="${data.image}" download="imagen-${Date.now()}.png">Descargar</a>
           <button type="button" class="imggen-usar">Usar como referencia</button>
@@ -891,7 +916,6 @@ const ESTADO_PX = {
 const MESES_PX = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 let contenidoPx = { contenido: [], historias: [], campanas: [] };
 let trabajoPx = null; // { tab, id }
-let detallePx = false; // ¿se ven las características de la publicación elegida ("Ver post")?
 let catalogoPx = null; // productos del ADN (para mostrar el nombre del producto); null = aún sin cargar
 const FORMATO_PX = { reel: 'Reel', video: 'Video', carrusel: 'Carrusel', imagen: 'Imagen', historia: 'Historia' };
 const ETAPA_PX = { adquisicion: 'Adquisición', consideracion: 'Consideración', conversion: 'Conversión' };
@@ -933,8 +957,7 @@ function pintarProximos(){
   host.hidden = false;
   const sec = (titulo, lista, tab) => lista.length
     ? `<div class="px-sec"><div class="px-sec-tit">${titulo}</div><div class="px-row">${lista.map((r) => tarjetaPx(r, tab)).join('')}</div></div>` : '';
-  host.innerHTML = '<div class="px-ayuda">Elige una publicación para trabajarla aquí con el Jefe Productor IA.</div>'
-    + sec('Próximos posts', posts, 'contenido') + sec('Próximas historias', hist, 'historias') + sec('Próximas campañas', camps, 'campanas');
+  host.innerHTML = sec('Próximos posts', posts, 'contenido') + sec('Próximas historias', hist, 'historias') + sec('Próximas campañas', camps, 'campanas');
   host.querySelectorAll('.px-card').forEach((b) => b.addEventListener('click', () => elegirTrabajoPx(b.dataset.tab, b.dataset.id)));
 }
 function itemPx(){
@@ -943,7 +966,6 @@ function itemPx(){
 }
 function seleccionarPostPx(tab, id){
   confirmPx = null;
-  detallePx = false;
   trabajoPx = { tab, id };
   pintarTrabajoPx(); pintarProximos();
   $('chat-input').placeholder = placeholderActual(); autoAlto();
@@ -953,7 +975,7 @@ function elegirTrabajoPx(tab, id){
   seleccionarPostPx(tab, id);
 }
 function quitarTrabajoPx(){
-  trabajoPx = null; confirmPx = null; detallePx = false;
+  trabajoPx = null; confirmPx = null;
   pintarTrabajoPx(); pintarProximos();
   $('chat-input').placeholder = placeholderActual(); autoAlto();
 }
@@ -972,7 +994,7 @@ function txtPx(v){
   return String(v).trim();
 }
 // "Ver post": lo que la publicación (post, historia o campaña) tiene guardado; solo se muestra lo que tenga datos.
-function detalleHtmlPx(r, tab){
+function detalleHtmlPx(r, tab, copyPrimero){
   const c = r.raw || {}; // campañas: la card original del Jefe de Anuncios
   const esCamp = tab === 'campanas';
   const chips = [];
@@ -1001,6 +1023,7 @@ function detalleHtmlPx(r, tab){
     ['Título', r.gancho], ['Idea', r.ganchoIdea || r.descripcion], ['Caption', r.caption], ['Guion', r.guion], ['Notas', notas],
     ['Prompt de imagen', r.promptImagen], ['Prompt de video', r.promptVideo],
   ]).map(([t, v]) => [t, txtPx(v)]).filter(([, v]) => v);
+  if (copyPrimero) bloques.sort((a, b) => (/^(Caption|Copy)/.test(b[0]) ? 1 : 0) - (/^(Caption|Copy)/.test(a[0]) ? 1 : 0));
   return `<div class="px-detalle">
     <div class="px-chips">${chips.map(([k, v]) => `<span class="px-chip"><b>${escHtml(k)}</b>${escHtml(v)}</span>`).join('')}</div>
     ${bloques.map(([t, v]) => `<div class="px-bloque"><span class="px-bloque-t">${escHtml(t)}</span><p>${escHtml(v)}</p></div>`).join('')}
@@ -1012,22 +1035,11 @@ function pintarTrabajoPx(){
   if (!r) { box.hidden = true; box.innerHTML = ''; return; }
   box.hidden = false;
   box.innerHTML = `<div class="px-trabajo-txt"><span class="px-trabajo-lbl">Trabajando en</span><strong>${escHtml(r.gancho || '(sin título)')}</strong></div>
-    <div class="px-trabajo-btns">
-      <button type="button" class="px-btn" data-px="ver" aria-expanded="${detallePx}">👁️ ${detallePx ? 'Ocultar post' : 'Ver post'}</button>
-      <button type="button" class="px-btn" data-px="imagen">🖼️ Imagen con IA</button>
-      <button type="button" class="px-btn" data-px="video">🎬 Prompt de video</button>
-      <button type="button" class="link-btn" data-px="quitar">Quitar</button>
-    </div>${progresoPxHtml(r, trabajoPx.tab)}${detallePx ? detalleHtmlPx(r, trabajoPx.tab) : ''}${confirmarPxHtml()}`;
+    <button type="button" class="px-quitar" data-px="quitar" title="Quitar" aria-label="Quitar">✕</button>
+    ${progresoPxHtml(r, trabajoPx.tab)}${confirmarPxHtml()}`;
   box.querySelectorAll('[data-px]').forEach((b) => b.addEventListener('click', async () => {
     const a = b.dataset.px;
     if (a === 'quitar') quitarTrabajoPx();
-    else if (a === 'ver') {
-      detallePx = !detallePx;
-      if (detallePx) await cargarCatalogoPx();
-      pintarTrabajoPx();
-    }
-    else if (a === 'imagen') accionPasoPx('img', false);
-    else usarPromptPx(a);
   }));
   box.querySelectorAll('[data-paso]').forEach((b) => b.addEventListener('click', () => accionPasoPx(b.dataset.paso, b.classList.contains('ok'))));
   enlazarConfirmarPx(box);
@@ -1039,40 +1051,84 @@ function pasosPx(r, tab){
   const formato = esCamp ? c.formato : (r.formato || (tab === 'historias' ? 'historia' : 'reel'));
   const hay = (...v) => v.some((x) => txtPx(x));
   const pasos = [
-    { id: 'post', t: 'Post', ok: esCamp ? hay(c.guion, c.hook, c.visual_sugerido, c.objetivo) : hay(r.guion, r.ganchoIdea, r.descripcion), falta: 'el guion o la idea', accion: 'armar el guion con el Jefe' },
-    { id: 'copy', t: 'Copy', ok: hay(r.caption), falta: 'el copy', accion: 'escribir el copy con el Jefe' },
-    { id: 'pimg', t: 'Prompt imagen', ok: hay(r.promptImagen), falta: 'el prompt de imagen', accion: 'crear el prompt de imagen' },
-    { id: 'img', t: 'Imagen', ok: !!r.miniatura, falta: 'la imagen', accion: 'crear la imagen con IA' },
+    { id: 'post', t: 'Post', ok: esCamp ? hay(c.guion, c.hook, c.visual_sugerido, c.objetivo) : hay(r.guion, r.ganchoIdea, r.descripcion), falta: 'guion', accion: 'armar el guion con el Jefe' },
+    { id: 'copy', t: 'Copy', ok: hay(r.caption), falta: 'copy', accion: 'escribir el copy con el Jefe' },
+    { id: 'pimg', t: 'Prompt imagen', ok: hay(r.promptImagen), falta: 'prompt de imagen', accion: 'crear el prompt de imagen' },
+    { id: 'img', t: 'Imagen', ok: !!r.miniatura, falta: 'imagen', accion: 'crear la imagen con IA' },
   ];
-  if (['reel', 'video', 'historia'].includes(formato)) pasos.push({ id: 'pvid', t: 'Prompt video', ok: hay(r.promptVideo), falta: 'el prompt de video', accion: 'crear el prompt de video' });
+  if (['reel', 'video', 'historia'].includes(formato)) pasos.push({ id: 'pvid', t: 'Prompt video', ok: hay(r.promptVideo), falta: 'prompt de video', oculto: true });
   return pasos;
 }
 function progresoPxHtml(r, tab){
-  const pasos = pasosPx(r, tab);
-  const faltan = pasos.filter((p) => !p.ok);
-  const sig = faltan[0];
-  const lista = faltan.map((p) => p.falta);
-  const txtFalta = lista.length ? `Te falta ${lista.length > 1 ? lista.slice(0, -1).join(', ') + ' y ' + lista[lista.length - 1] : lista[0]}.` : '✅ Esta publicación ya tiene todo.';
-  return `<div class="px-progreso">
-    <div class="px-pasos" role="list">${pasos.map((p) => `<button type="button" class="px-paso${p.ok ? ' ok' : ''}${sig && sig.id === p.id ? ' sig' : ''}" role="listitem" data-paso="${p.id}" title="${p.ok ? 'Listo — toca para verlo' : 'Falta — toca para ' + p.accion}"><span class="px-paso-c">${p.ok ? '✓' : ''}</span>${p.t}</button>`).join('')}</div>
-    <p class="px-falta"><b>${ESTADO_PX[estadoPx(r)].txt}.</b> ${txtFalta}</p>
-    ${sig ? `<div><button type="button" class="px-btn px-btn-ok" data-paso="${sig.id}">✨ Siguiente: ${sig.accion}</button></div>` : ''}
-  </div>`;
+  const pasos = pasosPx(r, tab).filter((p) => !p.oculto);
+  const sig = pasos.find((p) => !p.ok);
+  return `<div class="px-progreso"><div class="px-pasos" role="list">${pasos.map((p) => `<button type="button" class="px-paso${p.ok ? ' ok' : ''}${sig && sig.id === p.id ? ' sig' : ''}" role="listitem" data-paso="${p.id}" title="${p.ok ? 'Toca para verlo' : 'Falta — toca para hacerlo'}"><span class="px-paso-c">${p.ok ? '✓' : ''}</span>${p.t}</button>`).join('')}</div></div>`;
 }
+// Paso con ✓: se abre en una ventana. Paso pendiente: la barra de abajo ofrece hacerlo (lo que escribas allí son las indicaciones).
 function accionPasoPx(id, ok){
   const r = itemPx(); if (!r) return;
-  const alChat = () => { const b = $('px-chat-box'); if (b && !b.hidden) b.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
-  if (ok) {
-    if (id === 'pimg') usarPromptPx('imagen');
-    else if (id === 'pvid') usarPromptPx('video');
-    else { detallePx = true; cargarCatalogoPx().then(pintarTrabajoPx); }
-    return;
+  if (ok) { abrirPopupPx(id); return; }
+  setModo(id === 'img' ? 'imagen' : 'guia');
+  const el = $('chat-input');
+  $('px-composer').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.focus({ preventScroll: true });
+  pintarSugerencias();
+  const k = sugLista.findIndex((x) => x.accion === id);
+  if (k >= 0) { sugActiva = k; document.querySelectorAll('#sug-lista .sug-item').forEach((b, n) => b.classList.toggle('on', n === k)); }
+}
+function ejecutarAccionPx(accion, specs){
+  const r = itemPx(); if (!r) return;
+  specs = (specs || '').trim();
+  const el = $('chat-input');
+  ocultarSugerencias();
+  el.value = ''; autoAlto();
+  if (accion === 'post' || accion === 'copy') {
+    setModo('guia');
+    const base = accion === 'post'
+      ? 'Este post todavía no tiene guion. Propónme uno dividido en escenas, con base en su título y su idea.'
+      : 'Este post todavía no tiene copy. Escríbeme el caption listo para copiar, con el tono de mi marca.';
+    enviarMensajeChat(base + (specs ? ' Indicaciones: ' + specs : ''));
+  } else if (accion === 'pimg' || accion === 'pvid') {
+    setModo('guia');
+    crearPromptPx(accion === 'pimg' ? 'imagen' : 'video', specs ? { cambios: specs } : undefined);
+    $('px-trabajo').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } else if (accion === 'img') {
+    setModo('imagen');
+    el.value = [r.promptImagen, specs].filter(Boolean).join('\n\n'); autoAlto();
+    generarImagen();
+    el.value = ''; autoAlto();
   }
-  if (id === 'post') { setModo('guia'); enviarMensajeChat('Este post todavía no tiene guion. Propónme uno dividido en escenas, con base en su título y su idea.'); alChat(); }
-  else if (id === 'copy') { setModo('guia'); enviarMensajeChat('Este post todavía no tiene copy. Escríbeme el caption listo para copiar, con el tono de mi marca.'); alChat(); }
-  else if (id === 'pimg') usarPromptPx('imagen');
-  else if (id === 'pvid') usarPromptPx('video');
-  else if (id === 'img') { setModo('imagen'); const el = $('chat-input'); el.value = r.promptImagen || ''; autoAlto(); generarImagen(); }
+}
+// Ventana con el post, la publicación completa, el prompt de imagen o la imagen.
+function cerrarPopupPx(){
+  const m = $('px-modal'); if (m) m.remove();
+  document.removeEventListener('keydown', escPopupPx);
+}
+function escPopupPx(e){ if (e.key === 'Escape') cerrarPopupPx(); }
+async function abrirPopupPx(id){
+  const r = itemPx(); if (!r) return;
+  const tab = trabajoPx.tab;
+  await cargarCatalogoPx();
+  let titulo, cuerpo;
+  if (id === 'post' || id === 'copy') { titulo = id === 'copy' ? 'Publicación completa' : 'Post'; cuerpo = detalleHtmlPx(r, tab, id === 'copy'); }
+  else if (id === 'pimg') {
+    titulo = 'Prompt de imagen';
+    cuerpo = `<textarea class="px-confirm-txt" rows="9" readonly>${escHtml(r.promptImagen || '')}</textarea>
+      <div class="px-confirm-btns"><button type="button" class="px-btn" data-m="copiar">📋 Copiar</button><button type="button" class="px-btn px-btn-ok" data-m="img">🖼️ Hacer la imagen</button></div>`;
+  } else { titulo = 'Imagen'; cuerpo = `<img class="px-modal-img" src="${escHtml(r.miniatura || '')}" alt="">`; }
+  cerrarPopupPx();
+  const m = document.createElement('div');
+  m.className = 'px-modal'; m.id = 'px-modal';
+  m.innerHTML = `<div class="px-modal-card" role="dialog" aria-modal="true"><button type="button" class="px-modal-x" aria-label="Cerrar">✕</button><h3>${escHtml(titulo)}</h3>${cuerpo}</div>`;
+  m.addEventListener('click', (e) => { if (e.target === m || e.target.closest('.px-modal-x')) cerrarPopupPx(); });
+  m.querySelectorAll('[data-m]').forEach((b) => b.addEventListener('click', () => {
+    if (b.dataset.m === 'copiar') {
+      const antes = b.textContent;
+      navigator.clipboard.writeText(r.promptImagen || '').then(() => { b.textContent = '✅ Copiado'; setTimeout(() => { b.textContent = antes; }, 1800); });
+    } else { cerrarPopupPx(); ejecutarAccionPx('img', ''); }
+  }));
+  document.body.appendChild(m);
+  document.addEventListener('keydown', escPopupPx);
 }
 // La imagen creada se puede dejar como imagen del post (se reduce para que pese poco).
 function miniaturaChicaPx(dataUrl){
@@ -1120,21 +1176,16 @@ function confirmarPxHtml(){
   if (confirmPx.estado === 'error') return `<div class="px-confirm"><div class="px-confirm-t">⚠️ ${escHtml(confirmPx.error)}</div>
     <div class="px-confirm-btns"><button type="button" class="px-btn" data-pxc="otro">↻ Intentar de nuevo</button><button type="button" class="link-btn" data-pxc="cancelar">Cancelar</button></div></div>`;
   const titulo = confirmPx.existente
-    ? `Este es el prompt de ${nombre} de tu publicación, listo para copiar y pegar en Gemini. Úsalo tal cual, edítalo, o actualízalo / rehazlo con IA.`
-    : `Armé este prompt de ${nombre} con lo que ya tiene tu publicación, tus colores y el nombre de tu marca. Está listo para copiar y pegar en Gemini: revísalo (puedes editarlo) y confírmalo.`;
+    ? `Prompt de ${nombre} guardado. Puedes editarlo o pedir otra versión.`
+    : `Prompt de ${nombre} listo para Gemini. Revísalo, edítalo si quieres y confírmalo.`;
   return `<div class="px-confirm">
     <div class="px-confirm-t">${titulo}</div>
     <textarea class="px-confirm-txt" rows="6">${escHtml(confirmPx.texto)}</textarea>
-    ${confirmPx.tipo === 'imagen'
-      ? '<div class="px-confirm-t px-logo-tip">💡 <b>Sube tu logotipo</b> (en Gemini, junto con este prompt; aquí, como imagen de referencia con el clip 📎): el prompt ya indica en qué esquina colocarlo y trae el llamado a la acción dentro de la imagen.</div>'
-      : '<div class="px-confirm-t px-logo-tip">💡 <b>Sube tu logotipo a Gemini junto con este prompt</b>: el video dura de 15 a 20 segundos, lleva voz, cierra con el llamado a la acción y muestra tu logo al final.</div>'}
-    <div class="px-confirm-t px-confirm-sub">¿Qué quieres cambiar? <span>(opcional — escríbelo y lo ajusto; vacío = otra versión mejorada)</span></div>
-    <textarea class="px-confirm-cambios" rows="2" placeholder="Ej. más luz, que salga mi producto, otro estilo, más corto…">${escHtml(confirmPx.cambios || '')}</textarea>
+    <textarea class="px-confirm-cambios" rows="2" placeholder="¿Qué quieres cambiar? (opcional) Ej. más luz, otro estilo, más corto…">${escHtml(confirmPx.cambios || '')}</textarea>
     <div class="px-confirm-btns">
       <button type="button" class="px-btn px-btn-ok" data-pxc="ok">${confirmPx.tipo === 'imagen' ? '✅ Confirmar y crear imagen' : '✅ Confirmar y guardar'}</button>
-      <button type="button" class="px-btn" data-pxc="copiar">📋 Copiar para Gemini</button>
-      <button type="button" class="px-btn" data-pxc="actualizar">✏️ Actualizar prompt</button>
-      <button type="button" class="px-btn" data-pxc="otro">🔄 Rehacer desde cero</button>
+      <button type="button" class="px-btn" data-pxc="copiar">📋 Copiar</button>
+      <button type="button" class="px-btn" data-pxc="actualizar">🔄 Otra versión</button>
       <button type="button" class="link-btn" data-pxc="cancelar">Cancelar</button>
     </div></div>`;
 }
@@ -1150,7 +1201,7 @@ function enlazarConfirmarPx(box){
     else if (a === 'actualizar') crearPromptPx(confirmPx.tipo, { actual: confirmPx.texto, cambios: confirmPx.cambios });
     else if (a === 'copiar') {
       const antes = b.textContent;
-      navigator.clipboard.writeText(confirmPx.texto || '').then(() => { b.textContent = '✅ Copiado — pégalo en Gemini'; setTimeout(() => { b.textContent = antes; }, 1800); });
+      navigator.clipboard.writeText(confirmPx.texto || '').then(() => { b.textContent = '✅ Copiado'; setTimeout(() => { b.textContent = antes; }, 1800); });
     }
     else if (a === 'ok') confirmarPromptPx();
   }));
