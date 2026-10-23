@@ -104,13 +104,17 @@
     .pc-arranque { font: 700 12.5px "JetBrains Mono", monospace; padding: 5px 11px; border-radius: 99px; background: var(--accent-soft); color: var(--accent-texto); }
     .pc-head .ag-link { margin-left: auto; }
     .gantt-wrap { overflow-x: auto; padding-bottom: 6px; -webkit-overflow-scrolling: touch; }
-    .gantt { --colw: 30px; --lab: 196px; min-width: calc(var(--lab) + var(--n) * var(--colw) + 84px); }
-    .g-row { display: grid; grid-template-columns: var(--lab) minmax(0,1fr) 84px; align-items: stretch; border-bottom: 1px solid var(--line); }
+    .gantt { --colw: 30px; --lab: 196px; min-width: calc(var(--lab) + var(--n) * var(--colw) + 100px); }
+    .g-row { display: grid; grid-template-columns: var(--lab) minmax(0,1fr) 100px; align-items: stretch; border-bottom: 1px solid var(--line); }
     .g-row:last-child { border-bottom: 0; }
     .g-label { position: sticky; left: 0; z-index: 3; background: var(--surface); padding: 8px 12px 8px 2px; display: flex; flex-direction: column; justify-content: center; gap: 1px; min-width: 0; border: 0; text-align: left; cursor: pointer; color: var(--text); }
     .g-label b { font: 700 14px Inter, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .g-label small { font: 500 12px Inter, sans-serif; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .g-label:hover b { text-decoration: underline; }
+    a.g-label { text-decoration: none; }
+    .g-ref .g-label b { color: var(--text-dim); }
+    .g-ref + .g-row:not(.g-ref) { border-top: 2px solid var(--line); }
+    .g-bar.ref { pointer-events: none; cursor: default; box-shadow: none; border: 2px solid; color: var(--text); touch-action: auto; }
     .g-head > div:first-child { position: sticky; left: 0; z-index: 3; background: var(--surface); }
     .g-track { position: relative; display: grid; grid-template-columns: repeat(var(--n), minmax(0,1fr)); }
     .g-cell { min-height: 50px; border-left: 1px solid #F0F0F0; }
@@ -129,6 +133,7 @@
     .g-dur small { font: 500 11.5px Inter, sans-serif; color: var(--text-dim); }
     .g-dur .mio { color: var(--accent-texto); }
     .pc-pie { margin: 10px 2px 0; font-size: 13px; color: var(--text-dim); }
+    .pc-aviso { margin: 12px 2px 0; padding: 10px 14px; border-radius: 12px; background: var(--temp-soft, #FFF4D6); color: #7A4B00; font-size: 13.5px; line-height: 1.5; }
 
     /* ── Ventanas ── */
     .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 100; }
@@ -221,7 +226,7 @@
 
   <section class="ag-sec" id="sec-proceso">
     <h2>Tiempos del proceso de campaña</h2>
-    <p class="ag-intro">Cuando tu campaña tiene fecha de arranque, aquí se ponen todas las etapas de antes y de después: definir, estrategia y copys, grabar, editar, WhatsApp, programar, revisar y optimizar. Arrastra una barra para recorrer la etapa o toma su orilla derecha para alargarla; con lo que acomodes calculo cuánto dura realmente cada etapa en tu negocio. Toca una etapa para abrir el Jefe que te ayuda en ese momento.</p>
+    <p class="ag-intro">Cuando tu campaña tiene fecha de arranque, aquí se ponen todas las etapas de antes y de después: definir, estrategia y copys, grabar, editar, WhatsApp, programar, revisar y optimizar. Si ya pusiste fechas en el Jefe de Temporada (calendario final, precampaña o postcampaña) las respeto: las etapas se acomodan alrededor de ellas y lo que se produce para la precampaña termina antes de que empiece. Arrastra una barra para recorrer la etapa o toma su orilla derecha para alargarla; con lo que acomodes calculo cuánto dura realmente cada etapa en tu negocio. Toca una etapa para abrir el Jefe que te ayuda en ese momento.</p>
     <div class="ag-estado" id="ag-estado" role="status" aria-live="polite"></div>
     <div id="proceso-resumen"></div>
     <div id="proceso-lista"></div>
@@ -437,7 +442,10 @@ const planesVivos = () => {
   campanas.forEach((c) => { if (proceso.campanas[c.id]) out[c.id] = proceso.campanas[c.id]; });
   return out;
 };
-const planDe = (c) => AP.planEfectivo(proceso.campanas[c.id], promedio);
+// Plan de una campaña respetando las fechas que ya tiene en Jefe de Temporada (calendario final, precampaña, postcampaña).
+const anclasDe = (c) => AP.anclasDeCampana(c);
+const detalleDe = (c) => AP.detalleEfectivo(proceso.campanas[c.id], promedio, anclasDe(c));
+const planDe = (c) => detalleDe(c).plan;
 const calcularPromedio = () => { promedio = AP.promedios(planesVivos()); };
 
 // Cada campaña guarda su plan la primera vez que se ve (con el promedio de ese momento).
@@ -471,12 +479,32 @@ async function guardarProceso(ids, ganaRemoto) {
   }
 }
 async function fijarEtapa(campId, etapaId, ed) {
+  const c = campanas.find((x) => x.id === campId);
   const v = AP.limpiarEtapa({ d: ed.d, n: ed.n, u: 1 });
-  if (!v) return;
+  if (!c || !v) return;
+  const fuente = detalleDe(c).fuente[etapaId];      // si la fecha venía del calendario de Temporada, de qué fila
   (proceso.campanas[campId] = proceso.campanas[campId] || {})[etapaId] = v;
   calcularPromedio();
   render();
   await guardarProceso([campId], false);
+  await ofrecerActualizarTemporada(c, etapaId, v, fuente);
+}
+// La fecha de esta etapa la había puesto Jefe de Temporada: si el usuario la cambia aquí, se le pregunta si también se
+// actualiza allá (igual que al editar un evento), para que las dos copias no se desincronicen.
+async function ofrecerActualizarTemporada(c, etapaId, v, fuente) {
+  if (!fuente) return;
+  const nuevo = AP.fechasDe(c.fecha_inicio_activa, v).inicio;
+  if (nuevo === fuente.iso) return;
+  const e = AP.etapaPorId(etapaId);
+  if (!confirm('La fecha de "' + e.titulo + '" venía del calendario del Jefe de Temporada (' + fmtCorta(fuente.iso) + '). ¿Actualizarla también allá a ' + fmtCorta(nuevo) + '?')) return;
+  const row = (c.calendario || []).find((r) => r && r.id === fuente.rowId);
+  if (!row) return;
+  await sincronizarConFuente({ origen: 'temporada', origenId: c.id + ':' + fuente.campo + ':' + fuente.rowId, fecha: nuevo, estado: row.estado });
+  row.fecha = nuevo;
+  // la copia de ese evento en la Agenda también cambia (Temporada la vuelve a espejar cuando guarde)
+  const ev = agendaData.eventos.find((x) => x.id === 'temporada-' + c.id + '-' + fuente.campo + '-' + fuente.rowId);
+  if (ev) { ev.fecha = nuevo; try { await guardarAgenda(); } catch (err) {} }
+  render();
 }
 async function reiniciarEtapa(campId, etapaId) {
   const plan = proceso.campanas[campId];
@@ -486,7 +514,7 @@ async function reiniciarEtapa(campId, etapaId) {
   Object.keys(planesVivos()).forEach((id) => { planes[id] = Object.assign({}, proceso.campanas[id]); });
   delete planes[campId][etapaId];
   const base = AP.instantanea(AP.promedios(planes));
-  plan[etapaId] = { d: base[etapaId].d, n: base[etapaId].n };   // sin u: ya no cuenta como "ajustada por ti"
+  plan[etapaId] = { n: base[etapaId].n };   // vuelve a la duración sugerida y a su lugar según las fechas: ya no cuenta como "ajustada por ti"
   calcularPromedio();
   render();
   await guardarProceso([campId], false);
@@ -699,19 +727,21 @@ function renderProceso() {
   const visibles = todas.filter((c) => pasaFoco(alcanceDeCampana(c)));
   const sinFecha = campanas.filter((c) => !AP.esISO(c.fecha_inicio_activa) && c.estado !== 'cerrada' && pasaFoco(alcanceDeCampana(c)));
 
-  if (Object.keys(promedio).length) {
+  // Promedio real: las etapas salen de lo que el usuario ha acomodado; precampaña y postcampaña, de las fechas que ya puso en Temporada.
+  const pp = AP.promedioPrePost(todas.map(anclasDe));
+  if (Object.keys(promedio).length || pp.nPre || pp.nPost) {
     const fila = document.createElement('div');
     fila.className = 'prom-fila';
+    const chip = (html) => { const c = document.createElement('span'); c.className = 'prom-chip'; c.innerHTML = html; fila.appendChild(c); };
     AP.ETAPAS.filter((e) => promedio[e.id]).forEach((e) => {
-      const chip = document.createElement('span');
-      chip.className = 'prom-chip';
-      chip.innerHTML = esc(e.corto) + ': <b>' + diasTxt(promedio[e.id]) + '</b> <span style="color:var(--text-dim);">(recomendado ' + AP.recomendado(e.id).n + ')</span>';
-      fila.appendChild(chip);
+      chip(esc(e.corto) + ': <b>' + diasTxt(promedio[e.id]) + '</b> <span style="color:var(--text-dim);">(recomendado ' + AP.recomendado(e.id).n + ')</span>');
     });
+    if (pp.nPre) chip('Precampaña: <b>' + diasTxt(pp.pre) + '</b> <span style="color:var(--text-dim);">(' + pp.nPre + (pp.nPre === 1 ? ' campaña' : ' campañas') + ')</span>');
+    if (pp.nPost) chip('Postcampaña: <b>' + diasTxt(pp.post) + '</b> <span style="color:var(--text-dim);">(' + pp.nPost + (pp.nPost === 1 ? ' campaña' : ' campañas') + ')</span>');
     const t = document.createElement('p');
     t.className = 'ag-intro';
     t.style.margin = '0 0 8px';
-    t.textContent = 'Tu promedio real, según lo que has acomodado. Las campañas nuevas nacen con estos tiempos.';
+    t.textContent = 'Tu promedio real. Las etapas salen de lo que has acomodado (las campañas nuevas nacen con esos tiempos); la precampaña y la postcampaña, de las fechas que ya pusiste en el Jefe de Temporada.';
     resumen.appendChild(t);
     resumen.appendChild(fila);
   }
@@ -732,11 +762,26 @@ function renderProceso() {
   }
 }
 
+const ETIQUETA_ORIGEN = { usuario: 'ajustada', jefe: 'de Temporada', precampana: 'por precampaña', sugerido: 'sugerido' };
+const AYUDA_ORIGEN = {
+  usuario: 'La acomodaste tú.',
+  jefe: 'Su fecha viene del calendario del Jefe de Temporada.',
+  precampana: 'Se acomodó para terminar antes de que empiece la precampaña.',
+  sugerido: 'Tiempo sugerido según el arranque de la campaña.',
+};
+
 function tarjetaCampana(c) {
-  const plan = planDe(c), arr = c.fecha_inicio_activa, color = colorCampana(c);
-  const guardado = proceso.campanas[c.id] || {};
+  const det = detalleDe(c), plan = det.plan, anc = anclasDe(c), arr = c.fecha_inicio_activa, color = colorCampana(c);
+  // Fechas de referencia que ya tiene la campaña en Jefe de Temporada: precampaña, campaña y postcampaña (solo se ven, se editan allá).
+  const bandas = [];
+  if (anc.preInicio) bandas.push({ corto: 'Precampaña', sub: anc.preFuente === 'filas' ? 'Plan de calentamiento' : 'Duración en Temporada', ini: anc.preInicio, fin: AP.sumarDias(arr, -1), color: '#F2C230' });
+  bandas.push({ corto: 'Campaña', sub: 'Fechas de Temporada', ini: arr, fin: anc.fin || arr, color: '#84CC16' });
+  if (anc.postInicio) bandas.push({ corto: 'Postcampaña', sub: 'Acciones de Temporada', ini: anc.postInicio, fin: anc.postFin, color: '#38BDF8' });
+
   let min = null, max = null;
-  AP.ETAPAS.forEach((e) => { const f = AP.fechasDe(arr, plan[e.id]); if (min === null || f.inicio < min) min = f.inicio; if (max === null || f.fin > max) max = f.fin; });
+  const abarca = (ini, fin) => { if (min === null || ini < min) min = ini; if (max === null || fin > max) max = fin; };
+  AP.ETAPAS.forEach((e) => { const f = AP.fechasDe(arr, plan[e.id]); abarca(f.inicio, f.fin); });
+  bandas.forEach((b) => abarca(b.ini, b.fin));
   const iso0 = AP.sumarDias(min, -3), iso1 = AP.sumarDias(max, 3);
   const N = AP.diasEntre(iso0, iso1) + 1;
   const isoDe = (i) => AP.sumarDias(iso0, i);
@@ -755,6 +800,7 @@ function tarjetaCampana(c) {
   const g = document.createElement('div');
   g.className = 'gantt';
   g.style.setProperty('--n', N);
+  if (N > 34) g.style.setProperty('--colw', esMovil() ? '24px' : '22px');   // línea de tiempo larga (precampaña y postcampaña): columnas más angostas
   g.dataset.camp = c.id;
 
   // encabezado con los días
@@ -768,8 +814,43 @@ function tarjetaCampana(c) {
   head.innerHTML = '<div></div><div class="g-track">' + dias.join('') + '</div><div></div>';
   g.appendChild(head);
 
+  const celdasDeFondo = () => {
+    let celdas = '';
+    for (let i = 0; i < N; i++) { const dow = new Date(isoDe(i) + 'T00:00:00Z').getUTCDay(); celdas += '<div class="g-cell' + ((dow === 0 || dow === 6) ? ' fin-sem' : '') + '"></div>'; }
+    return celdas;
+  };
+  bandas.forEach((b) => {
+    const row = document.createElement('div');
+    row.className = 'g-row g-ref';
+    const label = document.createElement('a');
+    label.className = 'g-label';
+    label.href = rutaJefe('jefe-temporada') + '?campana=' + encodeURIComponent(c.id);
+    label.title = 'Estas fechas se cambian en el Jefe de Temporada';
+    label.innerHTML = '<b>' + esc(b.corto) + '</b><small>' + esc(b.sub) + '</small>';
+    row.appendChild(label);
+    const track = document.createElement('div');
+    track.className = 'g-track';
+    track.innerHTML = celdasDeFondo();      // sin data-iso: no son destino de arrastre
+    const n = AP.diasEntre(b.ini, b.fin) + 1;
+    const bar = document.createElement('div');
+    bar.className = 'g-bar ref';
+    bar.style.left = (AP.diasEntre(iso0, b.ini) / N * 100) + '%';
+    bar.style.width = (n / N * 100) + '%';
+    bar.style.background = b.color + '66';
+    bar.style.borderColor = b.color;
+    bar.title = b.corto + ' · ' + fmtCorta(b.ini) + (n > 1 ? ' → ' + fmtCorta(b.fin) : '') + ' (fechas del Jefe de Temporada)';
+    bar.textContent = n > 1 ? n + ' d' : '';
+    track.appendChild(bar);
+    row.appendChild(track);
+    const dur = document.createElement('div');
+    dur.className = 'g-dur';
+    dur.innerHTML = '<span>' + n + ' d</span><small>de Temporada</small>';
+    row.appendChild(dur);
+    g.appendChild(row);
+  });
+
   AP.ETAPAS.forEach((e) => {
-    const ed = plan[e.id], f = AP.fechasDe(arr, ed), propia = !!(guardado[e.id] && guardado[e.id].u);
+    const ed = plan[e.id], f = AP.fechasDe(arr, ed), origen = det.origen[e.id];
     const row = document.createElement('div');
     row.className = 'g-row';
 
@@ -822,14 +903,24 @@ function tarjetaCampana(c) {
     const rec = AP.recomendado(e.id);
     const dur = document.createElement('div');
     dur.className = 'g-dur';
-    dur.title = 'Recomendado: ' + diasTxt(rec.n) + (promedio[e.id] ? ' · Tu promedio: ' + diasTxt(promedio[e.id]) : '');
-    dur.innerHTML = (propia ? '<span class="mio">● ' : '<span>') + ed.n + ' d</span>' + (propia ? '<small>ajustada</small>' : '<small>sugerido</small>');
+    dur.title = AYUDA_ORIGEN[origen] + ' Recomendado: ' + diasTxt(rec.n) + (promedio[e.id] ? ' · Tu promedio: ' + diasTxt(promedio[e.id]) : '');
+    dur.innerHTML = (origen === 'usuario' ? '<span class="mio">● ' : origen === 'jefe' ? '<span class="mio">📌 ' : '<span>') + ed.n + ' d</span><small>' + ETIQUETA_ORIGEN[origen] + '</small>';
     row.appendChild(dur);
     g.appendChild(row);
   });
 
   wrap.appendChild(g);
   card.appendChild(wrap);
+  if (det.avisos.length) {      // fechas que chocan entre sí: se dicen, no se corrigen a escondidas
+    const aviso = document.createElement('p');
+    aviso.className = 'pc-aviso';
+    aviso.innerHTML = '⚠️ ' + det.avisos.slice(0, 3).map((a) => {
+      const e = AP.etapaPorId(a.etapa);
+      if (a.tipo === 'orden') return '<b>' + esc(e.corto) + '</b> queda antes que <b>' + esc(AP.etapaPorId(a.antes).corto) + '</b>: revisa las fechas del Jefe de Temporada o acomódalas aquí.';
+      return '<b>' + esc(e.corto) + '</b> termina después de que empieza la precampaña (' + esc(fmtCorta(anc.preInicio)) + ').';
+    }).join(' ');
+    card.appendChild(aviso);
+  }
   const pie = document.createElement('p');
   pie.className = 'pc-pie';
   pie.textContent = 'Arrastra una barra para recorrerla, toma su orilla derecha para alargarla, o tócala para abrir el Jefe que te ayuda en esa etapa.';
@@ -937,13 +1028,21 @@ function pintarModalEtapa() {
   const a = etapaActiva;
   const c = a && campanas.find((x) => x.id === a.campId);
   if (!c) { cerrar('overlay-etapa'); return; }
-  const e = AP.etapaPorId(a.etapaId), ed = planDe(c)[a.etapaId], f = AP.fechasDe(c.fecha_inicio_activa, ed);
-  const propia = !!((proceso.campanas[c.id] || {})[a.etapaId] || {}).u;
-  const rec = AP.recomendado(e.id);
+  const det = detalleDe(c);
+  const e = AP.etapaPorId(a.etapaId), ed = det.plan[a.etapaId], f = AP.fechasDe(c.fecha_inicio_activa, ed);
+  const origen = det.origen[a.etapaId], propia = origen === 'usuario';
+  const rec = AP.recomendado(e.id), anc = anclasDe(c);
   $('et-camp').textContent = nombreProducto(c) + (nombreCampana(c) !== nombreProducto(c) ? ' · ' + nombreCampana(c) : '');
   $('et-titulo').textContent = e.titulo;
+  let porque = AYUDA_ORIGEN[origen];
+  if (origen === 'precampana' && anc.preInicio) porque = 'Se acomodó para terminar antes de que empiece la precampaña (' + fmtCorta(anc.preInicio) + ').';
+  if (propia && det.fuente[a.etapaId]) {
+    porque = det.fuente[a.etapaId].iso === f.inicio
+      ? 'La acomodaste tú y coincide con la fecha del Jefe de Temporada.'
+      : 'La acomodaste tú; en el Jefe de Temporada esta etapa está el ' + fmtCorta(det.fuente[a.etapaId].iso) + '.';
+  }
   $('et-info').textContent = 'Dura ' + diasTxt(ed.n) + '. Recomendado: ' + diasTxt(rec.n) +
-    (promedio[e.id] ? ' · Tu promedio: ' + diasTxt(promedio[e.id]) : '') + (propia ? ' · Ajustada por ti.' : '.');
+    (promedio[e.id] ? ' · Tu promedio: ' + diasTxt(promedio[e.id]) : '') + '. ' + porque;
   $('et-inicio').value = f.inicio;
   $('et-fin').value = f.fin;
   const jefes = $('et-jefes');
