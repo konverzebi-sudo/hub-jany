@@ -41,6 +41,11 @@
   // Las campañas de temporada también se listan y al elegir una abren Jefe de Temporada con esa campaña (así no se duplica la estrategia).
   // window.__focoConfig.pagina: '366' | 'temporada' | cualquier otra cosa.
   var soloCompletos = !!(window.__focoConfig && window.__focoConfig.soloCompletos366);
+  // OPCIONAL (window.__focoConfig.marcarDesglose; también se activa con soloCompletos366): en la lista, los productos con
+  // desglose registrado llevan una palomita: su 366 completo (ficha, cliente ideal, sistema y comunicación) o una campaña
+  // de Jefe de Temporada que ya trae el "por qué este producto hace sentido". No esconde nada; solo marca.
+  var marcar = soloCompletos || !!(window.__focoConfig && window.__focoConfig.marcarDesglose);
+  var desgTemp = {};
   var pagina = (window.__focoConfig && window.__focoConfig.pagina) || '';
   var listarCampanas = conCampanas || (soloCompletos && pagina !== 'temporada');
   var campanasRedirigen = soloCompletos && !conCampanas && pagina !== 'temporada';
@@ -71,6 +76,9 @@
     '.foco-crear{background:#F1FFC2;margin:6px 0}',
     '.foco-crear:hover{background:#C0F800}',
     '.foco-sub{display:block;font-weight:500;font-size:12.5px;color:#5F5F5F;margin-top:2px}',
+    '.foco-ok{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#C0F800;color:#1A1A1A;font-size:11px;font-weight:800;margin-left:8px;vertical-align:middle;flex:0 0 auto}',
+    '.foco-desg{color:#4E7A00;font-weight:700}',
+    '.foco-leyenda{display:flex;align-items:center;gap:8px;padding:2px 2px 8px;font-size:13px;color:#5F5F5F}',
     '.foco-mas{display:block;width:100%;text-align:center;margin:8px 0 2px;padding:10px;border-radius:10px;border:1.5px dashed #C9C9C9;background:#fff;font-family:Inter,sans-serif;font-size:14px;font-weight:700;color:#1A1A1A;cursor:pointer}',
     '.foco-mas:hover{border-color:#4E7A00;background:#F8FFE0}',
     '.foco-nota{font-family:Inter,sans-serif;font-size:12.5px;color:#5F5F5F;padding:2px 10px 6px;line-height:1.45}',
@@ -200,7 +208,7 @@
     var n = parseFloat(String(v == null ? '' : v).replace(/[^0-9.\-]/g, ''));
     return isFinite(n) && n > 0 ? '$' + Math.round(n).toLocaleString('es-MX') : '';
   }
-  function opcion(id, nombre, sub, extra, alElegir, clase) {
+  function opcion(id, nombre, sub, extra, alElegir, clase, desg) {
     var b = document.createElement('button');
     b.type = 'button';
     b.className = 'foco-op' + (actual.id === id ? ' sel' : '') + (clase ? ' ' + clase : '');
@@ -209,10 +217,23 @@
     var izq = document.createElement('span');
     izq.className = 'n';
     izq.textContent = (actual.id === id ? '✓ ' : '') + nombre;
-    if (sub) {
+    if (desg) {
+      var ok = document.createElement('span');
+      ok.className = 'foco-ok';
+      ok.textContent = '✓';
+      ok.title = desgloseTexto(desg);
+      izq.appendChild(ok);
+    }
+    if (sub || desg) {
       var s = document.createElement('span');
       s.className = 'foco-sub';
-      s.textContent = sub;
+      s.textContent = sub || '';
+      if (desg) {
+        var d2 = document.createElement('span');
+        d2.className = 'foco-desg';
+        d2.textContent = (sub ? ' · ' : '') + desgloseTexto(desg);
+        s.appendChild(d2);
+      }
       izq.appendChild(s);
     }
     b.appendChild(izq);
@@ -276,9 +297,27 @@
     });
     return out;
   }
+  function desgloseTexto(m) {
+    return m.c366 && m.temp ? 'Desglose completo en Jefe 366 y en Temporada' : (m.c366 ? 'Desglose completo en Jefe 366' : 'Desglose en Jefe de Temporada');
+  }
+  function marcaDesglose(p) {
+    if (!marcar) return null;
+    var c366 = !!estadoDe(p).completo, temp = !!desgTemp[p.id];
+    return c366 || temp ? { c366: c366, temp: temp } : null;
+  }
+  function calcularDesgTemp(camps) {
+    desgTemp = {};
+    lista.forEach(function (p) {
+      var n = norm(p.nombre);
+      var ok = (camps || []).some(function (c) {
+        return c && c.producto_origen !== 'nuevo' && (c.producto_id === p.id || (c.producto_nombre && norm(c.producto_nombre) === n)) && tieneValor(c.prod_por_que);
+      });
+      if (ok) desgTemp[p.id] = true;
+    });
+  }
   function estadoDe(p) { return estado366[norm(p && p.nombre)] || { empezado: false, completo: false, faltan: TODO_FALTA.slice() }; }
   async function refrescar366(forzar) {
-    if (!soloCompletos) return;
+    if (!soloCompletos && !marcar) return;
     var ahora = Date.now();
     if (!forzar && ahora - ultimoRefresco366 < 10000) return;
     ultimoRefresco366 = ahora;
@@ -420,7 +459,7 @@
         porGrupo[gid].forEach(function (p) {
           var st = estadoDe(p);
           var sub = soloCompletos && !st.completo ? 'En proceso · ' + (TODO_FALTA.length - st.faltan.length) + ' de ' + TODO_FALTA.length + ' partes del 366' : (p.tipo || '');
-          menu.appendChild(opcion(p.id, String(p.nombre).trim(), sub, precioTexto(p.precio)));
+          menu.appendChild(opcion(p.id, String(p.nombre).trim(), sub, precioTexto(p.precio), null, '', marcaDesglose(p)));
         });
       });
     }
@@ -452,6 +491,12 @@
           menu.appendChild(opcion(p.id, String(p.nombre).trim(), 'Sin empezar', precioTexto(p.precio), function () { elegirIncompleto(p); }));
         });
       }
+    }
+    if (marcar && lista.some(function (p) { return marcaDesglose(p); })) {
+      var ley = document.createElement('div');
+      ley.className = 'foco-pie foco-leyenda';
+      ley.innerHTML = '<span class="foco-ok" style="margin:0">✓</span><span>Ya tiene su desglose completo en Jefe 366 o en Jefe de Temporada.</span>';
+      menu.appendChild(ley);
     }
     var pie = document.createElement('div');
     pie.className = 'foco-pie';
@@ -509,7 +554,8 @@
       sumarOfertas366(ofertas);
     }
     grupos = Array.isArray(gr) ? gr : [];
-    if (soloCompletos) await refrescar366(true);
+    if (marcar) calcularDesgTemp(await leer('temporada-campanas'));
+    if (soloCompletos || marcar) await refrescar366(true);
     if (listarCampanas && !modoTemporada) {
       var cs = await leer('temporada-campanas');
       var hoy = new Date().toISOString().slice(0, 10);
