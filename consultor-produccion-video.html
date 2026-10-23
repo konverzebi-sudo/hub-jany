@@ -155,14 +155,17 @@
 
   /* "Trabajando en": Ver post (características) · Imagen (pronto) · Prompt de video */
   .px-progreso{flex:1 0 100%;display:flex;flex-direction:column;gap:10px;}
-  .px-pasos{display:flex;gap:0;width:100%;overflow-x:auto;padding:6px 2px 2px;}
-  .px-paso{position:relative;flex:1 0 auto;min-width:78px;display:flex;flex-direction:column;align-items:center;gap:8px;border:none;background:none;cursor:pointer;padding:0 4px;font:600 12.5px ui-monospace,'SFMono-Regular',Menlo,monospace;text-transform:uppercase;letter-spacing:.04em;color:var(--text);}
-  .px-paso::after{content:'';position:absolute;top:calc(100% - 15px);left:calc(50% + 20px);right:calc(-50% + 20px);border-top:2px dashed #8aa13a;}
+  .px-pasos{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:0;width:100%;padding:6px 0 2px;}
+  .px-paso{position:relative;min-width:0;display:flex;flex-direction:column;align-items:center;gap:8px;border:none;background:none;cursor:pointer;padding:0 2px;font:600 11.5px/1.2 ui-monospace,'SFMono-Regular',Menlo,monospace;text-transform:uppercase;letter-spacing:.02em;color:var(--text);text-align:center;}
+  .px-paso::after{content:'';position:absolute;top:14px;left:calc(50% + 20px);right:calc(-50% + 20px);border-top:2px dashed #8aa13a;}
   .px-paso:last-child::after{display:none;}
   .px-paso-c{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:#fff;border:2px dashed #8aa13a;color:#fff;font-size:16px;line-height:1;transition:.15s;}
   .px-paso.ok .px-paso-c{background:#0B6B54;border:2px solid #0B6B54;}
   .px-paso.sig .px-paso-c{border:2.5px solid var(--text);box-shadow:0 0 0 4px var(--accent);}
   .px-paso:hover .px-paso-c{transform:scale(1.1);}
+  .px-trabajo{position:relative;padding-right:46px;}
+  .px-quitar{position:absolute;top:10px;right:12px;width:28px;height:28px;border-radius:50%;border:none;background:rgba(0,0,0,.07);color:var(--text);font-size:14px;cursor:pointer;}
+  .px-quitar:hover{background:rgba(0,0,0,.15);}
   .px-falta{font-size:14px;color:var(--text);margin:0;}
   .px-falta b{font-weight:700;}
   .px-btn:disabled{opacity:.55;cursor:default;border-style:dashed;}
@@ -301,7 +304,7 @@
           <span class="mode-status" id="chat-status"></span>
         </div>
         <div class="ref-row" id="ref-row" style="display:none;">
-          <span class="ref-hint" id="ref-hint">Puedes adjuntar con el clip, o pegar (Ctrl+V), una imagen de referencia para que la IA cree una parecida</span>
+          <span class="ref-hint" id="ref-hint">Foto de referencia (opcional): clip 📎 o Ctrl+V</span>
           <span class="ref-preview" id="ref-preview"><img alt=""><span></span><button type="button" id="ref-quitar" title="Quitar imagen" aria-label="Quitar imagen">✕</button></span>
         </div>
       </div>
@@ -443,16 +446,14 @@ const SUG_IMAGEN = [
 
 function placeholderActual(){
   const sel = typeof itemPx === 'function' ? itemPx() : null;
-  if (sel && modo === 'guia') return esMovil() ? `¿Qué necesitas para «${sel.gancho || 'tu post'}»?` : `Escribe qué necesitas para «${sel.gancho || 'tu post'}»: guion en escenas, tipo de grabación, checklist, feedback…`;
+  if (sel && modo === 'guia') return '¿Qué necesitas para este post?';
   if (modo === 'guia') {
     return esMovil()
-      ? 'Soy tu guía para grabar. Pregúntame o pega tu guion…'
-      : 'Soy tu guía: antes de grabar revisa el checklist y las mejores herramientas de IA para hacerlo… Pregúntame, o pega tu guion o la descripción de tu video y te doy feedback.';
+      ? 'Pregunta algo o busca un post…'
+      : 'Pregunta algo, pega tu guion o busca uno de tus posts…';
   }
-  if (sel) return esMovil() ? `Describe la imagen para «${sel.gancho || 'tu post'}» (o envía así)` : `Imagen para «${sel.gancho || 'tu post'}»: sale en formato reel con la tipografía y colores de tu ADN. Añade una indicación o envía tal cual. Límite de ${imggenLimite} imágenes al día por marca.`;
-  return esMovil()
-    ? `Describe la imagen que necesitas… (máx. ${imggenLimite} al día por marca)`
-    : `Describe la imagen que necesitas (para un post, un anuncio, una miniatura) y la IA la genera. Límite de ${imggenLimite} imágenes al día por marca.`;
+  if (sel) return 'Describe la imagen (opcional) y envía';
+  return 'Describe la imagen que necesitas…';
 }
 
 // Con el cuadro vacío, la altura se mide con el texto de ayuda (placeholder) para que se lea completo.
@@ -933,8 +934,7 @@ function pintarProximos(){
   host.hidden = false;
   const sec = (titulo, lista, tab) => lista.length
     ? `<div class="px-sec"><div class="px-sec-tit">${titulo}</div><div class="px-row">${lista.map((r) => tarjetaPx(r, tab)).join('')}</div></div>` : '';
-  host.innerHTML = '<div class="px-ayuda">Elige una publicación para trabajarla aquí con el Jefe Productor IA.</div>'
-    + sec('Próximos posts', posts, 'contenido') + sec('Próximas historias', hist, 'historias') + sec('Próximas campañas', camps, 'campanas');
+  host.innerHTML = sec('Próximos posts', posts, 'contenido') + sec('Próximas historias', hist, 'historias') + sec('Próximas campañas', camps, 'campanas');
   host.querySelectorAll('.px-card').forEach((b) => b.addEventListener('click', () => elegirTrabajoPx(b.dataset.tab, b.dataset.id)));
 }
 function itemPx(){
@@ -1012,12 +1012,8 @@ function pintarTrabajoPx(){
   if (!r) { box.hidden = true; box.innerHTML = ''; return; }
   box.hidden = false;
   box.innerHTML = `<div class="px-trabajo-txt"><span class="px-trabajo-lbl">Trabajando en</span><strong>${escHtml(r.gancho || '(sin título)')}</strong></div>
-    <div class="px-trabajo-btns">
-      <button type="button" class="px-btn" data-px="ver" aria-expanded="${detallePx}">👁️ ${detallePx ? 'Ocultar post' : 'Ver post'}</button>
-      <button type="button" class="px-btn" data-px="imagen">🖼️ Imagen con IA</button>
-      <button type="button" class="px-btn" data-px="video">🎬 Prompt de video</button>
-      <button type="button" class="link-btn" data-px="quitar">Quitar</button>
-    </div>${progresoPxHtml(r, trabajoPx.tab)}${detallePx ? detalleHtmlPx(r, trabajoPx.tab) : ''}${confirmarPxHtml()}`;
+    <button type="button" class="px-quitar" data-px="quitar" title="Quitar" aria-label="Quitar">✕</button>
+    ${progresoPxHtml(r, trabajoPx.tab)}${detallePx ? detalleHtmlPx(r, trabajoPx.tab) : ''}${confirmarPxHtml()}`;
   box.querySelectorAll('[data-px]').forEach((b) => b.addEventListener('click', async () => {
     const a = b.dataset.px;
     if (a === 'quitar') quitarTrabajoPx();
@@ -1026,8 +1022,6 @@ function pintarTrabajoPx(){
       if (detallePx) await cargarCatalogoPx();
       pintarTrabajoPx();
     }
-    else if (a === 'imagen') accionPasoPx('img', false);
-    else usarPromptPx(a);
   }));
   box.querySelectorAll('[data-paso]').forEach((b) => b.addEventListener('click', () => accionPasoPx(b.dataset.paso, b.classList.contains('ok'))));
   enlazarConfirmarPx(box);
@@ -1039,12 +1033,12 @@ function pasosPx(r, tab){
   const formato = esCamp ? c.formato : (r.formato || (tab === 'historias' ? 'historia' : 'reel'));
   const hay = (...v) => v.some((x) => txtPx(x));
   const pasos = [
-    { id: 'post', t: 'Post', ok: esCamp ? hay(c.guion, c.hook, c.visual_sugerido, c.objetivo) : hay(r.guion, r.ganchoIdea, r.descripcion), falta: 'el guion o la idea', accion: 'armar el guion con el Jefe' },
-    { id: 'copy', t: 'Copy', ok: hay(r.caption), falta: 'el copy', accion: 'escribir el copy con el Jefe' },
-    { id: 'pimg', t: 'Prompt imagen', ok: hay(r.promptImagen), falta: 'el prompt de imagen', accion: 'crear el prompt de imagen' },
-    { id: 'img', t: 'Imagen', ok: !!r.miniatura, falta: 'la imagen', accion: 'crear la imagen con IA' },
+    { id: 'post', t: 'Post', ok: esCamp ? hay(c.guion, c.hook, c.visual_sugerido, c.objetivo) : hay(r.guion, r.ganchoIdea, r.descripcion), falta: 'guion', accion: 'armar el guion con el Jefe' },
+    { id: 'copy', t: 'Copy', ok: hay(r.caption), falta: 'copy', accion: 'escribir el copy con el Jefe' },
+    { id: 'pimg', t: 'Prompt imagen', ok: hay(r.promptImagen), falta: 'prompt de imagen', accion: 'crear el prompt de imagen' },
+    { id: 'img', t: 'Imagen', ok: !!r.miniatura, falta: 'imagen', accion: 'crear la imagen con IA' },
   ];
-  if (['reel', 'video', 'historia'].includes(formato)) pasos.push({ id: 'pvid', t: 'Prompt video', ok: hay(r.promptVideo), falta: 'el prompt de video', accion: 'crear el prompt de video' });
+  if (['reel', 'video', 'historia'].includes(formato)) pasos.push({ id: 'pvid', t: 'Prompt video', ok: hay(r.promptVideo), falta: 'prompt de video', accion: 'crear el prompt de video' });
   return pasos;
 }
 function progresoPxHtml(r, tab){
@@ -1052,10 +1046,10 @@ function progresoPxHtml(r, tab){
   const faltan = pasos.filter((p) => !p.ok);
   const sig = faltan[0];
   const lista = faltan.map((p) => p.falta);
-  const txtFalta = lista.length ? `Te falta ${lista.length > 1 ? lista.slice(0, -1).join(', ') + ' y ' + lista[lista.length - 1] : lista[0]}.` : '✅ Esta publicación ya tiene todo.';
+  const txtFalta = lista.length ? `Falta ${lista.length > 1 ? lista.slice(0, -1).join(', ') + ' y ' + lista[lista.length - 1] : lista[0]}.` : '✅ Todo listo.';
   return `<div class="px-progreso">
     <div class="px-pasos" role="list">${pasos.map((p) => `<button type="button" class="px-paso${p.ok ? ' ok' : ''}${sig && sig.id === p.id ? ' sig' : ''}" role="listitem" data-paso="${p.id}" title="${p.ok ? 'Listo — toca para verlo' : 'Falta — toca para ' + p.accion}"><span class="px-paso-c">${p.ok ? '✓' : ''}</span>${p.t}</button>`).join('')}</div>
-    <p class="px-falta"><b>${ESTADO_PX[estadoPx(r)].txt}.</b> ${txtFalta}</p>
+    <p class="px-falta"><b>${ESTADO_PX[estadoPx(r)].txt}</b> · ${txtFalta} <button type="button" class="link-btn" data-px="ver" aria-expanded="${detallePx}">${detallePx ? 'Ocultar post' : 'Ver post'}</button></p>
     ${sig ? `<div><button type="button" class="px-btn px-btn-ok" data-paso="${sig.id}">✨ Siguiente: ${sig.accion}</button></div>` : ''}
   </div>`;
 }
@@ -1120,21 +1114,16 @@ function confirmarPxHtml(){
   if (confirmPx.estado === 'error') return `<div class="px-confirm"><div class="px-confirm-t">⚠️ ${escHtml(confirmPx.error)}</div>
     <div class="px-confirm-btns"><button type="button" class="px-btn" data-pxc="otro">↻ Intentar de nuevo</button><button type="button" class="link-btn" data-pxc="cancelar">Cancelar</button></div></div>`;
   const titulo = confirmPx.existente
-    ? `Este es el prompt de ${nombre} de tu publicación, listo para copiar y pegar en Gemini. Úsalo tal cual, edítalo, o actualízalo / rehazlo con IA.`
-    : `Armé este prompt de ${nombre} con lo que ya tiene tu publicación, tus colores y el nombre de tu marca. Está listo para copiar y pegar en Gemini: revísalo (puedes editarlo) y confírmalo.`;
+    ? `Prompt de ${nombre} guardado. Puedes editarlo o pedir otra versión.`
+    : `Prompt de ${nombre} listo para Gemini. Revísalo, edítalo si quieres y confírmalo.`;
   return `<div class="px-confirm">
     <div class="px-confirm-t">${titulo}</div>
     <textarea class="px-confirm-txt" rows="6">${escHtml(confirmPx.texto)}</textarea>
-    ${confirmPx.tipo === 'imagen'
-      ? '<div class="px-confirm-t px-logo-tip">💡 <b>Sube tu logotipo</b> (en Gemini, junto con este prompt; aquí, como imagen de referencia con el clip 📎): el prompt ya indica en qué esquina colocarlo y trae el llamado a la acción dentro de la imagen.</div>'
-      : '<div class="px-confirm-t px-logo-tip">💡 <b>Sube tu logotipo a Gemini junto con este prompt</b>: el video dura de 15 a 20 segundos, lleva voz, cierra con el llamado a la acción y muestra tu logo al final.</div>'}
-    <div class="px-confirm-t px-confirm-sub">¿Qué quieres cambiar? <span>(opcional — escríbelo y lo ajusto; vacío = otra versión mejorada)</span></div>
-    <textarea class="px-confirm-cambios" rows="2" placeholder="Ej. más luz, que salga mi producto, otro estilo, más corto…">${escHtml(confirmPx.cambios || '')}</textarea>
+    <textarea class="px-confirm-cambios" rows="2" placeholder="¿Qué quieres cambiar? (opcional) Ej. más luz, otro estilo, más corto…">${escHtml(confirmPx.cambios || '')}</textarea>
     <div class="px-confirm-btns">
       <button type="button" class="px-btn px-btn-ok" data-pxc="ok">${confirmPx.tipo === 'imagen' ? '✅ Confirmar y crear imagen' : '✅ Confirmar y guardar'}</button>
-      <button type="button" class="px-btn" data-pxc="copiar">📋 Copiar para Gemini</button>
-      <button type="button" class="px-btn" data-pxc="actualizar">✏️ Actualizar prompt</button>
-      <button type="button" class="px-btn" data-pxc="otro">🔄 Rehacer desde cero</button>
+      <button type="button" class="px-btn" data-pxc="copiar">📋 Copiar</button>
+      <button type="button" class="px-btn" data-pxc="actualizar">🔄 Otra versión</button>
       <button type="button" class="link-btn" data-pxc="cancelar">Cancelar</button>
     </div></div>`;
 }
@@ -1150,7 +1139,7 @@ function enlazarConfirmarPx(box){
     else if (a === 'actualizar') crearPromptPx(confirmPx.tipo, { actual: confirmPx.texto, cambios: confirmPx.cambios });
     else if (a === 'copiar') {
       const antes = b.textContent;
-      navigator.clipboard.writeText(confirmPx.texto || '').then(() => { b.textContent = '✅ Copiado — pégalo en Gemini'; setTimeout(() => { b.textContent = antes; }, 1800); });
+      navigator.clipboard.writeText(confirmPx.texto || '').then(() => { b.textContent = '✅ Copiado'; setTimeout(() => { b.textContent = antes; }, 1800); });
     }
     else if (a === 'ok') confirmarPromptPx();
   }));
