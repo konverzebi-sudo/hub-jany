@@ -1033,12 +1033,31 @@ function pideValidarMsg(texto){
   return /(correcto|lo guardo|ajustar algo|ajustamos|confirmo jefe|est[aá] bien|quedamos con)/i.test(t) && /\?|confirmo jefe/i.test(t);
 }
 function ocultarBanner(){ const el=document.getElementById('chat-confirmo-banner'); if(el) el.style.display='none'; }
+let guardadoEnLongitud=-1; // largo del chat cuando se guardó lo platicado con el botón (para no volver a ofrecerlo igual)
 function actualizarBanner(){
   const el=document.getElementById('chat-confirmo-banner'); if(!el) return;
   const ultimo=chatMessages[chatMessages.length-1];
-  // Aparece cuando el Jefe entregó bloques para guardar o cuando está pidiendo validar lo que mostró ("¿está correcto?",
-  // "¿lo guardo?"): en ese caso, aunque no traiga bloques, CONFIRMO JEFE lee la conversación y llena los cuadros.
-  el.style.display = (ultimo && ultimo.role==='assistant' && (parsearBloquesGuardar(ultimo.content).length>0 || pideValidarMsg(ultimo.content))) ? 'flex' : 'none';
+  const del_jefe=ultimo && ultimo.role==='assistant' && !/^⚠️/.test(ultimo.content);
+  // 1) El Jefe entregó bloques o está pidiendo validar: "Guardar (CONFIRMO JEFE)". Aunque no traiga bloques, CONFIRMO JEFE
+  //    lee la conversación y llena los cuadros.
+  // 2) Si el Jefe solo siguió platicando (por ejemplo "perfecto, dolor claro") pero ya hay respuestas del usuario, se ofrece
+  //    guardar lo platicado: así ninguna respuesta se queda sin respaldar en los cuadros.
+  const validando = del_jefe && (parsearBloquesGuardar(ultimo.content).length>0 || pideValidarMsg(ultimo.content));
+  const usuarios=chatMessages.filter(m=>m.role==='user');
+  // solo si hay una respuesta nueva que no sea el propio CONFIRMO JEFE y no se acaba de guardar todo
+  const respuestas = usuarios.length>=2 && !esConfirmoJefe(usuarios[usuarios.length-1].content) && chatMessages.length!==guardadoEnLongitud;
+  const texto=document.getElementById('chat-confirmo-texto'), btn=document.getElementById('chat-confirmo-btn');
+  if(validando){
+    if(texto) texto.textContent='🫡 Hay contenido listo para guardar en tu tablero de respuestas.';
+    if(btn){ btn.textContent='Guardar (CONFIRMO JEFE)'; btn.onclick=confirmarDesdeBanner; }
+    el.style.display='flex';
+  } else if(del_jefe && respuestas){
+    if(texto) texto.textContent='🫡 ¿Guardamos en los cuadros lo que llevamos platicado?';
+    if(btn){ btn.textContent='Guardar lo platicado'; btn.onclick=()=>confirmarChat(true); }
+    el.style.display='flex';
+  } else {
+    el.style.display='none';
+  }
 }
 // Si el Jefe no entregó bloques para guardar (o el usuario pide "llenar los cuadros con lo platicado"), se le pide a la IA
 // que saque de TODA la conversación lo ya acordado, en el mismo formato de bloques, y eso se aplica al Documento.
@@ -1063,6 +1082,7 @@ async function confirmarChat(soloExtraer){
   let aplicado = soloExtraer ? false : procesarConfirmoTemporada(chatMessages);
   if(!aplicado) aplicado = await extraerYAplicar();
   if(aplicado){
+    guardadoEnLongitud=chatMessages.length;
     scheduleGuardarCampanas();
     // pasa al tablero de respuestas: abre el primer módulo que se llenó y lo muestra
     const primero=[...modulosTocados].sort((a,b)=>a-b)[0];
@@ -1426,8 +1446,8 @@ function render(){
         <span id="chat-files-name" class="file-name"></span>
         <div class="chat-thread" id="chat-thread"></div>
         <div class="confirmo-banner" id="chat-confirmo-banner" style="display:none">
-          <span>🫡 Hay contenido listo para guardar en tu tablero de respuestas.</span>
-          <button type="button" class="btn" onclick="confirmarDesdeBanner()">Guardar (CONFIRMO JEFE)</button>
+          <span id="chat-confirmo-texto">🫡 Hay contenido listo para guardar en tu tablero de respuestas.</span>
+          <button type="button" class="btn" id="chat-confirmo-btn" onclick="confirmarDesdeBanner()">Guardar (CONFIRMO JEFE)</button>
         </div>
         <span id="chat-inline-status" class="chat-inline-status"></span>
       </div>
