@@ -318,6 +318,35 @@
   <div id="content"></div>
 </div>
 
+<div id="dup-overlay" class="cm-overlay" hidden onclick="if(event.target===this)cerrarDuplicar()">
+  <div class="cm-box" role="dialog" aria-modal="true" aria-labelledby="dup-titulo">
+    <h2 id="dup-titulo">Duplicar campaña</h2>
+    <p class="cm-aviso" style="margin:0 0 6px;">Vas a duplicar <b id="dup-origen"></b>. ¿Cómo la quieres?</p>
+    <label class="cm-radio"><input type="radio" name="dup-modo" id="dup-modo-copia" checked> Copia igual</label>
+    <p class="cm-aviso" style="margin:0 0 8px 26px;">Se copian todos los cuadros ya llenados, para ajustar solo lo que cambia (otra temporada, otras fechas…). El chat empieza limpio.</p>
+    <label class="cm-radio"><input type="radio" name="dup-modo" id="dup-modo-nueva"> Campaña nueva con el mismo producto</label>
+    <p class="cm-aviso" style="margin:0 0 8px 26px;">Cuadros en blanco para llenarlos desde cero platicando con el Jefe. Solo conserva el producto.</p>
+    <label class="cm-label" for="dup-nombre">Nombre de la nueva campaña</label>
+    <input type="text" id="dup-nombre" maxlength="100">
+    <div class="cm-acciones">
+      <button type="button" class="cm-btn cm-sec" onclick="cerrarDuplicar()">Cancelar</button>
+      <button type="button" class="cm-btn cm-pri" onclick="confirmarDuplicar()">Duplicar</button>
+    </div>
+  </div>
+</div>
+<button type="button" id="fab-mas" class="fab-mas" aria-label="Nueva campaña o duplicar" title="Nueva campaña o duplicar" onclick="event.stopPropagation();document.getElementById('fab-menu').hidden=!document.getElementById('fab-menu').hidden">+</button>
+<div id="fab-menu" class="fab-menu" hidden>
+  <button type="button" onclick="document.getElementById('fab-menu').hidden=true;abrirCrearCampana()">➕ Nueva campaña</button>
+  <button type="button" onclick="document.getElementById('fab-menu').hidden=true;duplicarCampana()">📄 Duplicar esta campaña</button>
+</div>
+<style>
+  .fab-mas{position:fixed;right:18px;bottom:68px;z-index:99980;width:48px;height:48px;border-radius:50%;border:0;background:#C0F800;color:#111;font:700 28px/1 Inter,sans-serif;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;padding:0 0 3px;}
+  .fab-mas:hover{filter:brightness(.95);}
+  .fab-menu{position:fixed;right:18px;bottom:124px;z-index:99981;background:#fff;border:1px solid #E2E2E2;border-radius:16px;box-shadow:0 12px 32px rgba(0,0,0,.18);padding:6px;display:flex;flex-direction:column;min-width:210px;}
+  .fab-menu[hidden]{display:none;}
+  .fab-menu button{background:none;border:0;border-radius:10px;padding:11px 12px;text-align:left;font:600 15px Inter,sans-serif;color:#1A1A1A;cursor:pointer;}
+  .fab-menu button:hover{background:#F1FFC2;}
+</style>
 <div id="cm-overlay" class="cm-overlay" hidden onclick="if(event.target===this)cerrarCrearCampana()">
   <div class="cm-box" role="dialog" aria-modal="true" aria-labelledby="cm-titulo">
     <h2 id="cm-titulo">Crear campaña de temporada nueva</h2>
@@ -639,18 +668,52 @@ function nuevaCampana(){
   scheduleGuardarCampanas();
   sincronizarFocoConCampana();
 }
+// Mensaje con el que arranca el chat de una campaña nueva o copiada: confirma que es nueva, para qué producto es y deja listo
+// el primer CONFIRMO JEFE, que guarda el nombre (y la temporada) en el módulo 1.
+function abrirChatCampanaNueva(camp, esCopia, origenNombre){
+  const prod=(camp.producto_origen==='nuevo' ? camp.producto_nuevo : camp.producto_nombre)||'(todavía sin producto)';
+  const bloques='\n\n⚠️INICIO\n'+camp.nombre+'\n⚠️GUARDAR: Nombre de la campaña\n'+(camp.temporada?'\n⚠️INICIO\n'+camp.temporada+'\n⚠️GUARDAR: Temporada o evento\n':'');
+  const intro = esCopia
+    ? 'Listo, copié «'+origenNombre+'» como una campaña NUEVA 🗓️ con todos sus cuadros. Dime qué cambia (temporada, fechas, oferta, mensaje…) y lo ajustamos.'
+    : 'Listo, esta es una campaña NUEVA 🗓️ con los cuadros en blanco.';
+  camp.chat_general=[
+    { role:'user', content: esCopia ? 'Quiero trabajar una copia de otra campaña.' : 'Quiero empezar una campaña nueva.' },
+    { role:'assistant', content: intro+'\n\n• Producto: '+prod+'\n• Nombre: «'+camp.nombre+'»\n\nSi así está bien, escribe CONFIRMO JEFE y guardo el nombre en el módulo 1. Si quieres otro nombre u otro producto, dímelo.'+bloques },
+  ];
+}
 function duplicarCampana(){
   const camp=activeCampana(); if(!camp) return;
-  const copia=JSON.parse(JSON.stringify(camp));
-  copia.id=newId(); copia.nombre=(camp.nombre||'Campaña')+' (copia)'; copia.estado='borrador'; copia.creadoEn=new Date().toISOString();
-  copia.calendario=(copia.calendario||[]).map(r=>({...r,id:newId()}));
-  // Una campaña duplicada arranca su propia conversación -- la del original no se copia.
-  copia.chat_general=[];
-  campanas.unshift(copia);
-  campanaActivaId=copia.id;
+  const ov=document.getElementById('dup-overlay'); if(!ov) return;
+  document.getElementById('dup-origen').textContent='«'+(camp.nombre||'Campaña')+'»';
+  document.getElementById('dup-modo-copia').checked=true;
+  document.getElementById('dup-nombre').value=(camp.nombre||'Campaña')+' (copia)';
+  ov.hidden=false;
+}
+function cerrarDuplicar(){ const ov=document.getElementById('dup-overlay'); if(ov) ov.hidden=true; }
+function confirmarDuplicar(){
+  const camp=activeCampana(); if(!camp) return;
+  const comoCopia=document.getElementById('dup-modo-copia').checked;
+  const nombre=document.getElementById('dup-nombre').value.trim();
+  let nueva;
+  if(comoCopia){
+    nueva=JSON.parse(JSON.stringify(camp));
+    nueva.id=newId(); nueva.estado='borrador'; nueva.creadoEn=new Date().toISOString();
+    nueva.nombre=nombre||((camp.nombre||'Campaña')+' (copia)');
+    nueva.calendario=(nueva.calendario||[]).map(r=>({...r,id:newId()}));
+  } else {
+    // Campaña nueva con el mismo producto: cuadros vacíos para llenarlos desde cero platicando con el Jefe
+    nueva=mkCampana();
+    ['producto_origen','producto_id','producto_nombre','producto_nuevo','grupo_id'].forEach(k=>{ if(camp[k]!==undefined) nueva[k]=camp[k]; });
+    nueva.nombre=nombre||('Campaña de '+((camp.producto_origen==='nuevo'?camp.producto_nuevo:camp.producto_nombre)||'un producto nuevo'));
+  }
+  abrirChatCampanaNueva(nueva, comoCopia, camp.nombre||'Campaña');
+  campanas.unshift(nueva);
+  campanaActivaId=nueva.id; chatAbierto=true; pasoAbierto=null; modulosTocados=new Set();
   sincronizarChatsDesdeCampana();
+  cerrarDuplicar();
   renderToolbar(); render();
   scheduleGuardarCampanas();
+  sincronizarFoco();
 }
 function eliminarCampana(){
   const camp=activeCampana(); if(!camp) return;
@@ -769,6 +832,7 @@ function borrarFilaTabla(id,i){
 // exacto] (ver prompts/system-prompt-temporada*.md). Mismo mecanismo que ya usa Jefe 366 en
 // consultor-366.html, adaptado a que aquí el estado vive en el objeto de la campaña, no en el DOM.
 const TEMPORADA_CAMPO_LOOKUP = {
+  'Nombre de la campaña': { campo:'nombre', tipo:'texto' },
   'Temporada o evento': { campo:'temporada', tipo:'texto' },
   'Objetivo principal': { campo:'objetivo_principal', tipo:'texto' },
   'Incentivo o urgencia real': { campo:'incentivo', tipo:'texto' },
@@ -898,8 +962,12 @@ function procesarConfirmoTemporada(mensajes){
   let ultimoAssistant=null;
   for(let i=mensajes.length-1;i>=0;i--){ if(mensajes[i].role==='assistant'){ ultimoAssistant=mensajes[i]; break; } }
   if(!ultimoAssistant) return false;
-  const bloques=parsearBloquesGuardar(ultimoAssistant.content);
-  if(!bloques.length) return false;
+  return aplicarBloques(parsearBloquesGuardar(ultimoAssistant.content));
+}
+// Aplica al Documento una lista de bloques {nombre, contenido} (los ⚠️INICIO/⚠️GUARDAR que entrega el Jefe).
+function aplicarBloques(bloques){
+  const camp=activeCampana(); if(!camp) return false;
+  if(!bloques || !bloques.length) return false;
   let aplicoAlgo=false;
   modulosTocados=new Set();
   bloques.forEach(({nombre,contenido})=>{
@@ -934,26 +1002,66 @@ function procesarConfirmoTemporada(mensajes){
   return aplicoAlgo;
 }
 
-function esConfirmoJefe(texto){ return (texto||'').trim().toUpperCase()==='CONFIRMO JEFE'; }
+function distanciaEdicion(a,b){
+  const fila=Array(b.length+1).fill(0).map((_,j)=>j);
+  for(let i=1;i<=a.length;i++){
+    let ant=fila[0]; fila[0]=i;
+    for(let j=1;j<=b.length;j++){ const t=fila[j]; fila[j]=a[i-1]===b[j-1]?ant:1+Math.min(ant,fila[j],fila[j-1]); ant=t; }
+  }
+  return fila[b.length];
+}
+// "Confirmo jefe", "confirmo jefe.", "CONFIRMO JEFE!" o con un error de dedo ("confrimo jefe") cuentan igual.
+function esConfirmoJefe(texto){
+  const n=(texto||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Z ]/g,' ').replace(/\s+/g,' ').trim();
+  if(n==='CONFIRMO JEFE') return true;
+  if(n.length<8||n.length>20) return false;
+  return distanciaEdicion(n,'CONFIRMO JEFE')<=2;
+}
 function ocultarBanner(){ const el=document.getElementById('chat-confirmo-banner'); if(el) el.style.display='none'; }
 function actualizarBanner(){
   const el=document.getElementById('chat-confirmo-banner'); if(!el) return;
-  const ultimo=[...chatMessages].reverse().find(m=>m.role==='assistant');
-  el.style.display = (ultimo && parsearBloquesGuardar(ultimo.content).length>0) ? 'flex' : 'none';
+  const ultimo=chatMessages[chatMessages.length-1];
+  el.style.display = (ultimo && ultimo.role==='assistant' && parsearBloquesGuardar(ultimo.content).length>0) ? 'flex' : 'none';
 }
-function confirmarChat(){
-  const aplicado=procesarConfirmoTemporada(chatMessages);
+// Si el Jefe no entregó bloques para guardar (o el usuario pide "llenar los cuadros con lo platicado"), se le pide a la IA
+// que saque de TODA la conversación lo ya acordado, en el mismo formato de bloques, y eso se aplica al Documento.
+async function extraerYAplicar(){
+  const camp=activeCampana(); if(!camp || !chatMessages.length) return false;
+  mostrarEstadoGuardado('Revisando la conversación para llenar los cuadros…', false);
+  try{
+    const res=await fetch('/api/consultor-366',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ messages:chatMessages, accion:'extraer', cliente:CLIENTE_ID, campanaId:camp.id, agente:'temporada', producto_origen:camp.producto_origen||'evergreen', producto_id:camp.producto_id||'', producto_nombre:camp.producto_nombre||'', grupo_id:camp.grupo_id||'' }),
+    });
+    const data=await res.json();
+    if(!res.ok){ mostrarEstadoGuardado(data.error||'No se pudo revisar la conversación.', true); return false; }
+    const bloques=parsearBloquesGuardar(data.text||'');
+    return aplicarBloques(bloques);
+  }catch(e){ mostrarEstadoGuardado('No se pudo revisar la conversación (conexión).', true); return false; }
+}
+async function confirmarChat(soloExtraer){
   ocultarBanner();
+  let aplicado = soloExtraer ? false : procesarConfirmoTemporada(chatMessages);
+  if(!aplicado) aplicado = await extraerYAplicar();
   if(aplicado){
     scheduleGuardarCampanas();
     // pasa al tablero de respuestas: abre el primer módulo que se llenó y lo muestra
     const primero=[...modulosTocados].sort((a,b)=>a-b)[0];
     if(primero) pasoAbierto=primero;
     render();
+    mostrarEstadoGuardado('✓ Cuadros llenados: '+[...modulosTocados].sort((a,b)=>a-b).map(n=>'módulo '+n).join(', '), false);
     if(primero) setTimeout(()=>{ const r=document.querySelector('#tt-tl .tt-row[data-mod="'+primero+'"]'); if(r) r.scrollIntoView({behavior:'smooth',block:'start'}); },120);
   } else {
-    alert('Ese mensaje no traía contenido reconocible para aplicar al Documento. Puede ser solo una explicación, o el nombre de campo no calzó -- usa "Copiar" y pégalo a mano, o pídele al Jefe la versión final de ese bloque.');
+    mostrarEstadoGuardado('No encontré nada ya acordado en la conversación para llenar los cuadros. Sigue platicando con el Jefe y vuelve a confirmar.', true);
   }
+  return aplicado;
+}
+// Botón del aviso verde: manda "CONFIRMO JEFE" como si lo escribieras (así el Jefe también avanza al siguiente módulo)
+function confirmarDesdeBanner(){
+  if(chatBusy) return;
+  const input=document.getElementById('chat-input'); if(!input) return;
+  input.value='CONFIRMO JEFE';
+  enviarMensajeChat();
 }
 
 // ─── ADJUNTOS DEL CHAT GENERAL (capturas + .txt, mismo patrón que Jefe 366) ───
@@ -1095,15 +1203,17 @@ async function confirmarCrearCampana(){
   camp.producto_origen='evergreen'; camp.producto_id=prod.id; camp.producto_nombre=String(prod.nombre||'').trim(); camp.grupo_id=prod.grupo_id||'';
   camp.temporada=temporada;
   camp.nombre=temporada ? temporada+' · '+camp.producto_nombre : 'Campaña de '+camp.producto_nombre;
+  abrirChatCampanaNueva(camp, false, '');
   campanas.unshift(camp);
-  campanaActivaId=camp.id;
+  campanaActivaId=camp.id; chatAbierto=true;
   sincronizarChatsDesdeCampana();
   renderToolbar(); render();
   scheduleGuardarCampanas();
   sincronizarFoco();
   cerrarCrearCampana();
 }
-document.addEventListener('keydown',e=>{ if(e.key==='Escape') cerrarCrearCampana(); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ cerrarCrearCampana(); cerrarDuplicar(); const m=document.getElementById('fab-menu'); if(m) m.hidden=true; } });
+document.addEventListener('click',e=>{ const m=document.getElementById('fab-menu'); if(m && !m.hidden && !m.contains(e.target)) m.hidden=true; });
 
 // ─── CONECTAR CON OTROS JEFES (Contenido / Anuncios) ─────────────────────────
 // No se toca el código de esos Jefes -- se les manda el resumen por copiar/pegar en su propio
@@ -1134,7 +1244,27 @@ const TEMPORADA_MODULOS_CHECKLIST = [
   { num:12, nombre:'Calendario final de ejecución', tablas:['calendario'] },
 ];
 function filaTieneContenido(f){ return !!(f && Object.keys(f).some(k=>k!=='id' && (f[k]||'').toString().trim())); }
-function tablaLlena(camp, campo){ return Array.isArray(camp[campo]) && camp[campo].some(filaTieneContenido); }
+// Las tablas con filas fijas (fases, acciones de postcampaña, creativos...) nacen con el nombre de cada fila escrito:
+// eso no cuenta como "llena". Solo cuenta lo que se escribió además de esos nombres de fila.
+let _etiquetasFijas=null;
+function etiquetasFijasDe(campo){
+  if(!_etiquetasFijas){
+    _etiquetasFijas={};
+    const base=mkCampana();
+    Object.keys(base).forEach(k=>{
+      if(!Array.isArray(base[k])) return;
+      const set=new Set();
+      base[k].forEach(f=>{ if(f) Object.keys(f).forEach(c=>{ if(c!=='id' && typeof f[c]==='string' && f[c].trim()) set.add(f[c].trim()); }); });
+      _etiquetasFijas[k]=set;
+    });
+  }
+  return _etiquetasFijas[campo]||new Set();
+}
+function tablaLlena(camp, campo){
+  if(!Array.isArray(camp[campo])) return false;
+  const fijas=etiquetasFijasDe(campo);
+  return camp[campo].some(f=>f && Object.keys(f).some(k=>{ const v=(f[k]||'').toString().trim(); return k!=='id' && v && !fijas.has(v); }));
+}
 function campoLleno(camp, campo){ return !!(camp[campo]||'').toString().trim(); }
 function evaluarModuloCampana(camp, mod){
   const faltantes=[];
@@ -1286,13 +1416,14 @@ function render(){
         <div class="chat-thread" id="chat-thread"></div>
         <div class="confirmo-banner" id="chat-confirmo-banner" style="display:none">
           <span>✅ Hay contenido listo para guardar en tu tablero de respuestas.</span>
-          <button type="button" class="btn" onclick="confirmarChat()">Guardar (CONFIRMO JEFE)</button>
+          <button type="button" class="btn" onclick="confirmarDesdeBanner()">Guardar (CONFIRMO JEFE)</button>
         </div>
         <span id="chat-inline-status" class="chat-inline-status"></span>
         <div class="tt-acciones" id="tt-acciones"${(chatAbierto||chatMessages.length)?'':' hidden'}>
           <label class="file-btn">📎 Subir capturas<input type="file" id="chat-capturas" accept="image/*" multiple hidden onchange="onArchivosChat('general')"></label>
           <label class="file-btn">📄 Subir .txt<input type="file" id="chat-txt" accept=".txt" multiple hidden onchange="onArchivosChat('general')"></label>
           <span id="chat-files-name" class="file-name"></span>
+          <button type="button" class="btn-outline" onclick="confirmarChat(true)" title="Si ya platicaron algo y no se llenó, esto lee la conversación y llena los cuadros">Llenar cuadros con lo platicado</button>
           <button type="button" class="btn-outline" onclick="reiniciarChat()">Reiniciar chat</button>
         </div>
       </div>
@@ -1306,6 +1437,7 @@ function render(){
   renderDocumento(document.getElementById('doc-sections'), camp);
   construirLineaTiempo(document.getElementById('doc-sections'), camp);
   renderToolbar();
+  actualizarBanner();
 }
 
 // TABLERO DE RESPUESTAS: los 12 módulos del Documento como línea de tiempo (círculo numerado + botón gris, igual que
@@ -1317,7 +1449,7 @@ function abrirChat(){ chatAbierto=true; const a=document.getElementById('tt-acci
 let pasoAbierto = null;          // número del módulo abierto
 let modulosTocados = new Set();  // módulos que llenó el último CONFIRMO JEFE ("· actualizado")
 function moduloDeCampo(c){
-  if(/^(temporada|objetivo_principal|incentivo|fecha_|producto_)/.test(c)) return 1;
+  if(/^(nombre|temporada|objetivo_principal|incentivo|fecha_|producto_)/.test(c)) return 1;
   if(/^prod_/.test(c)) return 2;
   if(/^cliente_/.test(c)) return 3;
   if(/^com_/.test(c)) return 4;
@@ -1757,12 +1889,12 @@ async function enviarMensajeChat(){
   if(!texto) return;
   const camp=activeCampana(); if(!camp) return;
   input.value=''; input.style.height='auto'; cerrarAC();
-  if(esConfirmoJefe(texto)) confirmarChat();
+  chatBusy=true;
+  if(esConfirmoJefe(texto)){ document.getElementById('chat-send-btn').disabled=true; await confirmarChat(); }
   chatMessages.push({role:'user',content:texto});
   ocultarBanner();
   renderChatThread();
   guardarChatsEnCampana();
-  chatBusy=true;
   document.getElementById('chat-send-btn').disabled=true;
   try{
     const res=await fetch('/api/consultor-366',{

@@ -755,6 +755,13 @@ function temporadaFormatearCampana(camp, catalogo, grupos) {
   return 'CAMPAÑA DE TEMPORADA EN CURSO (esto es lo real, ya guardado por el usuario en el Documento de esta campaña -- tu trabajo es completar lo que falte, no repetir lo que ya está):\n\n' + truncar(lineas.join('\n'), BUILDER_NOTAS_CHAR_LIMIT);
 }
 
+const TEMPORADA_INSTRUCCION_EXTRAER = [
+  'INSTRUCCIÓN DEL SISTEMA (no es un mensaje del usuario): EXTRAE AHORA, de TODO lo conversado, lo que ya quedó acordado para llenar los cuadros del Documento.',
+  'Entrega SOLO bloques ⚠️INICIO / ⚠️GUARDAR con los nombres exactos de CAMPOS REALES DEL DOCUMENTO (nombre pelado, tablas fila por fila con "Columna: valor").',
+  'Incluye únicamente lo que el usuario ya aceptó o que tú entregaste como definitivo; si hubo varias versiones, la última aceptada. NO inventes ni rellenes lo que no se acordó.',
+  'Fechas de la campaña activa y producto NO van por chat. Sin texto antes, entre ni después de los bloques. Si no hay nada acordado, responde exactamente: SIN_CAMBIOS',
+].join(' ');
+
 async function manejarChatTemporada(req, res) {
   const ip = (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown').toString().split(',')[0].trim();
   if (builderRateLimited(ip)) {
@@ -775,6 +782,17 @@ async function manejarChatTemporada(req, res) {
   const limpio = validos
     .slice(-BUILDER_MAX_MESSAGES)
     .map((m) => ({ role: m.role, content: m.content }));
+  // accion "extraer": la página pide sacar de TODA la conversación lo ya acordado, en bloques ⚠️INICIO/⚠️GUARDAR, para
+  // llenar los cuadros del Documento (cuando el Jefe no los entregó, o al pulsar "Llenar cuadros con lo platicado").
+  const extraer = body.accion === 'extraer';
+  if (extraer) {
+    const ultimoMsg = limpio[limpio.length - 1];
+    if (ultimoMsg && ultimoMsg.role === 'user') {
+      ultimoMsg.content += '\n\n' + TEMPORADA_INSTRUCCION_EXTRAER;
+    } else {
+      limpio.push({ role: 'user', content: TEMPORADA_INSTRUCCION_EXTRAER });
+    }
+  }
   if (limpio.length === 0 || limpio[limpio.length - 1].role !== 'user') {
     return res.status(400).json({ error: 'El último mensaje debe ser del usuario.' });
   }
@@ -845,9 +863,9 @@ async function manejarChatTemporada(req, res) {
 
     const { ok, status, data } = await llamarClaude(system, {
       model: 'claude-sonnet-4-6',
-      max_tokens: 3200,
+      max_tokens: extraer ? 8000 : 3200,
       system,
-      messages: historialConCache(limpio, { noReutilizable: conAdjuntos, total: validos.length, max: BUILDER_MAX_MESSAGES }),
+      messages: historialConCache(limpio, { noReutilizable: conAdjuntos || extraer, total: validos.length, max: BUILDER_MAX_MESSAGES }),
     });
     if (!ok) {
       return res.status(status).json({ error: data?.error?.message || 'Error al llamar a la API.' });
