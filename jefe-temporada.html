@@ -969,6 +969,7 @@ function aplicarBloques(bloques){
   const camp=activeCampana(); if(!camp) return false;
   if(!bloques || !bloques.length) return false;
   let aplicoAlgo=false;
+  const temporadaAntes=camp.temporada;
   modulosTocados=new Set();
   bloques.forEach(({nombre,contenido})=>{
     const lookup=buscarLookupCampo(nombre);
@@ -999,7 +1000,20 @@ function aplicarBloques(bloques){
       aplicoAlgo=true;
     }
   });
+  // El nombre es lo primero: si todavía es uno de arranque ("Campaña de…", "Nueva campaña", "… (copia)") y acaba de quedar
+  // la temporada o evento, el nombre pasa a ser «Temporada · Producto» sin tener que pedirlo aparte.
+  const explicito=bloques.some(b=>{ const l=buscarLookupCampo(b.nombre); return l && l.campo==='nombre' && b.contenido; });
+  if(aplicoAlgo && !explicito && camp.temporada && camp.temporada!==temporadaAntes && nombreGenerico(camp.nombre)){
+    const prod=String((camp.producto_origen==='nuevo' ? camp.producto_nuevo : camp.producto_nombre)||'').trim();
+    const temp=String(camp.temporada).trim(); const corto=temp.length>60?temp.slice(0,59)+'…':temp;
+    camp.nombre=corto+(prod?' · '+prod:'');
+    modulosTocados.add(1);
+  }
   return aplicoAlgo;
+}
+function nombreGenerico(n){
+  const t=String(n||'').trim();
+  return !t || /^(nueva campaña|temporal|campaña)$/i.test(t) || /^campaña de /i.test(t) || /\(copia\)\s*$/i.test(t);
 }
 
 function distanciaEdicion(a,b){
@@ -1017,11 +1031,17 @@ function esConfirmoJefe(texto){
   if(n.length<8||n.length>20) return false;
   return distanciaEdicion(n,'CONFIRMO JEFE')<=2;
 }
+function pideValidarMsg(texto){
+  const t=limpiarMarcadoresGuardar(texto||'').slice(-400);
+  return /(correcto|lo guardo|ajustar algo|ajustamos|confirmo jefe|est[aá] bien|quedamos con)/i.test(t) && /\?|confirmo jefe/i.test(t);
+}
 function ocultarBanner(){ const el=document.getElementById('chat-confirmo-banner'); if(el) el.style.display='none'; }
 function actualizarBanner(){
   const el=document.getElementById('chat-confirmo-banner'); if(!el) return;
   const ultimo=chatMessages[chatMessages.length-1];
-  el.style.display = (ultimo && ultimo.role==='assistant' && parsearBloquesGuardar(ultimo.content).length>0) ? 'flex' : 'none';
+  // Aparece cuando el Jefe entregó bloques para guardar o cuando está pidiendo validar lo que mostró ("¿está correcto?",
+  // "¿lo guardo?"): en ese caso, aunque no traiga bloques, CONFIRMO JEFE lee la conversación y llena los cuadros.
+  el.style.display = (ultimo && ultimo.role==='assistant' && (parsearBloquesGuardar(ultimo.content).length>0 || pideValidarMsg(ultimo.content))) ? 'flex' : 'none';
 }
 // Si el Jefe no entregó bloques para guardar (o el usuario pide "llenar los cuadros con lo platicado"), se le pide a la IA
 // que saque de TODA la conversación lo ya acordado, en el mismo formato de bloques, y eso se aplica al Documento.
@@ -1528,17 +1548,38 @@ function construirLineaTiempo(container, camp){
 // Autocompletar del chat (mismo patrón que Jefe de Anuncios): al enfocar muestra 5 sugerencias según lo que llevas
 // llenado y al escribir se filtran; elegir una la envía.
 function normAC(t){ return String(t||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim(); }
-function bancoSugerenciasChat(){
+// Lo que se sugiere al enfocar la barra depende de dónde va la conversación: al empezar, el menú de arranque; ya platicando,
+// respuestas que tienen que ver con lo último que dijo el Jefe (no se cambia de tema).
+function sugerenciasDeContexto(){
   const camp=activeCampana();
-  const sig=camp ? calcularCompletitudCampana(camp).find(m=>!m.completo) : null;
-  const base=[
-    chatMessages.length ? 'Retomemos: ¿en qué punto vamos con esta campaña?' : 'Empecemos: quiero planear una temporada',
-    sig ? 'Sigamos con el módulo '+sig.num+' — '+sig.nombre : 'Revisemos la campaña completa antes de compartirla',
+  if(!chatMessages.length){
+    const sig=camp ? calcularCompletitudCampana(camp).find(m=>!m.completo) : null;
+    return [
+      'Empecemos: quiero planear una temporada',
+      sig ? 'Sigamos con el módulo '+sig.num+' — '+sig.nombre : 'Revisemos la campaña completa antes de compartirla',
+      '¿Qué me falta por llenar?',
+      '¿Qué fechas debo tener en mi calendario?',
+      'Dame ideas de contenido y anuncios para esta campaña',
+    ];
+  }
+  const ultimo=chatMessages[chatMessages.length-1];
+  if(!ultimo || ultimo.role!=='assistant') return []; // esperando respuesta del Jefe
+  if(parsearBloquesGuardar(ultimo.content).length>0 || pideValidarMsg(ultimo.content)){
+    return ['CONFIRMO JEFE','Quiero ajustar algo antes de guardar','Dame otra opción distinta','Hazlo más corto y directo','Explícame por qué lo propones así'];
+  }
+  const visible=limpiarMarcadoresGuardar(ultimo.content)||'';
+  if(/\?/.test(visible.slice(-600))){
+    return ['Sí, así está bien','No, prefiero otra cosa','Dame un ejemplo para decidir','Propónme tú la mejor opción','No estoy seguro, ayúdame con opciones'];
+  }
+  return ['Sigamos con lo que sigue','Dame un ejemplo','Hazlo más corto y directo','Resume lo que llevamos y dime el siguiente paso','Explícame por qué'];
+}
+// Al escribir sí se busca en todo: lo de contexto primero y después ideas generales de la campaña.
+function bancoSugerenciasChat(){
+  const base=sugerenciasDeContexto();
+  const extra=[
     '¿Qué me falta por llenar?',
     '¿Qué fechas debo tener en mi calendario?',
     'Dame ideas de contenido y anuncios para esta campaña',
-  ];
-  const extra=[
     'Ayúdame a definir el incentivo y la urgencia real de esta campaña',
     'Calcula mis metas de ventas y los leads que necesito',
     'Arma el plan de calentamiento con fechas de precampaña',
@@ -1547,13 +1588,13 @@ function bancoSugerenciasChat(){
     'Prepara el calendario final de ejecución con fechas',
     'Resume lo que llevamos y dime el siguiente paso',
   ];
-  return base.concat(extra);
+  return base.concat(extra.filter(t=>!base.includes(t)));
 }
 let acItems=[], acIdx=-1;
 function sugerenciasParaTexto(texto){
-  const todas=bancoSugerenciasChat();
   const q=normAC(texto);
-  if(!q) return todas.slice(0,5);
+  if(!q) return sugerenciasDeContexto().slice(0,5);
+  const todas=bancoSugerenciasChat();
   const tokens=q.split(' ');
   return todas.map(t=>({t,n:normAC(t)})).filter(x=>tokens.every(k=>x.n.includes(k)))
     .map(x=>({t:x.t,r:x.n.startsWith(q)?0:(x.n.split(' ').some(w=>w.startsWith(tokens[0]))?1:2)}))
