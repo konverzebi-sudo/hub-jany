@@ -203,8 +203,6 @@
   #temporada-main:not(.split-view) .chat-thread{margin-bottom:10px;}
   #temporada-main:not(.split-view) .confirmo-banner{margin-bottom:10px;}
   .hero-pill-wrap .hero-search{margin-bottom:0;max-width:none;}
-  .ac-lista{position:absolute;left:12px;right:12px;top:calc(100% + 6px);z-index:60;background:#fff;border:1px solid var(--line);border-radius:20px;box-shadow:0 16px 40px rgba(0,0,0,.16);padding:8px;max-height:min(60vh,420px);overflow-y:auto;}
-  .ac-lista[hidden]{display:none;}
   .hero-ico{display:flex;align-items:center;flex:0 0 auto;}
   .hero-clip{width:36px;height:36px;border:0;background:transparent;color:#6B7280;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:50%;padding:0;transition:background .15s;}
   .hero-clip:hover{background:#F0F0F0;color:#1A1A1A;}
@@ -215,10 +213,6 @@
   .clip-op:hover{background:var(--surface-2);}
   .file-name:empty{display:none;}
   .file-name{display:block;text-align:center;}
-  .ac-item{display:flex;align-items:center;gap:14px;width:100%;text-align:left;background:none;border:none;border-radius:12px;padding:11px 14px;cursor:pointer;font:400 16px Inter,sans-serif;color:var(--text);}
-  .ac-item svg{width:18px;height:18px;flex-shrink:0;color:var(--text-dim);}
-  .ac-item b{font-weight:700;}
-  .ac-item:hover,.ac-item.on{background:var(--surface-2);}
   .tt-acciones{display:flex;align-items:center;gap:10px;justify-content:center;flex-wrap:wrap;}
   .tt-acciones[hidden]{display:none;}
   #chat-inline-status{display:block;text-align:center;}
@@ -1419,10 +1413,9 @@ function render(){
         <label class="hero-search" for="chat-input">
           <span id="hero-ico" class="hero-ico">${iconoBarra()}</span>
           <span class="sep"></span>
-          <textarea id="chat-input" rows="1" placeholder="Cuéntame de tu campaña" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,140)+'px';pintarAC()" onfocus="abrirChat();pintarAC()" onblur="cerrarAC()" onkeydown="teclaChat(event)" autocomplete="off"></textarea>
+          <textarea id="chat-input" rows="1" placeholder="Cuéntame de tu campaña" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,140)+'px'" onfocus="abrirChat()" onkeydown="teclaChat(event)" autocomplete="off"></textarea>
           <button type="button" class="hero-send" id="chat-send-btn" onclick="enviarMensajeChat()" aria-label="Enviar"><img src="/img/jefe-temporada-logo-negro.webp" alt=""></button>
         </label>
-        <div class="ac-lista" id="chat-ac" role="listbox" aria-label="Sugerencias" hidden></div>
         <div class="clip-menu" id="clip-menu" hidden>
           <label class="clip-op">📎 Subir capturas<input type="file" id="chat-capturas" accept="image/*" multiple hidden onchange="onArchivosChat('general');cerrarClipMenu()"></label>
           <label class="clip-op">📄 Subir .txt<input type="file" id="chat-txt" accept=".txt" multiple hidden onchange="onArchivosChat('general');cerrarClipMenu()"></label>
@@ -1470,7 +1463,7 @@ window.addEventListener('resize',medirTopbar);
 window.addEventListener('load',()=>{ medirTopbar(); const t=document.querySelector('.topbar'); if(t && window.ResizeObserver) new ResizeObserver(medirTopbar).observe(t); });
 medirTopbar();
 function abrirChat(){ chatAbierto=true; const i=document.getElementById('hero-ico'); if(i) i.innerHTML=iconoBarra(); }
-function toggleClipMenu(e){ if(e){ e.preventDefault(); e.stopPropagation(); } const m=document.getElementById('clip-menu'); if(!m) return; const abrir=m.hidden; cerrarAC(); m.hidden=!abrir; }
+function toggleClipMenu(e){ if(e){ e.preventDefault(); e.stopPropagation(); } const m=document.getElementById('clip-menu'); if(!m) return; const abrir=m.hidden; m.hidden=!abrir; }
 function cerrarClipMenu(){ const m=document.getElementById('clip-menu'); if(m) m.hidden=true; }
 document.addEventListener('click',e=>{ const m=document.getElementById('clip-menu'); if(m && !m.hidden && !m.contains(e.target) && !e.target.closest('.hero-clip')) m.hidden=true; });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') cerrarClipMenu(); });
@@ -1572,108 +1565,12 @@ function construirLineaTiempo(container, camp){
   });
   container.appendChild(tl);
 }
-// Autocompletar del chat (mismo patrón que Jefe de Anuncios): al enfocar muestra 5 sugerencias según lo que llevas
-// llenado y al escribir se filtran; elegir una la envía.
-function normAC(t){ return String(t||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim(); }
-// Lo que se sugiere al enfocar la barra depende de dónde va la conversación: al empezar, el menú de arranque; ya platicando,
-// respuestas que tienen que ver con lo último que dijo el Jefe (no se cambia de tema).
-function sugerenciasDeContexto(){
-  const camp=activeCampana();
-  if(!chatMessages.length){
-    const sig=camp ? calcularCompletitudCampana(camp).find(m=>!m.completo) : null;
-    return [
-      'Empecemos: quiero planear una temporada',
-      sig ? 'Sigamos con el módulo '+sig.num+' — '+sig.nombre : 'Revisemos la campaña completa antes de compartirla',
-      '¿Qué me falta por llenar?',
-      '¿Qué fechas debo tener en mi calendario?',
-      'Dame ideas de contenido y anuncios para esta campaña',
-    ];
-  }
-  const ultimo=chatMessages[chatMessages.length-1];
-  if(!ultimo || ultimo.role!=='assistant') return []; // esperando respuesta del Jefe
-  if(parsearBloquesGuardar(ultimo.content).length>0 || pideValidarMsg(ultimo.content)){
-    return ['CONFIRMO JEFE','Quiero ajustar algo antes de guardar','Dame otra opción distinta','Hazlo más corto y directo','Explícame por qué lo propones así'];
-  }
-  const visible=limpiarMarcadoresGuardar(ultimo.content)||'';
-  if(/de qué producto o servicio es esta campaña/i.test(visible)){
-    const nombres=catalogoProductos.filter(p=>p&&p.nombre).map(p=>String(p.nombre).trim());
-    return nombres.length ? nombres.slice(0,5) : ['Es un producto nuevo','Es un servicio nuevo'];
-  }
-  if(/para qué es esta (campaña|copia)/i.test(visible)){
-    return ['Es para el Buen Fin','Es para Navidad y fin de año','Es el lanzamiento de un producto nuevo','Es para el Día de las Madres','Es un aniversario o evento especial'];
-  }
-  if(/\?/.test(visible.slice(-600))){
-    return ['Sí, así está bien','No, prefiero otra cosa','Dame un ejemplo para decidir','Propónme tú la mejor opción','No estoy seguro, ayúdame con opciones'];
-  }
-  return ['Sigamos con lo que sigue','Dame un ejemplo','Hazlo más corto y directo','Resume lo que llevamos y dime el siguiente paso','Explícame por qué'];
-}
-// Al escribir sí se busca en todo: lo de contexto primero y después ideas generales de la campaña.
-function bancoSugerenciasChat(){
-  const base=sugerenciasDeContexto();
-  const extra=[
-    '¿Qué me falta por llenar?',
-    '¿Qué fechas debo tener en mi calendario?',
-    'Dame ideas de contenido y anuncios para esta campaña',
-    'Ayúdame a definir el incentivo y la urgencia real de esta campaña',
-    'Calcula mis metas de ventas y los leads que necesito',
-    'Arma el plan de calentamiento con fechas de precampaña',
-    'Propón el mensaje principal y las frases de la campaña',
-    '¿Qué objeciones tendrá mi cliente en esta temporada?',
-    'Prepara el calendario final de ejecución con fechas',
-    'Resume lo que llevamos y dime el siguiente paso',
-  ];
-  return base.concat(extra.filter(t=>!base.includes(t)));
-}
-let acItems=[], acIdx=-1;
-function sugerenciasParaTexto(texto){
-  const q=normAC(texto);
-  if(!q) return sugerenciasDeContexto().slice(0,5);
-  const todas=bancoSugerenciasChat();
-  const tokens=q.split(' ');
-  return todas.map(t=>({t,n:normAC(t)})).filter(x=>tokens.every(k=>x.n.includes(k)))
-    .map(x=>({t:x.t,r:x.n.startsWith(q)?0:(x.n.split(' ').some(w=>w.startsWith(tokens[0]))?1:2)}))
-    .sort((a,b)=>a.r-b.r).map(x=>x.t).slice(0,6);
-}
-function cerrarAC(){ const b=document.getElementById('chat-ac'); if(b){ b.hidden=true; b.innerHTML=''; } acItems=[]; acIdx=-1; }
-function pintarAC(){
-  const box=document.getElementById('chat-ac'), inp=document.getElementById('chat-input');
-  if(!box||!inp||!activeCampana()) return;
-  acItems=sugerenciasParaTexto(inp.value); acIdx=-1;
-  if(!acItems.length){ cerrarAC(); return; }
-  const q=normAC(inp.value), largo=inp.value.trim().length;
-  box.innerHTML=acItems.map((t,i)=>{
-    const empieza=q&&normAC(t).startsWith(q);
-    const ya=empieza?t.slice(0,largo):'', resto=empieza?t.slice(largo):t;
-    return '<button type="button" class="ac-item" role="option" data-ac="'+i+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span>'+(ya?escHtml(ya)+'<b>'+escHtml(resto)+'</b>':escHtml(resto))+'</span></button>';
-  }).join('');
-  box.hidden=false;
-  box.querySelectorAll('[data-ac]').forEach(b=>{
-    b.addEventListener('mousedown',e=>e.preventDefault()); // el clic no le quita el foco al chat antes de elegir
-    b.addEventListener('click',()=>elegirAC(+b.dataset.ac));
-  });
-}
-function moverAC(d){
-  if(!acItems.length) return;
-  acIdx=(acIdx+d+acItems.length)%acItems.length;
-  document.querySelectorAll('#chat-ac .ac-item').forEach((el,i)=>el.classList.toggle('on',i===acIdx));
-}
-function elegirAC(i){
-  const t=acItems[i]; if(!t) return;
-  const inp=document.getElementById('chat-input'); if(inp) inp.value=t;
-  cerrarAC();
-  enviarMensajeChat();
-}
+// Enter envía en computadora; Shift+Enter, o Enter en pantalla táctil (el teclado del celular no tiene Shift+Enter), salta de línea.
 function teclaChat(e){
-  if(e.key==='ArrowDown'){ e.preventDefault(); moverAC(1); }
-  else if(e.key==='ArrowUp'){ e.preventDefault(); moverAC(-1); }
-  else if(e.key==='Escape'){ cerrarAC(); }
-  else if(e.key==='Enter'){
-    // Shift+Enter, o Enter en pantalla táctil (el teclado del celular no tiene Shift+Enter): salto de línea en el mismo mensaje.
-    // En computadora, Enter solo envía.
-    if(e.shiftKey || window.matchMedia('(pointer: coarse)').matches) return;
-    e.preventDefault();
-    if(acIdx>=0) elegirAC(acIdx); else enviarMensajeChat();
-  }
+  if(e.key!=='Enter') return;
+  if(e.shiftKey || window.matchMedia('(pointer: coarse)').matches) return;
+  e.preventDefault();
+  enviarMensajeChat();
 }
 
 function campoTexto(campo,label,tipo){
@@ -1967,7 +1864,7 @@ async function enviarMensajeChat(){
   const texto=input.value.trim();
   if(!texto) return;
   const camp=activeCampana(); if(!camp) return;
-  input.value=''; input.style.height='auto'; cerrarAC();
+  input.value=''; input.style.height='auto';
   chatBusy=true;
   if(esConfirmoJefe(texto)){ document.getElementById('chat-send-btn').disabled=true; await confirmarChat(); }
   chatMessages.push({role:'user',content:texto});
