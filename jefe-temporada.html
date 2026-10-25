@@ -1002,7 +1002,10 @@ function aplicarBloques(bloques){
   let aplicoAlgo=false;
   const temporadaAntes=camp.temporada;
   modulosTocados=new Set();
-  bloques.forEach(({nombre,contenido})=>{
+  bloques.forEach(({nombre:nombreBruto,contenido})=>{
+    // "(reemplazar)" al final del nombre: actualización de una tabla completa — sus filas se sustituyen en vez de sumarse
+    const reemplazar=/\(\s*reemplazar\s*\)\s*$/i.test(nombreBruto||'');
+    const nombre=(nombreBruto||'').replace(/\s*\(\s*reemplazar\s*\)\s*$/i,'');
     const lookup=buscarLookupCampo(nombre);
     if(!lookup || !contenido) return;
     const modTocado=moduloDeCampo(lookup.campo); if(modTocado) modulosTocados.add(modTocado);
@@ -1018,6 +1021,7 @@ function aplicarBloques(bloques){
       const filasNuevas=parsearFilasTabla(contenido, cfg.columnas);
       if(!filasNuevas.length) return;
       if(!Array.isArray(camp[lookup.campo])) camp[lookup.campo]=[];
+      if(reemplazar) camp[lookup.campo]=[];
       const existentes=camp[lookup.campo];
       if(lookup.columnaClave){
         const clave=lookup.columnaClave;
@@ -1025,7 +1029,8 @@ function aplicarBloques(bloques){
         existentes.forEach((f,i)=>{ const k=(f[clave]||'').toString().trim().toLowerCase(); if(k) porClave[k]=i; });
         filasNuevas.forEach(nueva=>{
           const k=(nueva[clave]||'').toString().trim().toLowerCase();
-          if(k && porClave[k]!=null){ const idx=porClave[k]; existentes[idx]=Object.assign({},existentes[idx],nueva,{id:existentes[idx].id||newId()}); }
+          // al actualizar una fila solo se pisan las columnas que vienen con dato (las vacías conservan lo que ya había)
+          if(k && porClave[k]!=null){ const idx=porClave[k]; const llenas=Object.fromEntries(Object.entries(nueva).filter(([,v])=>String(v||'').trim())); existentes[idx]=Object.assign({},existentes[idx],llenas,{id:existentes[idx].id||newId()}); }
           else existentes.push(Object.assign({id:newId()},nueva));
         });
       } else {
