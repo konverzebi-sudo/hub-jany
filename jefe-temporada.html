@@ -256,6 +256,7 @@
   .tt-slot .doc-section{background:transparent;border:0;border-radius:0;padding:0;margin:0;}
   .tt-slot .doc-section-head{display:none;}
   .tt-slot .doc-desc{margin-left:0;font-size:14px;}
+  .tabla-aviso{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#FFF4D6;border:1px solid #F2C230;border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:14px;color:#5a4300;}
   .tt-vaciar{display:flex;justify-content:flex-end;margin-top:14px;}
   .acciones-campana{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;padding-top:14px;border-top:1px solid var(--line);}
   @media (max-width:1150px){ .tt-btn{white-space:normal;} }
@@ -390,11 +391,20 @@ function escHtml(s){
 }
 function newId(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
 function autoAlturaTextarea(ta){ ta.style.height='auto'; ta.style.height=(ta.scrollHeight+2)+'px'; }
+// Copia al portapapeles; si el navegador no deja (sin permiso, página sin https, celular), usa el método de respaldo.
 function copyText(btn, text){
-  navigator.clipboard.writeText(text).then(()=>{
-    const orig=btn.textContent; btn.textContent='Copiado ✓';
-    setTimeout(()=>{ btn.textContent=orig; },1500);
-  }).catch(()=>{});
+  const listo=()=>{ const orig=btn.dataset.orig||btn.textContent; btn.dataset.orig=orig; btn.textContent='Copiado ✓'; setTimeout(()=>{ btn.textContent=orig; },1500); };
+  const respaldo=()=>{
+    try{
+      const ta=document.createElement('textarea'); ta.value=text; ta.setAttribute('readonly','');
+      ta.style.cssText='position:fixed;top:0;left:0;opacity:0;font-size:16px;';
+      document.body.appendChild(ta); ta.focus(); ta.select(); ta.setSelectionRange(0,text.length);
+      const ok=document.execCommand('copy'); document.body.removeChild(ta);
+      if(ok) listo(); else btn.textContent='No se pudo copiar';
+    }catch(e){ btn.textContent='No se pudo copiar'; }
+  };
+  if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(listo).catch(respaldo);
+  else respaldo();
 }
 
 // ─── VISTA DIVIDIDA (calcado del Jefe 366) ─────────────────────────────
@@ -746,7 +756,9 @@ function renderTabla(id){
   const cfg=TEMPORADA_TABLAS[id]; const container=document.getElementById(id);
   if(!cfg||!container) return;
   const filas=filasDeTabla(id);
-  container.innerHTML=`
+  const conDatos=filas.filter(f=>cfg.columnas.some(c=>(f[c.key]||'').toString().trim()));
+  const desfasada = conDatos.length>=2 && juntarFilasDesfasadas(conDatos, cfg.columnas, true) < conDatos.length;
+  container.innerHTML=(desfasada ? `<div class="tabla-aviso">Parece que las filas quedaron desfasadas (cada columna en un renglón distinto). <button type="button" class="btn-outline" onclick="reacomodarFilas('${id}')">Reacomodar filas</button></div>` : '')+`
     <div class="tabla-notas-wrap">
       <table class="tabla-notas">
         <thead><tr>${cfg.columnas.map(c=>`<th>${c.label}</th>`).join('')}<th></th></tr></thead>
@@ -898,19 +910,44 @@ function buscarLookupCampo(nombre){
   return TEMPORADA_CAMPO_LOOKUP[nombre] || TEMPORADA_CAMPO_LOOKUP_NORM[normalizarNombreCampo(nombre)];
 }
 construirLookupNormalizado();
+// Cada línea "Columna: valor" va a su columna. Una fila nueva empieza cuando aparece una columna que no sigue a la anterior en
+// el orden de la tabla (o se repite), así NO importa si el Jefe dejó líneas en blanco entre las columnas de una misma fila:
+// antes eso partía cada fila en varias y los textos quedaban desfasados, uno por renglón.
 function parsearFilasTabla(contenido, columnas){
-  const items=contenido.split(/\n\s*\n/).map(b=>b.trim()).filter(Boolean);
-  return items.map(item=>{
-    const fila={};
-    const lineasItem=item.split('\n').map(l=>l.trim()).filter(Boolean);
-    columnas.forEach(col=>{
-      const re=new RegExp('^'+col.label.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*:\\s*(.+)$','i');
-      let valor='';
-      lineasItem.forEach(l=>{ const mm=l.match(re); if(mm) valor=mm[1].trim(); });
-      fila[col.key]=valor;
-    });
-    return fila;
-  }).filter(fila=>Object.values(fila).some(v=>v));
+  const etiquetas=columnas.map((col,idx)=>({ key:col.key, idx, re:new RegExp('^'+col.label.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*:\\s*(.*)$','i') }));
+  const filas=[]; let actual=null, ultimoIdx=-1, ultimaKey=null;
+  contenido.split('\n').forEach(raw=>{
+    const l=raw.trim(); if(!l) return;
+    let hallada=null, valor='';
+    for(const e of etiquetas){ const m=l.match(e.re); if(m){ hallada=e; valor=m[1].trim(); break; } }
+    if(hallada){
+      if(!actual || hallada.idx<=ultimoIdx){ actual={}; columnas.forEach(c=>{ actual[c.key]=''; }); filas.push(actual); }
+      actual[hallada.key]=valor; ultimoIdx=hallada.idx; ultimaKey=hallada.key;
+    } else if(actual && ultimaKey){
+      actual[ultimaKey]=(actual[ultimaKey]+' '+l).trim(); // texto que sigue en otra línea: es de la misma columna
+    }
+  });
+  return filas.filter(fila=>Object.values(fila).some(v=>v));
+}
+// Filas desfasadas (cada columna en un renglón distinto): si dos o más filas seguidas tienen datos en columnas distintas
+// y ninguna se traslapa, se pueden juntar en una sola. Devuelve cuántas filas quedarían.
+function juntarFilasDesfasadas(filas, columnas, soloContar){
+  const llenas=f=>columnas.filter(c=>(f[c.key]||'').toString().trim()).map(c=>c.key);
+  const out=[]; let actual=null, claves=new Set();
+  filas.forEach(f=>{
+    const k=llenas(f);
+    if(actual && k.length && k.every(x=>!claves.has(x)) && columnas.some(c=>!claves.has(c.key))){
+      k.forEach(x=>{ actual[x]=f[x]; claves.add(x); });
+    } else { actual=Object.assign({}, f); claves=new Set(k); out.push(actual); }
+  });
+  return soloContar ? out.length : out;
+}
+function reacomodarFilas(id){
+  const cfg=TEMPORADA_TABLAS[id]; const camp=activeCampana(); if(!cfg||!camp) return;
+  const filas=filasDeTabla(id);
+  camp[cfg.campo]=juntarFilasDesfasadas(filas, cfg.columnas).map(f=>Object.assign({id:f.id||newId()}, f));
+  scheduleGuardarCampanas(); if(cfg.campo==='calendario'||cfg.campo==='pre_calentamiento'||cfg.campo==='post_acciones') scheduleAgendaSync();
+  renderTabla(id);
 }
 function procesarConfirmoTemporada(mensajes){
   const camp=activeCampana(); if(!camp) return false;
@@ -1870,12 +1907,17 @@ function renderChatThread(){
     thread.innerHTML='';
     return;
   }
-  thread.innerHTML = chatMessages.map(m=>{
+  // El texto a copiar se lee del mensaje (por su número), no se mete en el HTML: así comillas, signos de pesos, ${} o saltos
+  // de línea ya no rompen el botón "Copiar".
+  thread.innerHTML = chatMessages.map((m,i)=>{
     if(m.role==='user') return `<div class="chat-msg chat-msg-user">${escHtml(m.content)}</div>`;
     const visible=limpiarMarcadoresGuardar(m.content);
     return `<div class="chat-msg chat-msg-assistant">${escHtml(visible)}</div>
-      <div class="chat-msg-actions"><button onclick="copyText(this,\`${visible.replace(/`/g,"'")}\`)">Copiar</button></div>`;
+      <div class="chat-msg-actions"><button type="button" data-copiar="${i}">Copiar</button></div>`;
   }).join('');
+  thread.querySelectorAll('[data-copiar]').forEach(b=>b.addEventListener('click',()=>{
+    const m=chatMessages[+b.dataset.copiar]; if(m) copyText(b, limpiarMarcadoresGuardar(m.content));
+  }));
   thread.scrollTop = thread.scrollHeight;
 }
 async function enviarMensajeChat(){
