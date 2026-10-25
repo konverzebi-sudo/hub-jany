@@ -319,40 +319,20 @@
   <div id="content"></div>
 </div>
 
-<div id="dup-overlay" class="cm-overlay" hidden onclick="if(event.target===this)cerrarDuplicar()">
-  <div class="cm-box" role="dialog" aria-modal="true" aria-labelledby="dup-titulo">
-    <h2 id="dup-titulo">Duplicar campaña</h2>
-    <p class="cm-aviso" style="margin:0 0 6px;">Vas a duplicar <b id="dup-origen"></b>. ¿Cómo la quieres?</p>
-    <label class="cm-radio"><input type="radio" name="dup-modo" id="dup-modo-copia" checked> Copia igual</label>
-    <p class="cm-aviso" style="margin:0 0 8px 26px;">Se copian todos los cuadros ya llenados, para ajustar solo lo que cambia (otra temporada, otras fechas…). El chat empieza limpio.</p>
-    <label class="cm-radio"><input type="radio" name="dup-modo" id="dup-modo-nueva"> Campaña nueva con el mismo producto</label>
-    <p class="cm-aviso" style="margin:0 0 8px 26px;">Cuadros en blanco para llenarlos desde cero platicando con el Jefe. Solo conserva el producto.</p>
-    <label class="cm-label" for="dup-nombre">Nombre de la nueva campaña</label>
-    <input type="text" id="dup-nombre" maxlength="100">
-    <div class="cm-acciones">
-      <button type="button" class="cm-btn cm-sec" onclick="cerrarDuplicar()">Cancelar</button>
-      <button type="button" class="cm-btn cm-pri" onclick="confirmarDuplicar()">Duplicar</button>
-    </div>
-  </div>
-</div>
-<button type="button" id="fab-mas" class="fab-mas" aria-label="Nueva campaña o duplicar" title="Nueva campaña o duplicar" onclick="event.stopPropagation();document.getElementById('fab-menu').hidden=!document.getElementById('fab-menu').hidden">+</button>
-<div id="fab-menu" class="fab-menu" hidden>
-  <button type="button" onclick="document.getElementById('fab-menu').hidden=true;abrirCrearCampana()">➕ Nueva campaña</button>
-  <button type="button" onclick="document.getElementById('fab-menu').hidden=true;duplicarCampana()">📄 Duplicar esta campaña</button>
-</div>
+<button type="button" id="fab-mas" class="fab-mas" aria-label="Nueva campaña" title="Nueva campaña" onclick="abrirCrearCampana()">+</button>
 <style>
   .fab-mas{position:fixed;right:18px;bottom:68px;z-index:99980;width:48px;height:48px;border-radius:50%;border:0;background:#C0F800;color:#111;font:700 28px/1 Inter,sans-serif;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;padding:0 0 3px;}
   .fab-mas:hover{filter:brightness(.95);}
-  .fab-menu{position:fixed;right:18px;bottom:124px;z-index:99981;background:#fff;border:1px solid #E2E2E2;border-radius:16px;box-shadow:0 12px 32px rgba(0,0,0,.18);padding:6px;display:flex;flex-direction:column;min-width:210px;}
-  .fab-menu[hidden]{display:none;}
-  .fab-menu button{background:none;border:0;border-radius:10px;padding:11px 12px;text-align:left;font:600 15px Inter,sans-serif;color:#1A1A1A;cursor:pointer;}
-  .fab-menu button:hover{background:#F1FFC2;}
 </style>
 <div id="cm-overlay" class="cm-overlay" hidden onclick="if(event.target===this)cerrarCrearCampana()">
   <div class="cm-box" role="dialog" aria-modal="true" aria-labelledby="cm-titulo">
     <h2 id="cm-titulo">Crear campaña de temporada nueva</h2>
-    <label class="cm-label" for="cm-temporada">¿Para qué temporada o fecha?</label>
-    <input type="text" id="cm-temporada" placeholder="Ej. Día de las Madres, Buen Fin, aniversario" maxlength="80">
+    <div class="cm-label" style="margin-top:0;">¿Cómo la quieres crear?</div>
+    <label class="cm-radio"><input type="radio" name="cm-como" id="cm-como-limpia" checked onchange="cmCambiarComo()"> Limpia, sin información</label>
+    <p class="cm-aviso" style="margin:0 0 8px 26px;">Cuadros en blanco y chat limpio. Lo primero que hace el Jefe es preguntarte para qué es y guardar el nombre.</p>
+    <label class="cm-radio"><input type="radio" name="cm-como" id="cm-como-copia" onchange="cmCambiarComo()"> A partir de <span id="cm-copia-nombre">esta campaña</span></label>
+    <p class="cm-aviso" style="margin:0 0 8px 26px;">Copia todos los cuadros ya llenados para ajustar solo lo que cambia. El chat empieza limpio y lo primero es ponerle nombre.</p>
+    <div id="cm-bloque-producto">
     <div class="cm-label">¿De qué producto o servicio es?</div>
     <label class="cm-radio"><input type="radio" name="cm-modo" id="cm-modo-existente" onchange="cmCambiarModo()"> Ligar a un producto que ya tengo</label>
     <div id="cm-existente"><select id="cm-producto"></select></div>
@@ -365,6 +345,7 @@
       </div>
       <textarea id="cm-n-notas" rows="3" placeholder="¿Qué es y qué incluye? (opcional)"></textarea>
       <p class="cm-aviso">Se agrega al Catálogo de tu ADN, así que también lo verán Jefe 366, Contenido, Anuncios y los demás Jefes.</p>
+    </div>
     </div>
     <div class="cm-estado" id="cm-estado" role="status"></div>
     <div class="cm-acciones">
@@ -673,49 +654,18 @@ function nuevaCampana(){
 // el primer CONFIRMO JEFE, que guarda el nombre (y la temporada) en el módulo 1.
 function abrirChatCampanaNueva(camp, esCopia, origenNombre){
   const prod=(camp.producto_origen==='nuevo' ? camp.producto_nuevo : camp.producto_nombre)||'(todavía sin producto)';
-  const bloques='\n\n⚠️INICIO\n'+camp.nombre+'\n⚠️GUARDAR: Nombre de la campaña\n'+(camp.temporada?'\n⚠️INICIO\n'+camp.temporada+'\n⚠️GUARDAR: Temporada o evento\n':'');
   const intro = esCopia
-    ? 'Listo, copié «'+origenNombre+'» como una campaña NUEVA 🗓️ con todos sus cuadros. Dime qué cambia (temporada, fechas, oferta, mensaje…) y lo ajustamos.'
+    ? 'Listo, copié «'+origenNombre+'» como una campaña NUEVA 🗓️ con todos sus cuadros.'
     : 'Listo, esta es una campaña NUEVA 🗓️ con los cuadros en blanco.';
+  const pregunta = esCopia
+    ? 'Lo primero es el nombre. ¿Para qué es esta copia? Cuéntame qué temporada o evento es y qué cambia respecto a la original, y te propongo el nombre para guardarlo.'
+    : 'Lo primero es el nombre. ¿Para qué es esta campaña? Cuéntame la temporada o el evento (por ejemplo Día de las Madres, Buen Fin, lanzamiento de un taller) y te propongo el nombre para guardarlo.';
   camp.chat_general=[
     { role:'user', content: esCopia ? 'Quiero trabajar una copia de otra campaña.' : 'Quiero empezar una campaña nueva.' },
-    { role:'assistant', content: intro+'\n\n• Producto: '+prod+'\n• Nombre: «'+camp.nombre+'»\n\nSi así está bien, escribe CONFIRMO JEFE y guardo el nombre en el módulo 1. Si quieres otro nombre u otro producto, dímelo.'+bloques },
+    { role:'assistant', content: intro+'\n\n• Producto: '+prod+'\n\n'+pregunta },
   ];
 }
-function duplicarCampana(){
-  const camp=activeCampana(); if(!camp) return;
-  const ov=document.getElementById('dup-overlay'); if(!ov) return;
-  document.getElementById('dup-origen').textContent='«'+(camp.nombre||'Campaña')+'»';
-  document.getElementById('dup-modo-copia').checked=true;
-  document.getElementById('dup-nombre').value=(camp.nombre||'Campaña')+' (copia)';
-  ov.hidden=false;
-}
-function cerrarDuplicar(){ const ov=document.getElementById('dup-overlay'); if(ov) ov.hidden=true; }
-function confirmarDuplicar(){
-  const camp=activeCampana(); if(!camp) return;
-  const comoCopia=document.getElementById('dup-modo-copia').checked;
-  const nombre=document.getElementById('dup-nombre').value.trim();
-  let nueva;
-  if(comoCopia){
-    nueva=JSON.parse(JSON.stringify(camp));
-    nueva.id=newId(); nueva.estado='borrador'; nueva.creadoEn=new Date().toISOString();
-    nueva.nombre=nombre||((camp.nombre||'Campaña')+' (copia)');
-    nueva.calendario=(nueva.calendario||[]).map(r=>({...r,id:newId()}));
-  } else {
-    // Campaña nueva con el mismo producto: cuadros vacíos para llenarlos desde cero platicando con el Jefe
-    nueva=mkCampana();
-    ['producto_origen','producto_id','producto_nombre','producto_nuevo','grupo_id'].forEach(k=>{ if(camp[k]!==undefined) nueva[k]=camp[k]; });
-    nueva.nombre=nombre||('Campaña de '+((camp.producto_origen==='nuevo'?camp.producto_nuevo:camp.producto_nombre)||'un producto nuevo'));
-  }
-  abrirChatCampanaNueva(nueva, comoCopia, camp.nombre||'Campaña');
-  campanas.unshift(nueva);
-  campanaActivaId=nueva.id; chatAbierto=true; pasoAbierto=null; modulosTocados=new Set();
-  sincronizarChatsDesdeCampana();
-  cerrarDuplicar();
-  renderToolbar(); render();
-  scheduleGuardarCampanas();
-  sincronizarFoco();
-}
+function duplicarCampana(){ abrirCrearCampana('copia'); }
 function eliminarCampana(){
   const camp=activeCampana(); if(!camp) return;
   if(!confirm('¿Eliminar la campaña "'+(camp.nombre||'sin nombre')+'"? No se puede deshacer, y sus fechas desaparecerán del Jefe de Agenda.')) return;
@@ -1166,20 +1116,32 @@ function aplicarFocoACampana(f){
 
 // ─── CREAR CAMPAÑA DE TEMPORADA NUEVA (ligada a un producto del catálogo o a uno 100% nuevo) ───────
 // Un producto nuevo se agrega al Catálogo del ADN (llave catalogo-productos), así lo ven los demás Jefes.
-function abrirCrearCampana(){
+function abrirCrearCampana(como){
   const ov=document.getElementById('cm-overlay'); if(!ov||!campanasLoaded) return;
+  const activa=activeCampana();
   const sel=document.getElementById('cm-producto');
   const lista=catalogoProductos.filter(p=>p&&p.id&&p.nombre).slice().sort((x,y)=>String(x.nombre).localeCompare(String(y.nombre),'es'));
   sel.innerHTML='<option value="">— Elige un producto —</option>'+lista.map(p=>`<option value="${escHtml(p.id)}">${escHtml(String(p.nombre).trim())}</option>`).join('');
+  // arranca con el producto de la campaña que tienes abierta (se puede cambiar)
+  if(activa && activa.producto_id && lista.some(p=>p.id===activa.producto_id)) sel.value=activa.producto_id;
   document.getElementById('cm-modo-existente').disabled=!lista.length;
   document.getElementById('cm-modo-existente').checked=!!lista.length;
   document.getElementById('cm-modo-nuevo').checked=!lista.length;
-  ['cm-temporada','cm-n-nombre','cm-n-precio','cm-n-notas'].forEach(id=>{ document.getElementById(id).value=''; });
+  ['cm-n-nombre','cm-n-precio','cm-n-notas'].forEach(id=>{ document.getElementById(id).value=''; });
+  document.getElementById('cm-copia-nombre').textContent = activa ? '«'+(activa.nombre||'esta campaña')+'»' : 'esta campaña';
+  document.getElementById('cm-como-copia').disabled=!activa;
+  document.getElementById('cm-como-copia').checked = !!activa && como==='copia';
+  document.getElementById('cm-como-limpia').checked = !(!!activa && como==='copia');
   document.getElementById('cm-estado').textContent='';
   document.getElementById('cm-crear').disabled=false;
-  cmCambiarModo();
+  cmCambiarComo();
   ov.hidden=false;
-  document.getElementById('cm-temporada').focus();
+}
+// Con "a partir de esta campaña" no hace falta elegir producto: se copia todo, incluido el producto.
+function cmCambiarComo(){
+  const copia=document.getElementById('cm-como-copia').checked;
+  document.getElementById('cm-bloque-producto').hidden=copia;
+  if(!copia) cmCambiarModo();
 }
 function cerrarCrearCampana(){ const ov=document.getElementById('cm-overlay'); if(ov) ov.hidden=true; }
 function cmCambiarModo(){
@@ -1187,9 +1149,25 @@ function cmCambiarModo(){
   document.getElementById('cm-existente').hidden=nuevo;
   document.getElementById('cm-nuevo').hidden=!nuevo;
 }
+// Copia de la campaña abierta: mismos cuadros, chat limpio, y lo primero que se pide es el nombre.
+function crearCopiaDeActiva(){
+  const camp=activeCampana(); if(!camp) return;
+  const nueva=JSON.parse(JSON.stringify(camp));
+  nueva.id=newId(); nueva.estado='borrador'; nueva.creadoEn=new Date().toISOString();
+  nueva.nombre=(camp.nombre||'Campaña')+' (copia)';
+  nueva.calendario=(nueva.calendario||[]).map(r=>({...r,id:newId()}));
+  abrirChatCampanaNueva(nueva, true, camp.nombre||'Campaña');
+  campanas.unshift(nueva);
+  campanaActivaId=nueva.id; chatAbierto=true; pasoAbierto=null; modulosTocados=new Set();
+  sincronizarChatsDesdeCampana();
+  cerrarCrearCampana();
+  renderToolbar(); render();
+  scheduleGuardarCampanas();
+  sincronizarFoco();
+}
 async function confirmarCrearCampana(){
   const estado=document.getElementById('cm-estado'), btn=document.getElementById('cm-crear');
-  const temporada=document.getElementById('cm-temporada').value.trim();
+  if(document.getElementById('cm-como-copia').checked){ crearCopiaDeActiva(); return; }
   const nuevo=document.getElementById('cm-modo-nuevo').checked;
   let prod=null;
   if(nuevo){
@@ -1222,8 +1200,7 @@ async function confirmarCrearCampana(){
   }
   const camp=mkCampana();
   camp.producto_origen='evergreen'; camp.producto_id=prod.id; camp.producto_nombre=String(prod.nombre||'').trim(); camp.grupo_id=prod.grupo_id||'';
-  camp.temporada=temporada;
-  camp.nombre=temporada ? temporada+' · '+camp.producto_nombre : 'Campaña de '+camp.producto_nombre;
+  camp.nombre='Nueva campaña';
   abrirChatCampanaNueva(camp, false, '');
   campanas.unshift(camp);
   campanaActivaId=camp.id; chatAbierto=true;
@@ -1233,8 +1210,7 @@ async function confirmarCrearCampana(){
   sincronizarFoco();
   cerrarCrearCampana();
 }
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ cerrarCrearCampana(); cerrarDuplicar(); const m=document.getElementById('fab-menu'); if(m) m.hidden=true; } });
-document.addEventListener('click',e=>{ const m=document.getElementById('fab-menu'); if(m && !m.hidden && !m.contains(e.target)) m.hidden=true; });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') cerrarCrearCampana(); });
 
 // ─── CONECTAR CON OTROS JEFES (Contenido / Anuncios) ─────────────────────────
 // No se toca el código de esos Jefes -- se les manda el resumen por copiar/pegar en su propio
@@ -1588,6 +1564,9 @@ function sugerenciasDeContexto(){
     return ['CONFIRMO JEFE','Quiero ajustar algo antes de guardar','Dame otra opción distinta','Hazlo más corto y directo','Explícame por qué lo propones así'];
   }
   const visible=limpiarMarcadoresGuardar(ultimo.content)||'';
+  if(/para qué es esta (campaña|copia)/i.test(visible)){
+    return ['Es para el Buen Fin','Es para Navidad y fin de año','Es el lanzamiento de un producto nuevo','Es para el Día de las Madres','Es un aniversario o evento especial'];
+  }
   if(/\?/.test(visible.slice(-600))){
     return ['Sí, así está bien','No, prefiero otra cosa','Dame un ejemplo para decidir','Propónme tú la mejor opción','No estoy seguro, ayúdame con opciones'];
   }
