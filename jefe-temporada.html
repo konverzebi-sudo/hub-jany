@@ -199,6 +199,16 @@
   .hero-pill-wrap .hero-search{margin-bottom:0;max-width:none;}
   .ac-lista{position:absolute;left:12px;right:12px;top:calc(100% + 6px);z-index:60;background:#fff;border:1px solid var(--line);border-radius:20px;box-shadow:0 16px 40px rgba(0,0,0,.16);padding:8px;max-height:min(60vh,420px);overflow-y:auto;}
   .ac-lista[hidden]{display:none;}
+  .hero-ico{display:flex;align-items:center;flex:0 0 auto;}
+  .hero-clip{width:36px;height:36px;border:0;background:transparent;color:#6B7280;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:50%;padding:0;transition:background .15s;}
+  .hero-clip:hover{background:#F0F0F0;color:#1A1A1A;}
+  .hero-clip svg{width:22px;height:22px;}
+  .clip-menu{position:absolute;left:12px;right:12px;top:calc(100% + 6px);z-index:61;background:#fff;border:1px solid var(--line);border-radius:20px;box-shadow:0 16px 40px rgba(0,0,0,.16);padding:8px;}
+  .clip-menu[hidden]{display:none;}
+  .clip-op{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:none;border:none;border-radius:12px;padding:12px 14px;cursor:pointer;font:500 16px Inter,sans-serif;color:var(--text);}
+  .clip-op:hover{background:var(--surface-2);}
+  .file-name:empty{display:none;}
+  .file-name{display:block;text-align:center;}
   .ac-item{display:flex;align-items:center;gap:14px;width:100%;text-align:left;background:none;border:none;border-radius:12px;padding:11px 14px;cursor:pointer;font:400 16px Inter,sans-serif;color:var(--text);}
   .ac-item svg{width:18px;height:18px;flex-shrink:0;color:var(--text-dim);}
   .ac-item b{font-weight:700;}
@@ -270,6 +280,14 @@
     @keyframes ttPop{0%{scale:.5;}60%{scale:1.25;}100%{scale:1;}}
   }
 
+  /* Barra de arriba en celular: "<<" chico, título centrado y completo en su renglón, producto debajo */
+  @media (max-width:900px){
+    body .topbar{grid-template-columns:44px minmax(0,1fr) 44px;grid-template-areas:"back titulo ." "foco foco foco";}
+    body.piel-blanca .topbar h1{justify-self:center;text-align:center;font-size:clamp(16px,5vw,20px);overflow:visible;text-overflow:clip;}
+    .back-link .back-txt{display:none;}
+    .back-link{width:40px;height:34px;padding:0;justify-content:center;}
+  }
+
   /* Formularios en claro y con letra más cómoda */
   .field label{font-family:Inter,sans-serif;font-size:13px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--text-dim);}
   .field textarea,.field input[type=text],.field input[type=number],.field input[type=date],.field select{background:#FAFAFA;border:1.5px solid var(--line);color:var(--text);color-scheme:light;font-size:15px;}
@@ -290,7 +308,7 @@
 <body class="piel-blanca">
 <div class="topbar">
   <div class="topbar-izq">
-    <a id="back-hub" href="/" class="back-link">&lt;&lt; Hub de Jefes <span style="opacity:.4;">//</span> <span id="brand-marca-label">—</span></a>
+    <a id="back-hub" href="/" class="back-link" title="Hub de Jefes">&lt;&lt;<span class="back-txt"> Hub de Jefes <span style="opacity:.4;">//</span> <span id="brand-marca-label">—</span></span></a>
     <div id="foco-slot"></div>
   </div>
   <h1>🗓️ Jefe de Temporada</h1>
@@ -1403,26 +1421,26 @@ function render(){
         <img class="tt-hero-logo" src="/img/jefe-temporada-logo-lima.webp" alt="Jefe de Temporada">
         <div class="hero-pill-wrap">
         <label class="hero-search" for="chat-input">
-          <svg class="lupa" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>
+          <span id="hero-ico" class="hero-ico">${iconoBarra()}</span>
           <span class="sep"></span>
-          <textarea id="chat-input" rows="1" placeholder="Cuéntame qué temporada quieres planear" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,140)+'px';pintarAC()" onfocus="abrirChat();pintarAC()" onblur="cerrarAC()" onkeydown="teclaChat(event)" autocomplete="off"></textarea>
+          <textarea id="chat-input" rows="1" placeholder="Cuéntame de tu campaña" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,140)+'px';pintarAC()" onfocus="abrirChat();pintarAC()" onblur="cerrarAC()" onkeydown="teclaChat(event)" autocomplete="off"></textarea>
           <button type="button" class="hero-send" id="chat-send-btn" onclick="enviarMensajeChat()" aria-label="Enviar"><img src="/img/jefe-temporada-logo-negro.webp" alt=""></button>
         </label>
         <div class="ac-lista" id="chat-ac" role="listbox" aria-label="Sugerencias" hidden></div>
+        <div class="clip-menu" id="clip-menu" hidden>
+          <label class="clip-op">📎 Subir capturas<input type="file" id="chat-capturas" accept="image/*" multiple hidden onchange="onArchivosChat('general');cerrarClipMenu()"></label>
+          <label class="clip-op">📄 Subir .txt<input type="file" id="chat-txt" accept=".txt" multiple hidden onchange="onArchivosChat('general');cerrarClipMenu()"></label>
+          <button type="button" class="clip-op" title="Si ya platicaron algo y no se llenó, esto lee la conversación y llena los cuadros" onclick="cerrarClipMenu();confirmarChat(true)">🧩 Llenar cuadros con lo platicado</button>
+          <button type="button" class="clip-op" onclick="cerrarClipMenu();reiniciarChat()">🔄 Reiniciar chat</button>
         </div>
+        </div>
+        <span id="chat-files-name" class="file-name"></span>
         <div class="chat-thread" id="chat-thread"></div>
         <div class="confirmo-banner" id="chat-confirmo-banner" style="display:none">
           <span>✅ Hay contenido listo para guardar en tu tablero de respuestas.</span>
           <button type="button" class="btn" onclick="confirmarDesdeBanner()">Guardar (CONFIRMO JEFE)</button>
         </div>
         <span id="chat-inline-status" class="chat-inline-status"></span>
-        <div class="tt-acciones" id="tt-acciones"${(chatAbierto||chatMessages.length)?'':' hidden'}>
-          <label class="file-btn">📎 Subir capturas<input type="file" id="chat-capturas" accept="image/*" multiple hidden onchange="onArchivosChat('general')"></label>
-          <label class="file-btn">📄 Subir .txt<input type="file" id="chat-txt" accept=".txt" multiple hidden onchange="onArchivosChat('general')"></label>
-          <span id="chat-files-name" class="file-name"></span>
-          <button type="button" class="btn-outline" onclick="confirmarChat(true)" title="Si ya platicaron algo y no se llenó, esto lee la conversación y llena los cuadros">Llenar cuadros con lo platicado</button>
-          <button type="button" class="btn-outline" onclick="reiniciarChat()">Reiniciar chat</button>
-        </div>
       </div>
       <div id="doc-sections"></div>
     </div>
@@ -1442,7 +1460,19 @@ function render(){
 // círculo se pone negro cuando el módulo está completo y el que sigue lleva aro. Se abre uno a la vez.
 // Subir capturas / .txt y Reiniciar chat aparecen hasta que se abre el chat (clic en la barra o ya hay conversación)
 let chatAbierto = false;
-function abrirChat(){ chatAbierto=true; const a=document.getElementById('tt-acciones'); if(a) a.hidden=false; }
+const SVG_LUPA='<svg class="lupa" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>';
+const SVG_CLIP='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>';
+// Lupa mientras no se ha empezado; ya hablando, un clip que abre: subir capturas, subir .txt, llenar cuadros y reiniciar chat
+function iconoBarra(){
+  return (chatAbierto||chatMessages.length)
+    ? '<button type="button" class="hero-clip" onclick="toggleClipMenu(event)" aria-label="Adjuntar y más opciones" title="Adjuntar y más opciones">'+SVG_CLIP+'</button>'
+    : SVG_LUPA;
+}
+function abrirChat(){ chatAbierto=true; const i=document.getElementById('hero-ico'); if(i) i.innerHTML=iconoBarra(); }
+function toggleClipMenu(e){ if(e){ e.preventDefault(); e.stopPropagation(); } const m=document.getElementById('clip-menu'); if(!m) return; const abrir=m.hidden; cerrarAC(); m.hidden=!abrir; }
+function cerrarClipMenu(){ const m=document.getElementById('clip-menu'); if(m) m.hidden=true; }
+document.addEventListener('click',e=>{ const m=document.getElementById('clip-menu'); if(m && !m.hidden && !m.contains(e.target) && !e.target.closest('.hero-clip')) m.hidden=true; });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') cerrarClipMenu(); });
 let pasoAbierto = null;          // número del módulo abierto
 let modulosTocados = new Set();  // módulos que llenó el último CONFIRMO JEFE ("· actualizado")
 function moduloDeCampo(c){
@@ -1632,7 +1662,10 @@ function teclaChat(e){
   if(e.key==='ArrowDown'){ e.preventDefault(); moverAC(1); }
   else if(e.key==='ArrowUp'){ e.preventDefault(); moverAC(-1); }
   else if(e.key==='Escape'){ cerrarAC(); }
-  else if(e.key==='Enter' && !e.shiftKey){
+  else if(e.key==='Enter'){
+    // Shift+Enter, o Enter en pantalla táctil (el teclado del celular no tiene Shift+Enter): salto de línea en el mismo mensaje.
+    // En computadora, Enter solo envía.
+    if(e.shiftKey || window.matchMedia('(pointer: coarse)').matches) return;
     e.preventDefault();
     if(acIdx>=0) elegirAC(acIdx); else enviarMensajeChat();
   }
