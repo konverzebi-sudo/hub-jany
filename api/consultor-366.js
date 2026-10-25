@@ -759,7 +759,7 @@ const TEMPORADA_INSTRUCCION_EXTRAER = [
   'INSTRUCCIÓN DEL SISTEMA (no es un mensaje del usuario): EXTRAE AHORA, de TODO lo conversado, lo que ya quedó acordado para llenar los cuadros del Documento.',
   'Entrega SOLO bloques ⚠️INICIO / ⚠️GUARDAR con los nombres exactos de CAMPOS REALES DEL DOCUMENTO (nombre pelado, tablas fila por fila con "Columna: valor").',
   'Incluye únicamente lo que el usuario ya aceptó o que tú entregaste como definitivo; si hubo varias versiones, la última aceptada. NO inventes ni rellenes lo que no se acordó.',
-  'Fechas de la campaña activa y producto NO van por chat. Sin texto antes, entre ni después de los bloques. Si no hay nada acordado, responde exactamente: SIN_CAMBIOS',
+  'Las fechas de la campaña activa NO van por chat; el producto solo si se acordó por chat al arrancar la campaña (campo "Producto de la campaña"). Sin texto antes, entre ni después de los bloques. Si no hay nada acordado, responde exactamente: SIN_CAMBIOS',
 ].join(' ');
 
 async function manejarChatTemporada(req, res) {

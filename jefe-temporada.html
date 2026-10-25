@@ -347,23 +347,12 @@
     <h2 id="cm-titulo">Crear campaña de temporada nueva</h2>
     <div class="cm-label" style="margin-top:0;">¿Cómo la quieres crear?</div>
     <label class="cm-radio"><input type="radio" name="cm-como" id="cm-como-limpia" checked onchange="cmCambiarComo()"> Limpia, sin información</label>
-    <p class="cm-aviso" style="margin:0 0 8px 26px;">Cuadros en blanco y chat limpio. Lo primero que hace el Jefe es preguntarte para qué es y guardar el nombre.</p>
-    <label class="cm-radio"><input type="radio" name="cm-como" id="cm-como-copia" onchange="cmCambiarComo()"> A partir de <span id="cm-copia-nombre">esta campaña</span></label>
-    <p class="cm-aviso" style="margin:0 0 8px 26px;">Copia todos los cuadros ya llenados para ajustar solo lo que cambia. El chat empieza limpio y lo primero es ponerle nombre.</p>
-    <div id="cm-bloque-producto">
-    <div class="cm-label">¿De qué producto o servicio es?</div>
-    <label class="cm-radio"><input type="radio" name="cm-modo" id="cm-modo-existente" onchange="cmCambiarModo()"> Ligar a un producto que ya tengo</label>
-    <div id="cm-existente"><select id="cm-producto"></select></div>
-    <label class="cm-radio"><input type="radio" name="cm-modo" id="cm-modo-nuevo" onchange="cmCambiarModo()"> Crear un producto 100% nuevo</label>
-    <div id="cm-nuevo" hidden>
-      <input type="text" id="cm-n-nombre" placeholder="Nombre del producto o servicio" maxlength="120">
-      <div class="cm-fila">
-        <select id="cm-n-tipo"><option>Producto</option><option>Servicio</option><option>Paquete</option></select>
-        <input type="text" id="cm-n-precio" placeholder="Precio (opcional)" maxlength="30">
-      </div>
-      <textarea id="cm-n-notas" rows="3" placeholder="¿Qué es y qué incluye? (opcional)"></textarea>
-      <p class="cm-aviso">Se agrega al Catálogo de tu ADN, así que también lo verán Jefe 366, Contenido, Anuncios y los demás Jefes.</p>
-    </div>
+    <p class="cm-aviso" style="margin:0 0 8px 26px;">Cuadros en blanco y chat limpio. El Jefe te pregunta de qué producto o servicio es y lo guarda con el primer CONFIRMO JEFE.</p>
+    <label class="cm-radio"><input type="radio" name="cm-como" id="cm-como-copia" onchange="cmCambiarComo()"> Copia de una campaña actual</label>
+    <div id="cm-bloque-copia" hidden>
+      <label class="cm-label" for="cm-copia-de">¿De cuál campaña?</label>
+      <select id="cm-copia-de"></select>
+      <p class="cm-aviso">Copia todos sus cuadros ya llenados para ajustar solo lo que cambia. El chat empieza limpio y lo primero es ponerle nombre.</p>
     </div>
     <div class="cm-estado" id="cm-estado" role="status"></div>
     <div class="cm-acciones">
@@ -671,16 +660,16 @@ function nuevaCampana(){
 // Mensaje con el que arranca el chat de una campaña nueva o copiada: confirma que es nueva, para qué producto es y deja listo
 // el primer CONFIRMO JEFE, que guarda el nombre (y la temporada) en el módulo 1.
 function abrirChatCampanaNueva(camp, esCopia, origenNombre){
-  const prod=(camp.producto_origen==='nuevo' ? camp.producto_nuevo : camp.producto_nombre)||'(todavía sin producto)';
-  const intro = esCopia
-    ? 'Listo, copié «'+origenNombre+'» como una campaña NUEVA 🗓️ con todos sus cuadros.'
-    : 'Listo, esta es una campaña NUEVA 🗓️ con los cuadros en blanco.';
-  const pregunta = esCopia
-    ? 'Lo primero es el nombre. ¿Para qué es esta copia? Cuéntame qué temporada o evento es y qué cambia respecto a la original, y te propongo el nombre para guardarlo.'
-    : 'Lo primero es el nombre. ¿Para qué es esta campaña? Cuéntame la temporada o el evento (por ejemplo Día de las Madres, Buen Fin, lanzamiento de un taller) y te propongo el nombre para guardarlo.';
+  const prod=(camp.producto_origen==='nuevo' ? camp.producto_nuevo : camp.producto_nombre)||'';
+  let texto;
+  if(esCopia){
+    texto='Listo, copié «'+origenNombre+'» como una campaña NUEVA 🗓️ con todos sus cuadros.\n\n• Producto: '+(prod||'(sin producto)')+'\n\nLo primero es el nombre. ¿Para qué es esta copia? Cuéntame qué temporada o evento es y qué cambia respecto a la original, y te propongo el nombre para guardarlo.';
+  } else {
+    texto='Listo, esta es una campaña NUEVA 🗓️ con los cuadros en blanco.\n\nLo primero: ¿de qué producto o servicio es esta campaña? Elige uno de tu catálogo o cuéntame uno nuevo.';
+  }
   camp.chat_general=[
     { role:'user', content: esCopia ? 'Quiero trabajar una copia de otra campaña.' : 'Quiero empezar una campaña nueva.' },
-    { role:'assistant', content: intro+'\n\n• Producto: '+prod+'\n\n'+pregunta },
+    { role:'assistant', content: texto },
   ];
 }
 function duplicarCampana(){ abrirCrearCampana('copia'); }
@@ -802,6 +791,7 @@ function borrarFilaTabla(id,i){
 // consultor-366.html, adaptado a que aquí el estado vive en el objeto de la campaña, no en el DOM.
 const TEMPORADA_CAMPO_LOOKUP = {
   'Nombre de la campaña': { campo:'nombre', tipo:'texto' },
+  'Producto de la campaña': { campo:'producto_nombre', tipo:'producto' },
   'Temporada o evento': { campo:'temporada', tipo:'texto' },
   'Objetivo principal': { campo:'objetivo_principal', tipo:'texto' },
   'Incentivo o urgencia real': { campo:'incentivo', tipo:'texto' },
@@ -934,6 +924,45 @@ function procesarConfirmoTemporada(mensajes){
   return aplicarBloques(parsearBloquesGuardar(ultimoAssistant.content));
 }
 // Aplica al Documento una lista de bloques {nombre, contenido} (los ⚠️INICIO/⚠️GUARDAR que entrega el Jefe).
+// Producto que el usuario eligió por chat: se busca en el catálogo (por nombre); si no está, queda como producto nuevo de la
+// temporada y se agrega al catálogo del ADN en cuanto se aplica (ver registrarProductoNuevoEnADN).
+let productoPendienteADN='';
+function normProd(t){ return String(t||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim(); }
+function aplicarProductoDeBloque(camp, nombre){
+  const n=normProd(nombre); if(!n) return '';
+  const lista=catalogoProductos.filter(p=>p&&p.id&&p.nombre);
+  const hallado=lista.find(p=>normProd(p.nombre)===n) || lista.find(p=>{ const m=normProd(p.nombre); return m.length>3 && (m.includes(n)||n.includes(m)); });
+  if(hallado){
+    camp.producto_origen='evergreen'; camp.producto_id=hallado.id; camp.producto_nombre=String(hallado.nombre).trim(); camp.grupo_id=hallado.grupo_id||''; camp.producto_nuevo='';
+    return '';
+  }
+  camp.producto_origen='nuevo'; camp.producto_nuevo=nombre; camp.producto_id=''; camp.producto_nombre=''; camp.grupo_id='';
+  return nombre;
+}
+async function registrarProductoNuevoEnADN(campId, nombre){
+  try{
+    const key=CLIENTE_ID+':catalogo-productos';
+    const r=await window.storage.get(key);
+    let lista=[]; try{ lista=r&&r.value?JSON.parse(r.value):[]; }catch(e){ lista=[]; }
+    if(!Array.isArray(lista)) lista=[];
+    let prod=lista.find(p=>p&&p.nombre&&normProd(p.nombre)===normProd(nombre));
+    if(!prod){
+      prod={ id:'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), nombre, tipo:'Producto', grupo_id:'', precio:'', costo:'', margen_pct:'', que_tanto_se_vende:'', inventario:'', notas:'Creado desde Jefe de Temporada' };
+      lista.push(prod);
+      await window.storage.set(key, JSON.stringify(lista));
+    }
+    if(!catalogoProductos.some(p=>p&&p.id===prod.id)) catalogoProductos.push(prod);
+    const camp=campanas.find(c=>c.id===campId);
+    if(camp && camp.producto_origen==='nuevo' && normProd(camp.producto_nuevo)===normProd(nombre)){
+      camp.producto_origen='evergreen'; camp.producto_id=prod.id; camp.producto_nombre=String(prod.nombre).trim(); camp.grupo_id=prod.grupo_id||''; camp.producto_nuevo='';
+      scheduleGuardarCampanas(); renderToolbar(); sincronizarFoco();
+      const f=document.getElementById('f-producto_id'); if(f) f.value=camp.producto_id;
+    }
+    mostrarEstadoGuardado('✓ Producto agregado al catálogo del ADN: '+nombre, false);
+  }catch(e){
+    mostrarEstadoGuardado('El producto quedó como nuevo de esta temporada; no se pudo agregarlo al ADN (revisa tu conexión o token).', true);
+  }
+}
 function aplicarBloques(bloques){
   const camp=activeCampana(); if(!camp) return false;
   if(!bloques || !bloques.length) return false;
@@ -946,6 +975,9 @@ function aplicarBloques(bloques){
     const modTocado=moduloDeCampo(lookup.campo); if(modTocado) modulosTocados.add(modTocado);
     if(lookup.tipo==='texto'){
       camp[lookup.campo]=contenido;
+      aplicoAlgo=true;
+    } else if(lookup.tipo==='producto'){
+      productoPendienteADN=aplicarProductoDeBloque(camp, contenido.split('\n')[0].trim()) || productoPendienteADN;
       aplicoAlgo=true;
     } else if(lookup.tipo==='tabla'){
       const cfg=TEMPORADA_TABLAS[lookup.tablaId];
@@ -1030,6 +1062,8 @@ async function extraerYAplicar(){
 }
 async function confirmarChat(soloExtraer){
   ocultarBanner();
+  const camp0=activeCampana(); if(!camp0) return false;
+  productoPendienteADN='';
   let aplicado = soloExtraer ? false : procesarConfirmoTemporada(chatMessages);
   if(!aplicado) aplicado = await extraerYAplicar();
   if(aplicado){
@@ -1038,6 +1072,7 @@ async function confirmarChat(soloExtraer){
     const primero=[...modulosTocados].sort((a,b)=>a-b)[0];
     if(primero) pasoAbierto=primero;
     render();
+    if(productoPendienteADN){ const pend=productoPendienteADN; productoPendienteADN=''; registrarProductoNuevoEnADN(camp0.id, pend); }
     mostrarEstadoGuardado('✓ Cuadros llenados: '+[...modulosTocados].sort((a,b)=>a-b).map(n=>'módulo '+n).join(', '), false);
     if(primero) setTimeout(()=>{ const r=document.querySelector('#tt-tl .tt-row[data-mod="'+primero+'"]'); if(r) r.scrollIntoView({behavior:'smooth',block:'start'}); },120);
   } else {
@@ -1137,39 +1172,26 @@ function aplicarFocoACampana(f){
 function abrirCrearCampana(como){
   const ov=document.getElementById('cm-overlay'); if(!ov||!campanasLoaded) return;
   const activa=activeCampana();
-  const sel=document.getElementById('cm-producto');
-  const lista=catalogoProductos.filter(p=>p&&p.id&&p.nombre).slice().sort((x,y)=>String(x.nombre).localeCompare(String(y.nombre),'es'));
-  sel.innerHTML='<option value="">— Elige un producto —</option>'+lista.map(p=>`<option value="${escHtml(p.id)}">${escHtml(String(p.nombre).trim())}</option>`).join('');
-  // arranca con el producto de la campaña que tienes abierta (se puede cambiar)
-  if(activa && activa.producto_id && lista.some(p=>p.id===activa.producto_id)) sel.value=activa.producto_id;
-  document.getElementById('cm-modo-existente').disabled=!lista.length;
-  document.getElementById('cm-modo-existente').checked=!!lista.length;
-  document.getElementById('cm-modo-nuevo').checked=!lista.length;
-  ['cm-n-nombre','cm-n-precio','cm-n-notas'].forEach(id=>{ document.getElementById(id).value=''; });
-  document.getElementById('cm-copia-nombre').textContent = activa ? '«'+(activa.nombre||'esta campaña')+'»' : 'esta campaña';
-  document.getElementById('cm-como-copia').disabled=!activa;
-  document.getElementById('cm-como-copia').checked = !!activa && como==='copia';
-  document.getElementById('cm-como-limpia').checked = !(!!activa && como==='copia');
+  const sel=document.getElementById('cm-copia-de');
+  sel.innerHTML=campanas.map(c=>`<option value="${escHtml(c.id)}">${escHtml(c.nombre||'(sin nombre)')}</option>`).join('');
+  if(activa) sel.value=activa.id;
+  const hay=campanas.length>0;
+  document.getElementById('cm-como-copia').disabled=!hay;
+  document.getElementById('cm-como-copia').checked = hay && como==='copia';
+  document.getElementById('cm-como-limpia').checked = !(hay && como==='copia');
   document.getElementById('cm-estado').textContent='';
   document.getElementById('cm-crear').disabled=false;
   cmCambiarComo();
   ov.hidden=false;
 }
-// Con "a partir de esta campaña" no hace falta elegir producto: se copia todo, incluido el producto.
+// Con "copia" solo se elige de cuál; con "limpia" no se pide nada más: el chat pregunta el producto.
 function cmCambiarComo(){
-  const copia=document.getElementById('cm-como-copia').checked;
-  document.getElementById('cm-bloque-producto').hidden=copia;
-  if(!copia) cmCambiarModo();
+  document.getElementById('cm-bloque-copia').hidden=!document.getElementById('cm-como-copia').checked;
 }
 function cerrarCrearCampana(){ const ov=document.getElementById('cm-overlay'); if(ov) ov.hidden=true; }
-function cmCambiarModo(){
-  const nuevo=document.getElementById('cm-modo-nuevo').checked;
-  document.getElementById('cm-existente').hidden=nuevo;
-  document.getElementById('cm-nuevo').hidden=!nuevo;
-}
-// Copia de la campaña abierta: mismos cuadros, chat limpio, y lo primero que se pide es el nombre.
-function crearCopiaDeActiva(){
-  const camp=activeCampana(); if(!camp) return;
+// Copia de una campaña: mismos cuadros, chat limpio, y lo primero que se pide es el nombre.
+function crearCopiaDe(id){
+  const camp=campanas.find(c=>c.id===id); if(!camp) return;
   const nueva=JSON.parse(JSON.stringify(camp));
   nueva.id=newId(); nueva.estado='borrador'; nueva.creadoEn=new Date().toISOString();
   nueva.nombre=(camp.nombre||'Campaña')+' (copia)';
@@ -1183,50 +1205,22 @@ function crearCopiaDeActiva(){
   scheduleGuardarCampanas();
   sincronizarFoco();
 }
-async function confirmarCrearCampana(){
-  const estado=document.getElementById('cm-estado'), btn=document.getElementById('cm-crear');
-  if(document.getElementById('cm-como-copia').checked){ crearCopiaDeActiva(); return; }
-  const nuevo=document.getElementById('cm-modo-nuevo').checked;
-  let prod=null;
-  if(nuevo){
-    const nombre=document.getElementById('cm-n-nombre').value.trim();
-    if(!nombre){ estado.textContent='Escribe el nombre del producto o servicio nuevo.'; return; }
-    btn.disabled=true; estado.textContent='Agregando el producto al Catálogo del ADN...';
-    try{
-      // Se vuelve a leer el catálogo antes de escribir, para no pisar lo último que haya en el ADN.
-      const key=CLIENTE_ID+':catalogo-productos';
-      const r=await window.storage.get(key);
-      let lista=[]; try{ lista=r&&r.value?JSON.parse(r.value):[]; }catch(e){ lista=[]; }
-      if(!Array.isArray(lista)) lista=[];
-      prod=lista.find(p=>p&&p.nombre&&String(p.nombre).trim().toLowerCase()===nombre.toLowerCase());
-      if(!prod){
-        prod={ id:'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), nombre, tipo:document.getElementById('cm-n-tipo').value, grupo_id:'',
-          precio:document.getElementById('cm-n-precio').value.trim(), costo:'', margen_pct:'', que_tanto_se_vende:'', inventario:'', notas:document.getElementById('cm-n-notas').value.trim() };
-        lista.push(prod);
-        await window.storage.set(key, JSON.stringify(lista));
-      }
-      if(!catalogoProductos.some(p=>p&&p.id===prod.id)) catalogoProductos.push(prod);
-    }catch(e){
-      btn.disabled=false;
-      estado.textContent='No se pudo guardar el producto en el ADN. Revisa tu conexión o tu token y vuelve a intentar.';
-      return;
-    }
-  } else {
-    const id=document.getElementById('cm-producto').value;
-    prod=catalogoProductos.find(p=>p&&p.id===id);
-    if(!prod){ estado.textContent='Elige el producto de esta campaña.'; return; }
-  }
+// Campaña limpia: sin producto ni nombre; el chat pregunta de qué producto o servicio es y el primer CONFIRMO JEFE lo guarda.
+function crearCampanaLimpia(){
   const camp=mkCampana();
-  camp.producto_origen='evergreen'; camp.producto_id=prod.id; camp.producto_nombre=String(prod.nombre||'').trim(); camp.grupo_id=prod.grupo_id||'';
-  camp.nombre='Nueva campaña';
+  camp.nombre='Nueva campaña'; camp.producto_origen='evergreen'; camp.producto_id=''; camp.producto_nombre=''; camp.grupo_id='';
   abrirChatCampanaNueva(camp, false, '');
   campanas.unshift(camp);
-  campanaActivaId=camp.id; chatAbierto=true;
+  campanaActivaId=camp.id; chatAbierto=true; pasoAbierto=null; modulosTocados=new Set();
   sincronizarChatsDesdeCampana();
+  cerrarCrearCampana();
   renderToolbar(); render();
   scheduleGuardarCampanas();
   sincronizarFoco();
-  cerrarCrearCampana();
+}
+function confirmarCrearCampana(){
+  if(document.getElementById('cm-como-copia').checked) crearCopiaDe(document.getElementById('cm-copia-de').value);
+  else crearCampanaLimpia();
 }
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') cerrarCrearCampana(); });
 
@@ -1594,6 +1588,10 @@ function sugerenciasDeContexto(){
     return ['CONFIRMO JEFE','Quiero ajustar algo antes de guardar','Dame otra opción distinta','Hazlo más corto y directo','Explícame por qué lo propones así'];
   }
   const visible=limpiarMarcadoresGuardar(ultimo.content)||'';
+  if(/de qué producto o servicio es esta campaña/i.test(visible)){
+    const nombres=catalogoProductos.filter(p=>p&&p.nombre).map(p=>String(p.nombre).trim());
+    return nombres.length ? nombres.slice(0,5) : ['Es un producto nuevo','Es un servicio nuevo'];
+  }
   if(/para qué es esta (campaña|copia)/i.test(visible)){
     return ['Es para el Buen Fin','Es para Navidad y fin de año','Es el lanzamiento de un producto nuevo','Es para el Día de las Madres','Es un aniversario o evento especial'];
   }
