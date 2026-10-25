@@ -519,23 +519,53 @@ async function construirContexto366Notas(clienteId, numeroWhatsappGeneral) {
   return { texto: bloques.length ? bloques.join('\n\n') : null, comunicaciones };
 }
 
-function formatearRadar(historial) {
-  if (!Array.isArray(historial) || historial.length === 0) return null;
-  const ultimo = historial[historial.length - 1];
-  if (!ultimo) return null;
-  const insights = Array.isArray(ultimo.insights) ? ultimo.insights : [];
-  if (insights.length === 0) return null;
-  const lineas = insights.slice(0, 8).map((ins) => {
-    const esObjeto = ins && typeof ins === 'object';
-    const texto = esObjeto ? ins.insight : ins;
-    if (!texto) return null;
-    const partes = [texto];
-    if (esObjeto && ins.uso) partes.push(`uso: ${ins.uso}`);
-    if (esObjeto && ins.prioridad) partes.push(`prioridad: ${ins.prioridad}`);
-    return '- ' + partes.join(' · ');
-  }).filter(Boolean);
-  if (lineas.length === 0) return null;
-  return `RADAR DE MERCADO (corrida más reciente${ultimo.date ? ', ' + ultimo.date : ''}):\n` + lineas.join('\n');
+// Estilo de referentes: brief que arma el Jefe del Faro (paso 6) en <hub>:radar-estilo. "para" = lo que
+// le toca a este Jefe ('contenido' | 'anuncios'). Inspiración para adaptar, nunca para copiar.
+function formatearEstiloReferentes(estilos, para) {
+  const lista = Array.isArray(estilos) ? estilos.filter((e) => e && e.brief) : [];
+  if (lista.length === 0) return null;
+  const ultimo = lista[lista.length - 1];
+  const b = ultimo.brief || {};
+  const puntos = (titulo, arr) => {
+    const a = (Array.isArray(arr) ? arr : []).filter((x) => typeof x === 'string' && x.trim()).slice(0, 5);
+    return a.length ? `${titulo}\n${a.map((x) => `- ${x}`).join('\n')}` : null;
+  };
+  const partes = [
+    b.resumen ? `Resumen: ${b.resumen}` : null,
+    puntos('Voz y tono a tomar:', b.voz_y_tono_a_tomar),
+    puntos('Hooks que funcionan:', b.hooks_que_funcionan),
+    puntos('Qué NO copiar:', b.que_no_copiar),
+    b.como_mezclarlo_con_la_marca ? `Cómo mezclarlo con la marca: ${b.como_mezclarlo_con_la_marca}` : null,
+    puntos(para === 'anuncios' ? 'Para los anuncios:' : 'Para el contenido:', para === 'anuncios' ? b.para_anuncios : b.para_contenido),
+  ].filter(Boolean);
+  if (partes.length === 0) return null;
+  const foco = ultimo.foco && ultimo.foco.nombre ? ` · enfocado en ${ultimo.foco.nombre}` : '';
+  return `ESTILO DE REFERENTES (brief del Jefe del Faro${ultimo.date ? ', ' + ultimo.date : ''}${foco}) — úsalo como inspiración para darle estilo mezclado con la voz de la marca; nunca copies frases, guiones ni identidad visual de nadie:\n` + partes.join('\n');
+}
+
+function formatearRadar(historial, estilos, para) {
+  const items = Array.isArray(historial) ? historial : [];
+  // Última corrida CON insights: un diagnóstico más reciente (que no trae insights) no debe esconder el radar.
+  let ultimo = null;
+  for (let i = items.length - 1; i >= 0; i--) {
+    if (items[i] && Array.isArray(items[i].insights) && items[i].insights.length > 0) { ultimo = items[i]; break; }
+  }
+  const bloques = [];
+  if (ultimo) {
+    const lineas = ultimo.insights.slice(0, 8).map((ins) => {
+      const esObjeto = ins && typeof ins === 'object';
+      const texto = esObjeto ? ins.insight : ins;
+      if (!texto) return null;
+      const partes = [texto];
+      if (esObjeto && ins.uso) partes.push(`uso: ${ins.uso}`);
+      if (esObjeto && ins.prioridad) partes.push(`prioridad: ${ins.prioridad}`);
+      return '- ' + partes.join(' · ');
+    }).filter(Boolean);
+    if (lineas.length > 0) bloques.push(`RADAR DE MERCADO (corrida más reciente${ultimo.date ? ', ' + ultimo.date : ''}):\n` + lineas.join('\n'));
+  }
+  const estilo = formatearEstiloReferentes(estilos, para);
+  if (estilo) bloques.push(estilo);
+  return bloques.length > 0 ? bloques.join('\n\n') : null;
 }
 
 function formatearProducto(items, productoId, etiqueta) {
@@ -625,7 +655,7 @@ function slugOferta366(nombre) {
 }
 
 async function construirContexto(clienteId, grupoId) {
-  const [identidad, tono, audiencia, catalogo, grupos, contexto366, radarHistorial, conversacionReciente, bloqueRetroalimentacion, bancoConversaciones, redes, visual, ofertas366] = await Promise.all([
+  const [identidad, tono, audiencia, catalogo, grupos, contexto366, radarHistorial, radarEstilo, conversacionReciente, bloqueRetroalimentacion, bancoConversaciones, redes, visual, ofertas366] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
     leerAudiencias(clienteId).catch(() => []),
@@ -633,6 +663,7 @@ async function construirContexto(clienteId, grupoId) {
     leerJSON(`${clienteId}:grupos-negocio`).catch(() => null),
     construirContexto366Notas(clienteId).catch(() => ({ texto: null, comunicaciones: [] })),
     leerJSON(`${clienteId}:radar-historial`).catch(() => null),
+    leerJSON(`${clienteId}:radar-estilo`).catch(() => null),
     formatearConversacion366NoGuardada(clienteId).catch(() => null),
     formatearRetroalimentacion(clienteId).catch(() => null),
     formatearBancoConversacionesWhatsApp(clienteId).catch(() => null),
@@ -653,7 +684,7 @@ async function construirContexto(clienteId, grupoId) {
     formatearVisual(visual),
   ].filter(Boolean);
 
-  const bloqueRadar = formatearRadar(radarHistorial);
+  const bloqueRadar = formatearRadar(radarHistorial, radarEstilo, 'anuncios');
 
   const partes = [];
   partes.push(bloquesNegocio.length
