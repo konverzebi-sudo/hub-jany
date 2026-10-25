@@ -257,6 +257,7 @@
   .tt-slot .doc-section-head{display:none;}
   .tt-slot .doc-desc{margin-left:0;font-size:14px;}
   .tabla-aviso{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#FFF4D6;border:1px solid #F2C230;border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:14px;color:#5a4300;}
+  .chat-msg-user,.chat-msg-assistant{scroll-margin-top:calc(var(--topbar-h,70px) + 98px);}
   .tt-vaciar{display:flex;justify-content:flex-end;margin-top:14px;}
   .acciones-campana{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;padding-top:14px;border-top:1px solid var(--line);}
   @media (max-width:1150px){ .tt-btn{white-space:normal;} }
@@ -1905,7 +1906,8 @@ function limpiarMarcadoresGuardar(texto){
   }
   return resultado.join('\n').replace(/\n{3,}/g,'\n\n').trim();
 }
-function renderChatThread(){
+// alInicioDeRespuesta: cuando el Jefe contesta, se muestra su respuesta desde el PRIMER renglón (con tu mensaje arriba) y no hasta el final.
+function renderChatThread(alInicioDeRespuesta){
   const thread=document.getElementById('chat-thread');
   if(!thread) return;
   if(!chatMessages.length){
@@ -1924,6 +1926,14 @@ function renderChatThread(){
     const m=chatMessages[+b.dataset.copiar]; if(m) copyText(b, limpiarMarcadoresGuardar(m.content));
   }));
   thread.scrollTop = thread.scrollHeight;
+  if(alInicioDeRespuesta){
+    const resp=[...thread.querySelectorAll('.chat-msg-assistant')].pop();
+    if(resp){
+      const previo=resp.previousElementSibling && resp.previousElementSibling.classList.contains('chat-msg-user') ? resp.previousElementSibling : resp;
+      thread.scrollTop=Math.max(0, previo.offsetTop-thread.offsetTop-6);   // dentro del recuadro del chat
+      previo.scrollIntoView({block:'start',behavior:'auto'});               // y en la página, debajo de la barra fija
+    }
+  }
 }
 async function enviarMensajeChat(){
   if(chatBusy) return;
@@ -1957,7 +1967,7 @@ async function enviarMensajeChat(){
   }finally{
     chatBusy=false;
     document.getElementById('chat-send-btn').disabled=false;
-    renderChatThread();
+    renderChatThread(true);
     actualizarBanner();
     guardarChatsEnCampana();
   }
