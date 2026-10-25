@@ -246,6 +246,7 @@
   .tt-slot .doc-section{background:transparent;border:0;border-radius:0;padding:0;margin:0;}
   .tt-slot .doc-section-head{display:none;}
   .tt-slot .doc-desc{margin-left:0;font-size:14px;}
+  .tt-vaciar{display:flex;justify-content:flex-end;margin-top:14px;}
   .acciones-campana{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;padding-top:14px;border-top:1px solid var(--line);}
   @media (max-width:1150px){ .tt-btn{white-space:normal;} }
   @media (max-width:520px){ .tt-tl{--split:34%;} .tt-btn{font-size:17px;padding:11px 14px;} }
@@ -1500,6 +1501,21 @@ function abrirJefeConCampana(nombre){
   try{ localStorage.setItem('jefeshub_foco_'+CLIENTE_ID, JSON.stringify({ id:foco, nombre:camp.producto_nombre||camp.nombre||'' })); }catch(e){}
   window.location.href=rutaJefe(nombre);
 }
+// Vaciar cuadros (por ejemplo cuando una campaña se duplicó y quedó mezclada con la información de otra). Se conservan el
+// nombre, el estado, el producto y el chat.
+const CAMPOS_PROTEGIDOS=['id','nombre','estado','creadoEn','chat_general','producto_origen','producto_id','producto_nombre','producto_nuevo','grupo_id'];
+function vaciarCuadros(n){
+  const camp=activeCampana(); if(!camp) return;
+  const base=mkCampana();
+  const claves=Object.keys(base).filter(k=>!CAMPOS_PROTEGIDOS.includes(k) && (n==null || moduloDeCampo(k)===n));
+  if(!claves.length) return;
+  const que = n==null ? 'TODOS los cuadros de esta campaña' : 'los cuadros del módulo '+n;
+  if(!confirm('¿Vaciar '+que+'? Se borra lo escrito ahí; el nombre, el producto y el chat se quedan.\n\nSi el chat también trae información de otra campaña, usa además «Reiniciar chat».')) return;
+  claves.forEach(k=>{ camp[k]=base[k]; });
+  if(n!=null) pasoAbierto=n;
+  scheduleGuardarCampanas(); scheduleAgendaSync();
+  render();
+}
 function abrirPaso(n, desdeChat){
   pasoAbierto = (pasoAbierto===n && !desdeChat) ? null : n;
   document.querySelectorAll('#tt-tl .tt-row:not(.ext)').forEach(r=>{
@@ -1532,6 +1548,10 @@ function construirLineaTiempo(container, camp){
       ? '✓ Módulo completo. Aquí queda el registro de lo que lleva esta campaña.'
       : 'Lo que confirmes en el chat con CONFIRMO JEFE se llena aquí solo. También lo puedes escribir tú.';
     slot.appendChild(info); slot.appendChild(sec);
+    const vac=document.createElement('div'); vac.className='tt-vaciar';
+    vac.innerHTML='<button type="button" class="btn-danger-outline">Vaciar este módulo</button>';
+    vac.querySelector('button').addEventListener('click',()=>vaciarCuadros(num));
+    slot.appendChild(vac);
     row.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>abrirPaso(num)));
     tl.appendChild(row); tl.appendChild(slot);
   });
@@ -1677,6 +1697,7 @@ function renderDocumento(container, camp){
       </div>
       <div class="acciones-campana">
         <button type="button" class="btn-outline" onclick="duplicarCampana()">Duplicar campaña</button>
+        <button type="button" class="btn-danger-outline" onclick="vaciarCuadros()">Vaciar todos los cuadros</button>
         <button type="button" class="btn-danger-outline" onclick="eliminarCampana()">Eliminar campaña</button>
       </div>
     </div>
