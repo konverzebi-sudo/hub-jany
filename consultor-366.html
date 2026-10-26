@@ -357,6 +357,13 @@
     .t3-volver:hover { border-color: var(--accent-text); color: var(--text); }
     body.t3-trabajo .t3-row.open .t3-volver { display: inline-block; }
     .hero-search textarea { resize: none; overflow-y: auto; max-height: 160px; min-height: 24px; line-height: 1.4; display: block; }
+    .menu-mencion { position: fixed; z-index: 120; max-height: 260px; overflow-y: auto; background: #FFFFFF; border: 1px solid #E5E7EB; border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.18); padding: 6px; display: flex; flex-direction: column; }
+    .menu-mencion button { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; text-align: left; background: transparent; border: none; border-radius: 10px; padding: 9px 10px; font: 600 14.5px Inter, sans-serif; color: #111827; cursor: pointer; }
+    .menu-mencion button:hover { background: #F1FFC2; }
+    .menu-mencion small { font: 500 12px Inter, sans-serif; color: #6B7280; }
+    .aviso-mencion { order: -3; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; background: #F1FFC2; border: 1.5px solid #C0F800; border-radius: 12px; padding: 8px 10px; margin: 0 0 8px; font-size: 13px; line-height: 1.4; color: #111827; text-align: left; }
+    .aviso-mencion[hidden] { display: none; }
+    .aviso-mencion button { background: #FFFFFF; border: 1px solid #C0F800; border-radius: 8px; padding: 5px 10px; font: 700 12.5px Inter, sans-serif; color: #111827; cursor: pointer; }
     .aviso-cero { display: flex; align-items: flex-start; gap: 10px; background: #F1FFC2; border: 1.5px solid #C0F800; border-radius: 12px; padding: 10px 12px; margin: 0 0 10px; font-size: 14.5px; line-height: 1.5; color: #111827; text-align: left; }
     .aviso-cero button { flex: 0 0 auto; background: transparent; border: none; font-size: 16px; cursor: pointer; color: #4B5563; }
     .hero-search-clip { display: none; flex: 0 0 auto; align-items: center; justify-content: center; background: transparent; border: none; padding: 6px; border-radius: 50%; color: #4B5563; cursor: pointer; }
@@ -705,6 +712,7 @@
         <span>✅ Hay contenido listo para guardarse en tus Notas.</span>
         <button type="button" class="ask-btn" onclick="confirmarDesdeBanner()">Confirmar y guardar (CONFIRMO JEFE)</button>
       </div>
+      <div class="aviso-mencion" id="avisoMencion366" hidden></div>
       <div class="adj-menu" id="adjMenu366" hidden>
         <button type="button" onclick="elegirAdjunto366('builderCapturas')">📷 Captura de pantalla</button>
         <button type="button" onclick="elegirAdjunto366('builderTxt')">💬 Chat de WhatsApp (.txt)</button>
@@ -1722,7 +1730,7 @@ function activarChat366() {
   document.getElementById('builderStartWrap').style.display = 'none';
   document.getElementById('builderControls').style.display = 'flex';
   const inp = document.getElementById('heroSearchInput');
-  if (inp) inp.placeholder = 'Escribe tu respuesta al Jefe 366...';
+  if (inp) inp.placeholder = 'Escribe tu respuesta… (@ para etiquetar un producto o campaña)';
   const chat = document.getElementById('builderChat');
   if (chat) chat.scrollTop = chat.scrollHeight;
   acomodarBarra366();
@@ -2459,6 +2467,98 @@ function guardarConversacionEnBancoWhatsApp(texto) {
   }).catch(() => {});
 }
 
+/* ─── @ para etiquetar un producto o una campaña de temporada ───
+   Al escribir @ sale la lista; lo etiquetado le da su contexto al Jefe en ESE mensaje. Si es un producto distinto al del filtro de
+   arriba, un aviso deja cambiar el filtro de una vez (así todo queda unificado) o seguir solo con su contexto. */
+let menciones366 = [];
+let menuMenciones366 = null;
+function cerrarMenuMenciones366() { if (menuMenciones366) { menuMenciones366.remove(); menuMenciones366 = null; } }
+function opcionesMencion366(q) {
+  const foco = window.__foco;
+  if (!foco) return [];
+  const n = normalizarNombre366(q);
+  const coincide = (nombre) => !n || normalizarNombre366(nombre).indexOf(n) !== -1;
+  const out = [];
+  foco.lista().forEach((p) => { if (p && p.nombre && coincide(p.nombre)) out.push({ tipo: 'producto', id: p.id, nombre: String(p.nombre).trim(), sub: 'Producto' }); });
+  (foco.campanasTodas ? foco.campanasTodas() : []).forEach((c) => { if (c.nombre && coincide(c.nombre)) out.push({ tipo: 'campana', id: c.id, nombre: String(c.nombre).trim(), sub: 'Campaña de temporada' }); });
+  return out.slice(0, 8);
+}
+function revisarMencion366(ta) {
+  const antes = ta.value.slice(0, ta.selectionStart);
+  const m = antes.match(/(^|\s)@([^\s@]*)$/);
+  cerrarMenuMenciones366();
+  if (!m) return;
+  const opts = opcionesMencion366(m[2]);
+  if (!opts.length) return;
+  const box = document.createElement('div');
+  box.className = 'menu-mencion';
+  opts.forEach((o) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.innerHTML = '<span>' + (o.tipo === 'campana' ? '🗓️ ' : '') + escaparHtmlBuilder(o.nombre) + '</span><small>' + o.sub + '</small>';
+    b.onmousedown = (e) => { e.preventDefault(); elegirMencion366(ta, m[2], o); };
+    box.appendChild(b);
+  });
+  document.body.appendChild(box);
+  const r = ta.getBoundingClientRect();
+  box.style.left = Math.max(8, r.left) + 'px';
+  box.style.width = Math.min(380, window.innerWidth - 16) + 'px';
+  box.style.bottom = (window.innerHeight - r.top + 6) + 'px';
+  menuMenciones366 = box;
+}
+function elegirMencion366(ta, consulta, o) {
+  const pos = ta.selectionStart;
+  const inicio = pos - consulta.length - 1;
+  ta.value = ta.value.slice(0, inicio) + '@' + o.nombre + ' ' + ta.value.slice(pos);
+  const nueva = inicio + o.nombre.length + 2;
+  try { ta.setSelectionRange(nueva, nueva); } catch (e) {}
+  if (!menciones366.some((x) => x.id === o.id && x.tipo === o.tipo)) menciones366.push(o);
+  cerrarMenuMenciones366();
+  autoAlturaTextarea(ta);
+  ta.focus();
+  avisoMencion366(o);
+}
+function avisoMencion366(o) {
+  const av = document.getElementById('avisoMencion366');
+  if (!av) return;
+  const foco = window.__foco && window.__foco.get();
+  av.innerHTML = '';
+  const txt = document.createElement('span');
+  const cerrar = () => { av.hidden = true; av.innerHTML = ''; };
+  if (o.tipo === 'campana') {
+    txt.textContent = 'Etiquetaste la campaña «' + o.nombre + '»: el Jefe usa su información en este mensaje. Se trabaja en Jefe de Temporada.';
+    av.appendChild(txt);
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = 'Abrir en Jefe de Temporada';
+    b.onclick = () => { const pre = window.__hub && window.__hub.prefijo ? window.__hub.prefijo() : ''; window.location.href = pre + '/jefe-temporada?campana=' + encodeURIComponent(o.id); };
+    av.appendChild(b);
+  } else if (foco && foco.id !== o.id) {
+    txt.textContent = 'Etiquetaste «' + o.nombre + '»: solo se usa su contexto en este mensaje.';
+    av.appendChild(txt);
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = 'Cambiar el filtro de arriba a «' + o.nombre + '»';
+    b.onclick = () => { menciones366 = menciones366.filter((x) => x.id !== o.id); if (window.__foco) window.__foco.set(o.id); cerrar(); };
+    av.appendChild(b);
+  } else { cerrar(); return; }
+  const x = document.createElement('button');
+  x.type = 'button'; x.textContent = '✕'; x.setAttribute('aria-label', 'Cerrar'); x.onclick = cerrar;
+  av.appendChild(x);
+  av.hidden = false;
+}
+function mencionesActivas366() {
+  const ult = builderMessages[builderMessages.length - 1];
+  const texto = (ult && typeof ult.content === 'string') ? ult.content : '';
+  return menciones366.filter((m) => texto.indexOf('@' + m.nombre) !== -1).map((m) => ({ tipo: m.tipo, id: m.id, nombre: m.nombre }));
+}
+['builderInput', 'heroSearchInput'].forEach((id) => {
+  const ta = document.getElementById(id);
+  if (!ta) return;
+  ta.addEventListener('input', () => revisarMencion366(ta));
+  ta.addEventListener('keyup', (e) => { if (e.key !== 'Escape') revisarMencion366(ta); });
+  ta.addEventListener('keydown', (e) => { if (e.key === 'Escape') cerrarMenuMenciones366(); });
+  ta.addEventListener('blur', () => setTimeout(cerrarMenuMenciones366, 150));
+});
+
 let sinBloqueConfirmo366 = false;
 async function llamarConstructor(senalOnb) {
   guardarConversacionEnBancoWhatsApp(builderTxtConversacion);
@@ -2469,7 +2569,7 @@ async function llamarConstructor(senalOnb) {
     const response = await fetch('/api/consultor-366', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: builderMessages, cliente: CLIENTE_ID, imagenes: builderImagenes, txtConversacion: builderTxtConversacion, onboarding: senalOnb || '', foco: focoParaChat366(), confirmoSinBloque: sinBloqueConfirmo366 }),
+      body: JSON.stringify({ messages: builderMessages, cliente: CLIENTE_ID, imagenes: builderImagenes, txtConversacion: builderTxtConversacion, onboarding: senalOnb || '', foco: focoParaChat366(), confirmoSinBloque: sinBloqueConfirmo366, menciones: mencionesActivas366() }),
     });
     const data = await response.json();
     if (!response.ok) {
@@ -2480,6 +2580,8 @@ async function llamarConstructor(senalOnb) {
   } catch (err) {
     builderMessages.push({ role: 'assistant', content: '⚠️ Hubo un error de conexión. Intenta de nuevo en un momento.' });
   } finally {
+    menciones366 = [];
+    const avM = document.getElementById('avisoMencion366'); if (avM) { avM.hidden = true; avM.innerHTML = ''; }
     sinBloqueConfirmo366 = false;
     builderBusy = false;
     document.getElementById('builderSendBtn').disabled = false;

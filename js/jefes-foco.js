@@ -823,6 +823,8 @@
     // la pagina avisa que cambiaron sus campanas (nombre, producto, alta o baja) para repintar la pastilla
     refrescar: function () { aplicar(actual.id); guardarLS(); pintar(); },
     altaProducto: altaProducto,
+    // todas las campañas de temporada (también las terminadas), con el nombre que se les muestra, para etiquetarlas con @
+    campanasTodas: function () { return campsRaw.filter(function (c) { return c && c.id; }).map(function (c) { return { id: c.id, nombre: etiquetaCampana(c) }; }); },
     es366Completo: function (id) { var p = buscar(id); return p ? estadoDe(p).completo : false; },
     es366Empezado: function (id) { var p = buscar(id); return p ? estadoDe(p).empezado : false; },
     refrescar366: function () { return refrescar366(true); },

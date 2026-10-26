@@ -569,6 +569,8 @@ async function manejarChatGuiado(req, res) {
     // Se inyecta siempre (no solo en modo documento-maestro) para que el chat guiado normal
     // también sepa qué ya está guardado y pueda comparar en vez de proponer siempre desde cero.
     partesContexto.push(await builderFormatearNotasGuardadas(clienteId));
+    const campsCtx = await builderFormatearCampanasTemporada(clienteId).catch(() => '');
+    if (campsCtx) partesContexto.push(campsCtx);
     // Lo que cambia según el turno (activado, foco, primera vez) va aparte y al final para no romper la caché.
     const partesSystem = [];
     // Primera vez de la usuaria en este chat (todavia no hay ninguna respuesta tuya): la bienvenida es lo primero,
@@ -588,6 +590,8 @@ async function manejarChatGuiado(req, res) {
         'FOCO ELEGIDO ARRIBA: la usuaria eligió en la pastilla de la parte de arriba ' + (foco.esGrupo ? 'el GRUPO "' : 'el PRODUCTO O SERVICIO "') + String(foco.nombre).trim().slice(0, 120) + '". Es con ' + (foco.esGrupo ? 'ese grupo' : 'ese producto') + ' con lo que se trabaja ahora: no le preguntes cuál es, y todo lo que se guarde es de ' + (foco.esGrupo ? 'ese grupo' : 'ese producto') + '. Recuérdale, cuando toque, que arriba puede cambiar de producto para llenar las fichas de los demás.'
       );
     }
+    const mencionesCtx = modo === 'normal' ? await builderFormatearMenciones(clienteId, body.menciones).catch(() => '') : '';
+    if (mencionesCtx) partesSystem.push(mencionesCtx);
     if (modo === 'normal' && body.confirmoSinBloque === true) {
       partesSystem.push(
         'AVISO DEL SISTEMA (obligatorio): la usuaria acaba de escribir CONFIRMO JEFE, pero en tu mensaje anterior NO venía ningún bloque entre ⚠️INICIO y ⚠️GUARDAR, así que la pantalla NO guardó NADA. Tienes PROHIBIDO decir que algo quedó guardado, listo o confirmado. Discúlpate en UNA línea, vuelve a entregar ahora mismo el bloque completo con sus marcadores ⚠️INICIO / ⚠️GUARDAR: [nombre exacto] y pídele de nuevo que escriba CONFIRMO JEFE. No avances a otro tema todavía.'
@@ -627,6 +631,53 @@ async function manejarChatGuiado(req, res) {
 }
 
 // =============================================================================================
+// Las campañas de temporada ya planeadas (viven en Jefe de Temporada) también se le muestran al chat del Jefe 366, en resumen, para que
+// no pregunte lo que ya está definido allá y sepa a qué campaña se refiere la usuaria cuando habla de un taller, evento o lanzamiento.
+async function builderFormatearCampanasTemporada(clienteId) {
+  const camps = (await leerJSON(`${clienteId}:temporada-campanas`).catch(() => null)) || [];
+  if (!Array.isArray(camps) || !camps.length) return '';
+  const lineas = camps.filter((c) => c && c.id).slice(0, 8).map((c) => {
+    const prod = ((c.producto_origen === 'nuevo' ? c.producto_nuevo : c.producto_nombre) || '').toString().trim();
+    const partes = ['«' + (c.nombre || '(sin nombre)') + '»', c.estado || 'borrador'];
+    if (prod) partes.push('producto: ' + prod);
+    if (c.temporada) partes.push('qué es: ' + truncar(c.temporada, 220));
+    if (c.fecha_inicio_activa || c.fecha_fin_activa) partes.push('campaña activa ' + (c.fecha_inicio_activa || '?') + ' a ' + (c.fecha_fin_activa || '?'));
+    if (c.objetivo_principal) partes.push('objetivo: ' + truncar(c.objetivo_principal, 200));
+    if (c.incentivo) partes.push('incentivo o urgencia: ' + truncar(c.incentivo, 200));
+    if (c.dm_oferta) partes.push('oferta: ' + truncar(c.dm_oferta, 220));
+    return '- ' + partes.join(' · ');
+  });
+  if (!lineas.length) return '';
+  return 'CAMPAÑAS DE TEMPORADA YA PLANEADAS (viven en el Jefe de Temporada; aquí son solo contexto, para que no le preguntes a la usuaria lo que ya está definido allá). Si menciona un taller, evento, lanzamiento o promoción con fecha, búscalo aquí primero y úsalo (por ejemplo como gancho en el Sistema de Productos). NO guardes los detalles de la campaña en las Notas 366; si quiere trabajarla a fondo, mándala al Jefe de Temporada.\n' + lineas.join('\n');
+}
+
+// Etiquetas @ del mensaje (productos o campañas que la usuaria señala a propósito): se le da a la IA el detalle de lo etiquetado.
+async function builderFormatearMenciones(clienteId, menciones) {
+  if (!Array.isArray(menciones) || !menciones.length) return '';
+  const [campsRaw, catalogoRaw, grupos] = await Promise.all([
+    leerJSON(`${clienteId}:temporada-campanas`).catch(() => null),
+    leerJSON(`${clienteId}:catalogo-productos`).catch(() => null),
+    leerJSON(`${clienteId}:grupos-negocio`).catch(() => null),
+  ]);
+  const camps = Array.isArray(campsRaw) ? campsRaw : [];
+  const catalogo = Array.isArray(catalogoRaw) ? catalogoRaw : [];
+  const partes = [];
+  for (const m of menciones.slice(0, 3)) {
+    if (!m || typeof m !== 'object') continue;
+    if (m.tipo === 'campana') {
+      const c = camps.find((x) => x && x.id === String(m.id));
+      if (c) partes.push('CAMPAÑA ETIQUETADA «' + (c.nombre || '') + '» (definida en Jefe de Temporada; úsala como contexto, no la redefinas aquí):' + String.fromCharCode(10) + truncar(temporadaFormatearCampana(c, catalogo, grupos), 6000));
+    } else if (m.tipo === 'producto') {
+      const nombre = String(m.nombre || '').trim().slice(0, 120);
+      if (!nombre) continue;
+      const prod = catalogo.find((p) => p && (p.id === m.id || String(p.nombre || '').trim().toLowerCase() === nombre.toLowerCase()));
+      partes.push('PRODUCTO ETIQUETADO «' + nombre + '»' + (prod ? ':' + String.fromCharCode(10) + temporadaLineaProducto(prod, grupos) : '. Sus fichas del 366 vienen en NOTAS 366 YA GUARDADAS (busca las de ese producto).'));
+    }
+  }
+  if (!partes.length) return '';
+  return 'ETIQUETAS @ DE ESTE MENSAJE: la usuaria etiquetó con @ lo siguiente. Para ESTE mensaje usa también el contexto de lo etiquetado. Si es un producto distinto al del foco de arriba, NO guardes nada en las fichas del foco como si fuera de ese otro producto: dilo en una línea y pregúntale si quiere cambiar el producto de arriba.' + String.fromCharCode(10, 10) + partes.join(String.fromCharCode(10, 10));
+}
+
 // RAMA "temporada" (Jefe de Temporada) -- chat guiado multi-turno, igual forma que el builder
 // (body.messages) pero con su propio prompt y su propio contexto: la campaña de temporada en
 // curso, además del contexto de negocio y las Notas Evergreen que ya construye este archivo.
