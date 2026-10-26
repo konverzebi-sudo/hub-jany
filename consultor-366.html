@@ -36,14 +36,15 @@
     .topbar h1 { justify-self: center; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
     .topbar-izq { justify-self: start; display: flex; align-items: center; gap: 10px; min-width: 0; max-width: 100%; }
     .topbar-izq .back-link { flex: 0 5 auto; min-width: 0; }
+    /* "<<" solo, en un círculo (el nombre del hub ya no se escribe ahí) */
+    .topbar .back-link { width: 38px; height: 38px; padding: 0; border-radius: 50%; justify-content: center; flex: 0 0 auto; }
+    .topbar .back-link .back-txt { display: none; }
     .topbar-izq #foco-slot { flex: 0 0 auto; }
     @media (max-width: 900px) {
       /* En pantallas angostas la pastilla de foco baja a una segunda fila de la barra fija */
       body .topbar { height: auto; padding: 8px 10px; grid-template-columns: 44px minmax(0, 1fr) 44px; grid-template-areas: "back titulo ." "foco foco foco"; row-gap: 8px; }
       /* igual que Jefe de Temporada: "<<" chico, título centrado y producto debajo */
       .topbar h1 { justify-self: center; text-align: center; font-size: clamp(18px, 5.5vw, 22px); overflow: visible; text-overflow: clip; }
-      .back-link .back-txt { display: none; }
-      .back-link { width: 40px; height: 34px; padding: 0; justify-content: center; }
       .topbar-izq { display: contents; }
       .topbar-izq .back-link { grid-area: back; }
       .topbar-izq #foco-slot { grid-area: foco; }
@@ -648,7 +649,7 @@
     <a id="ev-back-hub" href="/" class="back-link" title="Hub de Jefes">&lt;&lt;<span class="back-txt"> Hub de Jefes <span style="opacity:.4;">//</span> <span id="brand-marca-label">—</span></span></a>
     <div id="foco-slot"></div>
   </div>
-  <h1>🧬 Jefe 366</h1>
+  <h1>Jefe 366</h1>
   <button type="button" class="view-toggle-btn" id="viewToggleBtn" onclick="toggleVistaDividida()">🔀 Vista dividida</button>
 </div>
 
@@ -2125,6 +2126,20 @@ function mostrarAvisoDesdeCero366(nombre) {
   av.innerHTML = '<span><strong>Estás llenando «' + escaparHtmlBuilder(nombre || 'este producto') + '» desde cero.</strong> Empieza aquí en el chat: cuéntale al Jefe qué es y a quién se lo vendes, y él va llenando sus cuadros uno por uno.</span><button type="button" aria-label="Cerrar aviso" onclick="this.parentNode.remove()">✕</button>';
   const inp = document.getElementById('heroSearchInput') || document.getElementById('builderInput');
   setTimeout(() => { try { av.scrollIntoView({ block: 'center', behavior: 'smooth' }); if (inp) inp.focus({ preventScroll: true }); } catch (e) {} }, 250);
+  setTimeout(() => arrancarChatProducto366(nombre), 700);
+}
+
+/* Al dar de alta un producto nuevo (o empezar uno desde cero) el chat arranca solo: el Jefe hace la primera pregunta de ese producto,
+   sin esperar a que la usuaria escriba. En la primera vez absoluta no: ahí va antes el recorrido de bienvenida. */
+function arrancarChatProducto366(nombre) {
+  if (builderBusy || !nombre) return;
+  const est = leerOnb366();
+  const yaConversaba = builderMessages.length > 0;
+  if (est ? est !== 'arrancado' : !yaConversaba) return;
+  const input = document.getElementById('builderInput');
+  if (!input) return;
+  input.value = 'Quiero llenar desde cero el producto «' + nombre + '». Empieza tú: hazme la primera pregunta (una sola).';
+  enviarMensajeConstructor();
 }
 window.addEventListener('foco-desde-cero', (e) => mostrarAvisoDesdeCero366(e.detail && e.detail.nombre));
 

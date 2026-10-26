@@ -276,7 +276,7 @@
     if (Array.isArray(o.lista)) return o.lista.filter(Boolean);
     return Object.keys(o).length ? [o] : [];
   }
-  var IGNORAR = { nombre: 1, uid: 1, producto_uid: 1, grupo_id: 1, producto_relacionado: 1, activa: 1, id: 1, _importantes: 1 };
+  var IGNORAR = { nombre: 1, uid: 1, catalogo_id: 1, producto_uid: 1, grupo_id: 1, producto_relacionado: 1, activa: 1, id: 1, _importantes: 1 };
   function tieneValor(v) {
     if (v == null) return false;
     if (typeof v === 'string') return !!v.trim();
@@ -310,7 +310,7 @@
       if (!hecha(perfiles, true, MINIMO.cliente)) faltan.push('cliente ideal');
       if (!hecha(sistemas, false, MINIMO.sistema)) faltan.push('sistema para vender');
       if (!hecha(coms, false, MINIMO.comunicacion)) faltan.push('comunicación');
-      out[n] = { empezado: true, completo: !faltan.length, faltan: faltan };
+      out[n] = { ficha: true, empezado: faltan.length < TODO_FALTA.length, completo: !faltan.length, faltan: faltan };
     });
     return out;
   }
@@ -379,7 +379,9 @@
       if (ok) desgTemp[p.id] = true;
     });
   }
-  function estadoDe(p) { return estado366[norm(p && p.nombre)] || { empezado: false, completo: false, faltan: TODO_FALTA.slice() }; }
+  function estadoDe(p) { return estado366[norm(p && p.nombre)] || { ficha: false, empezado: false, completo: false, faltan: TODO_FALTA.slice() }; }
+  // En "Ver otros productos": con ficha pero sin nada llenado = borrador; sin ficha = sin empezar.
+  function subOtro(p) { return estadoDe(p).ficha ? 'Borrador · todavía sin información' : 'Sin empezar'; }
   async function refrescar366(forzar) {
     if (!soloCompletos && !marcar) return;
     var ahora = Date.now();
@@ -453,9 +455,9 @@
       mas.addEventListener('click', function (e) { e.stopPropagation(); verOtros = !verOtros; pintar(); });
       menu.appendChild(mas);
       if (verOtros) {
-        menu.appendChild(titulo('Productos sin empezar su 366'));
+        menu.appendChild(titulo('Borradores y productos sin empezar (no activos)'));
         otros366.forEach(function (p) {
-          menu.appendChild(opcion(p.id, String(p.nombre).trim(), 'Sin empezar · se abre en Jefe 366', precioTexto(p.precio), function () { irAJefe366(p); }));
+          menu.appendChild(opcion(p.id, String(p.nombre).trim(), subOtro(p) + ' · se abre en Jefe 366', precioTexto(p.precio), function () { irAJefe366(p); }));
         });
       }
     }
@@ -688,7 +690,7 @@
       mas.addEventListener('click', function (e) { e.stopPropagation(); verOtros = !verOtros; pintar(); });
       menu.appendChild(mas);
       if (verOtros) {
-        menu.appendChild(titulo('Productos sin empezar su 366'));
+        menu.appendChild(titulo('Borradores y productos sin empezar (no activos)'));
         var nota = document.createElement('div');
         nota.className = 'foco-nota';
         nota.textContent = pagina === '366'
@@ -697,7 +699,9 @@
         menu.appendChild(nota);
         otros.forEach(function (p) {
           if (sinEco() && modoQuitar) { menu.appendChild(opcion(p.id, String(p.nombre).trim(), 'Toca para quitar este producto', precioTexto(p.precio), function () { quitarProducto(p); }, 'foco-quitando')); return; }
-          menu.appendChild(opcion(p.id, String(p.nombre).trim(), 'Sin empezar', precioTexto(p.precio), function () { elegirIncompleto(p); }));
+          var aTempO = sinEco() && soloTemporada(p);
+          menu.appendChild(opcion(p.id, String(p.nombre).trim(), aTempO ? 'Borrador en el 366 · su campaña está en Jefe de Temporada' : subOtro(p), precioTexto(p.precio),
+            function () { if (aTempO) { var cid = campanaDeProducto(p); irA('/jefe-temporada' + (cid ? '?campana=' + encodeURIComponent(cid) : '')); } else elegirIncompleto(p); }));
         });
       }
     }
