@@ -858,7 +858,7 @@ async function manejarChatTemporada(req, res) {
     const otrasCampanas = temporadaFormatearOtrasCampanas(campanas, campanaId);
     if (otrasCampanas) partesContexto.push(otrasCampanas);
     // La campaña en curso se edita durante el chat: va al final, fuera de la caché.
-    const system = systemConCache(cargarPromptTemporada(), partesContexto.join('\n\n'), temporadaFormatearCampana(campana, catalogoProd, gruposNegocio));
+    const system = systemConCache(cargarPromptTemporada(), partesContexto.join('\n\n'), temporadaFormatearCampana(campana, catalogoProd, gruposNegocio) + (typeof body.estadoDocumento === 'string' && body.estadoDocumento.trim() ? '\n\nESTADO REAL DE LLENADO DEL DOCUMENTO (lo calcula la página, es la verdad; si un módulo dice INCOMPLETO la campaña NO está completa):\n' + body.estadoDocumento.trim().slice(0, 3000) : ''));
     const conAdjuntos = imagenes.length > 0 || !!txtConversacion.trim();
 
     const { ok, status, data } = await llamarClaude(system, {

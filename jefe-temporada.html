@@ -221,7 +221,9 @@
   .file-btn:hover{border-color:var(--accent);background:var(--accent-soft);}
   .file-name{color:var(--text-dim);}
   .chat-inline-status{font-family:Inter,sans-serif;color:var(--text-dim);}
-  .chat-thread{background:transparent;padding:6px 2px;max-width:900px;width:100%;margin:0 auto;}
+  .chat-thread{background:transparent;padding:6px 2px;max-width:900px;width:100%;margin:0 auto;overflow-x:hidden;}
+  /* Palabras o links larguísimos no ensanchan el chat: se parten y el chat ya no se desliza hacia los lados */
+  .chat-msg{overflow-wrap:anywhere;word-break:break-word;min-width:0;max-width:100%;box-sizing:border-box;}
   .chat-msg{font-family:Inter,sans-serif;}
   .chat-msg-assistant{background:#fff;border:1px solid #E5E7EB;color:#111827;border-bottom-left-radius:3px;}
   .chat-msg-user{border-bottom-right-radius:3px;}
@@ -1357,11 +1359,30 @@ function renderChecklistCompletitud(camp){
 }
 // Antes de compartir con otro Jefe, avisa (sin bloquear) si faltan módulos clave -- el usuario
 // decide si de todas formas quiere compartir lo que ya tiene.
+// Nombre legible de lo que falta ("Plan de calentamiento", no "pre_calentamiento")
+const ETIQUETA_DE_CAMPO={}; Object.keys(TEMPORADA_CAMPO_LOOKUP).forEach(n=>{ const l=TEMPORADA_CAMPO_LOOKUP[n]; if(!ETIQUETA_DE_CAMPO[l.campo]) ETIQUETA_DE_CAMPO[l.campo]=n; });
+function faltantesLegibles(m){ return (m.faltantes||[]).map(k=>ETIQUETA_DE_CAMPO[k]||k); }
 function confirmarCompletitudAntesDeCompartir(camp){
   const incompletos = calcularCompletitudCampana(camp).filter(m=>!m.completo);
   if(!incompletos.length) return true;
-  const lista = incompletos.map(m=>'- Módulo '+m.num+' ('+m.nombre+')').join('\n');
-  return confirm('Todavía faltan datos en estos módulos:\n\n'+lista+'\n\n¿Compartir de todas formas con lo que ya tienes?');
+  const lista = incompletos.map(m=>'- Módulo '+m.num+' ('+m.nombre+'): falta '+faltantesLegibles(m).join(', ')).join('\n');
+  const sigue = confirm('Todavía faltan datos en estos módulos:\n\n'+lista+'\n\n¿Compartir de todas formas con lo que ya tienes?\n\n(Si cancelas te llevo al primer módulo que falta.)');
+  if(!sigue) abrirPaso(incompletos[0].num, true);
+  return sigue;
+}
+// Estado de llenado calculado por la página (es la verdad): se manda al Jefe para que nunca diga "completa" si algo falta.
+function textoEstadoDocumento(camp){
+  return calcularCompletitudCampana(camp).map(m=>'Módulo '+m.num+' · '+m.nombre+': '+(m.completo?'COMPLETO':'INCOMPLETO — falta '+faltantesLegibles(m).join(', '))).join('\n');
+}
+// "Revisar qué falta": respuesta inmediata, sin gastar IA, con lo que realmente falta en los cuadros.
+function revisarQueFalta(){
+  const camp=activeCampana(); if(!camp) return;
+  const inc=calcularCompletitudCampana(camp).filter(m=>!m.completo);
+  const txt = inc.length
+    ? 'Revisé tus 12 módulos. Todavía falta información en:\n\n'+inc.map(m=>'• Módulo '+m.num+' · '+m.nombre+' — falta: '+faltantesLegibles(m).join(', ')).join('\n')+'\n\nDime con cuál quieres seguir y lo vamos llenando (o abre ese módulo en el tablero).'
+    : 'Revisé tus 12 módulos y todos tienen su información clave 🫡. Si cambió algo (fechas, precio, oferta), dímelo y te propongo qué actualizar.';
+  chatMessages.push({role:'user',content:'¿Qué me falta por llenar?'},{role:'assistant',content:txt});
+  abrirChat(); renderChatThread(true); guardarChatsEnCampana(); actualizarBanner();
 }
 // Resumen COMPLETO (no solo 8 datos básicos) -- lleva todo lo que ya se construyó en Producto,
 // Perfil de Cliente y Comunicación (dolores, deseos, miedos, objeciones, ángulos, frases, CTAs),
@@ -1453,9 +1474,14 @@ function computarMetas(){
   const camp=activeCampana();
   const el=document.getElementById('metas-calc');
   if(!camp||!el) return;
-  const meta=parseFloat(camp.meta_ventas), ticket=parseFloat(camp.ticket_promedio), conv=parseFloat(camp.conversion_pct);
+  // Los campos son de texto (el Jefe puede guardar "$190", "50 ventas mínimo" o "2% a 5%"): se toma el primer número que traigan.
+  const numero=v=>{ const m=String(v==null?'':v).replace(/,/g,'').match(/\d+(\.\d+)?/); return m?parseFloat(m[0]):NaN; };
+  const meta=numero(camp.meta_ventas), ticket=numero(camp.ticket_promedio), conv=numero(camp.conversion_pct);
   let ventas='—', leads='—';
-  if(meta>0 && ticket>0){ ventas=Math.ceil(meta/ticket); if(conv>0) leads=Math.ceil(ventas/(conv/100)); }
+  // La meta puede ser en pesos ("$10,000") o en cantidad ("50 inscritos"): en cantidad ya son las ventas necesarias.
+  const txtMeta=String(camp.meta_ventas||'');
+  const enCantidad = /inscrit|venta|entrada|lugar|persona|cliente|boleto|pieza|unidad|registro/i.test(txtMeta) && !/\$|mxn|pesos/i.test(txtMeta);
+  if(meta>0 && (enCantidad || ticket>0)){ ventas=enCantidad ? Math.ceil(meta) : Math.ceil(meta/ticket); if(conv>0) leads=Math.ceil(ventas/(conv/100)); }
   el.innerHTML=`
     <div class="metas-calc-item"><span>Ventas necesarias</span><span>${ventas}</span></div>
     <div class="metas-calc-item"><span>Leads necesarios estimados</span><span>${leads}</span></div>
@@ -1485,6 +1511,7 @@ function render(){
         <div class="clip-menu" id="clip-menu" hidden>
           <label class="clip-op">📎 Subir capturas<input type="file" id="chat-capturas" accept="image/*" multiple hidden onchange="onArchivosChat('general');cerrarClipMenu()"></label>
           <label class="clip-op">📄 Subir .txt<input type="file" id="chat-txt" accept=".txt" multiple hidden onchange="onArchivosChat('general');cerrarClipMenu()"></label>
+          <button type="button" class="clip-op" onclick="cerrarClipMenu();revisarQueFalta()">🔎 Revisar qué falta</button>
           <button type="button" class="clip-op" title="Si ya platicaron algo y no se llenó, esto lee la conversación y llena los cuadros" onclick="cerrarClipMenu();confirmarChat(true)">🧩 Llenar cuadros con lo platicado</button>
           <button type="button" class="clip-op" onclick="cerrarClipMenu();reiniciarChat()">🔄 Reiniciar chat</button>
         </div>
@@ -1742,9 +1769,9 @@ function renderDocumento(container, camp){
     <div class="doc-section">
       <div class="doc-section-head"><span class="doc-num">6</span><h3 class="doc-title">Metas, fechas y leads necesarios</h3></div>
       <div class="fields-grid">
-        ${campoTexto('meta_ventas','Meta de ventas','number')}
-        ${campoTexto('ticket_promedio','Ticket promedio','number')}
-        ${campoTexto('conversion_pct','Conversión estimada %','number')}
+        ${campoTexto('meta_ventas','Meta de ventas')}
+        ${campoTexto('ticket_promedio','Ticket promedio')}
+        ${campoTexto('conversion_pct','Conversión estimada %')}
         ${campoTexto('presupuesto_ads','Presupuesto de ads')}
         ${campoTexto('base_datos_disponible','Base de datos disponible')}
       </div>
@@ -1954,7 +1981,7 @@ async function enviarMensajeChat(){
     const res=await fetch('/api/consultor-366',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ messages:chatMessages, cliente:CLIENTE_ID, campanaId:camp.id, agente:'temporada', modulo:'plan', imagenes:chatImagenes, txtConversacion:chatTxtConversacion, producto_origen:camp.producto_origen||'evergreen', producto_id:camp.producto_id||'', producto_nombre:camp.producto_nombre||'', grupo_id:camp.grupo_id||'' }),
+      body:JSON.stringify({ messages:chatMessages, cliente:CLIENTE_ID, campanaId:camp.id, agente:'temporada', modulo:'plan', imagenes:chatImagenes, txtConversacion:chatTxtConversacion, producto_origen:camp.producto_origen||'evergreen', producto_id:camp.producto_id||'', producto_nombre:camp.producto_nombre||'', grupo_id:camp.grupo_id||'', estadoDocumento:textoEstadoDocumento(camp) }),
     });
     const data=await res.json();
     if(!res.ok){
