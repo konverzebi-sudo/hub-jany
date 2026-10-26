@@ -2106,6 +2106,7 @@ async function inicializarFoco366() {
   if (!window.__foco) return;
   aplicarFoco366(window.__foco.get());
   window.__foco.onChange((f) => { if (sincronizandoFoco366) return; aplicarFoco366(f); });
+  setTimeout(() => sincronizarEscalera366(), 2500);
   // viene de la pastilla de otro Jefe con un producto que todavía no tiene su 366 completo
   try {
     const qp = new URLSearchParams(location.search).get('producto');
@@ -3719,6 +3720,47 @@ function programarSyncCatalogo366() {
   clearTimeout(temporizadorCat366);
   temporizadorCat366 = setTimeout(sincronizarCatalogo366, 1500);
 }
+/* Los productos del Sistema de Productos 366 (gancho, upsell, downsell, recurrencia...) también son productos del negocio: se dan de alta
+   en el Catálogo del ADN (con su precio) para que salgan en el filtro de arriba, como borrador hasta que se llenen. Sin repetir los que ya
+   existen con un nombre igual o parecido. */
+const escalera366Vista = {};
+function precioDeTexto366(t) {
+  const m = String(t || '').replace(/\s/g, '').match(/([0-9][0-9,]*(?:\.[0-9]+)?)/);
+  return m ? m[1].replace(/,/g, '') : '';
+}
+async function sincronizarEscalera366() {
+  if (!window.__foco || !window.__foco.altaProducto) return;
+  const nuevos = [];
+  for (const ficha of productosState.slice()) {
+    for (const r of (ficha && ficha.sistema_productos) || []) {
+      const nombre = ((r && r.producto) || '').toString().trim();
+      if (!nombre) continue;
+      const clave = normalizarNombre366(nombre);
+      if (escalera366Vista[clave]) continue;
+      escalera366Vista[clave] = true;
+      try {
+        await window.__foco.altaProducto(nombre, {
+          evitarParecido: true, limpiarNombre: true, precio: precioDeTexto366(r.precio),
+          notas: [r.tipo, r.incluye].filter(Boolean).join(' — ').slice(0, 300) + (r.precio ? ' · Precio: ' + r.precio : ''),
+          alCrear: (item) => nuevos.push(item.nombre),
+        });
+      } catch (e) { escalera366Vista[clave] = false; }
+    }
+  }
+  if (nuevos.length) {
+    const av = document.getElementById('avisoMencion366');
+    if (av) {
+      av.innerHTML = '';
+      const t = document.createElement('span');
+      t.textContent = 'Agregué al Catálogo de tu ADN los productos de tu Sistema de Productos: ' + nuevos.join(', ') + '. Salen en el filtro de arriba (en «Ver otros productos») hasta que los llenes.';
+      const x = document.createElement('button');
+      x.type = 'button'; x.textContent = '✕'; x.setAttribute('aria-label', 'Cerrar');
+      x.onclick = () => { av.hidden = true; av.innerHTML = ''; };
+      av.appendChild(t); av.appendChild(x); av.hidden = false;
+    }
+  }
+}
+
 async function sincronizarCatalogo366() {
   if (!window.__foco || !window.__foco.altaProducto) return;
   let nuevosIds = false;
@@ -3736,6 +3778,7 @@ async function sincronizarCatalogo366() {
     } catch (e) {}
   }
   if (nuevosIds) { try { guardarProductos(); } catch (e) {} }
+  sincronizarEscalera366();
 }
 
 async function cargarProductos() {
