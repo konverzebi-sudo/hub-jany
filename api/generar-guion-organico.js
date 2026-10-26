@@ -440,6 +440,29 @@ async function construirEnfoqueProducto(clienteId, catalogo, productoId) {
   return lineas.join('\n');
 }
 
+// Ecosistema completo (o un grupo): la lista de productos y servicios 366 y la de productos y servicios de temporada.
+// Sirve para que las ideas se repartan entre todo lo que se vende, sin quedarse en un solo producto.
+async function construirEcosistema(clienteId, catalogo, grupoId) {
+  const prods = (Array.isArray(catalogo) ? catalogo : []).filter((p) => p && p.nombre && (!grupoId || p.grupo_id === grupoId));
+  const ofertas = await leerOfertas366(clienteId).catch(() => []);
+  const nombres366 = [];
+  prods.forEach((p) => { if (!nombres366.includes(p.nombre)) nombres366.push(p.nombre); });
+  ofertas.forEach((o) => { if (o && o.nombre && !grupoId && !nombres366.some((n) => slugOferta(n) === slugOferta(o.nombre))) nombres366.push(o.nombre); });
+
+  const campanas = await leerJSON(`${clienteId}:temporada-campanas`).catch(() => null);
+  const hoy = new Date().toISOString().slice(0, 10);
+  const vigentes = (Array.isArray(campanas) ? campanas : []).filter((c) => c && (!c.fecha_fin_activa || c.fecha_fin_activa >= hoy) && (!grupoId || !c.grupo_id || c.grupo_id === grupoId));
+  const deTemporada = vigentes.map((c) => {
+    const prod = c.producto_origen === 'nuevo' ? c.producto_nuevo : c.producto_nombre;
+    return `- ${String(prod || '').split('\n')[0].trim() || '(producto de la campaña)'} — campaña "${c.nombre || 'sin nombre'}"${c.temporada ? ' (' + c.temporada + ')' : ''}`;
+  });
+
+  const partes = ['ENFOQUE: ' + (grupoId ? 'GRUPO DE NEGOCIO COMPLETO' : 'ECOSISTEMA COMPLETO') + ' (no hay un producto en particular). Reparte las ideas entre los productos y servicios de abajo, sin quedarte en uno solo, y en cada idea agrega el campo "producto" con el nombre EXACTO del producto o servicio de la lista al que pertenece (déjalo vacío si es de la marca en general).'];
+  partes.push('Productos y servicios 366:\n' + (nombres366.length ? nombres366.map((n) => '- ' + n).join('\n') : '(todavía no hay en el ADN)'));
+  partes.push('Productos y servicios de temporada:\n' + (deTemporada.length ? deTemporada.join('\n') : '(no hay campañas de temporada vigentes)'));
+  return partes.join('\n\n');
+}
+
 async function construirContexto(clienteId, grupoId) {
   const [identidad, tono, audiencia, catalogo, grupos, comunicacion, radarHistorial, radarEstilo, conversacionReciente, bancoConversaciones, redes] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
@@ -699,11 +722,23 @@ module.exports = async function handler(req, res) {
       const tema = (body.tema || '').toString().trim();
       const cantidad = Math.min(Math.max(parseInt(body.cantidad, 10) || 6, 1), 10);
 
+      // Con un producto elegido arriba, las ideas son solo de él; sin producto, de todo el ecosistema (o del grupo).
+      const enfoqueIdeas = productoId
+        ? (await construirEnfoqueProducto(clienteId, catalogo, productoId).catch(() => null)) || formatearProducto(catalogo, productoId)
+        : await construirEcosistema(clienteId, catalogo, grupoId).catch(() => null);
+      const bloqueEnfoqueIdeas = [enfoqueIdeas, modoCampanaIdeas].filter(Boolean).join('\n\n') || null;
+      const existentes = (Array.isArray(body.existentes) ? body.existentes : []).map((x) => String(x || '').trim().slice(0, 160)).filter(Boolean).slice(0, 25);
+      const ideaExacta = body.ideaExacta === true && !!tema;
+
       const instruccion = 'INSTRUCCIÓN DE ESTA GENERACIÓN — MODO "ideas":\n' +
         `OBJETIVO: ${objetivo}\n` +
-        `CANTIDAD DE IDEAS: ${cantidad}` +
-        (tema ? `\nTEMA / CONTEXTO SEMILLA (opcional, úsalo como punto de partida): ${tema}` : '') +
-        (bloqueProducto ? '\n\n' + bloqueProducto : '') +
+        `CANTIDAD DE IDEAS: ${ideaExacta ? 1 : cantidad}` +
+        (ideaExacta
+          ? `\nIDEA DE LA PERSONA (úsala tal cual en el campo "idea", sin cambiarla, y construye sus 7 ángulos): ${tema}`
+          : (tema ? `\nTEMA / CONTEXTO SEMILLA (opcional, úsalo como punto de partida): ${tema}` : '')) +
+        (existentes.length ? '\n\nIDEAS YA REGISTRADAS (no las repitas ni las parafrasees):\n' + existentes.map((x) => '- ' + x).join('\n') : '') +
+        (bloqueEnfoqueIdeas ? '\n\n' + bloqueEnfoqueIdeas : '') +
+        (productoId ? '\n\nEn cada idea agrega el campo "producto" con el nombre del producto enfocado.' : '') +
         (esTendencia ? '\n\nEl objetivo es "tendencia": usa la herramienta de búsqueda web para encontrar qué está pasando AHORA antes de responder. Basa las ideas en hallazgos reales, no en suposiciones.' : '');
 
       const system = systemConCache(promptFijo, contexto, instruccion);
