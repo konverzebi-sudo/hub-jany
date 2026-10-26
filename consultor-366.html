@@ -2556,6 +2556,28 @@ function mencionesActivas366() {
   ta.addEventListener('blur', () => setTimeout(cerrarMenuMenciones366, 150));
 });
 
+/* Qué partes del 366 ya están llenas para el producto elegido arriba. Lo calcula la pantalla (es la verdad) y se le manda al Jefe
+   para que siga el orden y no salte a un módulo posterior con uno anterior vacío. */
+function estadoMapa366() {
+  try {
+    const f = focoParaChat366();
+    if (!f || f.esGrupo || !f.nombre || !window.__foco || !window.__foco.estado366De) return null;
+    capturarTodoDesdeDOM366();
+    const e = window.__foco.estado366De(f.nombre, productosState, perfilesState, sistemasState, comunicacionesState);
+    const faltan = e ? e.faltan : ['ficha del producto', 'cliente ideal', 'sistema para vender', 'comunicación'];
+    const ok = (k) => faltan.indexOf(k) === -1;
+    return {
+      producto: f.nombre,
+      partes: [
+        { modulo: 1, nombre: 'Cliente Ideal', paso: 3, pantalla: 'Tu cliente ideal', completo: ok('cliente ideal') },
+        { modulo: 2, nombre: 'Oferta Irresistible 366 (ficha del producto)', paso: 2, pantalla: 'Producto 366', completo: ok('ficha del producto') },
+        { modulo: 4, nombre: 'Sistema 366', paso: 4, pantalla: 'Sistema para vender 366', completo: ok('sistema para vender') },
+        { modulo: 5, nombre: 'Comunicación 366', paso: 5, pantalla: 'Comunicación 366', completo: ok('comunicación') },
+      ],
+    };
+  } catch (e) { return null; }
+}
+
 let sinBloqueConfirmo366 = false;
 async function llamarConstructor(senalOnb) {
   guardarConversacionEnBancoWhatsApp(builderTxtConversacion);
@@ -2566,7 +2588,7 @@ async function llamarConstructor(senalOnb) {
     const response = await fetch('/api/consultor-366', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: builderMessages, cliente: CLIENTE_ID, imagenes: builderImagenes, txtConversacion: builderTxtConversacion, onboarding: senalOnb || '', foco: focoParaChat366(), confirmoSinBloque: sinBloqueConfirmo366, menciones: mencionesActivas366() }),
+      body: JSON.stringify({ messages: builderMessages, cliente: CLIENTE_ID, imagenes: builderImagenes, txtConversacion: builderTxtConversacion, onboarding: senalOnb || '', foco: focoParaChat366(), confirmoSinBloque: sinBloqueConfirmo366, menciones: mencionesActivas366(), estadoMapa: estadoMapa366() }),
     });
     const data = await response.json();
     if (!response.ok) {

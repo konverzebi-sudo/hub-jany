@@ -826,6 +826,11 @@
     // la pagina avisa que cambiaron sus campanas (nombre, producto, alta o baja) para repintar la pastilla
     refrescar: function () { aplicar(actual.id); guardarLS(); pintar(); },
     altaProducto: altaProducto,
+    // qué partes del 366 ya tiene un producto, calculado con lo que la página tiene en memoria (para decirle al chat qué toca)
+    estado366De: function (nombre, prods, perfiles, sistemas, coms) {
+      var m = calcular366(prods || [], perfiles || [], sistemas || [], coms || []);
+      return m[norm(nombre)] || null;
+    },
     // todas las campañas de temporada (también las terminadas), con el nombre que se les muestra, para etiquetarlas con @
     campanasTodas: function () { return campsRaw.filter(function (c) { return c && c.id; }).map(function (c) { return { id: c.id, nombre: etiquetaCampana(c) }; }); },
     es366Completo: function (id) { var p = buscar(id); return p ? estadoDe(p).completo : false; },

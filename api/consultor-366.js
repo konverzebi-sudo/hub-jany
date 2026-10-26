@@ -592,6 +592,16 @@ async function manejarChatGuiado(req, res) {
     }
     const mencionesCtx = modo === 'normal' ? await builderFormatearMenciones(clienteId, body.menciones).catch(() => '') : '';
     if (mencionesCtx) partesSystem.push(mencionesCtx);
+    const em = modo === 'normal' && body.estadoMapa && typeof body.estadoMapa === 'object' ? body.estadoMapa : null;
+    if (em && Array.isArray(em.partes) && em.partes.length) {
+      const lineas = em.partes.slice(0, 6).map((p) => '- MÓDULO ' + Number(p.modulo) + ' · ' + String(p.nombre || '').slice(0, 80) + ' (paso ' + Number(p.paso) + ' del mapa, "' + String(p.pantalla || '').slice(0, 60) + '"): ' + (p.completo ? 'COMPLETO' : 'INCOMPLETO'));
+      const primero = em.partes.find((p) => !p.completo);
+      partesSystem.push(
+        'ESTADO REAL DEL MAPA PARA «' + String(em.producto || '').slice(0, 120) + '» (lo calcula la pantalla; es la verdad, no lo que recuerdes de la conversación):' + String.fromCharCode(10) + lineas.join(String.fromCharCode(10)) + String.fromCharCode(10) +
+        (primero ? 'Lo que toca ahora es el MÓDULO ' + Number(primero.modulo) + ' (' + String(primero.pantalla || '') + '). ' : 'Las cuatro partes están completas. ') +
+        'REGLA DURA: sigue el orden Módulo 1 → 2 → 4 → 5 (el Módulo 3 no guarda nada). Cuando la usuaria diga que quiere continuar o seguir, entra al PRIMER módulo INCOMPLETO de esta lista. NUNCA entres a un módulo posterior mientras uno anterior esté INCOMPLETO, aunque en la conversación se haya hablado de él. Si ella te pide expresamente saltar, avísale en una línea cuál módulo anterior sigue vacío y pregúntale si prefiere cerrarlo primero.'
+      );
+    }
     if (modo === 'normal' && body.confirmoSinBloque === true) {
       partesSystem.push(
         'AVISO DEL SISTEMA (obligatorio): la usuaria acaba de escribir CONFIRMO JEFE, pero en tu mensaje anterior NO venía ningún bloque entre ⚠️INICIO y ⚠️GUARDAR, así que la pantalla NO guardó NADA. Tienes PROHIBIDO decir que algo quedó guardado, listo o confirmado. Discúlpate en UNA línea, vuelve a entregar ahora mismo el bloque completo con sus marcadores ⚠️INICIO / ⚠️GUARDAR: [nombre exacto] y pídele de nuevo que escriba CONFIRMO JEFE. No avances a otro tema todavía.'
