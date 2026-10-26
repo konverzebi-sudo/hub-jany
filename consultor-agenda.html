@@ -144,6 +144,8 @@
     .modal h3 { margin: 0; font-size: 20px; font-weight: 800; line-height: 1.25; }
     .modal .m-sub { margin: -8px 0 0; font-size: 14px; color: var(--text-dim); }
     .modal label { font-size: 13px; font-weight: 600; color: var(--text-dim); display: flex; flex-direction: column; gap: 6px; }
+    .modal textarea { background: var(--surface); border: 1.5px solid var(--line); border-radius: 11px; color: var(--text); padding: 11px 12px; font: 16px/1.45 Inter, sans-serif; resize: vertical; }
+    .modal textarea:focus { outline: none; border-color: var(--accent-texto); }
     .modal input[type=text], .modal input[type=date], .modal select { background: var(--surface); border: 1.5px solid var(--line); border-radius: 11px; color: var(--text); padding: 11px 12px; font: 16px Inter, sans-serif; min-height: 46px; }
     .modal input:focus, .modal select:focus { outline: none; border-color: var(--accent-texto); }
     .m-fila { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -152,6 +154,31 @@
     .m-item { text-align: left; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font: 600 14px Inter, sans-serif; color: var(--text); cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
     .m-item small { font: 500 12.5px Inter, sans-serif; color: var(--text-dim); }
     .m-item:hover { border-color: var(--accent-texto); background: var(--accent-soft); }
+    /* ventanas de una tarea: qué es, cuándo es y qué hay que hacer */
+    .et-eyebrow { font: 600 13px/1.4 Inter, sans-serif; color: var(--text-dim); }
+    .et-eyebrow b { color: var(--text); font-weight: 700; }
+    .et-cuando { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; font: 600 15px/1.4 Inter, sans-serif; }
+    .et-chip { display: inline-flex; align-items: center; padding: 4px 11px; border-radius: 99px; background: var(--surface-2); color: var(--text); font: 700 12.5px Inter, sans-serif; }
+    .et-chip.hoy { background: var(--accent); color: #0F0B16; }
+    .et-chip.pronto, .et-chip.hecho { background: var(--accent-soft); color: var(--accent-texto); }
+    .et-chip.paso { background: #FFF4D6; color: #7A4B00; }
+    .et-chip[hidden] { display: none; }
+    .et-que { padding: 14px 16px; border-radius: 14px; background: var(--surface-2); }
+    .et-que b, .et-donde > b, .et-det-item b { display: block; font: 700 11.5px "JetBrains Mono", monospace; letter-spacing: .06em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px; }
+    .et-que p { margin: 0; font: 500 16px/1.55 Inter, sans-serif; color: var(--text); }
+    .et-det { display: flex; flex-direction: column; gap: 12px; }
+    .et-det[hidden] { display: none; }
+    .et-det-item p { margin: 0; font: 400 15px/1.55 Inter, sans-serif; color: var(--text); }
+    .et-donde { display: flex; flex-direction: column; gap: 6px; }
+    .m-item.principal { background: var(--accent); border-color: var(--accent); }
+    .m-item.principal small { color: #0F0B16; opacity: .78; }
+    .m-item.principal:hover { background: var(--accent); filter: brightness(1.04); }
+    a.pb-btn#ev-origen-link { width: 100%; text-align: center; }
+    details.et-ajustar { border: 1px solid var(--line); border-radius: 14px; padding: 0 14px; }
+    details.et-ajustar > summary { cursor: pointer; padding: 13px 0; font: 700 14px Inter, sans-serif; color: var(--text); }
+    details.et-ajustar[open] { display: flex; flex-direction: column; gap: 14px; padding-bottom: 14px; }
+    details.et-ajustar[open] > summary { padding-bottom: 0; }
+    details.et-ajustar .m-sub { margin: 0; }
     .m-acciones { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
     .m-acciones .der { display: flex; gap: 8px; flex-wrap: wrap; }
     .swatches { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -237,27 +264,35 @@
 
 <footer>Jefe de Agenda</footer>
 
-<!-- Ventana: editar evento espejado -->
+<!-- Ventana: una tarea que viene de otro Jefe (post, historia, anuncio o acción de Temporada) -->
 <div class="overlay" id="overlay-evento" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-evento-title">
-    <h3 id="modal-evento-title">Evento</h3>
-    <a id="ev-origen-link" class="ag-link" href="#" target="_blank" rel="noopener" style="display:none;">Ver/editar el original →</a>
-    <label>Título<input type="text" id="ev-titulo"></label>
-    <label>Fecha<input type="date" id="ev-fecha"></label>
-    <label>Estado
-      <select id="ev-estado">
-        <option value="idea">💡 Idea</option>
-        <option value="proceso">⚙️ En proceso</option>
-        <option value="publicado">🔥 Publicado</option>
-      </select>
-    </label>
-    <div class="m-acciones">
-      <button type="button" class="btn-peligro" id="ev-quitar">Quitar del calendario</button>
-      <div class="der">
-        <button type="button" class="pb-btn pb-btn-sec" id="ev-cancelar">Cancelar</button>
-        <button type="button" class="pb-btn" id="ev-guardar">Guardar</button>
+    <div class="et-eyebrow" id="ev-eyebrow"></div>
+    <h3 id="modal-evento-title">Tarea</h3>
+    <div class="et-cuando"><span id="ev-cuando"></span><span class="et-chip" id="ev-chip" hidden></span></div>
+    <div class="et-que"><b>Qué toca hacer</b><p id="ev-que"></p></div>
+    <div class="et-det" id="ev-detalles" hidden></div>
+    <a id="ev-origen-link" class="pb-btn" href="#" target="_blank" rel="noopener" style="display:none;">Abrir →</a>
+    <details class="et-ajustar" id="ev-ajustar">
+      <summary>Cambiar el título, la fecha o el estado</summary>
+      <label>Título<textarea id="ev-titulo" rows="3"></textarea></label>
+      <label>Fecha<input type="date" id="ev-fecha"></label>
+      <label>Estado
+        <select id="ev-estado">
+          <option value="idea">💡 Idea</option>
+          <option value="proceso">⚙️ En proceso</option>
+          <option value="publicado">🔥 Publicado</option>
+        </select>
+      </label>
+      <div class="m-acciones">
+        <button type="button" class="btn-peligro" id="ev-quitar">Quitar del calendario</button>
+        <div class="der">
+          <button type="button" class="pb-btn pb-btn-sec" id="ev-cancelar">Cancelar</button>
+          <button type="button" class="pb-btn" id="ev-guardar">Guardar</button>
+        </div>
       </div>
-    </div>
+    </details>
+    <div class="m-acciones"><span></span><button type="button" class="pb-btn pb-btn-sec" id="ev-cerrar">Cerrar</button></div>
   </div>
 </div>
 
@@ -289,25 +324,28 @@
 <!-- Ventana: etapa del proceso de campaña -->
 <div class="overlay" id="overlay-etapa" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="et-titulo">
-    <div class="pc-sub" id="et-camp"></div>
+    <div class="et-eyebrow" id="et-camp"></div>
     <h3 id="et-titulo">Etapa</h3>
-    <p class="m-sub" id="et-info"></p>
-    <p class="m-sub" id="et-aviso" style="color:#B42318;" hidden></p>
-    <div class="m-fila">
-      <label>Empieza<input type="date" id="et-inicio"></label>
-      <label>Termina<input type="date" id="et-fin"></label>
-    </div>
-    <div class="m-pasos">
-      <button type="button" class="pb-btn pb-btn-sec" data-et="ant">← Un día antes</button>
-      <button type="button" class="pb-btn pb-btn-sec" data-et="sig">Un día después →</button>
-      <button type="button" class="pb-btn pb-btn-sec" data-et="menos">− Acortar un día</button>
-      <button type="button" class="pb-btn pb-btn-sec" data-et="mas">+ Alargar un día</button>
-    </div>
-    <div class="m-lista" id="et-jefes"></div>
-    <div class="m-acciones">
-      <button type="button" class="ag-link" id="et-reset">Volver al tiempo sugerido</button>
-      <button type="button" class="pb-btn pb-btn-sec" id="et-cerrar">Cerrar</button>
-    </div>
+    <div class="et-cuando"><span id="et-cuando"></span><span class="et-chip" id="et-chip" hidden></span></div>
+    <div class="et-que"><b>Qué toca hacer</b><p id="et-que"></p></div>
+    <div class="et-donde"><b>Dónde hacerlo</b><div class="m-lista" id="et-jefes"></div></div>
+    <details class="et-ajustar" id="et-ajustar">
+      <summary>Cambiar las fechas de esta etapa</summary>
+      <p class="m-sub" id="et-info"></p>
+      <p class="m-sub" id="et-aviso" style="color:#B42318;" hidden></p>
+      <div class="m-fila">
+        <label>Empieza<input type="date" id="et-inicio"></label>
+        <label>Termina<input type="date" id="et-fin"></label>
+      </div>
+      <div class="m-pasos">
+        <button type="button" class="pb-btn pb-btn-sec" data-et="ant">← Un día antes</button>
+        <button type="button" class="pb-btn pb-btn-sec" data-et="sig">Un día después →</button>
+        <button type="button" class="pb-btn pb-btn-sec" data-et="menos">− Acortar un día</button>
+        <button type="button" class="pb-btn pb-btn-sec" data-et="mas">+ Alargar un día</button>
+      </div>
+      <button type="button" class="ag-link" id="et-reset" style="align-self:flex-start;">Volver al tiempo sugerido</button>
+    </details>
+    <div class="m-acciones"><span></span><button type="button" class="pb-btn pb-btn-sec" id="et-cerrar">Cerrar</button></div>
   </div>
 </div>
 
@@ -580,9 +618,9 @@ async function cargar() {
   agendaData = { eventos: Array.isArray(ag && ag.eventos) ? ag.eventos : [], temporadas: Array.isArray(ag && ag.temporadas) ? ag.temporadas : [] };
   campanas = Array.isArray(tem) ? tem.filter((c) => c && c.id) : [];
   idxContenido = {};
-  ['historias', 'contenido'].forEach((tab) => { ((con && con[tab]) || []).forEach((it) => { if (it && it.id) idxContenido[tab + ':' + it.id] = { p: it.productoId || '', g: '' }; }); });
+  ['historias', 'contenido'].forEach((tab) => { ((con && con[tab]) || []).forEach((it) => { if (it && it.id) idxContenido[tab + ':' + it.id] = { p: it.productoId || '', g: '', it }; }); });
   idxAnuncios = {};
-  (Array.isArray(anu) ? anu : []).forEach((it) => { if (it && it.id) idxAnuncios[it.id] = { p: it.producto_id || '', g: it.grupo_id || '' }; });
+  (Array.isArray(anu) ? anu : []).forEach((it) => { if (it && it.id) idxAnuncios[it.id] = { p: it.producto_id || '', g: it.grupo_id || '', it }; });
   proceso = AP.limpiarProceso(pro);
   if (window.__foco) {
     try { await Promise.race([window.__foco.ready, new Promise((r) => setTimeout(r, 4000))]); } catch (e) {}
@@ -829,7 +867,7 @@ function tarjetaCampana(c) {
   const nomProd = nombreProducto(c), nomCamp = nombreCampana(c);
   card.innerHTML =
     '<div class="pc-head"><span class="pc-dot" style="background:' + color + ';"></span>' +
-    '<h3>' + esc(nomProd) + '</h3>' + (nomCamp !== nomProd ? '<span class="pc-sub">' + esc(nomCamp) + '</span>' : '') +
+    '<h3>' + esc(nomProd) + '</h3>' + (!mismoTexto(nomCamp, nomProd) ? '<span class="pc-sub">' + esc(nomCamp) + '</span>' : '') +
     '<span class="pc-arranque">Arranque: ' + esc(fmtLarga(arr)) + '</span>' +
     '<a class="ag-link" href="' + esc(rutaJefe('jefe-temporada') + '?campana=' + encodeURIComponent(c.id)) + '">Cambiar la fecha en el Jefe de Temporada →</a></div>';
 
@@ -1048,6 +1086,66 @@ function cerrar(id) { $(id).hidden = true; }
 overlays.forEach((id) => $(id).addEventListener('click', (e) => { if (e.target.id === id) cerrar(id); }));
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') overlays.forEach((id) => { if (!$(id).hidden) cerrar(id); }); });
 
+// ── textos claros: qué es, cuándo es y qué hay que hacer ──
+const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+const mismoTexto = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+const recorta = (t, n) => { t = String(t || '').trim(); return t.length > n ? t.slice(0, n - 1).trim() + '…' : t; };
+const fmtDiaLargo = (iso) => new Date(iso + 'T00:00:00').toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' }).replace(',', '');
+const fmtRango = (a, b) => (a === b ? cap(fmtDiaLargo(a)) : 'Del ' + fmtDiaLargo(a) + ' al ' + fmtDiaLargo(b));
+const ESTADO_TXT = { idea: '💡 Idea', proceso: '⚙️ En proceso', publicado: '🔥 Publicado' };
+function hoyISO() { const h = new Date(); return fechaISO(h.getFullYear(), h.getMonth() + 1, h.getDate()); }
+// ¿Cuándo es respecto a hoy? -> { texto, clase }
+function cuandoEs(ini, fin, pendiente) {
+  const hoy = hoyISO();
+  if (hoy < ini) { const d = AP.diasEntre(hoy, ini); return { texto: d === 1 ? 'Empieza mañana' : 'Empieza en ' + d + ' días', clase: d <= 2 ? 'pronto' : '' }; }
+  if (hoy > fin) {
+    const d = AP.diasEntre(fin, hoy);
+    return { texto: (pendiente ? 'Ya pasó' : 'Terminó') + (d === 1 ? ' ayer' : ' hace ' + d + ' días') + (pendiente ? ' y sigue pendiente' : ''), clase: 'paso' };
+  }
+  return { texto: ini === fin ? 'Es hoy' : 'En curso: termina ' + (hoy === fin ? 'hoy' : fmtDiaLargo(fin)), clase: 'hoy' };
+}
+function pintarChip(el, c) { el.textContent = (c && c.texto) || ''; el.className = 'et-chip ' + ((c && c.clase) || ''); el.hidden = !(c && c.texto); }
+// Pares [título, texto] que tengan texto, cada uno recortado para que se lea de un vistazo.
+function pintarDetalles(cont, filas) {
+  cont.textContent = '';
+  filas.filter((f) => f && f[1] && String(f[1]).trim()).forEach((f) => {
+    const d = document.createElement('div'); d.className = 'et-det-item';
+    const b = document.createElement('b'); b.textContent = f[0];
+    const t = document.createElement('p'); t.textContent = recorta(f[1], 260);
+    d.appendChild(b); d.appendChild(t); cont.appendChild(d);
+  });
+  cont.hidden = !cont.children.length;
+}
+// Qué es una tarea que viene de otro Jefe y qué hay que hacer con ella.
+function tareaDeEvento(ev) {
+  const estado = ev.estado || 'idea';
+  const it = (alcanceDeEvento(ev) || {}).it || null;
+  if (ev.origen === 'contenido') {
+    const hist = ev.origenTab === 'historias';
+    return {
+      tipo: hist ? 'Historia por publicar' : 'Post por publicar', jefe: 'Jefe de Contenido',
+      que: { idea: 'Todavía es una idea. Ábrela en el Jefe de Contenido, termínala y déjala lista para publicarla en esta fecha.', proceso: 'La estás trabajando. Termínala para publicarla en esta fecha.', publicado: 'Ya está publicada: no tienes que hacer nada más con ella.' }[estado],
+      detalles: it ? [['La idea', it.descripcion], ['Cómo hacerlo', it.instrucciones], ['Recomendación', it.recomendacion]] : [],
+    };
+  }
+  if (ev.origen === 'anuncios') {
+    return {
+      tipo: 'Anuncio de campaña', jefe: 'Jefe de Anuncios',
+      que: { idea: 'Es una idea de anuncio. Ábrela en el Jefe de Anuncios para armarla y programarla.', proceso: 'Termina el anuncio y prográmalo en el Business Manager para esta fecha.', publicado: 'Ya está publicado. Mira cómo le va en el Jefe de Mejora Constante.' }[estado],
+      detalles: it ? [['Qué dice', it.hook], ['Objetivo', it.objetivo], ['Formato', it.formato], ['Botón del anuncio', it.cta_boton]] : [],
+    };
+  }
+  // Temporada: la fila de la campaña de donde salió (origenId = campaña:tabla:fila)
+  const partes = String(ev.origenId || '').split(':');
+  const camp = campanas.find((x) => x.id === partes[0]);
+  const campo = partes.length >= 3 ? partes[1] : 'calendario';
+  const fila = camp && Array.isArray(camp[campo]) ? camp[campo].find((r) => r && r.id === (partes.length >= 3 ? partes[2] : partes[1])) : null;
+  const base = { jefe: 'Jefe de Temporada' };
+  if (campo === 'pre_calentamiento') return Object.assign(base, { tipo: 'Tarea de tu precampaña', que: 'Publica esto en tu precampaña para calentar a tu audiencia antes de vender.', detalles: fila ? [['Dónde', fila.canal], ['Qué publicar', fila.contenido], ['Mensaje clave', fila.mensaje], ['Para qué', fila.objetivo]] : [] });
+  if (campo === 'post_acciones') return Object.assign(base, { tipo: 'Tarea de tu postcampaña', que: 'Haz esto después de la campaña para cuidar a quienes compraron y seguir vendiendo.', detalles: fila ? [['Acción', fila.accion], ['Estrategia', fila.estrategia], ['Mensaje sugerido', fila.mensaje], ['Cuándo', fila.momento]] : [] });
+  return Object.assign(base, { tipo: 'Tarea de tu campaña', que: fila && fila.accion ? cap(String(fila.accion).trim()) + '.' : 'Es parte del plan de tu campaña. Ábrelo en el Jefe de Temporada para ver el detalle.', detalles: fila ? [['Fase', fila.fase]] : [] });
+}
+
 // ── lista de un día ──
 function abrirDia(iso, items) {
   $('dia-titulo').textContent = new Date(iso + 'T00:00:00').toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -1059,10 +1157,10 @@ function abrirDia(iso, items) {
     b.className = 'm-item';
     if (it.tipo === 'mk') {
       const e = AP.etapaPorId(it.m.etapa);
-      b.innerHTML = '<span>' + esc(e.titulo) + '</span><small>' + esc(nombreProducto(it.camp)) + ' · etapa del proceso</small>';
+      b.innerHTML = '<span>' + esc(e.titulo) + '</span><small>Etapa de tu campaña · ' + esc(nombreProducto(it.camp)) + '</small>';
       b.onclick = () => { cerrar('overlay-dia'); abrirModalEtapa(it.camp.id, it.m.etapa); };
     } else {
-      b.innerHTML = '<span>' + esc(it.ev.titulo || '(sin título)') + '</span><small>' + esc(NOMBRE_ORIGEN[it.ev.origen] || 'Evento') + '</small>';
+      b.innerHTML = '<span>' + esc(it.ev.titulo || '(sin título)') + '</span><small>' + esc(tareaDeEvento(it.ev).tipo) + ' · ' + esc(NOMBRE_ORIGEN[it.ev.origen] || '') + '</small>';
       b.onclick = () => { cerrar('overlay-dia'); abrirModalEvento(it.ev); };
     }
     lista.appendChild(b);
@@ -1077,6 +1175,7 @@ function abrirModalEtapa(campId, etapaId) {
   etapaActiva = { campId, etapaId };
   pintarModalEtapa();
   $('et-aviso').hidden = true;
+  $('et-ajustar').open = false;
   abrir('overlay-etapa');
 }
 function pintarModalEtapa() {
@@ -1087,8 +1186,12 @@ function pintarModalEtapa() {
   const e = AP.etapaPorId(a.etapaId), ed = det.plan[a.etapaId], f = AP.fechasDe(c.fecha_inicio_activa, ed);
   const origen = det.origen[a.etapaId], propia = origen === 'usuario';
   const rec = AP.recomendado(e.id), anc = anclasDe(c);
-  $('et-camp').textContent = nombreProducto(c) + (nombreCampana(c) !== nombreProducto(c) ? ' · ' + nombreCampana(c) : '');
+  const nomP = nombreProducto(c), nomC = nombreCampana(c);
+  $('et-camp').innerHTML = 'Tu campaña: <b>' + esc(nomP) + '</b>' + (mismoTexto(nomP, nomC) ? '' : ' · ' + esc(nomC));
   $('et-titulo').textContent = e.titulo;
+  $('et-cuando').textContent = '📅 ' + fmtRango(f.inicio, f.fin) + ' · ' + diasTxt(ed.n);
+  pintarChip($('et-chip'), cuandoEs(f.inicio, f.fin, false));
+  $('et-que').textContent = e.que;
   let porque = AYUDA_ORIGEN[origen];
   if (origen === 'precampana' && anc.preInicio) porque = 'Se acomodó para terminar antes de que empiece la precampaña (' + fmtCorta(anc.preInicio) + ').';
   if (propia && det.fuente[a.etapaId]) {
@@ -1096,8 +1199,7 @@ function pintarModalEtapa() {
       ? 'La acomodaste tú y coincide con la fecha del Jefe de Temporada.'
       : 'La acomodaste tú; en el Jefe de Temporada esta etapa está el ' + fmtCorta(det.fuente[a.etapaId].iso) + '.';
   }
-  $('et-info').textContent = 'Dura ' + diasTxt(ed.n) + '. Recomendado: ' + diasTxt(rec.n) +
-    (promedio[e.id] ? ' · Tu promedio: ' + diasTxt(promedio[e.id]) : '') + '. ' + porque;
+  $('et-info').textContent = porque + ' Lo recomendado es ' + diasTxt(rec.n) + (promedio[e.id] ? ' y en tu negocio sueles tardar ' + diasTxt(promedio[e.id]) : '') + '.';
   $('et-inicio').value = f.inicio;
   $('et-fin').value = f.fin;
   const jefes = $('et-jefes');
@@ -1105,12 +1207,14 @@ function pintarModalEtapa() {
   e.jefes.forEach((slug, i) => {
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'pb-btn' + (i ? ' pb-btn-sec' : '');
-    b.textContent = (i ? 'También: ' : 'Abrir ') + (NOMBRE_JEFE[slug] || slug) + ' →';
+    b.className = 'm-item' + (i ? '' : ' principal');
+    const t = document.createElement('span'); t.textContent = 'Abrir ' + (NOMBRE_JEFE[slug] || slug) + ' →';
+    const s2 = document.createElement('small'); s2.textContent = e.ayuda[i] || '';
+    b.appendChild(t); b.appendChild(s2);
     b.onclick = () => abrirJefe(slug, c);
     jefes.appendChild(b);
   });
-  $('et-reset').style.visibility = propia ? 'visible' : 'hidden';
+  $('et-reset').style.display = propia ? '' : 'none';
 }
 async function cambiarEtapa(nuevo) {
   const a = etapaActiva; if (!a) return;
@@ -1143,15 +1247,25 @@ $('et-reset').onclick = async () => { const a = etapaActiva; if (!a) return; awa
 let eventoActivo = null;
 function abrirModalEvento(ev) {
   eventoActivo = ev;
-  $('modal-evento-title').textContent = ev.origen ? ('Evento · ' + NOMBRE_ORIGEN[ev.origen]) : 'Evento';
+  const t = tareaDeEvento(ev), a = alcanceDeEvento(ev) || {};
+  const prod = a.p ? ((catalogo.find((x) => x.id === a.p) || {}).nombre || '') : '';
+  const conFecha = AP.esISO(ev.fecha);
+  $('ev-eyebrow').textContent = t.tipo + ' · ' + t.jefe + (prod ? ' · ' + prod : '');
+  $('modal-evento-title').textContent = ev.titulo || '(sin título)';
+  $('ev-cuando').textContent = '📅 ' + (conFecha ? cap(fmtDiaLargo(ev.fecha)) : 'Sin fecha') + ' · ' + (ESTADO_TXT[ev.estado] || ESTADO_TXT.idea);
+  pintarChip($('ev-chip'), !conFecha ? null : ev.estado === 'publicado' ? { texto: 'Listo ✓', clase: 'hecho' } : cuandoEs(ev.fecha, ev.fecha, true));
+  $('ev-que').textContent = t.que;
+  pintarDetalles($('ev-detalles'), t.detalles);
   const link = $('ev-origen-link');
   const ruta = ev.origen && RUTA_ORIGEN[ev.origen] ? RUTA_ORIGEN[ev.origen][HUB] : null;
-  if (ruta) { link.href = ruta; link.style.display = 'inline-block'; } else link.style.display = 'none';
+  if (ruta) { link.href = ruta; link.textContent = 'Abrir en ' + t.jefe + ' →'; link.style.display = 'inline-flex'; } else link.style.display = 'none';
   $('ev-titulo').value = ev.titulo || '';
   $('ev-fecha').value = ev.fecha || '';
   $('ev-estado').value = ev.estado || 'idea';
+  $('ev-ajustar').open = false;
   abrir('overlay-evento');
 }
+$('ev-cerrar').onclick = () => { cerrar('overlay-evento'); eventoActivo = null; };
 $('ev-cancelar').onclick = () => { cerrar('overlay-evento'); eventoActivo = null; };
 $('ev-guardar').onclick = async () => {
   if (!eventoActivo) return;

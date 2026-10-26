@@ -33,16 +33,44 @@
   var MAX_DESPLAZO = 120;
 
   // ini / fin = días del proceso recomendado. jefes = quién ayuda en esa etapa (slug de ruta, el primero es el principal).
+  // que = en palabras sencillas, qué toca hacer. ayuda = qué hace cada Jefe de la lista para esa etapa (mismo orden que jefes).
   var ETAPAS = [
-    { id: 'definir',    ini: 1,  fin: 1,  corto: 'Define',       titulo: 'Define tu producto o servicio',                       jefes: ['jefe-366'] },
-    { id: 'estrategia', ini: 2,  fin: 4,  corto: 'Estrategia',   titulo: 'Crea tu estrategia y tus copys',                      jefes: ['jefe-temporada', 'jefe-contenido'] },
-    { id: 'grabar',     ini: 5,  fin: 6,  corto: 'Graba',        titulo: 'Graba el contenido de tu campaña',                    jefes: ['jefe-contenido', 'jefe-produccion-video'] },
-    { id: 'editar',     ini: 7,  fin: 9,  corto: 'Edita',        titulo: 'Edita el contenido de tu campaña',                    jefes: ['jefe-produccion-video', 'jefe-contenido'] },
-    { id: 'whatsapp',   ini: 10, fin: 10, corto: 'WhatsApp',     titulo: 'Arma tus respuestas de WhatsApp',                     jefes: ['jefe-whatsapp'] },
-    { id: 'campana',    ini: 11, fin: 11, corto: 'Arma campaña', titulo: 'Arma tu campaña y prográmala en el Business Manager', jefes: ['jefe-anuncios'] },
-    { id: 'programar',  ini: 12, fin: 12, corto: 'Arranque',     titulo: 'Programa tu contenido y monitorea tu campaña',        jefes: ['jefe-contenido', 'jefe-optimizacion'] },
-    { id: 'revisar',    ini: 13, fin: 13, corto: 'Revisa',       titulo: 'Revisa tu campaña',                                   jefes: ['jefe-optimizacion'] },
-    { id: 'optimizar',  ini: 18, fin: 18, corto: 'Optimiza',     titulo: 'Optimiza tu campaña',                                 jefes: ['jefe-optimizacion'] }
+    { id: 'definir',    ini: 1,  fin: 1,  corto: 'Define',       titulo: 'Define tu producto o servicio',
+      que: 'Decide qué producto o servicio vas a vender en esta campaña y por qué alguien te lo compraría.',
+      jefes: ['jefe-366'],
+      ayuda: ['Te ayuda a dejar claro tu producto, tu cliente ideal y tu mensaje.'] },
+    { id: 'estrategia', ini: 2,  fin: 4,  corto: 'Estrategia',   titulo: 'Crea tu estrategia y tus copys',
+      que: 'Define qué le vas a decir a tu cliente y escribe los textos (copys) de tu campaña: posts, historias y anuncios.',
+      jefes: ['jefe-temporada', 'jefe-contenido'],
+      ayuda: ['Armas la estrategia de tu campaña paso a paso.', 'Escribes los copys y los guiones de tus publicaciones.'] },
+    { id: 'grabar',     ini: 5,  fin: 6,  corto: 'Graba',        titulo: 'Graba el contenido de tu campaña',
+      que: 'Graba los videos y toma las fotos de tu campaña siguiendo los guiones que ya tienes.',
+      jefes: ['jefe-contenido', 'jefe-produccion-video'],
+      ayuda: ['Ahí están tus guiones y qué grabar en cada pieza.', 'Te ayuda a crear imágenes y piezas con IA.'] },
+    { id: 'editar',     ini: 7,  fin: 9,  corto: 'Edita',        titulo: 'Edita el contenido de tu campaña',
+      que: 'Edita lo que grabaste (cortes, textos en pantalla, música) hasta dejarlo listo para publicar.',
+      jefes: ['jefe-produccion-video', 'jefe-contenido'],
+      ayuda: ['Te ayuda a producir y dejar listas tus piezas.', 'Revisas qué pieza va en cada publicación.'] },
+    { id: 'whatsapp',   ini: 10, fin: 10, corto: 'WhatsApp',     titulo: 'Arma tus respuestas de WhatsApp',
+      que: 'Prepara las respuestas a lo que te van a preguntar por WhatsApp cuando salga la campaña: precio, cómo comprar y dudas comunes.',
+      jefes: ['jefe-whatsapp'],
+      ayuda: ['Arma tus respuestas y tus mensajes de seguimiento.'] },
+    { id: 'campana',    ini: 11, fin: 11, corto: 'Arma campaña', titulo: 'Arma tu campaña y prográmala en el Business Manager',
+      que: 'Arma tus anuncios y prográmalos en el Business Manager para que arranquen el día de inicio de tu campaña.',
+      jefes: ['jefe-anuncios'],
+      ayuda: ['Te ayuda a armar los anuncios y su texto.'] },
+    { id: 'programar',  ini: 12, fin: 12, corto: 'Arranque',     titulo: 'Programa tu contenido y monitorea tu campaña',
+      que: 'Programa tu contenido de la campaña y vigila que todo salga bien el día que arranca.',
+      jefes: ['jefe-contenido', 'jefe-optimizacion'],
+      ayuda: ['Ves y programas tus publicaciones.', 'Te ayuda a leer cómo va tu campaña.'] },
+    { id: 'revisar',    ini: 13, fin: 13, corto: 'Revisa',       titulo: 'Revisa tu campaña',
+      que: 'Revisa cómo va tu campaña: cuánto llevas gastado, cuánta gente te escribe y si los anuncios están funcionando.',
+      jefes: ['jefe-optimizacion'],
+      ayuda: ['Lee tus números y te dice qué ajustar.'] },
+    { id: 'optimizar',  ini: 18, fin: 18, corto: 'Optimiza',     titulo: 'Optimiza tu campaña',
+      que: 'Mejora tu campaña con lo que ya viste: apaga lo que no funciona y refuerza lo que sí.',
+      jefes: ['jefe-optimizacion'],
+      ayuda: ['Arma tu plan de mejora.'] }
   ];
   var IDX_ARRANQUE = (function () {
     for (var i = 0; i < ETAPAS.length; i++) if (ETAPAS[i].ini <= DIA_ARRANQUE && DIA_ARRANQUE <= ETAPAS[i].fin) return i;

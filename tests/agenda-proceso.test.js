@@ -152,6 +152,12 @@ test('las marcas del calendario son una por día de cada etapa', () => {
 
 test('cada etapa tiene al menos un Jefe que ayuda (día 10 = WhatsApp y Ventas)', () => {
   AP.ETAPAS.forEach((e) => assert.ok(e.jefes.length >= 1, e.id));
+  // y cada una dice en palabras sencillas qué toca hacer y qué hace cada Jefe que ayuda
+  AP.ETAPAS.forEach((e) => {
+    assert.ok(e.que && e.que.length > 25, e.id + ' necesita su texto de "qué toca hacer"');
+    assert.equal(e.ayuda.length, e.jefes.length, e.id + ': un texto de ayuda por Jefe');
+    e.ayuda.forEach((t) => assert.ok(t && t.length > 10, e.id));
+  });
   assert.equal(AP.etapaPorId('whatsapp').jefes[0], 'jefe-whatsapp');
 });
 
