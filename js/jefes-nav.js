@@ -78,7 +78,8 @@
     '.jn-mover button:disabled{opacity:.3;cursor:default}',
     '.jn-editando .jn-jefes .jn-item{cursor:default}',
     '.jn-editando .jn-jefes .jn-item.jn-movido{background:rgba(184,247,37,.16)}',
-    '.jn-orden-ok{font:600 11px Inter,system-ui,sans-serif;color:var(--text-dim,#B6A9C7);padding:2px 12px 6px;min-height:14px}',
+    '.jn-orden-ok{font:600 11px Inter,system-ui,sans-serif;color:var(--text-dim,#B6A9C7);padding:2px 12px 6px}',
+    '.jn-orden-ok:empty{display:none}',
     '.jn-min .jn-orden-ok{display:none}',
     '.jn-ico{flex:none;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:20px;line-height:1}',
     '.jn-ico img{width:28px;height:28px;border-radius:8px;object-fit:contain;display:block}',
@@ -429,9 +430,17 @@
       }, 500);
     }
 
+    var FLECHAS = '<button type="button" data-mover="-1" aria-label="Subir">▲</button><button type="button" data-mover="1" aria-label="Bajar">▼</button>';
     btn.addEventListener('click', function () {
       var on = !nav.classList.contains('jn-editando');
       nav.classList.toggle('jn-editando', on);
+      // Las flechas solo existen mientras se ordena, para que el nombre de cada Jefe quede limpio.
+      Array.prototype.forEach.call(cont.querySelectorAll('.jn-item[data-slug]'), function (el) {
+        var m = el.querySelector('.jn-mover');
+        if (on && !m) { m = document.createElement('span'); m.className = 'jn-mover'; m.innerHTML = FLECHAS; el.appendChild(m); }
+        if (!on && m) m.remove();
+        el.classList.remove('jn-movido');
+      });
       btn.textContent = on ? 'Listo' : 'Ordenar';
       ok.textContent = on ? 'Usa ▲ ▼ para acomodar tus Jefes' : '';
       if (on) pintarFlechas();
@@ -474,11 +483,10 @@
       '<button type="button" class="jn-ordenar" title="Cambiar el orden de tus Jefes">Ordenar</button></div>' +
       '<div class="jn-orden-ok" aria-live="polite"></div>' +
       '<div class="jn-sep"></div><div class="jn-jefes">';
-    var flechas = '<span class="jn-mover"><button type="button" data-mover="-1" aria-label="Subir">▲</button><button type="button" data-mover="1" aria-label="Bajar">▼</button></span>';
     JEFES.forEach(function (j) {
       var archivo = (!claro && j.iconoOscuro) ? j.iconoOscuro : j.icono;
       var ico = archivo ? '<img src="/img/' + archivo + '.webp" alt="" loading="lazy">' : j.emoji;
-      html += item(prefix + '/' + j.slug, ico, j.nombre, esActivo(j)).replace('<a class="jn-item', '<a data-slug="' + j.slug + '" class="jn-item').replace(/<\/a>$/, flechas + '</a>');
+      html += item(prefix + '/' + j.slug, ico, j.nombre, esActivo(j)).replace('<a class="jn-item', '<a data-slug="' + j.slug + '" class="jn-item');
     });
     html += '</div>';
     // Redes del negocio y luego Configuracion (ADN) al final de la lista, con un espacio antes.
