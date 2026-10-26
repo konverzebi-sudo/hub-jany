@@ -111,6 +111,7 @@ function cargarPromptTemporada() {
 }
 const BUILDER_CONTEXT_CHAR_LIMIT = 6000;
 const BUILDER_NOTAS_CHAR_LIMIT = 6000;
+const TEMPORADA_CAMPANA_CHAR_LIMIT = 40000; // el Documento completo de una campaña de temporada
 const BUILDER_MAX_MESSAGES = 40;
 
 const builderPromptCache = new Map();
@@ -672,10 +673,10 @@ const TABLAS_TEMPORADA_366 = {
   com_objeciones: [['objecion', 'Objeción'], ['que_piensa', 'Qué está pensando'], ['que_necesita', 'Qué necesita escuchar'], ['respuesta', 'Respuesta corta'], ['como_usarlo', 'Cómo usarlo en contenido']],
   com_angulos: [['angulo', 'Ángulo'], ['enfoque', 'Enfoque'], ['emocion', 'Emoción'], ['idea_principal', 'Idea principal'], ['hook', 'Ejemplo de hook']],
   com_ctas: [['momento', 'Momento'], ['suave', 'CTA suave'], ['directo', 'CTA directo'], ['urgente', 'CTA urgente']],
-  pre_calentamiento: [['dia', 'Día'], ['canal', 'Canal'], ['contenido', 'Tipo de contenido'], ['mensaje', 'Mensaje clave'], ['objetivo', 'Objetivo']],
+  pre_calentamiento: [['fecha', 'Fecha'], ['dia', 'Día'], ['canal', 'Canal'], ['contenido', 'Tipo de contenido'], ['mensaje', 'Mensaje clave'], ['objetivo', 'Objetivo']],
   activa_fases: [['fase', 'Fase'], ['objetivo', 'Objetivo'], ['contenido_organico', 'Contenido orgánico'], ['ads', 'Ads'], ['base_datos', 'Base de datos'], ['mensaje_urgencia', 'Mensaje de urgencia'], ['cta', 'CTA']],
   bd_segmentos: [['publico', 'Público'], ['de_donde_sale', 'De dónde sale'], ['mensaje', 'Qué mensaje recibirá'], ['cuando_contactar', 'Cuándo contactarlo'], ['objetivo', 'Objetivo']],
-  post_acciones: [['accion', 'Acción'], ['estrategia', 'Estrategia'], ['mensaje', 'Mensaje sugerido'], ['momento', 'Momento']],
+  post_acciones: [['fecha', 'Fecha'], ['accion', 'Acción'], ['estrategia', 'Estrategia'], ['mensaje', 'Mensaje sugerido'], ['momento', 'Momento']],
   ads_creativos: [['creativo', 'Creativo'], ['tipo', 'Tipo'], ['que_mostrar', 'Qué mostrar'], ['hook', 'Hook primeros 3 segundos'], ['etapa', 'Etapa']],
   calendario: [['fecha', 'Fecha'], ['fase', 'Fase'], ['accion', 'Acción']],
 };
@@ -757,7 +758,9 @@ function temporadaFormatearCampana(camp, catalogo, grupos) {
     const formateado = columnas ? builderFormatearFilasConLabel(camp[campo], columnas) : builderFormatearValorNota(camp[campo]);
     if (formateado) lineas.push(`${TEMPORADA_CAMPO_LABEL[campo]}:\n${formateado}`);
   });
-  return 'CAMPAÑA DE TEMPORADA EN CURSO (esto es lo real, ya guardado por el usuario en el Documento de esta campaña -- tu trabajo es completar lo que falte, no repetir lo que ya está):\n\n' + truncar(lineas.join('\n'), BUILDER_NOTAS_CHAR_LIMIT);
+  // Una campaña completa (12 módulos con sus tablas) pasa de 20,000 caracteres: con el límite general de notas (6,000) el Jefe solo veía
+  // los primeros módulos y creía que el resto estaba vacío. Aquí se deja pasar todo el Documento.
+  return 'CAMPAÑA DE TEMPORADA EN CURSO (esto es lo real, ya guardado por el usuario en el Documento de esta campaña -- tu trabajo es completar lo que falte, no repetir lo que ya está):\n\n' + truncar(lineas.join('\n'), TEMPORADA_CAMPANA_CHAR_LIMIT);
 }
 
 const TEMPORADA_INSTRUCCION_EXTRAER = [
