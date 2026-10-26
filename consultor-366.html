@@ -39,7 +39,11 @@
     .topbar-izq #foco-slot { flex: 0 0 auto; }
     @media (max-width: 900px) {
       /* En pantallas angostas la pastilla de foco baja a una segunda fila de la barra fija */
-      body .topbar { height: auto; padding: 8px 10px; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "back titulo" "foco foco"; row-gap: 8px; }
+      body .topbar { height: auto; padding: 8px 10px; grid-template-columns: 44px minmax(0, 1fr) 44px; grid-template-areas: "back titulo ." "foco foco foco"; row-gap: 8px; }
+      /* igual que Jefe de Temporada: "<<" chico, título centrado y producto debajo */
+      .topbar h1 { justify-self: center; text-align: center; font-size: clamp(18px, 5.5vw, 22px); overflow: visible; text-overflow: clip; }
+      .back-link .back-txt { display: none; }
+      .back-link { width: 40px; height: 34px; padding: 0; justify-content: center; }
       .topbar-izq { display: contents; }
       .topbar-izq .back-link { grid-area: back; }
       .topbar-izq #foco-slot { grid-area: foco; }
@@ -641,10 +645,10 @@
 
 <div class="topbar">
   <div class="topbar-izq">
-    <a id="ev-back-hub" href="/" class="back-link">&lt;&lt; Hub de Jefes <span style="opacity:.4;">//</span> <span id="brand-marca-label">—</span></a>
+    <a id="ev-back-hub" href="/" class="back-link" title="Hub de Jefes">&lt;&lt;<span class="back-txt"> Hub de Jefes <span style="opacity:.4;">//</span> <span id="brand-marca-label">—</span></span></a>
     <div id="foco-slot"></div>
   </div>
-  <h1>Jefe 366</h1>
+  <h1>🧬 Jefe 366</h1>
   <button type="button" class="view-toggle-btn" id="viewToggleBtn" onclick="toggleVistaDividida()">🔀 Vista dividida</button>
 </div>
 
@@ -2124,6 +2128,35 @@ function mostrarAvisoDesdeCero366(nombre) {
 }
 window.addEventListener('foco-desde-cero', (e) => mostrarAvisoDesdeCero366(e.detail && e.detail.nombre));
 
+/* El producto se quitó desde la pastilla (ya salió del Catálogo del ADN): aquí se quitan sus fichas -- producto y, ligadas a él,
+   cliente ideal, sistema y comunicación. Un cliente ideal compartido por nombre entre varios productos no se toca. */
+window.addEventListener('foco-producto-quitado', (e) => {
+  const nombre = e.detail && e.detail.nombre;
+  if (!nombre) return;
+  capturarTodoDesdeDOM366();
+  const n = normalizarNombre366(nombre);
+  const uids = productosState.filter((p) => p && normalizarNombre366(p.nombre) === n && p.uid).map((p) => p.uid);
+  productosState = productosState.filter((p) => !(p && normalizarNombre366(p.nombre) === n));
+  const sinFicha = (p) => !(p && p.producto_uid && uids.indexOf(p.producto_uid) !== -1);
+  perfilesState = perfilesState.filter(sinFicha);
+  sistemasState = sistemasState.filter(sinFicha);
+  comunicacionesState = comunicacionesState.filter(sinFicha);
+  // nunca se queda una sección sin ninguna ficha
+  if (!productosState.length) productosState.push(PRODUCTO_TEMPLATE());
+  if (!perfilesState.length) perfilesState.push(PERFIL_TEMPLATE());
+  if (!sistemasState.length) sistemasState.push(SISTEMA_TEMPLATE());
+  if (!comunicacionesState.length) comunicacionesState.push(COMUNICACION_TEMPLATE());
+  productoActivo = 0; perfilActivo = 0; sistemaActivo = 0; comunicacionActivo = 0;
+  focoProducto366 = '';
+  const f = window.__foco && window.__foco.get();
+  const it = f && !f.esTodo && f.item ? f.item : null;
+  const prod = it ? productosState.find((p) => p && normalizarNombre366(p.nombre) === normalizarNombre366(it.nombre)) : null;
+  if (prod) focoProducto366 = uidProducto366(prod);
+  repintarSecciones366();
+  guardarFichasDeProducto366();
+  if (window.__foco && window.__foco.registrarOfertas366) window.__foco.registrarOfertas366(productosState.filter((p) => p && normalizarNombre366(p.nombre)).map((p) => ({ nombre: p.nombre, grupo_id: p.grupo_id, que_vendemos: p.que_vendemos })));
+});
+
 function switchGroup(grupos, idx) {
   document.querySelectorAll('.group-tab').forEach((t, i) => t.classList.toggle('active', i === idx));
   const grupo = grupos[idx];
@@ -3539,6 +3572,7 @@ function guardarProductos() {
     const nuevo = PRODUCTO_TEMPLATE();
     nuevo.grupo_id = p.grupo_id || '';
     if (p.uid) nuevo.uid = p.uid;
+    if (p.catalogo_id) nuevo.catalogo_id = p.catalogo_id;
     const importantes = {};
     CAMPOS_TEXTO_EP.forEach((campo) => {
       const el = document.getElementById('ep-' + campo + '-' + i);
@@ -3555,6 +3589,35 @@ function guardarProductos() {
   });
   productosState = lista;
   save366Grupo('366-producto', { lista }, 'ep-status');
+  programarSyncCatalogo366();
+}
+
+/* Cada producto de Producto 366 también vive en el Catálogo del ADN: si es nuevo se da de alta ahí, y si se renombra se
+   renombra también allá (cada ficha guarda el id de su producto del catálogo en catalogo_id). Se espera un momento después
+   de la última edición para no dar de alta nombres a medio escribir. */
+let temporizadorCat366 = null;
+const nombreSincronizado366 = {};
+function programarSyncCatalogo366() {
+  clearTimeout(temporizadorCat366);
+  temporizadorCat366 = setTimeout(sincronizarCatalogo366, 1500);
+}
+async function sincronizarCatalogo366() {
+  if (!window.__foco || !window.__foco.altaProducto) return;
+  let nuevosIds = false;
+  for (const p of productosState.slice()) {
+    const nombre = ((p && p.nombre) || '').trim();
+    if (!nombre) continue;
+    const clave = p.uid || nombre;
+    if (nombreSincronizado366[clave] === nombre && p.catalogo_id) continue;
+    try {
+      const it = await window.__foco.altaProducto(nombre, { catalogoId: p.catalogo_id, grupo_id: p.grupo_id, renombrar: true });
+      if (!it) continue;
+      nombreSincronizado366[clave] = nombre;
+      const actual = productosState.find((x) => x && (p.uid ? x.uid === p.uid : x.nombre === p.nombre)) || p;
+      if (actual.catalogo_id !== it.id) { actual.catalogo_id = it.id; nuevosIds = true; }
+    } catch (e) {}
+  }
+  if (nuevosIds) { try { guardarProductos(); } catch (e) {} }
 }
 
 async function cargarProductos() {

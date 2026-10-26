@@ -572,6 +572,7 @@
   .ed-medio-go{display:flex;align-items:center;gap:10px;}
   .ed-medio-box{margin-top:8px;}
   .ed-medio-box textarea{width:100%;}
+  .banco-foco{font-weight:700;font-size:13px;color:var(--accent-text);margin-left:6px;}
   .ed-label{font:700 14px 'Sora',sans-serif;}
   .ed-hint{font:500 13px 'Inter',sans-serif;color:var(--text-dim);}
   .ed-label-row{display:flex;align-items:center;justify-content:space-between;}
@@ -936,7 +937,7 @@ function cerrarDashboard(){
   if(w) w.scrollIntoView({behavior:'smooth',block:'start'});
 }
 if(window.__foco){
-  const repintarPorFoco=()=>{ actualizarContadores(); refrescarVistas(); if(typeof actualizarHeroBar==='function') actualizarHeroBar(); };
+  const repintarPorFoco=()=>{ actualizarContadores(); refrescarVistas(); if(typeof actualizarHeroBar==='function') actualizarHeroBar(); if(document.getElementById('ideas-tbody')) renderBancoTable(); };
   window.__foco.onChange(repintarPorFoco);
   Promise.resolve(window.__foco.ready).then(repintarPorFoco).catch(()=>{});
 }
@@ -1226,6 +1227,7 @@ function mkBancoIdea(obj, src){
     comparacion:obj.comparacion||'',
     uso:obj.uso||'Orgánico',
     prioridad:obj.prioridad||'Media',
+    productoId:obj.productoId||'',
     source:src||'ai',
     selected:false
   };
@@ -1249,21 +1251,30 @@ function ideaRowHTML(item){
   </tr>`;
 }
 
+// Texto corto de para qué producto son las ideas (según la pastilla de arriba).
+function textoFocoBanco(){
+  const f=window.__foco?window.__foco.get():null;
+  if(!f || f.esTodo) return '· de todo tu ecosistema';
+  return '· de '+(f.nombre||'este producto');
+}
 function renderBancoTable(){
   const tbody=document.getElementById('ideas-tbody');
   if(!tbody) return;
-  if(!state.bancoIdeas.length){
-    tbody.innerHTML='<tr class="ideas-empty-row"><td colspan="12">Todavía no hay ideas. Escribe una arriba o usa <strong>Actualizar ideas</strong> para generar 10 nuevas.</td></tr>';
+  const visibles=state.bancoIdeas.filter(pasaFoco);
+  const focoTxt=document.getElementById('banco-foco-txt'); if(focoTxt) focoTxt.textContent=textoFocoBanco();
+  const cnt=document.getElementById('banco-ideas-count'); if(cnt) cnt.textContent=visibles.length;
+  if(!visibles.length){
+    tbody.innerHTML='<tr class="ideas-empty-row"><td colspan="12">Todavía no hay ideas'+(visibles.length!==state.bancoIdeas.length?' de este producto':'')+'. Escribe una arriba o usa <strong>Actualizar ideas</strong> para generar 10 nuevas.</td></tr>';
     return;
   }
-  tbody.innerHTML=state.bancoIdeas.map(ideaRowHTML).join('');
+  tbody.innerHTML=visibles.map(ideaRowHTML).join('');
   tbody.querySelectorAll('.idea-check').forEach(cb=>{
     cb.addEventListener('change',e=>{
       const bid=e.target.dataset.bid;
       const item=state.bancoIdeas.find(i=>i.id===bid);
       if(item) item.selected=e.target.checked;
       const selAll=document.getElementById('select-all-check');
-      if(selAll) selAll.checked=state.bancoIdeas.length>0&&state.bancoIdeas.every(i=>i.selected);
+      if(selAll) selAll.checked=visibles.length>0&&visibles.every(i=>i.selected);
     });
   });
   tbody.querySelectorAll('.row-del').forEach(btn=>{
@@ -1271,8 +1282,6 @@ function renderBancoTable(){
       const bid=e.currentTarget.dataset.bid;
       state.bancoIdeas=state.bancoIdeas.filter(i=>i.id!==bid);
       actualizarContadores();
-      const cntEl=document.getElementById('banco-ideas-count');
-      if(cntEl) cntEl.textContent=state.bancoIdeas.length;
       renderBancoTable(); scheduleSave();
     });
   });
@@ -1301,7 +1310,7 @@ function renderBanco(host){
   const tableWrap=document.createElement('div');
   tableWrap.innerHTML=`
     <div class="banco-ideas-header">
-      <div class="banco-ideas-title">💡 Banco de ideas estratégicas <span style="font-weight:400;opacity:.7;font-size:12px;font-family:'JetBrains Mono',monospace;" id="banco-ideas-count">${state.bancoIdeas.length}</span></div>
+      <div class="banco-ideas-title">💡 Banco de ideas estratégicas <span style="font-weight:400;opacity:.7;font-size:12px;font-family:'JetBrains Mono',monospace;" id="banco-ideas-count">${state.bancoIdeas.filter(pasaFoco).length}</span> <span class="banco-foco" id="banco-foco-txt">${escHtml(textoFocoBanco())}</span></div>
       <div class="banco-selection-actions">
         <button class="btn btn-ghost" id="btn-actualizar-ideas" type="button">🔄 Actualizar ideas</button>
         <button class="btn-outline to-historias" id="btn-to-historias" type="button">→ Agregar a Historias</button>
@@ -1328,11 +1337,36 @@ function renderBanco(host){
 
   // Select all
   document.getElementById('select-all-check').addEventListener('change',e=>{
-    state.bancoIdeas.forEach(i=>i.selected=e.target.checked);
+    state.bancoIdeas.filter(pasaFoco).forEach(i=>i.selected=e.target.checked);
     renderBancoTable();
   });
 
-  // ── GENERAR ÁNGULOS (idea individual) ─────────────────────────────────────
+  // ── GENERAR ÁNGULOS e IDEAS: las crea el servidor con el ADN del hub y el producto de la pastilla de arriba ──
+  // Con un producto elegido las ideas son solo de él; con "ecosistema completo" se reparten entre los productos y
+  // servicios 366 y los de temporada.
+  function focoBanco(){
+    const f=window.__foco?window.__foco.get():null;
+    return {producto_id:(f&&f.productoId)||'', grupo_id:(f&&f.grupoId)||'', campanaId:(f&&f.campanaId)||''};
+  }
+  async function pedirIdeasBanco(extra){
+    const resp=await fetch('/api/generar-guion-organico',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({cliente:CLIENTE_ID, modo:'ideas', objetivo:'alcance', ...focoBanco(), ...extra})});
+    const crudo=await resp.text();
+    let data=null; try{ data=JSON.parse(crudo); }catch(e){}
+    if(!resp.ok||!data) throw new Error((data&&data.error)||'No se pudo generar.');
+    return Array.isArray(data.ideas) ? data.ideas : [];
+  }
+  // Cada idea queda ligada a su producto: el elegido arriba o, con ecosistema completo, el que nombra la IA.
+  function ligarIdeaAProducto(item, obj){
+    const f=focoBanco();
+    if(f.producto_id){ item.productoId=f.producto_id; return item; }
+    if(obj && obj.producto){
+      const n=normSug(obj.producto);
+      const p=productosCatalogo().find(x=>normSug(x.nombre)===n);
+      if(p) item.productoId=p.id;
+    }
+    return item;
+  }
   document.getElementById('btn-gen-angulos').addEventListener('click',async()=>{
     const ideaText=document.getElementById('banco-idea-reg').value.trim();
     const stEl=document.getElementById('banco-reg-status');
@@ -1340,25 +1374,20 @@ function renderBanco(host){
     if(!ideaText){ stEl.textContent='Escribe la idea primero.'; stEl.classList.add('error'); return; }
     const btn=document.getElementById('btn-gen-angulos');
     btn.disabled=true; btn.textContent='Pensando...';
-    const prompt=`${NEGOCIO_CONTEXT}\n\n${HALLAZGOS_JULIO}\n\nPara esta idea de contenido de JefesHub, genera los 7 ángulos estratégicos.\nIDEA: ${ideaText}\n\nResponde SOLO con JSON válido (sin markdown, sin texto extra):\n{\n  "idea": "título exacto o ligeramente mejorado de la idea",\n  "problema": "qué problema vive hoy el cliente relacionado con esta idea",\n  "error": "qué error comete o qué malentiende",\n  "deseo": "qué quiere lograr realmente",\n  "historia": "cómo comunicar desde una experiencia o caso real",\n  "descubrimiento": "nueva verdad o perspectiva que puede mostrar",\n  "objecion": "qué duda o resistencia puede resolver",\n  "comparacion": "qué contraste ayuda a entender mejor: antes/después, mito/realidad, opción A/B",\n  "uso": "Orgánico | Ads | Ambos",\n  "prioridad": "Alta | Media | Baja"\n}`;
     try{
-      const res=await fetch('/api/sugerir-contenido',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idea:prompt})});
-      const data=await res.json();
-      if(!res.ok){ stEl.textContent=data.error||'No se pudo generar.'; stEl.classList.add('error'); return; }
-      const texto=data.respuesta||data.guion||(data.gancho?(data.gancho+(data.caption?'\n\n'+data.caption:'')):'');
-      const parsed=parseIdeaJSON(texto);
-      if(parsed&&parsed.length){
-        const newItem=mkBancoIdea(parsed[0],'ai');
-        state.bancoIdeas.unshift(newItem);
+      const ideas=await pedirIdeasBanco({tema:ideaText, cantidad:1, ideaExacta:true});
+      if(ideas.length){
+        const nuevo=ligarIdeaAProducto(mkBancoIdea(ideas[0],'ai'),ideas[0]);
+        if(!nuevo.idea) nuevo.idea=ideaText;
+        state.bancoIdeas.unshift(nuevo);
         document.getElementById('banco-idea-reg').value='';
         actualizarContadores();
-        document.getElementById('banco-ideas-count').textContent=state.bancoIdeas.length;
         renderBancoTable(); scheduleSave();
         stEl.textContent='✅ Ángulos generados — idea añadida al banco (en verde = sugerida por IA, editable).';
       } else {
         stEl.textContent='Respuesta no estructurada — intenta de nuevo.'; stEl.classList.add('error');
       }
-    }catch(e){ stEl.textContent='Error de conexión.'; stEl.classList.add('error'); }
+    }catch(e){ stEl.textContent=e.message||'Error de conexión.'; stEl.classList.add('error'); }
     finally{ btn.disabled=false; btn.textContent='✨ Generar ángulos'; }
   });
 
@@ -1368,32 +1397,26 @@ function renderBanco(host){
     const btn=document.getElementById('btn-actualizar-ideas');
     stEl.className='suggest-status'; stEl.textContent='';
     btn.disabled=true; btn.textContent='Generando 10 ideas...';
-    const existentes=[...NOTION_IDEAS_EXISTENTES,...state.bancoIdeas.map(i=>i.idea)].slice(0,25);
-    const prompt=`${NEGOCIO_CONTEXT}\n\n${HALLAZGOS_JULIO}\n\nActúa como el Agente de Contenido y Creativos de JefesHub. Genera 10 ideas estratégicas de contenido 366 que sean completamente diferentes a estas ya existentes:\n${existentes.map((x,i)=>`${i+1}. ${x}`).join('\n')}\n\nResponde SOLO con un JSON array válido (sin markdown, sin texto extra, sin comentarios):\n[\n  {\n    "idea": "título concreto y específico",\n    "problema": "qué problema vive hoy el cliente",\n    "error": "qué error está cometiendo o qué malentiende",\n    "deseo": "qué quiere lograr realmente",\n    "historia": "cómo comunicar desde una experiencia o caso real",\n    "descubrimiento": "nueva verdad o perspectiva que puede mostrar",\n    "objecion": "qué duda o resistencia puede resolver",\n    "comparacion": "qué contraste ayuda a entender mejor: antes/después, mito/realidad, opción A/B",\n    "uso": "Orgánico | Ads | Ambos",\n    "prioridad": "Alta | Media | Baja"\n  }\n]\n\nReglas: específicas para JefesHub, que alimenten el Sistema 366, que ayuden a vender no solo a entretener, todas diferentes entre sí, basadas en los hallazgos del Radar de Mercado.`;
     try{
-      const res=await fetch('/api/sugerir-contenido',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idea:prompt})});
-      const data=await res.json();
-      if(!res.ok){ stEl.textContent=data.error||'No se pudo generar.'; stEl.classList.add('error'); return; }
-      const texto=data.respuesta||data.guion||(data.gancho?(data.gancho+(data.caption?'\n\n'+data.caption:'')):'');
-      const parsed=parseIdeaJSON(texto);
-      if(parsed&&parsed.length){
-        const newItems=parsed.map(obj=>mkBancoIdea(obj,'ai'));
+      const existentes=state.bancoIdeas.filter(pasaFoco).map(i=>i.idea).slice(0,25);
+      const ideas=await pedirIdeasBanco({cantidad:10, existentes});
+      if(ideas.length){
+        const newItems=ideas.map(obj=>ligarIdeaAProducto(mkBancoIdea(obj,'ai'),obj));
         state.bancoIdeas=[...newItems,...state.bancoIdeas];
         actualizarContadores();
-        document.getElementById('banco-ideas-count').textContent=state.bancoIdeas.length;
         renderBancoTable(); scheduleSave();
         stEl.textContent=`✅ ${newItems.length} ideas nuevas generadas — en verde = sugeridas por IA, editables.`;
       } else {
         stEl.textContent='Respuesta no estructurada — intenta de nuevo.'; stEl.classList.add('error');
       }
-    }catch(e){ stEl.textContent='Error de conexión.'; stEl.classList.add('error'); }
+    }catch(e){ stEl.textContent=e.message||'Error de conexión.'; stEl.classList.add('error'); }
     finally{ btn.disabled=false; btn.textContent='🔄 Actualizar ideas'; }
   });
 
   // ── AGREGAR SELECCIONADAS A HISTORIAS / CONTENIDO ─────────────────────────
   function addSelectedToTab(targetTab){
     const stEl=document.getElementById('actualizar-status');
-    const selected=state.bancoIdeas.filter(i=>i.selected);
+    const selected=state.bancoIdeas.filter(i=>i.selected && pasaFoco(i));
     if(!selected.length){ stEl.className='suggest-status error'; stEl.textContent='Selecciona al menos una idea primero.'; return; }
     selected.forEach(item=>{
       const newId=(targetTab==='historias'?'h':'c')+'_bi'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
@@ -1407,10 +1430,11 @@ function renderBanco(host){
         caption:'',
         notas:anguloToNotas(item),
         linkRef:'',linkArchivo:'',
-        fecha:'',estado:'idea'
+        fecha:'',estado:'idea',
+        ...(item.productoId ? {productoId:item.productoId, productoNombre:nombreProducto(item.productoId)} : {})
       });
     });
-    document.getElementById(`count-${targetTab}`).textContent=state[targetTab].length;
+    actualizarContadores();
     scheduleSave();
     stEl.className='suggest-status';
     stEl.textContent=`✅ ${selected.length} idea(s) añadida(s) a ${targetTab==='historias'?'Historias':'Contenido'}.`;

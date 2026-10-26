@@ -221,6 +221,10 @@
   .file-btn:hover{border-color:var(--accent);background:var(--accent-soft);}
   .file-name{color:var(--text-dim);}
   .chat-inline-status{font-family:Inter,sans-serif;color:var(--text-dim);}
+  .chat-cabecera{display:flex;justify-content:flex-end;max-width:900px;width:100%;margin:0 auto 4px;}
+  .chat-cabecera[hidden],.chat-thread[hidden]{display:none;}
+  .btn-ocultar-chat{background:#fff;border:1px solid #D1D5DB;border-radius:12px;padding:8px 14px;font:600 14px Inter,sans-serif;color:#374151;cursor:pointer;}
+  .btn-ocultar-chat:hover{border-color:var(--accent-texto);color:#111;}
   .chat-thread{background:transparent;padding:6px 2px;max-width:900px;width:100%;margin:0 auto;overflow-x:hidden;}
   /* Palabras o links larguísimos no ensanchan el chat: se parten y el chat ya no se desliza hacia los lados */
   .chat-msg{overflow-wrap:anywhere;word-break:break-word;min-width:0;max-width:100%;box-sizing:border-box;}
@@ -1070,6 +1074,8 @@ function distanciaEdicion(a,b){
 function esConfirmoJefe(texto){
   const n=(texto||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Z ]/g,' ').replace(/\s+/g,' ').trim();
   if(n==='CONFIRMO JEFE') return true;
+  // "CONFIRMO JEFE" dentro de un mensaje más largo ("CONFIRMO JEFE 🫡 el plan está bien, pero…") también confirma
+  if(/(^| )CONFIRMO JEFE( |$)/.test(n) && !/(^| )(NO|NUNCA|TODAVIA|AUN) (LO )?(CONFIRMO JEFE)/.test(n)) return true;
   if(n.length<8||n.length>20) return false;
   return distanciaEdicion(n,'CONFIRMO JEFE')<=2;
 }
@@ -1078,6 +1084,13 @@ function pideValidarMsg(texto){
   return /(correcto|lo guardo|ajustar algo|ajustamos|confirmo jefe|est[aá] bien|quedamos con)/i.test(t) && /\?|confirmo jefe/i.test(t);
 }
 function ocultarBanner(){ const el=document.getElementById('chat-confirmo-banner'); if(el) el.style.display='none'; }
+// Ocultar / mostrar la conversación (el aviso de CONFIRMO JEFE se queda a la vista). Al enviar un mensaje o llegar una respuesta se vuelve a mostrar.
+let chatOculto=false;
+function alternarChat(){
+  chatOculto=!chatOculto;
+  const th=document.getElementById('chat-thread'), b=document.getElementById('btn-ocultar-chat');
+  if(th) th.hidden=chatOculto; if(b) b.textContent=chatOculto?'Mostrar chat ▾':'Ocultar chat ▴';
+}
 let guardadoEnLongitud=-1; // largo del chat cuando se guardó lo platicado con el botón (para no volver a ofrecerlo igual)
 function actualizarBanner(){
   const el=document.getElementById('chat-confirmo-banner'); if(!el) return;
@@ -1085,12 +1098,7 @@ function actualizarBanner(){
   const del_jefe=ultimo && ultimo.role==='assistant' && !/^⚠️/.test(ultimo.content);
   // 1) El Jefe entregó bloques o está pidiendo validar: "Guardar (CONFIRMO JEFE)". Aunque no traiga bloques, CONFIRMO JEFE
   //    lee la conversación y llena los cuadros.
-  // 2) Si el Jefe solo siguió platicando (por ejemplo "perfecto, dolor claro") pero ya hay respuestas del usuario, se ofrece
-  //    guardar lo platicado: así ninguna respuesta se queda sin respaldar en los cuadros.
   const validando = del_jefe && (parsearBloquesGuardar(ultimo.content).length>0 || pideValidarMsg(ultimo.content));
-  const usuarios=chatMessages.filter(m=>m.role==='user');
-  // solo si hay una respuesta nueva que no sea el propio CONFIRMO JEFE y no se acaba de guardar todo
-  const respuestas = usuarios.length>=2 && !esConfirmoJefe(usuarios[usuarios.length-1].content) && chatMessages.length!==guardadoEnLongitud;
   const texto=document.getElementById('chat-confirmo-texto'), btn=document.getElementById('chat-confirmo-btn');
   if(validando){
     // Dice el módulo REAL donde se va a guardar (según los cuadros que trae el mensaje), sin depender del número que escribió el Jefe.
@@ -1098,10 +1106,6 @@ function actualizarBanner(){
     const nombresMod=mods.map(n=>{ const m=TEMPORADA_MODULOS_CHECKLIST.find(x=>x.num===n); return 'Módulo '+n+(m?' · '+m.nombre:''); });
     if(texto) texto.textContent = nombresMod.length ? '🫡 Se va a guardar en: '+nombresMod.join(' y ')+'.' : '🫡 Hay contenido listo para guardar en tu tablero de respuestas.';
     if(btn){ btn.textContent='Guardar (CONFIRMO JEFE)'; btn.onclick=confirmarDesdeBanner; }
-    el.style.display='flex';
-  } else if(del_jefe && respuestas){
-    if(texto) texto.textContent='🫡 ¿Guardamos en los cuadros lo que llevamos platicado?';
-    if(btn){ btn.textContent='Guardar lo platicado'; btn.onclick=()=>confirmarChat(true); }
     el.style.display='flex';
   } else {
     el.style.display='none';
@@ -1123,11 +1127,30 @@ async function extraerYAplicar(){
     return aplicarBloques(bloques);
   }catch(e){ mostrarEstadoGuardado('No se pudo revisar la conversación (conexión).', true); return false; }
 }
+// Recupera lo que el usuario YA confirmó en el chat pero no llegó a los cuadros (por ejemplo, confirmó con un mensaje más largo
+// que "CONFIRMO JEFE"): recorre la conversación, toma los bloques de cada mensaje del Jefe que fue seguido de un CONFIRMO del
+// usuario y los aplica SOLO a cuadros que siguen vacíos (no pisa lo que ya está llenado o editado a mano). Sin gastar IA.
+function reaplicarConfirmados(){
+  const camp=activeCampana(); if(!camp) return false;
+  const confirmados=[];
+  chatMessages.forEach((m,i)=>{
+    if(m.role!=='assistant') return;
+    const sig=chatMessages[i+1];
+    if(sig && sig.role==='user' && esConfirmoJefe(sig.content)) parsearBloquesGuardar(m.content).forEach(b=>confirmados.push(b));
+  });
+  if(!confirmados.length) return false;
+  const vacio=l=>l.tipo==='texto' ? !String(camp[l.campo]||'').trim() : l.tipo==='tabla' ? !tablaLlena(camp,l.campo) : false;
+  const lookupDe=b=>buscarLookupCampo((b.nombre||'').replace(/\s*\(\s*reemplazar\s*\)\s*$/i,''));
+  const camposVacios=new Set();
+  confirmados.forEach(b=>{ const l=lookupDe(b); if(l && vacio(l)) camposVacios.add(l.campo); });
+  const aplicar=confirmados.filter(b=>{ const l=lookupDe(b); return l && camposVacios.has(l.campo); });
+  return aplicar.length ? aplicarBloques(aplicar) : false;
+}
 async function confirmarChat(soloExtraer){
   ocultarBanner();
   const camp0=activeCampana(); if(!camp0) return false;
   productoPendienteADN='';
-  let aplicado = soloExtraer ? false : procesarConfirmoTemporada(chatMessages);
+  let aplicado = soloExtraer ? reaplicarConfirmados() : procesarConfirmoTemporada(chatMessages);
   if(!aplicado) aplicado = await extraerYAplicar();
   if(aplicado){
     guardadoEnLongitud=chatMessages.length;
@@ -1138,7 +1161,7 @@ async function confirmarChat(soloExtraer){
     render();
     if(productoPendienteADN){ const pend=productoPendienteADN; productoPendienteADN=''; registrarProductoNuevoEnADN(camp0.id, pend); }
     mostrarEstadoGuardado('✓ Cuadros llenados: '+[...modulosTocados].sort((a,b)=>a-b).map(n=>'módulo '+n).join(', '), false);
-    if(primero) setTimeout(()=>{ const r=document.querySelector('#tt-tl .tt-row[data-mod="'+primero+'"]'); if(r) r.scrollIntoView({behavior:'smooth',block:'start'}); },120);
+    if(primero) setTimeout(()=>irAFilaPaso(primero),120);
   } else {
     mostrarEstadoGuardado('No encontré nada ya acordado en la conversación para llenar los cuadros. Sigue platicando con el Jefe y vuelve a confirmar.', true);
   }
@@ -1512,12 +1535,13 @@ function render(){
           <label class="clip-op">📎 Subir capturas<input type="file" id="chat-capturas" accept="image/*" multiple hidden onchange="onArchivosChat('general');cerrarClipMenu()"></label>
           <label class="clip-op">📄 Subir .txt<input type="file" id="chat-txt" accept=".txt" multiple hidden onchange="onArchivosChat('general');cerrarClipMenu()"></label>
           <button type="button" class="clip-op" onclick="cerrarClipMenu();revisarQueFalta()">🔎 Revisar qué falta</button>
-          <button type="button" class="clip-op" title="Si ya platicaron algo y no se llenó, esto lee la conversación y llena los cuadros" onclick="cerrarClipMenu();confirmarChat(true)">🧩 Llenar cuadros con lo platicado</button>
+          <button type="button" class="clip-op" title="Si ya platicaron algo y no se llenó, esto lee la conversación y llena los cuadros" onclick="cerrarClipMenu();confirmarChat(true)">🧩 Recuperar lo ya confirmado</button>
           <button type="button" class="clip-op" onclick="cerrarClipMenu();reiniciarChat()">🔄 Reiniciar chat</button>
         </div>
         </div>
         <span id="chat-files-name" class="file-name"></span>
-        <div class="chat-thread" id="chat-thread"></div>
+        <div class="chat-cabecera" id="chat-cabecera"${chatMessages.length?'':' hidden'}><button type="button" class="btn-ocultar-chat" id="btn-ocultar-chat" onclick="alternarChat()">${chatOculto?'Mostrar chat ▾':'Ocultar chat ▴'}</button></div>
+        <div class="chat-thread" id="chat-thread"${chatOculto?' hidden':''}></div>
         <div class="confirmo-banner" id="chat-confirmo-banner" style="display:none">
           <span id="chat-confirmo-texto">🫡 Hay contenido listo para guardar en tu tablero de respuestas.</span>
           <button type="button" class="btn" id="chat-confirmo-btn" onclick="confirmarDesdeBanner()">Guardar (CONFIRMO JEFE)</button>
@@ -1615,10 +1639,20 @@ function abrirPaso(n, desdeChat){
     if(ab){ r.classList.remove('actualizado'); modulosTocados.delete(m); }
     if(r.nextElementSibling) r.nextElementSibling.hidden=!ab;
   });
-  if(pasoAbierto!=null){
-    const row=document.querySelector('#tt-tl .tt-row[data-mod="'+pasoAbierto+'"]');
-    if(row) setTimeout(()=>row.scrollIntoView({behavior:'smooth',block:'start'}),60);
-  }
+  if(pasoAbierto!=null) irAFilaPaso(pasoAbierto);
+}
+// Lleva la pantalla al INICIO del módulo (su círculo y el primer renglón de su contenido), debajo de las barras fijas, para
+// leerlo en orden. Se espera a que el módulo que estaba abierto termine de cerrarse, porque al encogerse mueve la página.
+function irAFilaPaso(n){
+  const row=document.querySelector('#tt-tl .tt-row[data-mod="'+n+'"]'); if(!row) return;
+  // .tt-row es display:contents (no tiene caja propia: su posición siempre sale 0), así que se mide con su círculo numerado.
+  const ancla=row.querySelector('.tt-n')||row;
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    const top=document.querySelector('.topbar'); const pill=document.querySelector('.hero-pill-wrap');
+    const fija = pill && getComputedStyle(pill).position==='sticky' ? pill.offsetHeight : 0;
+    const y=ancla.getBoundingClientRect().top + window.scrollY - ((top?top.offsetHeight:70) + fija + 22);
+    window.scrollTo({top:Math.max(0,y),behavior:'smooth'});
+  }));
 }
 function construirLineaTiempo(container, camp){
   const secciones=[...container.querySelectorAll(':scope > .doc-section')];
@@ -1938,6 +1972,10 @@ function limpiarMarcadoresGuardar(texto){
 function renderChatThread(alInicioDeRespuesta){
   const thread=document.getElementById('chat-thread');
   if(!thread) return;
+  if(alInicioDeRespuesta) chatOculto=false;
+  thread.hidden=chatOculto;
+  const cab=document.getElementById('chat-cabecera'), bo=document.getElementById('btn-ocultar-chat');
+  if(cab) cab.hidden=!chatMessages.length; if(bo) bo.textContent=chatOculto?'Mostrar chat ▾':'Ocultar chat ▴';
   if(!chatMessages.length){
     thread.innerHTML='';
     return;
@@ -1970,7 +2008,7 @@ async function enviarMensajeChat(){
   if(!texto) return;
   const camp=activeCampana(); if(!camp) return;
   input.value=''; input.style.height='auto';
-  chatBusy=true;
+  chatBusy=true; chatOculto=false;
   if(esConfirmoJefe(texto)){ document.getElementById('chat-send-btn').disabled=true; await confirmarChat(); }
   chatMessages.push({role:'user',content:texto});
   ocultarBanner();

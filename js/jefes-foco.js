@@ -51,6 +51,9 @@
   var marcar = soloCompletos || !!(window.__focoConfig && window.__focoConfig.marcarDesglose);
   var desgTemp = {};
   var campsRaw = [];
+  var nuevoAbierto = false;
+  var modoQuitar = false;
+  var colaCatalogo = Promise.resolve();
   var pagina = (window.__focoConfig && window.__focoConfig.pagina) || '';
   var listarCampanas = conCampanas || (soloCompletos && pagina !== 'temporada');
   var campanasRedirigen = soloCompletos && !conCampanas && pagina !== 'temporada';
@@ -79,6 +82,15 @@
     '.foco-op .n{overflow:hidden;text-overflow:ellipsis;min-width:0}',
     '.foco-op small{font-weight:500;color:#5F5F5F;white-space:nowrap;flex:0 0 auto}',
     '.foco-crear{background:#F1FFC2;margin:6px 0}',
+    '.foco-mas-nuevo{border-style:solid;border-color:#C0F800;background:#F1FFC2}',
+    '.foco-nuevo{padding:2px 0 6px}',
+    '.foco-quitando{background:#FFF1F0}',
+    '.foco-quitando:hover{background:#FFD9D5}',
+    '.foco-quitar-modo{display:block;width:100%;text-align:center;margin:2px 0 6px;padding:8px;border:none;background:none;font:600 13px Inter,sans-serif;color:#9A2B1F;cursor:pointer;text-decoration:underline}',
+    '.foco-nuevo-in{box-sizing:border-box;width:100%;margin:8px 0 6px;padding:10px 12px;border:1.5px solid #C9C9C9;border-radius:10px;font:600 15px Inter,sans-serif;color:#1A1A1A}',
+    '.foco-nuevo-in:focus{outline:none;border-color:#4E7A00}',
+    '.foco-nuevo-ok{width:100%;padding:10px;border:none;border-radius:10px;background:#C0F800;color:#1A1A1A;font:700 14px Inter,sans-serif;cursor:pointer}',
+    '.foco-nuevo-ok:disabled{opacity:.6;cursor:default}',
     '.foco-crear:hover{background:#C0F800}',
     '.foco-sub{display:block;font-weight:500;font-size:12.5px;color:#5F5F5F;margin-top:2px}',
     '.foco-ok{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#C0F800;color:#1A1A1A;font-size:11px;font-weight:800;margin-left:8px;vertical-align:middle;flex:0 0 auto}',
@@ -317,6 +329,40 @@
     var c = campanasVivas().filter(coincide)[0] || campsRaw.filter(coincide)[0];
     return c ? c.id : '';
   }
+  // ---------- qué tan completa está una campaña de temporada ----------
+  // Misma regla que el checklist de Jefe de Temporada (12 módulos); filas fijas = textos que la campaña trae de fábrica en sus tablas
+  // (no cuentan como llenado). Si cambia la plantilla de campaña en jefe-temporada.html, actualizar estas listas.
+  var FIJAS_TEMP = {"cliente_diferencias":["Deseo activado","Dolor activado","Miedo activo","Objeción principal","Incentivo"],"com_mensaje_elegido":["¿Qué vendo?","¿Para quién es?","¿Qué resultado promete?","¿Por qué importa en esta temporada?","Mensaje principal final"],"com_razon_ahora":["Razón real para comprar ahora","Fecha límite / cierre","Cupo / stock / disponibilidad","Promoción / bono / incentivo","Qué pasa si no compra ahora","Cómo comunicarlo sin presión falsa"],"com_mensajes_clave":["Deseo","Problema","Confianza","Urgencia","Cierre"],"com_frases_maestras":["Para atraer atención","Para generar deseo","Para explicar la oferta","Para resolver dudas","Para urgencia","Para cierre","Para WhatsApp / DM","Para stories","Para anuncios"],"com_objeciones":["Precio","Tiempo","Confianza","No sé si es para mí","Lo puedo comprar después","Comparación con otra opción"],"com_angulos":["Deseo","Lo que quiere lograr","Aspiración","Dolor","Problema que quiere resolver","Frustración","Miedo","Lo que teme que pase si no actúa","Preocupación","Sueño","Vida / resultado que imagina","Ilusión","Error","Algo que está haciendo mal","Urgencia de corregir","Curiosidad","Algo inesperado","Intriga","Rapidez","Resultado en menos tiempo","Facilidad","Comparación","Antes vs después","Claridad","Historia","Experiencia real","Conexión","Experiencia","Vivir algo especial","Simplicidad","Hacerlo más fácil","Alivio","Exclusividad","Acceso especial","Pertenencia","Prueba social","Otras personas ya lo hicieron","Confianza","Evitar pérdida","Lo que podría perder","Acción","Identidad","Cómo se ve a sí misma","Identificación"],"com_ctas":["Precampaña","Lanzamiento","Mitad de campaña","Último día","Últimas horas","Cierre"],"pre_calentamiento":["Día 1","Día 3","Día 5","Día 7","Día 10"],"activa_fases":["Lanzamiento","Intensificación","Cierre"],"post_acciones":["Agradecimiento","Seguimiento","Registro en base de datos","Solicitud de testimonio","Oferta de segunda compra","Remarketing"],"ads_creativos":["Lanzamiento","Objeción","Prueba social","Urgencia / cierre"]};
+  var MODULOS_TEMP = [
+    { campos: ['temporada', 'objetivo_principal', 'incentivo', 'fecha_inicio_activa', 'fecha_fin_activa'], producto: true },
+    { campos: ['prod_por_que'], tablas: ['prod_incentivos'] },
+    { campos: ['cliente_que_pasa', 'cliente_que_haria_hoy', 'cliente_que_cambio'], tablas: ['cliente_diferencias'] },
+    { tablas: ['com_mensaje_elegido', 'com_razon_ahora', 'com_mensajes_clave', 'com_frases_maestras', 'com_objeciones', 'com_angulos', 'com_ctas'] },
+    { campos: ['dm_cliente_ideal_temporada', 'dm_oferta', 'dm_mensaje_principal', 'dm_frases_clave', 'dm_canal_conversion'] },
+    { campos: ['meta_ventas', 'ticket_promedio'] },
+    { campos: ['pre_objetivo', 'pre_captacion'], tablas: ['pre_calentamiento'] },
+    { tablas: ['activa_fases'] },
+    { tablas: ['bd_segmentos'] },
+    { tablas: ['post_acciones'] },
+    { campos: ['ads_objetivo', 'ads_publico', 'ads_oferta'], tablas: ['ads_creativos'] },
+    { tablas: ['calendario'] }
+  ];
+  function tablaTempLlena(c, campo) {
+    if (!Array.isArray(c[campo])) return false;
+    var fijas = FIJAS_TEMP[campo] || [];
+    return c[campo].some(function (f) {
+      return f && Object.keys(f).some(function (k) { var v = String(f[k] == null ? '' : f[k]).trim(); return k !== 'id' && v && fijas.indexOf(v) < 0; });
+    });
+  }
+  function modulosCampana(c) {
+    var ok = 0;
+    MODULOS_TEMP.forEach(function (m) {
+      var lleno = (m.campos || []).every(function (k) { return String(c[k] == null ? '' : c[k]).trim(); }) && (m.tablas || []).every(function (t) { return tablaTempLlena(c, t); });
+      if (lleno && m.producto) lleno = !!String((c.producto_origen === 'nuevo' ? c.producto_nuevo : c.producto_nombre) || '').trim();
+      if (lleno) ok++;
+    });
+    return { ok: ok, total: MODULOS_TEMP.length };
+  }
   function marcaDesglose(p) {
     if (!marcar) return null;
     var c366 = !!estadoDe(p).completo, temp = !!desgTemp[p.id];
@@ -424,6 +470,126 @@
     menu.appendChild(pie);
   }
 
+  // ---------- alta de productos en el Catálogo del ADN (llave "<hub>:catalogo-productos") ----------
+  // Un producto nuevo (o renombrado) en Jefe 366 queda también en el Catálogo del ADN, sin duplicar: se busca por id o por nombre.
+  function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+  async function altaProductoYa(nombre, opts) {
+    nombre = String(nombre || '').trim();
+    if (!nombre) return null;
+    var cat = await leer('catalogo-productos');
+    cat = Array.isArray(cat) ? cat : [];
+    // si el catálogo no se pudo leer (llegó vacío pero ya habíamos cargado productos), no se escribe nada: así no se pisa
+    if (!cat.length && lista.some(function (p) { return p && !p.origen366; })) throw new Error('catalogo no disponible');
+    var n = norm(nombre), item = null, cambio = false;
+    if (opts.catalogoId) item = cat.filter(function (x) { return x && x.id === opts.catalogoId; })[0] || null;
+    if (!item) item = cat.filter(function (x) { return x && norm(x.nombre) === n; })[0] || null;
+    if (item) {
+      if (opts.renombrar && norm(item.nombre) !== n) { item.nombre = nombre; cambio = true; }
+    } else {
+      item = { id: newId(), nombre: nombre, tipo: 'Producto', grupo_id: opts.grupo_id || '', precio: '', costo: '', margen_pct: '', que_tanto_se_vende: '', inventario: '', notas: '' };
+      cat.push(item);
+      cambio = true;
+    }
+    if (cambio) await window.storage.set(hub + ':catalogo-productos', JSON.stringify(cat));
+    lista = lista.filter(function (p) { return p && p.id !== item.id && !(p.origen366 && norm(p.nombre) === n); });
+    lista.push(item);
+    pintar();
+    return item;
+  }
+  function altaProducto(nombre, opts) {
+    var tarea = colaCatalogo.then(function () { return altaProductoYa(nombre, opts || {}); });
+    colaCatalogo = tarea.catch(function () {});
+    return tarea;
+  }
+  // Quitar un producto: sale del Catálogo del ADN y la página (Jefe 366) quita sus fichas. Siempre con confirmación.
+  async function bajaCatalogo(p) {
+    var n = norm(p.nombre);
+    var cat = await leer('catalogo-productos');
+    cat = Array.isArray(cat) ? cat : [];
+    if (!cat.length && lista.some(function (x) { return x && !x.origen366; })) throw new Error('catalogo no disponible');
+    var nuevo = cat.filter(function (x) { return !(x && (x.id === p.id || norm(x.nombre) === n)); });
+    if (nuevo.length !== cat.length) await window.storage.set(hub + ':catalogo-productos', JSON.stringify(nuevo));
+  }
+  function quitarProducto(p) {
+    var nombre = String(p.nombre || '').trim();
+    var aviso = '¿Quitar «' + nombre + '»?' + String.fromCharCode(10, 10) + 'Se borra del Catálogo de tu ADN y de las fichas del Jefe 366 (producto, cliente ideal, sistema y comunicación). Lo que escribiste ahí se pierde.';
+    if (tieneCampana(p) || desgTemp[p.id]) aviso += String.fromCharCode(10, 10) + 'Tiene una campaña en Jefe de Temporada: esa campaña no se borra.';
+    if (!window.confirm(aviso)) return;
+    colaCatalogo = colaCatalogo.then(function () { return bajaCatalogo(p); }).then(function () {
+      var n = norm(nombre);
+      lista = lista.filter(function (x) { return x && x.id !== p.id && norm(x.nombre) !== n; });
+      delete estado366[n];
+      orden366 = orden366.filter(function (x) { return x !== n; });
+      modoQuitar = false;
+      var previo = actual.id;
+      aplicar(actual.id === p.id ? TODO : actual.id);
+      if (sinEco() && actual.id === TODO) { var pri = primerEmpezado(); if (pri) aplicar(pri.id); }
+      guardarLS();
+      pintar();
+      try { window.dispatchEvent(new CustomEvent('foco-producto-quitado', { detail: { id: p.id, nombre: nombre } })); } catch (e) {}
+      if (actual.id !== previo) avisar();
+    }).catch(function () {
+      window.alert('No se pudo quitar el producto. Intenta de nuevo en un momento.');
+    });
+  }
+  function bloqueNuevo() {
+    var w = document.createElement('div');
+    w.className = 'foco-nuevo';
+    if (!nuevoAbierto) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'foco-mas foco-mas-nuevo';
+      b.textContent = '➕ Agregar producto nuevo';
+      b.addEventListener('click', function (e) {
+        e.stopPropagation();
+        nuevoAbierto = true;
+        pintar();
+        var i = menu.querySelector('.foco-nuevo-in');
+        if (i) { try { i.focus(); i.scrollIntoView({ block: 'nearest' }); } catch (x) {} }
+      });
+      w.appendChild(b);
+      return w;
+    }
+    var inp = document.createElement('input');
+    inp.type = 'text';
+    inp.maxLength = 80;
+    inp.className = 'foco-nuevo-in';
+    inp.placeholder = 'Nombre del producto o servicio';
+    var ok = document.createElement('button');
+    ok.type = 'button';
+    ok.className = 'foco-nuevo-ok';
+    ok.textContent = 'Agregar';
+    var nota = document.createElement('div');
+    nota.className = 'foco-nota';
+    nota.textContent = 'Se guarda también en el Catálogo de tu ADN y lo empiezas a llenar desde cero en el chat.';
+    var crear = async function () {
+      var nombre = inp.value.trim();
+      if (!nombre) { inp.focus(); return; }
+      ok.disabled = true;
+      ok.textContent = 'Guardando...';
+      try {
+        var it = await altaProducto(nombre, {});
+        nuevoAbierto = false;
+        cerrar();
+        if (it) {
+          fijar(it.id);
+          try { window.dispatchEvent(new CustomEvent('foco-desde-cero', { detail: { id: it.id, nombre: it.nombre } })); } catch (x) {}
+        }
+      } catch (err) {
+        ok.disabled = false;
+        ok.textContent = 'Agregar';
+        nota.textContent = 'No se pudo guardar el producto. Intenta de nuevo.';
+      }
+    };
+    ok.addEventListener('click', function (e) { e.stopPropagation(); crear(); });
+    inp.addEventListener('click', function (e) { e.stopPropagation(); });
+    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); crear(); } });
+    w.appendChild(inp);
+    w.appendChild(ok);
+    w.appendChild(nota);
+    return w;
+  }
+
   // En Jefe 366 no hay "ecosistema completo" ni "todo el grupo": siempre se trabaja un producto ya dado de alta (empezado) en el 366.
   function sinEco() { return soloCompletos && pagina === '366'; }
   function primerEmpezado() {
@@ -447,6 +613,7 @@
 
     var conNombre = lista.filter(function (p) { return p && p.nombre; });
     var visibles = soloCompletos ? conNombre.filter(function (p) { return estadoDe(p).empezado; }) : conNombre;
+    if (sinEco()) visibles = visibles.filter(function (p) { return !soloTemporada(p); });
     // mismo orden que las fichas de Producto 366, para que la lista de arriba y la de la sección coincidan
     if (soloCompletos) {
       var pos = function (p) { var i = orden366.indexOf(norm(p.nombre)); return i < 0 ? 9999 : i; };
@@ -472,24 +639,45 @@
       if (porGrupo['']) orden.push('');
       orden.forEach(function (gid) {
         var g = grupos.filter(function (x) { return x.id === gid; })[0];
-        menu.appendChild(titulo(g && g.nombre ? g.nombre : (grupos.length ? 'Sin grupo' : 'Productos y servicios')));
+        menu.appendChild(titulo(sinEco() ? 'Jefe 366 · tus productos' + (g && g.nombre ? ' · ' + g.nombre : '') : (g && g.nombre ? g.nombre : (grupos.length ? 'Sin grupo' : 'Productos y servicios'))));
         if (conGrupos && !sinEco() && g && g.nombre) menu.appendChild(opcion('g:' + g.id, 'Todo el grupo: ' + String(g.nombre).trim(), 'Todos los productos y servicios de este grupo'));
         porGrupo[gid].forEach(function (p) {
           var st = estadoDe(p);
           var sub = soloCompletos && !st.completo ? 'En proceso · ' + (TODO_FALTA.length - st.faltan.length) + ' de ' + TODO_FALTA.length + ' partes del 366' : (p.tipo || '');
           var aTemp = sinEco() && soloTemporada(p);
+          if (sinEco() && modoQuitar) { menu.appendChild(opcion(p.id, String(p.nombre).trim(), 'Toca para quitar este producto', precioTexto(p.precio), function () { quitarProducto(p); }, 'foco-quitando')); return; }
           menu.appendChild(opcion(p.id, String(p.nombre).trim(), aTemp ? '' : sub, precioTexto(p.precio),
             aTemp ? function () { var cid = campanaDeProducto(p); irA('/jefe-temporada' + (cid ? '?campana=' + encodeURIComponent(cid) : '')); } : null, '', marcaDesglose(p)));
         });
       });
     }
 
-    if (listarCampanas && campanas.length) {
+    if (sinEco() && campsRaw.length) {
+      menu.appendChild(titulo('Campañas de temporada · se trabajan en Jefe de Temporada'));
+      var hoyC = new Date().toISOString().slice(0, 10);
+      campsRaw.filter(function (c) { return c && c.id; }).forEach(function (c) {
+        var av = modulosCampana(c);
+        var termino = c.fecha_fin_activa && c.fecha_fin_activa < hoyC;
+        var sub = 'En proceso · ' + av.ok + ' de ' + av.total + ' módulos de la campaña' + (termino ? ' · terminó el ' + c.fecha_fin_activa : '');
+        if (av.ok === av.total) sub = 'Campaña completa · ' + av.total + ' de ' + av.total + ' módulos' + (termino ? ' · terminó el ' + c.fecha_fin_activa : '');
+        menu.appendChild(opcion('c:' + c.id, '🗓️ ' + etiquetaCampana(c), sub, '', function () { irA('/jefe-temporada?campana=' + encodeURIComponent(c.id)); }, '', av.ok === av.total ? { c366: false, temp: true } : null));
+      });
+    } else if (listarCampanas && campanas.length) {
       menu.appendChild(titulo('Campañas de temporada'));
       campanas.forEach(function (c) {
         menu.appendChild(opcion('c:' + c.id, '🗓️ ' + etiquetaCampana(c), campanasRedirigen ? 'Se abre en Jefe de Temporada' : (campanaLocal ? 'Te guío con toda su estrategia' : 'Campaña de Jefe de Temporada'), '',
           campanasRedirigen ? function () { irA('/jefe-temporada?campana=' + encodeURIComponent(c.id)); } : null));
       });
+    }
+
+    if (sinEco()) {
+      menu.appendChild(bloqueNuevo());
+      var qm = document.createElement('button');
+      qm.type = 'button';
+      qm.className = 'foco-quitar-modo';
+      qm.textContent = modoQuitar ? 'Listo, dejar de quitar' : '🗑️ Quitar un producto';
+      qm.addEventListener('click', function (e) { e.stopPropagation(); modoQuitar = !modoQuitar; if (modoQuitar) verOtros = true; pintar(); });
+      menu.appendChild(qm);
     }
 
     if (otros.length) {
@@ -508,6 +696,7 @@
           : 'Al elegir uno te llevo al Jefe 366 para llenarlo desde cero en el chat.';
         menu.appendChild(nota);
         otros.forEach(function (p) {
+          if (sinEco() && modoQuitar) { menu.appendChild(opcion(p.id, String(p.nombre).trim(), 'Toca para quitar este producto', precioTexto(p.precio), function () { quitarProducto(p); }, 'foco-quitando')); return; }
           menu.appendChild(opcion(p.id, String(p.nombre).trim(), 'Sin empezar', precioTexto(p.precio), function () { elegirIncompleto(p); }));
         });
       }
@@ -529,7 +718,7 @@
   }
 
   function abrir() { menu.hidden = false; pill.setAttribute('aria-expanded', 'true'); refrescar366(false); }
-  function cerrar() { menu.hidden = true; pill.setAttribute('aria-expanded', 'false'); }
+  function cerrar() { menu.hidden = true; pill.setAttribute('aria-expanded', 'false'); nuevoAbierto = false; modoQuitar = false; }
   pill.addEventListener('click', function (e) { e.stopPropagation(); menu.hidden ? abrir() : cerrar(); });
   document.addEventListener('click', function (e) { if (!wrap.contains(e.target)) cerrar(); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') cerrar(); });
@@ -613,6 +802,7 @@
     campanas: function () { return campanasVivas().slice(); },
     // la pagina avisa que cambiaron sus campanas (nombre, producto, alta o baja) para repintar la pastilla
     refrescar: function () { aplicar(actual.id); guardarLS(); pintar(); },
+    altaProducto: altaProducto,
     es366Completo: function (id) { var p = buscar(id); return p ? estadoDe(p).completo : false; },
     es366Empezado: function (id) { var p = buscar(id); return p ? estadoDe(p).empezado : false; },
     refrescar366: function () { return refrescar366(true); },
