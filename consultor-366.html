@@ -3539,6 +3539,7 @@ function guardarProductos() {
     const nuevo = PRODUCTO_TEMPLATE();
     nuevo.grupo_id = p.grupo_id || '';
     if (p.uid) nuevo.uid = p.uid;
+    if (p.catalogo_id) nuevo.catalogo_id = p.catalogo_id;
     const importantes = {};
     CAMPOS_TEXTO_EP.forEach((campo) => {
       const el = document.getElementById('ep-' + campo + '-' + i);
@@ -3555,6 +3556,35 @@ function guardarProductos() {
   });
   productosState = lista;
   save366Grupo('366-producto', { lista }, 'ep-status');
+  programarSyncCatalogo366();
+}
+
+/* Cada producto de Producto 366 también vive en el Catálogo del ADN: si es nuevo se da de alta ahí, y si se renombra se
+   renombra también allá (cada ficha guarda el id de su producto del catálogo en catalogo_id). Se espera un momento después
+   de la última edición para no dar de alta nombres a medio escribir. */
+let temporizadorCat366 = null;
+const nombreSincronizado366 = {};
+function programarSyncCatalogo366() {
+  clearTimeout(temporizadorCat366);
+  temporizadorCat366 = setTimeout(sincronizarCatalogo366, 1500);
+}
+async function sincronizarCatalogo366() {
+  if (!window.__foco || !window.__foco.altaProducto) return;
+  let nuevosIds = false;
+  for (const p of productosState.slice()) {
+    const nombre = ((p && p.nombre) || '').trim();
+    if (!nombre) continue;
+    const clave = p.uid || nombre;
+    if (nombreSincronizado366[clave] === nombre && p.catalogo_id) continue;
+    try {
+      const it = await window.__foco.altaProducto(nombre, { catalogoId: p.catalogo_id, grupo_id: p.grupo_id, renombrar: true });
+      if (!it) continue;
+      nombreSincronizado366[clave] = nombre;
+      const actual = productosState.find((x) => x && (p.uid ? x.uid === p.uid : x.nombre === p.nombre)) || p;
+      if (actual.catalogo_id !== it.id) { actual.catalogo_id = it.id; nuevosIds = true; }
+    } catch (e) {}
+  }
+  if (nuevosIds) { try { guardarProductos(); } catch (e) {} }
 }
 
 async function cargarProductos() {

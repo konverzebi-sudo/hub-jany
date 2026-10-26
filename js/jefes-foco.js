@@ -51,6 +51,8 @@
   var marcar = soloCompletos || !!(window.__focoConfig && window.__focoConfig.marcarDesglose);
   var desgTemp = {};
   var campsRaw = [];
+  var nuevoAbierto = false;
+  var colaCatalogo = Promise.resolve();
   var pagina = (window.__focoConfig && window.__focoConfig.pagina) || '';
   var listarCampanas = conCampanas || (soloCompletos && pagina !== 'temporada');
   var campanasRedirigen = soloCompletos && !conCampanas && pagina !== 'temporada';
@@ -79,6 +81,12 @@
     '.foco-op .n{overflow:hidden;text-overflow:ellipsis;min-width:0}',
     '.foco-op small{font-weight:500;color:#5F5F5F;white-space:nowrap;flex:0 0 auto}',
     '.foco-crear{background:#F1FFC2;margin:6px 0}',
+    '.foco-mas-nuevo{border-style:solid;border-color:#C0F800;background:#F1FFC2}',
+    '.foco-nuevo{padding:2px 0 6px}',
+    '.foco-nuevo-in{box-sizing:border-box;width:100%;margin:8px 0 6px;padding:10px 12px;border:1.5px solid #C9C9C9;border-radius:10px;font:600 15px Inter,sans-serif;color:#1A1A1A}',
+    '.foco-nuevo-in:focus{outline:none;border-color:#4E7A00}',
+    '.foco-nuevo-ok{width:100%;padding:10px;border:none;border-radius:10px;background:#C0F800;color:#1A1A1A;font:700 14px Inter,sans-serif;cursor:pointer}',
+    '.foco-nuevo-ok:disabled{opacity:.6;cursor:default}',
     '.foco-crear:hover{background:#C0F800}',
     '.foco-sub{display:block;font-weight:500;font-size:12.5px;color:#5F5F5F;margin-top:2px}',
     '.foco-ok{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#C0F800;color:#1A1A1A;font-size:11px;font-weight:800;margin-left:8px;vertical-align:middle;flex:0 0 auto}',
@@ -424,6 +432,95 @@
     menu.appendChild(pie);
   }
 
+  // ---------- alta de productos en el Catálogo del ADN (llave "<hub>:catalogo-productos") ----------
+  // Un producto nuevo (o renombrado) en Jefe 366 queda también en el Catálogo del ADN, sin duplicar: se busca por id o por nombre.
+  function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+  async function altaProductoYa(nombre, opts) {
+    nombre = String(nombre || '').trim();
+    if (!nombre) return null;
+    var cat = await leer('catalogo-productos');
+    cat = Array.isArray(cat) ? cat : [];
+    // si el catálogo no se pudo leer (llegó vacío pero ya habíamos cargado productos), no se escribe nada: así no se pisa
+    if (!cat.length && lista.some(function (p) { return p && !p.origen366; })) throw new Error('catalogo no disponible');
+    var n = norm(nombre), item = null, cambio = false;
+    if (opts.catalogoId) item = cat.filter(function (x) { return x && x.id === opts.catalogoId; })[0] || null;
+    if (!item) item = cat.filter(function (x) { return x && norm(x.nombre) === n; })[0] || null;
+    if (item) {
+      if (opts.renombrar && norm(item.nombre) !== n) { item.nombre = nombre; cambio = true; }
+    } else {
+      item = { id: newId(), nombre: nombre, tipo: 'Producto', grupo_id: opts.grupo_id || '', precio: '', costo: '', margen_pct: '', que_tanto_se_vende: '', inventario: '', notas: '' };
+      cat.push(item);
+      cambio = true;
+    }
+    if (cambio) await window.storage.set(hub + ':catalogo-productos', JSON.stringify(cat));
+    lista = lista.filter(function (p) { return p && p.id !== item.id && !(p.origen366 && norm(p.nombre) === n); });
+    lista.push(item);
+    pintar();
+    return item;
+  }
+  function altaProducto(nombre, opts) {
+    var tarea = colaCatalogo.then(function () { return altaProductoYa(nombre, opts || {}); });
+    colaCatalogo = tarea.catch(function () {});
+    return tarea;
+  }
+  function bloqueNuevo() {
+    var w = document.createElement('div');
+    w.className = 'foco-nuevo';
+    if (!nuevoAbierto) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'foco-mas foco-mas-nuevo';
+      b.textContent = '➕ Agregar producto nuevo';
+      b.addEventListener('click', function (e) {
+        e.stopPropagation();
+        nuevoAbierto = true;
+        pintar();
+        var i = menu.querySelector('.foco-nuevo-in');
+        if (i) { try { i.focus(); i.scrollIntoView({ block: 'nearest' }); } catch (x) {} }
+      });
+      w.appendChild(b);
+      return w;
+    }
+    var inp = document.createElement('input');
+    inp.type = 'text';
+    inp.maxLength = 80;
+    inp.className = 'foco-nuevo-in';
+    inp.placeholder = 'Nombre del producto o servicio';
+    var ok = document.createElement('button');
+    ok.type = 'button';
+    ok.className = 'foco-nuevo-ok';
+    ok.textContent = 'Agregar';
+    var nota = document.createElement('div');
+    nota.className = 'foco-nota';
+    nota.textContent = 'Se guarda también en el Catálogo de tu ADN y lo empiezas a llenar desde cero en el chat.';
+    var crear = async function () {
+      var nombre = inp.value.trim();
+      if (!nombre) { inp.focus(); return; }
+      ok.disabled = true;
+      ok.textContent = 'Guardando...';
+      try {
+        var it = await altaProducto(nombre, {});
+        nuevoAbierto = false;
+        cerrar();
+        if (it) {
+          fijar(it.id);
+          try { window.dispatchEvent(new CustomEvent('foco-desde-cero', { detail: { id: it.id, nombre: it.nombre } })); } catch (x) {}
+        }
+      } catch (err) {
+        ok.disabled = false;
+        ok.textContent = 'Agregar';
+        nota.textContent = 'No se pudo guardar el producto. Intenta de nuevo.';
+      }
+    };
+    ok.addEventListener('click', function (e) { e.stopPropagation(); crear(); });
+    inp.addEventListener('click', function (e) { e.stopPropagation(); });
+    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); crear(); } });
+    w.appendChild(inp);
+    w.appendChild(ok);
+    w.appendChild(nota);
+    return w;
+  }
+
   // En Jefe 366 no hay "ecosistema completo" ni "todo el grupo": siempre se trabaja un producto ya dado de alta (empezado) en el 366.
   function sinEco() { return soloCompletos && pagina === '366'; }
   function primerEmpezado() {
@@ -492,6 +589,8 @@
       });
     }
 
+    if (sinEco()) menu.appendChild(bloqueNuevo());
+
     if (otros.length) {
       var mas = document.createElement('button');
       mas.type = 'button';
@@ -529,7 +628,7 @@
   }
 
   function abrir() { menu.hidden = false; pill.setAttribute('aria-expanded', 'true'); refrescar366(false); }
-  function cerrar() { menu.hidden = true; pill.setAttribute('aria-expanded', 'false'); }
+  function cerrar() { menu.hidden = true; pill.setAttribute('aria-expanded', 'false'); nuevoAbierto = false; }
   pill.addEventListener('click', function (e) { e.stopPropagation(); menu.hidden ? abrir() : cerrar(); });
   document.addEventListener('click', function (e) { if (!wrap.contains(e.target)) cerrar(); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') cerrar(); });
@@ -613,6 +712,7 @@
     campanas: function () { return campanasVivas().slice(); },
     // la pagina avisa que cambiaron sus campanas (nombre, producto, alta o baja) para repintar la pastilla
     refrescar: function () { aplicar(actual.id); guardarLS(); pintar(); },
+    altaProducto: altaProducto,
     es366Completo: function (id) { var p = buscar(id); return p ? estadoDe(p).completo : false; },
     es366Empezado: function (id) { var p = buscar(id); return p ? estadoDe(p).empezado : false; },
     refrescar366: function () { return refrescar366(true); },
