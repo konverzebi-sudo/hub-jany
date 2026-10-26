@@ -534,6 +534,19 @@
       window.alert('No se pudo quitar el producto. Intenta de nuevo en un momento.');
     });
   }
+  // ¿Ya existe un producto con un nombre muy parecido (ej. "Capacitación Grupal" vs "Capacitación Estratégica con IA (Grupal)")?
+  function palabrasDe(t) { return norm(t).replace(/[^a-z0-9 ]/g, ' ').split(' ').filter(function (w) { return w.length > 2 && ['con', 'del', 'los', 'las', 'para', 'una', 'por'].indexOf(w) < 0; }); }
+  function productoParecido(nombre) {
+    var a = palabrasDe(nombre), n = norm(nombre);
+    if (a.length < 2) return null;
+    var cand = lista.filter(function (p) {
+      if (!p || !p.nombre || norm(p.nombre) === n) return false;
+      var b = palabrasDe(p.nombre);
+      return a.every(function (w) { return b.indexOf(w) >= 0; }); // todo lo que escribió ya está en el nombre de uno que existe
+    });
+    cand.sort(function (x, y) { return palabrasDe(x.nombre).length - palabrasDe(y.nombre).length; });
+    return cand[0] || null;
+  }
   function bloqueNuevo() {
     var w = document.createElement('div');
     w.className = 'foco-nuevo';
@@ -570,7 +583,10 @@
       ok.disabled = true;
       ok.textContent = 'Guardando...';
       try {
-        var it = await altaProducto(nombre, {});
+        var it = null;
+        var sim = productoParecido(nombre);
+        if (sim && window.confirm('Ya tienes «' + String(sim.nombre).trim() + '» en tu catálogo.' + String.fromCharCode(10, 10) + '¿Es el mismo producto? Aceptar = usar ese (no se crea uno repetido). Cancelar = crear «' + nombre + '» como producto aparte.')) it = sim;
+        if (!it) it = await altaProducto(nombre, {});
         nuevoAbierto = false;
         cerrar();
         if (it) {

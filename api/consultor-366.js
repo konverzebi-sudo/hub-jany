@@ -587,6 +587,11 @@ async function manejarChatGuiado(req, res) {
         'FOCO ELEGIDO ARRIBA: la usuaria eligió en la pastilla de la parte de arriba ' + (foco.esGrupo ? 'el GRUPO "' : 'el PRODUCTO O SERVICIO "') + String(foco.nombre).trim().slice(0, 120) + '". Es con ' + (foco.esGrupo ? 'ese grupo' : 'ese producto') + ' con lo que se trabaja ahora: no le preguntes cuál es, y todo lo que se guarde es de ' + (foco.esGrupo ? 'ese grupo' : 'ese producto') + '. Recuérdale, cuando toque, que arriba puede cambiar de producto para llenar las fichas de los demás.'
       );
     }
+    if (modo === 'normal' && body.confirmoSinBloque === true) {
+      partesSystem.push(
+        'AVISO DEL SISTEMA (obligatorio): la usuaria acaba de escribir CONFIRMO JEFE, pero en tu mensaje anterior NO venía ningún bloque entre ⚠️INICIO y ⚠️GUARDAR, así que la pantalla NO guardó NADA. Tienes PROHIBIDO decir que algo quedó guardado, listo o confirmado. Discúlpate en UNA línea, vuelve a entregar ahora mismo el bloque completo con sus marcadores ⚠️INICIO / ⚠️GUARDAR: [nombre exacto] y pídele de nuevo que escriba CONFIRMO JEFE. No avances a otro tema todavía.'
+      );
+    }
     if (primeraVez) {
       partesSystem.push(
         'ES LA PRIMERA VEZ QUE LA USUARIA TE ESCRIBE (no hay ninguna respuesta tuya antes en esta conversación). Tu mensaje DEBE EMPEZAR con la bienvenida de "Al iniciar la conversación", completa y en este orden: (1) saludo cálido, quién eres y para qué existes, (2) que aquí puede preguntarte lo que sea y que ya vienes preparado con su ADN y la estrategia 366, (3) QUÉ VAN A HACER AHORA JUNTOS y cómo funciona, (4) el mini-diagnóstico, (5) "arrancamos" con UNA sola pregunta. NO empieces con el mini-diagnóstico ni con una pregunta: primero la bienvenida y la explicación. Háblale en primera persona y con frases cortas, fáciles de leer.'

@@ -2457,6 +2457,7 @@ function guardarConversacionEnBancoWhatsApp(texto) {
   }).catch(() => {});
 }
 
+let sinBloqueConfirmo366 = false;
 async function llamarConstructor(senalOnb) {
   guardarConversacionEnBancoWhatsApp(builderTxtConversacion);
   builderBusy = true;
@@ -2466,7 +2467,7 @@ async function llamarConstructor(senalOnb) {
     const response = await fetch('/api/consultor-366', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: builderMessages, cliente: CLIENTE_ID, imagenes: builderImagenes, txtConversacion: builderTxtConversacion, onboarding: senalOnb || '', foco: focoParaChat366() }),
+      body: JSON.stringify({ messages: builderMessages, cliente: CLIENTE_ID, imagenes: builderImagenes, txtConversacion: builderTxtConversacion, onboarding: senalOnb || '', foco: focoParaChat366(), confirmoSinBloque: sinBloqueConfirmo366 }),
     });
     const data = await response.json();
     if (!response.ok) {
@@ -2477,6 +2478,7 @@ async function llamarConstructor(senalOnb) {
   } catch (err) {
     builderMessages.push({ role: 'assistant', content: '⚠️ Hubo un error de conexión. Intenta de nuevo en un momento.' });
   } finally {
+    sinBloqueConfirmo366 = false;
     builderBusy = false;
     document.getElementById('builderSendBtn').disabled = false;
     document.getElementById('builderInput').disabled = false;
@@ -2544,6 +2546,7 @@ function enviarMensajeConstructor() {
   if (esIntentoDeConfirmar(texto)) {
     const encontroAlgo = procesarConfirmoJefe();
     if (!encontroAlgo) {
+      sinBloqueConfirmo366 = true; // el Jefe debe enterarse de que NO se guardó nada (si no, puede decir que sí se guardó)
       builderMessages.push({ role: 'local-warning', content: 'No encontré ningún bloque listo para guardar en el último mensaje del chat, así que no se guardó nada en Notas. Si el chat sí te había dado algo para confirmar, pídele que te lo repita e intenta de nuevo.' });
     }
   }
