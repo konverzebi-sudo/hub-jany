@@ -1091,7 +1091,10 @@ function actualizarBanner(){
   const respuestas = usuarios.length>=2 && !esConfirmoJefe(usuarios[usuarios.length-1].content) && chatMessages.length!==guardadoEnLongitud;
   const texto=document.getElementById('chat-confirmo-texto'), btn=document.getElementById('chat-confirmo-btn');
   if(validando){
-    if(texto) texto.textContent='🫡 Hay contenido listo para guardar en tu tablero de respuestas.';
+    // Dice el módulo REAL donde se va a guardar (según los cuadros que trae el mensaje), sin depender del número que escribió el Jefe.
+    const mods=[...new Set(parsearBloquesGuardar(ultimo.content).map(b=>{ const l=buscarLookupCampo(limpiarNombreGuardar((b.nombre||'').replace(/\s*\(\s*reemplazar\s*\)\s*$/i,''))); return l?moduloDeCampo(l.campo):0; }).filter(Boolean))].sort((a,b)=>a-b);
+    const nombresMod=mods.map(n=>{ const m=TEMPORADA_MODULOS_CHECKLIST.find(x=>x.num===n); return 'Módulo '+n+(m?' · '+m.nombre:''); });
+    if(texto) texto.textContent = nombresMod.length ? '🫡 Se va a guardar en: '+nombresMod.join(' y ')+'.' : '🫡 Hay contenido listo para guardar en tu tablero de respuestas.';
     if(btn){ btn.textContent='Guardar (CONFIRMO JEFE)'; btn.onclick=confirmarDesdeBanner; }
     el.style.display='flex';
   } else if(del_jefe && respuestas){
@@ -1557,10 +1560,8 @@ const PASOS_SIGUIENTES=[
 function abrirJefeConCampana(nombre){
   const camp=activeCampana(); if(!camp) return;
   if(!confirmarCompletitudAntesDeCompartir(camp)) return;
-  let foco='all';
-  if(nombre==='whatsapp') foco='c:'+camp.id;
-  else if(camp.producto_origen!=='nuevo' && camp.producto_id) foco=camp.producto_id;
-  else if(camp.producto_origen!=='nuevo' && camp.grupo_id) foco='g:'+camp.grupo_id;
+  // Los tres Jefes reciben la campaña elegida (pastilla c:<id>): Contenido y Anuncios se quedan trabajándola con toda su estrategia.
+  const foco='c:'+camp.id;
   try{ localStorage.setItem('jefeshub_foco_'+CLIENTE_ID, JSON.stringify({ id:foco, nombre:camp.producto_nombre||camp.nombre||'' })); }catch(e){}
   window.location.href=rutaJefe(nombre);
 }

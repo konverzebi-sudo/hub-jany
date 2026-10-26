@@ -33,7 +33,11 @@
   var conOfertas366 = !!(window.__focoConfig && window.__focoConfig.productos366);
   // OPCIONAL (window.__focoConfig.campanas): suma las campañas vigentes de Jefe de Temporada (llave "<hub>:temporada-campanas",
   // id 'c:<campana_id>'). foco.get() trae entonces esCampana y campanaId. Sin la bandera nada cambia en los demas Jefes.
-  var conCampanas = modoTemporada || !!(window.__focoConfig && window.__focoConfig.campanas);
+  // OPCIONAL (window.__focoConfig.campanaLocal): Contenido y Anuncios listan las campañas de temporada y, al elegir una, SE QUEDAN
+  // en ese Jefe trabajando esa campaña (foco con el producto de la campaña, y las peticiones a la IA llevan campanaId para que
+  // el Jefe reciba toda la estrategia de temporada y guíe la creación de piezas).
+  var campanaLocal = !!(window.__focoConfig && window.__focoConfig.campanaLocal);
+  var conCampanas = modoTemporada || campanaLocal || !!(window.__focoConfig && window.__focoConfig.campanas);
   var campanas = [];
   // OPCIONAL (window.__focoConfig.soloCompletos366): la lista solo deja elegir los productos que ya EMPEZARON su 366 (tienen ficha en Producto 366)
   // (ficha de producto, cliente ideal, sistema y comunicación con contenido). Los demás salen aparte, bajo el botón
@@ -167,8 +171,8 @@
       esGrupo: !!actual.grupo,
       esCampana: !!actual.campana, campanaId: actual.campana ? actual.campana.id : '', campana: actual.campana || null,
       // atajos para quien trabaja con grupo_id / producto_id: ecosistema = ambos vacios
-      grupoId: actual.grupo ? actual.grupo.id : (actual.item ? (actual.item.grupo_id || '') : ''),
-      productoId: actual.item ? actual.item.id : ''
+      grupoId: actual.grupo ? actual.grupo.id : (actual.item ? (actual.item.grupo_id || '') : (campanaLocal && actual.campana && actual.campana.producto_origen !== 'nuevo' ? (actual.campana.grupo_id || '') : '')),
+      productoId: actual.item ? actual.item.id : (campanaLocal && actual.campana && actual.campana.producto_origen !== 'nuevo' ? (actual.campana.producto_id || '') : '')
     };
   }
   function avisar() {
@@ -483,7 +487,7 @@
     if (listarCampanas && campanas.length) {
       menu.appendChild(titulo('Campañas de temporada'));
       campanas.forEach(function (c) {
-        menu.appendChild(opcion('c:' + c.id, '🗓️ ' + etiquetaCampana(c), campanasRedirigen ? 'Se abre en Jefe de Temporada' : 'Campaña de Jefe de Temporada', '',
+        menu.appendChild(opcion('c:' + c.id, '🗓️ ' + etiquetaCampana(c), campanasRedirigen ? 'Se abre en Jefe de Temporada' : (campanaLocal ? 'Te guío con toda su estrategia' : 'Campaña de Jefe de Temporada'), '',
           campanasRedirigen ? function () { irA('/jefe-temporada?campana=' + encodeURIComponent(c.id)); } : null));
       });
     }
@@ -575,7 +579,7 @@
     if (listarCampanas && !modoTemporada) {
       var cs = await leer('temporada-campanas');
       var hoy = new Date().toISOString().slice(0, 10);
-      campanas = Array.isArray(cs) ? cs.filter(function (c) { return c && c.id && (!c.fecha_fin_activa || c.fecha_fin_activa >= hoy); }) : [];
+      campanas = Array.isArray(cs) ? cs.filter(function (c) { return c && c.id && (campanaLocal ? c.estado !== 'cerrada' : (!c.fecha_fin_activa || c.fecha_fin_activa >= hoy)); }) : [];
     }
     var guardado = leerLS();
     aplicar(guardado ? guardado.id : TODO); // si el producto ya no existe, vuelve a "ecosistema completo"
@@ -585,6 +589,20 @@
     }
     pintar();
   })();
+
+  // En modo campaña local, las peticiones de generación llevan campanaId (sin tocar el código de cada Jefe).
+  if (campanaLocal && window.fetch) {
+    var fetchOriginal = window.fetch.bind(window);
+    window.fetch = function (url, opts) {
+      try {
+        if (actual.campana && opts && typeof opts.body === 'string' && /\/api\/(generar-anuncios|generar-guion-organico|generar-ideas-366)/.test(String(url))) {
+          var b = JSON.parse(opts.body);
+          if (b && typeof b === 'object' && !Array.isArray(b)) { b.campanaId = actual.campana.id; opts = Object.assign({}, opts, { body: JSON.stringify(b) }); }
+        }
+      } catch (e) {}
+      return fetchOriginal(url, opts);
+    };
+  }
 
   window.__foco = {
     get: foco,

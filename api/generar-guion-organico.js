@@ -9,7 +9,7 @@ const path = require('path');
 const { sql } = require('@vercel/postgres');
 const { sumarAlMes } = require('./_lib/uso-mensual');
 const { revisar: revisarSaldo, cobrar: cobrarSaldo } = require('./_lib/saldo');
-const { formatearCampanaSeleccionada } = require('./_lib/campana-temporada');
+const { formatearCampanaSeleccionada, contextoCampanaModo } = require('./_lib/campana-temporada');
 const { systemConCache, historialConCache, camposUso } = require('./_lib/cache-claude');
 
 const DEFAULT_CLIENTE = 'jefeshub';
@@ -676,7 +676,10 @@ module.exports = async function handler(req, res) {
       const { contexto, catalogo } = await construirContexto(clienteId, grupoId);
       const arranque = body.fase === 'arranque' ? '\n\n' + cargarPromptArranque() : '';
       const armar = body.fase === 'armar' ? '\n\n' + cargarPromptArmar() : '';
-      const enfoque = await construirEnfoqueProducto(clienteId, catalogo, productoId).catch(() => null);
+      const enfoqueBase = await construirEnfoqueProducto(clienteId, catalogo, productoId).catch(() => null);
+      // Con una campaña de temporada elegida: estrategia completa + guía paso a paso (modo campaña)
+      const modoCampana = await contextoCampanaModo(leerJSON, clienteId, body.campanaId, 'contenido').catch(() => null);
+      const enfoque = [enfoqueBase, modoCampana].filter(Boolean).join('\n\n') || null;
       const system = systemConCache(promptPreguntas + arranque + armar, contexto, enfoque);
 
       const { texto, usage } = await llamarClaudeTexto({ system, messages: historialConCache(historial, { noReutilizable: imagenes.length > 0, total: validos.length, max: PREGUNTA_MAX_MESSAGES }), maxTokens: 1100, conBusqueda: true });
@@ -689,7 +692,8 @@ module.exports = async function handler(req, res) {
 
     const promptFijo = cargarPromptFijo();
     const { contexto, catalogo } = await construirContexto(clienteId, grupoId);
-    const bloqueProducto = formatearProducto(catalogo, productoId);
+    const modoCampanaIdeas = await contextoCampanaModo(leerJSON, clienteId, body.campanaId, 'contenido').catch(() => null);
+    const bloqueProducto = [formatearProducto(catalogo, productoId), modoCampanaIdeas].filter(Boolean).join('\n\n') || null;
 
     if (modo === 'ideas') {
       const tema = (body.tema || '').toString().trim();
