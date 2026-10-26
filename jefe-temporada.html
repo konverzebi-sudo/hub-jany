@@ -1070,6 +1070,8 @@ function distanciaEdicion(a,b){
 function esConfirmoJefe(texto){
   const n=(texto||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Z ]/g,' ').replace(/\s+/g,' ').trim();
   if(n==='CONFIRMO JEFE') return true;
+  // "CONFIRMO JEFE" dentro de un mensaje más largo ("CONFIRMO JEFE 🫡 el plan está bien, pero…") también confirma
+  if(/(^| )CONFIRMO JEFE( |$)/.test(n) && !/(^| )(NO|NUNCA|TODAVIA|AUN) (LO )?(CONFIRMO JEFE)/.test(n)) return true;
   if(n.length<8||n.length>20) return false;
   return distanciaEdicion(n,'CONFIRMO JEFE')<=2;
 }
@@ -1123,11 +1125,30 @@ async function extraerYAplicar(){
     return aplicarBloques(bloques);
   }catch(e){ mostrarEstadoGuardado('No se pudo revisar la conversación (conexión).', true); return false; }
 }
+// Recupera lo que el usuario YA confirmó en el chat pero no llegó a los cuadros (por ejemplo, confirmó con un mensaje más largo
+// que "CONFIRMO JEFE"): recorre la conversación, toma los bloques de cada mensaje del Jefe que fue seguido de un CONFIRMO del
+// usuario y los aplica SOLO a cuadros que siguen vacíos (no pisa lo que ya está llenado o editado a mano). Sin gastar IA.
+function reaplicarConfirmados(){
+  const camp=activeCampana(); if(!camp) return false;
+  const confirmados=[];
+  chatMessages.forEach((m,i)=>{
+    if(m.role!=='assistant') return;
+    const sig=chatMessages[i+1];
+    if(sig && sig.role==='user' && esConfirmoJefe(sig.content)) parsearBloquesGuardar(m.content).forEach(b=>confirmados.push(b));
+  });
+  if(!confirmados.length) return false;
+  const vacio=l=>l.tipo==='texto' ? !String(camp[l.campo]||'').trim() : l.tipo==='tabla' ? !tablaLlena(camp,l.campo) : false;
+  const lookupDe=b=>buscarLookupCampo((b.nombre||'').replace(/\s*\(\s*reemplazar\s*\)\s*$/i,''));
+  const camposVacios=new Set();
+  confirmados.forEach(b=>{ const l=lookupDe(b); if(l && vacio(l)) camposVacios.add(l.campo); });
+  const aplicar=confirmados.filter(b=>{ const l=lookupDe(b); return l && camposVacios.has(l.campo); });
+  return aplicar.length ? aplicarBloques(aplicar) : false;
+}
 async function confirmarChat(soloExtraer){
   ocultarBanner();
   const camp0=activeCampana(); if(!camp0) return false;
   productoPendienteADN='';
-  let aplicado = soloExtraer ? false : procesarConfirmoTemporada(chatMessages);
+  let aplicado = soloExtraer ? reaplicarConfirmados() : procesarConfirmoTemporada(chatMessages);
   if(!aplicado) aplicado = await extraerYAplicar();
   if(aplicado){
     guardadoEnLongitud=chatMessages.length;
@@ -1138,7 +1159,7 @@ async function confirmarChat(soloExtraer){
     render();
     if(productoPendienteADN){ const pend=productoPendienteADN; productoPendienteADN=''; registrarProductoNuevoEnADN(camp0.id, pend); }
     mostrarEstadoGuardado('✓ Cuadros llenados: '+[...modulosTocados].sort((a,b)=>a-b).map(n=>'módulo '+n).join(', '), false);
-    if(primero) setTimeout(()=>{ const r=document.querySelector('#tt-tl .tt-row[data-mod="'+primero+'"]'); if(r) r.scrollIntoView({behavior:'smooth',block:'start'}); },120);
+    if(primero) setTimeout(()=>irAFilaPaso(primero),120);
   } else {
     mostrarEstadoGuardado('No encontré nada ya acordado en la conversación para llenar los cuadros. Sigue platicando con el Jefe y vuelve a confirmar.', true);
   }
@@ -1615,10 +1636,20 @@ function abrirPaso(n, desdeChat){
     if(ab){ r.classList.remove('actualizado'); modulosTocados.delete(m); }
     if(r.nextElementSibling) r.nextElementSibling.hidden=!ab;
   });
-  if(pasoAbierto!=null){
-    const row=document.querySelector('#tt-tl .tt-row[data-mod="'+pasoAbierto+'"]');
-    if(row) setTimeout(()=>row.scrollIntoView({behavior:'smooth',block:'start'}),60);
-  }
+  if(pasoAbierto!=null) irAFilaPaso(pasoAbierto);
+}
+// Lleva la pantalla al INICIO del módulo (su círculo y el primer renglón de su contenido), debajo de las barras fijas, para
+// leerlo en orden. Se espera a que el módulo que estaba abierto termine de cerrarse, porque al encogerse mueve la página.
+function irAFilaPaso(n){
+  const row=document.querySelector('#tt-tl .tt-row[data-mod="'+n+'"]'); if(!row) return;
+  // .tt-row es display:contents (no tiene caja propia: su posición siempre sale 0), así que se mide con su círculo numerado.
+  const ancla=row.querySelector('.tt-n')||row;
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    const top=document.querySelector('.topbar'); const pill=document.querySelector('.hero-pill-wrap');
+    const fija = pill && getComputedStyle(pill).position==='sticky' ? pill.offsetHeight : 0;
+    const y=ancla.getBoundingClientRect().top + window.scrollY - ((top?top.offsetHeight:70) + fija + 22);
+    window.scrollTo({top:Math.max(0,y),behavior:'smooth'});
+  }));
 }
 function construirLineaTiempo(container, camp){
   const secciones=[...container.querySelectorAll(':scope > .doc-section')];
