@@ -317,6 +317,40 @@
     var c = campanasVivas().filter(coincide)[0] || campsRaw.filter(coincide)[0];
     return c ? c.id : '';
   }
+  // ---------- qué tan completa está una campaña de temporada ----------
+  // Misma regla que el checklist de Jefe de Temporada (12 módulos); filas fijas = textos que la campaña trae de fábrica en sus tablas
+  // (no cuentan como llenado). Si cambia la plantilla de campaña en jefe-temporada.html, actualizar estas listas.
+  var FIJAS_TEMP = {"cliente_diferencias":["Deseo activado","Dolor activado","Miedo activo","Objeción principal","Incentivo"],"com_mensaje_elegido":["¿Qué vendo?","¿Para quién es?","¿Qué resultado promete?","¿Por qué importa en esta temporada?","Mensaje principal final"],"com_razon_ahora":["Razón real para comprar ahora","Fecha límite / cierre","Cupo / stock / disponibilidad","Promoción / bono / incentivo","Qué pasa si no compra ahora","Cómo comunicarlo sin presión falsa"],"com_mensajes_clave":["Deseo","Problema","Confianza","Urgencia","Cierre"],"com_frases_maestras":["Para atraer atención","Para generar deseo","Para explicar la oferta","Para resolver dudas","Para urgencia","Para cierre","Para WhatsApp / DM","Para stories","Para anuncios"],"com_objeciones":["Precio","Tiempo","Confianza","No sé si es para mí","Lo puedo comprar después","Comparación con otra opción"],"com_angulos":["Deseo","Lo que quiere lograr","Aspiración","Dolor","Problema que quiere resolver","Frustración","Miedo","Lo que teme que pase si no actúa","Preocupación","Sueño","Vida / resultado que imagina","Ilusión","Error","Algo que está haciendo mal","Urgencia de corregir","Curiosidad","Algo inesperado","Intriga","Rapidez","Resultado en menos tiempo","Facilidad","Comparación","Antes vs después","Claridad","Historia","Experiencia real","Conexión","Experiencia","Vivir algo especial","Simplicidad","Hacerlo más fácil","Alivio","Exclusividad","Acceso especial","Pertenencia","Prueba social","Otras personas ya lo hicieron","Confianza","Evitar pérdida","Lo que podría perder","Acción","Identidad","Cómo se ve a sí misma","Identificación"],"com_ctas":["Precampaña","Lanzamiento","Mitad de campaña","Último día","Últimas horas","Cierre"],"pre_calentamiento":["Día 1","Día 3","Día 5","Día 7","Día 10"],"activa_fases":["Lanzamiento","Intensificación","Cierre"],"post_acciones":["Agradecimiento","Seguimiento","Registro en base de datos","Solicitud de testimonio","Oferta de segunda compra","Remarketing"],"ads_creativos":["Lanzamiento","Objeción","Prueba social","Urgencia / cierre"]};
+  var MODULOS_TEMP = [
+    { campos: ['temporada', 'objetivo_principal', 'incentivo', 'fecha_inicio_activa', 'fecha_fin_activa'], producto: true },
+    { campos: ['prod_por_que'], tablas: ['prod_incentivos'] },
+    { campos: ['cliente_que_pasa', 'cliente_que_haria_hoy', 'cliente_que_cambio'], tablas: ['cliente_diferencias'] },
+    { tablas: ['com_mensaje_elegido', 'com_razon_ahora', 'com_mensajes_clave', 'com_frases_maestras', 'com_objeciones', 'com_angulos', 'com_ctas'] },
+    { campos: ['dm_cliente_ideal_temporada', 'dm_oferta', 'dm_mensaje_principal', 'dm_frases_clave', 'dm_canal_conversion'] },
+    { campos: ['meta_ventas', 'ticket_promedio'] },
+    { campos: ['pre_objetivo', 'pre_captacion'], tablas: ['pre_calentamiento'] },
+    { tablas: ['activa_fases'] },
+    { tablas: ['bd_segmentos'] },
+    { tablas: ['post_acciones'] },
+    { campos: ['ads_objetivo', 'ads_publico', 'ads_oferta'], tablas: ['ads_creativos'] },
+    { tablas: ['calendario'] }
+  ];
+  function tablaTempLlena(c, campo) {
+    if (!Array.isArray(c[campo])) return false;
+    var fijas = FIJAS_TEMP[campo] || [];
+    return c[campo].some(function (f) {
+      return f && Object.keys(f).some(function (k) { var v = String(f[k] == null ? '' : f[k]).trim(); return k !== 'id' && v && fijas.indexOf(v) < 0; });
+    });
+  }
+  function modulosCampana(c) {
+    var ok = 0;
+    MODULOS_TEMP.forEach(function (m) {
+      var lleno = (m.campos || []).every(function (k) { return String(c[k] == null ? '' : c[k]).trim(); }) && (m.tablas || []).every(function (t) { return tablaTempLlena(c, t); });
+      if (lleno && m.producto) lleno = !!String((c.producto_origen === 'nuevo' ? c.producto_nuevo : c.producto_nombre) || '').trim();
+      if (lleno) ok++;
+    });
+    return { ok: ok, total: MODULOS_TEMP.length };
+  }
   function marcaDesglose(p) {
     if (!marcar) return null;
     var c366 = !!estadoDe(p).completo, temp = !!desgTemp[p.id];
@@ -447,6 +481,7 @@
 
     var conNombre = lista.filter(function (p) { return p && p.nombre; });
     var visibles = soloCompletos ? conNombre.filter(function (p) { return estadoDe(p).empezado; }) : conNombre;
+    if (sinEco()) visibles = visibles.filter(function (p) { return !soloTemporada(p); });
     // mismo orden que las fichas de Producto 366, para que la lista de arriba y la de la sección coincidan
     if (soloCompletos) {
       var pos = function (p) { var i = orden366.indexOf(norm(p.nombre)); return i < 0 ? 9999 : i; };
@@ -472,7 +507,7 @@
       if (porGrupo['']) orden.push('');
       orden.forEach(function (gid) {
         var g = grupos.filter(function (x) { return x.id === gid; })[0];
-        menu.appendChild(titulo(g && g.nombre ? g.nombre : (grupos.length ? 'Sin grupo' : 'Productos y servicios')));
+        menu.appendChild(titulo(sinEco() ? 'Jefe 366 · tus productos' + (g && g.nombre ? ' · ' + g.nombre : '') : (g && g.nombre ? g.nombre : (grupos.length ? 'Sin grupo' : 'Productos y servicios'))));
         if (conGrupos && !sinEco() && g && g.nombre) menu.appendChild(opcion('g:' + g.id, 'Todo el grupo: ' + String(g.nombre).trim(), 'Todos los productos y servicios de este grupo'));
         porGrupo[gid].forEach(function (p) {
           var st = estadoDe(p);
@@ -484,7 +519,17 @@
       });
     }
 
-    if (listarCampanas && campanas.length) {
+    if (sinEco() && campsRaw.length) {
+      menu.appendChild(titulo('Campañas de temporada · se trabajan en Jefe de Temporada'));
+      var hoyC = new Date().toISOString().slice(0, 10);
+      campsRaw.filter(function (c) { return c && c.id; }).forEach(function (c) {
+        var av = modulosCampana(c);
+        var termino = c.fecha_fin_activa && c.fecha_fin_activa < hoyC;
+        var sub = 'En proceso · ' + av.ok + ' de ' + av.total + ' módulos de la campaña' + (termino ? ' · terminó el ' + c.fecha_fin_activa : '');
+        if (av.ok === av.total) sub = 'Campaña completa · ' + av.total + ' de ' + av.total + ' módulos' + (termino ? ' · terminó el ' + c.fecha_fin_activa : '');
+        menu.appendChild(opcion('c:' + c.id, '🗓️ ' + etiquetaCampana(c), sub, '', function () { irA('/jefe-temporada?campana=' + encodeURIComponent(c.id)); }, '', av.ok === av.total ? { c366: false, temp: true } : null));
+      });
+    } else if (listarCampanas && campanas.length) {
       menu.appendChild(titulo('Campañas de temporada'));
       campanas.forEach(function (c) {
         menu.appendChild(opcion('c:' + c.id, '🗓️ ' + etiquetaCampana(c), campanasRedirigen ? 'Se abre en Jefe de Temporada' : (campanaLocal ? 'Te guío con toda su estrategia' : 'Campaña de Jefe de Temporada'), '',
