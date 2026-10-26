@@ -380,3 +380,32 @@ test('links directos: la Agenda lleva a un post por su id y Jefe de Contenido sa
   assert.ok(contenido.includes('hash.match(/^post=(.+)$/)'), 'Contenido lee #post=<id>');
   assert.match(contenido, /abrirDashboard\(hit\.tab, id\);[^}]*abrirEditor\(hit\.tab, id\)/, 'y abre su vista y su ficha');
 });
+
+test('cada etapa trae sus pasos concretos y se puede marcar como hecha sin perder lo demás', () => {
+  AP.ETAPAS.forEach((e) => {
+    assert.ok(Array.isArray(e.pasos) && e.pasos.length >= 2, e.id + ' necesita sus pasos');
+    e.pasos.forEach((t) => assert.ok(t && t.length > 15, e.id));
+  });
+  assert.match(AP.etapaPorId('whatsapp').pasos[0], /chat de WhatsApp y Ventas/);   // el paso dice qué chat abrir
+  // "h" (ya la hice) se conserva al limpiar lo guardado, en las dos formas de guardar una etapa
+  assert.deepEqual(AP.limpiarEtapa({ n: 3, h: 1 }), { n: 3, h: 1 });
+  assert.deepEqual(AP.limpiarEtapa({ d: -5, n: 2, u: 1, h: 1 }), { d: -5, n: 2, u: 1, h: 1 });
+  assert.deepEqual(AP.limpiarEtapa({ n: 2, h: 0 }), { n: 2 });
+  assert.deepEqual(AP.limpiarProceso({ campanas: { c1: { grabar: { n: 2, h: 1 } } } }), { campanas: { c1: { grabar: { n: 2, h: 1 } } } });
+  // el detalle dice cuáles están hechas, y marcar una no la mueve ni cuenta para el promedio
+  const det = AP.detalleEfectivo({ grabar: { n: 2, h: 1 } }, {}, null);
+  assert.equal(det.hecha.grabar, true);
+  assert.equal(det.hecha.editar, false);
+  assert.deepEqual(det.plan, AP.planBase({}));
+  assert.deepEqual(AP.promedios({ c1: { grabar: { n: 5, h: 1 } } }), {});
+});
+
+test('agenda del día: tocar un día o una marca abre sus pasos, con botón para ver el post y para marcarlo como hecho', () => {
+  const agenda = fs.readFileSync(path.join(RAIZ, 'consultor-agenda.html'), 'utf8');
+  assert.ok(agenda.includes("abrirDia(m.iso, { tipo: 'mk'"), 'la marca de una etapa abre la agenda de su día');
+  assert.ok(agenda.includes("abrirDia(ev.fecha, { tipo: 'ev'"), 'una tarea de otro Jefe abre la agenda de su día');
+  assert.ok(agenda.includes("cell.addEventListener('click', () => abrirDia(iso))"), 'tocar el día abre su agenda');
+  assert.ok(agenda.includes('Ver el post →') && agenda.includes('Ya lo hice') && agenda.includes('Ya lo publiqué'), 'botones de ver el post y de marcar como hecho');
+  assert.ok(agenda.includes('id="cal-que-toca"'), 'botón "Qué toca hoy"');
+  assert.ok(agenda.includes('tituloCorto(ev)'), 'las tareas de Temporada muestran lo que toca, no el nombre de la campaña');
+});

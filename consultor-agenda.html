@@ -174,6 +174,33 @@
     .et-rel { display: flex; flex-direction: column; gap: 6px; }
     .et-rel[hidden] { display: none; }
     .et-rel > b { display: block; font: 700 11.5px "JetBrains Mono", monospace; letter-spacing: .06em; text-transform: uppercase; color: var(--text-dim); }
+    /* ── agenda del día: tarjetas de tareas con pasos y botones ── */
+    .modal.modal-dia { max-width: 560px; }
+    .dia-cab { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; gap: 8px; text-align: center; }
+    .dia-cab .nav-btn { padding: 0; }
+    .dia-cab h3 { font-size: 19px; }
+    .dia-resumen { margin: 4px 0 0; font: 600 13.5px/1.4 Inter, sans-serif; color: var(--text-dim); }
+    .dia-vacio { padding: 18px 16px; border-radius: 14px; background: var(--surface-2); font: 500 15px/1.55 Inter, sans-serif; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+    .tarea { border: 1.5px solid var(--line); border-radius: 16px; padding: 14px 14px 16px; display: flex; flex-direction: column; gap: 12px; background: var(--surface); }
+    .tarea.destacada { border-color: var(--accent-texto); box-shadow: 0 0 0 3px var(--accent-soft); }
+    .tarea.lista { background: var(--surface-2); }
+    .tarea.lista .tarea-titulo { text-decoration: line-through; color: var(--text-dim); }
+    .tarea-tag { font: 700 11px "JetBrains Mono", monospace; letter-spacing: .05em; text-transform: uppercase; color: var(--text-dim); }
+    .tarea-titulo { margin: 0; font: 800 17px/1.3 Inter, sans-serif; color: var(--text); }
+    .tarea-que { margin: 0; font: 500 15px/1.5 Inter, sans-serif; color: var(--text); }
+    .tarea ol.tarea-pasos { margin: 0; padding: 0; list-style: none; counter-reset: paso; display: flex; flex-direction: column; gap: 9px; }
+    .tarea ol.tarea-pasos li { counter-increment: paso; display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; font: 500 15px/1.5 Inter, sans-serif; color: var(--text); }
+    .tarea ol.tarea-pasos li::before { content: counter(paso); width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: #0F0B16; font: 800 13px/28px Inter, sans-serif; text-align: center; }
+    .tarea.lista ol.tarea-pasos li::before { background: var(--line); }
+    .tarea-sub { font: 700 11.5px "JetBrains Mono", monospace; letter-spacing: .06em; text-transform: uppercase; color: var(--text-dim); margin: 2px 0 -4px; }
+    .tarea-acciones { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .tarea-hecho { min-height: 46px; padding: 0 18px; border-radius: 99px; border: 0; background: var(--accent); color: #0F0B16; font: 800 14px Inter, sans-serif; cursor: pointer; }
+    .tarea.lista .tarea-hecho { background: var(--surface); border: 1.5px solid var(--line); color: var(--text); }
+    .tarea-hecho:hover { filter: brightness(1.04); }
+    .tarea-quiet { min-height: 46px; padding: 0 6px; border: 0; background: none; color: var(--accent-texto); font: 700 14px Inter, sans-serif; cursor: pointer; text-decoration: underline; }
+    .tarea details.et-ajustar { padding: 0 12px; }
+    .tarea .et-det-item p { font-size: 14px; }
+    .cal-chip.hecho { opacity: .55; }
     .m-item.principal { background: var(--accent); border-color: var(--accent); }
     .m-item.principal small { color: #0F0B16; opacity: .78; }
     .m-item.principal:hover { background: var(--accent); filter: brightness(1.04); }
@@ -238,6 +265,7 @@
         <span class="cal-month-label" id="cal-month-label"></span>
         <button type="button" class="nav-btn" id="cal-next" aria-label="Mes siguiente">→</button>
         <button type="button" class="nav-btn" id="cal-hoy">Hoy</button>
+        <button type="button" class="nav-btn" id="cal-que-toca">Qué toca hoy</button>
       </div>
       <button type="button" class="pb-btn" id="btn-nueva-temporada">+ Nueva temporada</button>
     </div>
@@ -357,9 +385,13 @@
 
 <!-- Ventana: lista de un día -->
 <div class="overlay" id="overlay-dia" hidden>
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="dia-titulo">
-    <h3 id="dia-titulo">Día</h3>
-    <div class="m-lista" id="dia-lista"></div>
+  <div class="modal modal-dia" role="dialog" aria-modal="true" aria-labelledby="dia-titulo">
+    <div class="dia-cab">
+      <button type="button" class="nav-btn" id="dia-ant" aria-label="Día anterior">‹</button>
+      <div><h3 id="dia-titulo">Día</h3><p class="dia-resumen" id="dia-resumen"></p></div>
+      <button type="button" class="nav-btn" id="dia-sig" aria-label="Día siguiente">›</button>
+    </div>
+    <div class="m-lista" id="dia-lista" style="gap:14px;"></div>
     <div class="m-acciones"><span></span><button type="button" class="pb-btn pb-btn-sec" id="dia-cerrar">Cerrar</button></div>
   </div>
 </div>
@@ -559,7 +591,7 @@ async function fijarEtapa(campId, etapaId, ed) {
     if (aviso) avisarToast(aviso);
     return aviso;
   }
-  const v = AP.limpiarEtapa({ d: lim.ed.d, n: lim.ed.n, u: 1 });
+  const v = AP.limpiarEtapa({ d: lim.ed.d, n: lim.ed.n, u: 1, h: guardado[etapaId] && guardado[etapaId].h });
   if (!v) return '';
   (proceso.campanas[campId] = proceso.campanas[campId] || {})[etapaId] = v;
   if (!aviso && detalleDe(c).plan[etapaId].d !== v.d) aviso = 'Esa etapa no puede empezar antes de que termine la anterior.';
@@ -595,7 +627,7 @@ async function reiniciarEtapa(campId, etapaId) {
   Object.keys(planesVivos()).forEach((id) => { planes[id] = Object.assign({}, proceso.campanas[id]); });
   delete planes[campId][etapaId];
   const base = AP.instantanea(AP.promedios(planes));
-  plan[etapaId] = { n: base[etapaId].n };   // vuelve a la duración sugerida y a su lugar según las fechas: ya no cuenta como "ajustada por ti"
+  plan[etapaId] = AP.limpiarEtapa({ n: base[etapaId].n, h: plan[etapaId].h });   // vuelve a la duración sugerida y a su lugar según las fechas: ya no cuenta como "ajustada por ti"
   calcularPromedio();
   render();
   await guardarProceso([campId], false);
@@ -681,14 +713,22 @@ function itemsPorDia() {
   return por;
 }
 
+// En el calendario una tarea de Temporada se llama "Campaña · lo que toca": se muestra solo lo que toca.
+function tituloCorto(ev) {
+  const t = String(ev.titulo || '').trim() || '(sin título)';
+  if (ev.origen !== 'temporada') return t;
+  const i = t.indexOf(' · ');
+  return i >= 0 && t.slice(i + 3).trim() ? t.slice(i + 3).trim() : t;
+}
 function chipEvento(ev) {
   const chip = document.createElement('button');
   chip.type = 'button';
   chip.className = 'cal-chip origen-' + ev.origen;
   const icon = ev.origen === 'contenido' ? (ev.origenTab === 'historias' ? '🎬' : '📄') : ev.origen === 'temporada' ? '🗓️' : '📣';
-  chip.textContent = icon + ' ' + (ev.titulo || '(sin título)');
+  if (ev.estado === 'publicado') chip.classList.add('hecho');
+  chip.textContent = (ev.estado === 'publicado' ? '✓ ' : icon + ' ') + tituloCorto(ev);
   chip.title = ev.titulo || '';
-  chip.addEventListener('click', (e) => { e.stopPropagation(); abrirModalEvento(ev); });
+  chip.addEventListener('click', (e) => { e.stopPropagation(); abrirDia(ev.fecha, { tipo: 'ev', clave: ev.id }); });
   return chip;
 }
 function chipMarca(it) {
@@ -700,11 +740,14 @@ function chipMarca(it) {
   chip.tabIndex = 0;
   chip.style.borderLeftColor = color;
   chip.style.background = color + '22';
-  chip.textContent = e.corto + (m.de > 1 ? ' ' + m.parte + '/' + m.de : '');
+  const hecha = !!detalleDe(camp).hecha[m.etapa];
+  if (hecha) chip.classList.add('hecho');
+  chip.textContent = (hecha ? '✓ ' : '') + e.corto + (m.de > 1 ? ' ' + m.parte + '/' + m.de : '');
   chip.title = nombreProducto(camp) + ' · ' + e.titulo + (m.de > 1 ? ' (día ' + m.parte + ' de ' + m.de + ')' : '');
   chip.dataset.dia = m.iso;
-  chip.addEventListener('click', (ev) => { ev.stopPropagation(); if (Date.now() - ultimoArrastre < 400) return; abrirModalEtapa(camp.id, m.etapa); });
-  chip.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); abrirModalEtapa(camp.id, m.etapa); } });
+  const verDia = () => abrirDia(m.iso, { tipo: 'mk', clave: camp.id + ':' + m.etapa });
+  chip.addEventListener('click', (ev) => { ev.stopPropagation(); if (Date.now() - ultimoArrastre < 400) return; verDia(); });
+  chip.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); verDia(); } });
   if (!esMovil()) {
     chip.addEventListener('pointerdown', (ev) => iniciarArrastre(ev, { campId: camp.id, etapaId: m.etapa, modo: 'mover', iso: m.iso, contenedor: $('cal-grid') }));
     if (m.parte === m.de) {
@@ -766,12 +809,13 @@ function renderGrid() {
       mas.textContent = '+' + (items.length - MAX) + ' más';
       cell.appendChild(mas);
     }
-    if (items.length) cell.addEventListener('click', () => abrirDia(iso, items));
+    if (items.length) cell.addEventListener('click', () => abrirDia(iso));
     grid.appendChild(cell);
   }
   $('cal-prev').onclick = () => { calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; } render(); };
   $('cal-next').onclick = () => { calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; } render(); };
   $('cal-hoy').onclick = () => { const n = new Date(); calMonth = n.getMonth(); calYear = n.getFullYear(); render(); };
+  $('cal-que-toca').onclick = () => abrirDia(hoyISO());
 }
 
 function renderLeyenda() {
@@ -1179,7 +1223,7 @@ function piezasDeCampana(c, max) {
     .filter((o) => o.origen === 'contenido' && AP.esISO(o.fecha) && o.fecha >= ini && o.fecha <= fin && (alcanceDeEvento(o) || {}).p === p)
     .sort((x, y) => (x.fecha < y.fecha ? -1 : 1))
     .slice(0, max || 6)
-    .map((o) => ({ titulo: o.titulo || '(sin título)', sub: tareaDeEvento(o).tipo + ' · ' + cap(fmtDiaLargo(o.fecha)), href: rutaDeEvento(o) }));
+    .map((o) => ({ titulo: o.titulo || '(sin título)', sub: tareaDeEvento(o).tipo + ' · ' + cap(fmtDiaLargo(o.fecha)), href: rutaDeEvento(o), estado: o.estado }));
 }
 function pintarRelacionados(caja, lista, items) {
   lista.textContent = '';
@@ -1225,28 +1269,159 @@ function tareaDeEvento(ev) {
   return Object.assign(base, { tipo: 'Tarea de tu campaña', que: fila && fila.accion ? 'Ese día toca: ' + String(fila.accion).trim().replace(/[.]+$/, '') + '.' : 'Es parte del plan de tu campaña. Ábrelo en el Jefe de Temporada para ver el detalle.', detalles: fila ? [['Fase', fila.fase]] : [] });
 }
 
-// ── lista de un día ──
-function abrirDia(iso, items) {
-  $('dia-titulo').textContent = new Date(iso + 'T00:00:00').toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
+// ── agenda del día: cada cosa que toca, paso a paso, con su botón para ir a hacerla ──
+let diaActivo = null;   // { iso, destacar: { tipo: 'mk'|'ev', clave } | null }
+const nodo = (tag, cls, texto) => { const n = document.createElement(tag); if (cls) n.className = cls; if (texto != null) n.textContent = texto; return n; };
+function botonLink(href, titulo, sub, principal) {
+  const a = nodo('a', 'm-item' + (principal ? ' principal' : ''));
+  a.href = href; a.target = '_blank'; a.rel = 'noopener';
+  a.appendChild(nodo('span', '', titulo));
+  if (sub) a.appendChild(nodo('small', '', sub));
+  return a;
+}
+function listaDePasos(pasos) {
+  const ol = nodo('ol', 'tarea-pasos');
+  pasos.forEach((t) => ol.appendChild(nodo('li', '', t)));
+  return ol;
+}
+// Qué hacer, uno por uno, con una tarea que viene de otro Jefe.
+function pasosDeEvento(ev, t) {
+  const estado = ev.estado || 'idea';
+  if (estado === 'publicado') return ['Ya está lista: no tienes que hacer nada más.'];
+  if (ev.origen === 'contenido') {
+    const hist = ev.origenTab === 'historias', el = hist ? 'la historia' : 'el post';
+    return estado === 'proceso'
+      ? ['Abre ' + el + ' con el botón de abajo.', 'Termina lo que falta: el material y el texto.', 'Publícalo en esta fecha y toca "Ya lo publiqué".']
+      : ['Abre ' + el + ' con el botón de abajo y lee la idea y las instrucciones.', 'Prepáralo: grábalo o diséñalo y deja el texto listo.', 'Publícalo en esta fecha y toca "Ya lo publiqué".'];
+  }
+  if (ev.origen === 'anuncios') {
+    return ['Abre el anuncio con el botón de abajo y revisa lo que dice y su botón.', 'Prográmalo en el Business Manager para esta fecha.', 'Cuando esté activo, toca "Ya lo publiqué".'];
+  }
+  return ['Lee qué toca: ' + t.que.replace(/^Ese día toca: /, '').replace(/[.]+$/, '') + '.', 'Abre tu campaña con el botón de abajo si necesitas más detalle.', 'Hazlo y toca "Ya lo hice".'];
+}
+function tarjetaEtapa(it) {
+  const { camp, m } = it, e = AP.etapaPorId(m.etapa), det = detalleDe(camp), hecha = !!det.hecha[m.etapa];
+  const card = nodo('div', 'tarea' + (hecha ? ' lista' : ''));
+  card.dataset.clave = camp.id + ':' + m.etapa;
+  card.appendChild(nodo('div', 'tarea-tag', 'Tu campaña · ' + nombreProducto(camp)));
+  card.appendChild(nodo('h4', 'tarea-titulo', e.titulo + (m.de > 1 ? ' — día ' + m.parte + ' de ' + m.de : '')));
+  card.appendChild(nodo('p', 'tarea-que', e.que));
+  card.appendChild(listaDePasos(e.pasos || []));
+  const piezas = ['grabar', 'editar', 'programar'].includes(e.id) ? piezasDeCampana(camp, 8).filter((x) => x.estado !== 'publicado') : [];
+  if (piezas.length) {
+    card.appendChild(nodo('div', 'tarea-sub', { grabar: 'Lo que vas a grabar', editar: 'Lo que vas a editar', programar: 'Lo que vas a programar' }[e.id]));
+    const l = nodo('div', 'm-lista');
+    piezas.forEach((x) => l.appendChild(botonLink(x.href, recorta(x.titulo, 110), x.sub + ' · Ver el post →')));
+    card.appendChild(l);
+  }
+  const jefes = nodo('div', 'm-lista');
+  e.jefes.forEach((slug, i) => {
+    const b = nodo('button', 'm-item' + (i ? '' : ' principal'));
+    b.type = 'button';
+    b.appendChild(nodo('span', '', 'Abrir ' + (NOMBRE_JEFE[slug] || slug) + ' →'));
+    if (e.ayuda[i]) b.appendChild(nodo('small', '', e.ayuda[i]));
+    b.onclick = () => abrirJefe(slug, camp);
+    jefes.appendChild(b);
+  });
+  card.appendChild(jefes);
+  const acc = nodo('div', 'tarea-acciones');
+  const ok = nodo('button', 'tarea-hecho', hecha ? '✓ Hecho · deshacer' : 'Ya lo hice'); ok.type = 'button';
+  ok.onclick = () => alternarEtapa(camp.id, m.etapa);
+  const fechas = nodo('button', 'tarea-quiet', 'Cambiar fechas'); fechas.type = 'button';
+  fechas.onclick = () => { cerrar('overlay-dia'); abrirModalEtapa(camp.id, m.etapa); };
+  acc.appendChild(ok); acc.appendChild(fechas);
+  card.appendChild(acc);
+  return card;
+}
+function tarjetaEvento(it) {
+  const ev = it.ev, t = tareaDeEvento(ev), hecha = ev.estado === 'publicado';
+  const card = nodo('div', 'tarea' + (hecha ? ' lista' : ''));
+  card.dataset.clave = ev.id;
+  card.appendChild(nodo('div', 'tarea-tag', t.tipo + ' · ' + t.jefe));
+  card.appendChild(nodo('h4', 'tarea-titulo', ev.origen === 'temporada' ? tituloCorto(ev) : (ev.titulo || '(sin título)')));
+  card.appendChild(listaDePasos(pasosDeEvento(ev, t)));
+  const filas = (t.detalles || []).filter((f) => f && f[1] && String(f[1]).trim());
+  if (filas.length) {
+    const d = nodo('details', 'et-ajustar');
+    d.appendChild(nodo('summary', '', ev.origen === 'contenido' ? 'Ver la idea y cómo hacerlo' : 'Ver el detalle'));
+    const c = nodo('div', 'et-det'); pintarDetalles(c, filas);
+    d.appendChild(c);
+    card.appendChild(d);
+  }
+  const ruta = rutaDeEvento(ev);
+  if (ruta) {
+    const txt = ev.origen === 'contenido' ? (ev.origenTab === 'historias' ? 'Ver esta historia →' : 'Ver este post →') : ev.origen === 'anuncios' ? 'Abrir el anuncio →' : 'Abrir mi campaña →';
+    const l = nodo('div', 'm-lista');
+    l.appendChild(botonLink(ruta, txt, 'En ' + t.jefe, true));
+    card.appendChild(l);
+  }
+  const acc = nodo('div', 'tarea-acciones');
+  const ok = nodo('button', 'tarea-hecho', hecha ? '✓ Listo · deshacer' : (ev.origen === 'temporada' ? 'Ya lo hice' : 'Ya lo publiqué')); ok.type = 'button';
+  ok.onclick = () => alternarEvento(ev);
+  const mas = nodo('button', 'tarea-quiet', 'Cambiar fecha o quitar'); mas.type = 'button';
+  mas.onclick = () => { cerrar('overlay-dia'); abrirModalEvento(ev); };
+  acc.appendChild(ok); acc.appendChild(mas);
+  card.appendChild(acc);
+  return card;
+}
+async function alternarEtapa(campId, etapaId) {
+  const c = campanas.find((x) => x.id === campId); if (!c) return;
+  const g = (proceso.campanas[campId] = proceso.campanas[campId] || {});
+  const act = Object.assign({}, g[etapaId] || { n: planDe(c)[etapaId].n });
+  if (act.h) delete act.h; else act.h = 1;
+  const v = AP.limpiarEtapa(act); if (!v) return;
+  g[etapaId] = v;
+  render(); pintarDia();
+  await guardarProceso([campId], false);
+}
+async function alternarEvento(ev) {
+  ev.estado = ev.estado === 'publicado' ? 'proceso' : 'publicado';
+  try { await guardarAgenda(); } catch (e) { alert('No se pudo guardar en la Agenda. Intenta otra vez.'); return; }
+  render(); pintarDia();
+  if (ev.origen) await sincronizarConFuente(ev);   // el Jefe de origen se entera: queda igual en los dos lados
+}
+function pintarDia() {
+  const d = diaActivo; if (!d) return;
+  const iso = d.iso, porDia = itemsPorDia(), items = porDia[iso] || [];
+  const hoy = hoyISO();
+  $('dia-titulo').textContent = (iso === hoy ? 'Hoy · ' : '') + cap(fmtDiaLargo(iso));
   const lista = $('dia-lista');
   lista.textContent = '';
-  items.forEach((it) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'm-item';
-    if (it.tipo === 'mk') {
-      const e = AP.etapaPorId(it.m.etapa);
-      b.innerHTML = '<span>' + esc(e.titulo) + '</span><small>Etapa de tu campaña · ' + esc(nombreProducto(it.camp)) + '</small>';
-      b.onclick = () => { cerrar('overlay-dia'); abrirModalEtapa(it.camp.id, it.m.etapa); };
-    } else {
-      b.innerHTML = '<span>' + esc(it.ev.titulo || '(sin título)') + '</span><small>' + esc(tareaDeEvento(it.ev).tipo) + ' · ' + esc(NOMBRE_ORIGEN[it.ev.origen] || '') + '</small>';
-      b.onclick = () => { cerrar('overlay-dia'); abrirModalEvento(it.ev); };
-    }
-    lista.appendChild(b);
+  const orden = [...items.filter((x) => x.tipo === 'mk'), ...items.filter((x) => x.tipo === 'ev')];
+  const listas = orden.filter((x) => x.tipo === 'mk' ? detalleDe(x.camp).hecha[x.m.etapa] : x.ev.estado === 'publicado').length;
+  $('dia-resumen').textContent = !orden.length ? '' : listas === orden.length
+    ? (orden.length === 1 ? 'Tu tarea de este día está lista ✓' : 'Todo listo este día ✓')
+    : (orden.length === 1 ? '1 cosa por hacer' : orden.length + ' cosas · ' + listas + ' ' + (listas === 1 ? 'lista' : 'listas'));
+  if (!orden.length) {
+    const v = nodo('div', 'dia-vacio');
+    const sig = Object.keys(porDia).filter((k) => k > iso).sort()[0];
+    v.appendChild(nodo('span', '', (iso === hoy ? 'Hoy no' : 'Este día no') + ' tienes nada marcado en tu agenda.' + (sig ? ' Lo siguiente es el ' + fmtDiaLargo(sig) + '.' : '')));
+    if (sig) { const b = nodo('button', 'pb-btn', 'Ver ese día →'); b.type = 'button'; b.onclick = () => abrirDia(sig); v.appendChild(b); }
+    lista.appendChild(v);
+  }
+  orden.forEach((it) => {
+    const card = it.tipo === 'mk' ? tarjetaEtapa(it) : tarjetaEvento(it);
+    if (d.destacar && d.destacar.tipo === it.tipo && d.destacar.clave === card.dataset.clave) { card.classList.add('destacada'); card.dataset.destacada = '1'; }
+    lista.appendChild(card);
   });
-  abrir('overlay-dia');
 }
-$('dia-cerrar').onclick = () => cerrar('overlay-dia');
+function abrirDia(iso, destacar) {
+  if (!AP.esISO(iso)) return;
+  diaActivo = { iso, destacar: destacar || null };
+  pintarDia();
+  abrir('overlay-dia');
+  const t = document.querySelector('#dia-lista [data-destacada]');
+  if (t && t.scrollIntoView) t.scrollIntoView({ block: 'nearest' });
+}
+function moverDia(delta) {
+  if (!diaActivo) return;
+  const f = new Date(diaActivo.iso + 'T00:00:00'); f.setDate(f.getDate() + delta);
+  abrirDia(fechaISO(f.getFullYear(), f.getMonth() + 1, f.getDate()));
+  $('dia-lista').scrollTop = 0;
+}
+$('dia-ant').onclick = () => moverDia(-1);
+$('dia-sig').onclick = () => moverDia(1);
+$('dia-cerrar').onclick = () => { cerrar('overlay-dia'); diaActivo = null; };
 
 // ── etapa del proceso ──
 let etapaActiva = null;
