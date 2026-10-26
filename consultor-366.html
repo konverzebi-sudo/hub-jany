@@ -2128,6 +2128,35 @@ function mostrarAvisoDesdeCero366(nombre) {
 }
 window.addEventListener('foco-desde-cero', (e) => mostrarAvisoDesdeCero366(e.detail && e.detail.nombre));
 
+/* El producto se quitó desde la pastilla (ya salió del Catálogo del ADN): aquí se quitan sus fichas -- producto y, ligadas a él,
+   cliente ideal, sistema y comunicación. Un cliente ideal compartido por nombre entre varios productos no se toca. */
+window.addEventListener('foco-producto-quitado', (e) => {
+  const nombre = e.detail && e.detail.nombre;
+  if (!nombre) return;
+  capturarTodoDesdeDOM366();
+  const n = normalizarNombre366(nombre);
+  const uids = productosState.filter((p) => p && normalizarNombre366(p.nombre) === n && p.uid).map((p) => p.uid);
+  productosState = productosState.filter((p) => !(p && normalizarNombre366(p.nombre) === n));
+  const sinFicha = (p) => !(p && p.producto_uid && uids.indexOf(p.producto_uid) !== -1);
+  perfilesState = perfilesState.filter(sinFicha);
+  sistemasState = sistemasState.filter(sinFicha);
+  comunicacionesState = comunicacionesState.filter(sinFicha);
+  // nunca se queda una sección sin ninguna ficha
+  if (!productosState.length) productosState.push(PRODUCTO_TEMPLATE());
+  if (!perfilesState.length) perfilesState.push(PERFIL_TEMPLATE());
+  if (!sistemasState.length) sistemasState.push(SISTEMA_TEMPLATE());
+  if (!comunicacionesState.length) comunicacionesState.push(COMUNICACION_TEMPLATE());
+  productoActivo = 0; perfilActivo = 0; sistemaActivo = 0; comunicacionActivo = 0;
+  focoProducto366 = '';
+  const f = window.__foco && window.__foco.get();
+  const it = f && !f.esTodo && f.item ? f.item : null;
+  const prod = it ? productosState.find((p) => p && normalizarNombre366(p.nombre) === normalizarNombre366(it.nombre)) : null;
+  if (prod) focoProducto366 = uidProducto366(prod);
+  repintarSecciones366();
+  guardarFichasDeProducto366();
+  if (window.__foco && window.__foco.registrarOfertas366) window.__foco.registrarOfertas366(productosState.filter((p) => p && normalizarNombre366(p.nombre)).map((p) => ({ nombre: p.nombre, grupo_id: p.grupo_id, que_vendemos: p.que_vendemos })));
+});
+
 function switchGroup(grupos, idx) {
   document.querySelectorAll('.group-tab').forEach((t, i) => t.classList.toggle('active', i === idx));
   const grupo = grupos[idx];
