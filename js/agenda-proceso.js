@@ -33,16 +33,53 @@
   var MAX_DESPLAZO = 120;
 
   // ini / fin = días del proceso recomendado. jefes = quién ayuda en esa etapa (slug de ruta, el primero es el principal).
+  // que = en palabras sencillas, qué toca hacer. pasos = qué hacer, uno por uno. ayuda = qué hace cada Jefe de la lista para esa etapa (mismo orden que jefes).
   var ETAPAS = [
-    { id: 'definir',    ini: 1,  fin: 1,  corto: 'Define',       titulo: 'Define tu producto o servicio',                       jefes: ['jefe-366'] },
-    { id: 'estrategia', ini: 2,  fin: 4,  corto: 'Estrategia',   titulo: 'Crea tu estrategia y tus copys',                      jefes: ['jefe-temporada', 'jefe-contenido'] },
-    { id: 'grabar',     ini: 5,  fin: 6,  corto: 'Graba',        titulo: 'Graba el contenido de tu campaña',                    jefes: ['jefe-contenido', 'jefe-produccion-video'] },
-    { id: 'editar',     ini: 7,  fin: 9,  corto: 'Edita',        titulo: 'Edita el contenido de tu campaña',                    jefes: ['jefe-produccion-video', 'jefe-contenido'] },
-    { id: 'whatsapp',   ini: 10, fin: 10, corto: 'WhatsApp',     titulo: 'Arma tus respuestas de WhatsApp',                     jefes: ['jefe-whatsapp'] },
-    { id: 'campana',    ini: 11, fin: 11, corto: 'Arma campaña', titulo: 'Arma tu campaña y prográmala en el Business Manager', jefes: ['jefe-anuncios'] },
-    { id: 'programar',  ini: 12, fin: 12, corto: 'Arranque',     titulo: 'Programa tu contenido y monitorea tu campaña',        jefes: ['jefe-contenido', 'jefe-optimizacion'] },
-    { id: 'revisar',    ini: 13, fin: 13, corto: 'Revisa',       titulo: 'Revisa tu campaña',                                   jefes: ['jefe-optimizacion'] },
-    { id: 'optimizar',  ini: 18, fin: 18, corto: 'Optimiza',     titulo: 'Optimiza tu campaña',                                 jefes: ['jefe-optimizacion'] }
+    { id: 'definir',    ini: 1,  fin: 1,  corto: 'Define',       titulo: 'Define tu producto o servicio',
+      que: 'Decide qué producto o servicio vas a vender en esta campaña y por qué alguien te lo compraría.',
+      pasos: ['Elige el producto o servicio de esta campaña.', 'Revisa que su ficha, tu cliente ideal y tu mensaje estén completos.', 'Si algo falta, termínalo en el chat de Jefe 366.'],
+      jefes: ['jefe-366'],
+      ayuda: ['Te ayuda a dejar claro tu producto, tu cliente ideal y tu mensaje.'] },
+    { id: 'estrategia', ini: 2,  fin: 4,  corto: 'Estrategia',   titulo: 'Crea tu estrategia y tus copys',
+      que: 'Define qué le vas a decir a tu cliente y escribe los textos (copys) de tu campaña: posts, historias y anuncios.',
+      pasos: ['Abre el chat de Jefe de Temporada y define el mensaje principal de tu campaña.', 'Escribe los copys: posts, historias y anuncios.', 'Cada vez que algo te guste, escribe CONFIRMO JEFE para que se guarde.'],
+      jefes: ['jefe-temporada', 'jefe-contenido'],
+      ayuda: ['Armas la estrategia de tu campaña paso a paso.', 'Escribes los copys y los guiones de tus publicaciones.'] },
+    { id: 'grabar',     ini: 5,  fin: 6,  corto: 'Graba',        titulo: 'Graba el contenido de tu campaña',
+      que: 'Graba los videos y toma las fotos de tu campaña siguiendo los guiones que ya tienes.',
+      pasos: ['Abre la ficha de cada pieza para ver su guion y sus instrucciones.', 'Graba los videos o toma las fotos de cada pieza.', 'Guarda los archivos y marca la pieza como "En proceso".'],
+      jefes: ['jefe-contenido', 'jefe-produccion-video'],
+      ayuda: ['Ahí están tus guiones y qué grabar en cada pieza.', 'Te ayuda a crear imágenes y piezas con IA.'] },
+    { id: 'editar',     ini: 7,  fin: 9,  corto: 'Edita',        titulo: 'Edita el contenido de tu campaña',
+      que: 'Edita lo que grabaste (cortes, textos en pantalla, música) hasta dejarlo listo para publicar.',
+      pasos: ['Abre cada pieza para ver cómo debe quedar.', 'Edita: cortes, textos en pantalla y música.', 'Deja el archivo final y pega su link en la ficha de la pieza.'],
+      jefes: ['jefe-produccion-video', 'jefe-contenido'],
+      ayuda: ['Te ayuda a producir y dejar listas tus piezas.', 'Revisas qué pieza va en cada publicación.'] },
+    { id: 'whatsapp',   ini: 10, fin: 10, corto: 'WhatsApp',     titulo: 'Arma tus respuestas de WhatsApp',
+      que: 'Prepara las respuestas a lo que te van a preguntar por WhatsApp cuando salga la campaña: precio, cómo comprar y dudas comunes.',
+      pasos: ['Abre el chat de WhatsApp y Ventas.', 'Pídele las respuestas para precio, cómo comprar y dudas comunes.', 'Copia las respuestas a tu WhatsApp Business.'],
+      jefes: ['jefe-whatsapp'],
+      ayuda: ['Arma tus respuestas y tus mensajes de seguimiento.'] },
+    { id: 'campana',    ini: 11, fin: 11, corto: 'Arma campaña', titulo: 'Arma tu campaña y prográmala en el Business Manager',
+      que: 'Arma tus anuncios y prográmalos en el Business Manager para que arranquen el día de inicio de tu campaña.',
+      pasos: ['Abre el Jefe de Anuncios y elige los anuncios de esta campaña.', 'Copia el texto y el botón de cada anuncio.', 'Prográmalos en el Business Manager para el día de arranque.'],
+      jefes: ['jefe-anuncios'],
+      ayuda: ['Te ayuda a armar los anuncios y su texto.'] },
+    { id: 'programar',  ini: 12, fin: 12, corto: 'Arranque',     titulo: 'Programa tu contenido y monitorea tu campaña',
+      que: 'Programa tu contenido de la campaña y vigila que todo salga bien el día que arranca.',
+      pasos: ['Programa las publicaciones de la campaña (están abajo).', 'Revisa que tus anuncios estén activos.', 'Vigila los primeros resultados.'],
+      jefes: ['jefe-contenido', 'jefe-optimizacion'],
+      ayuda: ['Ves y programas tus publicaciones.', 'Te ayuda a leer cómo va tu campaña.'] },
+    { id: 'revisar',    ini: 13, fin: 13, corto: 'Revisa',       titulo: 'Revisa tu campaña',
+      que: 'Revisa cómo va tu campaña: cuánto llevas gastado, cuánta gente te escribe y si los anuncios están funcionando.',
+      pasos: ['Entra a tu Business Manager y mira cuánto llevas gastado, cuánta gente te escribió y cuánto cuesta cada mensaje.', 'Pásale esos números al Jefe de Mejora Constante.'],
+      jefes: ['jefe-optimizacion'],
+      ayuda: ['Lee tus números y te dice qué ajustar.'] },
+    { id: 'optimizar',  ini: 18, fin: 18, corto: 'Optimiza',     titulo: 'Optimiza tu campaña',
+      que: 'Mejora tu campaña con lo que ya viste: apaga lo que no funciona y refuerza lo que sí.',
+      pasos: ['Pídele al Jefe de Mejora Constante tu plan de mejora.', 'Apaga lo que no funciona y refuerza lo que sí.'],
+      jefes: ['jefe-optimizacion'],
+      ayuda: ['Arma tu plan de mejora.'] }
   ];
   var IDX_ARRANQUE = (function () {
     for (var i = 0; i < ETAPAS.length; i++) if (ETAPAS[i].ini <= DIA_ARRANQUE && DIA_ARRANQUE <= ETAPAS[i].fin) return i;
@@ -108,8 +145,11 @@
     var n = Number(v.n), d = Number(v.d);
     if (!isFinite(n)) return null;
     n = entero(n, 1, MAX_DURACION, 1);
-    if (v.u && isFinite(d)) return { d: entero(d, -MAX_DESPLAZO, MAX_DESPLAZO, 0), n: n, u: 1 };
-    return { n: n };
+    var out;
+    if (v.u && isFinite(d)) out = { d: entero(d, -MAX_DESPLAZO, MAX_DESPLAZO, 0), n: n, u: 1 };
+    else out = { n: n };
+    if (v.h) out.h = 1;                 // h = ya la hizo (se marca desde la agenda del día)
+    return out;
   }
   // Lo que se guarda en "<hub>:agenda-proceso": { campanas: { <id>: { <etapa>: { n } | { d, n, u } } } }
   function limpiarProceso(crudo) {
@@ -238,6 +278,7 @@
   //                       | 'secuencia' (la empujó una etapa anterior que se atrasó) | 'sugerido' },
   //      fuente: { <id>: { campo, rowId, iso } } (fila de Temporada que dio la fecha),
   //      empujada: { <id>: días que la recorrió la secuencia },
+  //      hecha: { <id>: true si el usuario ya la marcó como hecha },
   //      avisos: [ { tipo: 'orden', etapa, antes } (se encima con la anterior: choque con una fecha de Temporada)
   //              | { tipo: 'precampana', etapa } (termina después de que empieza la precampaña)
   //              | { tipo: 'campana', etapa } (preparación que se mete a la campaña) | { tipo: 'postcampana', etapa } (pasa a la postcampaña) ] }
@@ -296,7 +337,9 @@
       prevFin = inicio + n - 1;
     });
 
-    var det = { plan: plan, origen: origen, fuente: fuente, empujada: empujada, avisos: [] };
+    var hecha = {};
+    ETAPAS.forEach(function (e) { hecha[e.id] = !!(guardado[e.id] && guardado[e.id].h); });
+    var det = { plan: plan, origen: origen, fuente: fuente, empujada: empujada, hecha: hecha, avisos: [] };
     // Choques entre fechas: se avisan, no se corrigen a escondidas.
     var i;
     for (i = 1; i < ETAPAS.length; i++) {
