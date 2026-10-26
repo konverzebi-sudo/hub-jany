@@ -372,3 +372,11 @@ test('íconos de Agenda: existen los 3 colores y las pantallas principales usan 
   const nav = fs.readFileSync(path.join(RAIZ, 'js', 'jefes-nav.js'), 'utf8');
   assert.match(nav, /slug: 'jefe-agenda'[^}]*jefe-agenda-logo-negro[^}]*jefe-agenda-logo-blanco/);
 });
+
+test('links directos: la Agenda lleva a un post por su id y Jefe de Contenido sabe abrirlo (#post=<id>)', () => {
+  const agenda = fs.readFileSync(path.join(RAIZ, 'consultor-agenda.html'), 'utf8');
+  const contenido = fs.readFileSync(path.join(RAIZ, 'jefe-contenido-v2.html'), 'utf8');
+  assert.ok(agenda.includes("'#post=' + encodeURIComponent(ev.origenId)"), 'la Agenda arma el link con el id del post');
+  assert.ok(contenido.includes('hash.match(/^post=(.+)$/)'), 'Contenido lee #post=<id>');
+  assert.match(contenido, /abrirDashboard\(hit\.tab, id\);[^}]*abrirEditor\(hit\.tab, id\)/, 'y abre su vista y su ficha');
+});

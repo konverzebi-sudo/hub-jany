@@ -170,6 +170,10 @@
     .et-det[hidden] { display: none; }
     .et-det-item p { margin: 0; font: 400 15px/1.55 Inter, sans-serif; color: var(--text); }
     .et-donde { display: flex; flex-direction: column; gap: 6px; }
+    a.m-item { text-decoration: none; color: var(--text); }
+    .et-rel { display: flex; flex-direction: column; gap: 6px; }
+    .et-rel[hidden] { display: none; }
+    .et-rel > b { display: block; font: 700 11.5px "JetBrains Mono", monospace; letter-spacing: .06em; text-transform: uppercase; color: var(--text-dim); }
     .m-item.principal { background: var(--accent); border-color: var(--accent); }
     .m-item.principal small { color: #0F0B16; opacity: .78; }
     .m-item.principal:hover { background: var(--accent); filter: brightness(1.04); }
@@ -272,6 +276,7 @@
     <div class="et-cuando"><span id="ev-cuando"></span><span class="et-chip" id="ev-chip" hidden></span></div>
     <div class="et-que"><b>Qué toca hacer</b><p id="ev-que"></p></div>
     <div class="et-det" id="ev-detalles" hidden></div>
+    <div class="et-rel" id="ev-rel" hidden><b>Relacionado</b><div class="m-lista" id="ev-rel-lista"></div></div>
     <a id="ev-origen-link" class="pb-btn" href="#" target="_blank" rel="noopener" style="display:none;">Abrir →</a>
     <details class="et-ajustar" id="ev-ajustar">
       <summary>Cambiar el título, la fecha o el estado</summary>
@@ -329,6 +334,7 @@
     <div class="et-cuando"><span id="et-cuando"></span><span class="et-chip" id="et-chip" hidden></span></div>
     <div class="et-que"><b>Qué toca hacer</b><p id="et-que"></p></div>
     <div class="et-donde"><b>Dónde hacerlo</b><div class="m-lista" id="et-jefes"></div></div>
+    <div class="et-rel" id="et-rel" hidden><b>Piezas de esta campaña con fecha</b><div class="m-lista" id="et-rel-lista"></div></div>
     <details class="et-ajustar" id="et-ajustar">
       <summary>Cambiar las fechas de esta etapa</summary>
       <p class="m-sub" id="et-info"></p>
@@ -1116,6 +1122,79 @@ function pintarDetalles(cont, filas) {
   });
   cont.hidden = !cont.children.length;
 }
+// A dónde lleva cada cosa. Un post o historia abre DIRECTO su ficha en Jefe de Contenido (#post=<id>); una tarea de
+// Temporada abre su campaña; un anuncio abre Jefe de Anuncios.
+function rutaDeEvento(ev) {
+  const base = ev.origen && RUTA_ORIGEN[ev.origen] ? RUTA_ORIGEN[ev.origen][HUB] : '';
+  if (!base) return '';
+  if (ev.origen === 'contenido') return base + '#post=' + encodeURIComponent(ev.origenId);
+  if (ev.origen === 'temporada') return base + '?campana=' + encodeURIComponent(String(ev.origenId || '').split(':')[0]);
+  return base;
+}
+function diasRel(d) { return d === 0 ? 'ese mismo día' : d < 0 ? (-d === 1 ? '1 día antes' : -d + ' días antes') : (d === 1 ? '1 día después' : d + ' días después'); }
+// La campaña de Temporada a la que pertenece una tarea: la suya si es de Temporada; si es un post o anuncio, la del mismo
+// producto cuyo periodo (precampaña, campaña, postcampaña) incluye esa fecha.
+function campanaDeEvento(ev) {
+  if (ev.origen === 'temporada') return campanas.find((x) => x.id === String(ev.origenId || '').split(':')[0]) || null;
+  const a = alcanceDeEvento(ev) || {};
+  if (!a.p || !AP.esISO(ev.fecha)) return null;
+  return campanasConArranque().find((c) => {
+    if (alcanceDeCampana(c).p !== a.p) return false;
+    const an = anclasDe(c);
+    return ev.fecha >= (an.preInicio || an.arranque) && ev.fecha <= (an.postFin || an.fin || an.arranque);
+  }) || null;
+}
+function faseDeCampana(c, fecha) {
+  const an = anclasDe(c);
+  if (an.preInicio && fecha < an.preInicio) return 'la preparación (antes de la precampaña)';
+  if (fecha < an.arranque) return an.preInicio ? 'la precampaña' : 'la preparación (antes de la campaña)';
+  if (an.fin && fecha > an.fin) return 'la postcampaña';
+  return 'la campaña';
+}
+// Lo que se relaciona con una tarea: su campaña y las demás cosas del mismo producto ese día o pocos días alrededor
+// (primero posts e historias, luego anuncios, luego tareas de Temporada). Cada una con su link.
+function relacionadosDe(ev) {
+  const out = [];
+  const camp = campanaDeEvento(ev);
+  if (camp && AP.esISO(ev.fecha)) {
+    out.push({ titulo: nombreProducto(camp) + (mismoTexto(nombreProducto(camp), nombreCampana(camp)) ? '' : ' · ' + nombreCampana(camp)), sub: 'Tu campaña de temporada · esta tarea cae en ' + faseDeCampana(camp, ev.fecha), href: rutaJefe('jefe-temporada') + '?campana=' + encodeURIComponent(camp.id) });
+  }
+  if (!AP.esISO(ev.fecha)) return out;
+  const a = alcanceDeEvento(ev) || {};
+  const peso = { contenido: 0, anuncios: 1, temporada: 2 };
+  agendaData.eventos
+    .filter((o) => o.id !== ev.id && AP.esISO(o.fecha) && eventoVisible(o))
+    .map((o) => ({ o, d: AP.diasEntre(ev.fecha, o.fecha), ao: alcanceDeEvento(o) || {} }))
+    .filter((x) => (a.p && x.ao.p === a.p && Math.abs(x.d) <= 3) || (x.d === 0 && (!a.p || !x.ao.p || a.p === x.ao.p)))
+    .sort((x, y) => (peso[x.o.origen] - peso[y.o.origen]) || (Math.abs(x.d) - Math.abs(y.d)))
+    .slice(0, 6)
+    .forEach((x) => out.push({ titulo: x.o.titulo || '(sin título)', sub: tareaDeEvento(x.o).tipo + ' · ' + diasRel(x.d), href: rutaDeEvento(x.o) }));
+  return out;
+}
+// Las piezas con fecha de una campaña (posts e historias de su producto, del inicio de su precampaña al fin de la campaña).
+function piezasDeCampana(c, max) {
+  const an = anclasDe(c), ini = an.preInicio || an.arranque, fin = an.postFin || an.fin || an.arranque, p = alcanceDeCampana(c).p;
+  if (!p) return [];
+  return agendaData.eventos
+    .filter((o) => o.origen === 'contenido' && AP.esISO(o.fecha) && o.fecha >= ini && o.fecha <= fin && (alcanceDeEvento(o) || {}).p === p)
+    .sort((x, y) => (x.fecha < y.fecha ? -1 : 1))
+    .slice(0, max || 6)
+    .map((o) => ({ titulo: o.titulo || '(sin título)', sub: tareaDeEvento(o).tipo + ' · ' + cap(fmtDiaLargo(o.fecha)), href: rutaDeEvento(o) }));
+}
+function pintarRelacionados(caja, lista, items) {
+  lista.textContent = '';
+  items.forEach((r) => {
+    const a = document.createElement('a');
+    a.className = 'm-item';
+    a.href = r.href; a.target = '_blank'; a.rel = 'noopener';
+    const t = document.createElement('span'); t.textContent = recorta(r.titulo, 110);
+    const sm = document.createElement('small'); sm.textContent = r.sub + ' →';
+    a.appendChild(t); a.appendChild(sm);
+    lista.appendChild(a);
+  });
+  caja.hidden = !items.length;
+}
+
 // Qué es una tarea que viene de otro Jefe y qué hay que hacer con ella.
 function tareaDeEvento(ev) {
   const estado = ev.estado || 'idea';
@@ -1143,7 +1222,7 @@ function tareaDeEvento(ev) {
   const base = { jefe: 'Jefe de Temporada' };
   if (campo === 'pre_calentamiento') return Object.assign(base, { tipo: 'Tarea de tu precampaña', que: 'Publica esto en tu precampaña para calentar a tu audiencia antes de vender.', detalles: fila ? [['Dónde', fila.canal], ['Qué publicar', fila.contenido], ['Mensaje clave', fila.mensaje], ['Para qué', fila.objetivo]] : [] });
   if (campo === 'post_acciones') return Object.assign(base, { tipo: 'Tarea de tu postcampaña', que: 'Haz esto después de la campaña para cuidar a quienes compraron y seguir vendiendo.', detalles: fila ? [['Acción', fila.accion], ['Estrategia', fila.estrategia], ['Mensaje sugerido', fila.mensaje], ['Cuándo', fila.momento]] : [] });
-  return Object.assign(base, { tipo: 'Tarea de tu campaña', que: fila && fila.accion ? cap(String(fila.accion).trim()) + '.' : 'Es parte del plan de tu campaña. Ábrelo en el Jefe de Temporada para ver el detalle.', detalles: fila ? [['Fase', fila.fase]] : [] });
+  return Object.assign(base, { tipo: 'Tarea de tu campaña', que: fila && fila.accion ? 'Ese día toca: ' + String(fila.accion).trim().replace(/[.]+$/, '') + '.' : 'Es parte del plan de tu campaña. Ábrelo en el Jefe de Temporada para ver el detalle.', detalles: fila ? [['Fase', fila.fase]] : [] });
 }
 
 // ── lista de un día ──
@@ -1215,6 +1294,7 @@ function pintarModalEtapa() {
     jefes.appendChild(b);
   });
   $('et-reset').style.display = propia ? '' : 'none';
+  pintarRelacionados($('et-rel'), $('et-rel-lista'), ['grabar', 'editar', 'programar'].includes(e.id) ? piezasDeCampana(c, 6) : []);
 }
 async function cambiarEtapa(nuevo) {
   const a = etapaActiva; if (!a) return;
@@ -1256,9 +1336,10 @@ function abrirModalEvento(ev) {
   pintarChip($('ev-chip'), !conFecha ? null : ev.estado === 'publicado' ? { texto: 'Listo ✓', clase: 'hecho' } : cuandoEs(ev.fecha, ev.fecha, true));
   $('ev-que').textContent = t.que;
   pintarDetalles($('ev-detalles'), t.detalles);
+  pintarRelacionados($('ev-rel'), $('ev-rel-lista'), relacionadosDe(ev));
   const link = $('ev-origen-link');
-  const ruta = ev.origen && RUTA_ORIGEN[ev.origen] ? RUTA_ORIGEN[ev.origen][HUB] : null;
-  if (ruta) { link.href = ruta; link.textContent = 'Abrir en ' + t.jefe + ' →'; link.style.display = 'inline-flex'; } else link.style.display = 'none';
+  const ruta = rutaDeEvento(ev);
+  if (ruta) { link.href = ruta; link.textContent = ev.origen === 'contenido' ? (ev.origenTab === 'historias' ? 'Abrir esta historia' : 'Abrir este post') + ' en Jefe de Contenido →' : 'Abrir en ' + t.jefe + ' →'; link.style.display = 'inline-flex'; } else link.style.display = 'none';
   $('ev-titulo').value = ev.titulo || '';
   $('ev-fecha').value = ev.fecha || '';
   $('ev-estado').value = ev.estado || 'idea';
