@@ -633,6 +633,21 @@ async function manejarChatGuiado(req, res) {
 // =============================================================================================
 // Las campañas de temporada ya planeadas (viven en Jefe de Temporada) también se le muestran al chat del Jefe 366, en resumen, para que
 // no pregunte lo que ya está definido allá y sepa a qué campaña se refiere la usuaria cuando habla de un taller, evento o lanzamiento.
+function builderResumenCampana(c, largo) {
+  const lim = largo ? 420 : 220;
+  const prod = ((c.producto_origen === 'nuevo' ? c.producto_nuevo : c.producto_nombre) || '').toString().trim();
+  const partes = ['«' + (c.nombre || '(sin nombre)') + '»', c.estado || 'borrador'];
+  if (prod) partes.push('producto o servicio: ' + prod);
+  if (c.temporada) partes.push('qué es: ' + truncar(c.temporada, lim));
+  if (c.fecha_inicio_activa || c.fecha_fin_activa) partes.push('fechas ' + (c.fecha_inicio_activa || '?') + ' a ' + (c.fecha_fin_activa || '?'));
+  if (c.objetivo_principal) partes.push('objetivo: ' + truncar(c.objetivo_principal, lim));
+  if (c.incentivo) partes.push('incentivo o urgencia: ' + truncar(c.incentivo, lim));
+  if (c.dm_oferta) partes.push('oferta: ' + truncar(c.dm_oferta, lim));
+  if (largo && c.prod_por_que) partes.push('por qué este producto en esta temporada: ' + truncar(c.prod_por_que, lim));
+  if (largo && c.ticket_promedio) partes.push('ticket promedio: ' + c.ticket_promedio);
+  return '- ' + partes.join(' · ');
+}
+
 async function builderFormatearCampanasTemporada(clienteId) {
   const camps = (await leerJSON(`${clienteId}:temporada-campanas`).catch(() => null)) || [];
   if (!Array.isArray(camps) || !camps.length) return '';
@@ -648,7 +663,7 @@ async function builderFormatearCampanasTemporada(clienteId) {
     return '- ' + partes.join(' · ');
   });
   if (!lineas.length) return '';
-  return 'CAMPAÑAS DE TEMPORADA YA PLANEADAS (viven en el Jefe de Temporada; aquí son solo contexto, para que no le preguntes a la usuaria lo que ya está definido allá). Si menciona un taller, evento, lanzamiento o promoción con fecha, búscalo aquí primero y úsalo (por ejemplo como gancho en el Sistema de Productos). NO guardes los detalles de la campaña en las Notas 366; si quiere trabajarla a fondo, mándala al Jefe de Temporada.\n' + lineas.join('\n');
+  return 'CAMPAÑAS DE TEMPORADA YA PLANEADAS (viven en el Jefe de Temporada; aquí son solo contexto, para que no le preguntes a la usuaria lo que ya está definido allá). Si menciona un taller, evento, lanzamiento o promoción con fecha, búscalo aquí primero y úsalo (por ejemplo como gancho en el Sistema de Productos). Aquí SOLO usas esa información como contexto de ese producto o servicio dentro del sistema 366 (nunca trabajes la campaña como si fueras el Jefe de Temporada: no recorras sus módulos, no la replanees ni se la sugieras); no guardes los detalles de la campaña en las Notas 366.\n' + lineas.join('\n');
 }
 
 // Etiquetas @ del mensaje (productos o campañas que la usuaria señala a propósito): se le da a la IA el detalle de lo etiquetado.
@@ -666,7 +681,7 @@ async function builderFormatearMenciones(clienteId, menciones) {
     if (!m || typeof m !== 'object') continue;
     if (m.tipo === 'campana') {
       const c = camps.find((x) => x && x.id === String(m.id));
-      if (c) partes.push('CAMPAÑA ETIQUETADA «' + (c.nombre || '') + '» (definida en Jefe de Temporada; úsala como contexto, no la redefinas aquí):' + String.fromCharCode(10) + truncar(temporadaFormatearCampana(c, catalogo, grupos), 6000));
+      if (c) partes.push('PRODUCTO O SERVICIO ETIQUETADO (viene de una campaña de temporada):' + String.fromCharCode(10) + builderResumenCampana(c, true));
     } else if (m.tipo === 'producto') {
       const nombre = String(m.nombre || '').trim().slice(0, 120);
       if (!nombre) continue;
@@ -675,7 +690,7 @@ async function builderFormatearMenciones(clienteId, menciones) {
     }
   }
   if (!partes.length) return '';
-  return 'ETIQUETAS @ DE ESTE MENSAJE: la usuaria etiquetó con @ lo siguiente. Para ESTE mensaje usa también el contexto de lo etiquetado. Si es un producto distinto al del foco de arriba, NO guardes nada en las fichas del foco como si fuera de ese otro producto: dilo en una línea y pregúntale si quiere cambiar el producto de arriba.' + String.fromCharCode(10, 10) + partes.join(String.fromCharCode(10, 10));
+  return 'ETIQUETAS @ DE ESTE MENSAJE: la usuaria etiquetó con @ lo siguiente. Para ESTE mensaje usa lo etiquetado SOLO como contexto de ese producto, servicio o sistema (qué es, precio, qué incluye, fechas) para lo que están armando AQUÍ en el Jefe 366 (por ejemplo su lugar en el Sistema de Productos: gancho, downsell, upsell...). NUNCA trabajes una campaña como si fueras el Jefe de Temporada: no recorras sus módulos, no la replanees y no se la sugieras. Si es un producto distinto al del foco de arriba, NO guardes nada en las fichas del foco como si fuera de ese otro producto: dilo en una línea y pregúntale si quiere cambiar el producto de arriba.' + String.fromCharCode(10, 10) + partes.join(String.fromCharCode(10, 10));
 }
 
 // RAMA "temporada" (Jefe de Temporada) -- chat guiado multi-turno, igual forma que el builder
