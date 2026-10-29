@@ -26,6 +26,7 @@ const PROMPT_PATH_TARGETING = path.join(__dirname, '..', 'prompts', 'system-prom
 const PROMPT_PATH_CAMPOS_META = path.join(__dirname, '..', 'prompts', 'system-prompt-campos-meta.md');
 const PROMPT_PATH_CHAT = path.join(__dirname, '..', 'prompts', 'system-prompt-chat-anuncios.md');
 const PROMPT_PATH_PIEZA = path.join(__dirname, '..', 'prompts', 'system-prompt-pieza-anuncio.md');
+const PROMPT_PATH_ESTILO = path.join(__dirname, '..', 'prompts', 'system-prompt-estilo-referencia.md');
 const CHAT_MAX_MESSAGES = 40;
 // 10000 se quedaba corto para negocios con ADN/audiencias/catálogo detallados (ej. Rancho Seco,
 // donde solo el bloque de Audiencias ya mide ~55000 caracteres y las 4 Notas 366 ~85000): el
@@ -1146,7 +1147,33 @@ async function manejarModoChat(body, res) {
 // El detalle base ya no trae estas piezas; el usuario las pide con su botón y solo entonces se gastan
 // los tokens. Recibe la tarjeta (lo ya desarrollado) y, para imagen/video, material real opcional.
 const PIEZAS_VALIDAS = ['guion', 'whatsapp', 'imagen', 'video'];
-const PIEZA_MAX_TOKENS = { guion: 1400, whatsapp: 350, imagen: 600, video: 900 };
+const PIEZA_MAX_TOKENS = { guion: 1400, whatsapp: 350, imagen: 900, video: 1400 };
+
+function formatearEstiloReferencia(estilo) {
+  const g = estilo && typeof estilo.guia === 'string' ? estilo.guia.trim() : '';
+  if (!g) return null;
+  return 'ESTILO DE REFERENCIA DEL USUARIO (destilado de sus propios diseños favoritos; es la base de la dirección de arte, con un concepto NUEVO para esta pieza, sin copiar una imagen concreta):\n' + g.slice(0, 2500);
+}
+
+// ---------- modo: estilo (guía de estilo visual a partir de 3 a 10 imágenes de referencia del usuario) ----------
+// El cliente guarda la guía en <hub>:anuncios-estilo; después cada prompt de imagen/video se apoya en ella sin tener que
+// volver a mandar las imágenes (una sola llamada de análisis, luego solo texto).
+async function manejarModoEstilo(body, res) {
+  const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
+  const imagenes = Array.isArray(body.imagenes)
+    ? body.imagenes.filter((img) => img && MEDIA_TYPES_IMAGEN_VALIDOS.includes(img.mediaType) && typeof img.data === 'string' && img.data.length > 0 && img.data.length <= MAX_IMAGEN_BASE64_CHARS).slice(0, 10)
+    : [];
+  if (imagenes.length < 3) return res.status(400).json({ error: 'Sube al menos 3 imágenes (hasta 10) para poder ver tu estilo.' });
+  const partes = imagenes.map((img) => ({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.data } }));
+  partes.push({ type: 'text', text: `Son ${imagenes.length} imágenes de referencia. Escribe la guía de estilo visual en el formato indicado.` });
+  const system = systemConCache(cargarPrompt(PROMPT_PATH_ESTILO), null);
+  const { ok, status, data } = await llamarClaudeConHistorial(system, [{ role: 'user', content: partes }], 900);
+  if (!ok) return res.status(status).json({ error: data?.error?.message || 'Error al llamar a la API.' });
+  const guia = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim();
+  if (!guia) return res.status(502).json({ error: 'No se pudo analizar el estilo. Intenta de nuevo.' });
+  await registrarUsoTokens(clienteId, 'generar-anuncios-estilo', data.usage);
+  return res.status(200).json({ guia, usage: camposUso(data.usage) });
+}
 
 async function manejarModoPieza(body, res) {
   const clienteId = (body.cliente || DEFAULT_CLIENTE).toString();
@@ -1187,7 +1214,10 @@ async function manejarModoPieza(body, res) {
   const { contexto, catalogo } = await construirContexto(clienteId, grupoId);
   const bloqueProducto = await conCampanaTemporada(clienteId, productoId, formatearProducto(catalogo, productoId, 'la pieza debe girar en torno a este producto puntual'), body.campanaId);
   const bloqueTexto = formatearProductoTexto(body, 'la pieza debe girar en torno a este producto');
-  const system = systemConCache(promptFijo, contexto, bloqueProducto, bloqueTexto);
+  // Estilo de referencia del usuario (guía destilada de sus imágenes): solo para imagen y video, y si no lo apagó.
+  const estiloRef = (tipo === 'imagen' || tipo === 'video') && body.usar_estilo !== false
+    ? formatearEstiloReferencia(await leerJSON(`${clienteId}:anuncios-estilo`).catch(() => null)) : null;
+  const system = systemConCache(promptFijo, contexto, bloqueProducto, bloqueTexto, estiloRef);
 
   const partes = imagenes.map((img) => ({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.data } }));
   partes.push({ type: 'text', text: lineas.join('\n') });
@@ -1260,6 +1290,7 @@ module.exports = async function handler(req, res) {
     if (modo === 'completar_meta') return await manejarModoCompletarMeta(body, res);
     if (modo === 'chat') return await manejarModoChat(body, res);
     if (modo === 'pieza') return await manejarModoPieza(body, res);
+    if (modo === 'estilo') return await manejarModoEstilo(body, res);
     return res.status(400).json({ error: 'Falta o es inválido el campo "modo" (usa "ideas", "detalle", "targeting", "completar_meta" o "chat").' });
   } catch (err) {
     return res.status(500).json({ error: 'Error de conexión con el Agente.' });
