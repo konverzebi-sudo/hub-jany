@@ -661,8 +661,11 @@ module.exports = async function handler(req, res) {
       const partes = imagenes.map((img) => ({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.data } }));
       partes.push({ type: 'text', text: lineas.join('\n') });
       const { contexto } = await construirContexto(clienteId, grupoId);
-      const system = systemConCache(cargarPromptMedios(), contexto);
-      const { texto, usage } = await llamarClaudeTexto({ system, messages: [{ role: 'user', content: partes }], maxTokens: 1000, conBusqueda: false });
+      // Estilo de referencia del usuario (lo crea el Jefe de Anuncios con sus imágenes): base de la dirección de arte.
+      const estilo = body.usar_estilo !== false ? await leerJSON(`${clienteId}:anuncios-estilo`).catch(() => null) : null;
+      const guiaEstilo = estilo && typeof estilo.guia === 'string' ? estilo.guia.trim() : '';
+      const system = systemConCache(cargarPromptMedios(), contexto, guiaEstilo ? 'ESTILO DE REFERENCIA DEL USUARIO (destilado de sus propios diseños favoritos; es la base de la dirección de arte, con un concepto NUEVO para esta pieza, sin copiar una imagen concreta):\n' + guiaEstilo.slice(0, 2500) : '');
+      const { texto, usage } = await llamarClaudeTexto({ system, messages: [{ role: 'user', content: partes }], maxTokens: 1400, conBusqueda: false });
       if (!texto) {
         return res.status(502).json({ error: 'No se pudo crear el prompt. Intenta de nuevo.' });
       }
