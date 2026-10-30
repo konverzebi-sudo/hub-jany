@@ -64,23 +64,12 @@
     '.jn-item.is-active{background:rgba(184,247,37,.1);border-color:rgba(184,247,37,.35);color:var(--text,#F3EEF9)}',
     '.jn-home{height:36px;padding:0 12px;font-weight:700;font-size:12.5px;letter-spacing:.06em}',
     '.jn-min .jn-home{display:none}',
-    // Ordenar Jefes: botón junto a "MIS JEFES" y flechas en cada Jefe mientras se ordena.
-    '.jn-cab{display:flex;align-items:center;gap:6px}',
-    '.jn-cab .jn-home{flex:1;min-width:0}',
-    '.jn-ordenar{flex:none;border:0;background:transparent;color:var(--text-dim,#B6A9C7);font:600 11.5px Inter,system-ui,sans-serif;cursor:pointer;padding:5px 9px;border-radius:8px}',
-    '.jn-ordenar:hover{background:rgba(127,127,127,.12);color:var(--text,#F3EEF9)}',
-    '.jn-editando .jn-ordenar{background:#B8F725;color:#111}',
-    '.jn-min .jn-ordenar{display:none}',
-    '.jn-mover{display:none;margin-left:auto;gap:3px;flex:none}',
-    '.jn-editando .jn-jefes .jn-mover{display:inline-flex}',
-    '.jn-mover button{width:26px;height:26px;border:1px solid var(--line,#332A3D);border-radius:7px;background:var(--surface,#181120);color:var(--text,#F3EEF9);cursor:pointer;font-size:10px;line-height:1;padding:0}',
-    '.jn-mover button:hover{border-color:#B8F725}',
-    '.jn-mover button:disabled{opacity:.3;cursor:default}',
-    '.jn-editando .jn-jefes .jn-item{cursor:default}',
-    '.jn-editando .jn-jefes .jn-item.jn-movido{background:rgba(184,247,37,.16)}',
-    '.jn-orden-ok{font:600 11px Inter,system-ui,sans-serif;color:var(--text-dim,#B6A9C7);padding:2px 12px 6px}',
-    '.jn-orden-ok:empty{display:none}',
-    '.jn-min .jn-orden-ok{display:none}',
+    // Ordenar Jefes: se deja presionado un Jefe y se desliza hacia arriba o abajo.
+    '.jn-jefes .jn-item{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:pan-y}',
+    '.jn-jefes .jn-item img{-webkit-user-drag:none;pointer-events:none}',
+    '.jn-jefes .jn-item.jn-arrastrando{background:rgba(184,247,37,.2);border-color:#B8F725;box-shadow:0 8px 22px rgba(0,0,0,.18);cursor:grabbing;position:relative;z-index:2}',
+    '.jn-jefes.jn-ordenando{cursor:grabbing}',
+    '.jn-orden-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:99999;background:#1A1A1A;color:#fff;padding:9px 14px;border-radius:10px;font:600 13px Inter,system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.3)}',
     '.jn-ico{flex:none;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:20px;line-height:1}',
     '.jn-ico img{width:28px;height:28px;border-radius:8px;object-fit:contain;display:block}',
     '.jn-ico img[src*="jefe-366-gris"]{width:38px;height:auto;max-height:22px;border-radius:0;margin:0 -5px}',
@@ -399,9 +388,7 @@
 
   function montarOrden(nav) {
     var cont = nav.querySelector('.jn-jefes');
-    var btn = nav.querySelector('.jn-ordenar');
-    var ok = nav.querySelector('.jn-orden-ok');
-    if (!cont || !btn) return;
+    if (!cont) return;
 
     // window.storage.get devuelve también lo guardado solo en este dispositivo (si la subida falló).
     var lectura = window.storage && window.storage.get
@@ -417,55 +404,79 @@
     function visibles() {
       return Array.prototype.filter.call(cont.querySelectorAll('.jn-item[data-slug]'), function (el) { return el.style.display !== 'none'; });
     }
-    function pintarFlechas() {
-      var vs = visibles();
-      vs.forEach(function (el, i) {
-        el.querySelector('[data-mover="-1"]').disabled = i === 0;
-        el.querySelector('[data-mover="1"]').disabled = i === vs.length - 1;
-      });
+    function aviso(texto) {
+      var t = document.createElement('div');
+      t.className = 'jn-orden-toast';
+      t.textContent = texto;
+      document.body.appendChild(t);
+      setTimeout(function () { t.remove(); }, 1600);
     }
-    var tGuardar = null;
     function guardarOrden() {
-      clearTimeout(tGuardar);
-      tGuardar = setTimeout(function () {
-        var slugs = Array.prototype.map.call(cont.querySelectorAll('.jn-item[data-slug]'), function (el) { return el.getAttribute('data-slug'); });
-        var val = JSON.stringify(slugs);
-        var p = window.storage && window.storage.set ? window.storage.set(ORDEN_KEY, val) : Promise.reject();
-        p.then(function () { ok.textContent = 'Orden guardado ✓'; }, function () { ok.textContent = 'Orden guardado en este dispositivo'; });
-      }, 500);
+      var slugs = Array.prototype.map.call(cont.querySelectorAll('.jn-item[data-slug]'), function (el) { return el.getAttribute('data-slug'); });
+      var p = window.storage && window.storage.set ? window.storage.set(ORDEN_KEY, JSON.stringify(slugs)) : Promise.reject();
+      p.then(function () { aviso('Orden guardado ✓'); }, function () { aviso('Orden guardado en este dispositivo'); });
     }
 
-    var FLECHAS = '<button type="button" data-mover="-1" aria-label="Subir">▲</button><button type="button" data-mover="1" aria-label="Bajar">▼</button>';
-    btn.addEventListener('click', function () {
-      var on = !nav.classList.contains('jn-editando');
-      nav.classList.toggle('jn-editando', on);
-      // Las flechas solo existen mientras se ordena, para que el nombre de cada Jefe quede limpio.
-      Array.prototype.forEach.call(cont.querySelectorAll('.jn-item[data-slug]'), function (el) {
-        var m = el.querySelector('.jn-mover');
-        if (on && !m) { m = document.createElement('span'); m.className = 'jn-mover'; m.innerHTML = FLECHAS; el.appendChild(m); }
-        if (!on && m) m.remove();
-        el.classList.remove('jn-movido');
-      });
-      btn.textContent = on ? 'Listo' : 'Ordenar';
-      ok.textContent = on ? 'Usa ▲ ▼ para acomodar tus Jefes' : '';
-      if (on) pintarFlechas();
+    // Arrastrar: con el mouse basta presionar y deslizar; en celular se deja el dedo un momento
+    // (así deslizar normal sigue moviendo la barra) y luego se desliza.
+    var arr = null, suprimirClic = false;
+    function empezar() {
+      if (!arr) return;
+      arr.activo = true;
+      arr.orden0 = visibles().map(function (el) { return el.getAttribute('data-slug'); }).join(',');
+      arr.el.classList.add('jn-arrastrando');
+      cont.classList.add('jn-ordenando');
+      try { arr.el.setPointerCapture(arr.id); } catch (e) {}
+      if (arr.tipo === 'touch' && navigator.vibrate) navigator.vibrate(15);
+    }
+    function terminar() {
+      if (!arr) return;
+      clearTimeout(arr.timer);
+      if (arr.activo) {
+        arr.el.classList.remove('jn-arrastrando');
+        cont.classList.remove('jn-ordenando');
+        suprimirClic = true;
+        setTimeout(function () { suprimirClic = false; }, 400);
+        var ahora = visibles().map(function (el) { return el.getAttribute('data-slug'); }).join(',');
+        if (ahora !== arr.orden0) guardarOrden();
+      }
+      arr = null;
+    }
+    cont.addEventListener('dragstart', function (e) { e.preventDefault(); }); // sin el arrastre nativo de links
+    cont.addEventListener('pointerdown', function (e) {
+      var el = e.target.closest('.jn-item[data-slug]');
+      if (!el || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      arr = { el: el, id: e.pointerId, y0: e.clientY, tipo: e.pointerType, activo: false };
+      if (e.pointerType !== 'mouse') arr.timer = setTimeout(empezar, 380);
     });
-
+    cont.addEventListener('pointermove', function (e) {
+      if (!arr || e.pointerId !== arr.id) return;
+      var dy = e.clientY - arr.y0;
+      if (!arr.activo) {
+        if (arr.tipo !== 'mouse') { if (Math.abs(dy) > 8) { clearTimeout(arr.timer); arr = null; } return; } // deslizar normal
+        if (Math.abs(dy) < 6) return;
+        empezar();
+      }
+      e.preventDefault();
+      // El Jefe va directo al lugar bajo el cursor (aunque el movimiento sea rápido y salte varios lugares).
+      var otros = visibles().filter(function (el) { return el !== arr.el; });
+      var destino = null;
+      for (var k = 0; k < otros.length; k++) {
+        var r = otros[k].getBoundingClientRect();
+        if (e.clientY < r.top + r.height / 2) { destino = otros[k]; break; }
+      }
+      if (destino) { if (arr.el.nextSibling !== destino) cont.insertBefore(arr.el, destino); }
+      else if (otros.length) { var ult = otros[otros.length - 1]; if (ult.nextSibling !== arr.el) cont.insertBefore(arr.el, ult.nextSibling); }
+    });
+    cont.addEventListener('pointerup', terminar);
+    cont.addEventListener('pointercancel', terminar);
+    // Mientras se arrastra con el dedo la página no se mueve, y no sale el menú del navegador.
+    cont.addEventListener('touchmove', function (e) { if (arr && arr.activo) e.preventDefault(); }, { passive: false });
+    cont.addEventListener('contextmenu', function (e) { if (arr) e.preventDefault(); });
+    // Soltar después de arrastrar no abre el Jefe.
     cont.addEventListener('click', function (e) {
-      if (!nav.classList.contains('jn-editando')) return;
-      e.preventDefault(); // mientras se ordena, tocar un Jefe no lo abre
-      var b = e.target.closest('[data-mover]');
-      if (!b || b.disabled) return;
-      var el = b.closest('.jn-item');
-      var vs = visibles();
-      var i = vs.indexOf(el), j = i + Number(b.getAttribute('data-mover'));
-      if (j < 0 || j >= vs.length) return;
-      if (j < i) cont.insertBefore(el, vs[j]); else cont.insertBefore(el, vs[j].nextSibling);
-      Array.prototype.forEach.call(cont.querySelectorAll('.jn-movido'), function (x) { x.classList.remove('jn-movido'); });
-      el.classList.add('jn-movido');
-      pintarFlechas();
-      guardarOrden();
-    });
+      if (suprimirClic) { e.preventDefault(); e.stopPropagation(); suprimirClic = false; }
+    }, true);
   }
 
   // ── Dejar presionado (celular) = clic derecho ─────────────────────
@@ -650,11 +661,7 @@
     var rgb = (getComputedStyle(nav).backgroundColor.match(/[0-9.]+/g) || []).map(Number);
     var claro = rgb.length >= 3 && (rgb.length < 4 || rgb[3] > 0) && (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) > 150;
 
-    var html = '<div class="jn-list">' +
-      '<div class="jn-cab"><a class="jn-item jn-home" href="' + (prefix || '/') + '"><span class="jn-txt">MIS JEFES</span></a>' +
-      '<button type="button" class="jn-ordenar" title="Cambiar el orden de tus Jefes">Ordenar</button></div>' +
-      '<div class="jn-orden-ok" aria-live="polite"></div>' +
-      '<div class="jn-sep"></div><div class="jn-jefes">';
+    var html = '<div class="jn-list"><div class="jn-jefes" title="Mantén presionado un Jefe y deslízalo para cambiar el orden">';
     JEFES.forEach(function (j) {
       var archivo = (!claro && j.iconoOscuro) ? j.iconoOscuro : j.icono;
       var ico = archivo ? '<img src="/img/' + archivo + '.webp" alt="" loading="lazy">' : j.emoji;
