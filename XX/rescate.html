@@ -26,6 +26,7 @@
   <h1>Rescate de datos</h1>
   <p>Esta página solo <b>mira</b> lo que este navegador tiene guardado de tu dashboard. No abre el dashboard ni cambia nada hasta que toques “Usar este”.</p>
   <div class="origen" id="origen"></div>
+  <div id="nube"></div>
   <div id="lista"></div>
   <p><a href="/XX/">‹ Volver a Mi día</a></p>
 </div>
@@ -75,6 +76,54 @@
       lista.appendChild(card);
     });
     if(msg){ var m = document.createElement('div'); m.className = 'msg'; m.textContent = msg; lista.appendChild(m); }
+  }
+  pintar();
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// Respaldos en la nube (una copia por mañana, tarde y noche). Restaurar reemplaza lo de la nube y lo de este navegador.
+(function(){
+  var box = document.getElementById('nube');
+  function card(html){ var c = document.createElement('div'); c.className = 'card'; c.innerHTML = html; box.appendChild(c); return c; }
+  function resumen(d){
+    var hc = d.habitChecks || {}, dias = Object.keys(hc), conHora = 0;
+    dias.forEach(function(day){ Object.keys(hc[day] || {}).forEach(function(x){ var e = hc[day][x]; if(e && e.time && !e.est) conHora++; }); });
+    return {dias: dias.length, conHora: conHora, inicio: d.startDate || '—', proyectos: (d.products || []).length, movs: (d.finMovements || []).length + (d.movements || []).length, subs: (d.subscriptions || []).length, hist: (d.history || []).length, metas: (d.metas || []).length};
+  }
+  if(!window.supabase){ return; }
+  var sb = window.supabase.createClient('https://wyiqigrzcipywvijtchg.supabase.co', 'sb_publishable_fy739Px-yWNLc9aripC7Ag_evHkSvgz');
+  var SLOT = ['mañana', 'tarde', 'noche'];
+  async function pintar(msg){
+    box.innerHTML = '';
+    var s = await sb.auth.getSession();
+    if(!s.data.session){ card('<div class="k">Respaldos en la nube</div><p style="margin:0">Entra primero a <a href="/XX/">Mi día</a> con tu cuenta de Google y vuelve aquí para ver tus respaldos.</p>'); return; }
+    var r = await sb.from('dashboard_backups').select('id,day,slot,data').order('day', {ascending:false}).order('slot', {ascending:false}).limit(60);
+    if(r.error){ card('<div class="k">Respaldos en la nube</div><p style="margin:0">Todavía no hay respaldos guardados (' + r.error.message + ').</p>'); return; }
+    if(!r.data.length){ card('<div class="k">Respaldos en la nube</div><p style="margin:0">Todavía no hay respaldos. Abre Mi día y se guarda el primero.</p>'); return; }
+    var t = document.createElement('div'); t.className = 'k'; t.style.margin = '14px 0 8px'; t.textContent = 'Respaldos en la nube (uno por mañana, tarde y noche)'; box.appendChild(t);
+    r.data.forEach(function(b){
+      var x = resumen(b.data || {});
+      var c = card('<div class="k">' + b.day + ' · ' + (SLOT[b.slot] || b.slot) + '</div><div class="row"><span>Días de hábitos: <b>' + x.dias + '</b></span><span>Con hora real: <b>' + x.conHora + '</b></span><span>Inicio: <b>' + x.inicio + '</b></span><span>Proyectos: <b>' + x.proyectos + '</b></span><span>Movimientos: <b>' + x.movs + '</b></span><span>Suscripciones: <b>' + x.subs + '</b></span><span>Historial: <b>' + x.hist + '</b></span><span>Metas: <b>' + x.metas + '</b></span></div>');
+      var bd = document.createElement('button'); bd.className = 'sec'; bd.textContent = 'Descargar';
+      bd.onclick = function(){ var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(b.data)], {type:'application/json'})); a.download = 'respaldo-' + b.day + '-' + b.slot + '.json'; a.click(); };
+      var br = document.createElement('button'); br.textContent = 'Restaurar este';
+      br.onclick = async function(){
+        if(!window.confirm('Esto reemplaza tus datos de la nube y de este navegador por los del ' + b.day + ' (' + (SLOT[b.slot] || b.slot) + '). Antes se guarda una copia de lo actual. ¿Seguro?')) return;
+        br.disabled = true;
+        try{
+          var uid = s.data.session.user.id;
+          var cur = await sb.from('dashboard_data').select('data').eq('user_id', uid).maybeSingle();
+          if(cur.data && cur.data.data){ await sb.from('dashboard_backups').upsert({user_id: uid, day: b.day, slot: 9, data: cur.data.data}, {onConflict:'user_id,day,slot', ignoreDuplicates:true}); }
+          var up = await sb.from('dashboard_data').upsert({user_id: uid, data: b.data, updated_at: new Date().toISOString()});
+          if(up.error) throw up.error;
+          try{ localStorage.setItem('jany-respaldo-previo-' + Date.now(), localStorage.getItem('jany-dashboard-v2') || '{}'); localStorage.setItem('jany-dashboard-v2', JSON.stringify(b.data)); }catch(e){}
+          pintar('Listo: se restauró el respaldo del ' + b.day + '. Abre Mi día para verlo.');
+        }catch(e){ br.disabled = false; window.alert('No se pudo restaurar: ' + (e.message || e)); }
+      };
+      c.appendChild(bd); c.appendChild(br);
+    });
+    if(msg){ var m = document.createElement('div'); m.className = 'msg'; m.textContent = msg; box.insertBefore(m, box.firstChild); }
   }
   pintar();
 })();

@@ -294,6 +294,26 @@
   .pm-actualizar-btn{align-self:flex-start;border:none;background:none;color:var(--accent-text);font-weight:700;font-size:14px;cursor:pointer;padding:0;text-decoration:underline;}
   .pm-piezas-sub{margin:0;}
   @media (max-width:900px){.pm-copy-grid{grid-template-columns:1fr;}.pm-copy-der{position:static;}.pm-visual-grid{grid-template-columns:1fr;}.pm-pieza-btns{grid-template-columns:repeat(2,minmax(0,1fr));}}
+  .pm-estilo{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:10px 14px;}
+  .pm-estilo-t{font:800 14.5px Sora,sans-serif;}
+  .pm-estilo-thumbs{display:flex;gap:4px;}
+  .pm-estilo-thumbs img{width:34px;height:34px;object-fit:cover;border-radius:8px;border:1px solid var(--line);}
+  .pm-estilo-chk{display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:600;flex:1 1 220px;}
+  .pm-estilo-chk input{accent-color:#4E7A00;}
+  .pm-estilo-btn{border:1.5px solid var(--accent-text);background:var(--accent-soft);color:var(--accent-text);border-radius:100px;padding:7px 16px;font:700 13.5px Inter,sans-serif;cursor:pointer;}
+  .pm-estilo-btn:hover{background:var(--accent);color:#1A1A1A;}
+  .es-box{width:min(680px,100%);}
+  .es-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:6px 0 4px;}
+  .es-th{position:relative;aspect-ratio:1/1;border-radius:12px;overflow:hidden;border:1px solid var(--line);}
+  .es-th img{width:100%;height:100%;object-fit:cover;display:block;}
+  .es-th button{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;border:none;background:rgba(0,0,0,.65);color:#fff;font-size:11px;cursor:pointer;}
+  .es-add{aspect-ratio:1/1;border:1.5px dashed #9DBFE3;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;color:var(--accent-text);font:700 22px Inter,sans-serif;}
+  .es-add span{font-size:11.5px;}
+  .es-add:hover{background:var(--accent-soft);}
+  .es-cont{font-size:13px;color:var(--text-dim);margin-bottom:10px;}
+  .es-guia{margin-top:12px;display:flex;flex-direction:column;gap:8px;}
+  .es-guia textarea{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font:500 14.5px/1.5 Inter,sans-serif;resize:vertical;outline:none;}
+  @media (max-width:600px){.es-grid{grid-template-columns:repeat(3,minmax(0,1fr));}}
   .pm-foot{display:flex;align-items:center;justify-content:flex-end;gap:14px;padding:14px 26px;border-top:1px solid var(--line);}
   .pm-cancel{background:none;border:none;font-family:'Inter',sans-serif;font-weight:700;font-size:16px;cursor:pointer;color:var(--text);padding:10px 14px;}
   @media (max-width:820px){.pm-body{grid-template-columns:1fr;overflow-y:auto;}.pm-form{overflow:visible;}.pm-side{border-left:none;border-top:1px solid var(--line);}.pm-dialog{max-height:98vh;}}
@@ -699,6 +719,110 @@ const PRESUPUESTO_DIARIO_MINIMO = '$100 MXN (mínimo recomendado)';
 const DURACION_DEFAULT = 'Indefinido';
 function mkConjunto(){ return { id:mkConjuntoId(), ubicacion:'', edad:'', genero:'Todos', intereses:'', presupuesto_diario:PRESUPUESTO_DIARIO_MINIMO, duracion:DURACION_DEFAULT, tipo_contenido:'', anuncios_ids:[] }; }
 
+// ─── MI ESTILO VISUAL (imágenes de referencia del usuario) ────────────────────────────────────
+// El usuario sube de 3 a 10 diseños que le gustan; la IA las analiza UNA vez y guarda una guía de estilo en texto
+// (<hub>:anuncios-estilo, la leen los servidores). Las imágenes reducidas se guardan aparte (<hub>:anuncios-estilo-imgs)
+// solo para poder verlas y volver a analizar. Los prompts de imagen y video se apoyan en esa guía si el interruptor está activo.
+const ESTILO_KEY = CLIENTE_ID + ':anuncios-estilo';
+const ESTILO_IMGS_KEY = CLIENTE_ID + ':anuncios-estilo-imgs';
+const ESTILO_PREF = 'anuncios-usar-estilo-' + CLIENTE_ID;
+let estiloRef = { guia:'', fecha:'', imgs:[] };
+function usarEstiloActivo(){ try{ return localStorage.getItem(ESTILO_PREF)!=='0'; }catch(e){ return true; } }
+function setUsarEstilo(v){ try{ localStorage.setItem(ESTILO_PREF, v?'1':'0'); }catch(e){} }
+async function cargarEstiloRef(){
+  try{ const r = await window.storage.get(ESTILO_KEY); const d = r&&r.value ? JSON.parse(r.value) : {}; estiloRef.guia = d.guia||''; estiloRef.fecha = d.fecha||''; }catch(e){}
+  try{ const r = await window.storage.get(ESTILO_IMGS_KEY); const d = r&&r.value ? JSON.parse(r.value) : []; estiloRef.imgs = Array.isArray(d) ? d.filter(x=>typeof x==='string' && x.startsWith('data:image')) : []; }catch(e){}
+}
+function reducirImagenDataUrl(file, maxLado, calidad){
+  return new Promise((resolve, reject)=>{
+    const img = new Image(); const url = URL.createObjectURL(file);
+    img.onload = ()=>{
+      const c = dibujarEnCanvasRedimensionado(img.naturalWidth, img.naturalHeight, maxLado);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url); resolve(c.toDataURL('image/jpeg', calidad));
+    };
+    img.onerror = ()=>{ URL.revokeObjectURL(url); reject(new Error('No se pudo leer la imagen.')); };
+    img.src = url;
+  });
+}
+function abrirEstiloRef(){
+  document.querySelectorAll('.ay-overlay').forEach(x=>x.remove());
+  let imgs = estiloRef.imgs.slice();
+  let guia = estiloRef.guia;
+  const ov = document.createElement('div');
+  ov.className = 'ay-overlay';
+  ov.innerHTML = `<div class="ay-box es-box" role="dialog" aria-modal="true">
+    <button type="button" class="ay-x" aria-label="Cerrar">✕</button>
+    <h3>🎨 Mi estilo visual</h3>
+    <p class="ay-nota">Sube de <b>3 a 10 imágenes</b> de diseños que te encantan (anuncios, posts, referencias). El Jefe las analiza una vez, guarda tu estilo y, cuando le pidas un prompt de imagen o de video, se basa en él para que no salga genérico. Puedes pegarlas con Ctrl+V.</p>
+    <div class="es-grid" id="es-grid"></div>
+    <div class="es-cont" id="es-cont"></div>
+    <div class="ay-btns" style="justify-content:flex-start"><button type="button" class="btn btn-solid" data-es-analizar>🔍 Analizar mi estilo</button></div>
+    <div class="mode-status" id="es-status"></div>
+    <div class="es-guia" id="es-guia-box" hidden>
+      <div class="pm-label">Tu estilo <span class="pm-hint-inline">(puedes ajustarlo a mano)</span></div>
+      <textarea id="es-guia" rows="11"></textarea>
+      <div class="ay-btns"><button type="button" class="btn btn-outline" data-es-borrar>Borrar mi estilo</button><button type="button" class="btn btn-solid" data-es-guardar>Guardar mi estilo</button></div>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  const q = s=>ov.querySelector(s);
+  const status = txt=>{ q('#es-status').textContent = txt||''; };
+  const cerrar = ()=>{ ov.remove(); document.removeEventListener('keydown', tecla); document.removeEventListener('paste', pegar); };
+  const tecla = e=>{ if(e.key==='Escape') cerrar(); };
+  function pintar(){
+    q('#es-grid').innerHTML = imgs.map((d,i)=>`<div class="es-th"><img src="${d}" alt=""><button type="button" data-es-del="${i}" aria-label="Quitar">✕</button></div>`).join('')
+      + (imgs.length<10 ? `<label class="es-add">＋<span>Agregar</span><input type="file" accept="image/*" multiple hidden></label>` : '');
+    q('#es-cont').textContent = imgs.length + ' de 10 imágenes' + (imgs.length<3 ? ' · faltan '+(3-imgs.length)+' como mínimo' : '');
+    q('[data-es-analizar]').disabled = imgs.length < 3;
+    const gb = q('#es-guia-box'); gb.hidden = !guia; q('#es-guia').value = guia || '';
+    q('[data-es-del]') && q('#es-grid').querySelectorAll('[data-es-del]').forEach(b=>b.addEventListener('click',()=>{ imgs.splice(+b.dataset.esDel,1); pintar(); }));
+    const inp = q('.es-add input'); if(inp) inp.addEventListener('change', async e=>{ await agregar([...e.target.files]); e.target.value=''; });
+  }
+  async function agregar(files){
+    const validas = files.filter(f=>f.type.startsWith('image/')).slice(0, 10-imgs.length);
+    if(!validas.length) return;
+    status('⏳ Preparando imágenes…');
+    for(const f of validas){ try{ imgs.push(await reducirImagenDataUrl(f, 768, 0.7)); }catch(e){} }
+    status(''); pintar();
+  }
+  const pegar = e=>{ const fs = [...((e.clipboardData&&e.clipboardData.files)||[])].filter(f=>f.type.startsWith('image/')); if(fs.length){ e.preventDefault(); agregar(fs); } };
+  document.addEventListener('keydown', tecla); document.addEventListener('paste', pegar);
+  ov.addEventListener('mousedown', e=>{ if(e.target===ov) cerrar(); });
+  q('.ay-x').addEventListener('click', cerrar);
+  q('[data-es-analizar]').addEventListener('click', async ()=>{
+    if(imgs.length<3) return;
+    const btn = q('[data-es-analizar]'); btn.disabled = true; status('⏳ Analizando tu estilo… puede tardar unos segundos.');
+    try{
+      const res = await fetch('/api/generar-anuncios', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ modo:'estilo', cliente:CLIENTE_ID, imagenes: imgs.map(d=>({ mediaType:'image/jpeg', data:d.split(',')[1] })) }) });
+      const data = await res.json().catch(()=>({}));
+      if(!res.ok){ status(res.status===402 ? (data.error||'Llegaste al tope de uso de IA.') : '⚠️ '+(data.error||'No se pudo analizar el estilo.')); btn.disabled = false; return; }
+      guia = data.guia || ''; status('✅ Listo. Revisa tu estilo abajo y guárdalo.'); pintar();
+    }catch(e){ status('⚠️ Error de conexión. Intenta de nuevo.'); btn.disabled = false; }
+  });
+  q('[data-es-guardar]').addEventListener('click', async ()=>{
+    guia = q('#es-guia').value.trim();
+    if(!guia){ status('⚠️ La guía está vacía.'); return; }
+    estiloRef = { guia, fecha:new Date().toISOString().slice(0,10), imgs: imgs.slice() };
+    try{
+      await window.storage.set(ESTILO_KEY, JSON.stringify({ guia, fecha: estiloRef.fecha, n: imgs.length }));
+      await window.storage.set(ESTILO_IMGS_KEY, JSON.stringify(imgs));
+    }catch(e){ status('⚠️ No se pudo guardar. Intenta de nuevo.'); return; }
+    setUsarEstilo(true); cerrar();
+    if(postModalEl && postModalId){ const it = cards.find(c=>c.id===postModalId); if(it) pintarPiezas(it); }
+    mostrarToast('✅ Guardé tu estilo visual. Los prompts de imagen y video se harán con él.');
+  });
+  q('[data-es-borrar]').addEventListener('click', async ()=>{
+    if(!confirm('¿Borrar tu estilo visual y sus imágenes?')) return;
+    estiloRef = { guia:'', fecha:'', imgs:[] };
+    try{ await window.storage.set(ESTILO_KEY, JSON.stringify({})); await window.storage.set(ESTILO_IMGS_KEY, JSON.stringify([])); }catch(e){}
+    cerrar();
+    if(postModalEl && postModalId){ const it = cards.find(c=>c.id===postModalId); if(it) pintarPiezas(it); }
+  });
+  pintar();
+}
+
 async function cargarInicial(){
   try{ const r=await window.storage.get(CLIENTE_ID+':grupos-negocio'); grupos = r&&r.value?JSON.parse(r.value):[]; }catch(e){ grupos=[]; }
   try{ const r=await window.storage.get(CLIENTE_ID+':catalogo-productos'); productos = r&&r.value?JSON.parse(r.value):[]; }catch(e){ productos=[]; }
@@ -714,6 +838,7 @@ async function cargarInicial(){
     recalcularAngulos366();
   }catch(e){ comunicaciones366=[]; angulos366=[]; }
   try{ const r=await window.storage.get(BORRADOR_KEY); borradorStore = r&&r.value?JSON.parse(r.value):{}; }catch(e){ borradorStore={}; }
+  await cargarEstiloRef();
   try{
     const r=await window.storage.get(CARDS_KEY);
     cards = r&&r.value?JSON.parse(r.value):[];
@@ -2633,10 +2758,12 @@ function piezaTieneContenido(item, tipo){
 const piezasAbiertas = new Set(); // "idTarjeta:tipo" de los bloques que el usuario tiene desplegados
 const piezaMaterial = { imagen:null, video:null };
 function botonGemini(tipo){
+  const img = tipo==='imagen';
+  const herr = img ? 'ChatGPT' : 'Gemini';
   return `<div class="pm-gemini">
-    <button type="button" class="pm-copiar-gemini" data-copiar-prompt="${tipo}">📋 Copiar prompt <span>listo para pegar en Gemini</span></button>
-    <a class="pm-abrir-gemini" href="https://gemini.google.com/app" target="_blank" rel="noopener">Abrir Gemini ↗</a>
-    ${tipo==='imagen' ? '<div class="pm-logo-tip">💡 <b>Sube tu logotipo a Gemini junto con este prompt</b> (clip 📎): el prompt ya le indica en qué esquina colocarlo y lleva el llamado a la acción dentro de la imagen.</div>' : '<div class="pm-logo-tip">💡 <b>Sube tu logotipo a Gemini junto con este prompt</b> (clip 📎) para que aparezca al final. El video dura de 15 a 20 segundos y lleva voz.</div>'}
+    <button type="button" class="pm-copiar-gemini" data-copiar-prompt="${tipo}">📋 Copiar prompt <span>listo para pegar en ${herr}</span></button>
+    <a class="pm-abrir-gemini" href="${img ? 'https://chatgpt.com' : 'https://gemini.google.com/app'}" target="_blank" rel="noopener">Abrir ${herr} ↗</a>
+    ${img ? '<div class="pm-logo-tip">💡 <b>Sube tu logotipo a ChatGPT junto con este prompt</b> (clip 📎): el prompt ya le indica en qué esquina colocarlo y lleva el llamado a la acción dentro de la imagen.</div>' : '<div class="pm-logo-tip">💡 <b>Sube tu logotipo a Gemini junto con este prompt</b> (clip 📎) para que aparezca al final. El video dura de 15 a 20 segundos, lleva voz y está pensado como un comercial dinámico.</div>'}
   </div>`;
 }
 // Texto del guion listo para pegar (todas las partes, la versión de 15 s y los hooks alternativos).
@@ -2694,7 +2821,16 @@ function pintarPiezas(item, modal){
   };
   box.innerHTML = `
     <div class="pm-bloque-t">✨ Crea tus piezas con inteligencia artificial</div>
-    <p class="pm-hint-inline pm-piezas-sub">La IA se usa solo cuando pulsas “Generar”. Las piezas listas están en color: pícales para abrirlas y copiarlas con un clic para pegarlas en el Business Manager o en Gemini.</p>
+    <p class="pm-hint-inline pm-piezas-sub">La IA se usa solo cuando pulsas “Generar”. Las piezas listas están en color: pícales para abrirlas y copiarlas con un clic para pegarlas en el Business Manager, en ChatGPT (imágenes) o en Gemini (videos).</p>
+    <div class="pm-estilo">
+      <span class="pm-estilo-t">🎨 Mi estilo visual</span>
+      ${estiloRef.guia
+        ? `<span class="pm-estilo-thumbs">${estiloRef.imgs.slice(0,6).map(d=>`<img src="${d}" alt="">`).join('')}</span>
+           <label class="pm-estilo-chk"><input type="checkbox" data-usar-estilo${usarEstiloActivo()?' checked':''}> Usarlo en los prompts de imagen y video</label>
+           <button type="button" class="pm-estilo-btn" data-estilo-gestionar>Gestionar</button>`
+        : `<span class="pm-hint-inline">Sube de 3 a 10 diseños que te gusten y los prompts de imagen y video saldrán con tu estilo, no genéricos.</span>
+           <button type="button" class="pm-estilo-btn" data-estilo-gestionar>Subir mi estilo</button>`}
+    </div>
     <div class="pm-pieza-btns">${ORDEN.map(btn).join('')}</div>
     <div class="mode-status" id="pm-pieza-status"></div>
     <div class="pm-paneles">${ORDEN.filter(tiene).map(t=>panelPieza(item,t)).join('')}</div>`;
@@ -2706,6 +2842,8 @@ function pintarPiezas(item, modal){
     if(piezasAbiertas.has(k)) piezasAbiertas.delete(k); else piezasAbiertas.add(k);
     pintarPiezas(item);
   }));
+  box.querySelectorAll('[data-estilo-gestionar]').forEach(b=>b.addEventListener('click', abrirEstiloRef));
+  box.querySelectorAll('[data-usar-estilo]').forEach(c=>c.addEventListener('change',()=>setUsarEstilo(c.checked)));
   box.querySelectorAll('[data-ask-toggle]').forEach(b=>b.addEventListener('click',()=>{
     const a = box.querySelector('[data-ask="'+b.dataset.askToggle+'"]'); a.hidden = !a.hidden;
   }));
@@ -2735,7 +2873,7 @@ function pintarPiezas(item, modal){
   };
   box.querySelectorAll('[data-copiar-prompt]').forEach(b=>b.addEventListener('click',()=>{
     const t = b.dataset.copiarPrompt;
-    copiarConAviso(b, (t==='video' ? item.prompt_video : item.prompt_imagen) || '', '✅ Copiado <span>pégalo en Gemini</span>');
+    copiarConAviso(b, (t==='video' ? item.prompt_video : item.prompt_imagen) || '', '✅ Copiado <span>pégalo en '+(t==='video'?'Gemini':'ChatGPT')+'</span>');
   }));
   box.querySelectorAll('[data-copiar-texto="guion"]').forEach(b=>b.addEventListener('click',()=>copiarConAviso(b, guionComoTexto(item), '✅ Guion copiado')));
 }
@@ -2758,6 +2896,7 @@ async function crearPieza(item, tipo, texto, material, box, promptActual){
           retroalimentacion:item.retroalimentacion, guion:item.guion,
         },
         texto: texto || '',
+        usar_estilo: usarEstiloActivo(),
         prompt_actual: promptActual || '',
         imagenes: material ? [{ mediaType:'image/jpeg', data:material.data }] : [],
       }),
