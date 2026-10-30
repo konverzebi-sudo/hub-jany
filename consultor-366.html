@@ -3240,6 +3240,8 @@ function renderEpcTabs() {
   const indices = indicesDelFoco366(perfilesState, 'perfil');
   pintarPestanas366(nav, indices, perfilesState, () => perfilActivo, 'Perfil', (i) => { capturarPerfilesDesdeDOM(); perfilActivo = i; renderEpcTabs(); renderEpcPanels(); });
   nav.appendChild(selectorAgregarHtml('perfil', perfilesState, '+ Agregar perfil', indices));
+  const compartir = selectorUsarPerfilExistente366(indices);
+  if (compartir) nav.appendChild(compartir);
 }
 
 /* Selector "+ Agregar X" reusable: siempre ofrece empezar en blanco, o partir de una copia de una
@@ -3247,6 +3249,47 @@ function renderEpcTabs() {
    algo, la usuaria debe renombrarla para no confundirla con la original). El HTML es genérico,
    pero cada tipo tiene su propia función de "aplicar" (evita depender de window[...], que no
    funciona con variables let de nivel superior). */
+/* Perfiles compartidos: un mismo cliente ideal puede servir a varios productos. Con un producto elegido arriba, este selector deja usar un
+   perfil que ya existe (se agrega el producto a su "Producto relacionado") en vez de armar uno nuevo; el perfil en blanco que la página le
+   había creado solo a ese producto se quita. */
+function perfilVacio366(p) {
+  if (!p) return true;
+  const noLlenos = ['nombre', 'producto_relacionado'];
+  const textos = CAMPOS_TEXTO_EPC.every((c) => noLlenos.indexOf(c) !== -1 || !(p[c] || '').toString().trim());
+  const tablas = CAMPOS_TABLA_EPC.every((c) => !Array.isArray(p[c]) || !p[c].some((fila) => fila && Object.keys(fila).some((k) => k !== 'id' && k !== 'tipo' && (fila[k] || '').toString().trim())));
+  return textos && tablas;
+}
+
+function selectorUsarPerfilExistente366(indicesDelProducto) {
+  const prod = productoFoco366();
+  if (!prod) return null;
+  const otros = [];
+  perfilesState.forEach((p, i) => { if (p && indicesDelProducto.indexOf(i) === -1 && !perfilVacio366(p)) otros.push(i); });
+  if (!otros.length) return null;
+  const select = document.createElement('select');
+  select.className = 'epc-tab-btn add-epc epc-add-select';
+  select.title = 'Un mismo cliente ideal puede servir a varios productos';
+  select.innerHTML = '<option value="">↗ Usar un perfil que ya existe</option>' + otros.map((i) => '<option value="' + i + '">' + escaparHtmlBuilder(perfilesState[i].nombre || ('Perfil ' + (i + 1))) + '</option>').join('');
+  select.onchange = () => { const v = select.value; select.value = ''; if (v !== '') usarPerfilExistente366(parseInt(v, 10)); };
+  return select;
+}
+
+function usarPerfilExistente366(idx) {
+  capturarTodoDesdeDOM366();
+  const prod = productoFoco366();
+  const p = perfilesState[idx];
+  if (!prod || !p) return;
+  const n = normalizarNombre366(prod.nombre);
+  const lineas = (p.producto_relacionado || '').toString().split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+  if (!lineas.some((l) => normalizarNombre366(l) === n)) lineas.push((prod.nombre || '').trim());
+  p.producto_relacionado = lineas.join('\n');
+  const uid = prod.uid;
+  perfilesState = perfilesState.filter((x) => x === p || !(x && x.producto_uid === uid && perfilVacio366(x)));
+  perfilActivo = perfilesState.indexOf(p);
+  repintarSecciones366();
+  try { guardarPerfiles(); } catch (e) {}
+}
+
 function selectorAgregarHtml(tipo, lista, textoDefault, indices) {
   const idxs = indices || lista.map((_, i) => i);
   const select = document.createElement('select');
