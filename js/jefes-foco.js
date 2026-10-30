@@ -482,15 +482,18 @@
     cat = Array.isArray(cat) ? cat : [];
     // si el catálogo no se pudo leer (llegó vacío pero ya habíamos cargado productos), no se escribe nada: así no se pisa
     if (!cat.length && lista.some(function (p) { return p && !p.origen366; })) throw new Error('catalogo no disponible');
+    if (opts.limpiarNombre) nombre = nombre.replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim() || nombre;
     var n = norm(nombre), item = null, cambio = false;
     if (opts.catalogoId) item = cat.filter(function (x) { return x && x.id === opts.catalogoId; })[0] || null;
     if (!item) item = cat.filter(function (x) { return x && norm(x.nombre) === n; })[0] || null;
+    if (!item && opts.evitarParecido) item = productoParecido(nombre, true);
     if (item) {
       if (opts.renombrar && norm(item.nombre) !== n) { item.nombre = nombre; cambio = true; }
     } else {
-      item = { id: newId(), nombre: nombre, tipo: 'Producto', grupo_id: opts.grupo_id || '', precio: '', costo: '', margen_pct: '', que_tanto_se_vende: '', inventario: '', notas: '' };
+      item = { id: newId(), nombre: nombre, tipo: opts.tipo || 'Producto', grupo_id: opts.grupo_id || '', precio: opts.precio || '', costo: '', margen_pct: '', que_tanto_se_vende: '', inventario: '', notas: opts.notas || '' };
       cat.push(item);
       cambio = true;
+      if (typeof opts.alCrear === 'function') { try { opts.alCrear(item); } catch (e) {} }
     }
     if (cambio) await window.storage.set(hub + ':catalogo-productos', JSON.stringify(cat));
     lista = lista.filter(function (p) { return p && p.id !== item.id && !(p.origen366 && norm(p.nombre) === n); });
@@ -535,10 +538,10 @@
     });
   }
   // ¿Ya existe un producto con un nombre muy parecido (ej. "Capacitación Grupal" vs "Capacitación Estratégica con IA (Grupal)")?
-  function palabrasDe(t) { return norm(t).replace(/[^a-z0-9 ]/g, ' ').split(' ').filter(function (w) { return w.length > 2 && ['con', 'del', 'los', 'las', 'para', 'una', 'por'].indexOf(w) < 0; }); }
-  function productoParecido(nombre) {
+  function palabrasDe(t) { return norm(t).replace(/[^a-z0-9 ]/g, ' ').split(' ').filter(function (w) { return w.length > 2 && ['con', 'del', 'los', 'las', 'para', 'una', 'por', 'mensual', 'mensuales'].indexOf(w) < 0; }); }
+  function productoParecido(nombre, minimo) {
     var a = palabrasDe(nombre), n = norm(nombre);
-    if (a.length < 2) return null;
+    if (a.length < (minimo ? 1 : 2)) return null;
     var cand = lista.filter(function (p) {
       if (!p || !p.nombre || norm(p.nombre) === n) return false;
       var b = palabrasDe(p.nombre);
@@ -823,6 +826,11 @@
     // la pagina avisa que cambiaron sus campanas (nombre, producto, alta o baja) para repintar la pastilla
     refrescar: function () { aplicar(actual.id); guardarLS(); pintar(); },
     altaProducto: altaProducto,
+    // qué partes del 366 ya tiene un producto, calculado con lo que la página tiene en memoria (para decirle al chat qué toca)
+    estado366De: function (nombre, prods, perfiles, sistemas, coms) {
+      var m = calcular366(prods || [], perfiles || [], sistemas || [], coms || []);
+      return m[norm(nombre)] || null;
+    },
     // todas las campañas de temporada (también las terminadas), con el nombre que se les muestra, para etiquetarlas con @
     campanasTodas: function () { return campsRaw.filter(function (c) { return c && c.id; }).map(function (c) { return { id: c.id, nombre: etiquetaCampana(c) }; }); },
     es366Completo: function (id) { var p = buscar(id); return p ? estadoDe(p).completo : false; },

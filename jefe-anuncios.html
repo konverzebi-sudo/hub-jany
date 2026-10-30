@@ -1000,11 +1000,19 @@ async function guardarEstructura(opts){ try{ await window.storage.set(ESTRUCTURA
 
 let carpetaSaveTimer=null;
 function scheduleCarpetaSave(){ clearTimeout(carpetaSaveTimer); carpetaSaveTimer=setTimeout(guardarCarpeta,600); }
-async function guardarCarpeta(opts){ try{ await window.storage.set(CARPETA_KEY, JSON.stringify(linkCarpeta), opts); }catch(e){} }
+async function guardarCarpeta(opts){ try{ await window.storage.set(CARPETA_KEY, JSON.stringify(linkCarpeta), opts); }catch(e){} if(window.__jnLinksRecargar) window.__jnLinksRecargar(); }
 
 let bmSaveTimer=null;
 function scheduleBMSave(){ clearTimeout(bmSaveTimer); bmSaveTimer=setTimeout(guardarBM,600); }
-async function guardarBM(opts){ try{ await window.storage.set(BM_KEY, JSON.stringify(linkBM), opts); }catch(e){} }
+async function guardarBM(opts){ try{ await window.storage.set(BM_KEY, JSON.stringify(linkBM), opts); }catch(e){} if(window.__jnLinksRecargar) window.__jnLinksRecargar(); }
+
+// Si el link se cambia o se borra desde la barra de la izquierda, las casillas de aquí arriba se actualizan.
+window.addEventListener('jefes-links-cambio', (e)=>{
+  const d = e.detail || {};
+  if(d.k==='carpeta') linkCarpeta = d.valor || '';
+  if(d.k==='bm') linkBM = d.valor || '';
+  pintarIconos();
+});
 
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'){ if(cardsPendingSave) doSaveCards({keepalive:true}); guardarBorrador({keepalive:true}); guardarEstructura({keepalive:true}); guardarCarpeta({keepalive:true}); guardarBM({keepalive:true}); if(agendaSyncPending) syncAgendaEventos({keepalive:true}); } });
 window.addEventListener('pagehide',()=>{ if(cardsPendingSave) doSaveCards({keepalive:true}); guardarBorrador({keepalive:true}); guardarEstructura({keepalive:true}); guardarCarpeta({keepalive:true}); guardarBM({keepalive:true}); if(agendaSyncPending) syncAgendaEventos({keepalive:true}); });
@@ -1506,6 +1514,8 @@ function irAPegarLink(id){
   setTimeout(()=>{ const i = document.querySelector('[data-link-input="'+id+'"]'); if(i) i.focus(); }, 250);
 }
 function pintarLinksBarra(){
+  // La barra compartida (js/jefes-nav.js) ya muestra los links de trabajo en todos los Jefes: no se duplican.
+  if(document.querySelector('nav.jn .jn-links')) return true;
   const redes = document.querySelector('nav.jn .jn-redes');
   if(!redes) return false;
   let box = document.getElementById('jnx-links');
@@ -3326,9 +3336,9 @@ const TUT_PASOS = [
 
   { fase:3, tab:'estructura', titulo:'Del Jefe a tu Administrador Comercial', visual:'flujo',
     texto:'Con tu material listo, lo pasas al Administrador Comercial de Facebook (Meta), que es donde se publican los anuncios. Esta pestaña, Estructura de Ads, te deja todo ordenado para hacerlo.' },
-  { fase:3, tab:'estructura', selector:['#cx-icons .cx-ic:has([data-link-input="carpeta"])', '#cx-icons .cx-ic:has([data-help="carpeta"])', '#jnx-links'], titulo:'Guarda tus archivos en una carpeta',
+  { fase:3, tab:'estructura', selector:['#cx-icons .cx-ic:has([data-link-input="carpeta"])', '#cx-icons .cx-ic:has([data-help="carpeta"])', '#jnx-links', 'nav.jn .jn-links'], titulo:'Guarda tus archivos en una carpeta',
     texto:'El botón de carpeta 📁 es para tu material terminado (imágenes, videos, logo). Crea la carpeta en Drive u otra, pega su link aquí y pícale «Listo»: queda conectada y fija abajo a la izquierda para abrirla con un clic.\n\nSi no sabes cómo sacar el link, pícale al «?».' },
-  { fase:3, tab:'estructura', selector:['#cx-icons .cx-ic:has([data-link-input="bm"])', '#cx-icons .cx-ic:has([data-help="bm"])', '#jnx-links'], titulo:'Pega el link de tu Administrador Comercial',
+  { fase:3, tab:'estructura', selector:['#cx-icons .cx-ic:has([data-link-input="bm"])', '#cx-icons .cx-ic:has([data-help="bm"])', '#jnx-links', 'nav.jn .jn-links'], titulo:'Pega el link de tu Administrador Comercial',
     texto:'Aquí va el link de tu Administrador Comercial de Facebook (Business Manager). Así lo tienes a un clic cuando vayas a publicar tus anuncios.' },
   { fase:3, tab:'estructura', selector:'#content', titulo:'Armas la campaña tal como va en Facebook', video:'meta',
     texto:'Los pasos en Facebook:\n1) Crea la campaña y elige su objetivo.\n2) Crea el conjunto: público, presupuesto diario y dónde se muestra.\n3) Crea el anuncio: sube tu imagen o video y pega el título, el texto, el botón y el link.\n4) Revisa y publica.\n\nAquí en Estructura de Ads llevas ese mismo orden con tus campañas guardadas.' },

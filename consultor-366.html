@@ -2106,6 +2106,7 @@ async function inicializarFoco366() {
   if (!window.__foco) return;
   aplicarFoco366(window.__foco.get());
   window.__foco.onChange((f) => { if (sincronizandoFoco366) return; aplicarFoco366(f); });
+  setTimeout(() => sincronizarEscalera366(), 2500);
   // viene de la pastilla de otro Jefe con un producto que todavía no tiene su 366 completo
   try {
     const qp = new URLSearchParams(location.search).get('producto');
@@ -2555,6 +2556,28 @@ function mencionesActivas366() {
   ta.addEventListener('blur', () => setTimeout(cerrarMenuMenciones366, 150));
 });
 
+/* Qué partes del 366 ya están llenas para el producto elegido arriba. Lo calcula la pantalla (es la verdad) y se le manda al Jefe
+   para que siga el orden y no salte a un módulo posterior con uno anterior vacío. */
+function estadoMapa366() {
+  try {
+    const f = focoParaChat366();
+    if (!f || f.esGrupo || !f.nombre || !window.__foco || !window.__foco.estado366De) return null;
+    capturarTodoDesdeDOM366();
+    const e = window.__foco.estado366De(f.nombre, productosState, perfilesState, sistemasState, comunicacionesState);
+    const faltan = e ? e.faltan : ['ficha del producto', 'cliente ideal', 'sistema para vender', 'comunicación'];
+    const ok = (k) => faltan.indexOf(k) === -1;
+    return {
+      producto: f.nombre,
+      partes: [
+        { modulo: 1, nombre: 'Cliente Ideal', paso: 3, pantalla: 'Tu cliente ideal', completo: ok('cliente ideal') },
+        { modulo: 2, nombre: 'Oferta Irresistible 366 (ficha del producto)', paso: 2, pantalla: 'Producto 366', completo: ok('ficha del producto') },
+        { modulo: 4, nombre: 'Sistema 366', paso: 4, pantalla: 'Sistema para vender 366', completo: ok('sistema para vender') },
+        { modulo: 5, nombre: 'Comunicación 366', paso: 5, pantalla: 'Comunicación 366', completo: ok('comunicación') },
+      ],
+    };
+  } catch (e) { return null; }
+}
+
 let sinBloqueConfirmo366 = false;
 async function llamarConstructor(senalOnb) {
   guardarConversacionEnBancoWhatsApp(builderTxtConversacion);
@@ -2565,7 +2588,7 @@ async function llamarConstructor(senalOnb) {
     const response = await fetch('/api/consultor-366', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: builderMessages, cliente: CLIENTE_ID, imagenes: builderImagenes, txtConversacion: builderTxtConversacion, onboarding: senalOnb || '', foco: focoParaChat366(), confirmoSinBloque: sinBloqueConfirmo366, menciones: mencionesActivas366() }),
+      body: JSON.stringify({ messages: builderMessages, cliente: CLIENTE_ID, imagenes: builderImagenes, txtConversacion: builderTxtConversacion, onboarding: senalOnb || '', foco: focoParaChat366(), confirmoSinBloque: sinBloqueConfirmo366, menciones: mencionesActivas366(), estadoMapa: estadoMapa366() }),
     });
     const data = await response.json();
     if (!response.ok) {
@@ -3217,6 +3240,8 @@ function renderEpcTabs() {
   const indices = indicesDelFoco366(perfilesState, 'perfil');
   pintarPestanas366(nav, indices, perfilesState, () => perfilActivo, 'Perfil', (i) => { capturarPerfilesDesdeDOM(); perfilActivo = i; renderEpcTabs(); renderEpcPanels(); });
   nav.appendChild(selectorAgregarHtml('perfil', perfilesState, '+ Agregar perfil', indices));
+  const compartir = selectorUsarPerfilExistente366(indices);
+  if (compartir) nav.appendChild(compartir);
 }
 
 /* Selector "+ Agregar X" reusable: siempre ofrece empezar en blanco, o partir de una copia de una
@@ -3224,6 +3249,47 @@ function renderEpcTabs() {
    algo, la usuaria debe renombrarla para no confundirla con la original). El HTML es genérico,
    pero cada tipo tiene su propia función de "aplicar" (evita depender de window[...], que no
    funciona con variables let de nivel superior). */
+/* Perfiles compartidos: un mismo cliente ideal puede servir a varios productos. Con un producto elegido arriba, este selector deja usar un
+   perfil que ya existe (se agrega el producto a su "Producto relacionado") en vez de armar uno nuevo; el perfil en blanco que la página le
+   había creado solo a ese producto se quita. */
+function perfilVacio366(p) {
+  if (!p) return true;
+  const noLlenos = ['nombre', 'producto_relacionado'];
+  const textos = CAMPOS_TEXTO_EPC.every((c) => noLlenos.indexOf(c) !== -1 || !(p[c] || '').toString().trim());
+  const tablas = CAMPOS_TABLA_EPC.every((c) => !Array.isArray(p[c]) || !p[c].some((fila) => fila && Object.keys(fila).some((k) => k !== 'id' && k !== 'tipo' && (fila[k] || '').toString().trim())));
+  return textos && tablas;
+}
+
+function selectorUsarPerfilExistente366(indicesDelProducto) {
+  const prod = productoFoco366();
+  if (!prod) return null;
+  const otros = [];
+  perfilesState.forEach((p, i) => { if (p && indicesDelProducto.indexOf(i) === -1 && !perfilVacio366(p)) otros.push(i); });
+  if (!otros.length) return null;
+  const select = document.createElement('select');
+  select.className = 'epc-tab-btn add-epc epc-add-select';
+  select.title = 'Un mismo cliente ideal puede servir a varios productos';
+  select.innerHTML = '<option value="">↗ Usar un perfil que ya existe</option>' + otros.map((i) => '<option value="' + i + '">' + escaparHtmlBuilder(perfilesState[i].nombre || ('Perfil ' + (i + 1))) + '</option>').join('');
+  select.onchange = () => { const v = select.value; select.value = ''; if (v !== '') usarPerfilExistente366(parseInt(v, 10)); };
+  return select;
+}
+
+function usarPerfilExistente366(idx) {
+  capturarTodoDesdeDOM366();
+  const prod = productoFoco366();
+  const p = perfilesState[idx];
+  if (!prod || !p) return;
+  const n = normalizarNombre366(prod.nombre);
+  const lineas = (p.producto_relacionado || '').toString().split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+  if (!lineas.some((l) => normalizarNombre366(l) === n)) lineas.push((prod.nombre || '').trim());
+  p.producto_relacionado = lineas.join('\n');
+  const uid = prod.uid;
+  perfilesState = perfilesState.filter((x) => x === p || !(x && x.producto_uid === uid && perfilVacio366(x)));
+  perfilActivo = perfilesState.indexOf(p);
+  repintarSecciones366();
+  try { guardarPerfiles(); } catch (e) {}
+}
+
 function selectorAgregarHtml(tipo, lista, textoDefault, indices) {
   const idxs = indices || lista.map((_, i) => i);
   const select = document.createElement('select');
@@ -3719,6 +3785,47 @@ function programarSyncCatalogo366() {
   clearTimeout(temporizadorCat366);
   temporizadorCat366 = setTimeout(sincronizarCatalogo366, 1500);
 }
+/* Los productos del Sistema de Productos 366 (gancho, upsell, downsell, recurrencia...) también son productos del negocio: se dan de alta
+   en el Catálogo del ADN (con su precio) para que salgan en el filtro de arriba, como borrador hasta que se llenen. Sin repetir los que ya
+   existen con un nombre igual o parecido. */
+const escalera366Vista = {};
+function precioDeTexto366(t) {
+  const m = String(t || '').replace(/\s/g, '').match(/([0-9][0-9,]*(?:\.[0-9]+)?)/);
+  return m ? m[1].replace(/,/g, '') : '';
+}
+async function sincronizarEscalera366() {
+  if (!window.__foco || !window.__foco.altaProducto) return;
+  const nuevos = [];
+  for (const ficha of productosState.slice()) {
+    for (const r of (ficha && ficha.sistema_productos) || []) {
+      const nombre = ((r && r.producto) || '').toString().trim();
+      if (!nombre) continue;
+      const clave = normalizarNombre366(nombre);
+      if (escalera366Vista[clave]) continue;
+      escalera366Vista[clave] = true;
+      try {
+        await window.__foco.altaProducto(nombre, {
+          evitarParecido: true, limpiarNombre: true, precio: precioDeTexto366(r.precio),
+          notas: [r.tipo, r.incluye].filter(Boolean).join(' — ').slice(0, 300) + (r.precio ? ' · Precio: ' + r.precio : ''),
+          alCrear: (item) => nuevos.push(item.nombre),
+        });
+      } catch (e) { escalera366Vista[clave] = false; }
+    }
+  }
+  if (nuevos.length) {
+    const av = document.getElementById('avisoMencion366');
+    if (av) {
+      av.innerHTML = '';
+      const t = document.createElement('span');
+      t.textContent = 'Agregué al Catálogo de tu ADN los productos de tu Sistema de Productos: ' + nuevos.join(', ') + '. Salen en el filtro de arriba (en «Ver otros productos») hasta que los llenes.';
+      const x = document.createElement('button');
+      x.type = 'button'; x.textContent = '✕'; x.setAttribute('aria-label', 'Cerrar');
+      x.onclick = () => { av.hidden = true; av.innerHTML = ''; };
+      av.appendChild(t); av.appendChild(x); av.hidden = false;
+    }
+  }
+}
+
 async function sincronizarCatalogo366() {
   if (!window.__foco || !window.__foco.altaProducto) return;
   let nuevosIds = false;
@@ -3736,6 +3843,7 @@ async function sincronizarCatalogo366() {
     } catch (e) {}
   }
   if (nuevosIds) { try { guardarProductos(); } catch (e) {} }
+  sincronizarEscalera366();
 }
 
 async function cargarProductos() {

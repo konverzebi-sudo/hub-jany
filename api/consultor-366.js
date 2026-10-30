@@ -592,6 +592,19 @@ async function manejarChatGuiado(req, res) {
     }
     const mencionesCtx = modo === 'normal' ? await builderFormatearMenciones(clienteId, body.menciones).catch(() => '') : '';
     if (mencionesCtx) partesSystem.push(mencionesCtx);
+    const em = modo === 'normal' && body.estadoMapa && typeof body.estadoMapa === 'object' ? body.estadoMapa : null;
+    if (em && Array.isArray(em.partes) && em.partes.length) {
+      const partes = em.partes.slice(0, 6).map((p) => ({ paso: Number(p.paso), pantalla: String(p.pantalla || '').slice(0, 60), completo: !!p.completo })).sort((a, b) => a.paso - b.paso);
+      const lineas = partes.map((p) => '- Paso ' + p.paso + ' — ' + p.pantalla + ': ' + (p.completo ? 'COMPLETO' : 'INCOMPLETO'));
+      const primero = partes.find((p) => !p.completo);
+      const NL = String.fromCharCode(10);
+      partesSystem.push(
+        'ESTADO REAL DEL MAPA PARA «' + String(em.producto || '').slice(0, 120) + '» (lo calcula la pantalla, igual que el tablero que ve la usuaria; es la verdad, no lo que recuerdes de la conversación):' + NL + lineas.join(NL) + NL +
+        (primero ? 'Lo que toca ahora es el Paso ' + primero.paso + ' — ' + primero.pantalla + '. ' : 'Los cuatro pasos están completos. ') +
+        'REGLA DURA: el orden es el del mapa en pantalla (paso 2 → 3 → 4 → 5), el mismo que ve la usuaria. Cuando diga que quiere continuar o seguir, entra al PRIMER paso INCOMPLETO de esta lista. NUNCA entres a un paso posterior mientras uno anterior esté INCOMPLETO. Si ella te pide expresamente saltar, avísale en una línea cuál paso anterior sigue vacío y pregúntale si prefiere cerrarlo primero. Háblale siempre con "Paso N — Nombre" (como en el tablero), nunca con "Módulo N", y dile cuántos de los 4 pasos lleva completos.'
+      );
+    }
+
     if (modo === 'normal' && body.confirmoSinBloque === true) {
       partesSystem.push(
         'AVISO DEL SISTEMA (obligatorio): la usuaria acaba de escribir CONFIRMO JEFE, pero en tu mensaje anterior NO venía ningún bloque entre ⚠️INICIO y ⚠️GUARDAR, así que la pantalla NO guardó NADA. Tienes PROHIBIDO decir que algo quedó guardado, listo o confirmado. Discúlpate en UNA línea, vuelve a entregar ahora mismo el bloque completo con sus marcadores ⚠️INICIO / ⚠️GUARDAR: [nombre exacto] y pídele de nuevo que escriba CONFIRMO JEFE. No avances a otro tema todavía.'
