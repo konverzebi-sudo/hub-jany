@@ -98,6 +98,17 @@
     try { var p = JSON.parse(ls('get', PENDIENTE_PREFIJO + key) || 'null'); return p && 'value' in p ? p : null; } catch (e) { return null; }
   }
 
+  async function leerServidor(key) {
+    const res = await fetch('/api/storage/' + encodeURIComponent(key), { cache: 'no-store' });
+    if (!res.ok) return null;
+    return res.json();
+  }
+  // ¿El servidor ya tiene algo más nuevo que el respaldo de este dispositivo? (otro dispositivo lo cambió)
+  function servidorMasNuevo(data, pendiente) {
+    var t = data && data.updatedAt ? new Date(data.updatedAt).getTime() : 0;
+    return t > (pendiente.t || 0);
+  }
+
   // Reintenta subir lo que quedó pendiente, sin abrir el cuadro de la clave.
   var subiendo = false;
   async function reintentarPendientes() {
@@ -115,6 +126,9 @@
         var h = encabezados(llaves[j], false);
         if (!h['X-Hub-Codigo'] && !h['X-Storage-Token']) continue; // sin con qué autorizar: espera
         try {
+          // Si mientras tanto alguien guardó algo más nuevo en el servidor, el respaldo viejo se descarta.
+          var actual = await leerServidor(llaves[j]).catch(function () { return null; });
+          if (servidorMasNuevo(actual, p)) { ls('del', PENDIENTE_PREFIJO + llaves[j]); continue; }
           var res = await subir(llaves[j], p.value, null, false);
           if (res.ok || res.status === 403 || res.status === 413 || res.status === 400) ls('del', PENDIENTE_PREFIJO + llaves[j]);
         } catch (e) { /* sin conexión: se intenta después */ }
@@ -126,15 +140,19 @@
   window.storage = {
     async get(key) {
       var pendiente = leerPendiente(key);
+      var data = null;
+      try { data = await leerServidor(key); } catch (e) { data = null; }
       if (pendiente) {
-        // Lo último escrito en este dispositivo todavía no llega al servidor: se devuelve eso.
-        reintentarPendientes();
-        return { value: pendiente.value, updatedAt: new Date(pendiente.t).toISOString(), pendiente: true };
+        if (servidorMasNuevo(data, pendiente)) {
+          // Otro dispositivo guardó algo más reciente: gana el servidor y el respaldo viejo se borra.
+          ls('del', PENDIENTE_PREFIJO + key);
+        } else {
+          // Lo último escrito en este dispositivo todavía no llega al servidor: se devuelve eso.
+          reintentarPendientes();
+          return { value: pendiente.value, updatedAt: new Date(pendiente.t).toISOString(), pendiente: true };
+        }
       }
-      const res = await fetch('/api/storage/' + encodeURIComponent(key), { cache: 'no-store' });
-      if (!res.ok) return null;
-      const data = await res.json();
-      return data.value != null ? { value: data.value, updatedAt: data.updatedAt || null } : null;
+      return data && data.value != null ? { value: data.value, updatedAt: data.updatedAt || null } : null;
     },
     async set(key, value, opts) {
       var res;
