@@ -233,6 +233,23 @@
     </div>
   </div>
 
+  <div data-pane="dia" id="jd-coach" class="jd-full" style="padding:0 14px 14px;">
+    <div class="jd-card">
+      <div class="jd-row" style="justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap;">
+        <div class="jd-row" style="gap:10px;">
+          <div class="jd-ico">🧭</div>
+          <div><div class="jd-h" style="margin:0;">Tu coach</div><div class="jd-sub">Organiza tu día según tus metas</div></div>
+        </div>
+        <div class="jd-row" style="gap:6px;flex-wrap:wrap;">
+          <button class="jd-btn jd-btn-lima" data-coach="plan">☀️ Armar mi día</button>
+          <button class="jd-btn" data-coach="cierre">🌙 Cerrar mi día</button>
+          <button class="jd-btn" data-coach="semana">📈 Mi semana</button>
+        </div>
+      </div>
+      <div id="jd-coach-out"></div>
+    </div>
+  </div>
+
   <div data-pane="dia" id="jd-sec-hoy" style="padding:14px;">
     <div class="jd-row" style="justify-content:space-between;">
       <div class="jd-h" style="margin:0;">Checklist mañanero</div>
@@ -760,6 +777,9 @@
     if(!data.chatLog) data.chatLog = [];
     if(!data.memoria) data.memoria = [];
     if(!data.chatMemory) data.chatMemory = [];
+    if(!data.metas) data.metas = [];
+    if(!data.coach) data.coach = {};
+    if(!data.datosRealesDesde) data.datosRealesDesde = '2026-10-15';
     if(!data.history) data.history = [];
     if(!data.tokenUsage) data.tokenUsage = {inputTokens:0, outputTokens:0};
     if(!data.finMovements) data.finMovements = [];
@@ -841,6 +861,7 @@
     if(migratedList) saveLocalOnly();
     processSubscriptionBillings();
     renderAll();
+    ensureCloudBackup();
   }
 
   function processSubscriptionBillings(){
@@ -861,7 +882,7 @@
   function renderAll(){
     renderClock(); renderPhrase(); renderDebt(); renderFinance(); renderProgressMini();
     renderHabits(); renderTasks(); renderAgenda(); renderBalance(); renderProducts(); renderHistory(); renderCalendar(); renderWeekGrid();
-    renderTokenUsage(); renderFinCalendar(); renderSubscriptions(); renderMemory();
+    renderTokenUsage(); renderFinCalendar(); renderSubscriptions(); renderMemory(); renderCoach();
     renderSummary(); renderFinanceSummary(); renderTools();
   }
 
@@ -3521,6 +3542,7 @@
     var box = document.getElementById('jd-memory-panel');
     if(!box || box.style.display === 'none') return;
     box.innerHTML = '';
+    renderMetasInto(box);
     var h = document.createElement('div');
     h.className = 'jd-sub'; h.style.cssText = 'font-weight:600;color:#5B5784;margin-bottom:6px;';
     h.textContent = 'Lo que recuerdo de ti';
@@ -3581,6 +3603,7 @@
   function buildSnapshot(){
     var L = [];
     var daysActive = Math.floor((new Date(todayKey) - new Date(data.startDate)) / 86400000) + 1;
+    L.push('Hora actual: ' + time24() + '.');
     L.push('Dias usando el dashboard: ' + daysActive + ' (desde ' + data.startDate + ').');
     var areaName = function(id){ var a = data.areas.find(function(x){ return x.id === id; }); return a ? a.name : null; };
     var wd = new Date().getDay(), mwf = (wd === 1 || wd === 3 || wd === 5);
@@ -3610,6 +3633,10 @@
       if(data.subscriptions.length) L.push('Suscripciones: ' + data.subscriptions.map(function(s){ return s.name + ' ' + fmt(s.amount) + (s.billingDay ? ' (dia ' + s.billingDay + ')' : ''); }).join('; ') + '.');
     }catch(e){}
     if(data.history.length) L.push('LO ULTIMO QUE HIZO: ' + data.history.slice(0, 8).map(function(h){ return h.dateISO + ' ' + h.project + ': ' + h.text + (h.minutes ? ' (' + h.minutes + ' min)' : ''); }).join(' | '));
+    if((data.metas || []).length) L.push('METAS DE JANY (lo que quiere lograr):\n' + data.metas.map(function(m){ var ar = data.areas.find(function(a){ return a.id === m.area; }); return '- ' + m.text + (ar ? ' [' + ar.name + ']' : '') + (m.date ? ' (para ' + m.date + ')' : ''); }).join('\n'));
+    else L.push('METAS DE JANY: todavia no hay ninguna registrada.');
+    L.push(habitAnalysis());
+    if(data.coach && data.coach.plan && data.coach.plan.date === todayKey) L.push('PLAN DE HOY (lo armaste tu antes, hoy):\n' + data.coach.plan.text);
     return L.join('\n');
   }
 
@@ -3624,13 +3651,178 @@
       'Cuando pida consejo, priorizar, revisar como va, o decidir que hacer: usa status="respond" con una respuesta de maximo ~12 lineas que tenga (1) un diagnostico corto basado en SUS datos reales (cita numeros, rachas, pendientes urgentes o vencidos, areas descuidadas); (2) maximo 3 prioridades en orden, cada una con el por que y el siguiente paso concreto; (3) si algo conviene cambiar en el dashboard, dile exactamente donde (por ejemplo: "Retos del dia y agenda: toca el texto para editarlo", "Proyectos: toca el nombre del proyecto", "Avances a mis metas: editar", "pestana Finanzas") y ofrece hacerlo tu ("¿lo muevo / lo marco / lo agrego?"). ' +
       'No inventes datos que no esten en la radiografia ni en la memoria; si te falta contexto, haz UNA sola pregunta. Se honesta con tacto: si algo no va bien, dilo. Dentro del texto de "reply" usa \\n para los saltos de linea (el JSON debe ser valido).\n' +
       'Puedes EDITAR el dashboard cuando ella lo pida o acepte tu propuesta: type="editar" tambien cambia "area" (id de area: espiritualidad, ejercicio, mente, trabajo, familia, disfrute u otro de la radiografia) y "color" (rojo=urgente, amarillo=normal, verde=puede esperar) de un pendiente; type="completar" con "editId" marca un pendiente como hecho; type="eliminar" con "editId" borra un pendiente (PIDE confirmacion con status="ask" a menos que ella lo haya pedido de forma explicita); type="proyecto_nuevo" con "project" = nombre crea un proyecto/negocio. Los "editId" son los ids de la lista de PENDIENTES Y AGENDA.\n' +
-      'MEMORIA: cuando Jany cuente algo que convenga recordar para aconsejarla mejor despues (metas, decisiones, prioridades, fechas limite, contexto de un negocio, preferencias, compromisos), agrega en CUALQUIER respuesta el campo opcional "remember" con una nota corta y autocontenida (o una lista de notas), con fecha si aplica. No guardes cosas triviales ni repetidas.\n\n' +
+      'MEMORIA: cuando Jany cuente algo que convenga recordar para aconsejarla mejor despues (metas, decisiones, prioridades, fechas limite, contexto de un negocio, preferencias, compromisos), agrega en CUALQUIER respuesta el campo opcional "remember" con una nota corta y autocontenida (o una lista de notas), con fecha si aplica. No guardes cosas triviales ni repetidas.\n' +
+      'METAS: cuando Jany diga algo que quiere lograr (con o sin fecha), agrega tambien el campo opcional "meta" = {"text":"...","area":"id de area o null","date":"YYYY-MM-DD o null"} (o una lista). Usa las METAS de la radiografia para conectar cada consejo y cada plan con lo que ella quiere lograr; si no hay metas registradas, en tu primer consejo pregunta por sus 2 o 3 metas principales. Para analizar habitos usa solo el ANALISIS DE HABITOS (dias reales), nunca los dias reconstruidos.\n\n' +
       '=== RADIOGRAFIA DEL DASHBOARD (hoy ' + todayKey + ') ===\n' + buildSnapshot() + '\n\n' +
       '=== MEMORIA (lo que Jany te ha pedido recordar) ===\n' + (memoria || 'Todavia no hay notas.') + '\n\n' +
       '=== CONVERSACIONES ANTERIORES RECIENTES (mas viejo primero) ===\n' + (previas || 'Esta es la primera conversacion.') + '\n';
   }
 
-  async function askAssistant(history){
+  // ---- Coach: metas, analisis de habitos, plan del dia, cierre y revision semanal ----
+  function addMetas(rem){
+    var list = Array.isArray(rem) ? rem : (rem ? [rem] : []);
+    if(!data.metas) data.metas = [];
+    var added = false;
+    list.forEach(function(m){
+      if(typeof m === 'string') m = {text: m};
+      var t = memText(m && m.text, 200);
+      if(!t) return;
+      if(data.metas.some(function(x){ return x.text.toLowerCase() === t.toLowerCase(); })) return;
+      var area = (m.area && data.areas.some(function(a){ return a.id === m.area; })) ? m.area : undefined;
+      var date = /^\d{4}-\d{2}-\d{2}$/.test(m.date || '') ? m.date : undefined;
+      data.metas.push({id:uid('g'), text:t, area:area, date:date, created:todayKey});
+      added = true;
+    });
+    if(data.metas.length > 30) data.metas.splice(0, data.metas.length - 30);
+    if(added){ save(); renderMemory(); }
+  }
+
+  function renderMetasInto(box){
+    var h = document.createElement('div');
+    h.className = 'jd-sub'; h.style.cssText = 'font-weight:600;color:#5B5784;margin-bottom:6px;';
+    h.textContent = '🎯 Mis metas';
+    box.appendChild(h);
+    var metas = data.metas || [];
+    if(!metas.length){
+      var e = document.createElement('div');
+      e.className = 'jd-sub'; e.style.marginBottom = '6px';
+      e.textContent = 'Dime en el chat “mi meta es…” o agrégalas aquí. Con ellas armo tu día y te aconsejo.';
+      box.appendChild(e);
+    }
+    metas.forEach(function(m){
+      var ar = data.areas.find(function(a){ return a.id === m.area; });
+      var row = document.createElement('div');
+      row.className = 'jd-row'; row.style.cssText = 'gap:6px;margin-bottom:4px;align-items:flex-start;';
+      var t = document.createElement('span');
+      t.style.cssText = 'flex:1;font-size:12px;color:#2F2A55;line-height:1.4;';
+      t.textContent = '• ' + m.text + (ar ? ' [' + ar.name + ']' : '') + (m.date ? ' · para ' + m.date : '');
+      var x = document.createElement('button');
+      x.className = 'jd-btn'; x.textContent = '×'; x.style.padding = '0 7px';
+      x.addEventListener('click', function(){ data.metas = data.metas.filter(function(g){ return g.id !== m.id; }); save(); renderMemory(); });
+      row.appendChild(t); row.appendChild(x); box.appendChild(row);
+    });
+    var add = document.createElement('div');
+    add.className = 'jd-row'; add.style.cssText = 'gap:6px;margin:6px 0 12px;flex-wrap:wrap;';
+    add.innerHTML = '<input class="jd-input" id="jd-meta-text" placeholder="Nueva meta..." style="flex:2;min-width:140px;"><select class="jd-input" id="jd-meta-area" style="flex:1;min-width:90px;">' + areaOptionsHtml('', 'Sin área') + '</select><input class="jd-input" id="jd-meta-date" type="date" style="width:132px;"><button class="jd-btn jd-btn-lima" id="jd-meta-add">+</button>';
+    box.appendChild(add);
+    add.querySelector('#jd-meta-add').addEventListener('click', function(){
+      var v = add.querySelector('#jd-meta-text').value.trim();
+      if(v) addMetas({text: v, area: add.querySelector('#jd-meta-area').value, date: add.querySelector('#jd-meta-date').value});
+    });
+    add.querySelector('#jd-meta-text').addEventListener('keydown', function(ev){ if(ev.key === 'Enter'){ ev.preventDefault(); add.querySelector('#jd-meta-add').click(); } });
+  }
+
+  // Solo cuentan los dias reales (desde datosRealesDesde): antes de esa fecha los habitos son una reconstruccion.
+  function habitAnalysis(){
+    var from = data.datosRealesDesde || '2026-10-15';
+    var days = [];
+    for(var i = 1; i <= 60; i++){ var ds = dateStrOffset(i); if(ds < from) break; days.push(ds); }
+    var head = 'ANALISIS DE HABITOS (solo dias reales desde ' + from + '; antes de esa fecha los registros son reconstruidos y NO sirven para analizar):';
+    if(days.length < 3) return head + ' todavia hay muy pocos dias reales (' + days.length + ') para sacar conclusiones; dilo y sigue registrando.';
+    var wdNames = ['domingo','lunes','martes','miercoles','jueves','viernes','sabado'];
+    var out = [head + ' ' + days.length + ' dias.'];
+    var perfectDays = 0;
+    days.forEach(function(ds){
+      var wd = new Date(ds + 'T00:00:00').getDay(), mwf = (wd === 1 || wd === 3 || wd === 5);
+      var app = data.habits.filter(function(h){ return h.daily || mwf; });
+      if(app.length && app.every(function(h){ return data.habitChecks[ds] && data.habitChecks[ds][h.id]; })) perfectDays++;
+    });
+    out.push('Dias con TODOS los habitos hechos: ' + perfectDays + '/' + days.length + '.');
+    data.habits.forEach(function(h){
+      var app = days.filter(function(ds){ var wd = new Date(ds + 'T00:00:00').getDay(); return h.daily || wd === 1 || wd === 3 || wd === 5; });
+      if(!app.length) return;
+      var done = app.filter(function(ds){ return data.habitChecks[ds] && data.habitChecks[ds][h.id]; });
+      var byWd = {};
+      app.forEach(function(ds){ var wd = new Date(ds + 'T00:00:00').getDay(); var b = byWd[wd] || (byWd[wd] = {t:0, d:0}); b.t++; if(data.habitChecks[ds] && data.habitChecks[ds][h.id]) b.d++; });
+      var weak = null;
+      Object.keys(byWd).forEach(function(w){ var b = byWd[w]; if(b.t >= 2 && (weak === null || b.d / b.t < byWd[weak].d / byWd[weak].t)) weak = w; });
+      var mins = [];
+      days.forEach(function(ds){ var e = data.habitChecks[ds] && data.habitChecks[ds][h.id]; var m = e && !e.est && /^(\d{1,2}):(\d{2})/.exec(e.time || ''); if(m) mins.push(parseInt(m[1], 10) * 60 + parseInt(m[2], 10)); });
+      var avg = mins.length ? Math.round(mins.reduce(function(s, v){ return s + v; }, 0) / mins.length) : null;
+      var line = '- ' + h.text + ': ' + done.length + '/' + app.length + ' (' + Math.round(done.length / app.length * 100) + '%)';
+      if(weak !== null && byWd[weak].d < byWd[weak].t) line += ', dia mas flojo: ' + wdNames[weak] + ' (' + byWd[weak].d + '/' + byWd[weak].t + ')';
+      if(avg !== null) line += ', hora tipica ' + String(Math.floor(avg / 60)).padStart(2, '0') + ':' + String(avg % 60).padStart(2, '0');
+      out.push(line);
+    });
+    return out.join('\n');
+  }
+
+  var COACH_MODES = {
+    plan: {label:'Plan de hoy', user:'Arma mi plan de hoy.', extra:
+      'MODO PLAN DEL DIA: arma el plan de HOY de Jany. Responde con status="respond". Formato: una linea de enfoque del dia conectada a SUS METAS; luego maximo 6 bloques en orden, cada uno "hora · accion concreta · para que meta o area sirve". Respeta los eventos con hora de la agenda; para lo demas propone horas realistas desde la hora actual. Incluye los habitos que le faltan hoy, primero los pendientes URGENTES y un paso de avance del proyecto que mas empuja sus metas. Cierra con "Si solo haces una cosa hoy: ...". Maximo 14 lineas, tono coach calido y directo. No inventes datos. Si no hay metas registradas, pidele en una linea sus 2 o 3 metas principales (y arma el plan igual con lo que hay).'},
+    cierre: {label:'Cierre del día', user:'Ayúdame a cerrar mi día.', extra:
+      'MODO CIERRE DEL DIA: ayuda a Jany a cerrar su dia con la radiografia: que si hizo hoy (habitos, historial) y que quedo pendiente; reconoce UN logro concreto, nombra UNA cosa a mejorar basada en datos, y propone lo primero de manana (maximo 3 cosas) indicando si algo debe pasar a manana. Maximo 10 lineas. Si casi no marco nada, no la regañes: pregunta con calidez que paso. Guarda en "remember" un aprendizaje util si lo hay.'},
+    semana: {label:'Revisión de la semana', user:'Revisa cómo voy esta semana.', extra:
+      'MODO REVISION SEMANAL: usa el ANALISIS DE HABITOS, las METAS y el avance de areas y proyectos: (1) como va cada area, (2) el habito que mejor va y el que mas se descuida, con numeros y su dia flojo, (3) maximo 3 ajustes concretos para la proxima semana, (4) una pregunta corta de reflexion. Maximo 14 lineas.'}
+  };
+
+  function renderCoach(){
+    var out = document.getElementById('jd-coach-out');
+    if(!out) return;
+    var last = data.coach && data.coach.last;
+    var plan = data.coach && data.coach.plan;
+    if(!last){
+      out.innerHTML = '<span class="jd-sub">Tu coach arma tu día con tus metas, tu agenda y tus hábitos. Toca ☀️ para empezar.</span>';
+      return;
+    }
+    var when = last.date === todayKey ? 'hoy ' + last.time : last.date;
+    out.innerHTML = '';
+    var h = document.createElement('div');
+    h.className = 'jd-sub'; h.style.cssText = 'font-weight:600;color:#5B5784;margin-bottom:4px;';
+    h.textContent = COACH_MODES[last.mode].label + ' · ' + when;
+    var t = document.createElement('div');
+    t.style.cssText = 'white-space:pre-wrap;font-size:13px;line-height:1.5;color:#1F1B3D;';
+    t.textContent = last.text;
+    out.appendChild(h); out.appendChild(t);
+    if(plan && plan.date !== todayKey && last.mode !== 'plan'){
+      var n = document.createElement('div');
+      n.className = 'jd-sub'; n.style.marginTop = '6px'; n.textContent = 'Aún no armas tu plan de hoy.';
+      out.appendChild(n);
+    }
+  }
+
+  async function runCoach(mode){
+    var cfg = COACH_MODES[mode], out = document.getElementById('jd-coach-out');
+    var btns = document.querySelectorAll('#jd-coach button[data-coach]');
+    btns.forEach(function(b){ b.disabled = true; });
+    out.innerHTML = '<span class="jd-sub">Pensando tu ' + cfg.label.toLowerCase() + '…</span>';
+    var result = await askAssistant([{role:'user', text:cfg.user}], {advisor:true, extraSystem:'\n\n=== MODO ===\n' + cfg.extra + '\n'});
+    btns.forEach(function(b){ b.disabled = false; });
+    if(!result){
+      out.innerHTML = '<span class="jd-sub">No pude conectarme' + (lastAssistantError ? ' (' + lastAssistantError + ')' : '') + '. Intenta de nuevo en un momento.</span>';
+      return;
+    }
+    if(result.remember) addMemoryNotes(result.remember);
+    if(result.meta) addMetas(result.meta);
+    var text = result.reply || result.question || '';
+    if(!text){ out.innerHTML = '<span class="jd-sub">No pude armar eso ahora. Intenta de nuevo.</span>'; return; }
+    if(!data.coach) data.coach = {};
+    data.coach.last = {mode:mode, date:todayKey, time:time24(), text:text};
+    if(mode === 'plan') data.coach.plan = {date:todayKey, text:text};
+    rememberTurn('assistant', cfg.label + ': ' + text);
+    save(); renderCoach();
+  }
+
+  document.querySelectorAll('#jd-coach button[data-coach]').forEach(function(b){
+    b.addEventListener('click', function(){ runCoach(b.dataset.coach); });
+  });
+
+  // Respaldo en la nube: hasta 3 copias por dia (manana, tarde, noche) que nunca se sobrescriben.
+  async function ensureCloudBackup(){
+    try{
+      var s = await supabaseClient.auth.getSession();
+      var uid = s.data.session && s.data.session.user.id;
+      if(!uid || !data) return;
+      var hr = new Date().getHours(), slot = hr < 12 ? 0 : (hr < 18 ? 1 : 2), stamp = todayKey + '#' + slot;
+      if(localStorage.getItem('jany-backup-last') === stamp) return;
+      var res = await supabaseClient.from('dashboard_backups').upsert({user_id: uid, day: todayKey, slot: slot, data: data}, {onConflict:'user_id,day,slot', ignoreDuplicates:true});
+      if(res.error){ console.error('backup error', res.error.message); return; }
+      localStorage.setItem('jany-backup-last', stamp);
+    }catch(e){ console.error('backup error', e); }
+  }
+  setInterval(function(){ if(data) ensureCloudBackup(); }, 30 * 60 * 1000);
+
+  async function askAssistant(history, opts){
     var projectNames = data.products.map(function(p){ return p.name; }).join(', ');
     var today = new Date();
     var todayISO = localISO(today);
@@ -3693,7 +3885,8 @@
       'Si pide ACTUALIZAR o ajustar el saldo de una cuenta o tarjeta ("actualiza mi cuenta", "mi saldo de X es Y", "ahora debo Y en X", "quedo en Y") o adjunta una captura que solo muestra el saldo o total actual: usa type="actualizar_cuenta" con "account" (nombre EXACTO de la lista de Cuentas) y "amount" = el NUEVO saldo total de deuda de esa cuenta (numero positivo). Si no dijo cual cuenta o cual es el nuevo saldo, pregunta. Si en cambio trae una lista de movimientos, usa type="movimientos".';
     systemPrompt += buildAdvisorPrompt() + '\nTodas las formas JSON aceptan ademas el campo opcional "remember" (nota corta o lista de notas para tu memoria).\n';
     var hasImage = history.some(function(m){ return m.image; });
-    var advisorMode = !!(pendingConversation && pendingConversation.advisor) && !hasImage;
+    var advisorMode = !!((opts && opts.advisor) || (pendingConversation && pendingConversation.advisor)) && !hasImage;
+    if(opts && opts.extraSystem) systemPrompt += opts.extraSystem;
     var messages = history.map(function(m){
       if(m.image){
         return {role: m.role, content: [
@@ -3912,6 +4105,7 @@
     btn.disabled = false;
 
     if(result && result.remember) addMemoryNotes(result.remember);
+    if(result && result.meta) addMetas(result.meta);
     if(!result){
       var failMsg = 'No pude conectarme'+(lastAssistantError ? ' ('+lastAssistantError+')' : '')+'. Intenta de nuevo en un momento.';
       pendingConversation.history.push({role:'assistant', text: failMsg});
