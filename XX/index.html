@@ -405,12 +405,13 @@
       <div class="jd-row" style="gap:10px;">
         <div class="jd-ico">✨</div>
         <div>
-          <div class="jd-h" style="margin:0;">Tu asistente</div>
-          <div class="jd-sub" style="font-size:10.5px;">Agrega tareas, eventos o gastos, o sube un estado de cuenta</div>
+          <div class="jd-h" style="margin:0;">Tu asesora</div>
+          <div class="jd-sub" style="font-size:10.5px;">Te aconseja, agrega y edita, y recuerda tus conversaciones</div>
         </div>
       </div>
-      <button id="jd-chat-close" class="jd-btn" style="padding:3px 10px;" aria-label="Cerrar">✕</button>
+      <div class="jd-row" style="gap:6px;"><button id="jd-memory-btn" class="jd-btn" style="padding:3px 10px;" aria-label="Memoria">🧠 <span id="jd-memory-count">0</span></button><button id="jd-chat-close" class="jd-btn" style="padding:3px 10px;" aria-label="Cerrar">✕</button></div>
     </div>
+    <div id="jd-memory-panel" style="display:none;background:#F8F6FF;border:1px solid #ECE8F8;border-radius:14px;padding:10px;margin-bottom:10px;max-height:260px;overflow-y:auto;"></div>
     <div id="jd-chatlog-wrap" style="display:none;padding:0 0 10px;">
       <div style="background:#F8F6FF;border:1px solid #ECE8F8;border-radius:14px;padding:10px;">
         <div class="jd-row" style="justify-content:space-between;margin-bottom:6px;">
@@ -421,7 +422,7 @@
       </div>
     </div>
     <div class="jd-row jd-inputbar">
-      <input class="jd-input" id="jd-note" placeholder="Escribe lo que necesitas..." style="background:transparent;border:none;padding:8px 6px;">
+      <input class="jd-input" id="jd-note" placeholder="Pregúntame o dime qué agregar..." style="background:transparent;border:none;padding:8px 6px;">
       <input type="file" accept="image/*,application/pdf" id="jd-note-image-input" style="display:none;">
       <button id="jd-note-image-btn" type="button" aria-label="Adjuntar foto o PDF" class="jd-circbtn">📷</button>
       <button id="jd-mic-btn" type="button" aria-label="Dictar por voz" class="jd-circbtn">🎤</button>
@@ -757,6 +758,8 @@
     saveLocalOnly();
     if(cloud.status === 'ok') queueCloudSync();
     if(!data.chatLog) data.chatLog = [];
+    if(!data.memoria) data.memoria = [];
+    if(!data.chatMemory) data.chatMemory = [];
     if(!data.history) data.history = [];
     if(!data.tokenUsage) data.tokenUsage = {inputTokens:0, outputTokens:0};
     if(!data.finMovements) data.finMovements = [];
@@ -858,7 +861,7 @@
   function renderAll(){
     renderClock(); renderPhrase(); renderDebt(); renderFinance(); renderProgressMini();
     renderHabits(); renderTasks(); renderAgenda(); renderBalance(); renderProducts(); renderHistory(); renderCalendar(); renderWeekGrid();
-    renderTokenUsage(); renderFinCalendar(); renderSubscriptions();
+    renderTokenUsage(); renderFinCalendar(); renderSubscriptions(); renderMemory();
     renderSummary(); renderFinanceSummary(); renderTools();
   }
 
@@ -3487,13 +3490,153 @@
     return null;
   }
 
+  // ---- Asesora: memoria entre conversaciones y radiografia del dashboard ----
+  function memText(t, n){ return String(t || '').replace(/\s+/g, ' ').trim().slice(0, n); }
+
+  function rememberTurn(role, text){
+    if(!text) return;
+    if(!data.chatMemory) data.chatMemory = [];
+    data.chatMemory.push({role:role, text:memText(text, 600), date:todayKey, time:time24(), conv:(pendingConversation && pendingConversation.id) || null});
+    if(data.chatMemory.length > 40) data.chatMemory.splice(0, data.chatMemory.length - 40);
+    save(); renderMemory();
+  }
+
+  function addMemoryNotes(rem){
+    var list = Array.isArray(rem) ? rem : (rem ? [rem] : []);
+    if(!list.length) return;
+    if(!data.memoria) data.memoria = [];
+    list.forEach(function(n){
+      var t = memText(n, 240);
+      if(!t) return;
+      if(data.memoria.some(function(x){ return x.text.toLowerCase() === t.toLowerCase(); })) return;
+      data.memoria.push({id:uid('m'), text:t, date:todayKey});
+    });
+    if(data.memoria.length > 40) data.memoria.splice(0, data.memoria.length - 40);
+    save(); renderMemory();
+  }
+
+  function renderMemory(){
+    var cnt = document.getElementById('jd-memory-count');
+    if(cnt) cnt.textContent = (data.memoria || []).length;
+    var box = document.getElementById('jd-memory-panel');
+    if(!box || box.style.display === 'none') return;
+    box.innerHTML = '';
+    var h = document.createElement('div');
+    h.className = 'jd-sub'; h.style.cssText = 'font-weight:600;color:#5B5784;margin-bottom:6px;';
+    h.textContent = 'Lo que recuerdo de ti';
+    box.appendChild(h);
+    var notes = data.memoria || [];
+    if(!notes.length){
+      var e = document.createElement('div');
+      e.className = 'jd-sub'; e.style.marginBottom = '6px';
+      e.textContent = 'Todavía nada. Dime “recuerda que…” o cuéntame tus metas y yo las voy guardando.';
+      box.appendChild(e);
+    }
+    notes.forEach(function(n){
+      var row = document.createElement('div');
+      row.className = 'jd-row'; row.style.cssText = 'gap:6px;margin-bottom:4px;align-items:flex-start;';
+      var t = document.createElement('span');
+      t.style.cssText = 'flex:1;font-size:12px;color:#2F2A55;line-height:1.4;';
+      t.textContent = '• ' + n.text;
+      var x = document.createElement('button');
+      x.className = 'jd-btn'; x.textContent = '×'; x.style.padding = '0 7px';
+      x.addEventListener('click', function(){
+        data.memoria = data.memoria.filter(function(m){ return m.id !== n.id; });
+        save(); renderMemory();
+      });
+      row.appendChild(t); row.appendChild(x); box.appendChild(row);
+    });
+    var add = document.createElement('div');
+    add.className = 'jd-row'; add.style.cssText = 'gap:6px;margin-top:6px;';
+    var inp = document.createElement('input');
+    inp.className = 'jd-input'; inp.placeholder = 'Agregar algo que quiero que recuerdes...'; inp.style.flex = '1';
+    var btn = document.createElement('button');
+    btn.className = 'jd-btn jd-btn-lima'; btn.textContent = '+';
+    function addNote(){ var v = inp.value.trim(); if(v){ addMemoryNotes(v); } }
+    btn.addEventListener('click', addNote);
+    inp.addEventListener('keydown', function(ev){ if(ev.key === 'Enter'){ ev.preventDefault(); addNote(); } });
+    add.appendChild(inp); add.appendChild(btn); box.appendChild(add);
+    var turns = (data.chatMemory || []).length;
+    if(turns){
+      var clr = document.createElement('button');
+      clr.style.cssText = 'background:transparent;border:none;color:#8A86A8;font-size:11px;cursor:pointer;text-decoration:underline;padding:0;margin-top:8px;';
+      clr.textContent = 'Olvidar las conversaciones recientes (' + turns + ' mensajes)';
+      clr.addEventListener('click', function(){ data.chatMemory = []; save(); renderMemory(); });
+      box.appendChild(clr);
+    }
+  }
+
+  document.getElementById('jd-memory-btn').addEventListener('click', function(){
+    var box = document.getElementById('jd-memory-panel');
+    box.style.display = box.style.display === 'none' ? 'block' : 'none';
+    renderMemory();
+  });
+
+  // Preguntas y peticiones de consejo van con el modelo mas capaz; capturar tareas rapidas sigue siendo barato.
+  function looksAdvice(text){
+    var t = plainText(text);
+    return /\?|prioriz|prioridad|consejo|aconsej|asesor|recomiend|recomend|que hago|por donde|como voy|como vamos|analiza|revisa|evalua|estrategia|que me conviene|en que enfoc|ayudame a decidir|que sigue|que opinas/.test(t);
+  }
+
+  function buildSnapshot(){
+    var L = [];
+    var daysActive = Math.floor((new Date(todayKey) - new Date(data.startDate)) / 86400000) + 1;
+    L.push('Dias usando el dashboard: ' + daysActive + ' (desde ' + data.startDate + ').');
+    var areaName = function(id){ var a = data.areas.find(function(x){ return x.id === id; }); return a ? a.name : null; };
+    var wd = new Date().getDay(), mwf = (wd === 1 || wd === 3 || wd === 5);
+    L.push('HABITOS (checklist mananero, hoy ' + (data.habits.filter(function(h){ return (h.daily || mwf) && data.habitChecks[todayKey] && data.habitChecks[todayKey][h.id]; }).length) + '/' + data.habits.filter(function(h){ return h.daily || mwf; }).length + '):');
+    data.habits.forEach(function(h){
+      var last7 = 0;
+      for(var i = 1; i <= 7; i++){ var ds = dateStrOffset(i); if(data.habitChecks[ds] && data.habitChecks[ds][h.id]) last7++; }
+      var done = data.habitChecks[todayKey] && data.habitChecks[todayKey][h.id];
+      L.push('- ' + h.text + (areaName(h.area) ? ' [' + areaName(h.area) + ']' : '') + ': racha ' + getHabitStreak(h.id) + ', ' + last7 + '/7 ultimos dias, ' + (done ? 'hecho hoy' : 'pendiente hoy'));
+    });
+    L.push('AREAS DE VIDA (avance de pendientes hechos/total): ' + data.areas.map(function(a){ var s = data.areaStats[a.id] || {done:0, total:0}; return a.name + ' ' + s.done + '/' + s.total; }).join(' · '));
+    var urg = {rojo:'URGENTE', amarillo:'normal', verde:'puede esperar'};
+    L.push('PENDIENTES Y AGENDA (' + data.agenda.length + '):');
+    data.agenda.slice(0, 25).forEach(function(a){
+      L.push('- ' + a.id + ': "' + a.text + '"' + (a.color ? ' [' + (urg[a.color] || a.color) + ']' : '') + (a.project ? ' [proyecto ' + a.project + ']' : '') + (areaName(a.area) ? ' [' + areaName(a.area) + ']' : '') +
+        (a.startDate ? ' (' + a.startDate + (a.endDate && a.endDate !== a.startDate ? ' a ' + a.endDate : '') + (a.time ? ' ' + a.time : '') + ')' : ''));
+    });
+    L.push('PROYECTOS/NEGOCIOS:');
+    data.products.forEach(function(p){
+      var pend = p.tasks.filter(function(t){ return !t.done; }), hechas = p.tasks.length - pend.length;
+      L.push('- ' + p.name + ': ' + pend.length + ' pendientes, ' + hechas + ' hechas' + (pend.length ? ' — por hacer: ' + pend.slice(0, 6).map(function(t){ return t.text; }).join('; ') : ''));
+    });
+    try{
+      var g = debtGoalInfo(), monthKey = todayKey.slice(0, 7);
+      var spent = data.finMovements.filter(function(m){ return m.type === 'compra' && String(m.date).slice(0, 7) === monthKey; }).reduce(function(s, m){ return s + Number(m.amount); }, 0);
+      L.push('FINANZAS: deuda total ' + fmt(g.total) + (g.total > 0 ? '; meta liquidar el ' + g.target + ' (' + g.daysLeft + ' dias): aporte diario sugerido ' + fmt(g.dailyGoal) + ', pagado hoy ' + fmt(g.paidToday) : '') + '; gastos de este mes ' + fmt(spent) + '.');
+      if(data.subscriptions.length) L.push('Suscripciones: ' + data.subscriptions.map(function(s){ return s.name + ' ' + fmt(s.amount) + (s.billingDay ? ' (dia ' + s.billingDay + ')' : ''); }).join('; ') + '.');
+    }catch(e){}
+    if(data.history.length) L.push('LO ULTIMO QUE HIZO: ' + data.history.slice(0, 8).map(function(h){ return h.dateISO + ' ' + h.project + ': ' + h.text + (h.minutes ? ' (' + h.minutes + ' min)' : ''); }).join(' | '));
+    return L.join('\n');
+  }
+
+  function buildAdvisorPrompt(){
+    var memoria = (data.memoria || []).map(function(n){ return '- ' + n.text + ' (' + n.date + ')'; }).join('\n');
+    var curConv = pendingConversation && pendingConversation.id;
+    var previas = (data.chatMemory || []).filter(function(m){ return m.conv !== curConv; }).slice(-14).map(function(m){
+      return '[' + m.date + ' ' + m.time + '] ' + (m.role === 'user' ? 'Jany' : 'Tu') + ': ' + memText(m.text, 320);
+    }).join('\n');
+    return '\n\n=== TU ROL COMO ASESORA PERSONAL ===\n' +
+      'Ademas de agregar y corregir cosas, eres la asesora personal de Jany: cercana, directa y calida, la tuteas, en espanol de Mexico. Conoces sus areas (Espiritu, Cuerpo, Mente, Trabajo, Familia, Disfrute), sus habitos, sus proyectos/negocios, su agenda y sus finanzas (radiografia abajo) y recuerdas lo que hablaron antes (memoria abajo). ' +
+      'Cuando pida consejo, priorizar, revisar como va, o decidir que hacer: usa status="respond" con una respuesta de maximo ~12 lineas que tenga (1) un diagnostico corto basado en SUS datos reales (cita numeros, rachas, pendientes urgentes o vencidos, areas descuidadas); (2) maximo 3 prioridades en orden, cada una con el por que y el siguiente paso concreto; (3) si algo conviene cambiar en el dashboard, dile exactamente donde (por ejemplo: "Retos del dia y agenda: toca el texto para editarlo", "Proyectos: toca el nombre del proyecto", "Avances a mis metas: editar", "pestana Finanzas") y ofrece hacerlo tu ("¿lo muevo / lo marco / lo agrego?"). ' +
+      'No inventes datos que no esten en la radiografia ni en la memoria; si te falta contexto, haz UNA sola pregunta. Se honesta con tacto: si algo no va bien, dilo. Dentro del texto de "reply" usa \\n para los saltos de linea (el JSON debe ser valido).\n' +
+      'Puedes EDITAR el dashboard cuando ella lo pida o acepte tu propuesta: type="editar" tambien cambia "area" (id de area: espiritualidad, ejercicio, mente, trabajo, familia, disfrute u otro de la radiografia) y "color" (rojo=urgente, amarillo=normal, verde=puede esperar) de un pendiente; type="completar" con "editId" marca un pendiente como hecho; type="eliminar" con "editId" borra un pendiente (PIDE confirmacion con status="ask" a menos que ella lo haya pedido de forma explicita); type="proyecto_nuevo" con "project" = nombre crea un proyecto/negocio. Los "editId" son los ids de la lista de PENDIENTES Y AGENDA.\n' +
+      'MEMORIA: cuando Jany cuente algo que convenga recordar para aconsejarla mejor despues (metas, decisiones, prioridades, fechas limite, contexto de un negocio, preferencias, compromisos), agrega en CUALQUIER respuesta el campo opcional "remember" con una nota corta y autocontenida (o una lista de notas), con fecha si aplica. No guardes cosas triviales ni repetidas.\n\n' +
+      '=== RADIOGRAFIA DEL DASHBOARD (hoy ' + todayKey + ') ===\n' + buildSnapshot() + '\n\n' +
+      '=== MEMORIA (lo que Jany te ha pedido recordar) ===\n' + (memoria || 'Todavia no hay notas.') + '\n\n' +
+      '=== CONVERSACIONES ANTERIORES RECIENTES (mas viejo primero) ===\n' + (previas || 'Esta es la primera conversacion.') + '\n';
+  }
+
   async function askAssistant(history){
     var projectNames = data.products.map(function(p){ return p.name; }).join(', ');
     var today = new Date();
     var todayISO = localISO(today);
     var weekday = today.toLocaleDateString('es-MX', {weekday:'long'});
     var agendaList = data.agenda.map(function(a){
-      return a.id+': "'+a.text+'"'+(a.startDate ? ' ('+a.startDate+(a.endDate&&a.endDate!==a.startDate?' a '+a.endDate:'')+(a.time?' '+a.time:'')+(a.durationMinutes?', '+a.durationMinutes+' min':'')+')' : '');
+      return a.id+': "'+a.text+'"'+(a.color ? ' ['+a.color+']' : '')+(a.project ? ' [proyecto '+a.project+']' : '')+(a.startDate ? ' ('+a.startDate+(a.endDate&&a.endDate!==a.startDate?' a '+a.endDate:'')+(a.time?' '+a.time:'')+(a.durationMinutes?', '+a.durationMinutes+' min':'')+')' : '');
     }).join('; ');
     var movementsList = data.movements.slice(0,15).map(function(m){
       return m.id+': "'+m.text+'" ('+m.date+')'+(m.amount!==null&&m.amount!==undefined ? ' '+(m.amount<0?'-':'+')+fmt(Math.abs(m.amount)) : '');
@@ -3517,7 +3660,7 @@
       'Responde SIEMPRE con UN SOLO objeto JSON valido (nunca varios seguidos, nunca uno por cada cosa que menciono), sin texto extra ni markdown, en una de estas tres formas:\n'+
       '{"status":"ask","question":"..."}\n'+
       '{"status":"respond","reply":"..."}\n'+
-      '{"status":"done","action":{"type":"evento|editar|historial|movimiento|movimientos|actualizar_cuenta|eliminar_movimiento|reto|habito|proyecto","editId":"id EXACTO de la lista de Agenda o null","movementId":"id EXACTO de la lista de Movimientos o null","text":"...","date":"YYYY-MM-DD","endDate":"YYYY-MM-DD o null","time":"HH:MM 24h o null","durationMinutes":numero o null,"project":"nombre EXACTO de la lista o null","amount":numero o null,"finType":"compra|ingreso|pago_deuda|ahorro_corto|ahorro_largo","paymentType":"unico|plazos","account":"nombre EXACTO de la lista de Cuentas o null","items":[{"text":"concepto","amount":numero,"finType":"compra|ingreso|pago_deuda","date":"YYYY-MM-DD"}]}}\n\n'+
+      '{"status":"done","action":{"type":"evento|editar|historial|movimiento|movimientos|actualizar_cuenta|eliminar_movimiento|reto|habito|proyecto|completar|eliminar|proyecto_nuevo","area":"id de area o null","color":"rojo|amarillo|verde o null","editId":"id EXACTO de la lista de Agenda o null","movementId":"id EXACTO de la lista de Movimientos o null","text":"...","date":"YYYY-MM-DD","endDate":"YYYY-MM-DD o null","time":"HH:MM 24h o null","durationMinutes":numero o null,"project":"nombre EXACTO de la lista o null","amount":numero o null,"finType":"compra|ingreso|pago_deuda|ahorro_corto|ahorro_largo","paymentType":"unico|plazos","account":"nombre EXACTO de la lista de Cuentas o null","items":[{"text":"concepto","amount":numero,"finType":"compra|ingreso|pago_deuda","date":"YYYY-MM-DD"}]}}\n\n'+
       'Reglas: si el mensaje es una pregunta, pide consejo, o quiere ayuda para organizar/priorizar sus proyectos y pendientes '+
       '(sin ser claramente algo para agregar a una lista), usa status="respond" con una respuesta util, especifica a su situacion real, y breve (maximo 5 lineas). '+
       'Si el mensaje describe algo que YA HIZO (tiempo pasado: "trabajé en", "agregué", "terminé", "estuve haciendo"), usa type="historial" '+
@@ -3548,6 +3691,9 @@
       '(2) Lee cada movimiento (fecha, concepto, monto) sin inventar ninguno: cargos o compras = finType "compra"; pagos o abonos a la tarjeta = "pago_deuda"; depositos o ingresos = "ingreso"; el monto siempre positivo; si la fecha no trae anio usa el anio de hoy. '+
       '(3) Si algun concepto es ambiguo (no sabes si es cargo, pago o ingreso, o que es), pregunta UNA cosa breve antes de registrar; si todo es claro responde status="done" con type="movimientos", "account" e "items" (un item por movimiento). No uses type="movimiento" (singular) para estados de cuenta. '+
       'Si pide ACTUALIZAR o ajustar el saldo de una cuenta o tarjeta ("actualiza mi cuenta", "mi saldo de X es Y", "ahora debo Y en X", "quedo en Y") o adjunta una captura que solo muestra el saldo o total actual: usa type="actualizar_cuenta" con "account" (nombre EXACTO de la lista de Cuentas) y "amount" = el NUEVO saldo total de deuda de esa cuenta (numero positivo). Si no dijo cual cuenta o cual es el nuevo saldo, pregunta. Si en cambio trae una lista de movimientos, usa type="movimientos".';
+    systemPrompt += buildAdvisorPrompt() + '\nTodas las formas JSON aceptan ademas el campo opcional "remember" (nota corta o lista de notas para tu memoria).\n';
+    var hasImage = history.some(function(m){ return m.image; });
+    var advisorMode = !!(pendingConversation && pendingConversation.advisor) && !hasImage;
     var messages = history.map(function(m){
       if(m.image){
         return {role: m.role, content: [
@@ -3567,8 +3713,8 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            model: 'claude-haiku-4-5-20251001',
-            max_tokens: history.some(function(m){ return m.image; }) ? 3000 : 700,
+            model: advisorMode ? 'claude-sonnet-5-5' : 'claude-haiku-4-5-20251001',
+            max_tokens: hasImage ? 3000 : (advisorMode ? 1600 : 700),
             system: systemPrompt,
             messages: messages
           })
@@ -3595,8 +3741,11 @@
         var clean = textBlocks.replace(/```json|```/g, '').trim();
         var firstJson = extractFirstJson(clean);
         try{
-          return JSON.parse(firstJson || clean);
+          var rawJson = firstJson || clean;
+          try{ return JSON.parse(rawJson); }
+          catch(e1){ return JSON.parse(rawJson.replace(/[\u0000-\u001f]/g, function(c){ return c === '\n' ? '\\n' : (c === '\t' ? '\\t' : ' '); })); }
         }catch(parseErr){
+          if(advisorMode && clean && clean.indexOf('{') === -1) return {status:'respond', reply: clean};
           lastAssistantError = 'respuesta invalida de la IA';
           console.error('askAssistant parse error:', parseErr, textBlocks);
           if(attempt < maxAttempts){
@@ -3620,6 +3769,22 @@
 
   function executeAssistantActionRaw(action){
     if(!action) return;
+    if(action.type === 'completar'){
+      var doneItem = data.agenda.find(function(x){ return x.id === action.editId; });
+      if(!doneItem) return 'No encontré ese pendiente, no cambié nada.';
+      completeAgendaItem(doneItem);
+      return 'Marqué como hecho: "' + doneItem.text + '" ✓';
+    }
+    if(action.type === 'eliminar'){
+      var delItem = data.agenda.find(function(x){ return x.id === action.editId; });
+      if(!delItem) return 'No encontré ese pendiente, no borré nada.';
+      data.agenda = data.agenda.filter(function(x){ return x.id !== delItem.id; });
+      save(); renderAgenda(); renderCalendar(); renderBalance();
+      return 'Quité "' + delItem.text + '" de tu lista ✓';
+    }
+    if(action.type === 'proyecto_nuevo'){
+      return createProject(action.project) ? 'Creé el proyecto "' + String(action.project).trim() + '" ✓' : 'No pude crear ese proyecto (¿ya existe o no tiene nombre?).';
+    }
     if(action.type === 'editar' && action.editId){
       var existing = data.agenda.find(function(x){ return x.id === action.editId; });
       if(existing){
@@ -3629,7 +3794,9 @@
         if(action.time) existing.time = action.time;
         if(typeof action.durationMinutes === 'number') existing.durationMinutes = action.durationMinutes;
         if(action.project && data.products.some(function(p){ return p.name === action.project; })) existing.project = action.project;
-        resyncAgendaItem(existing);
+        if(action.area && data.areas.some(function(a){ return a.id === action.area; })) setItemArea(existing, action.area, false);
+        if(['verde','amarillo','rojo'].indexOf(action.color) > -1) existing.color = action.color;
+        resyncAgendaItem(existing); renderBalance();
         return;
       }
       // no matching id: cae al flujo de creacion normal como evento nuevo
@@ -3744,6 +3911,7 @@
     btn.textContent = originalLabel;
     btn.disabled = false;
 
+    if(result && result.remember) addMemoryNotes(result.remember);
     if(!result){
       var failMsg = 'No pude conectarme'+(lastAssistantError ? ' ('+lastAssistantError+')' : '')+'. Intenta de nuevo en un momento.';
       pendingConversation.history.push({role:'assistant', text: failMsg});
@@ -3752,11 +3920,13 @@
     }
     if(result.status === 'ask' && result.question){
       pendingConversation.history.push({role:'assistant', text: result.question});
+      rememberTurn('assistant', result.question);
       renderChatLog();
       return;
     }
     if(result.status === 'respond' && result.reply){
       pendingConversation.history.push({role:'assistant', text: result.reply});
+      rememberTurn('assistant', result.reply);
       renderChatLog();
       return;
     }
@@ -3769,6 +3939,7 @@
       }
       var doneMsg = executeAssistantAction(act);
       pendingConversation.history.push({role:'assistant', text: doneMsg});
+      rememberTurn('assistant', doneMsg);
       pendingConversation.finished = true;
       renderChatLog();
     }
@@ -3800,13 +3971,15 @@
     if(pendingConversation && pendingConversation.finished) pendingConversation = null;
     if(pendingConversation){
       pendingConversation.history.push({role:'user', text: text || 'Foto adjunta', image: image});
+      if(looksAdvice(text)) pendingConversation.advisor = true;
+      rememberTurn('user', text || 'Foto adjunta');
       renderChatLog();
       await continueConversation();
       return;
     }
 
     var mentionsProject = data.products.some(function(p){ return text.toLowerCase().indexOf(p.name.toLowerCase()) > -1; });
-    if(!image && !mentionsProject && !looksFinancial(text)){
+    if(!image && !mentionsProject && !looksFinancial(text) && !looksAdvice(text)){
       var handled = tryMarkDone(text) || tryScheduleAgenda(text) || tryFutureAgenda(text) || tryCreateProject(text) || tryAddToProject(text);
       if(handled){
         var original = input.placeholder;
@@ -3816,7 +3989,8 @@
       }
     }
 
-    pendingConversation = { history: [{role:'user', text: text || 'Foto adjunta', image: image}] };
+    pendingConversation = { id: uid('c'), advisor: looksAdvice(text), history: [{role:'user', text: text || 'Foto adjunta', image: image}] };
+    rememberTurn('user', text || 'Foto adjunta');
     renderChatLog();
     await continueConversation();
   });
