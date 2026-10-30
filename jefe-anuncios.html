@@ -796,11 +796,19 @@ async function guardarEstructura(opts){ try{ await window.storage.set(ESTRUCTURA
 
 let carpetaSaveTimer=null;
 function scheduleCarpetaSave(){ clearTimeout(carpetaSaveTimer); carpetaSaveTimer=setTimeout(guardarCarpeta,600); }
-async function guardarCarpeta(opts){ try{ await window.storage.set(CARPETA_KEY, JSON.stringify(linkCarpeta), opts); }catch(e){} }
+async function guardarCarpeta(opts){ try{ await window.storage.set(CARPETA_KEY, JSON.stringify(linkCarpeta), opts); }catch(e){} if(window.__jnLinksRecargar) window.__jnLinksRecargar(); }
 
 let bmSaveTimer=null;
 function scheduleBMSave(){ clearTimeout(bmSaveTimer); bmSaveTimer=setTimeout(guardarBM,600); }
-async function guardarBM(opts){ try{ await window.storage.set(BM_KEY, JSON.stringify(linkBM), opts); }catch(e){} }
+async function guardarBM(opts){ try{ await window.storage.set(BM_KEY, JSON.stringify(linkBM), opts); }catch(e){} if(window.__jnLinksRecargar) window.__jnLinksRecargar(); }
+
+// Si el link se cambia o se borra desde la barra de la izquierda, las casillas de aquí arriba se actualizan.
+window.addEventListener('jefes-links-cambio', (e)=>{
+  const d = e.detail || {};
+  if(d.k==='carpeta') linkCarpeta = d.valor || '';
+  if(d.k==='bm') linkBM = d.valor || '';
+  pintarIconos();
+});
 
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'){ if(cardsPendingSave) doSaveCards({keepalive:true}); guardarBorrador({keepalive:true}); guardarEstructura({keepalive:true}); guardarCarpeta({keepalive:true}); guardarBM({keepalive:true}); if(agendaSyncPending) syncAgendaEventos({keepalive:true}); } });
 window.addEventListener('pagehide',()=>{ if(cardsPendingSave) doSaveCards({keepalive:true}); guardarBorrador({keepalive:true}); guardarEstructura({keepalive:true}); guardarCarpeta({keepalive:true}); guardarBM({keepalive:true}); if(agendaSyncPending) syncAgendaEventos({keepalive:true}); });
@@ -1302,6 +1310,8 @@ function irAPegarLink(id){
   setTimeout(()=>{ const i = document.querySelector('[data-link-input="'+id+'"]'); if(i) i.focus(); }, 250);
 }
 function pintarLinksBarra(){
+  // La barra compartida (js/jefes-nav.js) ya muestra los links de trabajo en todos los Jefes: no se duplican.
+  if(document.querySelector('nav.jn .jn-links')) return true;
   const redes = document.querySelector('nav.jn .jn-redes');
   if(!redes) return false;
   let box = document.getElementById('jnx-links');
@@ -3018,7 +3028,7 @@ GuiaJefe.registrar({
   pasos:[
     { selector:'#cx-icons', titulo:'Tus dos links de trabajo',
       texto:'Aquí guardas dos links fijos que quedan a la mano: la carpeta de Drive con tu material de trabajo y tu Business Manager (el administrador comercial de Meta). Pega el link y pícale “Listo”: se queda fijo abajo en la barra de la izquierda (“Links de trabajo”) para que lo tengas a la mano en todo momento; ahí mismo puedes cambiarlo con el lápiz. Si no sabes cómo sacarlo, pícale al “?” de cada uno: te explica paso a paso.' },
-    { selector:'#jnx-links', titulo:'Tus links, siempre a la mano',
+    { selector:'nav.jn .jn-links', titulo:'Tus links, siempre a la mano',
       texto:'Aquí abajo a la izquierda quedan tus links de trabajo ya pegados: el círculo sólido abre el link y el punteado te lleva a pegarlo. El lápiz sirve para cambiarlos.' },
     { selector:'.jn-redes', titulo:'Tus redes sociales',
       texto:()=>{

@@ -132,6 +132,11 @@
     '.jn-cm button{display:block;width:100%;text-align:left;padding:9px 10px;border:0;border-radius:8px;background:transparent;color:inherit;font:500 13.5px Inter,system-ui,sans-serif;cursor:pointer}',
     '.jn-cm button:hover{background:rgba(127,127,127,.14)}',
     '.jn-cm .jn-cm-del{color:#EF4444}',
+    // Links de trabajo (carpeta de Drive y Business Manager): mismos círculos que las redes.
+    '.jn-links .jn-red-off{opacity:.38;border-style:dashed}',
+    '.jn-links .jn-red-off:hover{opacity:1}',
+    // En celular, dejar presionado abre el menú (y no el menú del navegador).
+    '.jn-red{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}',
     '.jn-fab,.jn-scrim{display:none}',
     '@media (max-width:720px){',
     ':root{--jn-top:56px}',
@@ -454,6 +459,173 @@
     });
   }
 
+  // ── Dejar presionado (celular) = clic derecho ─────────────────────
+  // Android ya manda "contextmenu" al dejar presionado, pero iPhone no: aquí se simula para que el menú
+  // Copiar / Editar / Borrar salga igual en todos. El clic que viene al soltar se cancela.
+  function presionLarga(cont) {
+    if (!cont) return;
+    var t = null, x = 0, y = 0, objetivo = null, disparado = false;
+    cont.addEventListener('touchstart', function (e) {
+      var el = e.target.closest('.jn-red');
+      if (!el || e.touches.length !== 1) return;
+      objetivo = el; x = e.touches[0].clientX; y = e.touches[0].clientY; disparado = false;
+      clearTimeout(t);
+      t = setTimeout(function () {
+        disparado = true;
+        objetivo.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: x, clientY: y }));
+      }, 550);
+    }, { passive: true });
+    function cancelar() { clearTimeout(t); }
+    cont.addEventListener('touchmove', function (e) {
+      var tt = e.touches[0];
+      if (tt && (Math.abs(tt.clientX - x) > 10 || Math.abs(tt.clientY - y) > 10)) cancelar();
+    }, { passive: true });
+    cont.addEventListener('touchend', cancelar);
+    cont.addEventListener('touchcancel', cancelar);
+    cont.addEventListener('click', function (e) {
+      if (disparado) { e.preventDefault(); e.stopPropagation(); disparado = false; }
+    }, true);
+  }
+
+  // Menú Copiar link / Editar / Borrar (mismo estilo que el de las redes).
+  function abrirMenu(e, titulo, url, onEditar, onBorrar) {
+    var viejo = document.querySelector('.jn-cm');
+    if (viejo) viejo.remove();
+    var menu = document.createElement('div');
+    menu.className = 'jn-cm';
+    menu.setAttribute('role', 'menu');
+    menu.innerHTML = '<div class="jn-cm-t">' + esc(titulo) + '</div>' +
+      '<button type="button" role="menuitem" data-a="copiar">Copiar link</button>' +
+      '<button type="button" role="menuitem" data-a="editar">Editar</button>' +
+      '<button type="button" role="menuitem" data-a="borrar" class="jn-cm-del">Borrar</button>';
+    document.body.appendChild(menu);
+    menu.style.left = Math.max(8, Math.min(e.clientX, window.innerWidth - menu.offsetWidth - 8)) + 'px';
+    menu.style.top = Math.max(8, Math.min(e.clientY, window.innerHeight - menu.offsetHeight - 8)) + 'px';
+    function cerrar() {
+      menu.remove();
+      document.removeEventListener('mousedown', fuera, true);
+      document.removeEventListener('touchstart', fuera, true);
+      document.removeEventListener('keydown', escTecla);
+      window.removeEventListener('scroll', cerrar, true);
+    }
+    function fuera(ev) { if (!menu.contains(ev.target)) cerrar(); }
+    function escTecla(ev) { if (ev.key === 'Escape') cerrar(); }
+    menu.addEventListener('click', function (ev) {
+      var b = ev.target.closest('button[data-a]');
+      if (!b) return;
+      var acc = b.getAttribute('data-a');
+      if (acc === 'copiar') {
+        var listo = function () { b.textContent = 'Copiado ✓'; setTimeout(cerrar, 700); };
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(listo, function () { prompt('Copia el link:', url); cerrar(); });
+        else { prompt('Copia el link:', url); cerrar(); }
+        return;
+      }
+      cerrar();
+      if (acc === 'editar') onEditar();
+      else if (acc === 'borrar') onBorrar();
+    });
+    setTimeout(function () {
+      document.addEventListener('mousedown', fuera, true);
+      document.addEventListener('touchstart', fuera, true);
+    }, 0);
+    document.addEventListener('keydown', escTecla);
+    window.addEventListener('scroll', cerrar, true);
+  }
+
+  // ── Links de trabajo (en todos los Jefes) ──────────────────────────
+  // La carpeta de Drive y el Business Manager. Se guardan en las mismas llaves que usa el Jefe de
+  // Anuncios (<hub>:anuncios-carpeta-link y <hub>:anuncios-bm-link; el valor es el link en JSON), así que
+  // lo que se pegue ahí o aquí es lo mismo. Clic abre el link; clic derecho o dejar presionado: Copiar /
+  // Editar / Borrar; si falta, clic abre la caja para pegarlo.
+  var HUB = tenant || 'jefeshub';
+  var LINKS = [
+    { k: 'carpeta', key: HUB + ':anuncios-carpeta-link', titulo: 'Carpeta de trabajo (Drive)', ph: 'Pega el link de tu carpeta de Drive',
+      ayuda: 'En Google Drive: clic derecho en la carpeta, Compartir, "Cualquier persona con el enlace" y Copiar vínculo.',
+      svg: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>' },
+    { k: 'bm', key: HUB + ':anuncios-bm-link', titulo: 'Business Manager (Meta Ads)', ph: 'Pega el link de tu Business Manager',
+      ayuda: 'Entra a business.facebook.com, abre tu negocio y copia la dirección de la barra del navegador.',
+      svg: '<path d="M6.6 8C4.2 8 2.6 10 2.6 12s1.6 4 4 4c2.2 0 3.6-1.7 5.4-4s3.2-4 5.4-4c2.4 0 4 2 4 4s-1.6 4-4 4c-2.2 0-3.6-1.7-5.4-4S8.8 8 6.6 8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' }
+  ];
+  function hrefDe(v) { v = (v || '').trim(); return !v ? '' : /^https?:\/\//i.test(v) ? v : 'https://' + v; }
+
+  function montarLinks(nav) {
+    var cont = nav.querySelector('.jn-links');
+    if (!cont) return;
+    var valores = {};
+    function pintar() {
+      cont.innerHTML = '<div class="jn-sec">Links de trabajo</div><div class="jn-redes">' + LINKS.map(function (l) {
+        var v = (valores[l.k] || '').trim();
+        var svg = '<svg viewBox="0 0 24 24" aria-hidden="true">' + l.svg + '</svg>';
+        return v
+          ? '<a class="jn-red" data-l="' + l.k + '" href="' + esc(hrefDe(v)) + '" target="_blank" rel="noopener" title="' + esc(l.titulo) + ' (clic derecho para editar)" aria-label="' + esc(l.titulo) + '">' + svg + '</a>'
+          : '<button type="button" class="jn-red jn-red-off" data-l="' + l.k + '" title="Pegar el link: ' + esc(l.titulo) + '" aria-label="Pegar el link: ' + esc(l.titulo) + '">' + svg + '</button>';
+      }).join('') + '</div>';
+    }
+    var intentos = 0;
+    function leer() {
+      // En algunas páginas la barra carga antes que js/storage-client.js: se reintenta un momento después.
+      if (!window.storage || !window.storage.get) {
+        if (intentos++ < 10) setTimeout(leer, 400);
+        return Promise.resolve();
+      }
+      return Promise.all(LINKS.map(function (l) {
+        return window.storage.get(l.key).then(function (r) {
+          var v = r && r.value;
+          if (typeof v === 'string') { try { v = JSON.parse(v); } catch (e) { /* texto plano */ } }
+          valores[l.k] = typeof v === 'string' ? v : '';
+        }).catch(function () {});
+      })).then(pintar);
+    }
+    function guardar(l, v) {
+      valores[l.k] = v;
+      pintar();
+      var p = window.storage && window.storage.set ? window.storage.set(l.key, JSON.stringify(v)) : Promise.reject();
+      return Promise.resolve(p).catch(function () {}).then(function () {
+        window.dispatchEvent(new CustomEvent('jefes-links-cambio', { detail: { k: l.k, valor: v } }));
+      });
+    }
+    function editar(l) {
+      var box = document.createElement('div');
+      box.className = 'jn-rm';
+      box.innerHTML = '<div class="jn-rm-box" role="dialog" aria-modal="true" aria-labelledby="jn-lk-t">' +
+        '<h3 id="jn-lk-t">' + esc(l.titulo) + '</h3><p>' + esc(l.ayuda) + ' Queda guardado y lo tienes a la mano en todos tus Jefes.</p>' +
+        '<div class="jn-rm-f"><div><label for="jn-lk-in">Link</label><input id="jn-lk-in" placeholder="' + esc(l.ph) + '" value="' + esc(valores[l.k] || '') + '" autocomplete="off"></div></div>' +
+        '<div class="jn-rm-act"><button type="button" class="jn-rm-ok">Guardar</button><button type="button" class="jn-rm-x">Cancelar</button></div></div>';
+      document.body.appendChild(box);
+      document.body.classList.remove('jn-open');
+      var input = box.querySelector('input');
+      function cerrar() { box.remove(); }
+      box.addEventListener('click', function (e) { if (e.target === box) cerrar(); });
+      box.querySelector('.jn-rm-x').addEventListener('click', cerrar);
+      box.querySelector('.jn-rm-ok').addEventListener('click', function () { guardar(l, input.value.trim()); cerrar(); });
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { guardar(l, input.value.trim()); cerrar(); }
+        if (e.key === 'Escape') cerrar();
+      });
+      input.focus();
+    }
+    function deEl(el) { var k = el.getAttribute('data-l'); return LINKS.filter(function (x) { return x.k === k; })[0]; }
+    cont.addEventListener('click', function (e) {
+      var b = e.target.closest('.jn-red-off[data-l]');
+      if (b) editar(deEl(b));
+    });
+    cont.addEventListener('contextmenu', function (e) {
+      var el = e.target.closest('.jn-red[data-l]');
+      if (!el) return;
+      e.preventDefault();
+      var l = deEl(el);
+      if (el.classList.contains('jn-red-off')) { editar(l); return; }
+      abrirMenu(e, l.titulo, el.getAttribute('href'), function () { editar(l); }, function () {
+        if (confirm('¿Borrar el link de ' + l.titulo + '?')) guardar(l, '');
+      });
+    });
+    presionLarga(cont);
+    // Si otra parte de la página (ej. las casillas del Jefe de Anuncios) cambia un link, se vuelve a leer.
+    window.__jnLinksRecargar = leer;
+    pintar();
+    leer();
+  }
+
   function montar() {
     if (!document.body) return;
     var st = document.createElement('style');
@@ -482,7 +654,7 @@
     });
     html += '</div>';
     // Redes del negocio y luego Configuracion (ADN) al final de la lista, con un espacio antes.
-    html += '<div class="jn-spacer"></div><div class="jn-redes" aria-label="Mis redes"></div>' +
+    html += '<div class="jn-spacer"></div><div class="jn-links" aria-label="Links de trabajo"></div><div class="jn-redes" aria-label="Mis redes"></div>' +
       '<div class="jn-sep"></div><div class="jn-sec">Configuración</div>' +
       item(prefix + '/adn', '🧬', 'ADN del negocio', false);
     html += '</div><div class="jn-foot"><button type="button" class="jn-toggle" aria-label="Mostrar u ocultar la barra de Jefes">' +
@@ -490,6 +662,8 @@
 
     nav.innerHTML = html;
     montarRedes(nav);
+    montarLinks(nav);
+    presionLarga(nav.querySelector('.jn-redes'));
     montarOrden(nav);
 
     var fab = document.createElement('button');
