@@ -18,7 +18,7 @@
 
   var CSS = '' +
     '.gj-fab{position:fixed;right:18px;bottom:18px;z-index:99990;background:#B8F725;color:#111;border:0;border-radius:99px;padding:10px 16px;font:700 13px Inter,system-ui,sans-serif;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.28)}' +
-    '.gj-fab:hover{filter:brightness(.95)}' +
+    '.hero-robot,.jefe-logo,.tt-hero-logo,.hero-logo{cursor:pointer}' +
     '.gj-ov{position:fixed;inset:0;z-index:99991;background:transparent}' +
     '.gj-hl{position:fixed;z-index:99992;border-radius:12px;box-shadow:0 0 0 9999px rgba(0,0,0,.62),0 0 0 3px #B8F725;pointer-events:none;transition:top .25s,left .25s,width .25s,height .25s}' +
     '.gj-card{position:fixed;z-index:99993;width:min(360px,calc(100vw - 24px));background:#fff;color:#111;border-radius:16px;padding:16px 18px;font:400 14px/1.5 Inter,system-ui,sans-serif;box-shadow:0 14px 40px rgba(0,0,0,.4)}' +
@@ -122,6 +122,7 @@
 
   function iniciar(id) {
     var g = GUIAS[id]; if (!g) return;
+    if (actual && actual.guia === g) return; // ya está abierta
     inyectarCss(); limpiar();
     // `antes` (opcional): deja la página en la pantalla donde viven los elementos de la guía (p. ej. cambiar de pestaña)
     if (typeof g.antes === 'function' && !g._listo) {
@@ -145,14 +146,22 @@
     if (!g || !g.id || !g.pasos) return;
     GUIAS[g.id] = g;
     inyectarCss();
-    if (!document.getElementById('gj-fab-' + g.id)) {
-      var b = document.createElement('button');
-      b.type = 'button'; b.id = 'gj-fab-' + g.id; b.className = 'gj-fab';
-      b.textContent = '❓ Guía'; b.title = 'Ver la guía de uso de ' + (g.nombre || 'este Jefe');
-      b.onclick = function () { iniciar(g.id); };
-      (document.body ? Promise.resolve() : new Promise(function (r) { document.addEventListener('DOMContentLoaded', r); })).then(function () { document.body.appendChild(b); });
-    }
+    // Sin botón flotante: la guía se abre sola la primera vez (si la página lo pide con autoPrimeraVez) y después, al tocar el icono del Jefe.
+    ponerTitulosIcono();
+    setTimeout(ponerTitulosIcono, 1500);
+    if (g.autoPrimeraVez) setTimeout(function () { if (!vista(g.id) && !actual) iniciar(g.id); }, g.retraso || 2400);
   }
+  // El icono del Jefe (arriba del chat) abre la guía de uso. Los selectores cubren los iconos de las distintas páginas de Jefes.
+  var ICONOS = '.hero-robot, .jefe-logo, .tt-hero-logo, .hero-logo';
+  function ponerTitulosIcono() {
+    try { Array.prototype.forEach.call(document.querySelectorAll(ICONOS), function (el) { if (!el.title) el.title = 'Toca para ver la guía de uso'; }); } catch (e) {}
+  }
+  document.addEventListener('click', function (e) {
+    var el = e.target && e.target.closest ? e.target.closest(ICONOS) : null;
+    if (!el) return;
+    var ids = Object.keys(GUIAS);
+    if (ids.length) iniciar(ids[0]);
+  });
   function vista(id) { try { return localStorage.getItem('gj_visto_' + id) === '1'; } catch (e) { return false; } }
 
   window.GuiaJefe = { registrar: registrar, iniciar: iniciar, cerrar: cerrar, vista: vista };
