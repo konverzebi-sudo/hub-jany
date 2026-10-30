@@ -142,3 +142,19 @@ test('la dueña sin llave de hub sigue usando el token maestro como siempre', as
   await b.storage.set('jefeshub:catalogo-productos', '[]');
   assert.equal(b.llamadas[0].headers['X-Storage-Token'], 'token-compartido-de-prueba');
 });
+
+test('un respaldo viejo del dispositivo NO tapa algo más nuevo guardado en el servidor', async () => {
+  const b = navegador({ url: 'https://agentes.jefeshub.com/arq-ivan', respuestas: [{ status: 200, json: { value: '"nuevo"', updatedAt: new Date(Date.now() + 60000).toISOString() } }] });
+  b.almacen.set('jefeshub_pendiente:arq-ivan:x', JSON.stringify({ value: '"viejo"', t: Date.now() - 3600000 }));
+  const r = await b.storage.get('arq-ivan:x');
+  assert.equal(r.value, '"nuevo"');
+  assert.equal(b.almacen.has('jefeshub_pendiente:arq-ivan:x'), false, 'el respaldo viejo se borra');
+});
+
+test('si el respaldo es más reciente que el servidor, se sigue mostrando el respaldo', async () => {
+  const b = navegador({ url: 'https://agentes.jefeshub.com/arq-ivan', respuestas: [{ status: 200, json: { value: '"servidor"', updatedAt: new Date(Date.now() - 3600000).toISOString() } }] });
+  b.almacen.set('jefeshub_pendiente:arq-ivan:x', JSON.stringify({ value: '"mio"', t: Date.now() }));
+  const r = await b.storage.get('arq-ivan:x');
+  assert.equal(r.value, '"mio"');
+  assert.equal(r.pendiente, true);
+});
