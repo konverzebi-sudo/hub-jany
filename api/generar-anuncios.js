@@ -940,9 +940,24 @@ async function manejarModoTargeting(body, res) {
   const { contexto, catalogo } = await construirContexto(clienteId, grupoId);
   const bloqueProducto = await conCampanaTemporada(clienteId, productoId, formatearProducto(catalogo, productoId, 'el perfil de targeting debe pensarse para este producto puntual'), body.campanaId);
 
+  // El usuario puede partir de un perfil de cliente que ya trabajó en Jefe 366 (por su nombre). Si elige una campaña de
+  // Jefe de Temporada llega como campanaId y ya la usa conCampanaTemporada; "solo IA" no agrega nada.
+  let bloquePerfil = null;
+  if (body.fuente === '366' && body.perfil_366) {
+    const nombre = body.perfil_366.toString().trim().slice(0, 200);
+    const audiencias = await leerAudiencias(clienteId).catch(() => []);
+    const elegido = (Array.isArray(audiencias) ? audiencias : []).find((a) => a && String(a.nombre || '').trim() === nombre);
+    const texto = elegido ? formatearAudiencias([elegido]) : null;
+    if (texto) {
+      bloquePerfil = 'PERFIL DE CLIENTE ELEGIDO POR EL USUARIO PARA ESTE CONJUNTO (parte de ESTE perfil para decidir ubicación, edad, género e intereses; lo que no diga, infiérelo con prudencia del resto del contexto):\n' +
+        texto.replace(/^PERFILES DE CLIENTE[^\n]*\n/, '');
+    }
+  }
+
   const instruccion = 'INSTRUCCIÓN DE ESTA GENERACIÓN:\n' +
     'Sugiere el perfil de targeting (ubicación, edad, género, intereses) para un Conjunto de Anuncios de Meta Ads, en el formato JSON indicado.' +
-    (bloqueProducto ? '\n\n' + bloqueProducto : '');
+    (bloqueProducto ? '\n\n' + bloqueProducto : '') +
+    (bloquePerfil ? '\n\n' + bloquePerfil : '');
 
   const system = systemConCache(promptFijo, contexto, instruccion);
   const { ok, status, data } = await llamarClaude(
