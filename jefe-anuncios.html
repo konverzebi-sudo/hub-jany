@@ -285,6 +285,30 @@
   .pm-chips{display:flex;gap:8px;flex-wrap:wrap;}
   .pm-icon-btn{width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:#fff;cursor:pointer;font-size:16px;color:var(--text-dim);flex-shrink:0;}
   .pm-icon-btn:hover{border-color:var(--accent-text);color:var(--text);}
+  /* botón de fecha y su calendario */
+  .pm-fecha-btn{display:inline-flex;align-items:center;gap:8px;flex:0 0 auto;border:1.5px solid #D5D5D5;background:#fff;color:var(--text-dim);border-radius:100px;padding:9px 16px;font:700 14.5px 'Inter',sans-serif;cursor:pointer;transition:border-color .15s,background .15s;}
+  .pm-fecha-btn svg{width:18px;height:18px;}
+  .pm-fecha-btn:hover{border-color:#1A1A1A;}
+  .pm-fecha-btn.con{color:#1A1A1A;}
+  .fp-head{display:flex;align-items:center;justify-content:space-between;padding:2px 4px 8px;}
+  .fp-head b{font:800 16px 'Sora',sans-serif;text-transform:capitalize;}
+  .fp-nav{width:34px;height:34px;border-radius:50%;border:1.5px solid var(--line);background:#fff;font:800 20px/1 'Inter',sans-serif;cursor:pointer;color:var(--text);}
+  .fp-nav:hover{border-color:#1A1A1A;background:var(--accent-soft);}
+  .fp-sem,.fp-dias{display:grid;grid-template-columns:repeat(7,1fr);}
+  .fp-sem span{text-align:center;font:700 12px 'Inter',sans-serif;color:var(--text-dim);padding:4px 0 6px;}
+  .fp-d{height:38px;border:none;background:transparent;font:600 14.5px 'Inter',sans-serif;color:var(--text);cursor:pointer;position:relative;border-radius:0;}
+  .fp-d.otro{color:#B5B5BB;}
+  .fp-d:hover{background:#F1F1F3;border-radius:50%;}
+  .fp-d.hoy{font-weight:800;box-shadow:inset 0 0 0 1.5px #1A1A1A;border-radius:50%;}
+  .fp-d.rango{background:var(--accent-soft);border-radius:0;}
+  .fp-d.ini,.fp-d.fin{background:#1A1A1A;color:var(--accent);border-radius:50%;font-weight:800;box-shadow:none;}
+  .fp-pie{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 4px 4px;flex-wrap:wrap;}
+  .fp-resumen{font:700 14px 'Inter',sans-serif;color:var(--text);}
+  .fp-hora{display:flex;align-items:center;gap:8px;font:600 13px 'Inter',sans-serif;color:var(--text-dim);}
+  .fp-hora input{border:1.5px solid var(--line);border-radius:10px;padding:5px 8px;font:600 14px 'Inter',sans-serif;color:var(--text);background:#fff;}
+  .fp-acciones{display:flex;align-items:center;gap:14px;justify-content:flex-end;padding:6px 4px 2px;}
+  .fp-link{border:none;background:none;color:var(--accent-text);font:700 14px 'Inter',sans-serif;cursor:pointer;padding:6px 4px;}
+  .fp-link:hover{text-decoration:underline;}
   /* una sola fila: etapa · estado · fecha · hora · producto */
   .pm-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 26px;background:#F0F0F0;font-weight:600;color:var(--text-dim);}
   .pm-bar-etapa{flex:0 0 auto;font-size:14px;padding:7px 14px;}
@@ -412,6 +436,9 @@
   .pm-pbtn.activo .pm-pbtn-est{color:#1A1A1A;}
   .pm-pbtn.activo.abierto{box-shadow:0 0 0 3px rgba(192,248,0,.35);border-color:#1A1A1A;}
   .pm-q{font:800 15px 'Sora',sans-serif;margin:2px 0 -2px;}
+  .pm-prod-head{display:flex;align-items:center;gap:14px;}
+  .pm-prod-ic{flex:0 0 52px;height:52px;border-radius:16px;background:var(--accent);display:flex;align-items:center;justify-content:center;}
+  .pm-prod-ic img{width:34px;height:34px;object-fit:contain;}
   .pm-pbtn.sel{border:2px solid #1A1A1A;box-shadow:0 0 0 3px rgba(192,248,0,.45);}
   .pm-pbtn:not(.activo).sel{background:#F7FFD9;}
   .pm-paso{display:flex;flex-direction:column;gap:12px;background:#fff;border:1.5px solid var(--line);border-radius:16px;padding:16px;}
@@ -493,6 +520,9 @@
   .pm-meta-car{font-size:11px;opacity:.7;transition:transform .15s;}
   .pm-meta-btn.on .pm-meta-car{transform:rotate(180deg);}
   .pm-meta-falta{font-style:normal;color:#E8590C;font-size:12px;}
+  .pm-camp-est{font:600 12.5px 'Inter',sans-serif;font-style:normal;color:var(--text-dim);}
+  .pm-meta-btn.on .pm-camp-est{color:inherit;opacity:.8;}
+  .res-fecha-lect{font:600 14px 'Inter',sans-serif;color:#1A1A1A;opacity:.8;}
   /* copiar: ícono al final de cada cuadro */
   .campo-copiar{position:relative;}
   .campo-copiar input[type=text],.campo-copiar select{padding-right:50px !important;}
@@ -1301,13 +1331,13 @@ function cerrarPopAlc(){
   window.removeEventListener('scroll', popAlc.colocar, true); window.removeEventListener('resize', popAlc.colocar);
   popAlc = null;
 }
-function abrirPopAlc(ancla, html, alMontar){
+function abrirPopAlc(ancla, html, alMontar, ancho){
   if(popAlc && popAlc.ancla===ancla){ cerrarPopAlc(); return; }
   cerrarPopAlc();
   const el = document.createElement('div'); el.className = 'alc-pop'; el.innerHTML = html; document.body.appendChild(el);
   const colocar = ()=>{
     if(!ancla.isConnected){ cerrarPopAlc(); return; }
-    const r = ancla.getBoundingClientRect(), vw = window.innerWidth, w = Math.min(740, vw-20);
+    const r = ancla.getBoundingClientRect(), vw = window.innerWidth, w = Math.min(ancho || 740, vw-20);
     Object.assign(el.style, { left:Math.max(10, Math.min(r.left, vw-w-10))+'px', width:w+'px', maxHeight:(window.innerHeight-24)+'px', top:(r.bottom+8)+'px' });
     const alto = el.offsetHeight, vh = window.innerHeight;
     if(r.bottom+8+alto > vh-12) el.style.top = Math.max(12, vh-alto-12)+'px'; // no cabe debajo: sube para verse completa
@@ -2333,8 +2363,9 @@ function pintarCampanaDelAnuncio(item, modal){
   let cuerpo = '';
   if(abierta){
     if(camps.length){
+      // previsualización de la campaña en el formato de tres columnas: objetivo con su ícono, público de cada conjunto y anuncios
       cuerpo = camps.map(c=>`<div class="campana-resumen mapa-lectura">
-        <div class="res-top"><span class="res-pill-white">Campaña: ${escHtml(nombreAlcance(c))}</span><button type="button" class="res-btn res-btn-white" data-ir-estructura data-camp="${c.id}">Abrir en Estructura de Ads →</button></div>
+        <div class="res-top"><span class="res-pill-white">Campaña ${numeroCampana(c)}</span>${c.fecha_inicio ? `<span class="res-fecha-lect">Inicio: ${escHtml(c.fecha_inicio)}</span>` : ''}<button type="button" class="res-btn res-btn-white" data-ir-estructura data-camp="${c.id}">Abrir en Estructura de Ads →</button></div>
         <div class="res-mapa">${htmlMapaColumnas(c, { anuncioId:item.id })}</div></div>`).join('');
     } else {
       cuerpo = `<div class="pm-camp-vacio"><p>Este anuncio todavía no está en ninguna campaña.</p>
@@ -2344,7 +2375,8 @@ function pintarCampanaDelAnuncio(item, modal){
         </select><button type="button" class="btn btn-solid btn-sm" data-camp-agregar>Aceptar</button></div></div>`;
     }
   }
-  box.innerHTML = `<button type="button" class="pm-ver-campana${abierta?' abierto':''}" data-ver-campana>🗺️ Ver la campaña <span>${camps.length ? '· '+camps.length+(camps.length>1?' campañas':' campaña') : '· sin campaña todavía'}</span> <i>${abierta?'▴':'▾'}</i></button>${cuerpo}`;
+  const mapa = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="8.5" y="14" width="7" height="7" rx="1.5"/><path d="M6.5 10v2.5h11V10M12 12.5V14"/></svg>';
+  box.innerHTML = `<button type="button" class="pm-pill pm-meta-btn${abierta?' on':''}" data-ver-campana aria-expanded="${abierta?'true':'false'}">${mapa}<span>Estructura de campaña</span><em class="pm-camp-est">${camps.length ? camps.length+(camps.length>1?' campañas':' campaña') : 'sin campaña todavía'}</em><span class="pm-meta-car">▾</span></button>${abierta ? `<div class="meta-fields-box">${cuerpo}</div>` : ''}`;
   box.querySelector('[data-ver-campana]').addEventListener('click',()=>{ if(abierta) campanaVistaAbierta.delete(item.id); else campanaVistaAbierta.add(item.id); pintarCampanaDelAnuncio(item); });
   box.querySelectorAll('[data-ir-estructura]').forEach(b=>b.addEventListener('click',()=>{ if(b.dataset.camp) estSelId = b.dataset.camp; cerrarPostModal(); irATab('estructura'); }));
   const ag = box.querySelector('[data-camp-agregar]');
@@ -3082,12 +3114,25 @@ function textFieldHtml(item, field, label){
 
 // Campos de Meta Ads Manager: detrás de un botón "Meta Ads" (como las pastillas de arriba); al picarlo salen todos, y cada uno
 // trae al final de su cuadro un ícono para copiarlo.
-const ICONO_COPIAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6.5A2.5 2.5 0 0 1 7.5 4H15"/></svg>';
+// "Visual sugerido": qué mostrar y cuánto dura, detrás de un botón (arriba del de Meta Ads).
+function visualFieldsHtml(item){
+  const ojo = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+  return `
+    <div class="meta-wrap">
+      <button type="button" class="pm-pill pm-meta-btn" id="pm-visual-toggle" data-caja="pm-visual-box" aria-expanded="false" aria-controls="pm-visual-box">${ojo}<span>Visual sugerido</span><span class="pm-meta-car">▾</span></button>
+      <div class="meta-fields-box" id="pm-visual-box" hidden>
+        ${textFieldHtml(item,'visual_sugerido','Visual sugerido (qué mostrar)')}
+        ${textFieldHtml(item,'duracion_sugerida','Duración sugerida')}
+      </div>
+    </div>
+  `;
+}
+const ICONO_COPIAR ='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6.5A2.5 2.5 0 0 1 7.5 4H15"/></svg>';
 function metaFieldsHtml(item){
   const copiar = (campo, nombre)=>`<button type="button" class="copy-field-btn copy-ic" data-copy-target="${campo}" data-id="${item.id}" title="Copiar ${nombre}" aria-label="Copiar ${nombre}">${ICONO_COPIAR}</button>`;
   return `
     <div class="meta-wrap">
-      <button type="button" class="pm-pill pm-meta-btn" id="pm-meta-toggle" aria-expanded="false" aria-controls="pm-meta-box">${ICONOS_SVG.meta}<span>Meta Ads</span>${metaIncompleta(item) ? '<i class="pm-meta-falta" title="Faltan campos">●</i>' : ''}<span class="pm-meta-car">▾</span></button>
+      <button type="button" class="pm-pill pm-meta-btn" id="pm-meta-toggle" data-caja="pm-meta-box" aria-expanded="false" aria-controls="pm-meta-box">${ICONOS_SVG.meta}<span>Meta Ads</span>${metaIncompleta(item) ? '<i class="pm-meta-falta" title="Faltan campos">●</i>' : ''}<span class="pm-meta-car">▾</span></button>
       <div class="meta-fields-box" id="pm-meta-box" hidden>
         <p class="meta-fields-title">Campos de Meta Ads Manager (Contenido → Texto)</p>
         <div class="detail-field">
@@ -3140,9 +3185,70 @@ function hoyMedianoche(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
 function isoDeDate(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function porHoraCard(a,b){ return (a.hora||'99:99').localeCompare(b.hora||'99:99'); }
 function redesDe(item){ return Array.isArray(item.redes) ? item.redes : ['bm']; }
+const MESES_LARGOS = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+function fmtFechaCorta(iso){ const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||''); return m ? `${+m[3]} ${MESES_CORTOS[+m[2]-1]}` : ''; }
 function fechaCortaCard(item){
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(item.fecha||'');
-  return m ? `${+m[3]} ${MESES_CORTOS[+m[2]-1]}` : 'Sin fecha';
+  const a = fmtFechaCorta(item.fecha), b = fmtFechaCorta(item.fecha_fin);
+  return a ? (b && item.fecha_fin!==item.fecha ? `${a} → ${b}` : a) : 'Sin fecha';
+}
+// Texto del botón de fecha del anuncio: "5 nov → 12 nov · 10:00" (o "Fecha" si todavía no tiene).
+function etiquetaFechaItem(item){
+  const a = fmtFechaCorta(item.fecha), b = fmtFechaCorta(item.fecha_fin);
+  let t = a ? (b && item.fecha_fin!==item.fecha ? `${a} → ${b}` : a) : 'Fecha';
+  if(item.hora) t += ' · '+item.hora;
+  return t;
+}
+const ICONO_CALENDARIO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>';
+// Un solo botón para la fecha: se abre un calendario donde se elige de qué fecha a qué fecha (un clic = un día; un segundo clic = hasta ese día)
+// y, abajo, la hora. Guarda item.fecha (inicio), item.fecha_fin (opcional) e item.hora.
+function abrirFechaPicker(ancla, item){
+  const hoy = isoDeDate(new Date());
+  let ini = item.fecha || '', fin = item.fecha_fin || '', hora = item.hora || '';
+  const base = /^\d{4}-\d{2}-\d{2}$/.test(ini) ? new Date(ini+'T00:00:00') : new Date();
+  let vy = base.getFullYear(), vm = base.getMonth();
+  abrirPopAlc(ancla, '<div class="fp"></div>', (el)=>{
+    const root = el.querySelector('.fp');
+    const aplicar = ()=>{
+      item.fecha = ini; item.fecha_fin = fin; item.hora = hora; scheduleCardsSave();
+      const t = document.querySelector('#pm-fecha-btn .pm-fecha-t'); if(t) t.textContent = etiquetaFechaItem(item);
+      const b = document.getElementById('pm-fecha-btn'); if(b) b.classList.toggle('con', !!ini);
+    };
+    const pinta = ()=>{
+      const off = (new Date(vy, vm, 1).getDay()+6)%7; // la semana empieza en lunes
+      const dias = Array.from({length:42}, (_,i)=>new Date(vy, vm, 1-off+i));
+      const resumen = ini ? (fin && fin!==ini ? `${fmtFechaCorta(ini)} → ${fmtFechaCorta(fin)}` : fmtFechaCorta(ini)) : 'Elige una fecha';
+      root.innerHTML = `
+        <div class="fp-head"><button type="button" class="fp-nav" data-fp-nav="-1" aria-label="Mes anterior">‹</button><b>${MESES_LARGOS[vm]} ${vy}</b><button type="button" class="fp-nav" data-fp-nav="1" aria-label="Mes siguiente">›</button></div>
+        <div class="fp-sem">${['L','M','M','J','V','S','D'].map(d=>`<span>${d}</span>`).join('')}</div>
+        <div class="fp-dias">${dias.map(d=>{
+          const iso = isoDeDate(d), c = ['fp-d'];
+          if(d.getMonth()!==vm) c.push('otro');
+          if(iso===hoy) c.push('hoy');
+          if(iso===ini) c.push('ini');
+          if(fin && iso===fin && fin!==ini) c.push('fin');
+          if(ini && fin && iso>ini && iso<fin) c.push('rango');
+          return `<button type="button" class="${c.join(' ')}" data-fp-dia="${iso}">${d.getDate()}</button>`;
+        }).join('')}</div>
+        <div class="fp-pie">
+          <span class="fp-resumen">${resumen}</span>
+          <label class="fp-hora">Hora <input type="time" value="${hora}"></label>
+        </div>
+        <div class="fp-acciones"><button type="button" class="fp-link" data-fp-borrar>Borrar</button><button type="button" class="fp-link" data-fp-hoy>Hoy</button><button type="button" class="btn btn-solid btn-sm" data-fp-listo>Listo</button></div>`;
+      root.querySelectorAll('[data-fp-nav]').forEach(b=>b.addEventListener('click',()=>{ vm += +b.dataset.fpNav; if(vm<0){ vm=11; vy--; } if(vm>11){ vm=0; vy++; } pinta(); }));
+      root.querySelectorAll('[data-fp-dia]').forEach(b=>b.addEventListener('click',()=>{
+        const iso = b.dataset.fpDia;
+        if(!ini || fin){ ini = iso; fin = ''; }       // empieza una selección nueva
+        else if(iso < ini){ ini = iso; }               // antes del inicio: ese pasa a ser el inicio
+        else if(iso > ini){ fin = iso; }               // después: ese es el último día
+        aplicar(); pinta();
+      }));
+      root.querySelector('.fp-hora input').addEventListener('input',(e)=>{ hora = e.target.value; aplicar(); });
+      root.querySelector('[data-fp-borrar]').addEventListener('click',()=>{ ini = ''; fin = ''; hora = ''; aplicar(); pinta(); });
+      root.querySelector('[data-fp-hoy]').addEventListener('click',()=>{ ini = hoy; fin = ''; const h = new Date(); vy = h.getFullYear(); vm = h.getMonth(); aplicar(); pinta(); });
+      root.querySelector('[data-fp-listo]').addEventListener('click', cerrarPopAlc);
+    };
+    pinta();
+  }, 340);
 }
 
 // Tarjeta compacta (miniatura con degradado por estado, título, chips, estado + hora). Al pulsarla
@@ -3487,9 +3593,11 @@ function pintarPiezas(item, modal){
     }
   }
   box.innerHTML = `
-    <div class="pm-bloque-t">🤝 Estamos en contacto con el Jefe Productor de IA</div>
-    <p class="pm-hint-inline pm-piezas-sub">Este bloque es parte del Jefe Productor de IA: crea las piezas de este anuncio con la identidad de tu marca y el estilo visual que tengas guardado. La IA solo se usa cuando pulsas “Generar”.</p>
-    <div class="pm-q">¿Qué quieres crear?</div>
+    <div class="pm-prod-head">
+      <span class="pm-prod-ic"><img src="/img/jefe-produccion-video-logo-negro.webp" alt="" aria-hidden="true"></span>
+      <div><div class="pm-bloque-t">Conectado directo con el Jefe Productor de IA</div>
+      <p class="pm-hint-inline pm-piezas-sub">Pídele que te ayude con:</p></div>
+    </div>
     <div class="pm-pieza-btns">${ORDEN.map(btn).join('')}</div>
     <div class="mode-status" id="pm-pieza-status"></div>
     ${paso2 ? `<div class="pm-paneles">${paso2}</div>` : ''}`;
@@ -3625,8 +3733,7 @@ function abrirPostModal(id){
           <option value="proceso" ${est==='proceso'?'selected':''}>⚙️ En proceso</option>
           <option value="publicado" ${est==='publicado'?'selected':''}>🔥 Publicado</option>
         </select>
-        <input type="date" class="fecha-input" value="${item.fecha||''}" data-id="${item.id}" data-field="fecha" aria-label="Fecha" title="Fecha">
-        <input type="time" class="fecha-input hora-input" value="${item.hora||''}" data-id="${item.id}" data-field="hora" aria-label="Hora" title="Hora">
+        <button type="button" class="pm-fecha-btn${item.fecha?' con':''}" id="pm-fecha-btn" aria-haspopup="dialog" title="Fecha y hora de publicación">${ICONO_CALENDARIO}<span class="pm-fecha-t">${escHtml(etiquetaFechaItem(item))}</span></button>
         <select class="pm-alcance pm-bar-alcance" aria-label="Producto, servicio o grupo del anuncio" title="Producto, servicio o grupo">${opcionesAlcanceDe(item.producto_id, item.grupo_id)}</select>
       </div>
       <div class="pm-body">
@@ -3645,22 +3752,15 @@ function abrirPostModal(id){
             <div class="pm-copy-grid">
               <div class="pm-copy-izq">
                 ${promptFieldHtml(item,'copy_publicacion','Copy para publicar (puedes editarlo aquí)')}
+                ${visualFieldsHtml(item)}
                 ${metaFieldsHtml(item)}
+                <div class="meta-wrap" id="pm-campana"></div>
               </div>
               <div class="pm-copy-der" id="pm-preview"></div>
             </div>
           </section>
 
-          <section class="pm-bloque" id="pm-b-visual">
-            <div class="pm-visual-grid">
-              ${textFieldHtml(item,'visual_sugerido','Visual sugerido (qué mostrar)')}
-              ${textFieldHtml(item,'duracion_sugerida','Duración sugerida')}
-            </div>
-          </section>
-
           <section class="pm-bloque"><div class="pm-piezas" id="pm-piezas"></div></section>
-
-          <section class="pm-bloque"><div class="pm-campana" id="pm-campana"></div></section>
 
           <section class="pm-bloque pm-mas">
             <div class="pm-bloque-t">🎯 Más sobre este anuncio</div>
@@ -3694,11 +3794,14 @@ function abrirPostModal(id){
     el.querySelectorAll('#pm-formatos .pm-pill').forEach(x=>x.classList.toggle('on', x===b));
     scheduleCardsSave(); pintarPreviewPost(item);
   }));
-  const metaBtn = el.querySelector('#pm-meta-toggle');
-  if(metaBtn) metaBtn.addEventListener('click',()=>{
-    const caja = el.querySelector('#pm-meta-box'); const abrir = caja.hidden;
-    caja.hidden = !abrir; metaBtn.classList.toggle('on', abrir); metaBtn.setAttribute('aria-expanded', abrir ? 'true' : 'false');
-  });
+  const fechaBtn = el.querySelector('#pm-fecha-btn');
+  if(fechaBtn) fechaBtn.addEventListener('click',()=>abrirFechaPicker(fechaBtn, item));
+  // botones "Visual sugerido" y "Meta Ads": cada uno abre y cierra su caja de campos
+  el.querySelectorAll('.pm-meta-btn[data-caja]').forEach(btn=>btn.addEventListener('click',()=>{
+    const caja = el.querySelector('#'+btn.dataset.caja); if(!caja) return;
+    const abrir = caja.hidden;
+    caja.hidden = !abrir; btn.classList.toggle('on', abrir); btn.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+  }));
   el.querySelectorAll('#pm-redes [data-red]').forEach(b=>b.addEventListener('click',()=>{
     const set = new Set(redesDe(item));
     if(set.has(b.dataset.red)) set.delete(b.dataset.red); else set.add(b.dataset.red);
