@@ -411,6 +411,12 @@
   .pm-pbtn.activo{background:var(--accent);border:1.5px solid var(--accent);}
   .pm-pbtn.activo .pm-pbtn-est{color:#1A1A1A;}
   .pm-pbtn.activo.abierto{box-shadow:0 0 0 3px rgba(192,248,0,.35);border-color:#1A1A1A;}
+  .pm-q{font:800 15px 'Sora',sans-serif;margin:2px 0 -2px;}
+  .pm-pbtn.sel{border:2px solid #1A1A1A;box-shadow:0 0 0 3px rgba(192,248,0,.45);}
+  .pm-pbtn:not(.activo).sel{background:#F7FFD9;}
+  .pm-paso{display:flex;flex-direction:column;gap:12px;background:#fff;border:1.5px solid var(--line);border-radius:16px;padding:16px;}
+  .pm-paso-t{font:800 15px 'Sora',sans-serif;}
+  .pm-paso-btns{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
   .pm-paneles{display:flex;flex-direction:column;gap:12px;}
   .pm-panel{display:none;flex-direction:column;gap:12px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;}
   .pm-panel.abierto{display:flex;}
@@ -3259,42 +3265,57 @@ function panelPieza(item, tipo){
   return `<div class="pm-panel${abierto?' abierto':''}" data-panel="${tipo}"><div class="pm-panel-t">${PIEZAS[tipo].ico} ${PIEZAS[tipo].boton}</div>${cuerpo}</div>`;
 }
 
+// Módulo de piezas = parte del Jefe Productor de IA, en 3 pasos sencillos:
+//  1) elegir qué crear (prompt de video, prompt de imagen, guion o caption), 2) si es visual, subir imágenes de referencia
+//  (opcional; se guardan como el estilo de la marca) o saltar y seguir con la identidad que ya tiene, 3) generar.
+const piezaSel = {}; // por campaña: la pieza elegida
+const PIEZA_NOMBRE = { video:'Prompt video', imagen:'Prompt imagen', guion:'Guion video', whatsapp:'Caption WhatsApp' };
 function pintarPiezas(item, modal){
   const box = (modal||postModalEl).querySelector('#pm-piezas');
   if(!box) return;
   const tiene = t=>piezaTieneContenido(item,t);
   const ORDEN = ['video','imagen','guion','whatsapp'];
-  const btn = t=>{
-    const abierto = piezasAbiertas.has(item.id+':'+t);
-    return `<button type="button" class="pm-pbtn${tiene(t)?' activo':''}${abierto?' abierto':''}" data-pieza="${t}">
-      <span class="pm-pbtn-ico">${PIEZAS[t].ico}</span><span class="pm-pbtn-nom">${PIEZAS[t].boton}</span>
-      <span class="pm-pbtn-est">${tiene(t) ? (abierto ? 'Ocultar ▴' : 'Ver y copiar ▾') : '＋ Generar'}</span></button>`;
-  };
+  const sel = piezaSel[item.id] || '';
+  const btn = t=>`<button type="button" class="pm-pbtn${tiene(t)?' activo':''}${sel===t?' sel':''}" data-pieza="${t}" aria-pressed="${sel===t?'true':'false'}">
+      <span class="pm-pbtn-ico">${PIEZAS[t].ico}</span><span class="pm-pbtn-nom">${PIEZA_NOMBRE[t]}</span>
+      <span class="pm-pbtn-est">${tiene(t) ? '✓ Listo' : '＋ Crear'}</span></button>`;
+  let paso2 = '';
+  if(sel){
+    if(tiene(sel)){
+      piezasAbiertas.add(item.id+':'+sel);
+      paso2 = panelPieza(item, sel); // ya está lista: se ve, se copia y se puede actualizar
+    }else{
+      const visual = sel==='video' || sel==='imagen', conEstilo = !!estiloRef.guia;
+      paso2 = `<div class="pm-paso">
+        <div class="pm-paso-t">${PIEZAS[sel].ico} ${PIEZA_NOMBRE[sel]}</div>
+        ${visual
+          ? `<p class="pm-hint-inline">¿Tienes diseños que te gustan? Sube de 3 a 10 imágenes de referencia (opcional): se guardan como el estilo de tu marca y el Jefe Productor de IA las usa siempre. Si no, sigue con la identidad de tu marca que ya tiene.</p>
+             ${conEstilo ? `<div class="pm-estilo"><span class="pm-estilo-thumbs">${estiloRef.imgs.slice(0,6).map(d=>`<img src="${d}" alt="">`).join('')}</span><label class="pm-estilo-chk"><input type="checkbox" data-usar-estilo${usarEstiloActivo()?' checked':''}> Usar mi estilo guardado</label></div>` : ''}`
+          : '<p class="pm-hint-inline">Se crea con la identidad de tu marca (tu ADN y tu Sistema 366).</p>'}
+        <div class="pm-paso-btns">
+          ${visual ? `<button type="button" class="btn btn-outline" data-estilo-gestionar>📎 ${conEstilo ? 'Cambiar mis referencias' : 'Subir imágenes de referencia'}</button>` : ''}
+          <button type="button" class="btn btn-solid" data-pieza-generar="${sel}">${visual ? (conEstilo && usarEstiloActivo() ? '✨ Generar con mi estilo guardado' : '⏭ Saltar y generar con mi identidad') : '✨ Generar con mi identidad'}</button>
+        </div>
+      </div>`;
+    }
+  }
   box.innerHTML = `
-    <div class="pm-bloque-t">✨ Crea tus piezas con inteligencia artificial</div>
-    <p class="pm-hint-inline pm-piezas-sub">La IA se usa solo cuando pulsas “Generar”. Las piezas listas están en color: pícales para abrirlas y copiarlas con un clic para pegarlas en el Business Manager, en ChatGPT (imágenes) o en Gemini (videos).</p>
-    <div class="pm-estilo">
-      <span class="pm-estilo-t">🎨 Mi estilo visual</span>
-      ${estiloRef.guia
-        ? `<span class="pm-estilo-thumbs">${estiloRef.imgs.slice(0,6).map(d=>`<img src="${d}" alt="">`).join('')}</span>
-           <label class="pm-estilo-chk"><input type="checkbox" data-usar-estilo${usarEstiloActivo()?' checked':''}> Usarlo en los prompts de imagen y video</label>
-           <button type="button" class="pm-estilo-btn" data-estilo-gestionar>Gestionar</button>`
-        : `<span class="pm-hint-inline">Sube de 3 a 10 diseños que te gusten y los prompts de imagen y video saldrán con tu estilo, no genéricos.</span>
-           <button type="button" class="pm-estilo-btn" data-estilo-gestionar>Subir mi estilo</button>`}
-    </div>
+    <div class="pm-bloque-t">🤝 Estamos en contacto con el Jefe Productor de IA</div>
+    <p class="pm-hint-inline pm-piezas-sub">Este bloque es parte del Jefe Productor de IA: crea las piezas de este anuncio con la identidad de tu marca y el estilo visual que tengas guardado. La IA solo se usa cuando pulsas “Generar”.</p>
+    <div class="pm-q">¿Qué quieres crear?</div>
     <div class="pm-pieza-btns">${ORDEN.map(btn).join('')}</div>
     <div class="mode-status" id="pm-pieza-status"></div>
-    <div class="pm-paneles">${ORDEN.filter(tiene).map(t=>panelPieza(item,t)).join('')}</div>`;
+    ${paso2 ? `<div class="pm-paneles">${paso2}</div>` : ''}`;
   bindCardEvents(box);
 
   box.querySelectorAll('[data-pieza]').forEach(b=>b.addEventListener('click',()=>{
-    const t = b.dataset.pieza, k = item.id+':'+t;
-    if(!tiene(t)){ crearPieza(item, t, '', null, box); return; } // sin pieza: genera solo esa
-    if(piezasAbiertas.has(k)) piezasAbiertas.delete(k); else piezasAbiertas.add(k);
+    const t = b.dataset.pieza;
+    piezaSel[item.id] = piezaSel[item.id]===t ? '' : t; // elegir (o quitar) la pieza; no genera nada todavía
     pintarPiezas(item);
   }));
+  box.querySelectorAll('[data-pieza-generar]').forEach(b=>b.addEventListener('click',()=>crearPieza(item, b.dataset.piezaGenerar, '', null, box)));
   box.querySelectorAll('[data-estilo-gestionar]').forEach(b=>b.addEventListener('click', abrirEstiloRef));
-  box.querySelectorAll('[data-usar-estilo]').forEach(c=>c.addEventListener('change',()=>setUsarEstilo(c.checked)));
+  box.querySelectorAll('[data-usar-estilo]').forEach(c=>c.addEventListener('change',()=>{ setUsarEstilo(c.checked); pintarPiezas(item); }));
   box.querySelectorAll('[data-ask-toggle]').forEach(b=>b.addEventListener('click',()=>{
     const a = box.querySelector('[data-ask="'+b.dataset.askToggle+'"]'); a.hidden = !a.hidden;
   }));
@@ -3331,7 +3352,7 @@ function pintarPiezas(item, modal){
 
 async function crearPieza(item, tipo, texto, material, box, promptActual){
   const status = box.querySelector('#pm-pieza-status');
-  const botones = box.querySelectorAll('.pm-pbtn,[data-pieza-crear]');
+  const botones = box.querySelectorAll('.pm-pbtn,[data-pieza-crear],[data-pieza-generar],[data-estilo-gestionar]');
   botones.forEach(b=>b.disabled = true);
   status.textContent = '⏳ ' + PIEZAS[tipo].carga;
   try{
@@ -3356,6 +3377,7 @@ async function crearPieza(item, tipo, texto, material, box, promptActual){
     if(!res.ok || !data){ const e = new Error((data && data.error) || (res.status===413 ? 'El archivo pesa mucho; prueba con uno más ligero.' : 'No se pudo crear la pieza.')); e.tope = res.status===402 || !!(data && data.tope); throw e; }
     Object.assign(item, data.pieza || {});
     piezasAbiertas.add(item.id+':'+tipo);
+    piezaSel[item.id] = tipo;
     if(!item.guion) item.guion = {};
     scheduleCardsSave();
     piezaMaterial[tipo] = null;
@@ -3396,6 +3418,7 @@ function abrirPostModal(id){
   postModalId = id;
   postModalSnapshot = JSON.parse(JSON.stringify(item));
   piezasAbiertas.clear();
+  piezaSel[id] = '';
   const est = ESTADO_LABEL[item.estado] ? item.estado : 'idea';
   const el = document.createElement('div');
   el.className = 'pm-overlay';
