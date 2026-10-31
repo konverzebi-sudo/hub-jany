@@ -371,7 +371,13 @@
   .pm-linkchip{border:1px solid var(--line);background:#fff;border-radius:100px;padding:4px 12px;font-size:12.5px;font-weight:700;cursor:pointer;color:var(--text-dim);}
   .pm-linkchip.on{background:#10101A;color:var(--accent);border-color:#10101A;}
   @media (max-width:600px){.pm-lk-editor{grid-template-columns:1fr;}}
-  .pm-fila-pills{display:flex;flex-wrap:wrap;gap:14px 34px;}
+  .pm-fila-pills{display:flex;flex-direction:column;gap:16px;}
+  /* redes: solo el ícono, un clic para elegir en cuáles se publica */
+  .pm-redes-ic{display:flex;flex-wrap:wrap;gap:10px;}
+  .pm-red{width:48px;height:48px;border-radius:50%;border:1.5px solid var(--line);background:#fff;color:var(--text);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:background .12s,border-color .12s,color .12s;}
+  .pm-red svg{width:24px;height:24px;}
+  .pm-red:hover{border-color:#999;}
+  .pm-red.on{background:#10101A;color:var(--accent);border-color:#10101A;}
   .pm-bloque{border-top:1px solid var(--line);padding-top:18px;display:flex;flex-direction:column;gap:12px;}
   .pm-bloque-t{font-family:'Sora',sans-serif;font-weight:800;font-size:17px;}
   .pm-copy-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:start;}
@@ -473,6 +479,22 @@
   .meta-fields-box{background:#FAFAFA;border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px;}
   .meta-fields-title{margin:0;font-family:'Sora',sans-serif;font-weight:700;font-size:15px;color:var(--text);}
   .meta-fields-box .detail-field textarea,.meta-fields-box .detail-field input[type=text],.meta-fields-box .detail-field select{background:#fff;}
+  .meta-fields-box[hidden]{display:none;}
+  .meta-wrap{display:flex;flex-direction:column;gap:12px;align-items:flex-start;}
+  .meta-wrap .meta-fields-box{width:100%;box-sizing:border-box;}
+  .pm-meta-btn{display:inline-flex;align-items:center;gap:8px;}
+  .pm-meta-btn svg{width:20px;height:20px;}
+  .pm-meta-car{font-size:11px;opacity:.7;transition:transform .15s;}
+  .pm-meta-btn.on .pm-meta-car{transform:rotate(180deg);}
+  .pm-meta-falta{font-style:normal;color:#E8590C;font-size:12px;}
+  /* copiar: ícono al final de cada cuadro */
+  .campo-copiar{position:relative;}
+  .campo-copiar input[type=text],.campo-copiar select{padding-right:50px !important;}
+  .campo-copiar.sel select{padding-right:76px !important;}
+  .copy-ic{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:34px;height:34px;border:none;background:transparent;border-radius:10px;cursor:pointer;color:var(--text-dim);display:flex;align-items:center;justify-content:center;font-size:15px;padding:0;}
+  .copy-ic svg{width:18px;height:18px;}
+  .copy-ic:hover{background:var(--accent-soft);color:var(--accent-text);}
+  .campo-copiar.sel .copy-ic{right:34px;}
   .retro-field textarea{background:var(--accent-soft);border-color:#CDE98A;min-height:48px;}
   .retro-field label{color:var(--accent-text);}
   .link-field .link-input{color:#1F5FA8;border-color:#BBD7F2;}
@@ -2865,28 +2887,35 @@ function textFieldHtml(item, field, label){
   `;
 }
 
+// Campos de Meta Ads Manager: detrás de un botón "Meta Ads" (como las pastillas de arriba); al picarlo salen todos, y cada uno
+// trae al final de su cuadro un ícono para copiarlo.
+const ICONO_COPIAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6.5A2.5 2.5 0 0 1 7.5 4H15"/></svg>';
 function metaFieldsHtml(item){
+  const copiar = (campo, nombre)=>`<button type="button" class="copy-field-btn copy-ic" data-copy-target="${campo}" data-id="${item.id}" title="Copiar ${nombre}" aria-label="Copiar ${nombre}">${ICONO_COPIAR}</button>`;
   return `
-    <div class="meta-fields-box">
-      <p class="meta-fields-title">🅕 Campos de Meta Ads Manager (Contenido → Texto)</p>
-      <div class="detail-field">
-        <label>Título (máx. 40 caracteres)</label>
-        <input type="text" maxlength="40" data-id="${item.id}" data-field="titulo_anuncio" placeholder="Ej: Agenda tu cita hoy" value="${escHtml(item.titulo_anuncio)}">
-      </div>
-      <div class="detail-field">
-        <label>Descripción (opcional)</label>
-        <input type="text" maxlength="30" data-id="${item.id}" data-field="descripcion_anuncio" placeholder="Ej: Cupo limitado esta semana" value="${escHtml(item.descripcion_anuncio)}">
-      </div>
-      <div class="detail-field">
-        <label>Llamada a la acción</label>
-        <select data-id="${item.id}" data-field="cta_boton">
-          <option value="">— Selecciona —</option>
-          ${CTA_OPTIONS.map(c=>`<option value="${c}"${item.cta_boton===c?' selected':''}>${c}</option>`).join('')}
-        </select>
-      </div>
-      <div class="detail-field">
-        <div class="detail-field-head"><label>Link de destino (sitio web del CTA)</label>${item.link_destino ? `<button type="button" class="btn-guion copy-field-btn" data-copy-target="link_destino" data-id="${item.id}">📋 Copiar</button>` : ''}</div>
-        <input type="text" data-id="${item.id}" data-field="link_destino" placeholder="Ej: link de WhatsApp de la Comunicación 366 de este grupo, o pégalo tú si falta" value="${escHtml(item.link_destino)}">
+    <div class="meta-wrap">
+      <button type="button" class="pm-pill pm-meta-btn" id="pm-meta-toggle" aria-expanded="false" aria-controls="pm-meta-box">${ICONOS_SVG.meta}<span>Meta Ads</span>${metaIncompleta(item) ? '<i class="pm-meta-falta" title="Faltan campos">●</i>' : ''}<span class="pm-meta-car">▾</span></button>
+      <div class="meta-fields-box" id="pm-meta-box" hidden>
+        <p class="meta-fields-title">Campos de Meta Ads Manager (Contenido → Texto)</p>
+        <div class="detail-field">
+          <label>Título (máx. 40 caracteres)</label>
+          <div class="campo-copiar"><input type="text" maxlength="40" data-id="${item.id}" data-field="titulo_anuncio" placeholder="Ej: Agenda tu cita hoy" value="${escHtml(item.titulo_anuncio)}">${copiar('titulo_anuncio','el título')}</div>
+        </div>
+        <div class="detail-field">
+          <label>Descripción (opcional)</label>
+          <div class="campo-copiar"><input type="text" maxlength="30" data-id="${item.id}" data-field="descripcion_anuncio" placeholder="Ej: Cupo limitado esta semana" value="${escHtml(item.descripcion_anuncio)}">${copiar('descripcion_anuncio','la descripción')}</div>
+        </div>
+        <div class="detail-field">
+          <label>Llamada a la acción</label>
+          <div class="campo-copiar sel"><select data-id="${item.id}" data-field="cta_boton">
+            <option value="">— Selecciona —</option>
+            ${CTA_OPTIONS.map(c=>`<option value="${c}"${item.cta_boton===c?' selected':''}>${c}</option>`).join('')}
+          </select>${copiar('cta_boton','la llamada a la acción')}</div>
+        </div>
+        <div class="detail-field">
+          <label>Link de destino (sitio web del CTA)</label>
+          <div class="campo-copiar"><input type="text" data-id="${item.id}" data-field="link_destino" placeholder="Ej: link de WhatsApp de la Comunicación 366 de este grupo, o pégalo tú si falta" value="${escHtml(item.link_destino)}">${copiar('link_destino','el link')}</div>
+        </div>
       </div>
     </div>
   `;
@@ -2907,6 +2936,13 @@ const ESTADO_LABEL = {idea:'Idea', proceso:'En proceso', publicado:'Publicado'};
 const ESTADO_GRAD = {idea:['#FFE3E3','#F4A0A0'], proceso:['#FFF8D6','#FBE48E'], publicado:['#EAFBB8','#C6F04E']};
 const FORMATO_ICO = {'reel':'🎬', 'imagen estática':'🖼️', 'carrusel':'🗂️'};
 const REDES = [['ig','Instagram'],['tt','TikTok'],['fb','Facebook'],['bm','Business Manager']];
+// Íconos de las redes (solo el ícono; el nombre sale al pasar el cursor)
+const ICONOS_RED = {
+  ig:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.4" cy="6.6" r="1" fill="currentColor" stroke="none"/></svg>',
+  tt:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3v11.2a3.7 3.7 0 1 1-3.7-3.7"/><path d="M14 3c.3 2.6 2 4.3 4.8 4.5"/></svg>',
+  fb:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 8.5H17V4.8h-2.7A4.3 4.3 0 0 0 10 9.1V12H7.5v3.7H10V21h3.7v-5.3h2.7l.6-3.7h-3.3V9.5a1 1 0 0 1 .8-1z"/></svg>',
+  bm:ICONOS_SVG.meta,
+};
 function hoyMedianoche(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
 function isoDeDate(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function porHoraCard(a,b){ return (a.hora||'99:99').localeCompare(b.hora||'99:99'); }
@@ -3389,7 +3425,7 @@ function abrirPostModal(id){
             <div class="pm-sec"><div class="pm-label">Formato</div>
               <div class="pm-pills" id="pm-formatos">${FORMATOS.map(f=>`<button type="button" class="pm-pill${item.formato===f?' on':''}" data-formato="${f}">${FORMATO_ICO[f]||''} ${f.charAt(0).toUpperCase()+f.slice(1)}</button>`).join('')}</div></div>
             <div class="pm-sec"><div class="pm-label">Redes donde se publica</div>
-              <div class="pm-pills" id="pm-redes">${REDES.map(([k,n])=>`<button type="button" class="pm-pill${redesDe(item).includes(k)?' on':''}" data-red="${k}">${n}</button>`).join('')}</div></div>
+              <div class="pm-redes-ic" id="pm-redes">${REDES.map(([k,n])=>`<button type="button" class="pm-red${redesDe(item).includes(k)?' on':''}" data-red="${k}" title="${n}" aria-label="${n}" aria-pressed="${redesDe(item).includes(k)?'true':'false'}">${ICONOS_RED[k]||n}</button>`).join('')}</div></div>
           </div>
 
           <section class="pm-bloque" id="pm-b-links"><div class="pm-links" id="pm-links"></div></section>
@@ -3448,11 +3484,17 @@ function abrirPostModal(id){
     el.querySelectorAll('#pm-formatos .pm-pill').forEach(x=>x.classList.toggle('on', x===b));
     scheduleCardsSave(); pintarPreviewPost(item);
   }));
+  const metaBtn = el.querySelector('#pm-meta-toggle');
+  if(metaBtn) metaBtn.addEventListener('click',()=>{
+    const caja = el.querySelector('#pm-meta-box'); const abrir = caja.hidden;
+    caja.hidden = !abrir; metaBtn.classList.toggle('on', abrir); metaBtn.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+  });
   el.querySelectorAll('#pm-redes [data-red]').forEach(b=>b.addEventListener('click',()=>{
     const set = new Set(redesDe(item));
     if(set.has(b.dataset.red)) set.delete(b.dataset.red); else set.add(b.dataset.red);
     item.redes = REDES.map(r=>r[0]).filter(k=>set.has(k));
     b.classList.toggle('on', set.has(b.dataset.red));
+    b.setAttribute('aria-pressed', set.has(b.dataset.red) ? 'true' : 'false');
     scheduleCardsSave(); pintarPreviewPost(item);
   }));
   el.querySelector('.pm-alcance').addEventListener('change',(e)=>{
@@ -3527,9 +3569,9 @@ function bindCardEvents(container){
       if(!item) return;
       const value = getField(item, btn.dataset.copyTarget) || '';
       navigator.clipboard.writeText(value).then(()=>{
-        const prev = btn.textContent;
-        btn.textContent='✅ Copiado';
-        setTimeout(()=>{ btn.textContent=prev; },1500);
+        const prev = btn.innerHTML;
+        btn.textContent = btn.classList.contains('copy-ic') ? '✅' : '✅ Copiado';
+        setTimeout(()=>{ btn.innerHTML = prev; },1500);
       });
     });
   });
