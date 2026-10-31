@@ -33,7 +33,7 @@
   ];
   // Prospeccion solo existe en la plataforma principal.
   if (!tenant) {
-    JEFES.push({ slug: 'jefe-prospeccion', files: ['jefe-prospeccion.html'], emoji: '🎯', nombre: 'Jefe de Prospección' });
+    JEFES.push({ slug: 'jefe-prospeccion', files: ['jefe-prospeccion.html'], icono: 'jefe-prospeccion-logo-negro', iconoOscuro: 'jefe-prospeccion-logo-blanco', nombre: 'Jefe de Prospección' });
   }
 
   var last = seg.length ? seg[seg.length - 1] : '';
@@ -74,7 +74,7 @@
     '.jn-ico img{width:28px;height:28px;border-radius:8px;object-fit:contain;display:block}',
     '.jn-ico img[src*="jefe-366-gris"]{width:38px;height:auto;max-height:22px;border-radius:0;margin:0 -5px}',
     '.jn-ico img[src*="jefe-produccion-video-logo"],.jn-ico img[src*="jefe-whatsapp-logo"],.jn-ico img[src*="jefe-finanzas-logo"],.jn-ico img[src*="jefe-faro-logo"]{width:30px;height:auto;max-height:28px;border-radius:0;margin:0 -1px}',
-    '.jn-ico img[src*="jefe-herramientas-logo"]{width:auto;height:28px;max-width:30px;border-radius:0}',
+    '.jn-ico img[src*="jefe-herramientas-logo"],.jn-ico img[src*="jefe-prospeccion-logo"]{width:auto;height:28px;max-width:30px;border-radius:0}',
     '.jn-txt{overflow:hidden;text-overflow:ellipsis}',
     '.jn-foot{border-top:1px solid var(--line,#332A3D);padding:8px}',
     '.jn-toggle{display:flex;align-items:center;gap:12px;width:100%;height:40px;padding:0 8px;border:0;border-radius:10px;cursor:pointer;',
