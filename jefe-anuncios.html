@@ -657,7 +657,25 @@
   .campana-resumen.nueva{background:var(--surface);border:1px solid var(--line);border-left:5px solid var(--accent);}
   .campana-resumen.nueva .res-pill-white{background:none;color:#1A1A1A;}
   .campana-resumen.nueva .res-btn-white{background:var(--accent);color:#1A1A1A;}
-  .estructura-barra{display:flex;justify-content:flex-end;margin-bottom:12px;}
+  /* Estructura de Ads: lista fija de campañas a la izquierda, la abierta a la derecha */
+  .est-layout{display:grid;grid-template-columns:290px minmax(0,1fr);gap:20px;align-items:start;}
+  .est-lista{position:sticky;top:150px;display:flex;flex-direction:column;gap:10px;max-height:calc(100vh - 170px);overflow-y:auto;padding:2px;}
+  .est-nueva{width:100%;}
+  .est-item{display:flex;flex-direction:column;gap:3px;text-align:left;background:#fff;border:1.5px solid var(--line);border-left:6px solid #D5D5D5;border-radius:16px;padding:12px 14px;cursor:pointer;font-family:'Inter',sans-serif;color:var(--text);transition:border-color .15s,background .15s,box-shadow .15s;}
+  .est-item.guardada{border-left-color:var(--accent);}
+  .est-item:hover{border-color:#1A1A1A;}
+  .est-item.on{border-color:#1A1A1A;background:var(--accent-soft);box-shadow:0 0 0 3px rgba(192,248,0,.35);}
+  .est-item-t{font:800 15px 'Sora',sans-serif;}
+  .est-item-p{font-size:12px;font-weight:700;color:var(--accent-text);}
+  .est-item-s{font-size:13px;color:var(--text-dim);line-height:1.35;}
+  .est-vacia{margin:4px 2px;font-size:13.5px;color:var(--text-dim);}
+  .est-detalle{min-width:0;}
+  @media (max-width:900px){
+    .est-layout{grid-template-columns:1fr;}
+    .est-lista{position:static;flex-direction:row;overflow-x:auto;overflow-y:visible;max-height:none;padding-bottom:6px;}
+    .est-item{flex:0 0 220px;}
+    .est-nueva{width:auto;flex:0 0 auto;}
+  }
   .res-colapsar{border:none;cursor:pointer;text-align:left;}
   .res-colapsar:hover{opacity:.78;}
   /* la flecha del título: → cuando está encogida, ↓ cuando está abierta */
@@ -706,8 +724,12 @@
   .res-fecha-input{background:#fff;border:none;border-radius:100px;color:#1A1A1A;font-family:'Inter',sans-serif;font-size:15px;font-weight:600;padding:8px 16px;outline:none;color-scheme:light;}
   .res-pane{display:none;background:#fff;border-radius:20px;padding:18px 20px;color:var(--text);flex-direction:column;gap:14px;}
   .res-pane.abierto{display:flex;}
-  .res-pill-dark{border:none;cursor:pointer;text-align:left;transition:.15s;background:#4B4B4B;color:var(--accent);font-family:'Sora',sans-serif;font-weight:800;font-size:15.5px;text-transform:uppercase;letter-spacing:.02em;padding:9px 20px;border-radius:100px;}
-  .res-pill-dark:hover{filter:brightness(1.2);}
+  /* mismo estilo que los botones del Generador: lima = aún sin definir · blanco = ya definido */
+  .res-pill-dark{border:1.5px solid #D5D5D5;cursor:pointer;text-align:left;transition:background .15s,border-color .15s;background:#fff;color:#1A1A1A;font-family:'Inter',sans-serif;font-weight:700;font-size:15px;text-transform:none;letter-spacing:0;padding:11px 20px;border-radius:100px;}
+  .res-pill-dark:hover{border-color:#1A1A1A;}
+  .res-pill-dark.pend{background:#C0F800;border-color:#C0F800;}
+  .campana-resumen:not(.nueva) .res-pill-dark.pend{border-color:#1A1A1A;}
+  .res-pill-dark .res-chev{font-size:11px;opacity:.7;}
   .res-chev{display:inline-block;transition:transform .15s;margin-left:4px;}
   .res-dato{display:flex;flex-direction:column;margin-bottom:8px;}
   .res-dato span{font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:#3C5E00;}
@@ -2024,21 +2046,52 @@ async function completarMetaDe(lista, btn){
 // propios en ese 3er nivel -- confirmado con el usuario). Mismo ciclo de guardado debounced que
 // borradorStore/cards, guardado en {cliente}:anuncios-estructura.
 
+// Estructura de Ads: a la izquierda, fijas, las campañas ya creadas (del producto que se filtró arriba) y a la derecha la que se abrió con toda su info.
+// El producto se filtra solo arriba (la pastilla de foco): ya no se repite en el título ni en un campo de cada campaña.
+let estSelId = '';
+function campanasVisibles(){
+  return estructuras.filter(c=> productoId ? c.producto_id===productoId : (grupoId ? c.grupo_id===grupoId : true));
+}
+// Número de la campaña dentro de su mismo producto o grupo (la primera creada es la 1).
+function numeroCampana(c){
+  const mismas = estructuras.filter(x=>(x.producto_id||'')===(c.producto_id||'') && (x.grupo_id||'')===(c.grupo_id||''));
+  return mismas.length - mismas.indexOf(c);
+}
 function renderEstructura(container){
   const wrap = document.createElement('div');
 
   if(!estructuras.length){
-    // Sin campañas todavía: el botón vive aquí; con campañas, cada una lo trae en su encabezado.
+    // Sin campañas todavía: el botón vive aquí.
     const empty = document.createElement('div');
     empty.className = 'empty-row';
     empty.innerHTML = 'Todavía no hay campañas de estructura.<br><br><button class="btn btn-solid" type="button" data-nueva-campana>+ Nueva campaña</button>';
     wrap.appendChild(empty);
   } else {
-    const barra = document.createElement('div');
-    barra.className = 'estructura-barra';
-    barra.innerHTML = '<button class="btn btn-solid btn-sm" type="button" data-nueva-campana>+ Nueva campaña</button>';
-    wrap.appendChild(barra);
-    estructuras.forEach(campana=>wrap.appendChild(buildCampanaEstructuraCard(campana)));
+    const visibles = campanasVisibles();
+    const verProducto = !productoId && !grupoId; // con "ecosistema completo" sí hace falta decir de qué producto es cada campaña
+    if(!visibles.some(c=>c.id===estSelId)) estSelId = visibles.length ? visibles[0].id : '';
+    const lay = document.createElement('div');
+    lay.className = 'est-layout';
+    const lista = document.createElement('aside');
+    lista.className = 'est-lista';
+    lista.setAttribute('aria-label', 'Campañas creadas');
+    lista.innerHTML = '<button class="btn btn-solid btn-sm est-nueva" type="button" data-nueva-campana>+ Nueva campaña</button>'
+      + (visibles.length ? visibles.map(c=>{
+          const nConj = (c.conjuntos||[]).length, nAn = new Set((c.conjuntos||[]).flatMap(cj=>cj.anuncios_ids||[])).size;
+          return `<button type="button" class="est-item${c.id===estSelId?' on':''}${c.guardada?' guardada':''}" data-est-sel="${c.id}">
+            <span class="est-item-t">Campaña ${numeroCampana(c)}</span>
+            ${verProducto ? `<span class="est-item-p">${escHtml(nombreAlcance(c))}</span>` : ''}
+            <span class="est-item-s">${escHtml(objetivoTextoCampana(c) || 'Sin objetivo')} · ${nConj} conjunto(s) · ${nAn} anuncio(s)</span>
+          </button>`;
+        }).join('') : '<p class="est-vacia">Todavía no hay campañas de este producto. Crea la primera.</p>');
+    const detalle = document.createElement('div');
+    detalle.className = 'est-detalle';
+    const sel = visibles.find(c=>c.id===estSelId);
+    if(sel) detalle.appendChild(buildCampanaEstructuraCard(sel, numeroCampana(sel), verProducto));
+    else detalle.innerHTML = '<div class="empty-row">Elige una campaña de la lista o crea una nueva.</div>';
+    lay.append(lista, detalle);
+    wrap.appendChild(lay);
+    lista.querySelectorAll('[data-est-sel]').forEach(b=>b.addEventListener('click',()=>{ estSelId = b.dataset.estSel; render(); }));
   }
 
   const hackFinal = document.createElement('div');
@@ -2054,7 +2107,9 @@ function renderEstructura(container){
   container.appendChild(wrap);
 
   wrap.querySelectorAll('[data-nueva-campana]').forEach(b=>b.addEventListener('click', ()=>{
-    estructuras.unshift(mkCampana());
+    const nueva = mkCampana();
+    estructuras.unshift(nueva);
+    estSelId = nueva.id;
     scheduleEstructuraSave();
     render();
   }));
@@ -2110,18 +2165,20 @@ function objetivoTextoCampana(campana){ const o = OBJETIVOS.find(x=>x.key===camp
 function htmlMapaColumnas(campana, opts){
   opts = opts || {};
   const ed = !!opts.editable;
-  const dark = (txt, tog, on)=> ed && tog
-    ? `<button type="button" class="res-pill-dark${on?' on':''}" data-res-toggle="${tog}">${txt} <span class="res-chev">▾</span></button>`
-    : `<span class="res-pill-dark estatica">${txt}</span>`;
+  // lima mientras esa parte siga sin definirse; blanca en cuanto ya se eligió algo (pend = pendiente)
+  const dark = (txt, tog, on, pend)=> ed && tog
+    ? `<button type="button" class="res-pill-dark${on?' on':''}${pend?' pend':''}" data-res-toggle="${tog}">${txt} <span class="res-chev">▾</span></button>`
+    : `<span class="res-pill-dark estatica${pend?' pend':''}">${txt}</span>`;
   const conjuntos = campana.conjuntos || [];
+  const nAnuncios = new Set(conjuntos.flatMap(c=>c.anuncios_ids||[])).size;
   const publico = (c,i)=>`Público #${i+1}${[c.edad, c.ubicacion].filter(Boolean).length ? ' · '+escHtml([c.edad, c.ubicacion].filter(Boolean).join(' · ')) : ''}`;
-  const col1 = dark('Objetivo de campaña:', 'obj', opts.abObj)
+  const col1 = dark('Objetivo de campaña:', 'obj', opts.abObj, !objetivoTextoCampana(campana))
     + `<span class="res-pill-w">${escHtml(objetivoTextoCampana(campana) || 'Sin definir')}</span>`
     + (campana.tipo ? `<span class="res-pill-w res-sub">${escHtml(campana.tipo)}</span>` : '')
     + (campana.resultado_esperado ? `<span class="res-pill-w res-sub">${escHtml(campana.resultado_esperado)}</span>` : '');
-  const col2 = dark('Conjunto de anuncios' + (ed ? ' ('+conjuntos.length+')' : ''), 'esp', opts.abEsp)
+  const col2 = dark('Conjunto de anuncios' + (ed ? ' ('+conjuntos.length+')' : ''), 'esp', opts.abEsp, !conjuntos.length)
     + (conjuntos.length ? conjuntos.map((c,i)=>`<span class="res-pill-w">${publico(c,i)}</span>`).join('') : '<span class="res-pill-w res-sub">Sin conjuntos todavía</span>');
-  const col3 = dark('Anuncios') + `<div class="res-anuncios"${ed ? ` data-vinculados="${campana.id}"` : ''}>${htmlAnunciosVinculados(campana, opts.anuncioId)}</div>`;
+  const col3 = dark('Anuncios', null, false, !nAnuncios) +`<div class="res-anuncios"${ed ? ` data-vinculados="${campana.id}"` : ''}>${htmlAnunciosVinculados(campana, opts.anuncioId)}</div>`;
   return `<div class="res-col">${col1}</div><div class="res-col">${col2}</div><div class="res-col res-col-anuncios">${col3}</div>`;
 }
 
@@ -2168,7 +2225,7 @@ function campanasDeAnuncio(id){ return estructuras.filter(c=>(c.conjuntos||[]).s
 function etiquetaCampana(c, i){
   const ob = objetivoTextoCampana(c);
   const n = new Set((c.conjuntos||[]).flatMap(cj=>cj.anuncios_ids||[])).size;
-  return `Campaña ${i+1} · ${nombreAlcance(c)}${ob ? ' · '+ob : ''} · ${n} anuncio(s)`;
+  return `Campaña ${numeroCampana(c)} · ${nombreAlcance(c)}${ob ? ' · '+ob : ''} · ${n} anuncio(s)`;
 }
 function mostrarToast(html){
   document.querySelectorAll('.pb-toast').forEach(x=>x.remove());
@@ -2208,6 +2265,7 @@ function proponerCampanaParaLote(ids){
     const v = (ov.querySelector('input[name="ay-camp"]:checked')||{}).value || '';
     const camp = agregarAnunciosACampana(ids, v);
     if(!camp){ mostrarToast('⚠️ Esa campaña es de otro producto o grupo: no se pueden agregar estos anuncios.'); return; }
+    estSelId = camp.id; // al ir a Estructura de Ads se abre esa campaña
     cerrar(); render();
     mostrarToast(`✅ ${ids.length} anuncio(s) ${v ? 'agregados a la campaña' : 'en una campaña nueva'}: <b>${escHtml(nombreAlcance(camp))}</b>. <button type="button" class="link-btn" data-ir-estructura>Verla en Estructura de Ads →</button>`);
   });
@@ -2223,7 +2281,7 @@ function pintarCampanaDelAnuncio(item, modal){
   if(abierta){
     if(camps.length){
       cuerpo = camps.map(c=>`<div class="campana-resumen mapa-lectura">
-        <div class="res-top"><span class="res-pill-white">Campaña: ${escHtml(nombreAlcance(c))}</span><button type="button" class="res-btn res-btn-white" data-ir-estructura>Abrir en Estructura de Ads →</button></div>
+        <div class="res-top"><span class="res-pill-white">Campaña: ${escHtml(nombreAlcance(c))}</span><button type="button" class="res-btn res-btn-white" data-ir-estructura data-camp="${c.id}">Abrir en Estructura de Ads →</button></div>
         <div class="res-mapa">${htmlMapaColumnas(c, { anuncioId:item.id })}</div></div>`).join('');
     } else {
       cuerpo = `<div class="pm-camp-vacio"><p>Este anuncio todavía no está en ninguna campaña.</p>
@@ -2235,7 +2293,7 @@ function pintarCampanaDelAnuncio(item, modal){
   }
   box.innerHTML = `<button type="button" class="pm-ver-campana${abierta?' abierto':''}" data-ver-campana>🗺️ Ver la campaña <span>${camps.length ? '· '+camps.length+(camps.length>1?' campañas':' campaña') : '· sin campaña todavía'}</span> <i>${abierta?'▴':'▾'}</i></button>${cuerpo}`;
   box.querySelector('[data-ver-campana]').addEventListener('click',()=>{ if(abierta) campanaVistaAbierta.delete(item.id); else campanaVistaAbierta.add(item.id); pintarCampanaDelAnuncio(item); });
-  box.querySelectorAll('[data-ir-estructura]').forEach(b=>b.addEventListener('click',()=>{ cerrarPostModal(); irATab('estructura'); }));
+  box.querySelectorAll('[data-ir-estructura]').forEach(b=>b.addEventListener('click',()=>{ if(b.dataset.camp) estSelId = b.dataset.camp; cerrarPostModal(); irATab('estructura'); }));
   const ag = box.querySelector('[data-camp-agregar]');
   if(ag) ag.addEventListener('click',()=>{
     const camp = agregarAnunciosACampana([item.id], box.querySelector('[data-camp-destino]').value);
@@ -2274,7 +2332,7 @@ function opcionesAlcanceDe(prodId, grpId){
   return html;
 }
 
-function buildCampanaEstructuraCard(campana){
+function buildCampanaEstructuraCard(campana, numero, verProducto){
   const card = document.createElement('div');
   card.className = 'campana-resumen' + (campanaNueva(campana) ? ' nueva' : '') + (resColapsadas.has(campana.id) ? ' colapsada' : '');
   const tiposDisponibles = OBJETIVO_TIPO_MAP[campana.objetivo] || [];
@@ -2282,7 +2340,7 @@ function buildCampanaEstructuraCard(campana){
 
   card.innerHTML = `
     <div class="res-top">
-      <button type="button" class="res-pill-white res-colapsar" data-res-colapsar title="Clic para encoger o abrir">Campaña: ${escHtml(nombreAlcance(campana))}<span class="res-flecha">→</span></button>
+      <button type="button" class="res-pill-white res-colapsar" data-res-colapsar title="Clic para encoger o abrir">Campaña ${numero || numeroCampana(campana)}${verProducto ? ' · '+escHtml(nombreAlcance(campana)) : ''}<span class="res-flecha">→</span></button>
       <div class="campana-top-actions">
         <button type="button" class="res-btn res-btn-white" data-guardar-campana>Guardar campaña</button>
         <button type="button" class="item-del" data-del-campana title="Eliminar campaña">✕</button>
@@ -2296,12 +2354,12 @@ function buildCampanaEstructuraCard(campana){
     </div>
     <div class="res-pane res-pane-obj${abObj?' abierto':''}">
       <div class="campana-fields-grid">
-        <div class="mode-field">
+        ${verProducto ? `<div class="mode-field">
           <label>Producto, servicio o grupo</label>
           <select data-campana="${campana.id}" data-field="alcance">
             ${opcionesAlcance(campana)}
           </select>
-        </div>
+        </div>` : ''}
         <div class="mode-field">
           <label>Objetivo de la campaña</label>
           <select data-campana="${campana.id}" data-field="objetivo">
