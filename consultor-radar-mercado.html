@@ -287,6 +287,7 @@
       <button type="button" class="import-tab" data-tab="capturas">📷 Subir capturas</button>
       <button type="button" class="import-tab" data-tab="auto">⚡ Lectura automática</button>
       <button type="button" class="import-tab" data-tab="pegar">📋 Pegar texto (Chrome)</button>
+      <button type="button" class="import-tab" data-tab="numeros">📊 Mis números</button>
     </div>
 
     <!-- Buscar en la web -->
@@ -331,6 +332,23 @@
       <div class="subsection-sub">Copia este prompt y pégalo en la extensión de Claude en Chrome, con tu sesión de Instagram/TikTok ya iniciada. Luego pega lo que te devuelva en la caja de abajo.</div>
       <pre class="prompt-block" id="chromePromptText"></pre>
       <button class="pb-btn pb-btn-borde" id="copyChromePromptBtn">Copiar prompt</button>
+    </div>
+
+    <!-- Mis números (cuentas propias) -->
+    <div class="import-panel" data-panel="numeros">
+      <div class="subsection-sub">Sube las estadísticas de TUS cuentas para que el Faro las compare con las de tus referentes. Descárgalas de Meta Business Suite (Estadísticas) y de TikTok Analytics (opción de descargar datos), o sube capturas. Esta caja es solo para tus cuentas, no para la competencia.</div>
+      <label class="drop-capturas" id="dropNumeros" for="numInput">📊 Toca para elegir tu reporte (CSV o TXT) o capturas — hasta 6 archivos</label>
+      <input type="file" id="numInput" accept=".csv,.txt,text/csv,text/plain,image/*" multiple hidden>
+      <div class="cap-thumbs" id="numArchivos"></div>
+      <label class="lbl" for="numTexto" style="margin-top:12px;">O pega tus números aquí (opcional)</label>
+      <textarea class="caja-texto" id="numTexto" style="min-height:90px;" placeholder="Ej. seguidores, alcance del mes, tus mejores publicaciones…"></textarea>
+      <div class="field" style="margin-top:10px;margin-bottom:0;"><label>Nota (opcional)</label><input type="text" id="numNota" placeholder="Ej. “son mis números de octubre, cuenta de Instagram”"></div>
+      <div class="extra-controls">
+        <button class="pb-btn" id="numBtn" onclick="leerMisNumeros()">Leer mis números</button>
+      </div>
+      <div id="numStatus"></div>
+      <div id="numGuardados"></div>
+      <p class="nota-chica">Se guardan en tu hub. El diagnóstico, el análisis, el brief y el chat los comparan con tus referentes. No hace falta ningún permiso de Meta ni de TikTok.</p>
     </div>
   </div>
 
@@ -1357,6 +1375,7 @@ function aplicarHistorial(items){
   renderSeccion4Result();
   renderSeccion5();
   renderBrief();
+  renderMisNumeros();
   renderSugerencias();
 }
 
@@ -1883,8 +1902,130 @@ function sugerenciasActuales(){
 
 function renderSugerencias(){
   const el = document.getElementById('faroSugerencias');
-  el.innerHTML = sugerenciasActuales().map(t => `<button type="button" class="pb-sugerencia" data-q="${escapeHtml(t)}">${escapeHtml(t)}</button>`).join('');
+  const lista = sugerenciasActuales();
+  if(referentesState.length > 0 && misNumerosDelFoco().length === 0 && lista.length < 5) lista.push('¿Qué números míos debo subir para compararme?');
+  el.innerHTML = lista.map(t => `<button type="button" class="pb-sugerencia" data-q="${escapeHtml(t)}">${escapeHtml(t)}</button>`).join('');
   el.querySelectorAll('.pb-sugerencia').forEach(b => b.addEventListener('click', () => enviarPregunta(b.dataset.q)));
+}
+
+// ============================================================
+// MIS NÚMEROS — estadísticas de las cuentas PROPIAS ({cliente}:radar-mis-numeros)
+// El diagnóstico, el análisis, el brief y el chat las comparan con los referentes.
+// ============================================================
+let numArchivos = []; // { nombre, texto } | { nombre, media_type, data, preview }
+let misNumeros = [];
+const NUM_MAX = 6;
+const NUM_TEXTO_MAX = 30000;
+
+async function agregarArchivosNumeros(files){
+  const statusEl = document.getElementById('numStatus');
+  statusEl.innerHTML = '';
+  for(const f of Array.from(files || [])){
+    if(numArchivos.length >= NUM_MAX){
+      statusEl.innerHTML = `<div class="nota-chica">Máximo ${NUM_MAX} archivos por vez.</div>`;
+      break;
+    }
+    try{
+      if(/^image\//.test(f.type)){
+        const img = await reducirImagen(f);
+        numArchivos.push({ nombre: f.name, media_type: img.media_type, data: img.data, preview: img.preview });
+      } else if(/\.(csv|txt)$/i.test(f.name) || /^text\//.test(f.type)){
+        numArchivos.push({ nombre: f.name, texto: (await f.text()).slice(0, NUM_TEXTO_MAX) });
+      } else {
+        statusEl.innerHTML = `<div class="error-card" style="margin-top:12px;">"${escapeHtml(f.name)}" no se puede leer aquí. Usa CSV, TXT o una captura (si es Excel, guárdalo como CSV).</div>`;
+      }
+    }catch(e){
+      statusEl.innerHTML = `<div class="error-card" style="margin-top:12px;">${escapeHtml(e.message || 'No se pudo abrir el archivo.')}</div>`;
+    }
+  }
+  renderNumArchivos();
+}
+
+function renderNumArchivos(){
+  document.getElementById('numArchivos').innerHTML = numArchivos.map((a, i) => a.preview
+    ? `<div class="cap-thumb"><img src="${a.preview}" alt="${escapeHtml(a.nombre)}"><button type="button" data-quitar-num="${i}" aria-label="Quitar">✕</button></div>`
+    : `<span class="pb-chip activo">📄 ${escapeHtml(a.nombre)} <button type="button" class="faro-link" data-quitar-num="${i}" aria-label="Quitar">✕</button></span>`
+  ).join('');
+  document.querySelectorAll('#numArchivos [data-quitar-num]').forEach(b => b.addEventListener('click', () => { numArchivos.splice(Number(b.dataset.quitarNum), 1); renderNumArchivos(); }));
+}
+
+function initMisNumeros(){
+  const input = document.getElementById('numInput');
+  const drop = document.getElementById('dropNumeros');
+  input.addEventListener('change', () => { agregarArchivosNumeros(input.files); input.value = ''; });
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('sobre'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('sobre'); }));
+  drop.addEventListener('drop', (e) => agregarArchivosNumeros(e.dataTransfer && e.dataTransfer.files));
+}
+
+async function cargarMisNumeros(){
+  try{
+    const result = await window.storage.get(storageKey('radar-mis-numeros'), false);
+    const items = result && result.value ? JSON.parse(result.value) : [];
+    misNumeros = Array.isArray(items) ? items : [];
+  }catch(e){
+    misNumeros = [];
+  }
+  renderMisNumeros();
+}
+
+function misNumerosDelFoco(){
+  const f = focoActual();
+  return misNumeros.filter(e => f.id === 'all' || (e.foco && e.foco.id === f.id));
+}
+
+async function leerMisNumeros(){
+  const statusEl = document.getElementById('numStatus');
+  const btn = document.getElementById('numBtn');
+  const pegado = document.getElementById('numTexto').value.trim();
+  const textos = numArchivos.filter(a => a.texto).map(a => `### ${a.nombre}\n${a.texto}`);
+  if(pegado) textos.push(pegado);
+  const imagenes = numArchivos.filter(a => a.data).map(a => ({ media_type: a.media_type, data: a.data }));
+  if(textos.length === 0 && imagenes.length === 0){
+    statusEl.innerHTML = '<div class="error-card" style="margin-top:12px;">Sube tu reporte (CSV o capturas) o pega tus números.</div>';
+    return;
+  }
+  btn.disabled = true; btn.innerText = 'Leyendo...';
+  statusEl.innerHTML = '<div class="loading-card">Ordenando tus números…</div>';
+  const r = await postRadar({ modo: 'mis-numeros', texto: textos.join('\n\n').slice(0, NUM_TEXTO_MAX), imagenes, nota: document.getElementById('numNota').value.trim() });
+  btn.disabled = false; btn.innerText = 'Leer mis números';
+  if(!r.ok){
+    statusEl.innerHTML = `<div class="error-card" style="margin-top:12px;">${escapeHtml(r.error)}</div>`;
+    return;
+  }
+  const d = r.data;
+  const f = focoActual();
+  if(d.id) misNumeros = misNumeros.concat([{ id: d.id, date: d.date, foco: { id: f.id, nombre: f.nombre }, texto: d.texto }]).slice(-6);
+  numArchivos = [];
+  renderNumArchivos();
+  document.getElementById('numTexto').value = '';
+  statusEl.innerHTML = `<div class="answer-card" style="margin-top:12px;"><div class="a-label">✅ Números guardados</div>${d.guardado ? 'Desde ahora el diagnóstico, el análisis, el brief y el chat los comparan con tus referentes.' : 'Se leyeron, pero no se pudieron guardar. Intenta de nuevo.'}</div>`;
+  renderMisNumeros();
+}
+
+function renderMisNumeros(){
+  const el = document.getElementById('numGuardados');
+  if(!el) return;
+  const lista = misNumerosDelFoco().slice().reverse();
+  if(lista.length === 0){ el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="subsection-title" style="margin-top:16px;">Tus números guardados' + escapeHtml(etiquetaFoco()) + '</div>' + lista.map(e => `
+    <details class="accordion">
+      <summary><span>${escapeHtml(e.date)} <span class="meta">${escapeHtml(e.foco && e.foco.nombre ? '· ' + e.foco.nombre : '')}</span></span><button class="del-btn" type="button" data-del-num="${escapeHtml(e.id)}">Borrar</button></summary>
+      <div class="body"><pre class="prompt-block" style="max-height:340px;">${escapeHtml(e.texto)}</pre></div>
+    </details>`).join('');
+  el.querySelectorAll('[data-del-num]').forEach(b => b.addEventListener('click', (ev) => { ev.preventDefault(); borrarMisNumeros(b.dataset.delNum); }));
+}
+
+async function borrarMisNumeros(id){
+  const anterior = misNumeros;
+  misNumeros = misNumeros.filter(e => e.id !== id);
+  try{
+    await window.storage.set(storageKey('radar-mis-numeros'), JSON.stringify(misNumeros), false);
+  }catch(e){
+    misNumeros = anterior;
+  }
+  renderMisNumeros();
+  renderSugerencias();
 }
 
 // ============================================================
@@ -1900,7 +2041,7 @@ GuiaJefe.registrar({
     { selector: '#paso-1', titulo: 'Paso 1: tus referentes',
       texto: 'Agrega los links de tu competencia y de quienes quieres tomar de inspiración. Puedes guardar hasta 10.' },
     { selector: '#importTabs', titulo: 'Paso 2: cómo traer la información',
-      texto: 'Busca en la web, sube capturas, deja que el Faro lea solo (YouTube siempre; las demás redes si tu plataforma lo tiene activado) o pega el texto de Chrome. Todo cae en la misma caja.' },
+      texto: 'Busca en la web, sube capturas, deja que el Faro lea solo (YouTube siempre; las demás redes si tu plataforma lo tiene activado) o pega el texto de Chrome. Todo cae en la misma caja. La pestaña "Mis números" es para las estadísticas de TUS cuentas: el Faro las compara con tus referentes.' },
     { selector: '#seccion2Btn', titulo: 'Genera el diagnóstico',
       texto: 'Cuando la caja tenga información, pícale aquí. De ahí salen el análisis por cuenta, las tendencias y las ideas.' },
     { selector: '#seccion4Btn', titulo: 'Pasos 4 y 5: tendencias e ideas',
@@ -1917,13 +2058,14 @@ setTimeout(() => { if(!GuiaJefe.vista('faro')) GuiaJefe.iniciar('faro'); }, 2200
 initRadarAddForm();
 initTabs();
 initCapturas();
+initMisNumeros();
 initChat();
 renderSugerencias();
 (async function(){
   // Espera a que la pastilla de producto cargue para saber el foco con el que se abre la página.
   try{ if(window.__foco) await window.__foco.ready; }catch(e){}
   if(window.__foco) window.__foco.onChange(() => { aplicarHistorial(historialTodos); });
-  await Promise.all([loadReferentes(), cargarEstilos()]);
+  await Promise.all([loadReferentes(), cargarEstilos(), cargarMisNumeros()]);
   await loadHistorial();
   refrescarEstadoLectura();
 })();
