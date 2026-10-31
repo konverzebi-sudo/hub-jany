@@ -21,6 +21,7 @@
 //                              SCRAPECREATORS_API_KEY (proveedor externo de pago, con tope mensual por hub).
 //   - 'estado-lectura':        dice qué redes se pueden leer solas en este servidor y cuánto queda del mes.
 //   - 'brief-estilo':          convierte el diagnóstico en un brief que Contenido y Anuncios pueden usar.
+//   - 'mis-numeros':           ordena las estadísticas de las cuentas PROPIAS (CSV/capturas) para compararlas con los referentes.
 //   - 'chat':                  conversación libre del Faro sobre lo que ya hay en el radar.
 
 const fs = require('fs');
@@ -248,12 +249,13 @@ async function construirContexto(cliente, campos) {
 }
 
 // Contexto del negocio + producto en foco + línea de foco, listo para pegar en el prompt.
-async function armarContexto(cliente, campos, foco) {
-  const [base, producto] = await Promise.all([
+async function armarContexto(cliente, campos, foco, opciones) {
+  const [base, producto, numeros] = await Promise.all([
     construirContexto(cliente, campos).catch(() => ''),
     contextoProductoFoco(cliente, foco).catch(() => ''),
+    opciones && opciones.misNumeros ? leerJSON(`${cliente}:radar-mis-numeros`).then((it) => bloqueMisNumeros(it, foco)).catch(() => '') : '',
   ]);
-  return [base, producto, lineaFoco(foco)].filter(Boolean).join('\n\n');
+  return [base, producto, numeros, lineaFoco(foco)].filter(Boolean).join('\n\n');
 }
 
 // Producto del catálogo del ADN que corresponde al foco (solo nombre, tipo y notas: no se inventan precios).
@@ -361,7 +363,7 @@ async function handleDiagnosticoGeneral(req, res, clienteId, systemPrompt) {
     'brand-book.audiencia',
     'brand-book.contenido_actual',
     'lista-maestra-cliente-ideal',
-  ], foco);
+  ], foco, { misNumeros: true });
 
   const instruccion =
     'Analiza el siguiente texto, que contiene datos extraídos manualmente de varias cuentas de referencia ' +
@@ -468,7 +470,7 @@ async function handleAnalisisGeneral(req, res, clienteId, systemPrompt) {
     'brand-book.audiencia',
     'brand-book.contenido_actual',
     'lista-maestra-cliente-ideal',
-  ], foco);
+  ], foco, { misNumeros: true });
 
   // Las 10 ideas accionables ya NO se piden aquí — se generan aparte, bajo
   // demanda, en 'ideas-accionables' (botón de la Sección 5) para no gastar
@@ -963,6 +965,76 @@ async function handleAnalisisCapturas(req, res, clienteId, systemPrompt) {
   return res.status(200).json({ texto: r.text });
 }
 
+// ---------- Mis números (estadísticas de las cuentas PROPIAS) ----------
+// La persona exporta sus estadísticas (Meta Business Suite, TikTok Analytics) o sube capturas, y Claude las deja
+// en un bloque ordenado que se guarda en <hub>:radar-mis-numeros. El diagnóstico, el análisis, el brief y el chat
+// los comparan contra los referentes. No hay conexión por API: nada de aprobaciones de Meta o TikTok.
+
+const MAX_TEXTO_NUMEROS = 30000;
+const MAX_ENTRADAS_NUMEROS = 6;
+
+const FORMATO_MIS_NUMEROS =
+  '---\n' +
+  'CUENTA: @usuario (Instagram, TikTok o Facebook)\n' +
+  'PERIODO:\n' +
+  'SEGUIDORES (total y cuánto cambió en el periodo):\n' +
+  'ALCANCE O VISTAS:\n' +
+  'INTERACCIONES (me gusta, comentarios, guardados, compartidos):\n' +
+  'VISITAS AL PERFIL O CLICS:\n' +
+  'PUBLICACIONES EN EL PERIODO (y cada cuánto publica):\n' +
+  'MEJORES PUBLICACIONES (las 3 con más resultado, con su dato):\n' +
+  'PEORES PUBLICACIONES (las 3 con menos resultado, con su dato):\n' +
+  'MEJORES DÍAS Y HORARIOS:\n' +
+  'AUDIENCIA (edad, género, ciudades):\n' +
+  'OTROS DATOS:\n' +
+  '---';
+
+// Lo más reciente primero no importa: se juntan las últimas lecturas del foco, de la más vieja a la más nueva.
+function bloqueMisNumeros(items, foco) {
+  const lista = (Array.isArray(items) ? items : []).filter((e) => e && e.texto && coincideFoco(e, foco ? foco.id : 'all')).slice(-3);
+  if (lista.length === 0) return '';
+  const cuerpo = lista.map((e) => `[${e.date}]\n${e.texto}`).join('\n\n');
+  return 'MIS NÚMEROS (estadísticas de las cuentas PROPIAS de la persona). Compáralos con los referentes: qué hacen distinto, en qué van mejor y en qué van peor los referentes. Usa SOLO estos datos; si algo no viene aquí, di que no lo tienes en vez de suponerlo:\n' + truncar(cuerpo, 5000);
+}
+
+async function handleMisNumeros(req, res, clienteId, systemPrompt) {
+  const texto = ((req.body && req.body.texto) || '').toString().trim().slice(0, MAX_TEXTO_NUMEROS);
+  const bruto = Array.isArray(req.body && req.body.imagenes) ? req.body.imagenes : [];
+  const imagenes = bruto
+    .filter((i) => i && TIPOS_IMAGEN.has(i.media_type) && typeof i.data === 'string' && i.data.length > 100)
+    .slice(0, MAX_IMAGENES);
+  if (!texto && !imagenes.length) return res.status(400).json({ error: 'Sube tu reporte (CSV o capturas) o pega aquí tus números.' });
+  if (imagenes.reduce((a, i) => a + i.data.length, 0) > MAX_BASE64_TOTAL) {
+    return res.status(413).json({ error: 'Las capturas pesan demasiado juntas. Sube menos capturas a la vez.' });
+  }
+  const nota = ((req.body && req.body.nota) || '').toString().trim().slice(0, 500);
+  const foco = normalizarFoco(req.body && req.body.foco);
+
+  const instruccion =
+    'Estas son las ESTADÍSTICAS DE LAS CUENTAS PROPIAS de la persona (no de la competencia), exportadas de Meta Business Suite, de TikTok Analytics u otra herramienta, ' +
+    'o capturadas de pantalla' + (nota ? ` (nota de la persona: "${nota}")` : '') + '. Ordénalas con este formato exacto, un bloque por cuenta o red:\n' + FORMATO_MIS_NUMEROS + '\n' +
+    'Reglas: copia las cifras tal como vienen, sin redondear ni inventar. Si un dato no viene en lo que se te dio, escribe "no viene en los datos" — nunca lo calcules por tu cuenta ni lo supongas. ' +
+    'Si hay una tabla con muchas publicaciones, quédate con el total del periodo y con las mejores y peores. Entrega todo en un solo bloque de texto, sin saludos ni explicaciones.' +
+    (texto ? `\n\nDATOS:\n"""\n${texto}\n"""` : '');
+
+  const content = imagenes.map((i) => ({ type: 'image', source: { type: 'base64', media_type: i.media_type, data: i.data } }));
+  content.push({ type: 'text', text: instruccion });
+  const r = await llamarClaude({ system: systemPrompt, messages: [{ role: 'user', content }], maxTokens: 2500 });
+  if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
+  await registrarUsoTokens(clienteId, 'consultor-radar-mis-numeros', r.usage);
+
+  let entry = null;
+  try {
+    const key = `${clienteId}:radar-mis-numeros`;
+    const previos = await leerJSON(key).catch(() => null);
+    entry = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), date: fechaHoy(), foco: { id: foco.id, nombre: foco.nombre }, texto: r.text };
+    await escribirJSON(key, (Array.isArray(previos) ? previos : []).concat([entry]).slice(-MAX_ENTRADAS_NUMEROS));
+  } catch (err) {
+    entry = null;
+  }
+  return res.status(200).json({ texto: r.text, date: entry ? entry.date : fechaHoy(), id: entry ? entry.id : null, guardado: !!entry });
+}
+
 // ---------- brief de estilo para Jefe de Contenido y Jefe de Anuncios ----------
 // Se guarda en <hub>:radar-estilo (lista, lo más reciente al final). Va en una llave aparte y NO dentro de
 // radar-historial: Contenido y Anuncios leen la última entrada del historial buscando "insights", y una
@@ -975,7 +1047,7 @@ async function handleBriefEstilo(req, res, clienteId, systemPrompt) {
   if (!diag) return res.status(400).json({ error: 'Genera el diagnóstico general primero (paso 3).' });
   const analisis = ultimaEntradaPorTipo(items, 'analisis-general', foco.id);
 
-  const contexto = await armarContexto(clienteId, ['brand-book.identidad', 'brand-book.tono', 'brand-book.audiencia', 'brand-book.contenido_actual', 'lista-maestra-cliente-ideal'], foco);
+  const contexto = await armarContexto(clienteId, ['brand-book.identidad', 'brand-book.tono', 'brand-book.audiencia', 'brand-book.contenido_actual', 'lista-maestra-cliente-ideal'], foco, { misNumeros: true });
   const instruccion =
     'Arma el BRIEF DE ESTILO DE REFERENTES: un resumen corto que el Jefe de Contenido y el Jefe de Anuncios van a leer ANTES de escribir, para darle estilo a los guiones y a las campañas ' +
     'mezclando lo que se aprendió de los referentes con la marca de este negocio (su voz y su tono vienen en el contexto de arriba). Es inspiración para adaptar, nunca para copiar: ' +
@@ -1035,7 +1107,7 @@ async function handleChat(req, res, clienteId, systemPrompt) {
 
   const foco = normalizarFoco(req.body && req.body.foco);
   const [contexto, referentes, items, estilos] = await Promise.all([
-    armarContexto(clienteId, ['brand-book.identidad', 'brand-book.tono', 'brand-book.audiencia', 'brand-book.contenido_actual', 'lista-maestra-cliente-ideal'], foco),
+    armarContexto(clienteId, ['brand-book.identidad', 'brand-book.tono', 'brand-book.audiencia', 'brand-book.contenido_actual', 'lista-maestra-cliente-ideal'], foco, { misNumeros: true }),
     leerJSON(`${clienteId}:radar-referentes`).catch(() => null),
     leerHistorial(clienteId),
     leerJSON(`${clienteId}:radar-estilo`).catch(() => null),
@@ -1115,6 +1187,7 @@ module.exports = async function handler(req, res) {
     if (modo === 'investigar-web') return await handleInvestigarWeb(req, res, clienteId, systemPrompt);
     if (modo === 'analisis-capturas') return await handleAnalisisCapturas(req, res, clienteId, systemPrompt);
     if (modo === 'brief-estilo') return await handleBriefEstilo(req, res, clienteId, systemPrompt);
+    if (modo === 'mis-numeros') return await handleMisNumeros(req, res, clienteId, systemPrompt);
     if (modo === 'chat') return await handleChat(req, res, clienteId, systemPrompt);
   } catch (err) {
     return res.status(500).json({ error: 'Error de conexión con el Agente.' });
@@ -1124,4 +1197,4 @@ module.exports = async function handler(req, res) {
 };
 
 // Solo para las pruebas (tests/radar-investigacion.test.js): funciones puras, sin red.
-module.exports._probar = { analizarLinkRed, bloqueDeCuenta, normalizarPostsInstagram, normalizarPostsTikTok, normalizarPostsFacebook, leerRssYouTube, normalizarFoco, lineaFoco, coincideFoco, ultimaEntradaPorTipo, frecuenciaPosts };
+module.exports._probar = { analizarLinkRed, bloqueDeCuenta, normalizarPostsInstagram, normalizarPostsTikTok, normalizarPostsFacebook, leerRssYouTube, normalizarFoco, lineaFoco, coincideFoco, ultimaEntradaPorTipo, frecuenciaPosts, bloqueMisNumeros };
