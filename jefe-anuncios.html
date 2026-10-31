@@ -3082,12 +3082,25 @@ function textFieldHtml(item, field, label){
 
 // Campos de Meta Ads Manager: detrás de un botón "Meta Ads" (como las pastillas de arriba); al picarlo salen todos, y cada uno
 // trae al final de su cuadro un ícono para copiarlo.
-const ICONO_COPIAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6.5A2.5 2.5 0 0 1 7.5 4H15"/></svg>';
+// "Visual sugerido": qué mostrar y cuánto dura, detrás de un botón (arriba del de Meta Ads).
+function visualFieldsHtml(item){
+  const ojo = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+  return `
+    <div class="meta-wrap">
+      <button type="button" class="pm-pill pm-meta-btn" id="pm-visual-toggle" data-caja="pm-visual-box" aria-expanded="false" aria-controls="pm-visual-box">${ojo}<span>Visual sugerido</span><span class="pm-meta-car">▾</span></button>
+      <div class="meta-fields-box" id="pm-visual-box" hidden>
+        ${textFieldHtml(item,'visual_sugerido','Visual sugerido (qué mostrar)')}
+        ${textFieldHtml(item,'duracion_sugerida','Duración sugerida')}
+      </div>
+    </div>
+  `;
+}
+const ICONO_COPIAR ='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6.5A2.5 2.5 0 0 1 7.5 4H15"/></svg>';
 function metaFieldsHtml(item){
   const copiar = (campo, nombre)=>`<button type="button" class="copy-field-btn copy-ic" data-copy-target="${campo}" data-id="${item.id}" title="Copiar ${nombre}" aria-label="Copiar ${nombre}">${ICONO_COPIAR}</button>`;
   return `
     <div class="meta-wrap">
-      <button type="button" class="pm-pill pm-meta-btn" id="pm-meta-toggle" aria-expanded="false" aria-controls="pm-meta-box">${ICONOS_SVG.meta}<span>Meta Ads</span>${metaIncompleta(item) ? '<i class="pm-meta-falta" title="Faltan campos">●</i>' : ''}<span class="pm-meta-car">▾</span></button>
+      <button type="button" class="pm-pill pm-meta-btn" id="pm-meta-toggle" data-caja="pm-meta-box" aria-expanded="false" aria-controls="pm-meta-box">${ICONOS_SVG.meta}<span>Meta Ads</span>${metaIncompleta(item) ? '<i class="pm-meta-falta" title="Faltan campos">●</i>' : ''}<span class="pm-meta-car">▾</span></button>
       <div class="meta-fields-box" id="pm-meta-box" hidden>
         <p class="meta-fields-title">Campos de Meta Ads Manager (Contenido → Texto)</p>
         <div class="detail-field">
@@ -3645,16 +3658,10 @@ function abrirPostModal(id){
             <div class="pm-copy-grid">
               <div class="pm-copy-izq">
                 ${promptFieldHtml(item,'copy_publicacion','Copy para publicar (puedes editarlo aquí)')}
+                ${visualFieldsHtml(item)}
                 ${metaFieldsHtml(item)}
               </div>
               <div class="pm-copy-der" id="pm-preview"></div>
-            </div>
-          </section>
-
-          <section class="pm-bloque" id="pm-b-visual">
-            <div class="pm-visual-grid">
-              ${textFieldHtml(item,'visual_sugerido','Visual sugerido (qué mostrar)')}
-              ${textFieldHtml(item,'duracion_sugerida','Duración sugerida')}
             </div>
           </section>
 
@@ -3694,11 +3701,12 @@ function abrirPostModal(id){
     el.querySelectorAll('#pm-formatos .pm-pill').forEach(x=>x.classList.toggle('on', x===b));
     scheduleCardsSave(); pintarPreviewPost(item);
   }));
-  const metaBtn = el.querySelector('#pm-meta-toggle');
-  if(metaBtn) metaBtn.addEventListener('click',()=>{
-    const caja = el.querySelector('#pm-meta-box'); const abrir = caja.hidden;
-    caja.hidden = !abrir; metaBtn.classList.toggle('on', abrir); metaBtn.setAttribute('aria-expanded', abrir ? 'true' : 'false');
-  });
+  // botones "Visual sugerido" y "Meta Ads": cada uno abre y cierra su caja de campos
+  el.querySelectorAll('.pm-meta-btn[data-caja]').forEach(btn=>btn.addEventListener('click',()=>{
+    const caja = el.querySelector('#'+btn.dataset.caja); if(!caja) return;
+    const abrir = caja.hidden;
+    caja.hidden = !abrir; btn.classList.toggle('on', abrir); btn.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+  }));
   el.querySelectorAll('#pm-redes [data-red]').forEach(b=>b.addEventListener('click',()=>{
     const set = new Set(redesDe(item));
     if(set.has(b.dataset.red)) set.delete(b.dataset.red); else set.add(b.dataset.red);
