@@ -285,11 +285,12 @@
   .pm-chips{display:flex;gap:8px;flex-wrap:wrap;}
   .pm-icon-btn{width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:#fff;cursor:pointer;font-size:16px;color:var(--text-dim);flex-shrink:0;}
   .pm-icon-btn:hover{border-color:var(--accent-text);color:var(--text);}
-  .pm-bar{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:14px 26px;background:#F0F0F0;font-weight:600;color:var(--text-dim);}
-  .pm-bar label{display:flex;align-items:center;gap:10px;font-size:15px;}
-  .pm-bar .fecha-input{width:auto;background:#fff;}
-  .pm-bar-alcance{flex:1 1 280px;min-width:220px;}
-  .pm-bar-alcance select{flex:1;min-width:0;max-width:100%;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 12px;font:600 15px 'Inter',sans-serif;color:var(--text);}
+  /* una sola fila: etapa · estado · fecha · hora · producto */
+  .pm-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 26px;background:#F0F0F0;font-weight:600;color:var(--text-dim);}
+  .pm-bar-etapa{flex:0 0 auto;font-size:14px;padding:7px 14px;}
+  .pm-bar .fecha-input,.pm-bar .estado-select{width:auto;flex:0 0 auto;}
+  .pm-bar .fecha-input{background:#fff;}
+  .pm-bar-alcance{flex:1 1 220px;min-width:180px;max-width:100%;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 12px;font:600 15px 'Inter',sans-serif;color:var(--text);}
   .pm-body{display:grid;grid-template-columns:minmax(0,1fr);min-height:0;flex:1;overflow:hidden;}
   .pm-form{overflow-y:auto;padding:20px 26px;display:flex;flex-direction:column;gap:20px;min-width:0;}
   .pm-label{font-weight:800;font-size:16px;margin-bottom:10px;}
@@ -1509,6 +1510,34 @@ async function generarIdeas(){
   }
 }
 
+// ─── CÓDIGO DE CADA ANUNCIO: "HUM 01_ Título" ───────────────────────────────────────────────────
+// Al pasar una idea a Campañas guardadas, su nombre empieza con un código corto: las 3 primeras letras del producto o servicio,
+// el número consecutivo del anuncio (01, 02, 03… en el orden de las etapas: primero adquisición, luego consideración y conversión)
+// y un guion bajo. Así se sabe cuál es cuál. Si ese producto ya tiene anuncios con código (aunque se hayan puesto a mano), se sigue
+// con el mismo prefijo y el número que sigue.
+const RE_CODIGO_ANUNCIO = /^\s*([A-Z0-9]{3}) (\d{1,3})_\s*/;
+const PALABRAS_SIN_CODIGO = new Set(['DE','DEL','LA','EL','LOS','LAS','UN','UNA','Y','E','O','PARA','POR','CON','EN','A','AL']);
+function prefijoDeNombre(nombre){
+  const palabras = (nombre||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().split(/[^A-Z0-9]+/).filter(Boolean);
+  const utiles = palabras.filter(p=>!PALABRAS_SIN_CODIGO.has(p));
+  return ((utiles.length ? utiles : palabras).join('') + 'XXX').slice(0,3);
+}
+// { prefijo, max }: el prefijo que ya usan los anuncios de ese producto (o el que sale de su nombre) y el último número usado.
+function baseCodigoAnuncio(prodId, grpId){
+  const delAlcance = cards.filter(c=> prodId ? c.producto_id===prodId : (!c.producto_id && (c.grupo_id||'')===(grpId||'')));
+  const usados = {};
+  delAlcance.forEach(c=>{ const m = RE_CODIGO_ANUNCIO.exec(c.titulo||''); if(m){ const u = usados[m[1]] = usados[m[1]] || { n:0, max:0 }; u.n++; u.max = Math.max(u.max, parseInt(m[2],10)); } });
+  const conocido = Object.keys(usados).sort((a,b)=>usados[b].n-usados[a].n)[0];
+  if(conocido) return { prefijo:conocido, max:usados[conocido].max };
+  const prod = productos.find(x=>x&&x.id===prodId), grp = grupos.find(x=>x&&x.id===grpId);
+  return { prefijo: prefijoDeNombre((prod&&prod.nombre) || (grp&&grp.nombre) || 'Anuncio'), max:0 };
+}
+function tituloConCodigo(titulo, prefijo, n){
+  const t = (titulo||'').trim();
+  if(RE_CODIGO_ANUNCIO.test(t)) return t; // ya trae su código
+  return (prefijo+' '+String(n).padStart(2,'0')+'_ '+t).trim();
+}
+
 async function generarDetalleSeleccionadas(){
   const statusEl = document.getElementById('anuncios-detalle-status');
   const btn = document.getElementById('anuncios-detalle-btn');
@@ -1536,7 +1565,11 @@ async function generarDetalleSeleccionadas(){
 
     let creadas = 0;
     const idsAntes = new Set(cards.map(c=>c.id));
-    sel.forEach(it=>{
+    // Números del código en el orden de las etapas (sel ya viene así); las tarjetas se crean al revés para que, al ir al frente de la lista, queden 01, 02, 03…
+    const base = baseCodigoAnuncio(productoId || '', grupoId || '');
+    const numeroDe = {}; let consecutivo = base.max;
+    sel.forEach(it=>{ if(detallesPorId[it.id]) numeroDe[it.id] = ++consecutivo; });
+    [...sel].reverse().forEach(it=>{
       const det = detallesPorId[it.id];
       if(!det) return;
       cards.unshift({
@@ -1545,7 +1578,7 @@ async function generarDetalleSeleccionadas(){
         formato: data.formato || formato,
         grupo_id: grupoId || '',
         producto_id: productoId || '',
-        titulo: it.titulo,
+        titulo: tituloConCodigo(it.titulo, base.prefijo, numeroDe[it.id]),
         hook: it.hook,
         objetivo: det.objetivo || '',
         angulo: det.angulo || '',
@@ -2787,13 +2820,14 @@ function usarRespuestaChatComoCampana(idx){
   if(!msg || msg.role!=='assistant' || msg.usada) return;
   const preguntaPrevia = (chatMessages[idx-1] && chatMessages[idx-1].role==='user') ? chatMessages[idx-1].content : '';
   const primeraLinea = (msg.content.split('\n').find(l=>l.trim())||'').slice(0,140);
+  const baseCod = baseCodigoAnuncio(productoId || '', grupoId || '');
   cards.unshift({
     id: mkCardId(),
     etapa: (msg.etapa && ETAPAS.some(e=>e.key===msg.etapa)) ? msg.etapa : 'consideracion',
     formato: 'reel',
     grupo_id: grupoId || '',
     producto_id: productoId || '',
-    titulo: primeraLinea || 'Idea desde Consulta en vivo',
+    titulo: tituloConCodigo(primeraLinea || 'Idea desde Consulta en vivo', baseCod.prefijo, baseCod.max + 1),
     hook: primeraLinea,
     objetivo: '', angulo: '', audiencia: '',
     guion: { hook:'', problema:'', solucion:'', prueba:'', costo_inaccion:'', cta:'' },
@@ -3334,22 +3368,20 @@ function abrirPostModal(id){
       <div class="pm-head">
         <div class="pm-head-main">
           <textarea class="gancho-input pm-titulo" data-id="${item.id}" data-field="titulo" rows="1">${escHtml(item.titulo)}</textarea>
-          <div class="pm-chips"><span class="badge badge-${item.etapa}">${ETAPA_LABEL[item.etapa]||item.etapa}</span><span class="badge badge-tipo" id="pm-chip-estado">${ESTADO_LABEL[est]}</span></div>
         </div>
         <button type="button" class="pm-icon-btn" id="pm-del" title="Eliminar campaña">🗑</button>
         <button type="button" class="pm-icon-btn" id="pm-x" title="Cerrar">✕</button>
       </div>
       <div class="pm-bar">
-        <label>Estado
-          <select class="estado-select ${est}" data-id="${item.id}" data-field="estado">
-            <option value="idea" ${est==='idea'?'selected':''}>💡 Idea</option>
-            <option value="proceso" ${est==='proceso'?'selected':''}>⚙️ En proceso</option>
-            <option value="publicado" ${est==='publicado'?'selected':''}>🔥 Publicado</option>
-          </select></label>
-        <label>Fecha <input type="date" class="fecha-input" value="${item.fecha||''}" data-id="${item.id}" data-field="fecha"></label>
-        <label>Hora <input type="time" class="fecha-input hora-input" value="${item.hora||''}" data-id="${item.id}" data-field="hora"></label>
-        <label class="pm-bar-alcance">Producto, servicio o grupo
-          <select class="pm-alcance" aria-label="Producto, servicio o grupo del anuncio">${opcionesAlcanceDe(item.producto_id, item.grupo_id)}</select></label>
+        <span class="badge badge-${item.etapa} pm-bar-etapa" title="Etapa de la campaña">${ETAPA_LABEL[item.etapa]||item.etapa}</span>
+        <select class="estado-select ${est}" data-id="${item.id}" data-field="estado" aria-label="Estado" title="Estado">
+          <option value="idea" ${est==='idea'?'selected':''}>💡 Idea</option>
+          <option value="proceso" ${est==='proceso'?'selected':''}>⚙️ En proceso</option>
+          <option value="publicado" ${est==='publicado'?'selected':''}>🔥 Publicado</option>
+        </select>
+        <input type="date" class="fecha-input" value="${item.fecha||''}" data-id="${item.id}" data-field="fecha" aria-label="Fecha" title="Fecha">
+        <input type="time" class="fecha-input hora-input" value="${item.hora||''}" data-id="${item.id}" data-field="hora" aria-label="Hora" title="Hora">
+        <select class="pm-alcance pm-bar-alcance" aria-label="Producto, servicio o grupo del anuncio" title="Producto, servicio o grupo">${opcionesAlcanceDe(item.producto_id, item.grupo_id)}</select>
       </div>
       <div class="pm-body">
         <div class="pm-form">
@@ -3430,7 +3462,6 @@ function abrirPostModal(id){
   });
   el.querySelector('.estado-select').addEventListener('change',(e)=>{
     e.target.className = 'estado-select '+e.target.value;
-    el.querySelector('#pm-chip-estado').textContent = ESTADO_LABEL[e.target.value]||e.target.value;
   });
   el.querySelector('#pm-del').addEventListener('click',()=>{
     if(!confirm('¿Eliminar esta campaña? No se puede deshacer.')) return;
