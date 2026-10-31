@@ -576,6 +576,13 @@
   .ed-medio-go{display:flex;align-items:center;gap:10px;}
   .ed-medio-box{margin-top:8px;}
   .ed-medio-box textarea{width:100%;}
+  .gan-intro{margin:0 0 14px;color:var(--text-dim);font-size:15px;}
+  .gan-fam{margin-bottom:18px;}
+  .gan-tit{margin:0 0 8px;font:800 17px 'Sora',sans-serif;}
+  .gan-nota{font:500 13px 'Inter',sans-serif;color:var(--text-dim);margin-left:6px;}
+  .gan-fila{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface);margin-bottom:6px;}
+  .gan-txt{font-size:15.5px;line-height:1.4;}
+  .gan-acc{display:flex;gap:10px;flex:0 0 auto;}
   .banco-foco{font-weight:700;font-size:13px;color:var(--accent-text);margin-left:6px;}
   .ed-label{font:700 14px 'Sora',sans-serif;}
   .ed-hint{font:500 13px 'Inter',sans-serif;color:var(--text-dim);}
@@ -648,6 +655,7 @@
   <script src="/js/storage-client.js"></script>
   <script>window.__focoConfig = { grupos: true, productos366: true, soloCompletos366: true, campanaLocal: true, pagina: 'contenido' }; // la pastilla también deja elegir un grupo completo</script>
   <script src="/js/jefes-foco.js"></script>
+  <script src="/js/banco-ganchos.js"></script>
   <script src="/js/guia-jefe.js"></script>
   <script>(async function(){
     var BRANDS=window.__hub.marcas({'rancho-seco':{fallback:'Rancho Seco',color:'#F2C230'},'rim':{fallback:'RIM',color:'#F472B6'},'optica-one':{fallback:'Óptica One',color:'#38BDF8'},'jefeshub':{fallback:'JefesHub',color:'#B8F725'}});
@@ -1229,8 +1237,9 @@ function mkBancoIdea(obj, src){
     descubrimiento:obj.descubrimiento||'',
     objecion:obj.objecion||'',
     comparacion:obj.comparacion||'',
-    uso:obj.uso||'Orgánico',
+    uso:obj.uso||obj.uso_sugerido||'Orgánico',
     prioridad:obj.prioridad||'Media',
+    gancho:obj.gancho||'', tipo:obj.tipo||'', etapa:obj.etapa||'',
     productoId:obj.productoId||'',
     source:src||'ai',
     selected:false
@@ -1430,7 +1439,7 @@ function renderBanco(host){
         fase:targetTab==='historias'?'Semana 1 · Atraer/Conexión':'Semana 1',
         gancho:item.idea,
         descripcion:item.descubrimiento||'',
-        ganchoIdea:'',
+        ganchoIdea:item.gancho||'',
         caption:'',
         notas:anguloToNotas(item),
         linkRef:'',linkArchivo:'',
@@ -1595,6 +1604,9 @@ const AGENTE_MODES = [
   {key:'ideas',  label:'Estrategia 366',  desc:'Banco de ideas por categoría (viral, educativo, venta, entretenimiento, testimonio) listo para mandar a Historias/Contenido.',
    custom:'evergreen-ideas'
   },
+  {key:'ganchos',label:'Banco de ganchos',desc:'Todos los ganchos para consultar y copiar. El chat los usa y te sugiere otros.',
+   custom:'ganchos'
+  },
   {key:'banco',label:'Ideas por ángulo',desc:'Escribe una idea y la IA arma su tabla de 7 ángulos (problema, error, deseo, historia, descubrimiento, objeción y comparación) para mandarla a Historias o Contenido.',
    custom:'banco-angulos'
   },
@@ -1630,6 +1642,15 @@ function renderAgente(){
     hostEv.innerHTML='<p class="status">Cargando...</p>';
     wrap.appendChild(hostEv);
     ensureEvergreenLoaded().then(()=>{ if(document.body.contains(hostEv)) pintarEvergreenIdeas(hostEv); });
+    return;
+  }
+
+  if(mode.custom==='ganchos'){
+    host.appendChild(wrap);
+    const hostG=document.createElement('div');
+    hostG.id='agente-ganchos-host';
+    wrap.appendChild(hostG);
+    pintarBancoGanchos(hostG);
     return;
   }
 
@@ -2618,9 +2639,14 @@ function actualizarHeroBar(){
 // tablero. Al escribir se filtran por lo tecleado; al elegir una se envía de una vez.
 // completa:true = es una plantilla que termina en "de…": al elegirla se escribe en la barra para que la termines.
 const SUGERENCIAS_BASE = [
-  {t:'¿Cómo hago mi siguiente post?', g:'comun'},
-  {t:'Dame un gancho para un post de ', g:'comun', completa:true},
+  {t:'Audítame un guion', g:'metodo', msg:'Quiero que me audites un guion'},
+  {t:'Haz variaciones de un post ganador', g:'metodo', msg:'Quiero hacer variaciones de un post que me funcionó'},
+  {t:'Hagamos el calendario guiado de 2 semanas o un mes', g:'metodo', msg:'Quiero hacer mi calendario de contenido guiado de 2 semanas o de un mes'},
+  {t:'Dame mi rutina semanal', g:'metodo', msg:'Dame mi rutina semanal de contenido'},
+  {t:'Dame ideas creativas (banco de ideas)', g:'metodo', msg:'Dame ideas creativas para mi banco de ideas'},
   {t:'Hacer un post de un post que vi', g:'comun', accion:'armar', msg:'Quiero hacer un post a partir de un post que vi'},
+  {t:'¿Cómo hago mi siguiente post?', g:'inicio'},
+  {t:'Dame un gancho para un post de ', g:'inicio', completa:true},
   {t:'¿Hacemos el contenido de esta semana?', g:'siguiente'},
   {t:'Hagamos un reel de ', g:'siguiente', completa:true},
   {t:'No sé, dame ideas padres', g:'siguiente'},
@@ -2670,9 +2696,9 @@ function sugerenciasChat(texto){
     return true;
   };
   // Las dos más comunes van siempre primero; el resto cambia según el momento.
-  const orden = hayPost ? ['comun','post','ideas','siguiente','tablero-proceso','tablero-ideas','tablero-historias','inicio','plantilla','cero']
-    : conv ? ['comun','ideas','siguiente','inicio','tablero-proceso','tablero-ideas','tablero-historias','plantilla','cero']
-    : ['comun','siguiente','inicio','tablero-ideas','tablero-proceso','tablero-historias','plantilla','cero'];
+  const orden = hayPost ? ['post','metodo','comun','ideas','siguiente','tablero-proceso','tablero-ideas','tablero-historias','inicio','plantilla','cero']
+    : conv ? ['ideas','metodo','comun','siguiente','inicio','tablero-proceso','tablero-ideas','tablero-historias','plantilla','cero']
+    : ['metodo','comun','siguiente','inicio','tablero-ideas','tablero-proceso','tablero-historias','plantilla','cero'];
   const focoSug = window.__foco ? window.__foco.get() : null;
   const deProducto = (focoSug && !focoSug.esTodo && focoSug.nombre) ? focoSug.nombre : '';
   const base = deProducto ? SUGERENCIAS_BASE.map(x=>x.completa ? {...x, t:x.t+deProducto} : x) : SUGERENCIAS_BASE;
@@ -2717,7 +2743,7 @@ function elegirSugerencia(i){
   ocultarSugerencias();
   if(s.accion==='arranque'){ reiniciarArranque(); return; }
   if(s.accion==='armar'){ guionOrgPreguntaDraft = s.msg || s.t; preguntarAgentePostIA({armar:true}); return; }
-  guionOrgPreguntaDraft = s.t;
+  guionOrgPreguntaDraft = s.msg || s.t;
   if(s.completa){
     // Plantilla: queda escrita en la barra para que la persona la termine.
     const ta=document.getElementById('go-pregunta');
@@ -2860,6 +2886,22 @@ function cerrarEditor(){
   editorCtx=null;
 }
 function editorTecla(e){ if(e.key==='Escape') cerrarEditor(); }
+
+// ─── BANCO DE GANCHOS (solo para ver y copiar; el chat los usa y sugiere otros) ───────────────
+function pintarBancoGanchos(host){
+  const fams=window.BANCO_GANCHOS||[];
+  host.innerHTML = '<p class="gan-intro">Tócalo para copiarlo, o usa <b>Al chat</b> para que el Jefe lo adapte a tu negocio. Los corchetes [ ] se llenan con lo tuyo.</p>'
+    + fams.map(f=>`<section class="gan-fam"><h3 class="gan-tit">${f.icono} ${escHtml(f.nombre)} <span class="gan-nota">${escHtml(f.nota||'')}</span></h3>
+      <div class="gan-lista">${f.plantillas.map(t=>`<div class="gan-fila"><span class="gan-txt">${escHtml(t)}</span><span class="gan-acc"><button type="button" class="link-btn" data-gan-copiar="${escHtml(t)}">Copiar</button><button type="button" class="link-btn" data-gan-chat="${escHtml(t)}">Al chat</button></span></div>`).join('')}</div></section>`).join('');
+  host.querySelectorAll('[data-gan-copiar]').forEach(b=>b.addEventListener('click',()=>{
+    navigator.clipboard.writeText(b.dataset.ganCopiar).then(()=>{ const antes=b.textContent; b.textContent='✅ Copiado'; setTimeout(()=>{ b.textContent=antes; },1400); });
+  }));
+  host.querySelectorAll('[data-gan-chat]').forEach(b=>b.addEventListener('click',()=>{
+    const ta=document.getElementById('go-pregunta');
+    guionOrgPreguntaDraft='Hazme una idea de post con este gancho, adaptado a mi negocio: «'+b.dataset.ganChat+'»';
+    ta.value=guionOrgPreguntaDraft; autoAlturaHero(ta); ta.focus(); ta.scrollIntoView({block:'center',behavior:'smooth'});
+  }));
+}
 
 // ─── PRODUCTO AUTOMÁTICO ───────────────────────────────────────────────────────────────────
 // Si el título, el caption, el guion o las notas nombran un producto del catálogo, queda elegido solo

@@ -196,7 +196,13 @@ Usa EXACTAMENTE la fórmula del objetivo que te pidan en MODO "contenido":
 ## Reglas para MODO "ideas"
 
 - Genera ideas específicas, no genéricas ("habla de los beneficios" NO sirve — di qué beneficio,
-  para quién, en qué contexto y contra qué objeción).
+  para quién, en qué contexto y contra qué objeción). Sigue la MÁQUINA DE IDEAS y las REGLAS
+  ANTI-GENÉRICO del MÉTODO: cada idea = un formato aplicado a una ancla real del negocio, con una
+  escena o tensión concreta y un giro que sorprenda.
+- El campo "idea" es el título de la idea (con su escena o tensión) y "gancho" es la primera frase
+  creativa, dicha como la diría una persona, tomada del banco de ganchos y adaptada al negocio real.
+- Reparte las ideas entre tipos (viral, educativo, venta, entretenimiento, testimonio) y entre las tres
+  etapas del cliente (adquisición, consideración, conversión).
 - Piensa en ideas que puedan usarse por meses, no solo por una moda de la semana (excepto en modo
   tendencia, que es intencionalmente del momento).
 - No repitas ideas entre sí.
@@ -216,6 +222,9 @@ Responde ÚNICAMENTE con este JSON (sin texto antes ni después, sin markdown, s
       "descubrimiento": "...",
       "objecion": "...",
       "comparacion": "...",
+      "gancho": "el gancho creativo, listo para decirlo en voz alta",
+      "tipo": "viral | educativo | venta | entretenimiento | testimonio",
+      "etapa": "adquisición | consideración | conversión",
       "uso_sugerido": "orgánico | anuncio evergreen | ambos",
       "prioridad": "alta | media | baja"
     }

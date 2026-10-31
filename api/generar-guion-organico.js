@@ -18,6 +18,7 @@ const PREGUNTAS_PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prom
 const ARRANQUE_PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-post-ia-arranque.md');
 const MEDIOS_PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-prompt-medios.md');
 const ARMAR_PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-post-ia-armar.md');
+const METODO_PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-contenido-metodo.md');
 const CONTEXT_CHAR_LIMIT = 24000; // tope de seguridad: cada bloque ya trae el suyo
 
 let fixedPromptCache = null;
@@ -38,6 +39,14 @@ function cargarPromptPreguntas() {
 // Se agrega al prompt de preguntas solo cuando el cliente manda fase 'arranque'.
 // Prompt para crear el prompt de imagen o de video de un post (modo 'prompt-medio').
 // Guía para armar un post con preguntas en el chat (fase 'armar'): link o idea, objetivo y algo más.
+// Método de contenido (etapas del cliente, máquina de ideas, auditoría, variaciones, calendario y rutina semanal).
+let metodoPromptCache = null;
+function cargarPromptMetodo() {
+  if (metodoPromptCache) return metodoPromptCache;
+  metodoPromptCache = fs.readFileSync(METODO_PROMPT_PATH, 'utf-8');
+  return metodoPromptCache;
+}
+
 let armarPromptCache = null;
 function cargarPromptArmar() {
   if (armarPromptCache) return armarPromptCache;
@@ -710,9 +719,9 @@ module.exports = async function handler(req, res) {
       // Con una campaña de temporada elegida: estrategia completa + guía paso a paso (modo campaña)
       const modoCampana = await contextoCampanaModo(leerJSON, clienteId, body.campanaId, 'contenido').catch(() => null);
       const enfoque = [enfoqueBase, modoCampana].filter(Boolean).join('\n\n') || null;
-      const system = systemConCache(promptPreguntas + arranque + armar, contexto, enfoque);
+      const system = systemConCache(promptPreguntas + '\n\n' + cargarPromptMetodo() + arranque + armar, contexto, enfoque);
 
-      const { texto, usage } = await llamarClaudeTexto({ system, messages: historialConCache(historial, { noReutilizable: imagenes.length > 0, total: validos.length, max: PREGUNTA_MAX_MESSAGES }), maxTokens: 1100, conBusqueda: true });
+      const { texto, usage } = await llamarClaudeTexto({ system, messages: historialConCache(historial, { noReutilizable: imagenes.length > 0, total: validos.length, max: PREGUNTA_MAX_MESSAGES }), maxTokens: 2200, conBusqueda: true });
       if (!texto) {
         return res.status(502).json({ error: 'El Agente no devolvió respuesta. Intenta de nuevo.' });
       }
@@ -748,11 +757,11 @@ module.exports = async function handler(req, res) {
         (productoId ? '\n\nEn cada idea agrega el campo "producto" con el nombre del producto enfocado.' : '') +
         (esTendencia ? '\n\nEl objetivo es "tendencia": usa la herramienta de búsqueda web para encontrar qué está pasando AHORA antes de responder. Basa las ideas en hallazgos reales, no en suposiciones.' : '');
 
-      const system = systemConCache(promptFijo, contexto, instruccion);
+      const system = systemConCache(promptFijo + '\n\n' + cargarPromptMetodo(), contexto, instruccion);
       const { parsed, usage } = await llamarClaude({
         system,
         mensaje: 'Genera las ideas de contenido orgánico pedidas, siguiendo el formato JSON obligatorio del MODO "ideas" al pie de la letra.',
-        maxTokens: esTendencia ? 4000 : 3000,
+        maxTokens: esTendencia ? 5000 : 4200,
         conBusqueda: esTendencia,
       });
 
@@ -778,7 +787,7 @@ module.exports = async function handler(req, res) {
       (bloqueProducto ? '\n\n' + bloqueProducto : '') +
       (esTendencia ? '\n\nEl objetivo es "tendencia": si es útil, usa la herramienta de búsqueda web para confirmar el hallazgo antes de escribir el contenido.' : '');
 
-    const system = systemConCache(promptFijo, contexto, instruccion);
+    const system = systemConCache(promptFijo + '\n\n' + cargarPromptMetodo(), contexto, instruccion);
     const { parsed, usage } = await llamarClaude({
       system,
       mensaje: 'Genera el caption y el guion pedidos para la idea elegida, siguiendo el formato JSON obligatorio del MODO "contenido" al pie de la letra.',
