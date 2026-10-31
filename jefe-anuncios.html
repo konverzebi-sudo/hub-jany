@@ -247,10 +247,12 @@
   .cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr));gap:18px;align-items:start;}
   .cards-grid .item-card:has(details[open]){grid-column:1/-1;}
   .estado-seccion{margin-bottom:28px;}
-  .estado-seccion-title{display:flex;align-items:center;gap:10px;font-family:'Sora',sans-serif;font-weight:800;font-size:18px;letter-spacing:.02em;text-transform:uppercase;margin:0 0 16px;padding:14px 22px;border-radius:16px;background:var(--st-idea-bg);color:var(--st-idea-fg);}
-  .estado-seccion-title.proceso{background:var(--st-proceso-bg);color:var(--st-proceso-fg);}
-  .estado-seccion-title.publicado{background:var(--st-publicado-bg);color:var(--st-publicado-fg);}
-  .estado-seccion-title .estado-count{font-family:'Inter',sans-serif;font-size:14px;font-weight:700;opacity:.75;}
+  .pcard-meta{margin-top:10px;width:fit-content;max-width:100%;border:1.5px dashed var(--accent-text);background:#fff;color:var(--accent-text);border-radius:100px;padding:6px 14px;font:700 12.5px 'Inter',sans-serif;cursor:pointer;}
+  .pcard-meta:hover{background:var(--accent-soft);}
+  .pcard-meta:disabled{opacity:.6;cursor:wait;}
+  /* título de cada grupo: encabezado grande y limpio (como "Próximos posts" de Jefe de Contenido), sin barra gris */
+  .estado-seccion-title{display:flex;align-items:baseline;gap:12px;font-family:'Sora',sans-serif;font-weight:800;font-size:clamp(24px,3.2vw,32px);line-height:1.15;letter-spacing:-.01em;margin:6px 0 18px;padding:0 4px;color:var(--text);}
+  .estado-seccion-title .estado-count{font-family:'Inter',sans-serif;font-size:16px;font-weight:600;color:var(--text-dim);}
   .item-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;}
   .item-card textarea.gancho-input{font-size:18px;}
 
@@ -1857,20 +1859,6 @@ function pintarIconos(){
 }
 
 function renderGuardadas(container){
-  if(cards.length){
-    const faltantes = cards.filter(c=>!c.titulo_anuncio || !c.cta_boton || !c.link_destino);
-    const completarBar = document.createElement('div');
-    completarBar.className = 'carpeta-box';
-    completarBar.style.cssText = 'flex-direction:row;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;';
-    completarBar.innerHTML = `
-      <span class="mode-status" id="completar-meta-status">${faltantes.length ? `${faltantes.length} campaña(s) sin Título/CTA/Link de Meta Ads Manager.` : '✅ Todas las campañas tienen sus campos de Meta completos.'}</span>
-      <button class="btn btn-outline" id="completar-meta-btn" type="button"${faltantes.length?'':' disabled'}>✨ Completar campos de Meta Ads</button>
-    `;
-    container.appendChild(completarBar);
-    const completarBtn = document.getElementById('completar-meta-btn');
-    if(completarBtn) completarBtn.addEventListener('click', completarCamposMeta);
-  }
-
   if(!cards.length){
     const empty = document.createElement('div');
     empty.className = 'empty-row';
@@ -1914,30 +1902,30 @@ function renderGuardadas(container){
     el.addEventListener('click',()=>abrirPostModal(el.dataset.id));
     el.addEventListener('keydown',(e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); abrirPostModal(el.dataset.id); } });
   });
+  // Cada campaña a la que le falte Título/CTA/Link de Meta lo pide en su propia tarjeta (no abre la ventana de la tarjeta)
+  container.querySelectorAll('[data-completar-meta]').forEach(b=>{
+    b.addEventListener('click',(e)=>{ e.stopPropagation(); const c = cards.find(x=>x.id===b.dataset.completarMeta); if(c) completarMetaDe([c], b); });
+    b.addEventListener('keydown',(e)=>e.stopPropagation());
+  });
 }
 
-// Backfill de una sola vez: completa Título/Descripción/CTA de Meta Ads Manager en las tarjetas
-// que se crearon antes de que existieran estos 3 campos. Las tarjetas nuevas ya salen completas
-// desde generarDetalleSeleccionadas() -- este botón es solo para ponerse al día con las viejas.
-async function completarCamposMeta(){
-  const statusEl = document.getElementById('completar-meta-status');
-  const btn = document.getElementById('completar-meta-btn');
-  const faltantes = cards.filter(c=>!c.titulo_anuncio || !c.cta_boton || !c.link_destino);
-  if(!faltantes.length) return;
-  btn.disabled = true;
-  // Se agrupa por grupo_id antes de lotear -- el link_destino depende del grupo de negocio de
-  // cada tarjeta (cada Comunicación 366 puede tener su propio número/mensaje de WhatsApp), así
-  // que una misma llamada a la API no puede mezclar tarjetas de distintos grupos.
+// ¿A esta campaña le faltan los campos de Meta Ads Manager (Título, botón o link)?
+const metaIncompleta = (c)=>!c.titulo_anuncio || !c.cta_boton || !c.link_destino;
+// Completa Título/Descripción/CTA/Link de Meta de las campañas que se le pasen (por lo general una sola: la de su tarjeta).
+// Las campañas nuevas ya salen completas al pasar del Generador a Campañas guardadas (generarDetalleSeleccionadas); esto es para las
+// que quedaron a medias. Un 402 (tope de uso) se muestra tal cual.
+async function completarMetaDe(lista, btn){
+  if(!lista.length) return;
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ Completando…'; }
+  // Se agrupa por grupo_id antes de lotear: el link_destino depende del grupo de negocio de cada tarjeta
+  // (cada Comunicación 366 puede tener su propio número/mensaje de WhatsApp), así que una llamada no mezcla grupos.
   const porGrupo = {};
-  faltantes.forEach(c=>{ const g = c.grupo_id || ''; (porGrupo[g] = porGrupo[g] || []).push(c); });
-  let hechos = 0;
-  const total = faltantes.length;
+  lista.forEach(c=>{ const g = c.grupo_id || ''; (porGrupo[g] = porGrupo[g] || []).push(c); });
+  let hechos = 0, error = '';
   for(const grupoIdLote of Object.keys(porGrupo)){
     const cardsDelGrupo = porGrupo[grupoIdLote];
-    for(let i=0;i<cardsDelGrupo.length;i+=MAX_CAMPOS_META_POR_LOTE){
+    for(let i=0;i<cardsDelGrupo.length && !error;i+=MAX_CAMPOS_META_POR_LOTE){
       const lote = cardsDelGrupo.slice(i, i+MAX_CAMPOS_META_POR_LOTE);
-      statusEl.className = 'mode-status';
-      statusEl.textContent = `⏳ Completando ${hechos+1}-${Math.min(hechos+lote.length, total)} de ${total}...`;
       try{
         const res = await fetch('/api/generar-anuncios', {
           method:'POST', headers:{'Content-Type':'application/json'},
@@ -1947,7 +1935,7 @@ async function completarCamposMeta(){
           }),
         });
         const data = await res.json();
-        if(!res.ok || !data.campos){ statusEl.textContent='Error: '+(data.error||'No se pudo completar.'); statusEl.classList.add('error'); btn.disabled=false; return; }
+        if(!res.ok || !data.campos){ error = res.status===402 ? (data.error||'Llegaste al tope de uso de IA.') : (data.error||'No se pudo completar.'); break; }
         const porId = {};
         data.campos.forEach(c=>{ porId[c.id]=c; });
         lote.forEach(c=>{
@@ -1960,12 +1948,11 @@ async function completarCamposMeta(){
           hechos++;
         });
         scheduleCardsSave();
-      }catch(err){
-        statusEl.textContent = 'Error de conexión.'; statusEl.classList.add('error'); btn.disabled=false; return;
-      }
+      }catch(err){ error = 'Error de conexión.'; }
     }
+    if(error) break;
   }
-  statusEl.textContent = `✅ ${hechos} campaña(s) completadas con Título/Descripción/CTA/Link de Meta.`;
+  mostrarToast(error ? '⚠️ '+escHtml(error) : `✅ Listo: completé el título, la descripción, el botón y el link de Meta (${hechos}).`);
   render();
 }
 
@@ -2913,6 +2900,7 @@ function buildPostCard(item, conFecha){
       <div class="ptitle">${escHtml(item.titulo||'(sin título)')}</div>
       <div class="pnets">${prod?`<span class="pnet pprod">◆ ${escHtml(prod.nombre)}</span>`:''}${redes.map(r=>`<span class="pnet">${escHtml(r)}</span>`).join('')}</div>
       <div class="pfoot"><span class="ppill ${est}">${ESTADO_LABEL[est]}</span><span class="phora">${escHtml(conFecha?fechaCortaCard(item)+(item.hora?' · '+item.hora:''):(item.hora||''))}</span></div>
+      ${conFecha && metaIncompleta(item) ? `<button type="button" class="pcard-meta" data-completar-meta="${escHtml(item.id)}" title="Le falta el título, el botón o el link de Meta Ads Manager">✨ Completar campos de Meta</button>` : ''}
     </div>
   </article>`;
 }
