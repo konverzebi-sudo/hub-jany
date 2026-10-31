@@ -18,7 +18,7 @@ const PREGUNTAS_PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prom
 const ARRANQUE_PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-post-ia-arranque.md');
 const MEDIOS_PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-prompt-medios.md');
 const ARMAR_PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-post-ia-armar.md');
-const CONTEXT_CHAR_LIMIT = 10000;
+const CONTEXT_CHAR_LIMIT = 24000; // tope de seguridad: cada bloque ya trae el suyo
 
 let fixedPromptCache = null;
 function cargarPromptFijo() {
@@ -401,6 +401,71 @@ async function leerOfertas366(clienteId) {
   if (nuevo && Object.keys(nuevo).length) return [Object.assign({ nombre: 'Producto Principal' }, nuevo)];
   return [];
 }
+// El Jefe 366 guarda una ficha por producto: {lista:[...]} (producto, sistema y comunicación). Antes solo se leía el formato
+// viejo de una sola ficha, así que la estrategia de comunicación (posicionamiento, ángulos, frases) no llegaba al Jefe.
+async function leerLista366(clienteId, clave, viejo) {
+  let d = await leerJSON(`${clienteId}:${clave}`).catch(() => null);
+  if (!d && viejo) d = await leerJSON(`${clienteId}:${viejo}`).catch(() => null);
+  if (!d) return [];
+  if (Array.isArray(d)) return d.filter(Boolean);
+  if (Array.isArray(d.lista)) return d.lista.filter(Boolean);
+  return Object.keys(d).length ? [d] : [];
+}
+const OMITIR_366 = new Set(['uid', 'producto_uid', 'grupo_id', '_importantes', 'activa', 'id', 'nombre', 'numero_whatsapp', 'mensaje_whatsapp', 'whatsapp_link_corto', 'producto_relacionado']);
+function etiquetaCampo366(k) { return String(k).replace(/_/g, ' '); }
+// Vuelca una ficha 366 tal cual está llena (textos y tablas), sin depender de cómo se llamen sus campos.
+function formatearFicha366(it, limite) {
+  if (!it || typeof it !== 'object') return '';
+  const lineas = [];
+  Object.keys(it).forEach((k) => {
+    if (OMITIR_366.has(k)) return;
+    const v = it[k];
+    if (typeof v === 'string' && v.trim()) {
+      lineas.push(`${etiquetaCampo366(k)}: ${truncar(v.trim(), 600)}`);
+    } else if (Array.isArray(v) && v.length) {
+      const filas = v.map((f) => (f && typeof f === 'object'
+        ? Object.keys(f).filter((c) => !OMITIR_366.has(c) && typeof f[c] === 'string' && f[c].trim()).map((c) => `${etiquetaCampo366(c)}: ${truncar(f[c].trim(), 220)}`).join(' · ')
+        : String(f || ''))).filter(Boolean).slice(0, 8);
+      if (filas.length) lineas.push(`${etiquetaCampo366(k)}:\n` + filas.map((x) => '  - ' + x).join('\n'));
+    }
+  });
+  return truncar(lineas.join('\n'), limite);
+}
+function coincideProducto366(it, nombre, uid) {
+  if (!it) return false;
+  if (uid && (it.producto_uid === uid || it.uid === uid)) return true;
+  return !!nombre && slugOferta(it.nombre) === slugOferta(nombre);
+}
+// Resumen corto de la comunicación 366 de cada producto (posicionamiento, diferenciador y primeros ángulos).
+function resumenComunicaciones366(coms, grupoId) {
+  const lista = (coms || []).filter((c) => c && (!grupoId || !c.grupo_id || c.grupo_id === grupoId));
+  const lineas = lista.map((c) => {
+    const partes = [];
+    if (String(c.posicionamiento || '').trim()) partes.push('posicionamiento: ' + truncar(String(c.posicionamiento).trim(), 220));
+    if (String(c.diferenciador || '').trim()) partes.push('diferenciador: ' + truncar(String(c.diferenciador).trim(), 180));
+    const angulos = (Array.isArray(c.angulos_evergreen) ? c.angulos_evergreen : []).map((a) => a && a.angulo).filter(Boolean).slice(0, 4);
+    if (angulos.length) partes.push('ángulos: ' + angulos.join(' / '));
+    return partes.length ? `- ${c.nombre || '(producto)'}: ${partes.join(' · ')}` : null;
+  }).filter(Boolean);
+  return lineas.length ? 'ESTRATEGIA DE COMUNICACIÓN 366 POR PRODUCTO (resumen):\n' + lineas.join('\n') : null;
+}
+// Con un producto elegido: su producto 366, su sistema para vender y su comunicación, completos.
+async function construirDetalle366(clienteId, nombre, uid) {
+  const [prods, sist, coms] = await Promise.all([
+    leerLista366(clienteId, 'brand-book.366-producto', 'brand-book.evergreen-producto'),
+    leerLista366(clienteId, 'brand-book.366-sistema', 'brand-book.evergreen-sistema'),
+    leerLista366(clienteId, 'brand-book.366-comunicacion', 'brand-book.evergreen-comunicacion'),
+  ]);
+  const bloques = [];
+  const miProd = prods.find((x) => coincideProducto366(x, nombre, uid));
+  const miSis = sist.find((x) => coincideProducto366(x, nombre, uid));
+  const miCom = coms.find((x) => coincideProducto366(x, nombre, uid));
+  if (miProd) bloques.push('PRODUCTO 366 (qué vendemos, pilares, frases a enfatizar y a evitar):\n' + formatearFicha366(miProd, 3500));
+  if (miCom) bloques.push('ESTRATEGIA DE COMUNICACIÓN 366 DE ESTE PRODUCTO (posicionamiento, ángulos, frases maestras; úsala como base):\n' + formatearFicha366(miCom, 5000));
+  if (miSis) bloques.push('SISTEMA 366 PARA VENDER ESTE PRODUCTO (contexto, recorrido del cliente y reglas):\n' + formatearFicha366(miSis, 3500));
+  return bloques.length ? bloques.join('\n\n') : null;
+}
+
 async function construirEnfoqueProducto(clienteId, catalogo, productoId) {
   if (!productoId) return null;
   const ficha = Array.isArray(catalogo) ? catalogo.find((it) => it && it.id === productoId) : null;
@@ -428,6 +493,8 @@ async function construirEnfoqueProducto(clienteId, catalogo, productoId) {
     if (oferta.insight_estrategico) lineas.push(`Insight estratégico: ${truncar(oferta.insight_estrategico, 500)}`);
   }
   lineas.push('Todo lo que respondas debe servir para este producto o servicio; no mezcles otros del catálogo ni inventes precios o promociones que no estén aquí o en el ADN.');
+  const detalle366 = await construirDetalle366(clienteId, nombre, (ficha && ficha.uid) || (oferta && oferta.uid) || '').catch(() => null);
+  if (detalle366) lineas.push('', detalle366);
 
   const campanas = await leerJSON(`${clienteId}:temporada-campanas`).catch(() => null);
   const delProducto = (Array.isArray(campanas) ? campanas : []).filter((c) => c && c.producto_id === productoId);
@@ -442,7 +509,7 @@ async function construirEnfoqueProducto(clienteId, catalogo, productoId) {
 
 // Ecosistema completo (o un grupo): la lista de productos y servicios 366 y la de productos y servicios de temporada.
 // Sirve para que las ideas se repartan entre todo lo que se vende, sin quedarse en un solo producto.
-async function construirEcosistema(clienteId, catalogo, grupoId) {
+async function construirEcosistema(clienteId, catalogo, grupoId, paraIdeas) {
   const prods = (Array.isArray(catalogo) ? catalogo : []).filter((p) => p && p.nombre && (!grupoId || p.grupo_id === grupoId));
   const ofertas = await leerOfertas366(clienteId).catch(() => []);
   const nombres366 = [];
@@ -454,10 +521,11 @@ async function construirEcosistema(clienteId, catalogo, grupoId) {
   const vigentes = (Array.isArray(campanas) ? campanas : []).filter((c) => c && (!c.fecha_fin_activa || c.fecha_fin_activa >= hoy) && (!grupoId || !c.grupo_id || c.grupo_id === grupoId));
   const deTemporada = vigentes.map((c) => {
     const prod = c.producto_origen === 'nuevo' ? c.producto_nuevo : c.producto_nombre;
-    return `- ${String(prod || '').split('\n')[0].trim() || '(producto de la campaña)'} — campaña "${c.nombre || 'sin nombre'}"${c.temporada ? ' (' + c.temporada + ')' : ''}`;
+    const extra = [c.objetivo_principal ? 'objetivo: ' + truncar(String(c.objetivo_principal), 140) : '', c.incentivo ? 'incentivo: ' + truncar(String(c.incentivo), 140) : '', c.fecha_inicio_activa || c.fecha_fin_activa ? `vigencia: ${c.fecha_inicio_activa || '?'} a ${c.fecha_fin_activa || '?'}` : ''].filter(Boolean).join(' · ');
+    return `- ${String(prod || '').split('\n')[0].trim() || '(producto de la campaña)'} — campaña "${c.nombre || 'sin nombre'}"${c.temporada ? ' (' + c.temporada + ')' : ''}${extra ? ': ' + extra : ''}`;
   });
 
-  const partes = ['ENFOQUE: ' + (grupoId ? 'GRUPO DE NEGOCIO COMPLETO' : 'ECOSISTEMA COMPLETO') + ' (no hay un producto en particular). Reparte las ideas entre los productos y servicios de abajo, sin quedarte en uno solo, y en cada idea agrega el campo "producto" con el nombre EXACTO del producto o servicio de la lista al que pertenece (déjalo vacío si es de la marca en general).'];
+  const partes = [paraIdeas === false ? 'ENFOQUE: ' + (grupoId ? 'GRUPO DE NEGOCIO COMPLETO' : 'ECOSISTEMA COMPLETO') + ' (no hay un producto elegido). Tienes la lista de todos los productos y servicios 366 y de temporada: si la persona nombra uno, responde sobre ese; si no, escoge el que mejor encaje y dilo.' : 'ENFOQUE: ' + (grupoId ? 'GRUPO DE NEGOCIO COMPLETO' : 'ECOSISTEMA COMPLETO') + ' (no hay un producto en particular). Reparte las ideas entre los productos y servicios de abajo, sin quedarte en uno solo, y en cada idea agrega el campo "producto" con el nombre EXACTO del producto o servicio de la lista al que pertenece (déjalo vacío si es de la marca en general).'];
   partes.push('Productos y servicios 366:\n' + (nombres366.length ? nombres366.map((n) => '- ' + n).join('\n') : '(todavía no hay en el ADN)'));
   partes.push('Productos y servicios de temporada:\n' + (deTemporada.length ? deTemporada.join('\n') : '(no hay campañas de temporada vigentes)'));
   return partes.join('\n\n');
@@ -478,17 +546,21 @@ async function construirContexto(clienteId, grupoId) {
     leerJSON(`${clienteId}:brand-book.redes`).catch(() => null),
   ]);
 
+  const tope = (txt, n) => (txt ? truncar(txt, n) : null);
   const bloquesNegocio = [
-    formatearIdentidad(identidad),
-    formatearTono(tono),
-    formatearAudiencias(audiencia),
-    formatearCatalogo(catalogo, grupos, grupoId),
-    formatearRedes(redes),
-    formatearHistorialContenido(redes),
+    tope(formatearIdentidad(identidad), 1500),
+    tope(formatearTono(tono), 1500),
+    tope(formatearAudiencias(audiencia), 3500),
+    tope(formatearCatalogo(catalogo, grupos, grupoId), 3000),
+    tope(formatearRedes(redes), 1500),
+    tope(formatearHistorialContenido(redes), 800),
   ].filter(Boolean);
 
-  const bloque366 = formatearComunicacion366(comunicacion);
-  const bloqueRadar = formatearRadar(radarHistorial, radarEstilo, 'contenido');
+  // Formato nuevo: una comunicación 366 por producto ({lista}); formato viejo: una sola ficha.
+  const bloque366 = tope((comunicacion && Array.isArray(comunicacion.lista))
+    ? resumenComunicaciones366(comunicacion.lista, grupoId)
+    : formatearComunicacion366(comunicacion), 3500);
+  const bloqueRadar = tope(formatearRadar(radarHistorial, radarEstilo, 'contenido'), 2000);
 
   const partes = [];
   partes.push(bloquesNegocio.length
@@ -500,8 +572,8 @@ async function construirContexto(clienteId, grupoId) {
   partes.push(bloqueRadar
     ? bloqueRadar
     : 'RADAR DE MERCADO: todavía no hay corridas guardadas -- ignora esta sección.');
-  if (conversacionReciente) partes.push(conversacionReciente);
-  if (bancoConversaciones) partes.push(bancoConversaciones);
+  if (conversacionReciente) partes.push(truncar(conversacionReciente, 2500));
+  if (bancoConversaciones) partes.push(truncar(bancoConversaciones, 1500));
 
   return { contexto: truncar(partes.join('\n\n---\n\n'), CONTEXT_CHAR_LIMIT), catalogo };
 }
@@ -702,7 +774,9 @@ module.exports = async function handler(req, res) {
       const { contexto, catalogo } = await construirContexto(clienteId, grupoId);
       const arranque = body.fase === 'arranque' ? '\n\n' + cargarPromptArranque() : '';
       const armar = body.fase === 'armar' ? '\n\n' + cargarPromptArmar() : '';
-      const enfoqueBase = await construirEnfoqueProducto(clienteId, catalogo, productoId).catch(() => null);
+      const enfoqueBase = productoId
+        ? await construirEnfoqueProducto(clienteId, catalogo, productoId).catch(() => null)
+        : await construirEcosistema(clienteId, catalogo, grupoId, false).catch(() => null);
       // Con una campaña de temporada elegida: estrategia completa + guía paso a paso (modo campaña)
       const modoCampana = await contextoCampanaModo(leerJSON, clienteId, body.campanaId, 'contenido').catch(() => null);
       const enfoque = [enfoqueBase, modoCampana].filter(Boolean).join('\n\n') || null;
@@ -728,7 +802,7 @@ module.exports = async function handler(req, res) {
       // Con un producto elegido arriba, las ideas son solo de él; sin producto, de todo el ecosistema (o del grupo).
       const enfoqueIdeas = productoId
         ? (await construirEnfoqueProducto(clienteId, catalogo, productoId).catch(() => null)) || formatearProducto(catalogo, productoId)
-        : await construirEcosistema(clienteId, catalogo, grupoId).catch(() => null);
+        : await construirEcosistema(clienteId, catalogo, grupoId, true).catch(() => null);
       const bloqueEnfoqueIdeas = [enfoqueIdeas, modoCampanaIdeas].filter(Boolean).join('\n\n') || null;
       const existentes = (Array.isArray(body.existentes) ? body.existentes : []).map((x) => String(x || '').trim().slice(0, 160)).filter(Boolean).slice(0, 25);
       const ideaExacta = body.ideaExacta === true && !!tema;
