@@ -751,6 +751,7 @@ module.exports = async function handler(req, res) {
       const bloqueEnfoqueIdeas = [enfoqueIdeas, modoCampanaIdeas].filter(Boolean).join('\n\n') || null;
       const existentes = (Array.isArray(body.existentes) ? body.existentes : []).map((x) => String(x || '').trim().slice(0, 160)).filter(Boolean).slice(0, 25);
       const ideaExacta = body.ideaExacta === true && !!tema;
+      const paraHoy = body.paraHoy === true;
 
       const instruccion = textoFechaHoy() + '\n\n' + 'INSTRUCCIÓN DE ESTA GENERACIÓN — MODO "ideas":\n' +
         `OBJETIVO: ${objetivo}\n` +
@@ -760,6 +761,7 @@ module.exports = async function handler(req, res) {
           : (tema ? `\nTEMA / CONTEXTO SEMILLA (opcional, úsalo como punto de partida): ${tema}` : '')) +
         (existentes.length ? '\n\nIDEAS YA REGISTRADAS (no las repitas ni las parafrasees):\n' + existentes.map((x) => '- ' + x).join('\n') : '') +
         (bloqueEnfoqueIdeas ? '\n\n' + bloqueEnfoqueIdeas : '') +
+        (paraHoy ? '\n\nSON LAS IDEAS PARA HOY: pocas, frescas y listas para grabar hoy con un celular y lo que el negocio ya tiene a la mano. Una debe ser viral o de entretenimiento (alcance), otra educativa o de consideración y otra de venta o prueba, cada una con su gancho creativo y una escena concreta. Piensa en la fecha de hoy: si hay una campaña vigente o una fecha cercana, aprovéchala; si no, no la inventes.' : '') +
         (productoId ? '\n\nEn cada idea agrega el campo "producto" con el nombre del producto enfocado.' : '') +
         (esTendencia ? '\n\nEl objetivo es "tendencia": usa la herramienta de búsqueda web para encontrar qué está pasando AHORA antes de responder. Basa las ideas en hallazgos reales, no en suposiciones.' : '');
 

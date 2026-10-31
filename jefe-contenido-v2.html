@@ -580,6 +580,22 @@
   .evg-foco:hover{border-color:var(--accent);background:var(--accent-soft);}
   .evg-foco-txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .evg-foco-car{font-size:12px;opacity:.7;}
+  .cx-hoy{margin:0 0 26px;}
+  .cx-hoy[hidden]{display:none;}
+  .hoy-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;}
+  .hoy-head h2{margin:0;font:800 clamp(20px,2.6vw,26px) 'Sora',sans-serif;}
+  .hoy-de{font:600 14px 'Inter',sans-serif;color:var(--text-dim);margin-left:6px;}
+  .hoy-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;}
+  .hoy-card{display:flex;flex-direction:column;gap:8px;padding:16px;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:18px;box-shadow:var(--shadow-card);}
+  .hoy-meta{display:flex;flex-wrap:wrap;gap:6px;}
+  .hoy-chip{font:700 12px 'Inter',sans-serif;padding:3px 10px;border-radius:100px;background:var(--accent-soft);color:var(--accent-text);text-transform:capitalize;}
+  .hoy-chip.alt{background:var(--surface-2);color:var(--text-dim);}
+  .hoy-gancho{margin:0;font:800 16.5px/1.35 'Sora',sans-serif;}
+  .hoy-idea{margin:0;font-size:14.5px;line-height:1.5;color:var(--text-dim);flex:1;}
+  .hoy-btn{align-self:flex-start;border:none;background:var(--accent);color:#1A1A1A;font:800 13.5px 'Sora',sans-serif;padding:9px 16px;border-radius:100px;cursor:pointer;transition:.15s;}
+  .hoy-btn:hover{transform:translateY(-1px);box-shadow:var(--shadow-card);}
+  .hoy-msg{margin:0;padding:16px;border:1.5px dashed var(--line);border-radius:18px;color:var(--text-dim);font-size:15px;}
+  @media (max-width:900px){ .hoy-grid{grid-template-columns:1fr;} }
   .gan-intro{margin:0 0 14px;color:var(--text-dim);font-size:15px;}
   .gan-fam{margin-bottom:18px;}
   .gan-tit{margin:0 0 8px;font:800 17px 'Sora',sans-serif;}
@@ -709,6 +725,9 @@
     <section class="unfold" id="tools-host"><div class="unfold-inner" id="tools-inner"></div></section>
 
     <!-- Widget: próximos posts + historias -->
+    <!-- Ideas para hoy: 3 ideas que se arman solas la primera vez que abres el día -->
+    <section id="ideas-hoy" class="cx-hoy" hidden></section>
+
     <section id="widget-host" class="cx-widget"></section>
 
     <!-- Dashboard completo (se despliega al elegir historias, un post o el calendario) -->
@@ -953,7 +972,7 @@ function cerrarDashboard(){
   if(w) w.scrollIntoView({behavior:'smooth',block:'start'});
 }
 if(window.__foco){
-  const repintarPorFoco=()=>{ evergreenProductoTexto=''; evergreenProductoNombre=''; const hostEvg=document.getElementById('agente-evergreen-host'); if(hostEvg && typeof pintarEvergreenIdeas==='function' && evergreenLoaded) pintarEvergreenIdeas(hostEvg); actualizarContadores(); refrescarVistas(); if(typeof actualizarHeroBar==='function') actualizarHeroBar(); if(document.getElementById('ideas-tbody')) renderBancoTable(); };
+  const repintarPorFoco=()=>{ if(typeof pintarIdeasHoy==='function') pintarIdeasHoy(); evergreenProductoTexto=''; evergreenProductoNombre=''; const hostEvg=document.getElementById('agente-evergreen-host'); if(hostEvg && typeof pintarEvergreenIdeas==='function' && evergreenLoaded) pintarEvergreenIdeas(hostEvg); actualizarContadores(); refrescarVistas(); if(typeof actualizarHeroBar==='function') actualizarHeroBar(); if(document.getElementById('ideas-tbody')) renderBancoTable(); };
   window.__foco.onChange(repintarPorFoco);
   Promise.resolve(window.__foco.ready).then(repintarPorFoco).catch(()=>{});
 }
@@ -2786,7 +2805,8 @@ function initHeroChat(){
     scheduleGuionOrgChatSave();
     actualizarHeroBar();
   });
-  Promise.all([ensureGuionOrgChatLoaded(), cargarArranque()]).then(()=>{ chatPlegado=guionOrgChat.length>0 && !bienvenidaVisible(); actualizarHeroBar(); });
+  Promise.all([ensureGuionOrgChatLoaded(), cargarArranque()]).then(()=>{ chatPlegado=guionOrgChat.length>0 && !bienvenidaVisible(); actualizarHeroBar();
+    Promise.resolve(window.__foco ? window.__foco.ready : null).catch(()=>{}).then(()=>cargarIdeasHoy()); });
   autoAlturaHero(ta);
   window.addEventListener('resize',()=>autoAlturaHero(ta));
 }
@@ -2893,6 +2913,84 @@ function cerrarEditor(){
   editorCtx=null;
 }
 function editorTecla(e){ if(e.key==='Escape') cerrarEditor(); }
+
+// ─── IDEAS PARA HOY ────────────────────────────────────────────────────────────────────────
+// 3 ideas del día, creadas con el ADN, el 366 y la temporada del producto elegido arriba (o de todo el ecosistema).
+// La primera vez que se abre la página en el día se arman solas (una sola llamada de IA); después quedan guardadas y
+// "Otras 3" pide un nuevo juego. Cada idea se convierte en post con el chat con un clic.
+const IDEAS_HOY_KEY = CLIENTE_ID + ':contenido-ideas-hoy';
+let ideasHoyStore = { fecha:'', porFoco:{}, historial:[] };
+let ideasHoyCargando = false;
+let ideasHoyError = '';
+function focoIdeasHoy(){
+  const f = window.__foco ? window.__foco.get() : null;
+  return { clave:(f&&f.id)||'all', producto_id:(f&&f.productoId)||'', grupo_id:(f&&f.grupoId)||'', campanaId:(f&&f.campanaId)||'' };
+}
+function pintarIdeasHoy(){
+  const host = document.getElementById('ideas-hoy');
+  if(!host) return;
+  if(!arranqueHecho){ host.hidden = true; return; } // quien apenas empieza ve primero la bienvenida
+  host.hidden = false;
+  const { clave } = focoIdeasHoy();
+  const lista = ideasHoyStore.porFoco[clave] || [];
+  const cabeza = `<div class="hoy-head"><h2>💡 Ideas para hoy <span class="hoy-de">${escHtml(textoFocoBanco())}</span></h2>`
+    + (lista.length && !ideasHoyCargando ? '<button type="button" class="link-btn" id="hoy-otras">🔄 Otras 3</button>' : '') + '</div>';
+  let cuerpo;
+  if(ideasHoyCargando) cuerpo = '<p class="hoy-msg">⏳ Armando tus ideas de hoy con tu ADN, tu 366 y tu temporada…</p>';
+  else if(lista.length) cuerpo = '<div class="hoy-grid">' + lista.map((it,i)=>`<article class="hoy-card">
+      <div class="hoy-meta">${it.tipo?`<span class="hoy-chip">${escHtml(it.tipo)}</span>`:''}${it.etapa?`<span class="hoy-chip alt">${escHtml(it.etapa)}</span>`:''}</div>
+      <p class="hoy-gancho">«${escHtml(it.gancho||it.idea)}»</p>
+      <p class="hoy-idea">${escHtml(it.idea)}</p>
+      <button type="button" class="hoy-btn" data-hoy="${i}">Hacer este post →</button></article>`).join('') + '</div>';
+  else cuerpo = `<p class="hoy-msg">${ideasHoyError?escHtml(ideasHoyError)+' ':''}<button type="button" class="link-btn" id="hoy-generar">${ideasHoyError?'Reintentar':'Ver las 3 ideas de hoy de esto'}</button></p>`;
+  host.innerHTML = cabeza + cuerpo;
+  const otras = host.querySelector('#hoy-otras'); if(otras) otras.addEventListener('click', ()=>generarIdeasHoy());
+  const gen = host.querySelector('#hoy-generar'); if(gen) gen.addEventListener('click', ()=>generarIdeasHoy());
+  host.querySelectorAll('[data-hoy]').forEach(b=>b.addEventListener('click', ()=>hacerPostDeIdeaHoy(+b.dataset.hoy)));
+}
+async function guardarIdeasHoy(){ try{ await window.storage.set(IDEAS_HOY_KEY, JSON.stringify(ideasHoyStore)); }catch(e){} }
+async function generarIdeasHoy(){
+  if(ideasHoyCargando) return;
+  const f = focoIdeasHoy();
+  ideasHoyCargando = true; ideasHoyError = ''; pintarIdeasHoy();
+  try{
+    const historial = (ideasHoyStore.historial||[]).slice(-25);
+    const resp = await fetch('/api/generar-guion-organico',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({cliente:CLIENTE_ID, modo:'ideas', objetivo:'alcance', cantidad:3, paraHoy:true, existentes:historial,
+        producto_id:f.producto_id, grupo_id:f.grupo_id, campanaId:f.campanaId}),
+    });
+    const crudo = await resp.text();
+    let data = null; try{ data = JSON.parse(crudo); }catch(e){}
+    if(!resp.ok || !data) throw new Error((data&&data.error)||'No se pudieron armar las ideas de hoy.');
+    const ideas = (Array.isArray(data.ideas)?data.ideas:[]).slice(0,3).map(i=>({idea:i.idea||'', gancho:i.gancho||'', tipo:i.tipo||'', etapa:i.etapa||''})).filter(i=>i.idea);
+    if(!ideas.length) throw new Error('No salieron ideas. Intenta de nuevo.');
+    ideasHoyStore.porFoco[f.clave] = ideas;
+    ideasHoyStore.historial = [...historial, ...ideas.map(i=>i.idea)].slice(-40);
+    guardarIdeasHoy();
+  }catch(e){ ideasHoyError = e.message || 'No se pudieron armar las ideas de hoy.'; }
+  finally{ ideasHoyCargando = false; pintarIdeasHoy(); }
+}
+// Cada idea pasa al chat, que arma el post y lo guarda solo en Próximos posts.
+function hacerPostDeIdeaHoy(i){
+  const it = (ideasHoyStore.porFoco[focoIdeasHoy().clave]||[])[i];
+  if(!it) return;
+  guionOrgPreguntaDraft = 'Quiero hacer un post con esta idea: «'+it.idea+'».'+(it.gancho?' Gancho: «'+it.gancho+'».':'')+(it.tipo?' Tipo: '+it.tipo+'.':'')+(it.etapa?' Etapa: '+it.etapa+'.':'');
+  const ta = document.getElementById('go-pregunta');
+  if(ta) ta.scrollIntoView({block:'center', behavior:'smooth'});
+  preguntarAgentePostIA({armar:true});
+}
+async function cargarIdeasHoy(){
+  const hoy = isoDeDate(hoyMedianoche());
+  try{
+    const r = await window.storage.get(IDEAS_HOY_KEY);
+    ideasHoyStore = r && r.value ? JSON.parse(r.value) : {};
+  }catch(e){ ideasHoyStore = {}; }
+  const nuevoDia = ideasHoyStore.fecha !== hoy;
+  ideasHoyStore = { fecha:hoy, porFoco: nuevoDia ? {} : (ideasHoyStore.porFoco||{}), historial: ideasHoyStore.historial||[] };
+  pintarIdeasHoy();
+  if(nuevoDia && arranqueHecho) generarIdeasHoy(); // la primera vez del día se arman solas
+}
 
 // ─── BANCO DE GANCHOS (solo para ver y copiar; el chat los usa y sugiere otros) ───────────────
 function pintarBancoGanchos(host){
