@@ -15,17 +15,15 @@
 
   var css = [
     '.sld{font-family:Inter,system-ui,sans-serif;line-height:1.35}',
-    '.sld-hub{position:fixed;right:20px;bottom:20px;z-index:15;width:280px;padding:12px 14px;border-radius:14px;',
+    '.sld-hub{position:fixed;right:20px;bottom:20px;z-index:15;width:240px;padding:10px 14px;border-radius:14px;cursor:pointer;',
     'background:rgba(17,20,8,.82);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);color:#F3F6E8;font-size:12.5px}',
-    '.sld-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:7px}',
-    '.sld-top b{font-size:13px}',
     '.sld-pct{font-weight:800;font-size:15px}',
     '.sld-bar{height:8px;border-radius:99px;background:rgba(255,255,255,.14);overflow:hidden}',
     '.sld-bar i{display:block;height:100%;border-radius:99px;background:var(--accent,#B8F725);transition:width .6s ease}',
-    '.sld-bar i.alto{background:#F5A623}.sld-bar i.lleno{background:#F04438}',
+    // Cerrada: solo la línea de avance y el %. Al tocarla se ve el plan y cuándo se renueva.
+    '.sld-min{display:flex;align-items:center;gap:10px}.sld-min .sld-bar{flex:1}',
+    '.sld-mas{display:none;margin-top:8px}.sld-hub.abierta .sld-mas,.sld-hub.tope .sld-mas{display:block}',
     '.sld-sub{margin-top:6px;opacity:.75;font-size:11.5px}',
-    '.sld-tope{margin-top:9px;padding-top:9px;border-top:1px solid rgba(255,255,255,.12)}',
-    '.sld-tope p{margin:0 0 8px}',
     '.sld-btn{display:block;text-align:center;text-decoration:none;font-weight:800;font-size:13px;padding:10px 12px;border-radius:10px;',
     'background:var(--accent,#B8F725);color:#111;border:0;cursor:pointer}',
     '.sld-btn s{opacity:.6;font-weight:600;margin-right:4px}',
@@ -35,7 +33,7 @@
     '.sld-aviso.alto{border-color:#F5A623}',
     '.sld-aviso .sld-btn{flex:none;white-space:nowrap}',
     '.sld-aviso .sld-x{flex:none;background:none;border:0;color:#fff;opacity:.6;font-size:18px;cursor:pointer;padding:0 2px}',
-    '@media (max-width:720px){.sld-hub{left:12px;right:12px;bottom:12px;width:auto;padding:10px 14px}.sld-hub .sld-top{margin-bottom:6px}.sld-hub .sld-sub{margin-top:5px}.sld-aviso{flex-wrap:wrap;bottom:74px}.sld-aviso .sld-btn{flex:1 1 100%}}'
+    '@media (max-width:720px){.sld-hub{left:12px;right:12px;bottom:12px;width:auto;padding:9px 14px}.sld-hub .sld-sub{margin-top:5px}.sld-aviso{flex-wrap:wrap;bottom:74px}.sld-aviso .sld-btn{flex:1 1 100%}}'
   ].join('');
 
   function ponerCss() {
@@ -56,18 +54,17 @@
       '<div class="sld-sub">Vigencia de ' + p.vigenciaDias + ' días. Se activa en cuanto se confirma el pago.</div>';
   }
 
-  function claseBarra(e) { return e.porcentaje >= 100 ? 'lleno' : e.porcentaje >= 80 ? 'alto' : ''; }
-
   function montarEnHub(slug) {
     ponerCss();
     return cargar(slug).then(function (e) {
       if (!e) return;
       var caja = document.createElement('div');
-      caja.className = 'sld sld-hub';
+      caja.className = 'sld sld-hub' + (e.bloqueado ? ' tope' : '');
       caja.setAttribute('role', 'status');
-      var html = '<div class="sld-top"><b>Tokens de tu plan</b><span class="sld-pct">' + e.porcentaje + '%</span></div>' +
-        '<div class="sld-bar" aria-hidden="true"><i class="' + claseBarra(e) + '" style="width:' + Math.min(100, e.porcentaje) + '%"></i></div>' +
-        '<div class="sld-sub">Se renueva el ' + fechaCorta(e.renueva) + '</div>';
+      caja.title = 'Toca para ver tu plan';
+      var html = '<div class="sld-min"><div class="sld-bar" aria-hidden="true"><i style="width:' + Math.min(100, e.porcentaje) + '%"></i></div>' +
+        '<span class="sld-pct">' + e.porcentaje + '%</span></div>' +
+        '<div class="sld-mas"><b>Tokens de tu plan</b><div class="sld-sub">Se renueva el ' + fechaCorta(e.renueva) + '</div>';
       if (e.paquetes && e.paquetes.length) {
         html += '<div class="sld-sub">+ paquete extra hasta el ' + fechaCorta(e.paquetes[e.paquetes.length - 1].vence) + '</div>';
       }
@@ -75,7 +72,10 @@
         html += '<div class="sld-tope"><p><b>Llegaste al tope de tokens de este ciclo.</b> Tus Jefes no pueden usar la IA hasta el ' +
           fechaCorta(e.renueva) + ' o hasta que compres otro paquete.</p>' + botonCompra(e) + '</div>';
       }
-      caja.innerHTML = html;
+      caja.innerHTML = html + '</div>';
+      caja.addEventListener('click', function (ev) {
+        if (!ev.target.closest('a')) caja.classList.toggle('abierta');
+      });
       document.body.appendChild(caja);
     });
   }
