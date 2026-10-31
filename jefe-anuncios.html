@@ -183,6 +183,39 @@
   .alc-mini i{display:block;width:16px;height:16px;border-radius:50%;border:2px solid #1A1A1A;background:#8B9098;}
   .alc-mini .con i{background:#4E7A00;} .alc-mini .conv i{background:#C0F800;}
   .alc-vacio{padding:12px;font-size:13.5px;color:var(--text-dim);}
+  /* el viaje del cliente: un cliente va pasando de una etapa a otra */
+  .alc-viaje{padding:0 2px;}
+  .alc-pista{position:relative;height:50px;margin:0 0 4px;}
+  .alc-pista::before{content:'';position:absolute;left:16.67%;right:16.67%;top:34px;border-top:3px dashed #CFCFCF;}
+  .alc-nodo{position:absolute;top:28px;width:15px;height:15px;border-radius:50%;border:2px solid #1A1A1A;transform:translateX(-50%);}
+  .alc-nodo.n1{left:16.67%;background:#8B9098;} .alc-nodo.n2{left:50%;background:#4E7A00;} .alc-nodo.n3{left:83.33%;background:#C0F800;}
+  .alc-cliente{position:absolute;left:16.67%;top:0;font-size:28px;line-height:1;transform:translateX(-50%);animation:alcViaje 9s ease-in-out infinite;}
+  @keyframes alcViaje{0%{left:16.67%;opacity:0}4%{left:16.67%;opacity:1}24%{left:16.67%}34%{left:50%}58%{left:50%}68%{left:83.33%}92%{left:83.33%;opacity:1}97%{left:83.33%;opacity:0}100%{left:16.67%;opacity:0}}
+  .alc-cards.etapas3{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}
+  .alc-card.et{padding:14px 14px 12px;}
+  .alc-et-top{display:flex;align-items:center;gap:10px;}
+  .alc-et-em{font-size:30px;line-height:1;}
+  .alc-card.et .alc-t{font-size:16px;}
+  .alc-card.et .alc-d{margin-top:8px;}
+  .alc-card.et{animation:alcActiva 9s ease-in-out infinite;}
+  .alc-card.et.e2{animation-delay:3s;} .alc-card.et.e3{animation-delay:6s;}
+  @keyframes alcActiva{0%{border-color:#1A1A1A;transform:translateY(-4px);box-shadow:0 8px 20px rgba(0,0,0,.16);background:#F4FAD9}28%{border-color:#1A1A1A;transform:translateY(-4px);box-shadow:0 8px 20px rgba(0,0,0,.16);background:#F4FAD9}34%,100%{border-color:#E5E7EB;transform:none;box-shadow:none;background:#fff}}
+  .alc-ilu.chico{min-height:58px;margin:6px 0 8px;}
+  @media (max-width:560px){.alc-cards.etapas3{grid-template-columns:1fr;}.alc-pista{display:none;}}
+  @media (prefers-reduced-motion:reduce){.alc-cliente,.alc-card.et{animation:none;}}
+  /* ángulos: una fila que se desliza a la derecha */
+  .alc-carrusel{position:relative;}
+  .alc-cards.fila{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth;padding:4px 2px 12px;scrollbar-width:thin;align-items:flex-start;}
+  .alc-cards.fila .alc-card{flex:0 0 min(250px,78%);scroll-snap-align:start;}
+  .alc-flecha{position:absolute;top:96px;z-index:3;width:42px;height:42px;border-radius:50%;border:1.5px solid #1A1A1A;background:#fff;color:#1A1A1A;font:800 20px/1 'Inter',sans-serif;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.2);display:flex;align-items:center;justify-content:center;}
+  .alc-flecha:hover{background:var(--accent);}
+  .alc-flecha[hidden]{display:none;}
+  .alc-flecha.izq{left:-6px;} .alc-flecha.der{right:-6px;}
+  .alc-icono{width:72px;height:72px;border-radius:50%;background:#F3F3F3;border:2px solid #E2E2E2;display:flex;align-items:center;justify-content:center;font-size:38px;line-height:1;}
+  .alc-card.on .alc-icono{background:#fff;border-color:#1A1A1A;}
+  .alc-ej{font-size:14.5px;line-height:1.5;color:#333;font-style:italic;margin-top:6px;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;}
+  .alc-card.abierto .alc-ej{-webkit-line-clamp:unset;display:block;}
+  .alc-x b{font-weight:700;}
   .anuncios-table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px;margin-bottom:10px;}
   table.anuncios-table{width:100%;border-collapse:collapse;min-width:640px;}
   table.anuncios-table th{text-align:left;font-size:13.5px;font-weight:700;color:var(--text-dim);font-family:'Inter',sans-serif;padding:11px 10px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--surface-2);}
@@ -1178,7 +1211,9 @@ function abrirPopAlc(ancla, html, alMontar){
   const colocar = ()=>{
     if(!ancla.isConnected){ cerrarPopAlc(); return; }
     const r = ancla.getBoundingClientRect(), vw = window.innerWidth, w = Math.min(740, vw-20);
-    Object.assign(el.style, { top:(r.bottom+8)+'px', left:Math.max(10, Math.min(r.left, vw-w-10))+'px', width:w+'px', maxHeight:Math.max(240, window.innerHeight-r.bottom-24)+'px' });
+    Object.assign(el.style, { left:Math.max(10, Math.min(r.left, vw-w-10))+'px', width:w+'px', maxHeight:(window.innerHeight-24)+'px', top:(r.bottom+8)+'px' });
+    const alto = el.offsetHeight, vh = window.innerHeight;
+    if(r.bottom+8+alto > vh-12) el.style.top = Math.max(12, vh-alto-12)+'px'; // no cabe debajo: sube para verse completa
   };
   const fuera = (e)=>{ if(!el.contains(e.target) && !ancla.contains(e.target)) cerrarPopAlc(); };
   const tecla = (e)=>{ if(e.key==='Escape') cerrarPopAlc(); };
@@ -1197,25 +1232,60 @@ function actualizarEtiquetasAlc(){
 }
 const iluTodos = '<svg width="76" height="64" viewBox="0 0 76 64" aria-hidden="true"><circle cx="24" cy="32" r="20" fill="#F3F3F3" stroke="#1A1A1A" stroke-width="3"/><circle cx="38" cy="32" r="20" fill="#C0F800" fill-opacity=".75" stroke="#1A1A1A" stroke-width="3"/><circle cx="52" cy="32" r="20" fill="#F3F3F3" fill-opacity=".8" stroke="#1A1A1A" stroke-width="3"/></svg>';
 const iluAngulo = '<svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="28" fill="#F3F3F3" stroke="#E2E2E2" stroke-width="2"/><circle cx="32" cy="32" r="18" fill="none" stroke="#1A1A1A" stroke-width="4"/><circle cx="32" cy="32" r="7" fill="#C0F800" stroke="#1A1A1A" stroke-width="3"/></svg>';
+// Ícono según de qué trata el ángulo (por su nombre y, si no, por la emoción que activa). Palabras genéricas de marketing: nada de marca.
+const ICONOS_ANGULO = [
+  [/dolor|problema|sufr|frustr|moles|lastim/, '🤕'], [/miedo|temor|riesgo|peligro|amenaza|pierd|perder|perdida/, '😨'],
+  [/error|equivoc|fall[ao]|mito|trampa|engan/, '⚠️'], [/deseo|anhel|quiero|antoj|ilusion/, '😍'],
+  [/sueno|meta|aspir|ambici|logro|futuro|visio/, '🌠'], [/urgen|ahora|ultim|limite|escasez|tiempo|\bya\b/, '⏰'],
+  [/ahorr|dinero|precio|costo|econom|barat|inversion|gasto/, '💰'], [/confian|segur|garant|tranquil|paz|calma|protec/, '🛡️'],
+  [/estatus|orgullo|prestigio|exclusiv|lujo|premium|reconoc/, '👑'], [/prueba|resultado|testimon|caso|evidenc|exito|antes y despues/, '🏆'], [/comunidad|pertenen|famili|social|amigo|equipo|juntos/, '🤝'],
+  [/curiosi|secreto|descubr|revel|sabias|verdad/, '🔍'],
+  [/facil|rapido|simple|comod|practic|sin esfuerzo/, '⚡'], [/salud|bienestar|cuidado|vida sana/, '💚'],
+  [/envidia|compar|competenc/, '👀'], [/culpa|verguenza|arrepent/, '😔'], [/alivio|descans|respir/, '😌'],
+  [/nuevo|novedad|innov|tendencia|moda/, '🆕'], [/oferta|promo|descuento|oportunidad|regalo|bonus/, '🎁'],
+  [/estres|cansanc|agotad|presion|caos/, '😩'], [/soledad|aisla|abandon/, '😶'], [/amor|carino|cuidar|ternura/, '❤️'],
+  [/orden|control|organiz|claridad/, '🧭'], [/crecer|crecim|escal|expand|mas ventas/, '📈'],
+];
+const ICONOS_RESPALDO = ['🎯','💡','🔥','🧩','🧲','🪄','🚀','🎈'];
+function iconoAngulo(f, i){
+  const probar = (t)=>{ const n = normAC(t); const h = ICONOS_ANGULO.find(([re])=>re.test(n)); return h ? h[1] : ''; };
+  return probar(f.angulo) || probar(f.emocion) || probar(f.accion) || ICONOS_RESPALDO[i % ICONOS_RESPALDO.length];
+}
 function htmlPopAngulo(){
-  const tarjeta = (val, ilu, titulo, desc, extra)=>`<div class="alc-card${String(anguloIdx)===String(val)?' on':''}" role="option" tabindex="0" data-ang="${val}">
+  const tarjeta = (val, ilu, titulo, desc, extra, ej)=>`<div class="alc-card${String(anguloIdx)===String(val)?' on':''}" role="option" tabindex="0" data-ang="${val}">
       <span class="alc-chk">✓</span>${extra?'<button type="button" class="alc-como" data-como>¿Cómo?</button>':''}
-      <div class="alc-ilu">${ilu}</div><div class="alc-t">${escHtml(titulo)}</div><div class="alc-d">${desc}</div>${extra?`<div class="alc-x">${extra}</div>`:''}</div>`;
-  return `<div class="alc-pop-h"><b>Elige el ángulo</b><span>Es la razón por la que tu cliente te compra: un dolor o un deseo de tu Comunicación 366. Elige uno o deja «Todos».</span></div>
-    <div class="alc-cards" role="listbox">
-    ${tarjeta('', iluTodos, 'Todos los ángulos', 'La IA mezcla todos tus ángulos guardados. Buena opción si ninguno destaca.', '')}
-    ${angulos366.map((f,i)=>tarjeta(i, iluAngulo, f.angulo, [f.emocion?`Activa: ${escHtml(f.emocion)}.`:'', f.accion?escHtml(f.accion):''].filter(Boolean).join(' '),
-      (f.conecta||f.ejemplo) ? `${f.conecta?`<i>Cómo conecta con la venta:</i> ${escHtml(f.conecta)}`:''}${f.ejemplo?`<em>“${escHtml(f.ejemplo)}”</em>`:''}` : '')).join('')}
-    </div>
+      <div class="alc-ilu">${ilu}</div><div class="alc-t">${escHtml(titulo)}</div>${ej?`<div class="alc-ej">“${escHtml(ej)}”</div>`:`<div class="alc-d">${desc}</div>`}${extra?`<div class="alc-x">${extra}</div>`:''}</div>`;
+  return `<div class="alc-pop-h"><b>Elige el ángulo</b><span>Es la razón por la que tu cliente te compra: un dolor, un deseo, un miedo… Desliza hacia la derecha para ver todos y elige uno, o deja «Todos».</span></div>
+    <div class="alc-carrusel"><button type="button" class="alc-flecha izq" data-flecha="-1" aria-label="Ver los anteriores" hidden>‹</button><button type="button" class="alc-flecha der" data-flecha="1" aria-label="Ver más ángulos">›</button>
+    <div class="alc-cards fila" role="listbox">
+    ${tarjeta('', iluTodos, 'Todos los ángulos', 'La IA mezcla todos tus ángulos guardados. Buena opción si ninguno destaca.', '', '')}
+    ${angulos366.map((f,i)=>tarjeta(i, `<div class="alc-icono">${iconoAngulo(f,i)}</div>`, f.angulo,
+      [f.emocion?`Activa: ${escHtml(f.emocion)}.`:'', f.accion?escHtml(f.accion):''].filter(Boolean).join(' '),
+      [f.emocion?`<b>Qué emoción activa:</b> ${escHtml(f.emocion)}`:'', f.accion?`<b>Qué hace tu cliente:</b> ${escHtml(f.accion)}`:'', f.conecta?`<i>Cómo conecta con la venta:</i> ${escHtml(f.conecta)}`:''].filter(Boolean).join('<br>'),
+      f.ejemplo || '')).join('')}
+    </div></div>
     ${angulos366.length ? '' : '<div class="alc-vacio">Todavía no hay ángulos guardados en tu Comunicación 366. Cuando los tengas, aparecen aquí para elegirlos.</div>'}`;
+}
+// flechas de la fila: solo se ven si hay más ángulos hacia ese lado
+function montarFilaAlc(el){
+  const fila = el.querySelector('.alc-cards.fila'); if(!fila) return;
+  const izq = el.querySelector('[data-flecha="-1"]'), der = el.querySelector('[data-flecha="1"]');
+  const actualizar = ()=>{ izq.hidden = fila.scrollLeft < 8; der.hidden = fila.scrollLeft + fila.clientWidth >= fila.scrollWidth - 8; };
+  [izq, der].forEach(b=>b.addEventListener('click',()=>fila.scrollBy({ left: (+b.dataset.flecha) * Math.max(240, fila.clientWidth*0.8), behavior:'smooth' })));
+  fila.addEventListener('scroll', actualizar);
+  const elegida = fila.querySelector('.alc-card.on'); if(elegida) fila.scrollLeft = Math.max(0, elegida.offsetLeft - 16);
+  actualizar();
 }
 function htmlPopCantidad(){
   const dots = (n)=>['','con','conv'].map(c=>`<div class="col ${c}">${'<i></i>'.repeat(n)}</div>`).join('');
   const op = (n, desc, extra, rec)=>`<div class="alc-card${cantidadPorEtapa===n?' on':''}" role="option" tabindex="0" data-cant="${n}">
       <span class="alc-chk">✓</span><button type="button" class="alc-como" data-como>¿Cómo?</button>
-      <div class="alc-ilu"><div class="alc-mini">${dots(n)}</div></div><div class="alc-t">${n} por etapa${rec?'<span class="alc-rec">Recomendado</span>':''}<small>${n*3} ideas en total</small></div><div class="alc-d">${desc}</div><div class="alc-x">${extra}</div></div>`;
+      <div class="alc-ilu chico"><div class="alc-mini">${dots(n)}</div></div><div class="alc-t">${n} por etapa${rec?'<span class="alc-rec">Recomendado</span>':''}<small>${n*3} ideas en total</small></div><div class="alc-d">${desc}</div><div class="alc-x">${extra}</div></div>`;
   return `<div class="alc-pop-h"><b>Las campañas tienen 3 etapas</b><span>Es el camino de tu cliente: primero te conoce, luego lo piensa y al final compra. Cada etapa lleva su propio tipo de anuncio.</span></div>
-    <div class="alc-cards chicas">${ETAPAS.map(e=>`<div class="alc-card estatica"><div class="alc-ilu">${ETAPA_AYUDA[e.key].icono}</div><div class="alc-t">${ETAPA_CORTA[e.key]}<small>${ETAPA_AYUDA[e.key].corto}</small></div><div class="alc-d">${ETAPA_AYUDA[e.key].texto}</div></div>`).join('')}</div>
+    <div class="alc-viaje">
+      <div class="alc-pista" aria-hidden="true"><span class="alc-nodo n1"></span><span class="alc-nodo n2"></span><span class="alc-nodo n3"></span><span class="alc-cliente">🙂</span></div>
+      <div class="alc-cards etapas3">${ETAPAS.map((e,i)=>`<div class="alc-card estatica et e${i+1}"><div class="alc-et-top"><span class="alc-et-em">${ETAPA_AYUDA[e.key].icono}</span><div class="alc-t">${ETAPA_CORTA[e.key]}<small>${ETAPA_AYUDA[e.key].corto}</small></div></div><div class="alc-d">${ETAPA_AYUDA[e.key].texto}</div></div>`).join('')}</div>
+    </div>
     <div class="alc-pop-h2">¿Cuántas ideas de cada etapa?</div>
     <div class="alc-cards" role="listbox">
     ${op(1,'Para empezar rápido: una idea por etapa.','Recibes 3 ideas, una para cada etapa. Ideal para probar el Jefe por primera vez o cuando tienes poco tiempo.',false)}
@@ -1320,6 +1390,7 @@ function renderGenerador(container){
   });
   document.getElementById('anuncios-angulo-sel').addEventListener('click',(e)=>abrirPopAlc(e.currentTarget, htmlPopAngulo(), (el)=>{
     montarTarjetasAlc(el, (card)=>{ anguloIdx=card.dataset.ang; actualizarEtiquetasAlc(); cerrarPopAlc(); });
+    montarFilaAlc(el);
   }));
   document.getElementById('anuncios-cantidad-sel').addEventListener('click',(e)=>abrirPopAlc(e.currentTarget, htmlPopCantidad(), (el)=>{
     montarTarjetasAlc(el, (card)=>{ cantidadPorEtapa=parseInt(card.dataset.cant,10)||3; actualizarEtiquetasAlc(); cerrarPopAlc(); });
