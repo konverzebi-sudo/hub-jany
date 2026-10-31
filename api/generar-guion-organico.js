@@ -405,6 +405,27 @@ async function leerComunicacion366(clienteId) {
 const { slugOferta, resumenComunicaciones366, conLector: lectorMemoria366 } = require('./_lib/memoria-366');
 const { leerOfertas366, construirDetalle366 } = lectorMemoria366(leerJSON);
 
+// Etiquetas @ del mensaje del chat: productos o campañas que la persona señala a propósito. Para ESE mensaje mandan sobre la
+// pastilla de arriba, y el chat ya no le pregunta de cuál habla.
+async function construirEnfoqueMenciones(clienteId, catalogo, menciones) {
+  const partes = [];
+  let campanaId = '';
+  for (const m of (Array.isArray(menciones) ? menciones : []).slice(0, 3)) {
+    if (!m || typeof m !== 'object') continue;
+    const id = String(m.id || '').slice(0, 120);
+    const nombre = String(m.nombre || '').trim().slice(0, 120);
+    if (!id) continue;
+    if (m.tipo === 'campana') { if (!campanaId) campanaId = id; continue; }
+    if (m.tipo !== 'producto') continue;
+    const ficha = (await construirEnfoqueProducto(clienteId, catalogo, id).catch(() => null)) || formatearProducto(catalogo, id);
+    partes.push(ficha || ('PRODUCTO O SERVICIO ETIQUETADO: «' + nombre + '» (su ficha completa viene en el contexto del negocio y del 366).'));
+  }
+  if (!partes.length && !campanaId) return { texto: null, campanaId: '', soloCampana: false };
+  const aviso = 'ETIQUETAS @ DE ESTE MENSAJE: la persona etiquetó con @ ' + (partes.length ? 'el producto o servicio de abajo' : 'una campaña de temporada') +
+    '. En este mensaje habla de ESO (manda sobre el filtro de arriba) y NO le preguntes de qué producto, servicio o campaña habla: ya lo sabes. Usa su ficha y su 366 como base de lo que armen.';
+  return { texto: partes.length ? aviso + '\n\n' + partes.join('\n\n') : null, campanaId, soloCampana: !partes.length };
+}
+
 async function construirEnfoqueProducto(clienteId, catalogo, productoId) {
   if (!productoId) return null;
   const ficha = Array.isArray(catalogo) ? catalogo.find((it) => it && it.id === productoId) : null;
@@ -719,11 +740,14 @@ module.exports = async function handler(req, res) {
       const { contexto, catalogo } = await construirContexto(clienteId, grupoId);
       const arranque = body.fase === 'arranque' ? '\n\n' + cargarPromptArranque() : '';
       const armar = body.fase === 'armar' ? '\n\n' + cargarPromptArmar() : '';
-      const enfoqueBase = productoId
+      const etiquetas = await construirEnfoqueMenciones(clienteId, catalogo, body.menciones);
+      const enfoqueBase = etiquetas.texto
+        ? etiquetas.texto
+        : productoId
         ? await construirEnfoqueProducto(clienteId, catalogo, productoId).catch(() => null)
         : await construirEcosistema(clienteId, catalogo, grupoId, false).catch(() => null);
       // Con una campaña de temporada elegida: estrategia completa + guía paso a paso (modo campaña)
-      const modoCampana = await contextoCampanaModo(leerJSON, clienteId, body.campanaId, 'contenido').catch(() => null);
+      const modoCampana = await contextoCampanaModo(leerJSON, clienteId, etiquetas.campanaId || body.campanaId, 'contenido').catch(() => null);
       const enfoque = [textoFechaHoy(), enfoqueBase, modoCampana].filter(Boolean).join('\n\n') || null;
       const system = systemConCache(promptPreguntas + '\n\n' + cargarPromptMetodo() + arranque + armar, contexto, enfoque);
 
