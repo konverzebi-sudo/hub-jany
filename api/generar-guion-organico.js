@@ -470,6 +470,12 @@ async function construirEcosistema(clienteId, catalogo, grupoId, paraIdeas) {
   return partes.join('\n\n');
 }
 
+// Sin la fecha de hoy el Jefe hablaba de campañas ya terminadas como si fueran futuras.
+function textoFechaHoy() {
+  const hoy = new Date().toLocaleDateString('es-MX', { timeZone: 'America/Mexico_City', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  return 'FECHA DE HOY: ' + hoy + '. Úsala para saber si una campaña o fecha ya pasó, está vigente o viene: nunca presentes como futuro algo que ya pasó, ni hables de una temporada o promoción cuyas fechas ya terminaron.';
+}
+
 async function construirContexto(clienteId, grupoId) {
   const [identidad, tono, audiencia, catalogo, grupos, comunicacion, radarHistorial, radarEstilo, conversacionReciente, bancoConversaciones, redes] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
@@ -718,7 +724,7 @@ module.exports = async function handler(req, res) {
         : await construirEcosistema(clienteId, catalogo, grupoId, false).catch(() => null);
       // Con una campaña de temporada elegida: estrategia completa + guía paso a paso (modo campaña)
       const modoCampana = await contextoCampanaModo(leerJSON, clienteId, body.campanaId, 'contenido').catch(() => null);
-      const enfoque = [enfoqueBase, modoCampana].filter(Boolean).join('\n\n') || null;
+      const enfoque = [textoFechaHoy(), enfoqueBase, modoCampana].filter(Boolean).join('\n\n') || null;
       const system = systemConCache(promptPreguntas + '\n\n' + cargarPromptMetodo() + arranque + armar, contexto, enfoque);
 
       const { texto, usage } = await llamarClaudeTexto({ system, messages: historialConCache(historial, { noReutilizable: imagenes.length > 0, total: validos.length, max: PREGUNTA_MAX_MESSAGES }), maxTokens: 2200, conBusqueda: true });
@@ -746,7 +752,7 @@ module.exports = async function handler(req, res) {
       const existentes = (Array.isArray(body.existentes) ? body.existentes : []).map((x) => String(x || '').trim().slice(0, 160)).filter(Boolean).slice(0, 25);
       const ideaExacta = body.ideaExacta === true && !!tema;
 
-      const instruccion = 'INSTRUCCIÓN DE ESTA GENERACIÓN — MODO "ideas":\n' +
+      const instruccion = textoFechaHoy() + '\n\n' + 'INSTRUCCIÓN DE ESTA GENERACIÓN — MODO "ideas":\n' +
         `OBJETIVO: ${objetivo}\n` +
         `CANTIDAD DE IDEAS: ${ideaExacta ? 1 : cantidad}` +
         (ideaExacta
