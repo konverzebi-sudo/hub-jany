@@ -392,79 +392,9 @@ async function leerComunicacion366(clienteId) {
 // ─── ENFOQUE POR PRODUCTO ──────────────────────────────────────────────────────────────────
 // Cuando la pastilla de arriba tiene un producto o servicio, el chat responde solo sobre él: su ficha del
 // catálogo del ADN, su oferta de Producto 366 (si existe) y su campaña de temporada más reciente (si existe).
-function slugOferta(s) {
-  return (s || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-}
-async function leerOfertas366(clienteId) {
-  const nuevo = await leerJSON(`${clienteId}:brand-book.366-producto`).catch(() => null);
-  if (nuevo && Array.isArray(nuevo.lista) && nuevo.lista.length) return nuevo.lista;
-  if (nuevo && Object.keys(nuevo).length) return [Object.assign({ nombre: 'Producto Principal' }, nuevo)];
-  return [];
-}
-// El Jefe 366 guarda una ficha por producto: {lista:[...]} (producto, sistema y comunicación). Antes solo se leía el formato
-// viejo de una sola ficha, así que la estrategia de comunicación (posicionamiento, ángulos, frases) no llegaba al Jefe.
-async function leerLista366(clienteId, clave, viejo) {
-  let d = await leerJSON(`${clienteId}:${clave}`).catch(() => null);
-  if (!d && viejo) d = await leerJSON(`${clienteId}:${viejo}`).catch(() => null);
-  if (!d) return [];
-  if (Array.isArray(d)) return d.filter(Boolean);
-  if (Array.isArray(d.lista)) return d.lista.filter(Boolean);
-  return Object.keys(d).length ? [d] : [];
-}
-const OMITIR_366 = new Set(['uid', 'producto_uid', 'grupo_id', '_importantes', 'activa', 'id', 'nombre', 'numero_whatsapp', 'mensaje_whatsapp', 'whatsapp_link_corto', 'producto_relacionado']);
-function etiquetaCampo366(k) { return String(k).replace(/_/g, ' '); }
-// Vuelca una ficha 366 tal cual está llena (textos y tablas), sin depender de cómo se llamen sus campos.
-function formatearFicha366(it, limite) {
-  if (!it || typeof it !== 'object') return '';
-  const lineas = [];
-  Object.keys(it).forEach((k) => {
-    if (OMITIR_366.has(k)) return;
-    const v = it[k];
-    if (typeof v === 'string' && v.trim()) {
-      lineas.push(`${etiquetaCampo366(k)}: ${truncar(v.trim(), 600)}`);
-    } else if (Array.isArray(v) && v.length) {
-      const filas = v.map((f) => (f && typeof f === 'object'
-        ? Object.keys(f).filter((c) => !OMITIR_366.has(c) && typeof f[c] === 'string' && f[c].trim()).map((c) => `${etiquetaCampo366(c)}: ${truncar(f[c].trim(), 220)}`).join(' · ')
-        : String(f || ''))).filter(Boolean).slice(0, 8);
-      if (filas.length) lineas.push(`${etiquetaCampo366(k)}:\n` + filas.map((x) => '  - ' + x).join('\n'));
-    }
-  });
-  return truncar(lineas.join('\n'), limite);
-}
-function coincideProducto366(it, nombre, uid) {
-  if (!it) return false;
-  if (uid && (it.producto_uid === uid || it.uid === uid)) return true;
-  return !!nombre && slugOferta(it.nombre) === slugOferta(nombre);
-}
-// Resumen corto de la comunicación 366 de cada producto (posicionamiento, diferenciador y primeros ángulos).
-function resumenComunicaciones366(coms, grupoId) {
-  const lista = (coms || []).filter((c) => c && (!grupoId || !c.grupo_id || c.grupo_id === grupoId));
-  const lineas = lista.map((c) => {
-    const partes = [];
-    if (String(c.posicionamiento || '').trim()) partes.push('posicionamiento: ' + truncar(String(c.posicionamiento).trim(), 220));
-    if (String(c.diferenciador || '').trim()) partes.push('diferenciador: ' + truncar(String(c.diferenciador).trim(), 180));
-    const angulos = (Array.isArray(c.angulos_evergreen) ? c.angulos_evergreen : []).map((a) => a && a.angulo).filter(Boolean).slice(0, 4);
-    if (angulos.length) partes.push('ángulos: ' + angulos.join(' / '));
-    return partes.length ? `- ${c.nombre || '(producto)'}: ${partes.join(' · ')}` : null;
-  }).filter(Boolean);
-  return lineas.length ? 'ESTRATEGIA DE COMUNICACIÓN 366 POR PRODUCTO (resumen):\n' + lineas.join('\n') : null;
-}
-// Con un producto elegido: su producto 366, su sistema para vender y su comunicación, completos.
-async function construirDetalle366(clienteId, nombre, uid) {
-  const [prods, sist, coms] = await Promise.all([
-    leerLista366(clienteId, 'brand-book.366-producto', 'brand-book.evergreen-producto'),
-    leerLista366(clienteId, 'brand-book.366-sistema', 'brand-book.evergreen-sistema'),
-    leerLista366(clienteId, 'brand-book.366-comunicacion', 'brand-book.evergreen-comunicacion'),
-  ]);
-  const bloques = [];
-  const miProd = prods.find((x) => coincideProducto366(x, nombre, uid));
-  const miSis = sist.find((x) => coincideProducto366(x, nombre, uid));
-  const miCom = coms.find((x) => coincideProducto366(x, nombre, uid));
-  if (miProd) bloques.push('PRODUCTO 366 (qué vendemos, pilares, frases a enfatizar y a evitar):\n' + formatearFicha366(miProd, 3500));
-  if (miCom) bloques.push('ESTRATEGIA DE COMUNICACIÓN 366 DE ESTE PRODUCTO (posicionamiento, ángulos, frases maestras; úsala como base):\n' + formatearFicha366(miCom, 5000));
-  if (miSis) bloques.push('SISTEMA 366 PARA VENDER ESTE PRODUCTO (contexto, recorrido del cliente y reglas):\n' + formatearFicha366(miSis, 3500));
-  return bloques.length ? bloques.join('\n\n') : null;
-}
+// Lectura y formato de las fichas del Jefe 366: viven en api/_lib/memoria-366.js (compartido con las ideas).
+const { slugOferta, resumenComunicaciones366, conLector: lectorMemoria366 } = require('./_lib/memoria-366');
+const { leerOfertas366, construirDetalle366 } = lectorMemoria366(leerJSON);
 
 async function construirEnfoqueProducto(clienteId, catalogo, productoId) {
   if (!productoId) return null;

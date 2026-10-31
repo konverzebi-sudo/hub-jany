@@ -9,10 +9,13 @@ const { sql } = require('@vercel/postgres');
 const { sumarAlMes } = require('./_lib/uso-mensual');
 const { revisar: revisarSaldo, cobrar: cobrarSaldo } = require('./_lib/saldo');
 const { systemConCache, camposUso } = require('./_lib/cache-claude');
+const { resumenComunicaciones366, conLector: lectorMemoria366 } = require('./_lib/memoria-366');
 
 const DEFAULT_CLIENTE = 'jefeshub';
 const PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-ideas-contenido-366.md');
-const CONTEXT_CHAR_LIMIT = 10000;
+const CONTEXT_CHAR_LIMIT = 22000; // red de seguridad: cada sección ya trae su propio tope
+const HISTORIAL_IDEAS_MAX = 60; // títulos de ideas ya generadas que se recuerdan por cliente
+const IDEAS_PREVIAS_EN_PROMPT = 30; // cuántos se le muestran al modelo para que no los repita
 
 let fixedPromptCache = null;
 function cargarPromptFijo() {
@@ -83,6 +86,8 @@ async function registrarUsoTokens(clienteId, endpoint, usage) {
     // No bloquear la respuesta al usuario si falla el registro de uso.
   }
 }
+
+const memoria366 = lectorMemoria366(leerJSON);
 
 function truncar(str, limite) {
   if (!str) return str;
@@ -245,8 +250,11 @@ async function leerComunicacion366(clienteId) {
   return await leerJSON(`${clienteId}:brand-book.evergreen-comunicacion`).catch(() => null);
 }
 
-async function construirContexto(clienteId, grupoId) {
-  const [identidad, tono, audiencia, catalogo, grupos, comunicacion, conversacionReciente, bancoConversaciones] = await Promise.all([
+// Cada sección tiene su propio tope: así el 366 y la conversación nunca se quedan fuera por culpa de un ADN largo
+// (antes un solo recorte al final del texto cortaba justo lo que más importa). Con un producto elegido se manda
+// su Producto 366 y su Comunicación 366 completos; sin producto, un resumen de la comunicación de cada uno.
+async function construirContexto(clienteId, grupoId, producto) {
+  const [identidad, tono, audiencia, catalogo, grupos, comunicacion, conversacionReciente, bancoConversaciones, detalle366] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
     leerAudiencias(clienteId).catch(() => []),
@@ -255,28 +263,92 @@ async function construirContexto(clienteId, grupoId) {
     leerComunicacion366(clienteId),
     formatearConversacion366NoGuardada(clienteId).catch(() => null),
     formatearBancoConversacionesWhatsApp(clienteId).catch(() => null),
+    producto ? memoria366.construirDetalle366(clienteId, producto.nombre, producto.uid, { producto: 2000, comunicacion: 4500, sistema: 0 }).catch(() => null) : null,
   ]);
 
+  const tope = (txt, n) => (txt ? truncar(txt, n) : null);
   const bloquesNegocio = [
-    formatearIdentidad(identidad),
-    formatearTono(tono),
-    formatearAudiencias(audiencia),
-    formatearCatalogo(catalogo, grupos, grupoId),
+    tope(formatearIdentidad(identidad), 1500),
+    tope(formatearTono(tono), 1500),
+    tope(formatearAudiencias(audiencia), 3500),
+    tope(formatearCatalogo(catalogo, grupos, grupoId), producto ? 1500 : 3000),
   ].filter(Boolean);
 
-  const bloque366 = formatearComunicacion366(comunicacion);
+  const bloque366 = detalle366
+    || tope((comunicacion && Array.isArray(comunicacion.lista))
+      ? resumenComunicaciones366(comunicacion.lista, grupoId)
+      : formatearComunicacion366(comunicacion), 3500);
 
   const partes = [];
   partes.push(bloquesNegocio.length
     ? 'CONTEXTO DEL NEGOCIO:\n\n' + bloquesNegocio.join('\n\n')
     : 'CONTEXTO DEL NEGOCIO: todavía no hay datos guardados en el ADN de esta marca.');
   partes.push(bloque366
-    ? 'CONTEXTO 366 (Notas de Comunicación Evergreen ya guardadas):\n\n' + bloque366
+    ? 'CONTEXTO 366 (lo que ya se definió en el Jefe 366):\n\n' + bloque366
     : 'CONTEXTO 366: todavía no hay ángulos ni frases maestras guardadas en el Jefe 366 -- genera con lo que sí haya del ADN.');
-  if (conversacionReciente) partes.push(conversacionReciente);
-  if (bancoConversaciones) partes.push(bancoConversaciones);
+  if (conversacionReciente) partes.push(truncar(conversacionReciente, 2500));
+  if (bancoConversaciones) partes.push(truncar(bancoConversaciones, 1500));
 
   return truncar(partes.join('\n\n---\n\n'), CONTEXT_CHAR_LIMIT);
+}
+
+// ---------- memoria de ideas: lo ya generado no se vuelve a proponer ----------
+
+function tituloIdea(txt) {
+  const t = (txt || '').toString().replace(/\s+/g, ' ').trim();
+  return t.length > 110 ? t.slice(0, 110) + '…' : t;
+}
+
+// Junta los títulos de: el registro que guarda este endpoint (sobrevive a regenerar), las ideas que hoy se ven
+// en el Jefe de Contenido y lo que ya está en su calendario. Las más recientes primero, sin repetir.
+async function leerIdeasPrevias(clienteId) {
+  const [historial, ideasVigentes, calendario] = await Promise.all([
+    leerJSON(`${clienteId}:contenido-ideas-366-historial`).catch(() => null),
+    leerJSON(`${clienteId}:contenido-ideas-366`).catch(() => null),
+    leerJSON(`${clienteId}:agente-contenido`).catch(() => null),
+  ]);
+  const titulos = [];
+  if (Array.isArray(historial)) historial.forEach((h) => titulos.push(tituloIdea(h && h.idea)));
+  if (ideasVigentes && typeof ideasVigentes === 'object') {
+    Object.values(ideasVigentes).forEach((porCat) => {
+      if (!porCat || typeof porCat !== 'object') return;
+      Object.values(porCat).forEach((filas) => (Array.isArray(filas) ? filas : []).forEach((fila) => titulos.push(tituloIdea(fila && fila.idea))));
+    });
+  }
+  if (calendario && typeof calendario === 'object') {
+    ['contenido', 'historias'].forEach((tab) => (Array.isArray(calendario[tab]) ? calendario[tab] : []).forEach((r) => titulos.push(tituloIdea(r && r.gancho))));
+  }
+  const vistos = new Set();
+  const unicos = [];
+  for (let i = titulos.length - 1; i >= 0; i--) {
+    const t = titulos[i];
+    const clave = t.toLowerCase();
+    if (t && !vistos.has(clave)) { vistos.add(clave); unicos.push(t); }
+  }
+  return unicos.slice(0, IDEAS_PREVIAS_EN_PROMPT);
+}
+
+function formatearIdeasPrevias(titulos) {
+  if (!titulos.length) return null;
+  return 'IDEAS QUE YA SE GENERARON O YA ESTÁN EN EL CALENDARIO (NO las repitas ni las parafrasees: cada idea nueva debe tener otro ángulo, otro gancho y otro formato que estas):\n' +
+    titulos.map((t) => '- ' + t).join('\n');
+}
+
+async function guardarHistorialIdeas(clienteId, ideasPorCategoria) {
+  try {
+    const key = `${clienteId}:contenido-ideas-366-historial`;
+    const actual = await leerJSON(key).catch(() => null);
+    const lista = Array.isArray(actual) ? actual : [];
+    const fecha = new Date().toISOString().slice(0, 10);
+    Object.keys(ideasPorCategoria).forEach((cat) => {
+      (ideasPorCategoria[cat] || []).forEach((fila) => {
+        if (fila && fila.idea) lista.push({ idea: tituloIdea(fila.idea), cat, fecha });
+      });
+    });
+    await escribirJSON(key, lista.slice(-HISTORIAL_IDEAS_MAX));
+  } catch (err) {
+    // La memoria de ideas es un extra: si falla, las ideas igual se entregan.
+  }
 }
 
 function extractJson(text) {
@@ -356,8 +428,12 @@ module.exports = async function handler(req, res) {
 
   try {
     const promptFijo = cargarPromptFijo();
-    const contexto = await construirContexto(clienteId, grupoId);
     const catalogo = await leerJSON(`${clienteId}:catalogo-productos`).catch(() => null);
+    const productoResuelto = await memoria366.resolverProducto(clienteId, catalogo, productoId).catch(() => null);
+    const [contexto, ideasPrevias] = await Promise.all([
+      construirContexto(clienteId, grupoId, productoResuelto),
+      leerIdeasPrevias(clienteId).catch(() => []),
+    ]);
     const bloqueProducto = formatearProducto(catalogo, productoId);
     const bloqueProductoTexto = productoTexto
       ? 'PRODUCTO QUE SE ESTÁ TRABAJANDO EN JEFE 366 (todas las ideas deben girar en torno a este producto; usa estos datos tal cual, no inventes otros):\n' + productoTexto
@@ -374,7 +450,8 @@ module.exports = async function handler(req, res) {
         'En "stories": secuencia de 3 a 5 historias, indicando en cuál va la encuesta, pregunta o sticker y cuál es el cierre (4-6 líneas). ' +
         'Mantén la voz 1 a 1 y el tono de marca.' : '');
 
-    const system = systemConCache(promptFijo, contexto, instruccion);
+    // Las ideas previas cambian en cada pedido: van con la instrucción (sin caché) para no romper el caché del contexto.
+    const system = systemConCache(promptFijo, contexto, formatearIdeasPrevias(ideasPrevias), instruccion);
 
     const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -409,6 +486,7 @@ module.exports = async function handler(req, res) {
       resultado[cat] = Array.isArray(parsed[cat]) ? parsed[cat] : [];
     });
 
+    await guardarHistorialIdeas(clienteId, resultado);
     await registrarUsoTokens(clienteId, 'generar-ideas-366', data.usage);
     return res.status(200).json({ ideas: resultado, usage: camposUso(data.usage) });
   } catch (err) {

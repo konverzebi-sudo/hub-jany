@@ -24,6 +24,9 @@ Las 5 categorías posibles (usa exactamente estas claves en el JSON, solo las qu
 ## Cómo usar el contexto
 
 - Usa los ÁNGULOS 366 y las FRASES MAESTRAS del CONTEXTO 366 como base real para las ideas — no repitas los ángulos tal cual, tradúcelos a piezas de contenido concretas.
+- Apóyate también en lo que sabes del cliente: sus dolores, miedos, deseos, objeciones y frases reales (PERFILES DE CLIENTE), lo que el producto promete (PRODUCTO 366) y lo que se habló en la conversación con el Jefe 366. Una buena idea parte de uno de esos datos concretos, no de un tema genérico del giro.
+- Si hay una lista de "IDEAS QUE YA SE GENERARON O YA ESTÁN EN EL CALENDARIO", no repitas ni parafrasees ninguna: cambia el ángulo, el gancho y el formato (testimonio, demostración, mito vs. realidad, antes/después, pregunta al público, detrás de cámaras, comparación, error común, etc.).
+- Variedad dentro de la misma respuesta: no uses el mismo ángulo, el mismo gancho ni el mismo formato en dos ideas; reparte los ángulos 366 disponibles en lugar de quedarte con los primeros.
 - Respeta el TONO DE MARCA (qué sí y qué no decir) del CONTEXTO DEL NEGOCIO.
 - Si te piden un GRUPO DE NEGOCIO específico (una línea de producto), enfoca las ideas en ese grupo y sus productos — no mezcles con otras líneas de negocio si el negocio tiene varias.
 - Si además te piden un PRODUCTO específico dentro de ese grupo, todas las ideas deben girar en torno a ESE producto puntual, no al grupo completo.
