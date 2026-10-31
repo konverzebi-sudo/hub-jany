@@ -138,6 +138,8 @@
     .idea-card{padding:14px 12px;gap:12px;border-radius:20px;}
     .idea-check{flex-basis:30px;width:30px;height:30px;}
   }
+  .alc-pill{width:100%;justify-content:space-between;font-size:15px;padding:11px 18px;}
+  .alc-pill .foco-txt{flex:1;max-width:none;text-align:left;}
   .anuncios-table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px;margin-bottom:10px;}
   table.anuncios-table{width:100%;border-collapse:collapse;min-width:640px;}
   table.anuncios-table th{text-align:left;font-size:13.5px;font-weight:700;color:var(--text-dim);font-family:'Inter',sans-serif;padding:11px 10px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--surface-2);}
@@ -1092,6 +1094,31 @@ function recalcularAngulos366(){
   angulos366 = out;
 }
 
+// El campo "Producto, servicio o grupo" del Generador abre la MISMA lista que la pastilla de arriba (la de Jefe de Finanzas / 366):
+// se reutiliza su menú y solo se coloca debajo del campo. Al elegir, la pastilla avisa y la página se acomoda sola.
+function abrirMenuFocoEn(ancla){
+  const pill = document.querySelector('#foco-slot .foco-pill'), menu = document.querySelector('#foco-slot .foco-menu');
+  if(!pill || !menu) return;
+  const colocar = ()=>{
+    if(menu.hidden || !ancla.isConnected) return;
+    const r = ancla.getBoundingClientRect(), vw = window.innerWidth, w = Math.min(340, vw-20);
+    Object.assign(menu.style, { position:'fixed', top:(r.bottom+8)+'px', left:Math.max(10, Math.min(r.left, vw-w-10))+'px', right:'auto', width:w+'px', maxHeight:Math.max(220, window.innerHeight-r.bottom-24)+'px', zIndex:'2200' });
+  };
+  if(!menu._alcObs){
+    menu._alcObs = new MutationObserver(()=>{
+      if(!menu.hidden) return;
+      ['position','top','left','right','width','maxHeight','zIndex'].forEach(k=>{ menu.style[k] = ''; });
+      if(menu._alcPos){ window.removeEventListener('scroll', menu._alcPos, true); window.removeEventListener('resize', menu._alcPos); menu._alcPos = null; }
+    });
+    menu._alcObs.observe(menu, { attributes:true, attributeFilter:['hidden'] });
+  }
+  const estabaAbierto = !menu.hidden;
+  pill.click();
+  if(estabaAbierto) return;
+  menu._alcPos = colocar; colocar();
+  window.addEventListener('scroll', colocar, true); window.addEventListener('resize', colocar);
+}
+
 function renderGenerador(container){
   recalcularAngulos366();
   const datos = datosActuales();
@@ -1102,9 +1129,9 @@ function renderGenerador(container){
   toolbar.innerHTML = `
     <div class="mode-field" style="min-width:260px;flex:1 1 260px;">
       <label>Producto, servicio o grupo</label>
-      <select id="anuncios-alcance-sel">
-        ${opcionesAlcanceDe(productoId, grupoId)}
-      </select>
+      ${document.querySelector('#foco-slot .foco-menu')
+        ? `<button type="button" id="anuncios-alcance-sel" class="foco-pill on alc-pill" aria-haspopup="listbox" title="Elegir producto, servicio o grupo"><span class="foco-txt">${escHtml((window.__foco && window.__foco.get().nombre) || 'Tu ecosistema completo')}</span><span class="foco-caret">▾</span></button>`
+        : `<select id="anuncios-alcance-sel">${opcionesAlcanceDe(productoId, grupoId)}</select>`}
     </div>
     <div class="mode-field" style="min-width:200px;">
       <label>Ángulo 366 (opcional)</label>
@@ -1187,7 +1214,9 @@ function renderGenerador(container){
 
   updateSelCount();
 
-  document.getElementById('anuncios-alcance-sel').addEventListener('change',(e)=>{
+  const alcanceEl = document.getElementById('anuncios-alcance-sel');
+  if(alcanceEl.tagName==='BUTTON') alcanceEl.addEventListener('click',(e)=>{ e.stopPropagation(); abrirMenuFocoEn(alcanceEl); });
+  else alcanceEl.addEventListener('change',(e)=>{
     const a = alcanceDesdeValor(e.target.value);
     grupoId = a.grupo_id; productoId = a.producto_id;
     productoNombre = ''; productoTexto = ''; // eligió a mano: ya no aplica el producto que traía de Jefe 366
