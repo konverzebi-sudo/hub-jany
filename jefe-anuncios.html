@@ -1378,8 +1378,30 @@ function htmlPopCantidad(){
     </div>`;
 }
 // elegir tarjeta (clic o teclado) y abrir/cerrar el "¿Cómo?" de cada una
+// Ventanita para elegir el objetivo de una campaña (Estructura de Ads): tarjetas con una idea breve de cada uno.
+const OBJETIVO_INFO = {
+  reconocimiento: { corto:'Que más gente te conozca y te recuerde.', ideal:'Ideal si apenas empiezas o lanzas algo nuevo: Meta muestra tu anuncio a la mayor cantidad de personas posible.' },
+  trafico: { corto:'Llevar gente a tu sitio web, tu app, tu WhatsApp o a llamarte.', ideal:'Ideal si ya tienes dónde mandarlos y quieres más visitas o conversaciones.' },
+  interaccion: { corto:'Que reaccionen, comenten, te escriban o te sigan.', ideal:'Ideal para crear comunidad y que tu publicación se mueva.' },
+  leads: { corto:'Conseguir los datos de personas interesadas.', ideal:'Ideal para cotizaciones, citas o diagnósticos: te dejan sus datos, te escriben o te llaman.' },
+  promocion_app: { corto:'Que instalen tu app o la usen.', ideal:'Ideal solo si tu negocio tiene una app.' },
+  ventas: { corto:'Que compren: en tu sitio, tu catálogo o por mensajes.', ideal:'Ideal cuando ya tienes una oferta clara y quieres cerrar ventas.' },
+};
+function htmlPopObjetivo(campana){
+  const card = (o)=>{
+    const [emoji, ...resto] = o.label.split(' ');
+    const info = OBJETIVO_INFO[o.key] || { corto:'', ideal:'' };
+    const tipos = (OBJETIVO_TIPO_MAP[o.key]||[]).map(t=>escHtml(t)).join(' · ');
+    return `<div class="alc-card${campana.objetivo===o.key?' on':''}" role="option" tabindex="0" data-obj="${o.key}">
+      <span class="alc-chk">✓</span><button type="button" class="alc-como" data-como>¿Cómo?</button>
+      <div class="alc-ilu">${emoji}</div><div class="alc-t">${escHtml(resto.join(' '))}</div><div class="alc-d">${escHtml(info.corto)}</div>
+      <div class="alc-x">${escHtml(info.ideal)}${tipos ? `<br><i>Tipos de campaña:</i> ${tipos}` : ''}</div></div>`;
+  };
+  return `<div class="alc-pop-h"><b>¿Para qué es tu campaña?</b><span>Elige el objetivo principal: Meta muestra tus anuncios a la gente que más probablemente haga eso.</span></div>
+    <div class="alc-cards" role="listbox">${OBJETIVOS.map(card).join('')}</div>`;
+}
 function montarTarjetasAlc(el, alElegir){
-  el.querySelectorAll('.alc-card[data-ang], .alc-card[data-cant]').forEach(card=>{
+  el.querySelectorAll('.alc-card[data-ang], .alc-card[data-cant], .alc-card[data-obj]').forEach(card=>{
     const elegir = ()=>alElegir(card);
     card.addEventListener('click',(e)=>{ if(e.target.closest('[data-como]')) return; elegir(); });
     card.addEventListener('keydown',(e)=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); elegir(); } });
@@ -2350,9 +2372,9 @@ function buildCampanaEstructuraCard(campana, numero, verProducto){
       <label class="res-fecha">Fecha de inicio:
         <input type="date" class="res-fecha-input" data-campana="${campana.id}" data-field="fecha_inicio" value="${escHtml(campana.fecha_inicio||'')}">
       </label>
-      <div class="res-mapa">${htmlMapaColumnas(campana, { editable:true, abObj, abEsp })}</div>
+      <div class="res-mapa">${htmlMapaColumnas(campana, { editable:true, abObj:false, abEsp })}</div>
     </div>
-    <div class="res-pane res-pane-obj${abObj?' abierto':''}">
+    <div class="res-pane res-pane-obj${campana.objetivo?' abierto':''}">
       <div class="campana-fields-grid">
         ${verProducto ? `<div class="mode-field">
           <label>Producto, servicio o grupo</label>
@@ -2360,13 +2382,6 @@ function buildCampanaEstructuraCard(campana, numero, verProducto){
             ${opcionesAlcance(campana)}
           </select>
         </div>` : ''}
-        <div class="mode-field">
-          <label>Objetivo de la campaña</label>
-          <select data-campana="${campana.id}" data-field="objetivo">
-            <option value="">— Selecciona —</option>
-            ${OBJETIVOS.map(o=>`<option value="${o.key}"${campana.objetivo===o.key?' selected':''}>${o.label}</option>`).join('')}
-          </select>
-        </div>
         <div class="mode-field">
           <label>Tipo de campaña</label>
           <select data-campana="${campana.id}" data-field="tipo"${!campana.objetivo?' disabled':''}>
@@ -2392,6 +2407,16 @@ function buildCampanaEstructuraCard(campana, numero, verProducto){
   card.querySelectorAll('[data-res-toggle]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const clave = btn.dataset.resToggle;
+      if(clave==='obj'){
+        // el objetivo se elige ahí mismo, en tarjetas; al elegir se pasa al siguiente paso: el conjunto de anuncios
+        abrirPopAlc(btn, htmlPopObjetivo(campana), (el)=>montarTarjetasAlc(el, (tarjeta)=>{
+          campana.objetivo = tarjeta.dataset.obj; campana.tipo = '';
+          resEstado.set(campana.id+':esp', true);
+          scheduleEstructuraSave(); cerrarPopAlc(); render();
+          setTimeout(()=>{ const sig = document.querySelector('[data-res-toggle="esp"]'); if(sig) sig.scrollIntoView({ block:'center', behavior:'smooth' }); }, 80);
+        }));
+        return;
+      }
       const abierto = !resAbierto(campana, clave);
       resEstado.set(campana.id+':'+clave, abierto);
       btn.classList.toggle('on', abierto);
