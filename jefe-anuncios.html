@@ -2560,8 +2560,9 @@ function buildCampanaEstructuraCard(campana, numero, verProducto){
   const conjuntosList = card.querySelector('.conjuntos-list');
   campana.conjuntos.forEach((conjunto,i)=>conjuntosList.appendChild(buildConjuntoCard(campana, conjunto, i)));
   const anuBox = card.querySelector('[data-anu-conjuntos]');
+  // sin conjuntos todavía se muestra uno en blanco: se crea de verdad en cuanto se marca un anuncio
   if(campana.conjuntos.length) campana.conjuntos.forEach((conjunto,i)=>anuBox.appendChild(buildAnunciosConjunto(campana, conjunto, i)));
-  else anuBox.innerHTML = '<p class="mode-status">Primero define un conjunto de anuncios (paso 2) para poder vincularle anuncios.</p>';
+  else anuBox.appendChild(buildAnunciosConjunto(campana, mkConjunto(), 0));
   ligarPasos(card);
   card.querySelectorAll('.paso-presu .alc-card').forEach(c=>{
     const elegir = ()=>{ campana.presupuesto_nivel = c.dataset.presu; scheduleEstructuraSave(); render(); };
@@ -2803,14 +2804,18 @@ function buildAnunciosConjunto(campana, conjunto, idx){
       </div>
     </div>`;
   box.querySelectorAll('[data-editar-card]').forEach(el=>el.addEventListener('click', ()=>irAEditarCard(el.dataset.editarCard)));
-  box.querySelector('[data-tipo-contenido]').addEventListener('input',(e)=>{ conjunto.tipo_contenido = e.target.value; scheduleEstructuraSave(); });
+  // un conjunto en blanco (la campaña aún no tiene ninguno) se agrega a la campaña con el primer cambio
+  const asegurar = ()=>{ if(campana.conjuntos.includes(conjunto)) return false; campana.conjuntos.push(conjunto); return true; };
+  box.querySelector('[data-tipo-contenido]').addEventListener('input',(e)=>{ asegurar(); conjunto.tipo_contenido = e.target.value; scheduleEstructuraSave(); });
   box.querySelectorAll('input[data-conjunto-anuncio]').forEach(cb=>{
     cb.addEventListener('change',(e)=>{
       const cardId = e.target.dataset.card;
+      const nuevo = asegurar();
       if(!Array.isArray(conjunto.anuncios_ids)) conjunto.anuncios_ids=[];
       if(e.target.checked){ if(!conjunto.anuncios_ids.includes(cardId)) conjunto.anuncios_ids.push(cardId); }
       else conjunto.anuncios_ids = conjunto.anuncios_ids.filter(id=>id!==cardId);
       scheduleEstructuraSave();
+      if(nuevo){ resEstado.set(campana.id+':anu', true); render(); return; }
       const vincBox = document.querySelector('[data-vinculados="'+campana.id+'"]');
       if(vincBox) vincBox.innerHTML = htmlAnunciosVinculados(campana);
       const nTotal = new Set((campana.conjuntos||[]).flatMap(cj=>cj.anuncios_ids||[])).size;
