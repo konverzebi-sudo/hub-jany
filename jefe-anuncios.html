@@ -524,6 +524,8 @@
   .pm-meta-btn.on .pm-meta-car{transform:rotate(180deg);}
   .pm-meta-falta{font-style:normal;color:#E8590C;font-size:12px;}
   .pm-camp-est{font:600 12.5px 'Inter',sans-serif;font-style:normal;color:var(--text-dim);}
+  .pm-abrir-mat{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);z-index:2;background:#1A1A1A;color:var(--accent);border-radius:100px;padding:9px 18px;font:800 13.5px 'Sora',sans-serif;text-decoration:none;white-space:nowrap;}
+  .pm-abrir-mat:hover{filter:brightness(1.25);}
   .pm-meta-btn.on .pm-camp-est{color:inherit;opacity:.8;}
   .res-fecha-lect{font:600 14px 'Inter',sans-serif;color:#1A1A1A;opacity:.8;}
   /* copiar: ícono al final de cada cuadro */
@@ -3403,6 +3405,15 @@ function infoMaterial(url){
     return {tipo:'embed', src:'https://www.instagram.com/'+(m[1]==='reels'?'reel':m[1])+'/'+m[2]+'/embed', thumb:null, abrir, host:h};
   if(h.endsWith('tiktok.com') && (m = L.pathname.match(/\/video\/(\d+)/)))
     return {tipo:'embed', src:'https://www.tiktok.com/embed/v2/'+m[1], thumb:null, abrir, host:h};
+  // Más sitios que sí se pueden ver dentro del anuncio: Vimeo, Loom, Facebook (videos y reels públicos) y Canva (links de "ver").
+  if(h.endsWith('vimeo.com') && (m = L.pathname.match(/^\/(?:channels\/[\w-]+\/|groups\/[\w-]+\/videos\/)?(\d{5,})/)))
+    return {tipo:'embed', src:'https://player.vimeo.com/video/'+m[1], thumb:null, abrir, host:h};
+  if(h.endsWith('loom.com') && (m = L.pathname.match(/^\/(?:share|embed)\/([\w-]+)/)))
+    return {tipo:'embed', src:'https://www.loom.com/embed/'+m[1], thumb:null, abrir, host:h};
+  if((h.endsWith('facebook.com') && /\/(videos?|reel|reels|watch)\b/.test(L.pathname)) || h==='fb.watch')
+    return {tipo:'embed', src:'https://www.facebook.com/plugins/video.php?show_text=false&href='+encodeURIComponent(L.toString()), thumb:null, abrir, host:h};
+  if(h.endsWith('canva.com') && /\/design\//.test(L.pathname) && /\/(view|watch)\b/.test(L.pathname))
+    return {tipo:'embed', src:'https://www.canva.com'+L.pathname.replace(/\/$/,'')+'?embed', thumb:null, abrir, host:h};
   return {tipo:'link', abrir, host:h};
 }
 
@@ -3448,7 +3459,9 @@ function pintarPreviewPost(item){
     box.dataset.media = claveMedia;
     let capa = '';
     if(mi){
-      if(mi.tipo==='img') capa = `<img class="pm-media" src="${mi.src}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">`;
+      // un link que no se puede mostrar aquí (por ejemplo una carpeta o una página): botón claro para abrirlo
+      if(mi.tipo==='link') capa = `<a class="pm-abrir-mat" href="${mi.abrir}" target="_blank" rel="noopener">Abrir el material ↗</a>`;
+      else if(mi.tipo==='img') capa = `<img class="pm-media" src="${mi.src}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">`;
       else if(mi.tipo==='video') capa = `<video class="pm-media" src="${mi.src}#t=0.5" controls playsinline preload="metadata"></video>`;
       else if(mi.tipo==='embed'){
         if(mi.thumb) capa += `<img class="pm-media" src="${mi.thumb}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">`;
@@ -3459,7 +3472,7 @@ function pintarPreviewPost(item){
     media.style.setProperty('--a', gr[0]); media.style.setProperty('--b', gr[1]);
     media.innerHTML = `${mi && mi.tipo!=='link' ? '' : `<span class="pm-ico">${FORMATO_ICO[item.formato]||'🎬'}</span>`}${capa}<span class="pchip">${escHtml(item.formato||'reel')}</span>`;
     box.querySelector('.pm-hint').innerHTML = !mi
-      ? 'Agrega el link del anuncio final (arriba) y aquí lo verás en el anuncio.'
+      ? (lv ? 'No pude leer este link: revisa que sea una dirección completa (empieza con https://).' : 'Agrega el link del anuncio final (arriba) y aquí lo verás en el anuncio.')
       : (mi.tipo==='link'
           ? `Este link no se puede mostrar aquí. <a href="${mi.abrir}" target="_blank" rel="noopener">Abrir material ↗</a>`
           : `<a href="${mi.abrir}" target="_blank" rel="noopener">Abrir en una pestaña ↗</a>${mi.host==='drive.google.com' ? '<br>Si no se ve, en Drive comparte el archivo con “Cualquier persona con el enlace”.' : ''}`);
@@ -3494,6 +3507,8 @@ function iconoLink(url){
   if(h.includes('instagram')) return '📷';
   if(h.includes('tiktok')) return '🎵';
   if(h.includes('canva')) return '🎨';
+  if(h.includes('vimeo') || h.includes('loom')) return '▶️';
+  if(h.includes('facebook') || h==='fb.watch') return '📘';
   if(m.tipo==='img') return '🖼️';
   if(m.tipo==='video') return '🎬';
   return '🔗';
