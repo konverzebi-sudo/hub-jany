@@ -45,7 +45,10 @@
     header p { color: var(--text-dim); font-size: 16px; line-height: 1.55; max-width: 780px; margin: 0 auto 10px; }
     header .jefe-logo { margin-bottom: 14px; }
     /* Al elegir un módulo el Jefe sigue arriba: solo el logo, más chico, para dejarle altura al chat */
-    body.route-active header { padding: calc(var(--topbar-h) + 10px) 20px 0; }
+    body.route-active header { position: relative; width: 100%; max-width: none; padding: calc(var(--topbar-h) + 10px) 20px 0; }
+    .corner-btn { position: absolute; left: 20px; top: calc(var(--topbar-h) + 14px); z-index: 5; padding: 8px 14px; background: var(--surface); }
+    body.route-active.ruta-campanas header .jefe-logo, body.route-active.ruta-mensaje header .jefe-logo { width: 104px; margin-bottom: 8px; }
+    .rail.sin-pasos { display: none !important; }
     body.route-active header .pb-eyebrow, body.route-active header .pb-titulo, body.route-active header p { display: none; }
     body.route-active header .jefe-logo { width: 60px; margin: 0 auto 2px; }
 
@@ -191,6 +194,8 @@
       header { padding-top: calc(var(--topbar-h) + 22px); }
       body.route-active header { padding-top: calc(var(--topbar-h) + 6px); }
       body.route-active header .jefe-logo { width: 44px; margin-bottom: 0; }
+      body.route-active.ruta-campanas header .jefe-logo, body.route-active.ruta-mensaje header .jefe-logo { width: 56px; }
+      .corner-btn { left: 12px; top: calc(var(--topbar-h) + 8px); padding: 6px 11px; font-size: 11px; }
       header p { font-size: 15px; }
       main { padding-left: 12px; padding-right: 12px; }
       .panel-intro p, .agent-sub { display: none; }
@@ -238,6 +243,7 @@
 })();</script>
 
 <header>
+  <button class="route-switch corner-btn" id="routeSwitch" onclick="volverASelectorRuta()" hidden><span class="lbl-l">← Cambiar de ruta</span><span class="lbl-s">← Ruta</span></button>
   <img class="jefe-logo" src="/img/jefe-resultados-logo-lima.webp" alt="Jefe de Resultados">
   <div class="pb-eyebrow">Jefe de Resultados</div>
   <h2 class="pb-titulo">¿Por qué canal cierras ventas?</h2>
@@ -276,7 +282,6 @@
   <section id="rutaActiva" class="ruta-activa" style="display:none;">
 
     <aside class="rail">
-      <button class="route-switch" onclick="volverASelectorRuta()"><span class="lbl-l">← Cambiar de ruta</span><span class="lbl-s">← Ruta</span></button>
       <div class="calc-tabs" id="stepTabs"></div>
       <p class="rail-note" id="railNote">Usa el contexto de tu ADN, Jefe 366 y Jefe de Temporada cuando existe — no tienes que repetirlo.</p>
     </aside>
@@ -412,6 +417,11 @@ function syncLayoutClasses() {
   const activa = !!rutaActual;
   const chat = activa && (rutaActual === 'campanas' || (rutaActual !== 'mensaje' && stepActual === 'chat'));
   document.body.classList.toggle('route-active', activa);
+  ['tienda', 'evento', 'mensaje', 'campanas'].forEach((r) => document.body.classList.toggle('ruta-' + r, rutaActual === r));
+  document.getElementById('routeSwitch').hidden = !activa;
+  // Sin pasos (campañas y WhatsApp) no hay columna lateral: todo el ancho es del módulo.
+  const rail = document.querySelector('.rail');
+  if (rail) rail.classList.toggle('sin-pasos', activa && (rutaActual === 'campanas' || rutaActual === 'mensaje'));
   document.body.classList.toggle('chat-fullscreen', chat);
 }
 
