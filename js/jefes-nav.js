@@ -23,7 +23,7 @@
     { slug: 'jefe-anuncios',         files: ['jefe-anuncios.html'],            icono: 'jefe-anuncios-logo-negro', iconoOscuro: 'jefe-anuncios-logo-blanco', nombre: 'Jefe de Anuncios' },
     { slug: 'jefe-contenido',        files: ['jefe-contenido-v2.html'],        icono: 'jefe-contenido-logo-negro', iconoOscuro: 'jefe-contenido-logo-blanco', nombre: 'Jefe de Contenido' },
     { slug: 'jefe-produccion-video', files: ['consultor-produccion-video.html'], icono: 'jefe-produccion-video-logo-negro', iconoOscuro: 'jefe-produccion-video-logo-blanco', nombre: 'Jefe Productor IA' },
-    { slug: 'jefe-whatsapp',         files: ['jefe-conversion-ventas.html', 'jefe-conversion-ventas-rancho-seco.html'], icono: 'jefe-whatsapp-logo-negro', iconoOscuro: 'jefe-whatsapp-logo-blanco', nombre: 'WhatsApp y Ventas' },
+    { slug: 'jefe-whatsapp',         files: ['jefe-conversion-ventas.html', 'jefe-conversion-ventas-rancho-seco.html'], icono: 'jefe-whatsapp-logo-negro', iconoOscuro: 'jefe-whatsapp-logo-blanco', nombre: 'Jefe de WhatsApp y Ventas' },
     { slug: 'jefe-financiero',       files: ['consultor-financiero.html'],     icono: 'jefe-finanzas-logo-negro', iconoOscuro: 'jefe-finanzas-logo-blanco', nombre: 'Jefe de Finanzas' },
     { slug: 'jefe-radar',            files: ['consultor-radar-mercado.html'],  icono: 'jefe-faro-logo-negro', iconoOscuro: 'jefe-faro-logo-blanco', nombre: 'Jefe del Faro' },
     { slug: 'jefe-cierre',           files: ['consultor-cierre.html', 'consultor-optimizacion.html'], icono: 'jefe-resultados-logo-negro', iconoOscuro: 'jefe-resultados-logo-blanco', nombre: 'Jefe de Resultados' },
@@ -69,7 +69,8 @@
     '.jn-jefes .jn-item img{-webkit-user-drag:none;pointer-events:none}',
     '.jn-jefes .jn-item.jn-arrastrando{background:rgba(184,247,37,.2);border-color:#B8F725;box-shadow:0 8px 22px rgba(0,0,0,.18);cursor:grabbing;position:relative;z-index:2}',
     '.jn-jefes.jn-ordenando{cursor:grabbing}',
-    '.jn-orden-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:99999;background:#1A1A1A;color:#fff;padding:9px 14px;border-radius:10px;font:600 13px Inter,system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.3)}',
+    '.jn-orden-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:99999;background:#1A1A1A;color:#fff;padding:9px 14px;border-radius:10px;font:600 13px Inter,system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.3);animation:jnEntra .2s cubic-bezier(.23,1,.32,1)}',
+    '@keyframes jnEntra{from{opacity:0;transform:translate(-50%,6px)}to{opacity:1;transform:translate(-50%,0)}}',
     '.jn-ico{flex:none;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:20px;line-height:1}',
     '.jn-ico img{width:28px;height:28px;border-radius:8px;object-fit:contain;display:block}',
     '.jn-ico img[src*="jefe-366-gris"]{width:38px;height:auto;max-height:22px;border-radius:0;margin:0 -5px}',
@@ -92,8 +93,9 @@
     // Redes del negocio: fila de iconos al final de la lista (mismos datos que el ADN, seccion Redes).
     '.jn-redes{display:flex;flex-wrap:wrap;align-items:center;gap:5px;padding:8px 4px 4px}',
     '.jn-red{flex:none;width:30px;height:30px;box-sizing:border-box;border-radius:50%;border:2px solid currentColor;display:flex;align-items:center;justify-content:center;',
-    'color:var(--text,#F3EEF9);text-decoration:none;transition:transform .15s,color .15s}',
-    '.jn-red:hover{transform:translateY(-2px);color:#B8F725}',
+    'color:var(--text,#F3EEF9);text-decoration:none;transition:transform .16s cubic-bezier(.23,1,.32,1),color .16s}',
+    '@media (hover:hover){.jn-red:hover{transform:translateY(-2px);color:#B8F725}}',
+    '.jn-red:active{transform:scale(.94)}',
     '.jn-red svg{width:15px;height:15px}',
     '.jn-red-add{border-color:#B8F725;background:#B8F725;color:#0F0B16;cursor:pointer;padding:0}',
     '.jn-red-add:hover{color:#0F0B16}',
@@ -117,17 +119,36 @@
     '.jn-rm-act .jn-rm-ok{background:#B8F725;border-color:#B8F725;color:#0F0B16}',
     '.jn-rm-st{font-size:12.5px;margin-left:auto}',
     '.jn-cm{position:fixed;z-index:121;min-width:170px;padding:6px;border-radius:12px;background:var(--surface,#181120);color:var(--text,#F3EEF9);',
+    'transform-origin:top left;animation:jnMenu .14s cubic-bezier(.23,1,.32,1);',
     'border:1px solid var(--line,#332A3D);box-shadow:0 12px 32px rgba(0,0,0,.35);font-family:Inter,system-ui,sans-serif}',
     '.jn-cm-t{padding:6px 10px 4px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-dim,#B6A9C7)}',
     '.jn-cm button{display:block;width:100%;text-align:left;padding:9px 10px;border:0;border-radius:8px;background:transparent;color:inherit;font:500 13.5px Inter,system-ui,sans-serif;cursor:pointer}',
     '.jn-cm button:hover{background:rgba(127,127,127,.14)}',
     '.jn-cm .jn-cm-del{color:#EF4444}',
+    '@keyframes jnMenu{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:none}}',
+    '.jn-rm-box{animation:jnMenu .18s cubic-bezier(.23,1,.32,1)}',
+    // Encabezado igual en todos los Jefes (como Jefe 366): "<<" solo en un círculo y el título completo.
+    '.topbar .back-link{width:38px!important;height:38px!important;min-width:38px;padding:0!important;border-radius:50%!important;display:inline-flex!important;',
+    'align-items:center;justify-content:center;flex:0 0 auto!important;font-size:0!important;letter-spacing:0!important;overflow:hidden;text-overflow:clip!important;white-space:nowrap;text-decoration:none!important;gap:0!important}',
+    '.topbar .back-link>*{display:none!important}',
+    '.topbar .back-link::before{content:"<<";font:500 12px "JetBrains Mono",ui-monospace,monospace;letter-spacing:.04em}',
+    '@media (max-width:900px){.topbar h1{white-space:normal!important;overflow:visible!important;text-overflow:clip!important;text-align:center;font-size:clamp(17px,5vw,22px)!important;line-height:1.15!important}}',
+    // Teclado: se ve en qué botón estás (solo al navegar con teclado, no al tocar).
+    'a:focus-visible,button:focus-visible,[role="button"]:focus-visible,summary:focus-visible{outline:2px solid #8FC400!important;outline-offset:2px}',
+    // Botones: se hunden un poco al presionarlos.
+    '.ask-btn:not(:disabled):active,.q-next:active,.q-back:not(:disabled):active,.sld-btn:active,.jn-toggle:active,.jn-fab:active,.jn-rm-act button:active{transform:scale(.97)}',
+    '.ask-btn,.q-next,.q-back,.sld-btn,.jn-fab,.jn-rm-act button{transition:transform .12s cubic-bezier(.23,1,.32,1),background-color .15s,border-color .15s,color .15s,box-shadow .15s}',
+    // Ventana de confirmar (en lugar del cuadro gris del navegador)
+    '.jn-dlg p{font-size:14px!important;color:var(--text,#F3EEF9)!important;margin:0 0 4px!important}',
+    '.jn-rm-act .jn-dlg-del{background:#EF4444;border-color:#EF4444;color:#fff}',
+    '@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}',
     // Links de trabajo (carpeta de Drive y Business Manager): mismos círculos que las redes.
     '.jn-links .jn-red-off{opacity:.38;border-style:dashed}',
     '.jn-links .jn-red-off:hover{opacity:1}',
     // En celular, dejar presionado abre el menú (y no el menú del navegador).
     '.jn-red{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}',
     '.jn-fab,.jn-scrim{display:none}',
+    '@media (pointer:coarse){.jn-red{width:40px;height:40px}.jn-red svg{width:18px;height:18px}.jn-redes{gap:8px}}',
     '@media (max-width:720px){',
     ':root{--jn-top:56px}',
     'body.jn-on{padding-left:0}',
@@ -142,8 +163,36 @@
     '.jn-fab svg{width:22px;height:22px}',
     '.jn-open .jn-scrim{display:block;position:fixed;inset:0;z-index:85;background:rgba(0,0,0,.55)}',
     '.jn-open .jn-fab{display:none}',
+    'body.jn-on{padding-bottom:76px}',
     '}'
   ].join('');
+
+  // Ventana para confirmar con el diseño de JefesHub (en lugar del cuadro gris del navegador).
+  function confirmar(texto, ok) {
+    return new Promise(function (listo) {
+      var f = document.createElement('div');
+      f.className = 'jn-rm';
+      f.innerHTML = '<div class="jn-rm-box jn-dlg" role="alertdialog" aria-modal="true"><p></p><div class="jn-rm-act">' +
+        '<button type="button" class="jn-dlg-no">Cancelar</button><button type="button" class="jn-dlg-del"></button></div></div>';
+      f.querySelector('p').textContent = texto;
+      f.querySelector('.jn-dlg-del').textContent = ok || 'Borrar';
+      function cerrar(v) { document.removeEventListener('keydown', tecla); f.remove(); listo(v); }
+      function tecla(e) { if (e.key === 'Escape') cerrar(false); }
+      f.addEventListener('click', function (e) { if (e.target === f) cerrar(false); });
+      f.querySelector('.jn-dlg-no').onclick = function () { cerrar(false); };
+      f.querySelector('.jn-dlg-del').onclick = function () { cerrar(true); };
+      document.addEventListener('keydown', tecla);
+      document.body.appendChild(f);
+      f.querySelector('.jn-dlg-no').focus();
+    });
+  }
+  function avisoBreve(texto) {
+    var t = document.createElement('div');
+    t.className = 'jn-orden-toast';
+    t.textContent = texto;
+    document.body.appendChild(t);
+    setTimeout(function () { t.remove(); }, 2600);
+  }
 
   function chevron() {
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>';
@@ -318,14 +367,14 @@
     function escMenu(e) { if (e.key === 'Escape') cerrarMenu(); }
     async function borrar(k) {
       var r = REDES.filter(function (x) { return x.key === k; })[0];
-      if (!confirm('¿Borrar el link de ' + r.nombre + '? También se borra de tu ADN.')) return;
+      if (!(await confirmar('¿Borrar el link de ' + r.nombre + '? También se borra de tu ADN.'))) return;
       try {
         var actual = await leerRedes();
         aplicarRed(actual, k, '');
         await window.storage.set(REDES_KEY, JSON.stringify(actual));
         data = actual; pintarRedes(cont, data);
       } catch (e) {
-        alert(e && e.status === 401 ? 'Token incorrecto, intenta de nuevo.' : 'No se pudo borrar.');
+        avisoBreve(e && e.status === 401 ? 'No tienes acceso para borrar este link.' : 'No se pudo borrar. Intenta de nuevo.');
       }
     }
     cont.addEventListener('contextmenu', function (e) {
@@ -646,7 +695,7 @@
       var l = deEl(el);
       if (el.classList.contains('jn-red-off')) { editar(l); return; }
       abrirMenu(e, l.titulo, el.getAttribute('href'), function () { editar(l); }, function () {
-        if (confirm('¿Borrar el link de ' + l.titulo + '?')) guardar(l, '');
+        confirmar('¿Borrar el link de ' + l.titulo + '?').then(function (si) { if (si) guardar(l, ''); });
       });
     });
     presionLarga(cont);
@@ -662,6 +711,15 @@
     var st = document.createElement('style');
     st.textContent = css;
     document.head.appendChild(st);
+    // "<<" del encabezado: el texto viejo ("Hub de Jefes // marca") se guarda en spans ocultos
+    // (otros scripts escriben en #brand-marca-label) y el círculo solo muestra "<<".
+    Array.prototype.forEach.call(document.querySelectorAll('.topbar .back-link'), function (a) {
+      if (!a.title) a.title = 'Hub de Jefes';
+      if (!a.getAttribute('aria-label')) a.setAttribute('aria-label', 'Regresar al Hub de Jefes');
+      Array.prototype.slice.call(a.childNodes).forEach(function (n) {
+        if (n.nodeType === 3 && n.textContent.trim()) { var sp = document.createElement('span'); a.replaceChild(sp, n); sp.appendChild(n); }
+      });
+    });
 
     var nav = document.createElement('nav');
     nav.className = 'jn';

@@ -64,7 +64,8 @@
   .graph-node.locked .node-icon, .graph-node.locked .node-emoji{ filter: grayscale(1); opacity: .45; }
   .graph-node .node-emoji{ font-size: 22px; text-anchor: middle; dominant-baseline: central; pointer-events: none; user-select: none; }
   .graph-node .node-lock{ font-size: 16px; text-anchor: middle; dominant-baseline: central; pointer-events: none; opacity: .6; }
-  .graph-node .node-label{ font-family:'JetBrains Mono',monospace; font-size: 11px; letter-spacing: .02em; text-anchor: middle; fill: var(--chalk-dim); pointer-events: none; user-select: none; }
+  .graph-node .node-label{ font-family:'Inter',sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 0; text-anchor: middle; fill: var(--chalk-dim); pointer-events: none; user-select: none; }
+  @media (prefers-reduced-motion: reduce){ .star, .node-icon, .node-emoji{ animation: none !important; } .pulso{ display: none; } }
   .graph-node.active .node-label{ fill: var(--chalk); }
   .graph-node .node-num{ font-family:'JetBrains Mono',monospace; font-size: 9px; letter-spacing: .1em; text-anchor: middle; fill: var(--chalk-dim); opacity: .9; pointer-events: none; paint-order: stroke; stroke: rgba(0,0,0,.6); stroke-width: 3px; stroke-linejoin: round; }
   .graph-node .node-icon{ pointer-events: none; }
@@ -134,7 +135,6 @@
     .tokens-pill{ font-size: 10px; right: 12px; bottom: 14px; max-width: calc(100vw - 24px); overflow:hidden; text-overflow:ellipsis; }
   }
   @media (max-width: 480px){
-    .graph-node .node-label{ font-size: 9px; }
     .graph-node .node-emoji{ font-size: 18px; }
   }
 
@@ -206,7 +206,7 @@ function cerrarGuiaHub(){
 const JEFES_BASE = [
   {id:0, num:'01', icono:'jefe-366-blanco', nombre:'Jefe 366', desc:'Tu estrategia base', href:'/jefe-366', requisito:null},
   {id:5, num:'02', icono:'jefe-contenido-logo-blanco', nombre:'Jefe de Contenido', desc:'J. Contenido', href:'/jefe-contenido', requisito:null},
-  {id:3, num:'03', icono:'jefe-whatsapp-logo-blanco', nombre:'WhatsApp y Ventas', desc:'J. Ventas & WhatsApp', href:'/jefe-whatsapp', requisito:null},
+  {id:3, num:'03', icono:'jefe-whatsapp-logo-blanco', nombre:'Jefe de WhatsApp y Ventas', desc:'J. Ventas & WhatsApp', href:'/jefe-whatsapp', requisito:null},
   {id:1, num:'04', icono:'jefe-finanzas-logo-blanco', nombre:'Jefe de Finanzas', desc:'Calculadora financiera', href:'/jefe-financiero', requisito:null},
   {id:4, num:'05', icono:'jefe-faro-logo-blanco', nombre:'Jefe del Faro', desc:'Radar de mercado', href:'/jefe-radar', requisito:null},
   {id:6, num:'06', icono:'jefe-anuncios-logo-blanco', nombre:'Jefe de Anuncios', desc:'J. Anuncios pagados', href:'/jefe-anuncios', requisito:null},
@@ -262,7 +262,7 @@ const REQUISITO_TEXTO = {
   let margenArriba = Math.min(140, vh * 0.22) / escala; // deja espacio para el breadcrumb + instrucciones de arriba
   // En celular la tarjeta de tokens ocupa la parte de abajo: la red se centra en el espacio libre entre
   // el título y la tarjeta para que ningún Jefe quede tapado.
-  let margenAbajo = (vw < 720 ? 104 : 0) / escala;
+  let margenAbajo = (vw < 720 ? 76 : 0) / escala;
   function centroY(){ return (Math.max(margenArriba, 90) + (height - margenAbajo)) / 2; }
   // Anillo de Jefes en forma de elipse que sigue la forma de la pantalla: ancho en compu,
   // alto en celular. rx/ry son los radios; distJefe, el largo de las lineas al ADN.
@@ -274,6 +274,19 @@ const REQUISITO_TEXTO = {
     distJefe = (rx + ry) / 2;
   }
   calcAnillo();
+  // Cada Jefe tiene su lugar fijo, repartidos a la misma distancia sobre la elipse (medida por largo
+  // de arco, no por ángulo: en celular la elipse es alta y por ángulo se amontonaban arriba y abajo).
+  function repartirLugares(){
+    const n = jefes.length, pasos = 720, t0 = -Math.PI / 2, acum = [0];
+    let total = 0, px = 0, py = -ry;
+    for (let k = 1; k <= pasos; k++){
+      const t = t0 + k / pasos * 2 * Math.PI, x = rx * Math.cos(t), y = ry * Math.sin(t);
+      total += Math.hypot(x - px, y - py); acum.push(total); px = x; py = y;
+    }
+    let k = 0;
+    jefes.forEach((d, i) => { const meta = (i + 0.5) / n * total; while (acum[k] < meta) k++; d.lugar = t0 + k / pasos * 2 * Math.PI; });
+  }
+  repartirLugares();
   svg.attr('viewBox', [0,0,vw,vh]);
 
   // Todo lo visual vive dentro de zoomRoot para poder hacer pinch-zoom
@@ -308,22 +321,21 @@ const REQUISITO_TEXTO = {
   // Cada Jefe tiene su propia distancia al centro (55%-110% del anillo) para que se vean
   // dispersos y no formados en un ovalo; se alternan cerca/lejos para no encimarse.
   jefes.forEach((d,i)=>{
-    d.anilloF = (i % 2 ? 0.58 : 0.86) + Math.random() * 0.24;
-    const angle = (i/jefes.length)*2*Math.PI;
-    d.x = width/2 + rx*d.anilloF*Math.cos(angle);
-    d.y = centroY() + ry*d.anilloF*Math.sin(angle);
+    d.anilloF = (i % 2 ? 0.62 : 0.86) + Math.random() * 0.2;
+    const f = vw < 720 ? 1 : d.anilloF;
+    d.x = width/2 + rx*f*Math.cos(d.lugar);
+    d.y = centroY() + ry*f*Math.sin(d.lugar);
   });
 
-  // Jala cada Jefe hacia su punto en la elipse (se reparten solos por la repulsion entre ellos).
+  // Jala cada Jefe hacia su lugar en la elipse (así nunca se enciman ni se van todos a un lado).
   function fuerzaAnillo(alpha){
     const cx = width/2, cy = centroY();
     for (const d of nodesData){
       if (d.esADN || d.esSatelite) continue;
       const f = vw < 720 ? 1 : (d.anilloF || 1);
-      const k = vw < 720 ? 0.6 : 0.3;
-      const ang = Math.atan2((d.y - cy) / ry, (d.x - cx) / rx);
-      d.vx += (cx + rx*f*Math.cos(ang) - d.x) * k * alpha;
-      d.vy += (cy + ry*f*Math.sin(ang) - d.y) * k * alpha;
+      // Manda sobre la repulsión entre Jefes: cada uno regresa a su lugar con un leve temblor.
+      d.vx = (cx + rx*f*Math.cos(d.lugar) - d.x) * 0.12 + (Math.random() - 0.5) * 0.25;
+      d.vy = (cy + ry*f*Math.sin(d.lugar) - d.y) * 0.12 + (Math.random() - 0.5) * 0.25;
     }
   }
 
@@ -389,17 +401,19 @@ const REQUISITO_TEXTO = {
     .style('animation-delay', () => (Math.random()*4.4) + 's');
   nodePrincipal.filter(d=>!d.icono).append('text').attr('class','node-emoji').attr('y', d=>d.activo?-4:-2).text(d=>d.emoji)
     .style('animation-delay', () => (Math.random()*4.4) + 's');
-  nodePrincipal.append('text').attr('class','node-num').attr('y', d=>d.activo?-26:-22).text(d=>(d.icono==='jefe-366-blanco' || d.icono==='jefe-contenido-logo-blanco' || d.icono==='jefe-anuncios-logo-blanco' || d.icono==='jefe-produccion-video-logo-blanco' || d.icono==='jefe-whatsapp-logo-blanco' || d.icono==='jefe-herramientas-logo-blanco' || d.icono==='jefe-finanzas-logo-blanco' || d.icono==='jefe-temporada-logo-blanco' || d.icono==='jefe-agenda-logo-blanco' || d.icono==='jefe-faro-logo-blanco' || d.icono==='jefe-prospeccion-logo-blanco') ? '' : 'JEFE '+d.num);
   nodePrincipal.filter(d=>!d.activo).append('text').attr('class','node-lock').attr('y',18).text('🔒');
-  // En celular el nombre va corto donde el nodo trae `corto` (ej. "J. Temporada"); en computadora, completo.
+  // Un solo nombre por Jefe (el mismo de la barra de Jefes y de su página). En celular va sin el
+  // "Jefe de" para que no se enciman (ej. "Temporada"); en computadora, completo.
   const mqCorto = window.matchMedia('(max-width: 720px)');
-  const textoNodo = d => (mqCorto.matches && d.corto) ? d.corto : (d.desc || d.nombre);
+  const nombreCorto = d => d.nombre === 'Jefe 366' ? d.nombre : d.nombre.replace(/^Jefe (de |del )?/, '').replace(/ y Ventas$/, '');
+  const textoNodo = d => mqCorto.matches ? nombreCorto(d) : d.nombre;
   nodePrincipal.append('text').attr('class','node-label').attr('y', d=>radioDe(d)+18).text(textoNodo);
   mqCorto.addEventListener('change', () => nodePrincipal.selectAll('.node-label').text(textoNodo));
-  // La letra de los nombres no baja de ~10px reales en celular aunque el grafo se achique.
-  function ajustarLetras(){ nodePrincipal.selectAll('.node-label').style('font-size', Math.max(11, 10/escala) + 'px'); }
+  // La letra de los nombres no baja de 13px reales en celular aunque el grafo se achique.
+  function ajustarLetras(){ nodePrincipal.selectAll('.node-label').style('font-size', Math.max(13, 13/escala) + 'px'); }
   ajustarLetras();
-  nodePrincipal.append('title').text(d => d.activo ? d.nombre : d.nombre + ' — ' + (REQUISITO_TEXTO[d.requisito] || 'Próximamente'));
+  const conDesc = d => d.desc && !/^J(efe|\.) /.test(d.desc) ? d.nombre + ' — ' + d.desc : d.nombre;
+  nodePrincipal.append('title').text(d => d.activo ? conDesc(d) : d.nombre + ' — ' + (REQUISITO_TEXTO[d.requisito] || 'Próximamente'));
 
   // Nodo ADN: emoji, nombre del negocio (o "ADN pendiente"), y estado.
   // El nombre del negocio no tiene largo fijo -- si no encoge la letra,
@@ -511,11 +525,12 @@ const REQUISITO_TEXTO = {
     escala = calcEscala();
     width = vw / escala; height = vh / escala;
     margenArriba = Math.min(140, vh * 0.22) / escala;
-    margenAbajo = (vw < 720 ? 104 : 0) / escala;
+    margenAbajo = (vw < 720 ? 76 : 0) / escala;
     svg.attr('viewBox', [0,0,vw,vh]);
     escalaG.attr('transform', `scale(${escala})`);
     ajustarLetras();
     calcAnillo();
+    repartirLugares();
     simulation.force('link').distance(d => d.esSatelite ? 26 + Math.random()*22 : distJefe);
     adnNode.fx = width/2; adnNode.fy = centroY();
     simulation.force('center', d3.forceCenter(width/2, centroY()));
