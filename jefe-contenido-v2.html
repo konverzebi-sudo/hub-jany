@@ -916,7 +916,18 @@ function pasaFoco(r){
   }
   return true;
 }
-function listaActual(){ return (currentTab==='ambos' ? [...state.historias,...state.contenido] : (state[currentTab]||[])).filter(pasaFoco); }
+// Posts e historias: además de los del producto elegido salen los que todavía no tienen producto, marcados "sin producto"
+// (así lo que se hizo antes de asignar productos no parece perdido). Las ideas del banco siguen filtrándose estricto.
+function pasaFocoPieza(r){
+  if(pasaFoco(r)) return true;
+  const f = window.__foco ? window.__foco.get() : null;
+  return !!f && !f.esTodo && !r.productoId;
+}
+function sinProductoEnFoco(r){
+  const f = window.__foco ? window.__foco.get() : null;
+  return !!f && !f.esTodo && !r.productoId;
+}
+function listaActual(){ return (currentTab==='ambos' ? [...state.historias,...state.contenido] : (state[currentTab]||[])).filter(pasaFocoPieza); }
 function tabDeItem(r){ return state.historias.includes(r) ? 'historias' : 'contenido'; }
 function findItem(id){
   const orden = currentTab==='contenido' ? ['contenido','historias'] : ['historias','contenido'];
@@ -924,8 +935,8 @@ function findItem(id){
   return null;
 }
 function actualizarContadores(){
-  document.getElementById('count-historias').textContent = state.historias.filter(pasaFoco).length;
-  document.getElementById('count-contenido').textContent = state.contenido.filter(pasaFoco).length;
+  document.getElementById('count-historias').textContent = state.historias.filter(pasaFocoPieza).length;
+  document.getElementById('count-contenido').textContent = state.contenido.filter(pasaFocoPieza).length;
   const cb=document.getElementById('count-banco'); if(cb) cb.textContent = state.bancoIdeas.length;
 }
 actualizarContadores();
@@ -1540,8 +1551,8 @@ function renderCalendario(){
   wrap.appendChild(toolbar);
 
   const allItems=[
-    ...(calFiltro==='contenido'?[]:state.historias.filter(pasaFoco).map(r=>({...r,_tab:'historias',_icon:'⭕'}))),
-    ...(calFiltro==='historias'?[]:state.contenido.filter(pasaFoco).map(r=>({...r,_tab:'contenido',_icon:'🎬'}))),
+    ...(calFiltro==='contenido'?[]:state.historias.filter(pasaFocoPieza).map(r=>({...r,_tab:'historias',_icon:'⭕'}))),
+    ...(calFiltro==='historias'?[]:state.contenido.filter(pasaFocoPieza).map(r=>({...r,_tab:'contenido',_icon:'🎬'}))),
   ];
 
   const porDia={};
@@ -3752,7 +3763,7 @@ function wcardPost(r, i, conFecha){
     </div>
     <div class="wbody">
       <div class="wtitle">${escHtml(r.gancho||'(sin título)')}</div>
-      ${r.productoNombre?`<div class="wnets"><span class="wnet wprod">◆ ${escHtml(r.productoNombre)}</span></div>`:''}
+      ${r.productoNombre?`<div class="wnets"><span class="wnet wprod">◆ ${escHtml(r.productoNombre)}</span></div>`:(sinProductoEnFoco(r)?'<div class="wnets"><span class="wnet">sin producto</span></div>':'')}
       <div class="wfoot"><span class="wpill ${est}">${ESTADO_LABEL[est]}</span><span class="whora">${conFecha?escHtml(fechaCorta(r)+(r.hora?' · '+r.hora:'')):escHtml(r.hora||'')}</span></div>
     </div>
   </article>`;
@@ -3766,6 +3777,7 @@ function wcardHistoria(r, i, conFecha){
     <div class="wmini-ring">${ring}</div>
     <div class="wbody">
       <div class="wtitle">${escHtml(r.gancho||'(sin título)')}</div>
+      ${sinProductoEnFoco(r)?'<div class="wnets"><span class="wnet">sin producto</span></div>':''}
       <div class="wfoot"><span class="wpill ${est}">${ESTADO_LABEL[est]}</span><span class="whora">${conFecha?escHtml(fechaCorta(r)+(r.hora?' · '+r.hora:'')):escHtml(r.hora||'')}</span></div>
     </div>
   </article>`;
@@ -3781,7 +3793,7 @@ function proximosPorEstado(lista){
   const rank={programado:0,proceso:1,idea:2};
   const estDe=r=>ESTADO_LABEL[r.estado]?r.estado:'idea';
   const grupoFecha=r=>{ const f=r.fecha||''; if(!/^\d{4}-\d{2}-\d{2}$/.test(f)) return 1; return f>=hoy?0:2; }; // con fecha próxima, sin fecha, ya pasada
-  return lista.filter(r=>estDe(r)!=='publicado' && pasaFoco(r)).slice().sort((a,b)=>{
+  return lista.filter(r=>estDe(r)!=='publicado' && pasaFocoPieza(r)).slice().sort((a,b)=>{
     const n=(esNuevo(b)?1:0)-(esNuevo(a)?1:0); if(n) return n;
     if(esNuevo(a) && esNuevo(b)) return b.agregadoEn-a.agregadoEn;
     const d=rank[estDe(a)]-rank[estDe(b)]; if(d) return d;
