@@ -2310,18 +2310,20 @@ function htmlMapaColumnas(campana, opts){
     const origen = origenPublico(c);
     const genero = c.genero && c.genero!=='Todos' ? c.genero : ((c.edad||c.ubicacion) ? 'Todos' : '');
     const presu = campana.presupuesto_nivel==='campana' ? '' : (c.presupuesto_diario || '');
-    return `<div class="res-conj"><div class="res-conj-t">Público #${i+1}${origen ? `<span class="res-tag">${escHtml(origen)}</span>` : ''}</div>`
+    return `<div class="res-conj"><div class="res-conj-t">Mercado #${i+1}${origen ? `<span class="res-tag">${escHtml(origen)}</span>` : ''}</div>`
       + kv('Edad', escHtml(c.edad)) + kv('Género', escHtml(genero)) + kv('Ubicación', escHtml(c.ubicacion))
       + kv('Intereses', escHtml((c.intereses||'').slice(0,140))) + kv('Presupuesto diario', escHtml(presu)) + '</div>';
   };
+  // el conjunto de anuncios define dos cosas: el presupuesto (por campaña o por conjunto) y el mercado (a quién le llega)
+  const presupuestoTexto = (c)=> c.presupuesto_nivel==='campana' ? 'Por campaña'+(c.presupuesto_diario ? ' · '+c.presupuesto_diario : '') : (c.presupuesto_nivel==='conjunto' ? 'Por conjunto' : 'Sin elegir');
   const objIcono = ((OBJETIVOS.find(x=>x.key===campana.objetivo)||{}).label||'').split(' ')[0];
   const col1 = dark('Objetivo de campaña', 'obj', false, !objetivoTextoCampana(campana))
     + (objetivoTextoCampana(campana)
         ? kv('Objetivo', `${objIcono ? objIcono+' ' : ''}${escHtml(objetivoTextoCampana(campana))}`) + kv('Tipo', escHtml(campana.tipo)) + kv('Resultado esperado', escHtml(campana.resultado_esperado))
         : '<div class="res-vacio">Sin definir</div>');
   const col2 = dark('Conjunto de anuncios' + (ed ? ' ('+conjuntos.length+')' : ''), 'esp', opts.abEsp, !conjuntos.length)
-    + (campana.presupuesto_nivel==='campana' && campana.presupuesto_diario ? kv('Presupuesto de la campaña', escHtml(campana.presupuesto_diario)) : '')
-    + (conjuntos.length ? conjuntos.map(publico).join('') : '<div class="res-vacio">Sin conjuntos todavía</div>');
+    + kv('Presupuesto', escHtml(presupuestoTexto(campana)))
+    + (conjuntos.length ? conjuntos.map(publico).join('') : kv('Mercado', 'Sin conjuntos todavía'));
   const col3 = dark('Anuncios', 'anu', opts.abAnu, !nAnuncios) + `<div class="res-anuncios"${ed ? ` data-vinculados="${campana.id}"` : ''}>${htmlAnunciosVinculados(campana, opts.anuncioId)}</div>`;
   return `<div class="res-col">${col1}</div><div class="res-col">${col2}</div><div class="res-col res-col-anuncios">${col3}</div>`;
 }
@@ -2396,7 +2398,7 @@ function proponerCampanaParaLote(ids){
   ov.innerHTML = `<div class="ay-box" role="dialog" aria-modal="true">
     <h3>¿En qué campaña van estos ${ids.length} anuncios?</h3>
     <p class="ay-nota" style="margin-top:-4px;">Para no confundirte, propongo esto. Tú decides:</p>
-    <label class="ay-op"><input type="radio" name="ay-camp" value="" checked><span><b>🆕 Una campaña nueva</b> con todos estos anuncios<small>Campaña: ${escHtml(nombreNueva)} · se crea con su primer conjunto de anuncios (público #1). Después completas objetivo y público en “Estructura de Ads”.</small></span></label>
+    <label class="ay-op"><input type="radio" name="ay-camp" value="" checked><span><b>🆕 Una campaña nueva</b> con todos estos anuncios<small>Campaña: ${escHtml(nombreNueva)} · se crea con su primer conjunto de anuncios (mercado #1). Después completas objetivo, presupuesto y mercado en “Estructura de Ads”.</small></span></label>
     ${existentes.map(({c,i,ok})=>`<label class="ay-op${ok?'':' ay-off'}"><input type="radio" name="ay-camp" value="${c.id}"${ok?'':' disabled'}><span><b>➕ Agregarlos a una campaña que ya tengo</b><small>${escHtml(etiquetaCampana(c,i))}${ok ? (c.producto_id||c.grupo_id ? ' · mismo producto/grupo' : ' · campaña general') : ' · no se puede: '+motivoNoAcepta(c)}</small></span></label>`).join('')}
     <div class="ay-btns"><button type="button" class="btn btn-outline" data-ay-luego>Decidir después</button><button type="button" class="btn btn-solid" data-ay-ok>Aceptar</button></div>
   </div>`;
@@ -2677,9 +2679,9 @@ function buildConjuntoCard(campana, conjunto, idx){
       <button type="button" class="item-del" data-conjunto="${conjunto.id}" title="Eliminar conjunto">✕</button>
     </div>
     <details class="paso-det" data-paso="${k}"${pasoAbierto(k)?' open':''}>
-      <summary class="paso-t"><span class="paso-n">2</span> Público <span class="paso-res">· ${escHtml(origen)}</span><span class="paso-car">▾</span></summary>
+      <summary class="paso-t"><span class="paso-n">2</span> Mercado <span class="paso-res">· ${escHtml(origen)}</span><span class="paso-car">▾</span></summary>
       <div class="paso-cuerpo">
-        <p class="paso-hint">¿De dónde partimos para llenar este público?</p>
+        <p class="paso-hint">¿De dónde partimos para llenar este mercado?</p>
         <div class="paso-sub">Recomendado</div>
         <div class="alc-cards chicas" role="listbox">
           ${tarjeta('data-pub="ia"','✨','Solo con IA','Es lo que mejor está funcionando: el Jefe arma el público con tu ADN, tu 366 y el Radar de Mercado.','No eliges nada: la IA propone ubicación, edad, género e intereses pensando en tu producto.', fuente==='ia', true)}
