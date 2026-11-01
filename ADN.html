@@ -286,6 +286,12 @@
   .adn-q .q-back:disabled{opacity:.35;cursor:default;}
   .adn-q .q-save{font-size:12px;color:var(--text-dim);margin-top:12px;min-height:16px;}
   .adn-q .q-save.ok{color:#1F9D55;}
+  .adn-q .q-top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+  .adn-q .q-ver-todo{background:transparent;border:1px solid var(--line);color:var(--text-dim);font-family:'Inter',sans-serif;font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:99px;cursor:pointer;white-space:nowrap;}
+  .adn-q .q-ver-todo:hover{border-color:#A6E000;color:var(--text);}
+  .adn-q.completa .q-progress,.adn-q.completa .q-title,.adn-q.completa .q-help,.adn-q.completa .q-back,.adn-q.completa .q-skip{display:none;}
+  .adn-q.completa .panel-head,.adn-q.completa .ai-prompt-wrap{display:none!important;}
+  .adn-q.completa .q-body .field{margin-bottom:18px;}
   .adn-fin{max-width:560px;margin:6px auto 0;text-align:center;font-size:14px;color:var(--text-dim);}
   .adn-fin strong{color:var(--text);}
   /* Icono escondido para enviar el link de llenado al cliente */
@@ -348,7 +354,7 @@
 <body>
 
 <header>
-  <a id="adn-back-hub" href="/" class="back-link">&lt;&lt; Hub de Jefes <span style="opacity:.4;">//</span> <span id="brand-marca-label">—</span> <span style="opacity:.4;">·</span> <span id="brand-section-label">Identidad</span></a>
+  <a id="adn-back-hub" href="/" class="back-link">&lt;&lt; Hub de Jefes <span style="opacity:.4;">//</span> <span id="brand-marca-label">—</span></a>
   <script>(function(){var p=location.pathname;var b=window.__hub.slug!=='jefeshub'?'/'+window.__hub.slug:null;if(b)document.getElementById('adn-back-hub').href=b;})();</script>
   <script>(async function(){
     var BRANDS=window.__hub.marcas({
@@ -1045,7 +1051,10 @@ pintarBienvenidaADN();
   try{
     const r = await window.storage.get(storageKey('brand-book.identidad'));
     const d = r && r.value ? JSON.parse(r.value) : null;
-    if(d && d.nombre) document.getElementById('adn-bienvenida-nombre').textContent = d.nombre;
+    if(d && d.nombre){
+      document.getElementById('adn-bienvenida-nombre').textContent = d.nombre;
+      document.getElementById('brand-marca-label').textContent = d.nombre;
+    }
   }catch(e){}
 })();
 
@@ -2250,7 +2259,7 @@ loadOptimizacion();
   PASOS.forEach(function (p) {
     var panel = document.getElementById('panel-' + p[0]), slot = document.getElementById('slot-' + p[0]);
     var q = document.createElement('div'); q.className = 'adn-q';
-    q.innerHTML = '<div class="q-progress"><i></i></div><div class="q-eyebrow"></div><h3 class="q-title"></h3><p class="q-help" hidden></p><div class="q-body"></div>' +
+    q.innerHTML = '<div class="q-progress"><i></i></div><div class="q-top"><div class="q-eyebrow"></div><button type="button" class="q-ver-todo">Ver sección completa</button></div><h3 class="q-title"></h3><p class="q-help" hidden></p><div class="q-body"></div>' +
       '<div class="q-actions"><button type="button" class="q-back">← Atrás</button><span class="q-sp"></span><button type="button" class="q-skip">Saltar</button><button type="button" class="ask-btn q-next">Siguiente →</button></div><div class="q-save"></div>';
     q.querySelector('.q-body').appendChild(panel);
     slot.appendChild(q);
@@ -2304,6 +2313,14 @@ loadOptimizacion();
   // ----- mostrar una unidad -----
   function mostrar(id) {
     var s = st[id], nombre = PASOS.filter(function (p) { return p[0] === id; })[0][1];
+    if (s.completa) {
+      // toda la sección a la vista: se quitan las marcas que ocultan las demás preguntas
+      s.panel.querySelectorAll('.q-keep,.q-scope,.q-unit').forEach(function (n) { n.classList.remove('q-keep', 'q-scope', 'q-unit'); });
+      s.panel.classList.remove('q-keep', 'q-scope', 'q-unit');
+      s.q.querySelector('.q-eyebrow').textContent = nombre + ' · sección completa';
+      s.q.querySelector('.q-next').textContent = 'Terminar ✓';
+      return;
+    }
     var us = visibles(s.panel);
     if (!us.length) return;
     if (idx > us.length - 1) idx = us.length - 1; if (idx < 0) idx = 0;
@@ -2357,7 +2374,7 @@ loadOptimizacion();
     var id = abierto; if (!id) return;
     if (!saltar) guardarPaso(id);
     var us = visibles(st[id].panel);
-    if (idx < us.length - 1) { idx++; mostrar(id); return; }
+    if (!st[id].completa && idx < us.length - 1) { idx++; mostrar(id); return; }
     hechos[id] = true; guardarHechos();
     var i = PASOS.map(function (p) { return p[0]; }).indexOf(id), sig = siguientePendiente(i + 1);
     if (sig) abrir(sig); else { st[id].slot.hidden = true; abierto = null; pintarMapa(); mostrarFin(); }
@@ -2373,6 +2390,12 @@ loadOptimizacion();
     q.querySelector('.q-next').onclick = function () { avanzar(false); };
     q.querySelector('.q-skip').onclick = function () { avanzar(true); };
     q.querySelector('.q-back').onclick = function () { if (idx > 0) { idx--; mostrar(id); } };
+    q.querySelector('.q-ver-todo').onclick = function () {
+      st[id].completa = !st[id].completa;
+      q.classList.toggle('completa', st[id].completa);
+      q.querySelector('.q-ver-todo').textContent = st[id].completa ? 'Ver pregunta por pregunta' : 'Ver sección completa';
+      mostrar(id);
+    };
     // al responder una pregunta que muestra otra (p. ej. giro "Otro") se actualiza el conteo
     st[id].panel.addEventListener('change', function () { if (abierto === id) mostrar(id); });
   });
