@@ -3030,6 +3030,12 @@ function pintarIdeasHoy(){
   const gen = host.querySelector('#hoy-generar'); if(gen) gen.addEventListener('click', ()=>generarIdeasHoy());
   host.querySelectorAll('[data-hoy]').forEach(b=>b.addEventListener('click', ()=>hacerPostDeIdeaHoy(+b.dataset.hoy)));
 }
+// Seis estructuras del banco de ganchos, de familias distintas y al azar, para que cada juego de ideas parta de ganchos reales.
+function ganchosParaHoy(){
+  const fams=(window.BANCO_GANCHOS||[]).filter(f=>f && Array.isArray(f.plantillas) && f.plantillas.length);
+  return fams.map(f=>({f, r:Math.random()})).sort((a,b)=>a.r-b.r).slice(0,6)
+    .map(({f})=>'['+f.nombre+'] '+f.plantillas[Math.floor(Math.random()*f.plantillas.length)]);
+}
 async function guardarIdeasHoy(){ try{ await window.storage.set(IDEAS_HOY_KEY, JSON.stringify(ideasHoyStore)); }catch(e){} }
 async function generarIdeasHoy(){
   if(ideasHoyCargando) return;
@@ -3039,7 +3045,7 @@ async function generarIdeasHoy(){
     const historial = (ideasHoyStore.historial||[]).slice(-25);
     const resp = await fetch('/api/generar-guion-organico',{
       method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({cliente:CLIENTE_ID, modo:'ideas', objetivo:'alcance', cantidad:3, paraHoy:true, existentes:historial,
+      body:JSON.stringify({cliente:CLIENTE_ID, modo:'ideas', objetivo:'alcance', cantidad:3, paraHoy:true, ganchosBase:ganchosParaHoy(), existentes:historial,
         producto_id:f.producto_id, grupo_id:f.grupo_id, campanaId:f.campanaId}),
     });
     const crudo = await resp.text();

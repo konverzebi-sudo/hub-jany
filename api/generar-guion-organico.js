@@ -776,6 +776,10 @@ module.exports = async function handler(req, res) {
       const existentes = (Array.isArray(body.existentes) ? body.existentes : []).map((x) => String(x || '').trim().slice(0, 160)).filter(Boolean).slice(0, 25);
       const ideaExacta = body.ideaExacta === true && !!tema;
       const paraHoy = body.paraHoy === true;
+      // Estructuras del banco de ganchos (las elige la pantalla al azar en cada juego) para que las ideas de hoy no suenen a IA.
+      const ganchosBase = paraHoy && Array.isArray(body.ganchosBase)
+        ? body.ganchosBase.map((g) => String(g || '').replace(/\s+/g, ' ').trim().slice(0, 200)).filter(Boolean).slice(0, 8)
+        : [];
 
       const instruccion = textoFechaHoy() + '\n\n' + 'INSTRUCCIÓN DE ESTA GENERACIÓN — MODO "ideas":\n' +
         `OBJETIVO: ${objetivo}\n` +
@@ -785,6 +789,8 @@ module.exports = async function handler(req, res) {
           : (tema ? `\nTEMA / CONTEXTO SEMILLA (opcional, úsalo como punto de partida): ${tema}` : '')) +
         (existentes.length ? '\n\nIDEAS YA REGISTRADAS (no las repitas ni las parafrasees):\n' + existentes.map((x) => '- ' + x).join('\n') : '') +
         (bloqueEnfoqueIdeas ? '\n\n' + bloqueEnfoqueIdeas : '') +
+        (ganchosBase.length ? '\n\nGANCHOS DE PARTIDA (del banco de ganchos del Jefe: estructuras que ya funcionan en video corto):\n' + ganchosBase.map((g) => '- ' + g).join('\n') +
+          '\nCada una de las 3 ideas abre con un gancho que parte de UNO distinto de esta lista: conserva su estructura y su tensión, pero escríbelo como lo diría una persona en voz alta, con una situación concreta del negocio o del cliente (nunca dejes corchetes ni copies el ejemplo tal cual). Si ninguno encaja con una idea, inventa uno igual de directo. Prohibido sonar a publicidad o a IA: nada de «descubre cómo», «transforma tu», «el secreto de», «potencia tu» ni signos de exclamación de más. La "idea" es una escena corta (qué grabas, dónde y qué dices en la primera frase), no la explicación del tema ni frases de manual como «explica los 3 errores». En cada idea agrega el campo "gancho_base" con la estructura del banco que usaste.' : '') +
         (paraHoy ? '\n\nSON LAS IDEAS PARA HOY: pocas, frescas y listas para grabar hoy con un celular y lo que el negocio ya tiene a la mano. Una debe ser viral o de entretenimiento (alcance), otra educativa o de consideración y otra de venta o prueba, cada una con su gancho creativo y una escena concreta. Piensa en la fecha de hoy: si hay una campaña vigente o una fecha cercana, aprovéchala; si no, no la inventes.' : '') +
         (productoId ? '\n\nEn cada idea agrega el campo "producto" con el nombre del producto enfocado.' : '') +
         (esTendencia ? '\n\nEl objetivo es "tendencia": usa la herramienta de búsqueda web para encontrar qué está pasando AHORA antes de responder. Basa las ideas en hallazgos reales, no en suposiciones.' : '');
