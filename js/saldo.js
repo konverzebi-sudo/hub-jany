@@ -57,7 +57,7 @@
   function montarEnHub(slug) {
     ponerCss();
     return cargar(slug).then(function (e) {
-      if (!e) return;
+      if (!e || e.sinTope) return;
       var caja = document.createElement('div');
       caja.className = 'sld sld-hub' + (e.bloqueado ? ' tope' : '');
       caja.setAttribute('role', 'status');

@@ -367,7 +367,7 @@ test('íconos de Agenda: existen los 3 colores y las pantallas principales usan 
   ['consultor.html', 'hub.html', 'rancho-seco-central-jefes.html', 'rim-central-jefes.html', 'optica-one-central-jefes.html'].forEach((f) => {
     const src = fs.readFileSync(path.join(RAIZ, f), 'utf8');
     assert.match(src, /icono:'jefe-agenda-logo-blanco'[^}]*desc:'J\. Agenda'/, f);
-    assert.ok(src.includes("d.icono==='jefe-agenda-logo-blanco'"), f + ' debe ocultar el "JEFE 11" como los demás logos');
+    assert.ok(!src.includes("'node-num'"), f + ' ya no pinta la etiqueta "JEFE NN" sobre ningún Jefe');
   });
   const nav = fs.readFileSync(path.join(RAIZ, 'js', 'jefes-nav.js'), 'utf8');
   assert.match(nav, /slug: 'jefe-agenda'[^}]*jefe-agenda-logo-negro[^}]*jefe-agenda-logo-blanco/);
