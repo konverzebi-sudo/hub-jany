@@ -3025,7 +3025,7 @@ function draftDeItem(tab, r){
     gancho:r.gancho||'', estado:r.estado||'idea', fecha:r.fecha||'', hora:r.hora||'',
     formato:formatoDeItem(r,tab), redes:(Array.isArray(r.redes)?r.redes:REDES_DEFAULT).slice(),
     miniatura:r.miniatura||'', caption:r.caption||'', descripcion:r.descripcion||'', ganchoIdea:r.ganchoIdea||'',
-    guion:r.guion||'', promptImagen:r.promptImagen||'', promptVideo:r.promptVideo||'',
+    guion:r.guion||'', promptImagen:r.promptImagen||'', promptVideo:r.promptVideo||'', captionWa:r.captionWa||'',
     linkVirgen:r.linkVirgen||'', linkArchivo:r.linkArchivo||'', linkFinal:r.linkFinal||'', linkPub:r.linkPub||'', linkRef:r.linkRef||'',
     productoId:r.productoId||'',
     notas:(r.notas!=null && r.notas!=='') ? r.notas : [r.instrucciones,r.recomendacion].filter(Boolean).join('\n\n'),
@@ -3361,10 +3361,10 @@ function medioEditorHTML(tipo, draft){
       </div>
       <div class="ed-medio-go"><button type="button" class="btn btn-solid ed-medio-gen">Crear prompt</button><span class="ed-medio-status mode-status"></span></div>
     </div>
-    <div class="ed-medio-box" ${draft[m.campo]?'':'hidden'}>
+    <div class="ed-medio-box" hidden>
       <div class="ed-label">${m.titulo}</div>
       <textarea data-ed="${m.campo}" rows="5">${escHtml(draft[m.campo])}</textarea>
-      <div class="ed-actions ed-actions-prompt"><button type="button" class="ed-copiar-prompt ed-medio-copiar">📋 <b>Copiar prompt</b> <small>listo para pegar en ${tipo==='imagen'?'ChatGPT':'Gemini'}</small></button><a class="ed-gemini" href="${tipo==='imagen'?'https://chatgpt.com':'https://gemini.google.com/app'}" target="_blank" rel="noopener">Abrir ${tipo==='imagen'?'ChatGPT':'Gemini'} ↗</a><button type="button" class="btn-guion ed-medio-ir">Ir a Jefe Productor IA →</button></div>
+      <div class="ed-actions ed-actions-prompt"><button type="button" class="ed-copiar-prompt ed-medio-copiar">📋 <b>Copiar prompt</b> <small>listo para pegar en ${tipo==='imagen'?'ChatGPT':'Gemini'}</small></button><a class="ed-gemini" href="${tipo==='imagen'?'https://chatgpt.com':'https://gemini.google.com/app'}" target="_blank" rel="noopener">Abrir ${tipo==='imagen'?'ChatGPT':'Gemini'} ↗</a><button type="button" class="btn-guion ed-medio-nuevo">✨ Crear de nuevo</button><button type="button" class="btn-guion ed-medio-ir">Ir a Jefe Productor IA →</button></div>
       ${tipo==='video'?'<div class="ed-tip">💡 <b>Sube tu logotipo a Gemini junto con este prompt</b> para que aparezca al final. El video dura de 15 a 20 segundos, lleva voz y está pensado como un comercial dinámico.</div>':(tipo==='imagen'?'<div class="ed-tip">💡 <b>Sube tu logotipo a ChatGPT junto con este prompt</b> (clip 📎): el prompt ya le indica en qué esquina colocarlo.</div>':'')}
     </div>
   </div>`;
@@ -3395,9 +3395,25 @@ function fotogramasDeVideo(file, cuantos){
     });
   });
 }
+// Solo se ve la caja del mosaico elegido; al picarle otra vez se cierra y no queda ninguna.
+function pintarPanel(){
+  const ctx=editorCtx, ov=document.getElementById('ed-overlay');
+  if(!ctx || !ov) return;
+  const activo=ctx.panel, d=ctx.draft;
+  ov.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('on',b.dataset.tool===activo));
+  ['imagen','video'].forEach(tipo=>{
+    const box=ov.querySelector('.ed-medio[data-medio="'+tipo+'"]'); if(!box) return;
+    const hay=!!(d[MEDIO_META[tipo].campo]||'').trim();
+    box.querySelector('.ed-medio-ask').hidden=!(activo===tipo && (!hay || ctx.askAbierto[tipo]));
+    box.querySelector('.ed-medio-box').hidden=!(activo===tipo && hay);
+  });
+  ov.querySelector('[data-guion-box]').hidden=activo!=='guion';
+  ov.querySelector('[data-wa-box]').hidden=activo!=='wa';
+}
 function enlazarMedios(ov){
   const ctx=editorCtx;
   ctx.medioAdj={imagen:[],video:[]};
+  ctx.panel=null; ctx.askAbierto={imagen:false,video:false};
   ov.querySelectorAll('.ed-medio').forEach(box=>{
     const tipo=box.dataset.medio, m=MEDIO_META[tipo];
     const ask=box.querySelector('.ed-medio-ask'), st=box.querySelector('.ed-medio-status'), prev=box.querySelector('.ed-medio-prev');
@@ -3406,8 +3422,7 @@ function enlazarMedios(ov){
       prev.innerHTML=ctx.medioAdj[tipo].map((a,i)=>`<span class="ed-medio-chip">${a.esVideo?'🎞️':'🖼️'} ${escHtml(a.nombre)}<button type="button" data-rm="${i}" aria-label="Quitar">✕</button></span>`).join('');
       prev.querySelectorAll('[data-rm]').forEach(b=>b.addEventListener('click',()=>{ ctx.medioAdj[tipo].splice(+b.dataset.rm,1); pintarPrev(); }));
     };
-    const botonFila=ov.querySelector('[data-tool="'+tipo+'"]');
-    botonFila.addEventListener('click',()=>{ ask.hidden=!ask.hidden; botonFila.classList.toggle('on',!ask.hidden); });
+    box.querySelector('.ed-medio-nuevo').addEventListener('click',()=>{ ctx.askAbierto[tipo]=true; pintarPanel(); });
     box.querySelector('.ed-medio-file').addEventListener('change',async e=>{
       const archivos=[...e.target.files]; e.target.value='';
       st.textContent='⏳ Preparando los archivos…';
@@ -3459,9 +3474,7 @@ async function generarPromptMedio(tipo, box){
     d[m.campo]=data.text||'';
     box.querySelector('[data-ed="'+m.campo+'"]').value=d[m.campo];
     actualizarPreviewEditor();
-    box.querySelector('.ed-medio-box').hidden=false;
-    box.querySelector('.ed-medio-ask').hidden=true;
-    const botonFila=document.querySelector('[data-tool="'+tipo+'"]'); if(botonFila) botonFila.classList.remove('on');
+    ctx.askAbierto[tipo]=false; pintarPanel();
     st.textContent='';
   }catch(err){ st.textContent='⚠️ '+err.message; }
   btn.disabled=false;
@@ -3555,11 +3568,17 @@ function pintarEditor(){
               <button type="button" class="ed-tool" data-tool="video"><span class="ed-tool-ico">🎬</span><span>Prompt video</span><small data-listo="promptVideo"></small></button>
               <button type="button" class="ed-tool" data-tool="imagen"><span class="ed-tool-ico">🖼️</span><span>Prompt imagen</span><small data-listo="promptImagen"></small></button>
               <button type="button" class="ed-tool" data-tool="guion"><span class="ed-tool-ico">📝</span><span>Guion video</span><small data-listo="guion"></small></button>
+              <button type="button" class="ed-tool" data-tool="wa"><span class="ed-tool-ico">💬</span><span>Caption WhatsApp</span><small data-listo="captionWa"></small></button>
             </div>
-            <div class="ed-medio-box ed-guion-box" data-guion-box ${draft.guion?'':'hidden'}>
+            <div class="ed-medio-box ed-guion-box" data-guion-box hidden>
               <div class="ed-label">Guion del video</div>
               <textarea data-ed="guion" rows="5" placeholder="Lo que se dice o se muestra dentro del video.">${escHtml(draft.guion)}</textarea>
               <div class="ed-actions"><button type="button" class="btn-guion" id="ed-copiar-guion">📋 Copiar</button><button type="button" class="btn-guion" id="ed-guion">✨ Crear de nuevo</button></div>
+            </div>
+            <div class="ed-medio-box ed-wa-box" data-wa-box hidden>
+              <div class="ed-label">Caption para WhatsApp <span class="ed-hint">(corto y cercano, para tu estado o lista de difusión)</span></div>
+              <textarea data-ed="captionWa" rows="5" placeholder="El mensaje que mandarás por WhatsApp con este post.">${escHtml(draft.captionWa)}</textarea>
+              <div class="ed-actions ed-actions-prompt"><button type="button" class="ed-copiar-prompt" id="ed-copiar-wa">📋 <b>Copiar caption</b> <small>listo para pegar en WhatsApp</small></button><button type="button" class="btn-guion" id="ed-wa">✨ Crear de nuevo</button><span class="mode-status" id="ed-wa-status"></span></div>
             </div>
             ${medioEditorHTML('imagen',draft)}
             ${medioEditorHTML('video',draft)}
@@ -3720,18 +3739,49 @@ function enlazarEditor(ov){
     const b=e.currentTarget, prev=b.textContent;
     navigator.clipboard.writeText(draft.caption).then(()=>{ b.textContent='✅ Copiado'; setTimeout(()=>{b.textContent=prev;},1500); });
   });
-  const cajaGuion=ov.querySelector('[data-guion-box]');
   const crearGuion=()=>{
-    cajaGuion.hidden=false;
     generateGuion(null,ov.querySelector('[data-ed="guion"]'),{gancho:draft.gancho,descripcion:draft.descripcion,etapa:draft.etapa});
   };
   ov.querySelector('#ed-guion').addEventListener('click',crearGuion);
-  // Guion: si todavía no hay, lo crea; si ya hay, abre o cierra su cajita.
-  ov.querySelector('[data-tool="guion"]').addEventListener('click',e=>{
-    if(!draft.guion.trim()){ crearGuion(); e.currentTarget.classList.add('on'); return; }
-    cajaGuion.hidden=!cajaGuion.hidden;
-    e.currentTarget.classList.toggle('on',!cajaGuion.hidden);
+  // Caption de WhatsApp: mensaje corto y cercano, a partir del título y el copy del post.
+  const crearCaptionWa=async()=>{
+    const ta=ov.querySelector('[data-ed="captionWa"]'), st=ov.querySelector('#ed-wa-status');
+    if(!draft.gancho.trim() && !draft.caption.trim()){ st.textContent='⚠️ Escribe primero el título o el copy del post.'; return; }
+    st.textContent='⏳ Creando tu caption…'; ta.placeholder='⏳ Creando tu caption…';
+    const prompt=`${NEGOCIO_CONTEXT}
+
+Actúa como Copywriter de WhatsApp. Escribe el caption para compartir esta pieza por WhatsApp (estado o lista de difusión):
+TÍTULO: ${draft.gancho}
+COPY DE REDES: ${draft.caption||'(aún no hay)'}
+IDEA: ${draft.descripcion||'(ver título)'}
+
+Reglas: tono cercano y personal, como un mensaje a una sola persona; de 2 a 5 líneas cortas; máximo 2 o 3 emojis; sin hashtags; termina con una sola invitación clara a responder o escribir por WhatsApp. Entrega solo el texto del mensaje, listo para copiar, sin explicaciones ni comillas.`;
+    try{
+      const res=await fetch('/api/sugerir-contenido',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idea:prompt})});
+      const data=await res.json();
+      if(!res.ok) throw new Error(data.error||'No se pudo crear el caption.');
+      const texto=data.respuesta||data.guion||(data.gancho?(data.gancho+(data.caption?'\n\n'+data.caption:'')):'');
+      ta.value=(texto||'').trim(); ta.dispatchEvent(new Event('input',{bubbles:true}));
+      st.textContent='';
+    }catch(err){ st.textContent='⚠️ '+(err.message||'Error de conexión. Intenta de nuevo.'); }
+    ta.placeholder='El mensaje que mandarás por WhatsApp con este post.';
+  };
+  ov.querySelector('#ed-wa').addEventListener('click',crearCaptionWa);
+  ov.querySelector('#ed-copiar-wa').addEventListener('click',e=>{
+    if(!draft.captionWa) return;
+    const b=e.currentTarget, antes=b.innerHTML;
+    navigator.clipboard.writeText(draft.captionWa).then(()=>{ b.textContent='✅ Copiado'; setTimeout(()=>{ b.innerHTML=antes; },1500); });
   });
+  // Mosaicos del Jefe Productor: solo uno abierto a la vez; picarle otra vez lo cierra y no queda ninguno.
+  // Guion y caption de WhatsApp se crean solos la primera vez, si todavía no hay.
+  ov.querySelectorAll('[data-tool]').forEach(b=>b.addEventListener('click',()=>{
+    const k=b.dataset.tool;
+    editorCtx.panel=editorCtx.panel===k?null:k;
+    editorCtx.askAbierto={imagen:false,video:false};
+    pintarPanel();
+    if(editorCtx.panel==='guion' && !draft.guion.trim()) crearGuion();
+    if(editorCtx.panel==='wa' && !draft.captionWa.trim()) crearCaptionWa();
+  }));
   ov.querySelector('#ed-copiar-guion').addEventListener('click',e=>{
     if(!draft.guion) return;
     const b=e.currentTarget, prev=b.textContent;
@@ -3774,7 +3824,7 @@ function guardarEditor(){
   row.estado=draft.estado; row.fecha=draft.fecha; row.hora=draft.hora;
   row.formato=draft.formato; row.redes=draft.redes.slice();
   row.caption=draft.caption; row.descripcion=draft.descripcion; row.ganchoIdea=draft.ganchoIdea;
-  row.guion=draft.guion; row.promptImagen=draft.promptImagen; row.promptVideo=draft.promptVideo;
+  row.guion=draft.guion; row.promptImagen=draft.promptImagen; row.promptVideo=draft.promptVideo; row.captionWa=draft.captionWa;
   row.linkVirgen=draft.linkVirgen; row.linkArchivo=draft.linkArchivo; row.linkFinal=draft.linkFinal; row.linkPub=draft.linkPub; row.linkRef=draft.linkRef; row.notas=draft.notas;
   if(draft.productoId){ row.productoId=draft.productoId; row.productoNombre=nombreProducto(draft.productoId)||row.productoNombre||''; }
   else { delete row.productoId; delete row.productoNombre; }
