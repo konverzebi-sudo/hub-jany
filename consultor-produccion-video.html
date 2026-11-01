@@ -1073,8 +1073,22 @@ function proximosPx(lista){
     return (a.fecha || '').localeCompare(b.fecha || '') || (a.hora || '99:99').localeCompare(b.hora || '99:99');
   }).slice(0, MAX_PROXIMOS);
 }
+// Colores de la marca (los de su Brand Book, leídos en vivo por marca): fondo de las tarjetas y del celular cuando el post aún no tiene imagen.
+let paletaMarcaPx = [];
+function hexPx(v){ const h = typeof v === 'string' ? v : (v && (v.hex || v.color)) || ''; const m = /^#?([0-9a-f]{6}|[0-9a-f]{3})$/i.exec(String(h).trim()); if (!m) return ''; const x = m[1].length === 3 ? m[1].replace(/./g, '$&$&') : m[1]; return '#' + x.toUpperCase(); }
+function luzPx(h){ const n = parseInt(h.slice(1), 16); return (0.2126 * (n >> 16) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255; }
+function oscurecerPx(h, f){ const n = parseInt(h.slice(1), 16); const c = (v) => Math.max(0, Math.round(v * f)).toString(16).padStart(2, '0'); return '#' + c(n >> 16) + c((n >> 8) & 255) + c(n & 255); }
+// Par de colores para la tarjeta número i: va rotando por la paleta para que no se vean todas iguales. Sin paleta guardada, los del estado.
+function parMarcaPx(i, est){
+  const cols = paletaMarcaPx.filter((h) => luzPx(h) < 0.93);
+  if (!cols.length) return [est.a, est.b];
+  const a = cols[i % cols.length];
+  const b = cols.length > 1 ? cols[(i + 1) % cols.length] : oscurecerPx(a, 0.6);
+  return [a, b];
+}
 function tarjetaPx(r, tab, n){
   const c = ESTADO_PX[estadoPx(r)];
+  const [ca, cb] = parMarcaPx(n - 1, c);
   const activa = trabajoPx && trabajoPx.id === r.id;
   const formato = tab === 'campanas' ? ((r.raw || {}).formato || '') : (r.formato || (tab === 'historias' ? 'historia' : 'reel'));
   const esVideo = ['reel', 'video', 'historia'].includes(formato);
@@ -1082,7 +1096,7 @@ function tarjetaPx(r, tab, n){
   const mini = r.miniatura ? `<img src="${escHtml(r.miniatura)}" alt="">` : '';
   const redes = (tab === 'campanas' ? [] : (Array.isArray(r.redes) ? r.redes : [])).map((k) => RED_PX[k]).filter(Boolean);
   const red = redes.length ? `<span class="px-red">${escHtml(redes[0])}${redes.length > 1 ? ' +' + (redes.length - 1) : ''}</span>` : '';
-  return `<button type="button" class="px-card${activa ? ' on' : ''}" data-id="${escHtml(r.id)}" data-tab="${tab}" style="--a:${c.a};--b:${c.b}">
+  return `<button type="button" class="px-card${activa ? ' on' : ''}" data-id="${escHtml(r.id)}" data-tab="${tab}" style="--a:${ca};--b:${cb}">
     <span class="px-thumb">${mini}<span class="px-num">${n}</span>${esNuevoPx(r) ? '<span class="px-nuevo">Nuevo</span>' : ''}${r.miniatura && !esVideo ? '' : play}${red}</span>
     <span class="px-tit">${escHtml(r.gancho || '(sin título)')}</span>
     <span class="px-pie"><span class="px-pill">${c.txt}</span><span class="px-fecha">${fechaCortaPx(r.fecha)}</span></span>
@@ -1314,7 +1328,7 @@ function fichaDialogPx(r, tab){
   const horaCtl = esCamp ? '' : `<label class="ed-ctl"><span>Hora</span><input type="time" name="hora" value="${escHtml(r.hora || '')}"></label>`;
   const formato = esCamp ? c.formato : (r.formato || (esHist ? 'historia' : 'reel'));
   const alto = (formato === 'carrusel' || formato === 'imagen') ? 'sq' : 'tall';
-  const fondo = r.miniatura ? `style="background-image:url('${escHtml(r.miniatura)}')"` : `style="--thumb-a:${est.a};--thumb-b:${est.b}"`;
+  const fondo = r.miniatura ? `style="background-image:url('${escHtml(r.miniatura)}')"` : `style="--thumb-a:${parMarcaPx(0, est)[0]};--thumb-b:${parMarcaPx(0, est)[1]}"`;
   const m = document.createElement('div');
   m.className = 'ed-overlay'; m.id = 'px-modal';
   m.innerHTML = `<form class="ed-dialog" id="px-ficha" role="dialog" aria-modal="true" aria-label="Ficha">
@@ -1846,6 +1860,11 @@ async function cargarContenidoPx(){
       raw: c,
     }));
   } catch (e) {}
+  try {
+    const r = await window.storage.get(CLIENTE_ID + ':brand-book.visual');
+    const v = r && r.value ? JSON.parse(r.value) : null;
+    paletaMarcaPx = v && Array.isArray(v.paleta) ? v.paleta.map(hexPx).filter(Boolean) : [];
+  } catch (e) { paletaMarcaPx = []; }
   await aplicarTraspasoPx();
   pintarProximos(); pintarTrabajoPx();
   $('chat-input').placeholder = placeholderActual(); autoAlto();
