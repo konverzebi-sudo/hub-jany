@@ -29,10 +29,11 @@ const PROMPTS_POR_MODO = {
   'diagnostico-tienda': path.join(__dirname, '..', 'prompts', 'system-prompt-consultor-cierre-diagnostico.md'),
   'diagnostico-evento': path.join(__dirname, '..', 'prompts', 'system-prompt-consultor-cierre-diagnostico.md'),
   'diagnostico-mensaje': path.join(__dirname, '..', 'prompts', 'system-prompt-consultor-cierre-diagnostico.md'),
+  'chat-mensaje': path.join(__dirname, '..', 'prompts', 'system-prompt-consultor-cierre-chat-mensaje.md'),
   'manual-tienda': path.join(__dirname, '..', 'prompts', 'system-prompt-consultor-cierre-manual-tienda.md'),
   'manual-evento': path.join(__dirname, '..', 'prompts', 'system-prompt-consultor-cierre-manual-evento.md'),
 };
-const MODOS_CHAT = new Set(['audit-tienda', 'audit-evento-propio', 'audit-evento-referencia', 'manual-tienda', 'manual-evento']);
+const MODOS_CHAT = new Set(['audit-tienda', 'audit-evento-propio', 'audit-evento-referencia', 'manual-tienda', 'manual-evento', 'chat-mensaje']);
 const MODOS_DIAGNOSTICO = new Set(['diagnostico-tienda', 'diagnostico-evento', 'diagnostico-mensaje']);
 
 // Solo audit-tienda puede recibir un link de landing/tienda para leer -- web_fetch es una
