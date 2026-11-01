@@ -481,7 +481,7 @@ function logoDesdeDataUrl(d) {
   return { tipo: m[1], ext: IMGGEN_REF_TIPOS[m[1]], buffer: Buffer.from(m[2], 'base64') };
 }
 
-async function indicacionesImagen(clienteId, post, usarEstilo) {
+async function indicacionesImagen(clienteId, post, usarEstilo, tamano) {
   const [visual, identidad, tono, catalogo, estilo] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.visual`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
@@ -490,7 +490,8 @@ async function indicacionesImagen(clienteId, post, usarEstilo) {
     usarEstilo === false ? null : leerJSON(`${clienteId}:anuncios-estilo`).catch(() => null),
   ]);
   const formato = ((post && post.formato) || '').toString().toLowerCase();
-  const vertical = !IMGGEN_FORMATOS_CUADRADOS.includes(formato);
+  // El tamaño que la persona elige en el asistente (cuadrado, reel o post) manda; sin él, se decide por el formato de la publicación.
+  const vertical = tamano === 'cuadrado' ? false : (tamano === 'reel' || tamano === 'post') ? true : !IMGGEN_FORMATOS_CUADRADOS.includes(formato);
   const lineas = [];
   // Identidad de la marca (todo sale del ADN de este cliente): que no sea una imagen genérica.
   if (identidad && identidad.nombre) {
@@ -504,7 +505,9 @@ async function indicacionesImagen(clienteId, post, usarEstilo) {
   const guiaEstilo = estilo && typeof estilo.guia === 'string' ? estilo.guia.trim().slice(0, 1500) : '';
   if (guiaEstilo) lineas.push(`Estilo de referencia de la marca (destilado de los diseños que a esta persona le gustan; síguelo):\n${guiaEstilo}`);
   lineas.push('No inventes precios, promociones ni textos que no se pidieron.');
-  if (vertical) lineas.push('Formato vertical tipo Reel/Historia (9:16): composición vertical y deja libre la franja superior y la inferior (zonas que tapan las apps) sin elementos importantes.');
+  if (tamano === 'cuadrado') lineas.push('Formato cuadrado (1:1) para el feed: composición centrada y equilibrada.');
+  else if (tamano === 'post') lineas.push('Formato de post vertical para el feed (4:5): composición vertical con todo lo importante en el centro (los bordes pueden recortarse un poco).');
+  else if (vertical) lineas.push('Formato vertical tipo Reel/Historia (9:16): composición vertical y deja libre la franja superior y la inferior (zonas que tapan las apps) sin elementos importantes.');
   const fuente = visual && IMGGEN_FUENTES[visual.tipografia_combo];
   if (fuente) lineas.push(`Todo texto dentro de la imagen va en la tipografía de la marca: ${fuente}.`);
   if (visual && Array.isArray(visual.paleta) && visual.paleta.length) lineas.push(`Usa exactamente los colores de la marca: ${visual.paleta.slice(0, 6).join(', ')}.`);
@@ -548,7 +551,9 @@ async function handleDisenoImagen(req, res, body) {
     return res.status(429).json({ error: `Ya se alcanzó el límite de ${IMGGEN_DAILY_CAP} imágenes de hoy para esta marca. Vuelve mañana.` });
   }
 
-  const ind = await indicacionesImagen(clienteId, body.post, body.usar_estilo);
+  const tamano = ['cuadrado', 'reel', 'post'].includes(body.tamano) ? body.tamano : '';
+  const rescatar = (body.rescatar || '').toString().trim().slice(0, 600);
+  const ind = await indicacionesImagen(clienteId, body.post, body.usar_estilo, tamano);
   const base = 'Genera una imagen de alta calidad, lista para usar en redes sociales o anuncios.'
     + (ind.conPost ? '' : ' Sin texto en la imagen salvo que se pida explícitamente.')
     + (ind.texto ? `\n\n${ind.texto}` : '');
@@ -562,7 +567,7 @@ async function handleDisenoImagen(req, res, body) {
       // Con referencia: endpoint de edicion de OpenAI (multipart) -- la imagen subida guia estilo y composicion.
       const form = new FormData();
       form.append('model', model);
-      form.append('prompt', `${base}${referencia ? '\n\nLa primera imagen adjunta es una referencia visual: genera una imagen NUEVA y similar (misma idea, estilo, composición y colores).' : ''}${prompt ? `\n\nInstrucción principal: ${prompt}` : ''}`);
+      form.append('prompt', `${base}${referencia ? (rescatar ? `\n\nLa primera imagen adjunta es material real de la persona. De ese material hay que rescatar y respetar: ${rescatar}. Todo lo demás se crea nuevo, con la identidad de la marca.` : '\n\nLa primera imagen adjunta es una referencia visual: genera una imagen NUEVA y similar (misma idea, estilo, composición y colores).') : ''}${prompt ? `\n\nInstrucción principal: ${prompt}` : ''}`);
       form.append('size', ind.size);
       form.append('quality', quality);
       form.append('n', '1');
