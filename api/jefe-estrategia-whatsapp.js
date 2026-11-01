@@ -594,7 +594,7 @@ module.exports = async function handler(req, res) {
       construirContextoNegocio(clienteId, { soloAdnBasico: !!campanaBloque, grupoId: !campanaBloque && grupo ? grupo.id : '', productoNombre: !campanaBloque && producto366 ? producto366.nombre : '' }),
       // Con campaña seleccionada, el contexto es ADN básico + Jefe de Temporada: no se carga Jefe 366
       // (menos tokens, más rápido y sin mezclar la venta de todo el año con la campaña).
-      campanaBloque ? Promise.resolve('') : construirContexto366(clienteId, { grupoId: grupo ? grupo.id : '', productoNombre: producto366 ? producto366.nombre : '' }),
+      campanaBloque ? formatearBancoConversacionesWhatsApp(clienteId).then((b) => b || '').catch(() => '') : construirContexto366(clienteId, { grupoId: grupo ? grupo.id : '', productoNombre: producto366 ? producto366.nombre : '' }),
     ]);
     // Dos bloques con caché: el prompt fijo (igual para todos) y el contexto del negocio. Las llamadas
     // en paralelo y las regeneraciones en los siguientes 5 minutos lo leen a 10% del costo.
@@ -626,10 +626,10 @@ module.exports = async function handler(req, res) {
       );
     }
     if (txtConversacion) {
-      partesUsuario.push('CONVERSACIÓN REAL DE WHATSAPP EXPORTADA (usar solo para tono/vocabulario/objeciones reales, nunca para precios):\n' + txtConversacion);
+      partesUsuario.push('CONVERSACIÓN REAL DE WHATSAPP EXPORTADA (analízala: qué preguntan los clientes, cómo se les contestó y el lenguaje y registro que se usa; adapta las respuestas a esa voz. Nunca copies precios ni datos personales de terceros como nombres o teléfonos):\n' + txtConversacion);
     }
     if (imagenes.length) {
-      partesUsuario.push('Se adjuntan capturas de conversaciones reales como contexto adicional.');
+      partesUsuario.push('Se adjuntan capturas de conversaciones reales con clientes: analízalas igual que un chat exportado (preguntas reales, cómo se contestó, lenguaje y registro) y no copies nombres, teléfonos ni precios que aparezcan en ellas.');
     }
     if (partesUsuario.length === 0) {
       partesUsuario.push('Genera la estrategia de WhatsApp por temperatura para este negocio.');
