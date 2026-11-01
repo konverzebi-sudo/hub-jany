@@ -588,7 +588,7 @@
   /* Generador de Estrategia 366 e Ideas por ángulo: mismo estilo que el del Jefe de Anuncios (pastillas, botón negro y ventanitas con tarjetas) */
   .alc-bar{display:block;padding:20px 24px;border-radius:20px;}
   .alc-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;align-items:start;width:100%;}
-  .alc-grid.tres{grid-template-columns:minmax(0,1fr) minmax(0,1.7fr) minmax(0,1fr);}
+  .alc-grid.cuatro{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.5fr) minmax(0,1fr);}
   .alc-grid .mode-field{min-width:0;gap:6px;}
   .alc-grid .mode-field label{padding-left:8px;font-size:11.5px;font-weight:500;font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.05em;color:var(--text-dim);}
   .foco-pill.alc-pill{width:100%;height:54px;box-sizing:border-box;justify-content:space-between;font-size:15px;padding:0 20px;}
@@ -600,10 +600,24 @@
   .alc-gen{width:100%;height:54px;box-sizing:border-box;border:none;border-radius:100px;background:#1A1A1A;color:#C0F800;font:800 15px 'Sora',sans-serif;cursor:pointer;transition:filter .15s,transform .15s;}
   .alc-gen:hover{filter:brightness(1.25);transform:translateY(-1px);}
   .alc-gen:disabled{opacity:.6;cursor:wait;transform:none;}
+  .alc-carrusel{position:relative;}
+  .alc-cards.fila{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth;padding:4px 2px 12px;scrollbar-width:thin;align-items:flex-start;}
+  .alc-cards.fila .alc-card{flex:0 0 min(250px,78%);scroll-snap-align:start;}
+  .alc-flecha{position:absolute;top:96px;z-index:3;width:42px;height:42px;border-radius:50%;border:1.5px solid #1A1A1A;background:#fff;color:#1A1A1A;font:800 20px/1 'Inter',sans-serif;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.2);display:flex;align-items:center;justify-content:center;}
+  .alc-flecha:hover{background:var(--accent);}
+  .alc-flecha[hidden]{display:none;}
+  .alc-flecha.izq{left:-6px;} .alc-flecha.der{right:-6px;}
+  .alc-icono{width:72px;height:72px;border-radius:50%;background:#F3F3F3;border:2px solid #E2E2E2;display:flex;align-items:center;justify-content:center;font-size:38px;line-height:1;}
+  .alc-card.on .alc-icono{background:#fff;border-color:#1A1A1A;}
+  .alc-ej{font-size:14.5px;line-height:1.5;color:#333;font-style:italic;margin-top:6px;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;}
+  .alc-card.abierto .alc-ej{-webkit-line-clamp:unset;display:block;}
+  .alc-x b{font-weight:700;}
+  .alc-vacio{padding:12px;font-size:13.5px;color:var(--text-dim);}
+
   .alc-bar .mode-status{display:block;margin-top:12px;}
   .alc-bar .mode-status:empty{display:none;}
-  @media (max-width:900px){.alc-grid,.alc-grid.tres{grid-template-columns:repeat(2,minmax(0,1fr));}}
-  @media (max-width:520px){.alc-grid,.alc-grid.tres{grid-template-columns:1fr;}}
+  @media (max-width:900px){.alc-grid,.alc-grid.cuatro{grid-template-columns:repeat(2,minmax(0,1fr));}}
+  @media (max-width:520px){.alc-grid,.alc-grid.cuatro{grid-template-columns:1fr;}}
   .alc-pop{position:fixed;z-index:2200;background:#fff;border:1px solid #E2E2E2;border-radius:22px;box-shadow:0 18px 44px rgba(0,0,0,.18);padding:14px;overflow:auto;}
   .alc-pop-h{padding:4px 6px 12px;}
   .alc-pop-h b{display:block;font:800 20px 'Sora',sans-serif;margin-bottom:4px;}
@@ -1440,6 +1454,88 @@ function textoFocoBanco(){
   if(!f || f.esTodo) return '· de todo tu ecosistema';
   return '· de '+(f.nombre||'este producto');
 }
+// ─── Ángulo 366 para las ideas por ángulo: mismas tarjetas del Jefe de Anuncios ───
+const normAC = t=>(t||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
+let comunicaciones366Banco = [], bancoAngulos = [], bancoAnguloIdx = '', bancoAnguloElegido = false, bancoAngulosFirma = '', bancoAngulosPromesa = null;
+const iluTodos = '<svg width="76" height="64" viewBox="0 0 76 64" aria-hidden="true"><circle cx="24" cy="32" r="20" fill="#F3F3F3" stroke="#1A1A1A" stroke-width="3"/><circle cx="38" cy="32" r="20" fill="#C0F800" fill-opacity=".75" stroke="#1A1A1A" stroke-width="3"/><circle cx="52" cy="32" r="20" fill="#F3F3F3" fill-opacity=".8" stroke="#1A1A1A" stroke-width="3"/></svg>';
+const iluAngulo = '<svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="28" fill="#F3F3F3" stroke="#E2E2E2" stroke-width="2"/><circle cx="32" cy="32" r="18" fill="none" stroke="#1A1A1A" stroke-width="4"/><circle cx="32" cy="32" r="7" fill="#C0F800" stroke="#1A1A1A" stroke-width="3"/></svg>';
+// Ícono según de qué trata el ángulo (por su nombre y, si no, por la emoción que activa). Palabras genéricas de marketing: nada de marca.
+const ICONOS_ANGULO = [
+  [/dolor|problema|sufr|frustr|moles|lastim/, '🤕'], [/miedo|temor|riesgo|peligro|amenaza|pierd|perder|perdida/, '😨'],
+  [/error|equivoc|fall[ao]|mito|trampa|engan/, '⚠️'], [/deseo|anhel|quiero|antoj|ilusion/, '😍'],
+  [/sueno|meta|aspir|ambici|logro|futuro|visio/, '🌠'], [/urgen|ahora|ultim|limite|escasez|tiempo|\bya\b/, '⏰'],
+  [/ahorr|dinero|precio|costo|econom|barat|inversion|gasto/, '💰'], [/confian|segur|garant|tranquil|paz|calma|protec/, '🛡️'],
+  [/estatus|orgullo|prestigio|exclusiv|lujo|premium|reconoc/, '👑'], [/prueba|resultado|testimon|caso|evidenc|exito|antes y despues/, '🏆'], [/comunidad|pertenen|famili|social|amigo|equipo|juntos/, '🤝'],
+  [/curiosi|secreto|descubr|revel|sabias|verdad/, '🔍'],
+  [/facil|rapido|simple|comod|practic|sin esfuerzo/, '⚡'], [/salud|bienestar|cuidado|vida sana/, '💚'],
+  [/envidia|compar|competenc/, '👀'], [/culpa|verguenza|arrepent/, '😔'], [/alivio|descans|respir/, '😌'],
+  [/nuevo|novedad|innov|tendencia|moda/, '🆕'], [/oferta|promo|descuento|oportunidad|regalo|bonus/, '🎁'],
+  [/estres|cansanc|agotad|presion|caos/, '😩'], [/soledad|aisla|abandon/, '😶'], [/amor|carino|cuidar|ternura/, '❤️'],
+  [/orden|control|organiz|claridad/, '🧭'], [/crecer|crecim|escal|expand|mas ventas/, '📈'],
+];
+const ICONOS_RESPALDO = ['🎯','💡','🔥','🧩','🧲','🪄','🚀','🎈'];
+function iconoAngulo(f, i){
+  const probar = (t)=>{ const n = normAC(t); const h = ICONOS_ANGULO.find(([re])=>re.test(n)); return h ? h[1] : ''; };
+  return probar(f.angulo) || probar(f.emocion) || probar(f.accion) || ICONOS_RESPALDO[i % ICONOS_RESPALDO.length];
+}
+function htmlPopAngulo(){
+  const tarjeta = (val, ilu, titulo, desc, extra, ej)=>`<div class="alc-card${String(bancoAnguloIdx)===String(val)?' on':''}" role="option" tabindex="0" data-val="${val}">
+      <span class="alc-chk">✓</span>${extra?'<button type="button" class="alc-como" data-como>¿Cómo?</button>':''}
+      <div class="alc-ilu">${ilu}</div><div class="alc-t">${escHtml(titulo)}</div>${ej?`<div class="alc-ej">“${escHtml(ej)}”</div>`:`<div class="alc-d">${desc}</div>`}${extra?`<div class="alc-x">${extra}</div>`:''}</div>`;
+  return `<div class="alc-pop-h"><b>Elige el ángulo</b><span>Es la razón por la que tu cliente te compra: un dolor, un deseo, un miedo… Desliza hacia la derecha para ver todos y elige uno, o deja «Todos».</span></div>
+    <div class="alc-carrusel"><button type="button" class="alc-flecha izq" data-flecha="-1" aria-label="Ver los anteriores" hidden>‹</button><button type="button" class="alc-flecha der" data-flecha="1" aria-label="Ver más ángulos">›</button>
+    <div class="alc-cards fila" role="listbox">
+    ${tarjeta('', iluTodos, 'Todos los ángulos', 'La IA mezcla todos tus ángulos guardados. Buena opción si ninguno destaca.', '', '')}
+    ${bancoAngulos.map((f,i)=>tarjeta(i, `<div class="alc-icono">${iconoAngulo(f,i)}</div>`, f.angulo,
+      [f.emocion?`Activa: ${escHtml(f.emocion)}.`:'', f.accion?escHtml(f.accion):''].filter(Boolean).join(' '),
+      [f.emocion?`<b>Qué emoción activa:</b> ${escHtml(f.emocion)}`:'', f.accion?`<b>Qué hace tu cliente:</b> ${escHtml(f.accion)}`:'', f.conecta?`<i>Cómo conecta con la venta:</i> ${escHtml(f.conecta)}`:''].filter(Boolean).join('<br>'),
+      f.ejemplo || '')).join('')}
+    </div></div>
+    ${bancoAngulos.length ? '' : '<div class="alc-vacio">Todavía no hay ángulos guardados en tu Comunicación 366. Cuando los tengas, aparecen aquí para elegirlos.</div>'}`;
+}
+// flechas de la fila: solo se ven si hay más ángulos hacia ese lado
+function montarFilaAlc(el){
+  const fila = el.querySelector('.alc-cards.fila'); if(!fila) return;
+  const izq = el.querySelector('[data-flecha="-1"]'), der = el.querySelector('[data-flecha="1"]');
+  const actualizar = ()=>{ izq.hidden = fila.scrollLeft < 8; der.hidden = fila.scrollLeft + fila.clientWidth >= fila.scrollWidth - 8; };
+  [izq, der].forEach(b=>b.addEventListener('click',()=>fila.scrollBy({ left: (+b.dataset.flecha) * Math.max(240, fila.clientWidth*0.8), behavior:'smooth' })));
+  fila.addEventListener('scroll', actualizar);
+  const elegida = fila.querySelector('.alc-card.on'); if(elegida) fila.scrollLeft = Math.max(0, elegida.offsetLeft - 16);
+  actualizar();
+}
+// Los ángulos que se ofrecen: los de la Comunicación 366 del grupo elegido arriba (si tiene una propia); si no, los de todas, sin repetir.
+function recalcularAngulosBanco(){
+  const f = window.__foco ? window.__foco.get() : null;
+  const grupoId = (f && f.grupoId) || '';
+  const delGrupo = grupoId ? comunicaciones366Banco.filter(c=>c && c.grupo_id===grupoId) : [];
+  const fuente = delGrupo.length ? delGrupo : comunicaciones366Banco;
+  const vistos = new Set(), out = [];
+  fuente.forEach(c=>(Array.isArray(c.angulos_evergreen) ? c.angulos_evergreen : []).forEach(a=>{
+    if(!a || !a.angulo || !String(a.angulo).trim()) return;
+    const k = String(a.angulo).trim().toLowerCase();
+    if(vistos.has(k)) return; vistos.add(k); out.push(a);
+  }));
+  const firma = out.map(a=>a.angulo).join('|');
+  if(firma !== bancoAngulosFirma){ bancoAngulosFirma = firma; bancoAnguloIdx = ''; bancoAnguloElegido = false; } // cambió la lista: el índice elegido ya no sirve
+  bancoAngulos = out;
+}
+function cargarAngulosBanco(){
+  if(!bancoAngulosPromesa) bancoAngulosPromesa = (async()=>{
+    try{
+      let r = await window.storage.get(CLIENTE_ID+':brand-book.366-comunicacion');
+      if(!r || !r.value) r = await window.storage.get(CLIENTE_ID+':brand-book.evergreen-comunicacion');
+      const d = r && r.value ? JSON.parse(r.value) : {};
+      comunicaciones366Banco = Array.isArray(d.lista) ? d.lista.filter(Boolean) : (Object.keys(d).length ? [d] : []);
+    }catch(e){ comunicaciones366Banco = []; }
+  })();
+  return bancoAngulosPromesa;
+}
+const etiquetaAnguloBanco = ()=>{ const f = bancoAnguloIdx!=='' ? bancoAngulos[bancoAnguloIdx] : null; return f ? f.angulo : 'Todos los ángulos'; };
+function textoAnguloBanco(){
+  const f = bancoAnguloIdx!=='' ? bancoAngulos[bancoAnguloIdx] : null;
+  return f ? [f.angulo, f.accion, f.emocion, f.conecta].filter(Boolean).join(' — ') : '';
+}
+
 let bancoHost=null;
 let bancoStatus={txt:'',err:false}; // el aviso de la barra sobrevive al repintado que muestra las ideas nuevas
 function renderBancoTable(){
@@ -1478,14 +1574,20 @@ function renderBanco(host){
   wrap.className='banco-v2';
 
   // ── BARRA PARA GENERAR: mismo estilo que el Jefe de Anuncios. Hasta que hay ideas, solo se ve esta barra ──
+  recalcularAngulosBanco();
+  cargarAngulosBanco().then(()=>{ const antes=bancoAngulosFirma; recalcularAngulosBanco(); if(antes!==bancoAngulosFirma){ const t=document.querySelector('#banco-angulo-sel .foco-txt'); if(t) t.textContent=etiquetaAnguloBanco(); } });
   const hayIdeasBanco=state.bancoIdeas.some(pasaFoco);
   const reg=document.createElement('div');
   reg.className='banco-registrador alc-bar';
   reg.innerHTML=`
-    <div class="alc-grid tres">
+    <div class="alc-grid cuatro">
       <div class="mode-field">
         <button type="button" id="banco-foco-btn" class="foco-pill alc-pill${(!evergreenProductoId && !evergreenGrupoId) ? ' on' : ''}" aria-haspopup="listbox" title="Elegir producto, servicio o grupo"><span class="foco-txt">${escHtml(textoFocoEvergreen())}</span><span class="foco-caret">▾</span></button>
         <label>Ideas para</label>
+      </div>
+      <div class="mode-field">
+        <button type="button" id="banco-angulo-sel" class="foco-pill alc-pill${bancoAnguloElegido ? '' : ' on'}" aria-haspopup="dialog" title="Elegir el ángulo"><span class="foco-txt">${escHtml(etiquetaAnguloBanco())}</span><span class="foco-caret">▾</span></button>
+        <label>Ángulo 366 (opcional)</label>
       </div>
       <div class="mode-field">
         <input type="text" id="banco-idea-reg" class="alc-input" autocomplete="off" placeholder="Escribe tu idea, o déjalo vacío y la IA propone 10">
@@ -1536,6 +1638,18 @@ function renderBanco(host){
     });
   }
   document.getElementById('banco-foco-btn').addEventListener('click',e=>{ e.stopPropagation(); abrirFocoDesde(e.currentTarget); });
+  document.getElementById('banco-angulo-sel').addEventListener('click',async(e)=>{
+    const btnAng=e.currentTarget;
+    await cargarAngulosBanco(); recalcularAngulosBanco();
+    abrirPopAlc(btnAng, htmlPopAngulo(), (el)=>{
+      montarTarjetasAlc(el, (card)=>{
+        bancoAnguloIdx=card.dataset.val; bancoAnguloElegido=true;
+        btnAng.querySelector('.foco-txt').textContent=etiquetaAnguloBanco(); btnAng.classList.remove('on');
+        cerrarPopAlc();
+      });
+      montarFilaAlc(el);
+    });
+  });
 
   // ── GENERAR ÁNGULOS e IDEAS: las crea el servidor con el ADN del hub y el producto de la pastilla de arriba ──
   // Con un producto elegido las ideas son solo de él; con "ecosistema completo" se reparten entre los productos y
@@ -1573,7 +1687,7 @@ function renderBanco(host){
     btn.disabled=true; btn.textContent=ideaText?'Pensando...':'Generando 10 ideas...';
     try{
       if(ideaText){
-        const ideas=await pedirIdeasBanco({tema:ideaText, cantidad:1, ideaExacta:true});
+        const ideas=await pedirIdeasBanco({tema:ideaText, cantidad:1, ideaExacta:true, angulo_texto:textoAnguloBanco()});
         if(!ideas.length){ avisoBanco('Respuesta no estructurada — intenta de nuevo.',true); return; }
         const nuevo=ligarIdeaAProducto(mkBancoIdea(ideas[0],'ai'),ideas[0]);
         if(!nuevo.idea) nuevo.idea=ideaText;
@@ -1581,7 +1695,7 @@ function renderBanco(host){
         bancoStatus={txt:'✅ Ángulos generados — idea añadida al banco (en verde = sugerida por IA, editable).',err:false};
       } else {
         const existentes=state.bancoIdeas.filter(pasaFoco).map(i=>i.idea).slice(0,25);
-        const ideas=await pedirIdeasBanco({cantidad:10, existentes});
+        const ideas=await pedirIdeasBanco({cantidad:10, existentes, angulo_texto:textoAnguloBanco()});
         if(!ideas.length){ avisoBanco('Respuesta no estructurada — intenta de nuevo.',true); return; }
         const newItems=ideas.map(obj=>ligarIdeaAProducto(mkBancoIdea(obj,'ai'),obj));
         state.bancoIdeas=[...newItems,...state.bancoIdeas];
