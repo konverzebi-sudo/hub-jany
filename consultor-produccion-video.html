@@ -252,6 +252,25 @@
   .ed-foot .btn-solid:disabled,.px-pz-acc .btn:disabled{opacity:.55;cursor:wait;}
   .px-pz-acc .btn{font-family:'Sora',sans-serif;font-weight:700;font-size:14px;padding:10px 16px;border-radius:10px;cursor:pointer;border:none;}
   @media (max-width:560px){.px-pzs{grid-template-columns:repeat(2,minmax(0,1fr));}}
+  .px-ig-open{border:none;background:var(--accent);color:#1A1A1A;font:800 14px/1.25 'Sora',sans-serif;padding:12px 16px;border-radius:100px;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.25);max-width:80%;position:relative;z-index:2;}
+  .px-ig-open:hover{filter:brightness(1.06);}
+  .px-ig{gap:12px;}
+  .px-ig-chat{display:flex;flex-direction:column;gap:8px;max-height:260px;overflow-y:auto;}
+  .px-ig-m{max-width:88%;padding:9px 13px;border-radius:16px;font-size:14.5px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;}
+  .px-ig-m.jefe{align-self:flex-start;background:#fff;border:1px solid var(--line);}
+  .px-ig-m.yo{align-self:flex-end;background:var(--accent);color:#1A1A1A;}
+  .px-ig-ref{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:6px 10px;font-size:13.5px;}
+  .px-ig-ref[hidden],.px-ig-res[hidden],#px-ig[hidden]{display:none;}
+  .px-ig-ref img{width:36px;height:36px;object-fit:cover;border-radius:8px;}
+  .px-ig-ref span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .px-ig-ref button{border:none;background:none;cursor:pointer;color:var(--text-dim);}
+  #px-ig-txt{width:100%;box-sizing:border-box;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font:500 15px 'Inter',sans-serif;resize:vertical;outline:none;}
+  .px-ig-acc{display:flex;flex-wrap:wrap;align-items:center;gap:12px;}
+  .px-ig-acc .btn{font-family:'Sora',sans-serif;font-weight:700;font-size:14px;padding:11px 18px;border-radius:10px;cursor:pointer;border:none;}
+  .px-ig-acc .btn:disabled,.px-ig-acc .btn-guion:disabled{opacity:.55;cursor:wait;}
+  .px-ig-res{display:flex;flex-direction:column;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:12px;}
+  .px-ig-res img{width:100%;max-width:260px;border-radius:14px;display:block;}
+  .px-ig-nota{font-size:12.5px;color:var(--text-dim);}
   .px-ficha{display:flex;flex-direction:column;gap:12px;margin-top:14px;}
   .px-f span{display:block;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--accent-text);margin-bottom:3px;}
   .px-f input,.px-f textarea,.px-f select{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font:500 15px 'Inter',sans-serif;line-height:1.45;background:var(--surface-2);color:var(--text);outline:none;resize:vertical;}
@@ -710,7 +729,7 @@ function ubicarComposer(){
   autoAlto();
 }
 // **negrita** del modelo se ve como negrita (antes salían los asteriscos).
-function mdLigero(t){ return escHtml(t).replace(/\*\*([^*\n][^*]*?)\*\*/g, '<strong>$1</strong>'); }
+function mdLigero(t){ return escHtml(t).replace(/\*\*([^*\n][^*]*?)\*\*/g, '<strong>$1</strong>').replace(/\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>'); }
 function pintarChatThread(){
   const box = $('chat-thread');
   ubicarComposer();
@@ -740,7 +759,7 @@ function contextoPostPx(r, tab){
   ]).map(([k, v]) => [k, txtPx(v)]).filter(([, v]) => v);
   filas.push(['Estado', ESTADO_PX[estadoPx(r)].txt]);
   if (/^\d{4}-\d{2}-\d{2}$/.test(r.fecha || '')) filas.push(['Fecha', r.fecha]);
-  return `[Publicación sobre la que trabajo — ${TIPO_POST_PX[tab]}]\n` + filas.map(([k, v]) => `${k}: ${v.length > 700 ? v.slice(0, 700) + '…' : v}`).join('\n');
+  return `[Publicación sobre la que trabajo — ${TIPO_POST_PX[tab]}]\n` + filas.map(([k, v]) => `${k}: ${v.length > 1500 ? v.slice(0, 1500) + '…' : v}`).join('\n');
 }
 // Lo que se manda al servidor: cada mensaje con el resumen del post si lo trae (solo se ve el texto que escribiste).
 function mensajesParaApi(){
@@ -1285,10 +1304,11 @@ function fichaDialogPx(r, tab){
     <div class="ed-bar">${estadoCtl}<label class="ed-ctl"><span>Fecha</span><input type="date" name="fecha" value="${fecha}"></label>${horaCtl}</div>
     <div class="ed-prodline">${detalleHtmlPx(r, tab, 'chips')}</div>
     <div class="ed-body">
-      <div class="ed-form">${bloques}</div>
+      <div class="ed-form">${panelImagenHtml()}${bloques}</div>
       <aside class="ed-prev" aria-label="Vista previa">
-        <div class="ed-phone ${alto}"><div class="ed-screen" id="px-ed-screen" ${fondo}>${r.miniatura ? '' : '<span class="ed-screen-ico">' + (esCamp ? '📣' : esHist ? '⭕' : '🎬') + '</span>'}<div class="ed-screen-txt"><b id="px-ed-ptit"></b><span id="px-ed-pcap"></span></div></div></div>
-        <div class="ed-prev-cap">Así se ve en tus listas${r.miniatura ? '' : ' (aún sin imagen)'}</div>
+        <div class="ed-phone ${alto}"><div class="ed-screen" id="px-ed-screen" ${fondo}>${r.miniatura ? '' : '<button type="button" class="px-ig-open" data-ig="abrir">✨ Pica aquí para hacer tu imagen</button>'}<div class="ed-screen-txt"><b id="px-ed-ptit"></b><span id="px-ed-pcap"></span></div></div></div>
+        <div class="ed-prev-cap" id="px-ed-prevcap">${r.miniatura ? 'Así se ve en tus listas' : 'Aún sin imagen'}</div>
+        ${r.miniatura ? '<button type="button" class="btn-guion" data-ig="abrir">🔄 Cambiar imagen</button>' : ''}
       </aside>
     </div>
     <div class="ed-foot"><button type="button" class="btn ed-cancel" data-m="cerrar">Cancelar</button><button type="submit" class="btn btn-solid">Guardar</button></div>
@@ -1325,7 +1345,125 @@ function aplicarCamposLocalPx(r, tab, cambios){
   if ('prompt_imagen' in cambios) r.promptImagen = cambios.prompt_imagen;
   if ('prompt_video' in cambios) r.promptVideo = cambios.prompt_video;
   if ('fecha' in cambios) r.fecha = cambios.fecha;
+  if ('miniatura' in cambios) r.miniatura = cambios.miniatura;
   if ('guion' in cambios) r.guion = typeof cambios.guion === 'string' ? cambios.guion : guionComoTextoPx(raw);
+}
+// ─── CREAR LA IMAGEN DEL POST (dentro de la ficha): mini chat con el Jefe + creación con la identidad de la marca ───
+function panelImagenHtml(){
+  return `<div class="ed-block ed-prod px-ig" id="px-ig" hidden>
+    <div class="ed-prod-head"><span class="ed-prod-ic"><img src="/img/jefe-produccion-video-logo-negro.webp" alt="" aria-hidden="true"></span>
+      <div style="flex:1;min-width:0;"><div class="ed-prod-t">Crear la imagen de este post</div><div class="ed-hint">Sale vertical y con tu marca: colores, tipografía y estilo.</div></div>
+      <button type="button" class="ed-ico" data-ig="cerrar" aria-label="Cerrar">✕</button></div>
+    <div class="px-ig-chat" id="px-ig-chat"></div>
+    <div class="px-ig-ref" id="px-ig-ref" hidden><img alt=""><span></span><button type="button" data-ig="quitar-ref" aria-label="Quitar foto">✕</button></div>
+    <label class="btn-guion" style="cursor:pointer;">📎 Foto real o de referencia (opcional)<input type="file" id="px-ig-file" accept="image/png,image/jpeg,image/webp" hidden></label>
+    <textarea id="px-ig-txt" rows="2" placeholder="Cuéntale cómo la imaginas (opcional)…"></textarea>
+    <div class="px-ig-acc"><button type="button" class="btn btn-solid" data-ig="crear">✨ Crear imagen</button><button type="button" class="btn-guion" data-ig="enviar">💬 Enviar al Jefe (te pregunta lo que le falte)</button></div>
+    <div class="px-ig-res" id="px-ig-res" hidden></div>
+    <div class="px-pz-err" id="px-ig-err" hidden></div>
+  </div>`;
+}
+function enlazarImagenPx(m){
+  const r0 = itemPx(); if (!r0) return;
+  const tab = trabajoPx.tab;
+  const panel = m.querySelector('#px-ig'), chat = m.querySelector('#px-ig-chat'), txt = m.querySelector('#px-ig-txt');
+  const err = m.querySelector('#px-ig-err'), res = m.querySelector('#px-ig-res'), refBox = m.querySelector('#px-ig-ref');
+  let msgs = [], ref = null, descripcion = '', ocupado = false, ultima = null;
+  const burbuja = (quien, t) => { const d = document.createElement('div'); d.className = 'px-ig-m ' + quien; d.textContent = t; chat.appendChild(d); chat.scrollTop = chat.scrollHeight; };
+  const mostrarError = (t) => { err.textContent = '⚠️ ' + t; err.hidden = false; };
+  const bloquear = (v) => { ocupado = v; panel.querySelectorAll('.px-ig-acc button').forEach((b) => { b.disabled = v; }); };
+  const abrir = () => {
+    if (panel.hidden) {
+      panel.hidden = false;
+      burbuja('jefe', 'Voy a crear la imagen de «' + (r0.gancho || 'tu post') + '» con tu marca. Si tienes una foto real o de referencia, súbela; y cuéntame cómo la imaginas. Luego toca «Crear imagen». Si prefieres, toca «Enviar al Jefe» y te hago un par de preguntas antes.');
+    }
+    panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => txt.focus({ preventScroll: true }), 300);
+  };
+  const crear = async () => {
+    if (ocupado) return;
+    const r = itemPx(); if (!r) return;
+    err.hidden = true; bloquear(true);
+    const especificaciones = txt.value.trim();
+    const prompt = [r.promptImagen, descripcion, especificaciones].filter(Boolean).join('\n\n');
+    burbuja('jefe', '⏳ Creando tu imagen… puede tardar hasta un minuto.');
+    try {
+      const resp = await fetch(API, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.assign({
+          agente: 'diseno-imagen', prompt, cliente: CLIENTE_ID,
+          post: { titulo: r.gancho || '', productoId: r.productoId || (r.raw || {}).producto_id || '', formato: tab === 'campanas' ? ((r.raw || {}).formato || '') : (r.formato || (tab === 'historias' ? 'historia' : '')), contexto: contextoPostPx(r, tab) },
+        }, ref ? { imagen: { mediaType: ref.mediaType, data: ref.data } } : {})),
+      });
+      const d = await resp.json().catch(() => null);
+      if (!resp.ok || !d || !d.image) { mostrarError((d && d.error) ? (resp.status === 402 ? d.error : mensajeErrorImagen(d.error)) : 'No se pudo crear la imagen. Intenta de nuevo.'); }
+      else {
+        ultima = d.image; txt.value = '';
+        res.hidden = false;
+        res.innerHTML = `<img src="${d.image}" alt="Imagen creada"><div class="px-ig-acc"><button type="button" class="btn btn-solid" data-ig="usar">✅ Usar en el post</button><button type="button" class="btn-guion" data-ig="crear">↻ Otra</button><a class="btn-guion" href="${d.image}" download="imagen-${Date.now()}.png">⬇ Descargar</a></div><div class="px-ig-nota">${typeof d.usadasHoy === 'number' ? d.usadasHoy + ' de ' + (d.limiteDiario || 15) + ' imágenes de hoy' : ''}</div>`;
+        res.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    } catch (e) { mostrarError('Hubo un error de conexión. Intenta de nuevo en un momento.'); }
+    bloquear(false);
+  };
+  const enviar = async () => {
+    if (ocupado) return;
+    const texto = txt.value.trim();
+    if (!texto) { mostrarError(msgs.length ? 'Escribe tu respuesta para el Jefe.' : 'Escribe cómo la imaginas y se lo envío al Jefe; o toca «Crear imagen» para crearla ya.'); return; }
+    const r = itemPx(); if (!r) return;
+    err.hidden = true; txt.value = '';
+    const contenido = msgs.length ? texto
+      : '[MODO CREAR IMAGEN]\n' + contextoPostPx(r, tab) + (ref ? '\n(La persona adjuntó una foto real o de referencia: se usará como base.)' : '') + '\n\nMi indicación: ' + (texto || '(sin indicación: pregúntame lo que necesites)');
+    msgs.push({ role: 'user', content: contenido });
+    if (texto) burbuja('yo', texto);
+    bloquear(true);
+    try {
+      const resp = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agente: 'diseno', messages: msgs, cliente: CLIENTE_ID }) });
+      const d = await resp.json().catch(() => null);
+      if (!resp.ok || !d) { msgs.pop(); mostrarError((d && d.error) || 'No se pudo responder. Intenta de nuevo.'); bloquear(false); return; }
+      msgs.push({ role: 'assistant', content: d.text });
+      const listo = /^\s*LISTO:\s*([\s\S]+)/i.exec(d.text || '');
+      if (listo) { descripcion = listo[1].trim(); burbuja('jefe', 'Listo, ya tengo lo necesario.'); bloquear(false); crear(); return; }
+      burbuja('jefe', d.text);
+    } catch (e) { msgs.pop(); mostrarError('Hubo un error de conexión. Intenta de nuevo en un momento.'); }
+    bloquear(false);
+  };
+  const usar = async (btn) => {
+    const r = itemPx(); if (!r || !ultima) return;
+    btn.disabled = true; btn.textContent = 'Guardando…';
+    try {
+      const mini = await miniaturaChicaPx(ultima);
+      if (!mini) throw new Error('No se pudo preparar la imagen.');
+      await guardarCamposPx(tab, r.id, { miniatura: mini });
+      aplicarCamposLocalPx(r, tab, { miniatura: mini });
+      const sc = m.querySelector('#px-ed-screen');
+      sc.style.backgroundImage = `url('${mini}')`; sc.style.removeProperty('--thumb-a'); sc.style.removeProperty('--thumb-b');
+      const ab = sc.querySelector('.px-ig-open'); if (ab) ab.remove();
+      m.querySelector('#px-ed-prevcap').textContent = 'Así se ve en tus listas';
+      pintarProximos(); pintarTrabajoPx();
+      btn.textContent = '✅ Guardada en el post';
+    } catch (e) { btn.disabled = false; btn.textContent = '⚠️ No se pudo guardar — reintentar'; }
+  };
+  m.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-ig]'); if (!b) return;
+    const a = b.dataset.ig;
+    if (a === 'abrir') abrir();
+    else if (a === 'cerrar') panel.hidden = true;
+    else if (a === 'crear') crear();
+    else if (a === 'enviar') enviar();
+    else if (a === 'usar') usar(b);
+    else if (a === 'quitar-ref') { ref = null; refBox.hidden = true; }
+  });
+  m.querySelector('#px-ig-file').addEventListener('change', async (e) => {
+    const f = e.target.files && e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(f.type)) { mostrarError('Usa una imagen JPG, PNG o WEBP.'); return; }
+    try {
+      const x = await reducirImagen(URL.createObjectURL(f));
+      ref = x; refBox.hidden = false; refBox.querySelector('img').src = x.dataUrl; refBox.querySelector('span').textContent = f.name || 'Foto';
+      err.hidden = true;
+    } catch (er) { mostrarError('No pude leer esa imagen.'); }
+  });
 }
 // Guarda en el post solo los campos que cambiaste en la ficha.
 async function guardarFichaPx(f){
@@ -1473,6 +1611,7 @@ function abrirPopupPx(id){
     document.body.classList.add('ed-abierto');
     document.addEventListener('keydown', escPopupPx);
     enlazarFichaPx(fm, id);
+    enlazarImagenPx(fm);
     // El nombre del producto sale del catálogo: se completa cuando carga, sin hacer esperar a la ficha.
     cargarCatalogoPx().then(() => { const pl = fm.querySelector('.ed-prodline'); if (pl && itemPx() === r) pl.innerHTML = detalleHtmlPx(r, tab, 'chips'); });
     return;
