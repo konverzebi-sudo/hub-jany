@@ -56,7 +56,10 @@ const REPORT_CHAR_LIMIT = 140000; // reportes CSV reales caben comodos; solo pro
 
 const DEFAULT_CLIENTE_IMGGEN = 'rancho-seco'; // unica marca donde se activa por ahora
 const IMGGEN_DAILY_CAP = 15; // tope duro por marca por dia -- ajustable segun costo real observado
-const IMGGEN_MODEL = 'gpt-image-1';
+// Mismo modelo que usa ChatGPT para crear imágenes (alias de OpenAI) y calidad alta. Se puede cambiar sin tocar código
+// con las variables IMGGEN_MODEL / IMGGEN_QUALITY (low | medium | high). Si la cuenta aún no tiene acceso al modelo, se usa el de respaldo.
+const IMGGEN_MODEL = process.env.IMGGEN_MODEL || 'chatgpt-image-latest';
+const IMGGEN_MODEL_RESPALDO = 'gpt-image-1';
 const IMGGEN_SIZE = '1024x1024';
 const IMGGEN_SIZE_VERTICAL = '1024x1536'; // lo más cercano a un reel (9:16) que da gpt-image-1
 const IMGGEN_FORMATOS_CUADRADOS = ['carrusel', 'imagen']; // el resto (reel, video, historia, campaña) sale vertical
@@ -65,7 +68,7 @@ const IMGGEN_FUENTES = {
   'bold-impact': 'Bebas Neue', 'modern-clean': 'Montserrat', 'elegant-luxury': 'Playfair Display', 'sporty-dynamic': 'Oswald',
   'varsity-sport': 'Anton', 'western-rustic': 'Rye', 'friendly-rounded': 'Quicksand', 'tech-digital': 'Space Grotesk',
 };
-const IMGGEN_QUALITY = 'medium';
+const IMGGEN_QUALITY = ['low', 'medium', 'high'].includes(process.env.IMGGEN_QUALITY) ? process.env.IMGGEN_QUALITY : 'high';
 // Imagen de referencia opcional (como subir una foto en ChatGPT): el front la reduce a ~1024px antes de
 // mandarla en base64; este tope protege el limite de 4.5 MB del cuerpo de una funcion en Vercel.
 const IMGGEN_REF_TIPOS = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
@@ -478,12 +481,13 @@ function logoDesdeDataUrl(d) {
   return { tipo: m[1], ext: IMGGEN_REF_TIPOS[m[1]], buffer: Buffer.from(m[2], 'base64') };
 }
 
-async function indicacionesImagen(clienteId, post) {
-  const [visual, identidad, tono, catalogo] = await Promise.all([
+async function indicacionesImagen(clienteId, post, usarEstilo) {
+  const [visual, identidad, tono, catalogo, estilo] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.visual`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
     leerJSON(`${clienteId}:catalogo-productos`).catch(() => null),
+    usarEstilo === false ? null : leerJSON(`${clienteId}:anuncios-estilo`).catch(() => null),
   ]);
   const formato = ((post && post.formato) || '').toString().toLowerCase();
   const vertical = !IMGGEN_FORMATOS_CUADRADOS.includes(formato);
@@ -496,6 +500,9 @@ async function indicacionesImagen(clienteId, post) {
   const prod = post && post.productoId && Array.isArray(catalogo) && catalogo.find((p) => p && p.id === post.productoId);
   if (prod && prod.nombre) lineas.push(`Producto de la publicación: ${prod.nombre}${prod.tipo ? ` (${prod.tipo})` : ''}${prod.notas ? ` — ${prod.notas.toString().slice(0, 200)}` : ''}. Muéstralo o haz que sea el protagonista.`);
   if (tono && Array.isArray(tono.tonos) && tono.tonos.length) lineas.push(`El estilo y la personalidad visual van con el tono de la marca: ${tono.tonos.slice(0, 5).join(', ')}.`);
+  lineas.push('Dirección de arte: moderna y actual, composición editorial limpia con mucho espacio negativo, luz natural suave, colores bien contrastados y aspecto auténtico de contenido real de redes sociales (no foto de stock, ni ilustración genérica, ni 3D plástico). Si hay texto, grande, legible y con buen contraste.');
+  const guiaEstilo = estilo && typeof estilo.guia === 'string' ? estilo.guia.trim().slice(0, 1500) : '';
+  if (guiaEstilo) lineas.push(`Estilo de referencia de la marca (destilado de los diseños que a esta persona le gustan; síguelo):\n${guiaEstilo}`);
   lineas.push('No inventes precios, promociones ni textos que no se pidieron.');
   if (vertical) lineas.push('Formato vertical tipo Reel/Historia (9:16): composición vertical y deja libre la franja superior y la inferior (zonas que tapan las apps) sin elementos importantes.');
   const fuente = visual && IMGGEN_FUENTES[visual.tipografia_combo];
@@ -541,7 +548,7 @@ async function handleDisenoImagen(req, res, body) {
     return res.status(429).json({ error: `Ya se alcanzó el límite de ${IMGGEN_DAILY_CAP} imágenes de hoy para esta marca. Vuelve mañana.` });
   }
 
-  const ind = await indicacionesImagen(clienteId, body.post);
+  const ind = await indicacionesImagen(clienteId, body.post, body.usar_estilo);
   const base = 'Genera una imagen de alta calidad, lista para usar en redes sociales o anuncios.'
     + (ind.conPost ? '' : ' Sin texto en la imagen salvo que se pida explícitamente.')
     + (ind.texto ? `\n\n${ind.texto}` : '');
@@ -549,15 +556,15 @@ async function handleDisenoImagen(req, res, body) {
   const adjuntas = [];
   if (referencia) adjuntas.push({ ...referencia, nombre: 'referencia' });
   if (ind.logo) adjuntas.push({ ...ind.logo, nombre: 'logo' });
-  let openaiRes;
-  try {
+  const llamarOpenAI = async (model, quality) => {
+    let openaiRes;
     if (adjuntas.length) {
       // Con referencia: endpoint de edicion de OpenAI (multipart) -- la imagen subida guia estilo y composicion.
       const form = new FormData();
-      form.append('model', IMGGEN_MODEL);
+      form.append('model', model);
       form.append('prompt', `${base}${referencia ? '\n\nLa primera imagen adjunta es una referencia visual: genera una imagen NUEVA y similar (misma idea, estilo, composición y colores).' : ''}${prompt ? `\n\nInstrucción principal: ${prompt}` : ''}`);
       form.append('size', ind.size);
-      form.append('quality', IMGGEN_QUALITY);
+      form.append('quality', quality);
       form.append('n', '1');
       adjuntas.forEach((a) => form.append('image[]', new Blob([a.buffer], { type: a.tipo }), `${a.nombre}.${a.ext}`));
       openaiRes = await fetch('https://api.openai.com/v1/images/edits', {
@@ -573,19 +580,31 @@ async function handleDisenoImagen(req, res, body) {
           'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: IMGGEN_MODEL,
+          model,
           prompt: `${base}\n\n${prompt}`,
           size: ind.size,
-          quality: IMGGEN_QUALITY,
+          quality,
           n: 1,
         }),
       });
+    }
+    return openaiRes;
+  };
+  let modelo = IMGGEN_MODEL; const calidad = IMGGEN_QUALITY;
+  let openaiRes, data;
+  try {
+    openaiRes = await llamarOpenAI(modelo, calidad);
+    data = await openaiRes.json();
+    // Si la cuenta todavía no tiene acceso al modelo de ChatGPT, se usa el de respaldo en vez de fallar.
+    if (!openaiRes.ok && modelo !== IMGGEN_MODEL_RESPALDO && [400, 403, 404].includes(openaiRes.status) && /model|not found|does not exist|verif|access/i.test(data?.error?.message || '')) {
+      modelo = IMGGEN_MODEL_RESPALDO;
+      openaiRes = await llamarOpenAI(modelo, calidad);
+      data = await openaiRes.json();
     }
   } catch (err) {
     return res.status(500).json({ error: 'Error de conexión con el generador de imágenes.' });
   }
 
-  const data = await openaiRes.json();
   if (!openaiRes.ok) {
     return res.status(openaiRes.status).json({ error: data?.error?.message || 'Error al generar la imagen.' });
   }
@@ -599,7 +618,7 @@ async function handleDisenoImagen(req, res, body) {
     // No bloquear la respuesta al usuario si falla el conteo del tope diario.
   }
 
-  return res.status(200).json({ image: `data:image/png;base64,${b64}`, usadasHoy: nuevoConteo, limiteDiario: IMGGEN_DAILY_CAP });
+  return res.status(200).json({ image: `data:image/png;base64,${b64}`, usadasHoy: nuevoConteo, limiteDiario: IMGGEN_DAILY_CAP, modelo, calidad });
 }
 
 module.exports = async function handler(req, res) {
