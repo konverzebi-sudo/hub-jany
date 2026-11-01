@@ -579,6 +579,10 @@
         return v
           ? '<a class="jn-red" data-l="' + l.k + '" href="' + esc(hrefDe(v)) + '" target="_blank" rel="noopener" title="' + esc(l.titulo) + ' (clic derecho para editar)" aria-label="' + esc(l.titulo) + '">' + svg + '</a>'
           : '<button type="button" class="jn-red jn-red-off" data-l="' + l.k + '" title="Pegar el link: ' + esc(l.titulo) + '" aria-label="Pegar el link: ' + esc(l.titulo) + '">' + svg + '</button>';
+      }).join('') + (window.__jnLinkExtras || []).map(function (x) {
+        // Círculos propios de una página (ej. Inspiración en el Jefe de Contenido): la página dice qué dibujar y qué abrir.
+        var off = x.vacio && x.vacio() ? ' jn-red-off' : '';
+        return '<button type="button" class="jn-red jn-red-extra' + off + '" data-x="' + esc(x.k) + '" title="' + esc(x.titulo) + '" aria-label="' + esc(x.titulo) + '"><svg viewBox="0 0 24 24" aria-hidden="true">' + x.svg + '</svg></button>';
       }).join('') + '</div>';
     }
     var intentos = 0;
@@ -626,6 +630,12 @@
     }
     function deEl(el) { var k = el.getAttribute('data-l'); return LINKS.filter(function (x) { return x.k === k; })[0]; }
     cont.addEventListener('click', function (e) {
+      var ex = e.target.closest('.jn-red-extra');
+      if (ex) {
+        var x = (window.__jnLinkExtras || []).filter(function (z) { return z.k === ex.getAttribute('data-x'); })[0];
+        if (x && x.onClick) x.onClick(ex);
+        return;
+      }
       var b = e.target.closest('.jn-red-off[data-l]');
       if (b) editar(deEl(b));
     });
@@ -642,6 +652,7 @@
     presionLarga(cont);
     // Si otra parte de la página (ej. las casillas del Jefe de Anuncios) cambia un link, se vuelve a leer.
     window.__jnLinksRecargar = leer;
+    window.__jnLinksRepintar = pintar;
     pintar();
     leer();
   }
