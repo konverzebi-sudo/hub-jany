@@ -129,6 +129,8 @@
   .ed-label{font-size:12px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em;margin:4px 0 -4px;}
   .ed-row{display:flex;gap:10px;align-items:center;}
   .ed-emoji{width:76px;flex:none;text-align:center;}
+  .ed-up{display:inline-flex;align-items:center;gap:6px;cursor:pointer;}
+  .ed-row{flex-wrap:wrap;}
   input.ed-color{width:52px;height:38px;padding:2px;flex:none;cursor:pointer;}
   .ed-link{display:grid;grid-template-columns:minmax(90px,.8fr) minmax(0,1.8fr) auto;gap:6px;align-items:center;}
   .ed-x{border:none;background:transparent;color:var(--text-dim);cursor:pointer;font-size:16px;padding:6px 8px;border-radius:8px;}
@@ -197,6 +199,8 @@ function urlSegura(u){
 }
 const logoValido = (l) => typeof l === 'string' && /^[a-z0-9-]+$/.test(l);
 const hexOk = (c) => typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c);
+// Logo propio: imagen chica (data URL png/jpeg/webp) que se guarda junto con la app.
+const imgOk = (s) => typeof s === 'string' && s.length <= 80000 && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+\/]+=*$/.test(s);
 
 // ─── COLORES de las tarjetas ────────────────────────────────────────────────
 const COLORES_DEF = ['#6366F1', '#0EA5E9', '#16A34A', '#F59E0B', '#10103A'];
@@ -278,6 +282,7 @@ function normalizar(data){
       const o = { nombre: a.nombre, links: (Array.isArray(a.links) ? a.links : []).filter(l => Array.isArray(l) && typeof l[0] === 'string' && typeof l[1] === 'string').map(l => [l[0], l[1]]) };
       if (typeof a.desc === 'string' && a.desc) o.desc = a.desc;
       if (hexOk(a.color)) o.color = a.color;
+      if (imgOk(a.img)) o.img = a.img;
       if (logoValido(a.logo)) { o.logo = a.logo; if (a.glifo) o.glifo = true; }
       else o.emoji = typeof a.emoji === 'string' && a.emoji ? a.emoji : '🧩';
       return o;
@@ -291,6 +296,7 @@ function limpiarApp(a){
   const o = { nombre: (a.nombre || '').trim(), links: (a.links || []).map(l => [(l[0] || '').trim(), urlSegura(l[1])]).filter(l => l[0] && l[1]) };
   if (a.desc && a.desc.trim()) o.desc = a.desc.trim();
   if (hexOk(a.color)) o.color = a.color;
+  if (imgOk(a.img)) o.img = a.img;
   if (logoValido(a.logo)) { o.logo = a.logo; if (a.glifo) o.glifo = true; }
   else o.emoji = (a.emoji || '').trim() || '🧩';
   return o;
@@ -300,6 +306,7 @@ function limpiarApp(a){
 function logoHtml(a, tam){
   const t = tam ? ' ' + tam : '';
   const px = tam === 'xl' ? 104 : tam === 'lg' ? 80 : 40;
+  if (imgOk(a.img)) return `<img class="app-logo-img${t}" src="${escHtml(a.img)}" alt="${escHtml(a.nombre)}" width="${px}" height="${px}">`;
   return logoValido(a.logo)
     ? `<img class="app-logo-img${a.glifo ? ' glifo' : ''}${t}" src="/img/apps/${a.logo}.png" alt="${escHtml(a.nombre)}" width="${px}" height="${px}" loading="lazy">`
     : `<div class="app-logo-emoji${t}" aria-hidden="true">${escHtml(a.emoji || '🧩')}</div>`;
@@ -407,7 +414,12 @@ function pintarEditor(enfocar){
     const d = ed.data;
     cuerpo = `<h3>${ed.a == null ? 'Nueva app' : 'Editar app'}</h3>
       <div class="app-head">${logoHtml(d)}<input id="ed-nombre" class="ed-in ed-nombre" data-e="nombre" value="${escHtml(d.nombre)}" placeholder="Nombre de la app"></div>
-      ${logoValido(d.logo) ? '' : `<div class="ed-row"><input class="ed-in ed-emoji" data-e="emoji" value="${escHtml(d.emoji || '🧩')}" maxlength="4" aria-label="Emoji"><span class="app-desc" style="margin:0">Ícono (emoji)</span></div>`}
+      <div class="ed-row">
+        <label class="btn-outline ed-up">🖼️ Subir logo<input type="file" accept="image/*" data-e="archivo" hidden></label>
+        ${imgOk(d.img) ? '<button class="btn-outline" type="button" data-act="ed-quitar-img">Quitar logo</button>' : ''}
+        <span class="app-desc" style="margin:0">o pega una imagen (Ctrl+V)</span>
+      </div>
+      ${(logoValido(d.logo) || imgOk(d.img)) ? '' : `<div class="ed-row"><input class="ed-in ed-emoji" data-e="emoji" value="${escHtml(d.emoji || '🧩')}" maxlength="4" aria-label="Emoji"><span class="app-desc" style="margin:0">…o un emoji como ícono</span></div>`}
       <div class="ed-row"><input class="ed-in ed-color" type="color" data-e="color" value="${hexOk(d.color) ? d.color : COLORES_DEF[0]}" aria-label="Color de la tarjeta"><span class="app-desc" style="margin:0">Color de la tarjeta</span></div>
       <input class="ed-in" data-e="desc" value="${escHtml(d.desc)}" placeholder="Descripción (opcional)">
       <label class="ed-label" for="ed-seccion">Sección</label>
@@ -470,6 +482,44 @@ document.addEventListener('submit', (e) => {
   guardarEditor();
 });
 
+// Logo propio: se recorta al centro en cuadrado, se baja a 128 px y se guarda dentro de la app.
+function archivoAIcono(file){
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const im = new Image();
+    im.onload = () => {
+      URL.revokeObjectURL(url);
+      const L = 128, lado = Math.min(im.naturalWidth, im.naturalHeight);
+      if (!lado) { reject(new Error('vacía')); return; }
+      const c = document.createElement('canvas'); c.width = c.height = L;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(im, (im.naturalWidth - lado) / 2, (im.naturalHeight - lado) / 2, lado, lado, 0, 0, L, L);
+      let d = c.toDataURL('image/png');
+      if (d.length > 70000) { // fotos pesadas: JPG con fondo blanco
+        ctx.globalCompositeOperation = 'destination-over'; ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, L, L);
+        d = c.toDataURL('image/jpeg', 0.85);
+      }
+      if (imgOk(d)) resolve(d); else reject(new Error('grande'));
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); reject(new Error('lectura')); };
+    im.src = url;
+  });
+}
+async function subirIcono(file){
+  if (!ed || ed.modo !== 'app' || !file) return;
+  if (!/^image\//.test(file.type)) { ed.error = 'Elige un archivo de imagen (PNG, JPG o WebP).'; pintarEditor(); return; }
+  try { ed.data.img = await archivoAIcono(file); ed.error = ''; }
+  catch (e) { if (ed) ed.error = 'No se pudo leer esa imagen. Prueba con otra.'; }
+  if (ed) pintarEditor();
+}
+document.addEventListener('paste', (e) => {
+  if (!ed || ed.modo !== 'app') return;
+  const it = [...((e.clipboardData && e.clipboardData.items) || [])].find(i => i.kind === 'file' && /^image\//.test(i.type));
+  if (!it) return;
+  e.preventDefault();
+  subirIcono(it.getAsFile());
+});
+
 // Escribir en el editor solo actualiza el borrador (no vuelve a pintar, para no perder el cursor).
 document.addEventListener('input', (e) => {
   const t = e.target;
@@ -482,7 +532,9 @@ document.addEventListener('input', (e) => {
 });
 document.addEventListener('change', (e) => {
   const t = e.target;
-  if (!ed || ed.modo !== 'app' || !t.dataset || t.dataset.e !== 'seccion') return;
+  if (!ed || ed.modo !== 'app' || !t.dataset) return;
+  if (t.dataset.e === 'archivo') { subirIcono(t.files && t.files[0]); return; }
+  if (t.dataset.e !== 'seccion') return;
   ed.seccion = t.value === 'nueva' ? 'nueva' : +t.value;
   pintarEditor(ed.seccion === 'nueva' ? '[data-e=nuevaSec]' : null);
 });
@@ -541,6 +593,7 @@ document.addEventListener('click', (e) => {
   if (!ed) return;
   if (act === 'ed-cancelar') cerrarEditor();
   else if (act === 'ed-add-link') { ed.data.links.push(['', '']); pintarEditor(); const f = document.querySelectorAll('#editor [data-e=l0]'); if (f.length) f[f.length - 1].focus(); }
+  else if (act === 'ed-quitar-img') { delete ed.data.img; pintarEditor(); }
   else if (act === 'ed-del-link') { ed.data.links.splice(+l, 1); pintarEditor(); }
   else if (act === 'ed-del-app') {
     if (!confirm('¿Quitar "' + (ed.data.nombre || 'esta app') + '"?')) return;
