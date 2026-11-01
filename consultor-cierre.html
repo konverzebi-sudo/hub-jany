@@ -441,6 +441,8 @@ function switchStep(stepId) {
 }
 
 function seleccionarRuta(ruta) {
+  // El botón Atrás del navegador regresa al selector de canal (no sale de la página)
+  if (!rutaActual && !window.__rutaInicial) { try { history.pushState({ ruta }, ''); } catch (e) {} }
   rutaActual = ruta;
   modoActivo = 'audit';
   document.getElementById('routePicker').style.display = 'none';
@@ -840,8 +842,9 @@ async function calcularDiagnostico() {
 // Enlace directo a un módulo: /jefe-cierre?ruta=campanas
 (function () {
   const ruta = new URLSearchParams(location.search).get('ruta');
-  if (['tienda', 'evento', 'mensaje', 'campanas'].indexOf(ruta) >= 0) seleccionarRuta(ruta);
+  if (['tienda', 'evento', 'mensaje', 'campanas'].indexOf(ruta) >= 0) { window.__rutaInicial = true; seleccionarRuta(ruta); window.__rutaInicial = false; }
 })();
+window.addEventListener('popstate', () => { if (rutaActual) volverASelectorRuta(); });
 
 // En celular el placeholder largo se recorta y Shift+Enter no aplica con teclado táctil.
 if (window.matchMedia('(max-width: 720px)').matches) {
