@@ -773,6 +773,7 @@ module.exports = async function handler(req, res) {
         ? (await construirEnfoqueProducto(clienteId, catalogo, productoId).catch(() => null)) || formatearProducto(catalogo, productoId)
         : await construirEcosistema(clienteId, catalogo, grupoId, true).catch(() => null);
       const bloqueEnfoqueIdeas = [enfoqueIdeas, modoCampanaIdeas].filter(Boolean).join('\n\n') || null;
+      const anguloTexto = (body.angulo_texto || '').toString().replace(/\s+/g, ' ').trim().slice(0, 700);
       const existentes = (Array.isArray(body.existentes) ? body.existentes : []).map((x) => String(x || '').trim().slice(0, 160)).filter(Boolean).slice(0, 25);
       const ideaExacta = body.ideaExacta === true && !!tema;
       const paraHoy = body.paraHoy === true;
@@ -787,6 +788,7 @@ module.exports = async function handler(req, res) {
         (ideaExacta
           ? `\nIDEA DE LA PERSONA (úsala tal cual en el campo "idea", sin cambiarla, y construye sus 7 ángulos): ${tema}`
           : (tema ? `\nTEMA / CONTEXTO SEMILLA (opcional, úsalo como punto de partida): ${tema}` : '')) +
+        (anguloTexto ? `\n\nÁNGULO 366 ELEGIDO (enfoca las ideas SOLO en este ángulo, no lo mezcles con otros): ${anguloTexto}` : '') +
         (existentes.length ? '\n\nIDEAS YA REGISTRADAS (no las repitas ni las parafrasees):\n' + existentes.map((x) => '- ' + x).join('\n') : '') +
         (bloqueEnfoqueIdeas ? '\n\n' + bloqueEnfoqueIdeas : '') +
         (ganchosBase.length ? '\n\nGANCHOS DE PARTIDA (del banco de ganchos del Jefe: estructuras que ya funcionan en video corto):\n' + ganchosBase.map((g) => '- ' + g).join('\n') +
