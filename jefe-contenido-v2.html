@@ -704,6 +704,22 @@
   .wthumb video.wmat,.wthumb img.wmat{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
   .wlink{position:absolute;left:8px;bottom:8px;background:rgba(15,11,22,.82);color:#fff;font:700 12px 'Inter',sans-serif;padding:4px 10px;border-radius:100px;text-decoration:none;transition:.15s;}
   .wlink:hover{background:#0F0B16;color:var(--accent);}
+  /* tiras de Próximos posts y Próximas historias: mismas tarjetas del Jefe Productor IA (miniatura alta con los colores de la marca, numerito, play grande y la red) */
+  .wcard.wpx{padding:8px 8px 0;border:none;border-radius:20px;background:#fff;box-shadow:0 2px 14px rgba(0,0,0,.09);}
+  .wcard.wpx:hover{transform:translateY(-3px);box-shadow:0 12px 28px rgba(0,0,0,.16);border-color:transparent;}
+  .wpx-thumb{position:relative;display:flex;align-items:center;justify-content:center;aspect-ratio:9/14;border-radius:14px;overflow:hidden;background:linear-gradient(160deg,var(--a),var(--b));}
+  .wpx-thumb img.wpx-img,.wpx-thumb video.wmat,.wpx-thumb img.wmat{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+  .wpx-thumb::after{content:'';position:absolute;inset:auto 0 0 0;height:34%;background:linear-gradient(to top,rgba(0,0,0,.28),transparent);pointer-events:none;}
+  .wpx-num{position:absolute;left:8px;top:8px;z-index:2;width:26px;height:26px;border-radius:50%;background:#fff;color:#1A1A1A;font:800 13px 'Sora',sans-serif;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.18);}
+  .wpx-thumb .wnuevo{z-index:2;}
+  .wpx-play{position:relative;z-index:1;width:56px;height:56px;border-radius:50%;background:#fff;color:#1A1A1A;display:flex;align-items:center;justify-content:center;font-size:22px;padding-left:4px;box-shadow:0 4px 14px rgba(0,0,0,.2);}
+  .wpx-play.sin{padding-left:0;font-size:24px;}
+  .wpx-red{position:absolute;right:8px;bottom:8px;z-index:2;background:#1A1A1A;color:#fff;font:800 10.5px 'Inter',sans-serif;letter-spacing:.04em;text-transform:uppercase;padding:5px 10px;border-radius:100px;max-width:calc(100% - 16px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .wpx-thumb .wlink{z-index:2;left:8px;bottom:8px;}
+  .wpx-tit{margin:11px 6px 4px;font:600 14px/1.35 'Inter',sans-serif;color:var(--text);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;min-height:2.7em;}
+  .wpx-pie{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:4px 6px 12px;}
+  .wpx-pie .wpill{font-size:12px;padding:3px 9px;}
+  .wpx-pie .whora{font:400 12.5px 'Inter',sans-serif;}
   .ed-screen{overflow:hidden;}
   .ed-base{position:absolute;inset:0;background:linear-gradient(135deg,var(--thumb-a,#EDEDED),var(--thumb-b,#D8D8D8)) center/cover no-repeat;display:flex;align-items:center;justify-content:center;}
   .ed-media-box{position:absolute;inset:0;}
@@ -4238,9 +4254,47 @@ function wresumenEstados(items){
   return [['programado','programado','programados'],['proceso','en proceso','en proceso'],['idea','idea','ideas']]
     .filter(([k])=>n[k]).map(([k,uno,varios])=>`${n[k]} ${n[k]>1?varios:uno}`).join(' · ');
 }
+// Colores de la marca (los de su Brand Book, leídos en vivo por marca): fondo de la miniatura cuando el post aún no tiene imagen.
+let paletaMarca = [];
+function hexMarca(v){ const h = typeof v === 'string' ? v : (v && (v.hex || v.color)) || ''; const m = /^#?([0-9a-f]{6}|[0-9a-f]{3})$/i.exec(String(h).trim()); if(!m) return ''; const x = m[1].length === 3 ? m[1].replace(/./g, '$&$&') : m[1]; return '#' + x.toUpperCase(); }
+function luzMarca(h){ const n = parseInt(h.slice(1), 16); return (0.2126 * (n >> 16) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255; }
+function oscurecerMarca(h, f){ const n = parseInt(h.slice(1), 16); const c = (v)=>Math.max(0, Math.round(v * f)).toString(16).padStart(2, '0'); return '#' + c(n >> 16) + c((n >> 8) & 255) + c(n & 255); }
+// Par de colores para la tarjeta número i: va rotando por la paleta para que no se vean todas iguales. Sin paleta guardada, los del estado.
+function parMarca(i, gr){
+  const cols = paletaMarca.filter(h=>luzMarca(h) < 0.93);
+  if(!cols.length) return [gr[0], gr[1]];
+  const a = cols[i % cols.length];
+  const b = cols.length > 1 ? cols[(i + 1) % cols.length] : oscurecerMarca(a, 0.6);
+  return [a, b];
+}
+const RED_NOMBRE = { ig:'Instagram', tt:'TikTok', fb:'Facebook', web:'Web' };
+// Tarjeta de las tiras de la pantalla principal (posts e historias), numerada del 1 al 5.
+function wcardTira(r, tab, i, n){
+  const f=formatoDeItem(r,tab), fm=FORMATOS_META[f];
+  const est=ESTADO_LABEL[r.estado]?r.estado:'idea';
+  const [ca,cb]=parMarca(n-1, ESTADO_GRAD[est]);
+  const fu=fuenteElegida(r); const mi=fu?fu.mi:null;
+  const esVideo=['reel','video','historia'].includes(f);
+  const redes=(Array.isArray(r.redes)?r.redes:[]).map(k=>RED_NOMBRE[k]).filter(Boolean);
+  const red=redes.length?`<span class="wpx-red">${escHtml(redes[0])}${redes.length>1?' +'+(redes.length-1):''}</span>`:'';
+  const play=`<span class="wpx-play${esVideo?'':' sin'}" aria-hidden="true">${esVideo?'▶':fm.ico}</span>`;
+  const hayImg=!!r.miniatura || (mi && (mi.tipo==='img' || mi.thumb));
+  return `<article class="wcard wpx" tabindex="0" role="button" draggable="true" data-id="${escHtml(r.id)}" data-tab="${tab}" style="--i:${i};--a:${ca};--b:${cb}" aria-label="${escHtml(r.gancho||(tab==='historias'?'Historia':'Post'))}">
+    <div class="wpx-thumb">
+      ${r.miniatura?`<img class="wpx-img" src="${r.miniatura}" alt="" loading="lazy" draggable="false">`:''}
+      ${materialCapaHTML(mi)}
+      <span class="wpx-num">${n}</span>${esNuevo(r)?'<span class="wnuevo">Nuevo</span>':''}
+      ${hayImg && !esVideo ? '' : play}
+      ${red}
+      ${mi?`<a class="wlink" href="${mi.abrir}" target="_blank" rel="noopener" title="Abrir material" onclick="event.stopPropagation()">🔗 Material</a>`:''}
+    </div>
+    <div class="wpx-tit">${escHtml(r.gancho||'(sin título)')}</div>
+    <div class="wpx-pie"><span class="wpill ${est}">${ESTADO_LABEL[est]}</span><span class="whora">${escHtml(fechaCorta(r))}</span></div>
+  </article>`;
+}
 function wstripHTML(lista, tab){
   const items=proximosPorEstado(lista);
-  const tarjetas=items.map((r,i)=> tab==='contenido' ? wcardPost(r,i,true) : wcardHistoria(r,i,true)).join('');
+  const tarjetas=items.map((r,i)=>wcardTira(r,tab,i,i+1)).join('');
   return `<div class="wstrip">${tarjetas}${items.length?'':`<p class="wnote wvacio">Todavía no hay ${tab==='contenido'?'posts':'historias'}. Agrega el primero con “+ Añadir”.</p>`}</div>`;
 }
 
@@ -4325,6 +4379,7 @@ async function loadStorage(){
   }catch(e){ linkInspiracion=[]; }
   pintarIconos();
   actualizarContadores();
+  try{ const rp=await window.storage.get(CLIENTE_ID+':brand-book.visual'); const vp=rp&&rp.value?JSON.parse(rp.value):null; paletaMarca=vp&&Array.isArray(vp.paleta)?vp.paleta.map(hexMarca).filter(Boolean):[]; }catch(e){ paletaMarca=[]; }
   widgetAnimar=true;
   renderWidget();
   cargarCatalogo().then(()=>{ buildProductoFilter(); });
