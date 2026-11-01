@@ -569,16 +569,18 @@ async function handleDisenoImagen(req, res, body) {
   const adjuntas = [];
   if (referencia) adjuntas.push({ ...referencia, nombre: 'referencia' });
   if (ind.logo) adjuntas.push({ ...ind.logo, nombre: 'logo' });
-  const llamarOpenAI = async (model, quality) => {
+  const llamarOpenAI = async (model, quality, fidelidad) => {
     let openaiRes;
     if (adjuntas.length) {
       // Con referencia: endpoint de edicion de OpenAI (multipart) -- la imagen subida guia estilo y composicion.
       const form = new FormData();
       form.append('model', model);
-      form.append('prompt', `${base}${referencia ? (rescatar ? `\n\nLa primera imagen adjunta es material real de la persona. De ese material hay que rescatar y respetar: ${rescatar}. Todo lo demás se crea nuevo, con la identidad de la marca.` : '\n\nLa primera imagen adjunta es una referencia visual: genera una imagen NUEVA y similar (misma idea, estilo, composición y colores).') : ''}${prompt ? `\n\nInstrucción principal: ${prompt}` : ''}`);
+      form.append('prompt', `${base}${referencia ? (rescatar ? `\n\nLa primera imagen adjunta es material real de la persona. De ese material hay que rescatar y respetar: ${rescatar}. Todo lo demás se crea nuevo, con la identidad de la marca.` : '\n\nLa primera imagen adjunta es una referencia visual: genera una imagen NUEVA y similar (misma idea, estilo, composición y colores).') + '\n\nPERSONAS: si en la primera imagen aparece una persona real, conserva EXACTAMENTE su rostro, facciones, edad, tono de piel, cabello, lentes y expresión, y su pose y ropa: no la rediseñes, no la embellezcas ni la sustituyas por otra. Solo se cambia lo que se pidió.' : ''}${prompt ? `\n\nInstrucción principal: ${prompt}` : ''}`);
       form.append('size', ind.size);
       form.append('quality', quality);
       form.append('n', '1');
+      // Con foto de la persona: que respete al máximo los rasgos de la imagen original (rostro, detalles) en vez de reimaginarla.
+      if (fidelidad) form.append('input_fidelity', 'high');
       adjuntas.forEach((a) => form.append('image[]', new Blob([a.buffer], { type: a.tipo }), `${a.nombre}.${a.ext}`));
       openaiRes = await fetch('https://api.openai.com/v1/images/edits', {
         method: 'POST',
@@ -604,14 +606,21 @@ async function handleDisenoImagen(req, res, body) {
     return openaiRes;
   };
   let modelo = IMGGEN_MODEL; const calidad = IMGGEN_QUALITY;
+  let fidelidad = !!referencia;
   let openaiRes, data;
   try {
-    openaiRes = await llamarOpenAI(modelo, calidad);
+    openaiRes = await llamarOpenAI(modelo, calidad, fidelidad);
     data = await openaiRes.json();
+    // Si el modelo no acepta la fidelidad alta, se reintenta sin ella en vez de fallar.
+    if (!openaiRes.ok && fidelidad && /input_fidelity|unknown parameter|unrecognized|not supported/i.test(data?.error?.message || '')) {
+      fidelidad = false;
+      openaiRes = await llamarOpenAI(modelo, calidad, fidelidad);
+      data = await openaiRes.json();
+    }
     // Si la cuenta todavía no tiene acceso al modelo de ChatGPT, se usa el de respaldo en vez de fallar.
     if (!openaiRes.ok && modelo !== IMGGEN_MODEL_RESPALDO && [400, 403, 404].includes(openaiRes.status) && /model|not found|does not exist|verif|access/i.test(data?.error?.message || '')) {
       modelo = IMGGEN_MODEL_RESPALDO;
-      openaiRes = await llamarOpenAI(modelo, calidad);
+      openaiRes = await llamarOpenAI(modelo, calidad, fidelidad);
       data = await openaiRes.json();
     }
   } catch (err) {
