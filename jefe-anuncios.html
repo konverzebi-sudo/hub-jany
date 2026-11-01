@@ -446,6 +446,7 @@
   .pm-paso{display:flex;flex-direction:column;gap:12px;background:#fff;border:1.5px solid var(--line);border-radius:16px;padding:16px;}
   .pm-paso-t{font:800 15px 'Sora',sans-serif;}
   .pm-paso-btns{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+  .pm-gasto{margin:0;font-size:13px;line-height:1.5;color:var(--text-dim);}
   .pm-paneles{display:flex;flex-direction:column;gap:12px;}
   .pm-panel{display:none;flex-direction:column;gap:12px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;}
   .pm-panel.abierto{display:flex;}
@@ -523,6 +524,8 @@
   .pm-meta-btn.on .pm-meta-car{transform:rotate(180deg);}
   .pm-meta-falta{font-style:normal;color:#E8590C;font-size:12px;}
   .pm-camp-est{font:600 12.5px 'Inter',sans-serif;font-style:normal;color:var(--text-dim);}
+  .pm-abrir-mat{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);z-index:2;background:#1A1A1A;color:var(--accent);border-radius:100px;padding:9px 18px;font:800 13.5px 'Sora',sans-serif;text-decoration:none;white-space:nowrap;}
+  .pm-abrir-mat:hover{filter:brightness(1.25);}
   .pm-meta-btn.on .pm-camp-est{color:inherit;opacity:.8;}
   .res-fecha-lect{font:600 14px 'Inter',sans-serif;color:#1A1A1A;opacity:.8;}
   /* copiar: ícono al final de cada cuadro */
@@ -578,7 +581,8 @@
   .chat-send{flex:0 0 auto;border:none;background:var(--accent);color:#1A1A1A;font:800 14px 'Sora',sans-serif;padding:0 16px;height:38px;border-radius:100px;cursor:pointer;}
   .chat-send:disabled{opacity:.5;cursor:wait;}
   .chat-panel .ac-lista{top:auto;bottom:calc(100% + 6px);left:0;right:0;max-height:240px;overflow-y:auto;}
-  .wrap{padding-bottom:96px;}
+  /* el espacio para librar la barra de arriba vive en la página (antes lo daba la fila de links, que se esconde al pegarlos y dejaba el logo cortado) */
+  .wrap{padding-top:62px;padding-bottom:96px;}
   @media (max-width:600px){.chat-fab{right:12px;bottom:12px;width:58px;height:58px;}.chat-fab img.ic-chat{width:40px;height:40px;}.chat-panel{right:12px;bottom:80px;padding:12px;}}
 
   /* TUTORIAL (3 fases) */
@@ -815,7 +819,7 @@
   [data-tip]{position:relative;}
   [data-tip]::after{content:attr(data-tip);position:absolute;left:50%;top:calc(100% + 10px);transform:translate(-50%,-4px);background:#1A1A1A;color:#fff;font:600 13px/1.35 'Inter',sans-serif;padding:7px 11px;border-radius:9px;white-space:nowrap;max-width:260px;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:40;}
   [data-tip]:hover::after,[data-tip]:focus-visible::after{opacity:1;transform:translate(-50%,0);}
-  .cx-icons{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:62px;}
+  .cx-icons{display:flex;flex-wrap:wrap;align-items:center;gap:12px;}
   .cx-ic{display:flex;align-items:center;gap:8px;position:relative;}
   .cx-circle{width:46px;height:46px;border-radius:50%;border:1.5px solid var(--line);background:var(--surface);color:var(--text);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;text-decoration:none;box-shadow:var(--shadow-card);transition:transform .18s ease,border-color .18s,background .18s,box-shadow .18s;padding:0;}
   .cx-circle svg{width:22px;height:22px;}
@@ -3402,6 +3406,15 @@ function infoMaterial(url){
     return {tipo:'embed', src:'https://www.instagram.com/'+(m[1]==='reels'?'reel':m[1])+'/'+m[2]+'/embed', thumb:null, abrir, host:h};
   if(h.endsWith('tiktok.com') && (m = L.pathname.match(/\/video\/(\d+)/)))
     return {tipo:'embed', src:'https://www.tiktok.com/embed/v2/'+m[1], thumb:null, abrir, host:h};
+  // Más sitios que sí se pueden ver dentro del anuncio: Vimeo, Loom, Facebook (videos y reels públicos) y Canva (links de "ver").
+  if(h.endsWith('vimeo.com') && (m = L.pathname.match(/^\/(?:channels\/[\w-]+\/|groups\/[\w-]+\/videos\/)?(\d{5,})/)))
+    return {tipo:'embed', src:'https://player.vimeo.com/video/'+m[1], thumb:null, abrir, host:h};
+  if(h.endsWith('loom.com') && (m = L.pathname.match(/^\/(?:share|embed)\/([\w-]+)/)))
+    return {tipo:'embed', src:'https://www.loom.com/embed/'+m[1], thumb:null, abrir, host:h};
+  if((h.endsWith('facebook.com') && /\/(videos?|reel|reels|watch)\b/.test(L.pathname)) || h==='fb.watch')
+    return {tipo:'embed', src:'https://www.facebook.com/plugins/video.php?show_text=false&href='+encodeURIComponent(L.toString()), thumb:null, abrir, host:h};
+  if(h.endsWith('canva.com') && /\/design\//.test(L.pathname) && /\/(view|watch)\b/.test(L.pathname))
+    return {tipo:'embed', src:'https://www.canva.com'+L.pathname.replace(/\/$/,'')+'?embed', thumb:null, abrir, host:h};
   return {tipo:'link', abrir, host:h};
 }
 
@@ -3447,7 +3460,9 @@ function pintarPreviewPost(item){
     box.dataset.media = claveMedia;
     let capa = '';
     if(mi){
-      if(mi.tipo==='img') capa = `<img class="pm-media" src="${mi.src}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">`;
+      // un link que no se puede mostrar aquí (por ejemplo una carpeta o una página): botón claro para abrirlo
+      if(mi.tipo==='link') capa = `<a class="pm-abrir-mat" href="${mi.abrir}" target="_blank" rel="noopener">Abrir el material ↗</a>`;
+      else if(mi.tipo==='img') capa = `<img class="pm-media" src="${mi.src}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">`;
       else if(mi.tipo==='video') capa = `<video class="pm-media" src="${mi.src}#t=0.5" controls playsinline preload="metadata"></video>`;
       else if(mi.tipo==='embed'){
         if(mi.thumb) capa += `<img class="pm-media" src="${mi.thumb}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">`;
@@ -3458,7 +3473,7 @@ function pintarPreviewPost(item){
     media.style.setProperty('--a', gr[0]); media.style.setProperty('--b', gr[1]);
     media.innerHTML = `${mi && mi.tipo!=='link' ? '' : `<span class="pm-ico">${FORMATO_ICO[item.formato]||'🎬'}</span>`}${capa}<span class="pchip">${escHtml(item.formato||'reel')}</span>`;
     box.querySelector('.pm-hint').innerHTML = !mi
-      ? 'Agrega el link del anuncio final (arriba) y aquí lo verás en el anuncio.'
+      ? (lv ? 'No pude leer este link: revisa que sea una dirección completa (empieza con https://).' : 'Agrega el link del anuncio final (arriba) y aquí lo verás en el anuncio.')
       : (mi.tipo==='link'
           ? `Este link no se puede mostrar aquí. <a href="${mi.abrir}" target="_blank" rel="noopener">Abrir material ↗</a>`
           : `<a href="${mi.abrir}" target="_blank" rel="noopener">Abrir en una pestaña ↗</a>${mi.host==='drive.google.com' ? '<br>Si no se ve, en Drive comparte el archivo con “Cualquier persona con el enlace”.' : ''}`);
@@ -3493,6 +3508,8 @@ function iconoLink(url){
   if(h.includes('instagram')) return '📷';
   if(h.includes('tiktok')) return '🎵';
   if(h.includes('canva')) return '🎨';
+  if(h.includes('vimeo') || h.includes('loom')) return '▶️';
+  if(h.includes('facebook') || h==='fb.watch') return '📘';
   if(m.tipo==='img') return '🖼️';
   if(m.tipo==='video') return '🎬';
   return '🔗';
@@ -3655,8 +3672,9 @@ function pintarPiezas(item, modal){
           : '<p class="pm-hint-inline">Se crea con la identidad de tu marca (tu ADN y tu Sistema 366).</p>'}
         <div class="pm-paso-btns">
           ${visual ? `<button type="button" class="btn btn-outline" data-estilo-gestionar>📎 ${conEstilo ? 'Cambiar mis referencias' : 'Subir imágenes de referencia'}</button>` : ''}
-          <button type="button" class="btn btn-solid" data-pieza-generar="${sel}">${visual ? (conEstilo && usarEstiloActivo() ? '✨ Generar con mi estilo guardado' : '⏭ Saltar y generar con mi identidad') : '✨ Generar con mi identidad'}</button>
+          <button type="button" class="btn btn-solid" data-pieza-generar="${sel}">✨ Generar ${PIEZA_NOMBRE[sel].toLowerCase()}</button>
         </div>
+        <p class="pm-gasto">💡 La IA solo trabaja cuando pulsas «Generar» y crea <b>una pieza a la vez</b>: no se gasta nada hasta entonces.${visual ? (conEstilo && usarEstiloActivo() ? ' Se hará con tu estilo guardado.' : ' Se hará con la identidad de tu marca.') : ''}</p>
       </div>`;
     }
   }
