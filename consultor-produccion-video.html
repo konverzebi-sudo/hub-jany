@@ -296,6 +296,13 @@
   .px-ig-opt small{font-size:12px;color:var(--text-dim);}
   .px-ig-in{display:flex;flex-direction:column;gap:10px;}
   .px-ig-in textarea{width:100%;box-sizing:border-box;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font:500 15px 'Inter',sans-serif;resize:vertical;outline:none;}
+  .px-ig-modos{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .px-ig-modo{display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;padding:12px 14px;border:1.5px solid var(--line);border-radius:14px;background:#fff;cursor:pointer;font-family:'Inter',sans-serif;color:var(--text);transition:.15s;}
+  .px-ig-modo:first-child{border-color:#1A1A1A;}
+  .px-ig-modo:hover{background:var(--accent);border-color:var(--text);}
+  .px-ig-modo b{font:800 14px 'Sora',sans-serif;}
+  .px-ig-modo small{font-size:12.5px;line-height:1.4;color:var(--text-dim);}
+  @media (max-width:560px){.px-ig-modos{grid-template-columns:1fr;}}
   .px-ig-q{font-size:14px;font-weight:600;}
   .px-ig-q small{font-weight:500;color:var(--text-dim);}
   .px-ig-pega{border:1.5px dashed #B9B9B9;border-radius:12px;padding:12px;text-align:center;font-size:13.5px;color:var(--text-dim);background:#fff;outline:none;}
@@ -1122,6 +1129,7 @@ function proximosPx(lista){
 }
 // Colores de la marca (los de su Brand Book, leídos en vivo por marca): fondo de las tarjetas y del celular cuando el post aún no tiene imagen.
 let paletaMarcaPx = [];
+let logoMarcaPx = ''; // logo del Brand Book (data URL), para ponérselo a las fotos propias
 function hexPx(v){ const h = typeof v === 'string' ? v : (v && (v.hex || v.color)) || ''; const m = /^#?([0-9a-f]{6}|[0-9a-f]{3})$/i.exec(String(h).trim()); if (!m) return ''; const x = m[1].length === 3 ? m[1].replace(/./g, '$&$&') : m[1]; return '#' + x.toUpperCase(); }
 function luzPx(h){ const n = parseInt(h.slice(1), 16); return (0.2126 * (n >> 16) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255; }
 function oscurecerPx(h, f){ const n = parseInt(h.slice(1), 16); const c = (v) => Math.max(0, Math.round(v * f)).toString(16).padStart(2, '0'); return '#' + c(n >> 16) + c((n >> 8) & 255) + c(n & 255); }
@@ -1442,6 +1450,51 @@ function aplicarCamposLocalPx(r, tab, cambios){
   if ('guion' in cambios) r.guion = typeof cambios.guion === 'string' ? cambios.guion : guionComoTextoPx(raw);
 }
 // ─── CREAR LA IMAGEN DEL POST (dentro de la ficha): mini chat con el Jefe + creación con la identidad de la marca ───
+// «Mi foto tal cual»: NO pasa por la IA (así no cambia la cara de nadie). La foto queda como base y se le pone encima el diseño de la
+// marca: degradado para leer, el título, una barra del color de la marca y el logo. Todo con los datos del Brand Book de cada marca.
+function acentoMarcaPx(){
+  const sat = (h) => { const n = parseInt(h.slice(1), 16), r = (n >> 16) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b); return mx - mn; };
+  const cols = paletaMarcaPx.filter((h) => luzPx(h) > 0.25 && luzPx(h) < 0.93).sort((a, b) => sat(b) - sat(a));
+  return cols[0] || '#C0F800';
+}
+function cargarImgPx(src){ return new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error('imagen')); i.src = src; }); }
+async function componerFotoPx(urlFoto, tam, texto){
+  const [W, H] = tam === 'cuadrado' ? [1080, 1080] : tam === 'post' ? [1080, 1350] : [1080, 1920];
+  try { await document.fonts.load("800 80px 'Sora'"); } catch (e) {}
+  const img = await cargarImgPx(urlFoto);
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  // la foto llena todo el cuadro (recorte centrado, un poco hacia arriba para no cortar la cara)
+  const k = Math.max(W / img.naturalWidth, H / img.naturalHeight), w = img.naturalWidth * k, h = img.naturalHeight * k;
+  g.drawImage(img, (W - w) / 2, -(h - H) * 0.3, w, h);
+  let gr = g.createLinearGradient(0, 0, 0, H * 0.55); gr.addColorStop(0, 'rgba(0,0,0,.62)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(0, 0, W, H * 0.55);
+  gr = g.createLinearGradient(0, H * 0.78, 0, H); gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,.45)'); g.fillStyle = gr; g.fillRect(0, H * 0.78, W, H * 0.22);
+  const acento = acentoMarcaPx(), mx = W * 0.08, top = tam === 'reel' ? H * 0.1 : H * 0.07, ancho = W - mx * 2;
+  // título: si trae «—» o «:» la primera parte va en el color de la marca
+  const partes = String(texto || '').trim().split(/\s*[—:]\s*/).filter(Boolean);
+  const palabras = []; partes.forEach((pt, i) => pt.split(/\s+/).forEach((w2) => palabras.push({ t: w2, col: partes.length > 1 && i === 0 ? acento : '#FFFFFF' })));
+  let fs = W * (tam === 'cuadrado' ? 0.078 : 0.088), lineas = [];
+  for (;;) {
+    g.font = `800 ${fs}px 'Sora', 'Inter', sans-serif`; lineas = []; let cur = [], ancho2 = 0;
+    palabras.forEach((p2) => { const a = g.measureText(p2.t + ' ').width; if (ancho2 + a > ancho && cur.length) { lineas.push(cur); cur = []; ancho2 = 0; } cur.push(p2); ancho2 += a; });
+    if (cur.length) lineas.push(cur);
+    if (lineas.length <= 5 || fs <= W * 0.045) break;
+    fs *= 0.92;
+  }
+  g.fillStyle = acento; g.beginPath(); g.roundRect(mx, top, W * 0.14, 12, 6); g.fill();
+  g.shadowColor = 'rgba(0,0,0,.45)'; g.shadowBlur = 18; g.textBaseline = 'top';
+  lineas.forEach((ln, i) => { let x = mx; ln.forEach((p2) => { g.fillStyle = p2.col; g.fillText(p2.t, x, top + 36 + i * fs * 1.12); x += g.measureText(p2.t + ' ').width; }); });
+  g.shadowBlur = 0;
+  if (logoMarcaPx) {
+    try {
+      const lg = await cargarImgPx(logoMarcaPx), lw = W * 0.2, lh = lw * lg.naturalHeight / lg.naturalWidth, pad = 16;
+      const lx = W - mx - lw - pad * 2, ly = H - (tam === 'reel' ? H * 0.1 : H * 0.05) - lh - pad * 2;
+      g.fillStyle = 'rgba(255,255,255,.94)'; g.beginPath(); g.roundRect(lx, ly, lw + pad * 2, lh + pad * 2, 18); g.fill();
+      g.drawImage(lg, lx + pad, ly + pad, lw, lh);
+    } catch (e) {}
+  }
+  return c.toDataURL('image/jpeg', 0.92);
+}
 function panelImagenHtml(){
   return `<div class="ed-block ed-prod px-ig" id="px-ig" hidden>
     <div class="ed-prod-head"><span class="ed-prod-ic"><img src="/img/jefe-produccion-video-logo-negro.webp" alt="" aria-hidden="true"></span>
@@ -1457,11 +1510,11 @@ function enlazarImagenPx(m){
   const tab = trabajoPx.tab;
   const panel = m.querySelector('#px-ig'), chat = m.querySelector('#px-ig-chat'), err = m.querySelector('#px-ig-err');
   const TAM = { cuadrado: ['⬜', 'Cuadrado', '1:1 · feed'], reel: ['📱', 'Reel o historia', '9:16 · vertical'], post: ['🖼️', 'Post', '4:5 · feed vertical'] };
-  const st = { paso: 0, tam: '', idea: '', ref: null, nombreRef: '', rescatar: '', ultima: null, usadas: null, limite: 15, creando: false, timer: null, avisado: false };
+  const st = { paso: 0, tam: '', idea: '', ref: null, refUrl: '', modo: '', texto: '', nombreRef: '', rescatar: '', ultima: null, usadas: null, limite: 15, creando: false, timer: null, avisado: false };
   const mostrarError = (t) => { err.textContent = '⚠️ ' + t; err.hidden = false; };
   const jefe = (html) => `<div class="px-ig-m jefe">${html}</div>`;
   const yo = (t) => `<div class="px-ig-m yo">${escHtml(t)}</div>`;
-  const resumenRef = () => st.ref ? ('📎 ' + (st.nombreRef || 'Material de referencia') + (st.rescatar ? ' — rescatar: ' + st.rescatar : '')) : 'Créala desde cero';
+  const resumenRef = () => st.ref ? (st.modo === 'foto' ? '📷 Mi foto tal cual, con el diseño de mi marca' : '📎 ' + (st.nombreRef || 'Material de referencia') + (st.rescatar ? ' — rescatar: ' + st.rescatar : '')) : 'Créala desde cero';
   const pintar = () => {
     let h = jefe('¡Hola! Te ayudaré a generar una imagen a la medida para tu negocio, con los colores y la tipografía de tu marca. Cuéntame:');
     h += jefe('<b>1.</b> ¿Qué tamaño necesitas?');
@@ -1477,9 +1530,15 @@ function enlazarImagenPx(m){
       h += jefe('<b>3.</b> ¿Tienes una foto o material de referencia? Súbela con el clip 📎 o pégala con <b>Ctrl+V</b> (o ⌘+V). Si prefieres, la creo desde cero.');
       if (st.paso === 2) {
         h += `<div class="px-ig-in">${st.ref ? `<div class="px-ig-ref"><img src="${st.ref.dataUrl}" alt=""><span>${escHtml(st.nombreRef || 'Material de referencia')}</span><button type="button" data-ig="quitar-ref" aria-label="Quitar">✕</button></div>
-          <div class="px-ig-q">¿Qué quieres rescatar de este material? <small>(el producto, la persona, los colores, el estilo, el fondo…)</small></div>
+          ${!st.modo ? `<div class="px-ig-q">¿Cómo uso tu foto?</div>
+          <div class="px-ig-modos"><button type="button" class="px-ig-modo" data-ig="modo" data-v="foto"><b>📷 Dejar mi foto tal cual</b><small>No cambia a la persona: la foto queda como está y le pongo el título, los colores y el logo de tu marca. Sin gasto de IA.</small></button>
+          <button type="button" class="px-ig-modo" data-ig="modo" data-v="ia"><b>🎨 Que la IA la reimagine</b><small>Puede cambiar el fondo y el estilo, pero la persona puede verse distinta.</small></button></div>`
+          : st.modo === 'foto' ? `<div class="px-ig-q">¿Qué texto va sobre la foto? <small>(el título de tu post, o el que quieras)</small></div>
+          <textarea id="px-ig-texto" rows="2">${escHtml(st.texto || r0.gancho || '')}</textarea>
+          <div class="px-ig-acc"><button type="button" class="btn btn-solid" data-ig="componer">✨ Crear mi imagen</button><button type="button" class="btn-guion" data-ig="modo" data-v="">← Elegir otra opción</button></div>`
+          : `<div class="px-ig-q">¿Qué quieres rescatar de este material? <small>(el producto, la persona, los colores, el estilo, el fondo…)</small></div>
           <textarea id="px-ig-rescatar" rows="2" placeholder="Ej. Quiero que se vea mi producto igual y el fondo de la oficina.">${escHtml(st.rescatar)}</textarea>
-          <div class="px-ig-acc"><button type="button" class="btn btn-solid" data-ig="crear">✨ Crear mi imagen</button></div>`
+          <div class="px-ig-acc"><button type="button" class="btn btn-solid" data-ig="crear">✨ Crear mi imagen</button><button type="button" class="btn-guion" data-ig="modo" data-v="">← Elegir otra opción</button></div>`}`
           : `<div class="px-ig-acc"><label class="btn-guion" style="cursor:pointer;">📎 Subir foto o material<input type="file" id="px-ig-file" accept="image/png,image/jpeg,image/webp" hidden></label><button type="button" class="btn btn-solid" data-ig="crear">✨ No tengo, créala desde cero</button></div>
           <div class="px-ig-pega" tabindex="0" id="px-ig-pega">…o pega aquí tu imagen con Ctrl+V</div>`}</div>`;
       } else h += yo(resumenRef());
@@ -1526,6 +1585,14 @@ function enlazarImagenPx(m){
     clearInterval(st.timer); st.creando = false; pintar();
     if (!st.ultima) { st.paso = 2; pintar(); }
   };
+  const componer = async () => {
+    if (st.creando || !st.refUrl) return;
+    err.hidden = true; st.creando = true; st.ultima = null; st.paso = 3; pintar();
+    try { st.ultima = await componerFotoPx(st.refUrl, st.tam, st.texto || r0.gancho || ''); }
+    catch (e) { mostrarError('No pude armar la imagen con tu foto. Prueba con otra.'); }
+    st.creando = false; pintar();
+    if (!st.ultima) { st.paso = 2; pintar(); }
+  };
   const usar = async (btn) => {
     const r = itemPx(); if (!r || !st.ultima) return;
     btn.disabled = true; btn.textContent = 'Guardando…';
@@ -1546,7 +1613,9 @@ function enlazarImagenPx(m){
     if (!f) return;
     if (!['image/png', 'image/jpeg', 'image/webp'].includes(f.type)) { mostrarError('Usa una imagen JPG, PNG o WEBP.'); return; }
     try {
-      const x = await reducirImagen(URL.createObjectURL(f));
+      const urlOrig = URL.createObjectURL(f);
+      const x = await reducirImagen(urlOrig);
+      st.refUrl = urlOrig; st.modo = '';
       st.ref = x; st.nombreRef = f.name && f.name !== 'image.png' ? f.name : 'Imagen pegada'; err.hidden = true;
       if (st.paso < 2) { st.paso = Math.max(st.paso, 0); }
       pintar();
@@ -1564,14 +1633,16 @@ function enlazarImagenPx(m){
     else if (a === 'tam') { st.tam = b.dataset.v; st.paso = 1; pintar(); }
     else if (a === 'idea') { const t = chat.querySelector('#px-ig-idea'); st.idea = t ? t.value.trim() : ''; st.paso = 2; pintar(); }
     else if (a === 'idea-post') { st.idea = ''; st.paso = 2; pintar(); }
-    else if (a === 'quitar-ref') { st.ref = null; st.rescatar = ''; pintar(); }
+    else if (a === 'quitar-ref') { st.ref = null; st.refUrl = ''; st.modo = ''; st.rescatar = ''; pintar(); }
+    else if (a === 'modo') { st.modo = b.dataset.v; pintar(); }
+    else if (a === 'componer') { const t = chat.querySelector('#px-ig-texto'); st.texto = t ? t.value.trim() : ''; componer(); }
     else if (a === 'crear') { const t = chat.querySelector('#px-ig-rescatar'); if (t) st.rescatar = t.value.trim(); crear(); }
-    else if (a === 'otra') crear();
-    else if (a === 'ajustar') { st.paso = 1; st.ultima = null; pintar(); }
+    else if (a === 'otra') (st.modo === 'foto' ? componer() : crear());
+    else if (a === 'ajustar') { st.paso = st.modo === 'foto' ? 2 : 1; st.ultima = null; pintar(); }
     else if (a === 'usar') usar(b);
   });
   chat.addEventListener('change', (e) => { if (e.target.id === 'px-ig-file') { const f = e.target.files && e.target.files[0]; e.target.value = ''; cargarRef(f); } });
-  chat.addEventListener('input', (e) => { if (e.target.id === 'px-ig-rescatar') st.rescatar = e.target.value; });
+  chat.addEventListener('input', (e) => { if (e.target.id === 'px-ig-rescatar') st.rescatar = e.target.value; if (e.target.id === 'px-ig-texto') st.texto = e.target.value; });
   // Pegar una imagen (Ctrl+V / ⌘+V) mientras el asistente está abierto: queda como material de referencia.
   m.addEventListener('paste', (e) => {
     if (panel.hidden || st.creando) return;
@@ -1942,7 +2013,8 @@ async function cargarContenidoPx(){
     const r = await window.storage.get(CLIENTE_ID + ':brand-book.visual');
     const v = r && r.value ? JSON.parse(r.value) : null;
     paletaMarcaPx = v && Array.isArray(v.paleta) ? v.paleta.map(hexPx).filter(Boolean) : [];
-  } catch (e) { paletaMarcaPx = []; }
+    logoMarcaPx = v && typeof v.logo === 'string' && /^data:image\//.test(v.logo) ? v.logo : '';
+  } catch (e) { paletaMarcaPx = []; logoMarcaPx = ''; }
   await aplicarTraspasoPx();
   pintarProximos(); pintarTrabajoPx();
   $('chat-input').placeholder = placeholderActual(); autoAlto();
