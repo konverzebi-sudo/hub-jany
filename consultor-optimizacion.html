@@ -171,8 +171,14 @@
     .modulo-intro { display: flex; justify-content: flex-end; }
     .modulo-intro p { margin: 0; flex: 1 1 360px; font-size: 15px; line-height: 1.55; color: var(--text-dim); }
     .modulo-intro .pb-btn { min-height: 40px; padding: 8px 14px; font-size: 13px; white-space: nowrap; }
-    .dashboard-frame-wrap { background: #fff; }
-    .dashboard-frame-wrap iframe { height: max(560px, 82vh); }
+    /* El reporte ocupa todo el ancho y crece a su alto real: el único scroll es el de la página (sin cuadro dentro de cuadro) */
+    .dashboard-frame-wrap { border: 0; border-radius: 0; overflow: visible; background: transparent; }
+    .dashboard-frame-wrap iframe { height: 80vh; background: #fff; }
+    .result-actions { position: sticky; top: 0; z-index: 20; align-items: center; background: var(--bg); padding: 8px 0 10px; border-bottom: 1px solid var(--line); }
+    .result-actions .back-btn { background: var(--accent); border-color: var(--accent); color: #0F0B16; font-weight: 700; }
+    .result-actions .back-btn:hover { filter: brightness(1.05); color: #0F0B16; }
+    html.embed body.viendo-reporte main { padding-top: 0; gap: 10px; }
+    body.viendo-reporte #moduloIntro { display: none; }
     footer { text-align: center; padding: 24px 20px; font-size: 12px; color: var(--text-dim); font-family: "JetBrains Mono", monospace; border-top: 1px solid var(--line); margin-top: 20px; }
   </style>
 <link rel="stylesheet" href="/css/jefes-piel-blanca.css">
@@ -270,13 +276,13 @@
   <!-- ═══ RESULTADO ═══ -->
   <section class="result-block" id="resultBlock">
     <div class="result-actions">
+      <button type="button" class="sec-btn back-btn" id="newAnalysisBtn">← Volver</button>
       <a href="#" class="sec-btn" id="downloadBtn">⬇️ Descargar dashboard (.html)</a>
-      <button type="button" class="sec-btn" id="newAnalysisBtn">🔄 Analizar otro reporte</button>
       <button type="button" class="sec-btn" id="openTabBtn">↗️ Abrir en pestaña nueva</button>
       <button type="button" class="sec-btn" id="printBtn">🖨️ Imprimir / guardar PDF</button>
     </div>
     <div class="dashboard-frame-wrap">
-      <iframe id="dashboardFrame" title="Dashboard Ejecutivo"></iframe>
+      <iframe id="dashboardFrame" title="Dashboard Ejecutivo" scrolling="no"></iframe>
     </div>
   </section>
 
@@ -699,7 +705,7 @@
       detenerLoadingSteps();
       document.getElementById('loadingBlock').style.display = 'none';
       if (!response.ok) {
-        document.getElementById('upload-section').style.display = 'block';
+        document.getElementById('upload-section').style.display = 'flex';
         renderHistorial();
         showUploadError(data.error || 'No se pudo generar el análisis. Intenta de nuevo.');
         return;
@@ -710,14 +716,38 @@
     } catch (err) {
       detenerLoadingSteps();
       document.getElementById('loadingBlock').style.display = 'none';
-      document.getElementById('upload-section').style.display = 'block';
+      document.getElementById('upload-section').style.display = 'flex';
       renderHistorial();
       showUploadError('Hubo un error de conexión. Intenta de nuevo en un momento.');
     }
   }
 
+  // El reporte se estira a su alto real para que la página tenga un solo scroll.
+  function ajustarAltoReporte(){
+    var f = document.getElementById('dashboardFrame');
+    try {
+      var d = f.contentDocument;
+      if (!d || !d.documentElement) return;
+      var h = Math.max(d.documentElement.scrollHeight, d.body ? d.body.scrollHeight : 0);
+      if (h > 200) f.style.height = h + 'px';
+    } catch (e) {}
+  }
+  document.getElementById('dashboardFrame').addEventListener('load', function(){
+    ajustarAltoReporte();
+    try {
+      var d = this.contentDocument;
+      if (window.ResizeObserver && d && d.body) new ResizeObserver(ajustarAltoReporte).observe(d.body);
+      d.addEventListener('toggle', function(){ setTimeout(ajustarAltoReporte, 30); }, true);
+    } catch (e) {}
+    window.addEventListener('resize', ajustarAltoReporte);
+  });
+
+  var viendoReporte = false;
   function mostrarDashboard(html){
     document.getElementById('dashboardFrame').srcdoc = html;
+    document.body.classList.add('viendo-reporte');
+    if (!viendoReporte) { viendoReporte = true; try { history.pushState({ reporte: 1 }, ''); } catch (e) {} }
+    window.scrollTo(0, 0);
     document.getElementById('historialSection').style.display = 'none';
     document.getElementById('resultBlock').style.display = 'flex';
     document.getElementById('agentBox').style.display = 'block';
@@ -733,16 +763,29 @@
     };
   }
 
-  document.getElementById('newAnalysisBtn').addEventListener('click', function(){
+  // Volver del reporte a subir / historial (botón "← Volver" y botón Atrás del navegador)
+  function volverDelReporte(){
     csvFiles = [];
     renderArchivos();
     fileInput.value = '';
+    document.body.classList.remove('viendo-reporte');
     document.getElementById('resultBlock').style.display = 'none';
     document.getElementById('agentBox').style.display = 'none';
-    document.getElementById('upload-section').style.display = 'block';
+    document.getElementById('upload-section').style.display = 'flex';
     renderHistorial();
     agentMessages = [];
     renderAgentChat();
+    window.scrollTo(0, 0);
+  }
+  document.getElementById('newAnalysisBtn').addEventListener('click', function(){
+    var habiaEntrada = viendoReporte;
+    viendoReporte = false;
+    volverDelReporte();
+    // Quita la entrada del historial del reporte para que Atrás no quede "dormido" un paso
+    try { if (habiaEntrada && navigator.userActivation && navigator.userActivation.hasBeenActive) history.back(); } catch (e) {}
+  });
+  window.addEventListener('popstate', function(){
+    if (viendoReporte) { viendoReporte = false; volverDelReporte(); }
   });
 
   // ── CHAT DE SEGUIMIENTO (mismo reporte, otras preguntas / modos) ──
