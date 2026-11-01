@@ -317,7 +317,12 @@ El entregable estándar (Modo 1) es un **dashboard HTML autocontenido en un solo
 
 **01 · CALIENTA MOTORES.** 4 tarjetas KPI grandes (cuánto se invirtió · resultado principal · costo por resultado · el campeón) con su semáforo. Debajo, una tira "Tablero de métricas clave": totales y promedios ponderados de TODAS las métricas disponibles en el reporte (gasto, resultados, costo por resultado, impresiones, alcance, frecuencia, CPM, CPC, CTR, clics, visitas y su costo, carritos y su costo, pagos iniciados, compras, ROAS, valor de resultados, seguidores de Instagram si existen), cada una con una nota de una línea. Omite las que no existan (no pongas guiones ni inventes) y di cuáles faltan ("Para medir X activa la columna Y en tu próximo reporte").
 
-**02 · ESTRUCTURA DE CAMPAÑAS.** Campañas activas → conjuntos → anuncios, con semáforo 🟢🟡🔴 por nivel y su acción en una línea.
+**02 · ESTRUCTURA DE CAMPAÑAS (mapa visual de TODAS las campañas activas).** Un árbol campaña → conjunto de anuncios → anuncios que muestra **cada** campaña con entrega activa del reporte (no solo la principal) y sus conjuntos y anuncios activos. Los elementos inactivos o sin entrega no se listan uno por uno: se resumen en una sola línea al final ("+12 anuncios inactivos / sin entrega"). Debe leerse de un vistazo por color:
+- **Resumen arriba** en una fila de píldoras: "N campañas activas · 🟢 X escalar/mantener · 🟡 Y vigilar · 🔴 Z apagar/bajar".
+- **Cada nodo es una tarjeta con color según su veredicto:** 🟢 verde (fondo `#dcfce7`, borde izquierdo grueso `#16a34a`) = va bien, se mantiene o se escala; 🟡 ámbar (fondo `#fef3c7`, borde `#d97706`) = vigilar / optimizar; 🔴 rojo (fondo `#fee2e2`, borde `#dc2626`) = bajar presupuesto o apagar. El veredicto de campaña y de conjunto se deduce de sus anuncios (si todos pierden dinero, rojo; si el costo por resultado es sano y hay volumen, verde).
+- **Contenido de cada tarjeta:** tipo en etiqueta pequeña (CAMPAÑA · CONJUNTO · ANUNCIO), nombre en negritas, una insignia grande de acción ("🟢 ESCALAR", "🟢 MANTENER", "🟡 VIGILAR", "🔴 APAGAR", "🔴 BAJAR PRESUPUESTO") y 3–4 chips con sus métricas clave (gasto, resultados, costo por resultado, CTR) más una frase corta con el porqué.
+- **Jerarquía clara:** sangría de 20–24px por nivel y una línea conectora vertical a la izquierda (borde punteado), para que se vea el árbol. Dentro de cada campaña, ordena los conjuntos y anuncios de mejor a peor, de modo que lo verde quede arriba y lo rojo al final.
+- Si falta un dato (por ejemplo el presupuesto diario), no lo repitas en cada tarjeta: agrégalo como **una sola nota** al pie del bloque ("Agrega la columna X en tu próximo reporte para ...").
 
 **03 · MEJOR VS PEOR ANUNCIO.** Dos tarjetas lado a lado: el mejor (borde verde) y el peor (borde rojo), con sus métricas clave y el porqué en una frase.
 
@@ -467,6 +472,7 @@ Antes de dar por terminado el dashboard, verifica:
 - Clasifiqué cada anuncio como Ganador o Apagar.
 - El HERO (resumen exprés) está arriba, es claro y tiene las 3 acciones.
 - La tabla usa lenguaje simple y tiene guía de lectura.
+- El bloque 02 muestra TODAS las campañas activas en árbol, con verde para lo que va bien y rojo para lo que hay que bajar o apagar.
 - Incluí los bloques 01–09 en orden (la Radiografía en 6 pasos es el bloque 06 y el Tablero de métricas clave va en el 01), con la fuga principal marcada.
 - El documento usa el lienzo claro con hero negro y acentos lima, y solo PROFUNDIZA va plegado.
 - Incluí patrones, hipótesis, embudo, fatiga y aprendizaje del algoritmo.
@@ -538,6 +544,7 @@ Cómo traducir las métricas al cliente (en simple): CTR = si el anuncio llama l
 - v1: Documento Maestro original (sección 1 a 30).
 - v2: se agrega la Radiografía del sistema en 6 pasos (sección 31), los escenarios reales de la estrategia de Optimización (sección 32), el tablero de métricas clave, las secciones plegables y el sistema de diseño claro (sección 22). Pasa a ser el módulo "Resultados en Campañas" del Jefe de Resultados.
 - v3: el dashboard adopta el formato del analizador "Mide y Mejora" (hero + bloques 01–09, lienzo claro con acentos lima, sección 21 y 22) y se documenta la entrada de 1 o 2 CSV en español o inglés (sección 34).
+- v3.1: el bloque 02 pasa a ser un mapa visual en árbol de todas las campañas activas, con tarjetas verdes / ámbar / rojas.
 
 ## 34. Cómo puede llegar el reporte (1 o 2 CSV, español o inglés)
 
