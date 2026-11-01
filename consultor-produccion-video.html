@@ -39,6 +39,19 @@
   .topbar h1{justify-self:center;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;font-size:clamp(20px,2.6vw,28px);}
   .back-link{justify-self:start;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-flex;align-items:center;gap:8px;font-family:'Inter',sans-serif;font-weight:600;font-size:14px;color:var(--text-dim);text-decoration:none;padding:7px 16px;border:1px solid var(--line);border-radius:100px;background:var(--surface);transition:.15s;}
   .back-link:hover{border-color:var(--accent);color:var(--accent-text);}
+  /* Botón de volver al Hub de Jefes: solo los signos «<<» (círculo). Al lado, el filtro de producto o servicio (js/jefes-foco.js). */
+  .back-link{width:42px;height:42px;padding:0;justify-content:center;border-radius:50%;flex:0 0 auto;font-weight:800;}
+  .back-link .back-txt{display:none;}
+  .topbar-izq{justify-self:start;display:flex;align-items:center;gap:10px;min-width:0;max-width:100%;}
+  .topbar-izq #foco-slot{flex:0 1 auto;min-width:0;}
+  @media (max-width:900px){
+    body .topbar{height:auto;padding:8px 10px;grid-template-columns:auto minmax(0,1fr);grid-template-areas:"back title" "foco foco";row-gap:8px;}
+    .topbar-izq{display:contents;}
+    .topbar-izq .back-link{grid-area:back;}
+    .topbar-izq #foco-slot{grid-area:foco;}
+    .topbar h1{grid-area:title;justify-self:start;font-size:clamp(18px,5vw,22px);}
+    .page-header{padding-top:118px;}
+  }
   /* Scrollbar delgada y discreta */
   *{scrollbar-width:thin;scrollbar-color:rgba(0,0,0,.22) transparent;}
   *::-webkit-scrollbar{width:8px;height:8px;}
@@ -384,12 +397,17 @@
 </head>
 <body class="piel-blanca">
 <div class="topbar">
-  <a id="back-hub" href="/" class="back-link">&lt;&lt; Hub de Jefes <span style="opacity:.4;">//</span> <span id="brand-marca-label">—</span></a>
+  <div class="topbar-izq">
+    <a id="back-hub" href="/" class="back-link" title="Hub de Jefes" aria-label="Volver al Hub de Jefes">&lt;&lt;<span class="back-txt"> Hub de Jefes <span style="opacity:.4;">//</span> <span id="brand-marca-label">—</span></span></a>
+    <div id="foco-slot"></div>
+  </div>
   <h1>Jefe Productor IA</h1>
 </div>
 <div class="wrap" id="wrap">
   <script>(function(){var b=window.__hub.slug!=='jefeshub'?'/'+window.__hub.slug:null;if(b)document.getElementById('back-hub').href=b;})();</script>
   <script src="/js/storage-client.js"></script>
+  <script>window.__focoConfig = { grupos: true, productos366: true, soloCompletos366: true, campanaLocal: true, pagina: 'productor' }; // la pastilla también deja elegir un grupo completo</script>
+  <script src="/js/jefes-foco.js"></script>
   <script>(async function(){
     var BRANDS=window.__hub.marcas({'rancho-seco':{fallback:'Rancho Seco',color:'#F2C230'},'rim':{fallback:'RIM',color:'#F472B6'},'optica-one':{fallback:'Óptica One',color:'#38BDF8'},'jefeshub':{fallback:'JefesHub',color:'#B8F725'}});
     var key=window.__hub.slug;
@@ -1061,11 +1079,22 @@ function fechaCortaPx(f){
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(f || '');
   return m ? (+m[3]) + ' ' + MESES_PX[+m[2] - 1] : 'Sin fecha';
 }
+// Filtro de arriba (pastilla de foco, la misma de todos los Jefes): con «ecosistema completo» se ve todo; con un producto o un grupo
+// solo salen los posts, historias y campañas de ese producto (o de los productos de ese grupo), más los que aún no tienen producto.
+function pasaFocoPx(r){
+  const f = window.__foco ? window.__foco.get() : null;
+  if (!f || f.esTodo) return true;
+  const pid = r.productoId || '';
+  if (!pid) return true;
+  if (f.productoId) return pid === f.productoId;
+  if (f.esGrupo && f.grupoId) { const p = window.__foco.lista().find((x) => x.id === pid); return !!p && p.grupo_id === f.grupoId; }
+  return true;
+}
 function proximosPx(lista){
   const hoy = isoHoyPx();
   const rank = { programado: 0, proceso: 1, idea: 2 };
   const grupo = (r) => { const f = r.fecha || ''; if (!/^\d{4}-\d{2}-\d{2}$/.test(f)) return 1; return f >= hoy ? 0 : 2; };
-  return lista.filter((r) => estadoPx(r) !== 'publicado').slice().sort((a, b) => {
+  return lista.filter((r) => estadoPx(r) !== 'publicado' && pasaFocoPx(r)).slice().sort((a, b) => {
     const n = (esNuevoPx(b) ? 1 : 0) - (esNuevoPx(a) ? 1 : 0); if (n) return n;
     if (esNuevoPx(a) && esNuevoPx(b)) return b.agregadoEn - a.agregadoEn;
     const d = rank[estadoPx(a)] - rank[estadoPx(b)]; if (d) return d;
@@ -1091,7 +1120,15 @@ function tarjetaPx(r, tab, n){
 function pintarProximos(){
   const host = $('px-prox');
   const posts = proximosPx(contenidoPx.contenido), hist = proximosPx(contenidoPx.historias), camps = proximosPx(contenidoPx.campanas);
-  if (!posts.length && !hist.length && !camps.length) { host.hidden = true; host.innerHTML = ''; return; }
+  if (!posts.length && !hist.length && !camps.length) {
+    const f = window.__foco ? window.__foco.get() : null;
+    if (f && !f.esTodo && (contenidoPx.contenido.length || contenidoPx.historias.length || contenidoPx.campanas.length)) {
+      host.hidden = false;
+      host.innerHTML = '<div class="px-sec"><h2 class="px-sec-tit">Próximos posts</h2><p class="px-sec-sub">Todavía no hay posts, historias ni campañas de este producto o servicio. Elige «Tu ecosistema completo» arriba para ver todo.</p></div>';
+      return;
+    }
+    host.hidden = true; host.innerHTML = ''; return;
+  }
   host.hidden = false;
   const sec = (titulo, sub, lista, tab) => lista.length
     ? `<div class="px-sec"><h2 class="px-sec-tit">${titulo}</h2><p class="px-sec-sub">${sub}</p><div class="px-row">${lista.map((r, i) => tarjetaPx(r, tab, i + 1)).join('')}</div></div>` : '';
@@ -1840,7 +1877,7 @@ async function cargarContenidoPx(){
     const r = await window.storage.get(ANUNCIOS_KEY);
     const lista = r && r.value ? JSON.parse(r.value) : [];
     contenidoPx.campanas = (Array.isArray(lista) ? lista : []).filter((c) => c && c.id).map((c) => ({
-      id: c.id, gancho: c.titulo || '', estado: c.estado || 'idea', fecha: c.fecha || '', hora: c.hora || '',
+      id: c.id, productoId: c.producto_id || '', gancho: c.titulo || '', estado: c.estado || 'idea', fecha: c.fecha || '', hora: c.hora || '',
       caption: c.copy_publicacion || '', descripcion: c.objetivo || '',
       promptImagen: c.prompt_imagen || '', promptVideo: c.prompt_video || '', miniatura: c.miniatura || '',
       raw: c,
@@ -1858,6 +1895,7 @@ chatIniciado = true;
 pintarChatThread();
 cargarConversacion();
 cargarContenidoPx();
+if (window.__foco) { window.__foco.onChange(() => pintarProximos()); Promise.resolve(window.__foco.ready).then(() => pintarProximos()).catch(() => {}); }
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(autoAlto);
 </script>
 
