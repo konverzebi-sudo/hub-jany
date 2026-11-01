@@ -132,6 +132,9 @@
     'align-items:center;justify-content:center;flex:0 0 auto!important;font-size:0!important;letter-spacing:0!important;overflow:hidden;text-overflow:clip!important;white-space:nowrap;text-decoration:none!important;gap:0!important}',
     '.topbar .back-link>*{display:none!important}',
     '.topbar .back-link::before{content:"<<";font:500 12px "JetBrains Mono",ui-monospace,monospace;letter-spacing:.04em}',
+    // Con la barra lateral abierta, el título va al centro del espacio de la derecha (no de toda la pantalla).
+    '@media (min-width:901px){body.jn-on .topbar h1{position:absolute!important;left:calc(var(--jn-w,0px) + (100% - var(--jn-w,0px)) / 2)!important;top:50%;',
+    'transform:translate(-50%,-50%);margin:0!important;max-width:calc(100% - var(--jn-w,0px) - 240px);text-align:center}}',
     '@media (max-width:900px){.topbar h1{white-space:normal!important;overflow:visible!important;text-overflow:clip!important;text-align:center;font-size:clamp(17px,5vw,22px)!important;line-height:1.15!important}}',
     // Teclado: se ve en qué botón estás (solo al navegar con teclado, no al tocar).
     'a:focus-visible,button:focus-visible,[role="button"]:focus-visible,summary:focus-visible{outline:2px solid #8FC400!important;outline-offset:2px}',
