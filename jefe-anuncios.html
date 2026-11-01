@@ -257,16 +257,21 @@
   .item-card textarea.gancho-input{font-size:18px;}
 
   /* TABLERO SEMANAL + EDITOR (formato Jefe de Contenido) */
-  .pcard{background:var(--surface);border:1px solid var(--line);border-radius:18px;overflow:hidden;cursor:pointer;box-shadow:var(--shadow-card);transition:transform .12s,box-shadow .12s;outline:none;}
-  .pcard:hover,.pcard:focus-visible{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.12);}
-  .pthumb{position:relative;height:104px;background:linear-gradient(135deg,var(--a),var(--b));display:flex;align-items:center;justify-content:center;}
-  .pthumb-ico{font-size:34px;opacity:.85;}
+  .pcard{display:flex;flex-direction:column;text-align:left;padding:8px 8px 0;border-radius:20px;overflow:hidden;background:#fff;cursor:pointer;box-shadow:0 2px 14px rgba(0,0,0,.09);transition:transform .15s,box-shadow .15s;outline:none;}
+  .pcard:hover,.pcard:focus-visible{transform:translateY(-3px);box-shadow:0 12px 28px rgba(0,0,0,.16);}
+  .pthumb{position:relative;display:flex;align-items:center;justify-content:center;aspect-ratio:9/14;border-radius:14px;overflow:hidden;background:linear-gradient(160deg,var(--a),var(--b));}
+  .pthumb::after{content:'';position:absolute;inset:auto 0 0 0;height:34%;background:linear-gradient(to top,rgba(0,0,0,.28),transparent);pointer-events:none;}
+  .pthumb-num{position:absolute;left:8px;top:8px;z-index:2;width:26px;height:26px;border-radius:50%;background:#fff;color:#1A1A1A;font:800 13px 'Sora',sans-serif;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.18);}
+  .pthumb-play{position:relative;z-index:1;width:56px;height:56px;border-radius:50%;background:#fff;color:#1A1A1A;display:flex;align-items:center;justify-content:center;font-size:22px;padding-left:4px;box-shadow:0 4px 14px rgba(0,0,0,.2);}
+  .pthumb-play.sin{padding-left:0;font-size:24px;}
+  .pthumb-red{position:absolute;right:8px;bottom:8px;z-index:2;background:#1A1A1A;color:#fff;font:800 10.5px 'Inter',sans-serif;letter-spacing:.04em;text-transform:uppercase;padding:5px 10px;border-radius:100px;max-width:calc(100% - 16px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .pthumb-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
   .pthumb .pchip,.pthumb .pthumb-etapa{z-index:1;}
   .pchip{position:absolute;top:10px;left:10px;background:#fff;border-radius:100px;padding:3px 11px;font-size:12.5px;font-weight:700;color:#1A1A1A;text-transform:capitalize;}
-  .pthumb-etapa{position:absolute;bottom:10px;left:10px;}
-  .pbody{padding:12px 14px 14px;display:flex;flex-direction:column;gap:8px;}
-  .ptitle{font-family:'Sora',sans-serif;font-weight:800;font-size:15.5px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;}
+  .pthumb-etapa{position:absolute;top:8px;right:8px;z-index:2;font-size:11.5px;padding:3px 9px;}
+  .pbody{padding:0 6px 12px;display:flex;flex-direction:column;gap:6px;}
+  .ptitle{margin-top:11px;font:600 14px/1.35 'Inter',sans-serif;color:var(--text);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;min-height:2.7em;}
+  .cards-grid.px-grid{grid-template-columns:repeat(auto-fill,minmax(min(190px,100%),1fr));gap:14px;}
   .pnets{display:flex;flex-wrap:wrap;gap:5px;}
   .pnet{font-size:11.5px;font-weight:700;background:var(--surface-2);color:var(--text-dim);border-radius:100px;padding:2px 9px;}
   .pprod{background:var(--accent-soft);color:var(--accent-text);}
@@ -1169,6 +1174,7 @@ function abrirEstiloRef(){
 }
 
 async function cargarInicial(){
+  try{ const r=await window.storage.get(CLIENTE_ID+':brand-book.visual'); const v = r&&r.value?JSON.parse(r.value):null; paletaMarca = v && Array.isArray(v.paleta) ? v.paleta.map(hexMarca).filter(Boolean) : []; }catch(e){ paletaMarca=[]; }
   try{ const r=await window.storage.get(CLIENTE_ID+':grupos-negocio'); grupos = r&&r.value?JSON.parse(r.value):[]; }catch(e){ grupos=[]; }
   try{ const r=await window.storage.get(CLIENTE_ID+':catalogo-productos'); productos = r&&r.value?JSON.parse(r.value):[]; }catch(e){ productos=[]; }
   try{
@@ -2103,7 +2109,7 @@ function renderGuardadas(container){
     const seccion = document.createElement('div');
     seccion.className = 'estado-seccion';
     seccion.innerHTML = `<p class="estado-seccion-title">${escHtml(nombreDe(id))} <span class="estado-count">${delProducto.length}</span></p>
-      <div class="cards-grid">${delProducto.map(c=>buildPostCard(c, true)).join('')}</div>`;
+      <div class="cards-grid px-grid">${delProducto.map((c,i)=>buildPostCard(c, true, i+1)).join('')}</div>`;
     container.appendChild(seccion);
   });
   container.querySelectorAll('.pcard').forEach(el=>{
@@ -3325,21 +3331,37 @@ function abrirFechaPicker(ancla, item){
 
 // Tarjeta compacta (miniatura con degradado por estado, título, chips, estado + hora). Al pulsarla
 // se abre el editor completo.
-function buildPostCard(item, conFecha){
+// Colores de la marca (los de su Brand Book, leídos en vivo por marca): fondo de la miniatura cuando el anuncio aún no tiene imagen.
+let paletaMarca = [];
+function hexMarca(v){ const h = typeof v === 'string' ? v : (v && (v.hex || v.color)) || ''; const m = /^#?([0-9a-f]{6}|[0-9a-f]{3})$/i.exec(String(h).trim()); if(!m) return ''; const x = m[1].length === 3 ? m[1].replace(/./g, '$&$&') : m[1]; return '#' + x.toUpperCase(); }
+function luzMarca(h){ const n = parseInt(h.slice(1), 16); return (0.2126 * (n >> 16) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255; }
+function oscurecerMarca(h, f){ const n = parseInt(h.slice(1), 16); const c = (v)=>Math.max(0, Math.round(v * f)).toString(16).padStart(2, '0'); return '#' + c(n >> 16) + c((n >> 8) & 255) + c(n & 255); }
+// Par de colores para la tarjeta número i: va rotando por la paleta para que no se vean todas iguales. Sin paleta guardada, los del estado.
+function parMarca(i, gr){
+  const cols = paletaMarca.filter(h=>luzMarca(h) < 0.93);
+  if(!cols.length) return [gr[0], gr[1]];
+  const a = cols[i % cols.length];
+  const b = cols.length > 1 ? cols[(i + 1) % cols.length] : oscurecerMarca(a, 0.6);
+  return [a, b];
+}
+function buildPostCard(item, conFecha, n){
   const est = ESTADO_LABEL[item.estado] ? item.estado : 'idea';
-  const gr = ESTADO_GRAD[est];
-  const prod = productos.find(p=>p&&p.id===item.producto_id);
+  const [ca, cb] = parMarca((n || 1) - 1, ESTADO_GRAD[est]);
   const redes = redesDe(item).map(k=>(REDES.find(r=>r[0]===k)||[])[1]).filter(Boolean);
+  const th = linkMiniatura(item);
+  const esVideo = !item.formato || item.formato === 'reel';
+  const play = `<span class="pthumb-play${esVideo ? '' : ' sin'}" aria-hidden="true">${esVideo ? '▶' : (FORMATO_ICO[item.formato]||'🖼️')}</span>`;
+  const red = redes.length ? `<span class="pthumb-red">${escHtml(redes[0])}${redes.length > 1 ? ' +'+(redes.length-1) : ''}</span>` : '';
   return `<article class="pcard" tabindex="0" role="button" data-id="${escHtml(item.id)}" aria-label="${escHtml(item.titulo||'Campaña')}">
-    <div class="pthumb" style="--a:${gr[0]};--b:${gr[1]};">
-      <span class="pthumb-ico">${FORMATO_ICO[item.formato]||'🎬'}</span>
-      ${(()=>{ const th = linkMiniatura(item); return th ? `<img class="pthumb-img" src="${th}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''; })()}
-      <span class="pchip">${escHtml(item.formato||'reel')}</span>
+    <div class="pthumb" style="--a:${ca};--b:${cb};">
+      ${th ? `<img class="pthumb-img" src="${th}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}
+      ${n ? `<span class="pthumb-num">${n}</span>` : ''}
+      ${th && !esVideo ? '' : play}
       <span class="badge badge-${item.etapa} pthumb-etapa">${ETAPA_LABEL[item.etapa]||item.etapa}</span>
+      ${red}
     </div>
     <div class="pbody">
       <div class="ptitle">${escHtml(item.titulo||'(sin título)')}</div>
-      <div class="pnets">${prod?`<span class="pnet pprod">◆ ${escHtml(prod.nombre)}</span>`:''}${redes.map(r=>`<span class="pnet">${escHtml(r)}</span>`).join('')}</div>
       <div class="pfoot"><span class="ppill ${est}">${ESTADO_LABEL[est]}</span><span class="phora">${escHtml(conFecha?fechaCortaCard(item)+(item.hora?' · '+item.hora:''):(item.hora||''))}</span></div>
       ${conFecha && metaIncompleta(item) ? `<button type="button" class="pcard-meta" data-completar-meta="${escHtml(item.id)}" title="Le falta el título, el botón o el link de Meta Ads Manager">✨ Completar campos de Meta</button>` : ''}
     </div>
