@@ -144,14 +144,15 @@ function formatearIdentidad(d) {
 // se agrega una combinación nueva ahí, agregarla aquí también para que los prompts de imagen/video
 // puedan describirla en vez de inventar una tipografía genérica.
 const FONT_COMBOS_AI = {
-  'bold-impact': { nombre: 'Bold Impact', fuente: 'Bebas Neue' },
-  'modern-clean': { nombre: 'Modern Clean', fuente: 'Montserrat' },
-  'elegant-luxury': { nombre: 'Elegant Luxury', fuente: 'Playfair Display' },
-  'sporty-dynamic': { nombre: 'Sporty Dynamic', fuente: 'Oswald' },
-  'varsity-sport': { nombre: 'Varsity Sport', fuente: 'Anton' },
-  'western-rustic': { nombre: 'Western Rustic', fuente: 'Rye' },
-  'friendly-rounded': { nombre: 'Friendly Rounded', fuente: 'Quicksand' },
-  'tech-digital': { nombre: 'Tech Digital', fuente: 'Space Grotesk' },
+  'bold-impact': { nombre: 'Bold Impact', fuente: 'Bebas Neue', texto: 'Inter' },
+  'modern-clean': { nombre: 'Modern Clean', fuente: 'Montserrat', texto: 'Lato' },
+  'elegant-luxury': { nombre: 'Elegant Luxury', fuente: 'Playfair Display', texto: 'Raleway' },
+  'sporty-dynamic': { nombre: 'Sporty Dynamic', fuente: 'Oswald', texto: 'Roboto' },
+  'varsity-sport': { nombre: 'Varsity Sport', fuente: 'Anton', texto: 'Barlow' },
+  'western-rustic': { nombre: 'Western Rustic', fuente: 'Rye', texto: 'Roboto Slab' },
+  'friendly-rounded': { nombre: 'Friendly Rounded', fuente: 'Quicksand', texto: 'Nunito' },
+  'tech-digital': { nombre: 'Tech Digital', fuente: 'Space Grotesk', texto: 'Inter' },
+  'warm-editorial': { nombre: 'Warm Editorial', fuente: 'DM Serif Display', texto: 'DM Sans' },
 };
 
 // Datos reales del paso "Logo y Colores" del ADN (brand-book.visual) -- sin esto los prompts de
@@ -165,7 +166,7 @@ function formatearVisual(d) {
   }
   const combo = d.tipografia_combo && FONT_COMBOS_AI[d.tipografia_combo];
   if (combo) {
-    lineas.push(`Tipografía real de la marca: ${combo.fuente} (estilo "${combo.nombre}") -- si prompt_imagen describe texto en pantalla, pide que se vea en esta tipografía.`);
+    lineas.push(`Tipografía real de la marca: títulos en ${combo.fuente} y textos en ${combo.texto} (estilo "${combo.nombre}") -- si prompt_imagen describe texto en pantalla, pide los títulos en ${combo.fuente} y el texto chico en ${combo.texto}.`);
   }
   if (d.logo) {
     lineas.push('La marca YA tiene un logo real definido -- en prompt_imagen y prompt_video nunca describas ni inventes un logo, símbolo o ícono de marca nuevo; en vez de eso, si el anuncio lo pide, indica dejar un espacio limpio para pegar el logo real después.');

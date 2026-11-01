@@ -64,9 +64,17 @@ const IMGGEN_SIZE = '1024x1024';
 const IMGGEN_SIZE_VERTICAL = '1024x1536'; // lo más cercano a un reel (9:16) que da gpt-image-1
 const IMGGEN_FORMATOS_CUADRADOS = ['carrusel', 'imagen']; // el resto (reel, video, historia, campaña) sale vertical
 // Debe reflejar los mismos ids/fuentes que FONT_COMBOS en ADN.html (paso "Logo y Colores").
+// Combinación de letras del ADN (paso Logo y Colores): [títulos, texto].
 const IMGGEN_FUENTES = {
-  'bold-impact': 'Bebas Neue', 'modern-clean': 'Montserrat', 'elegant-luxury': 'Playfair Display', 'sporty-dynamic': 'Oswald',
-  'varsity-sport': 'Anton', 'western-rustic': 'Rye', 'friendly-rounded': 'Quicksand', 'tech-digital': 'Space Grotesk',
+  'bold-impact': ['Bebas Neue', 'Inter'],
+  'modern-clean': ['Montserrat', 'Lato'],
+  'elegant-luxury': ['Playfair Display', 'Raleway'],
+  'sporty-dynamic': ['Oswald', 'Roboto'],
+  'varsity-sport': ['Anton', 'Barlow'],
+  'western-rustic': ['Rye', 'Roboto Slab'],
+  'friendly-rounded': ['Quicksand', 'Nunito'],
+  'tech-digital': ['Space Grotesk', 'Inter'],
+  'warm-editorial': ['DM Serif Display', 'DM Sans'],
 };
 const IMGGEN_QUALITY = ['low', 'medium', 'high'].includes(process.env.IMGGEN_QUALITY) ? process.env.IMGGEN_QUALITY : 'high';
 // Imagen de referencia opcional (como subir una foto en ChatGPT): el front la reduce a ~1024px antes de
@@ -509,7 +517,7 @@ async function indicacionesImagen(clienteId, post, usarEstilo, tamano) {
   else if (tamano === 'post') lineas.push('Formato de post vertical para el feed (4:5): composición vertical con todo lo importante en el centro (los bordes pueden recortarse un poco).');
   else if (vertical) lineas.push('Formato vertical tipo Reel/Historia (9:16): composición vertical y deja libre la franja superior y la inferior (zonas que tapan las apps) sin elementos importantes.');
   const fuente = visual && IMGGEN_FUENTES[visual.tipografia_combo];
-  if (fuente) lineas.push(`Todo texto dentro de la imagen va en la tipografía de la marca: ${fuente}.`);
+  if (fuente) lineas.push(`Texto dentro de la imagen en las letras de la marca: títulos en ${fuente[0]} y texto chico en ${fuente[1]}.`);
   if (visual && Array.isArray(visual.paleta) && visual.paleta.length) lineas.push(`Usa exactamente los colores de la marca: ${visual.paleta.slice(0, 6).join(', ')}.`);
   const logo = visual && logoDesdeDataUrl(visual.logo);
   if (logo) lineas.push('La última imagen adjunta es el logo REAL de la marca: colócalo pequeño y exactamente igual (sin redibujarlo ni cambiar sus colores) en una esquina inferior. La escena es nueva: no copies la composición del logo.');
