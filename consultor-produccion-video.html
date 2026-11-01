@@ -173,6 +173,17 @@
   .px-modal .px-detalle{border-top:none;margin:0;padding:0;}
   /* ficha (mismo estilo que el editor del Jefe de Contenido) */
   body.ed-abierto{overflow:hidden;}
+  /* El chat del Jefe vive en una esquina: siempre oculto hasta que tocan el botón. */
+  .chat-hero{position:fixed;right:20px;bottom:92px;z-index:150;width:min(440px,calc(100vw - 24px));max-width:none;max-height:calc(100vh - 120px);overflow-y:auto;margin:0;padding:14px 14px 18px;background:#fff;border:1px solid var(--line);border-radius:20px;box-shadow:0 18px 50px rgba(0,0,0,.28);display:none;}
+  .chat-hero.abierto{display:flex;}
+  .px-fab{position:fixed;right:20px;bottom:20px;z-index:151;width:60px;height:60px;border-radius:50%;border:none;background:var(--accent);box-shadow:0 8px 24px rgba(0,0,0,.28);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s;}
+  .px-fab:hover{transform:translateY(-2px);filter:brightness(1.05);}
+  .px-fab img{width:36px;height:36px;object-fit:contain;}
+  .px-chat-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 10px;font:800 15px 'Sora',sans-serif;}
+  .px-chat-top button{border:none;background:var(--surface);width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:14px;}
+  .px-trabajo{padding:0;background:none;border:none;margin:0 0 10px;}
+  #px-chat-box #chat-thread{max-height:38vh;}
+  @media (max-width:560px){.chat-hero{right:12px;bottom:84px;}.px-fab{right:12px;bottom:14px;}}
   .ed-overlay{position:fixed;inset:0;z-index:200;background:rgba(15,11,22,.5);display:flex;align-items:center;justify-content:center;padding:24px;animation:edFade .2s ease both;}
   @keyframes edFade{from{opacity:0}to{opacity:1}}
   @keyframes edPop{from{opacity:0;transform:translateY(16px) scale(.98)}to{opacity:1;transform:none}}
@@ -389,7 +400,8 @@
   </div>
 
   <!-- Buscador del Jefe: un solo cuadro para la guía (chat) y para crear imágenes -->
-  <div class="chat-hero">
+  <div class="chat-hero" id="px-chat-panel">
+    <div class="px-chat-top"><span>Jefe Productor IA</span><button type="button" id="px-chat-cerrar" aria-label="Cerrar el chat">✕</button></div>
     <div class="px-trabajo" id="px-trabajo" hidden></div>
     <div class="modo-switch" role="group" aria-label="¿Qué quieres hacer?">
       <button class="modo-pill on" type="button" data-modo="guia">💬 Guía</button>
@@ -437,6 +449,7 @@
     <div id="imggen-result" class="imggen-result"></div>
   </div>
 
+  <button type="button" class="px-fab" id="px-fab" aria-label="Abrir el chat con el Jefe Productor IA" title="Chat con el Jefe Productor IA"><img src="/img/jefe-produccion-video-logo-negro.webp" alt="" aria-hidden="true"></button>
   <section class="px-prox" id="px-prox" hidden></section>
 
   <div id="content"></div>
@@ -699,7 +712,16 @@ function elegirSugerencia(i){
   el.value = s.msg; autoAlto(); el.focus();
 }
 
+let chatIniciado = false; // hasta que termina de cargar, cambiar de modo no abre el chat
+function abrirChatPx(){ $('px-chat-panel').classList.add('abierto'); }
+function cerrarChatPx(){ $('px-chat-panel').classList.remove('abierto'); }
+$('px-fab').addEventListener('click', () => {
+  const p = $('px-chat-panel');
+  if (p.classList.toggle('abierto')) setTimeout(() => $('chat-input').focus({ preventScroll: true }), 50);
+});
+$('px-chat-cerrar').addEventListener('click', cerrarChatPx);
 function setModo(m){
+  if (chatIniciado) abrirChatPx(); // cualquier cosa que le pida algo al Jefe abre su chat
   modo = m;
   document.querySelectorAll('.modo-pill').forEach((p) => p.classList.toggle('on', p.dataset.modo === m));
   $('chat-input').placeholder = placeholderActual();
@@ -1138,17 +1160,9 @@ function detalleHtmlPx(r, tab, modoDetalle){
 }
 function pintarTrabajoPx(){
   const box = $('px-trabajo');
-  const r = itemPx();
-  if (!r) { box.hidden = true; box.innerHTML = ''; return; }
+  if (!itemPx() || !confirmPx) { box.hidden = true; box.innerHTML = ''; return; }
   box.hidden = false;
-  box.innerHTML = `<div class="px-trabajo-txt"><span class="px-trabajo-lbl">Trabajando en</span><strong>${escHtml(r.gancho || '(sin título)')}</strong></div>
-    <button type="button" class="px-quitar" data-px="quitar" title="Quitar" aria-label="Quitar">✕</button>
-    ${progresoPxHtml(r, trabajoPx.tab)}${confirmarPxHtml()}`;
-  box.querySelectorAll('[data-px]').forEach((b) => b.addEventListener('click', async () => {
-    const a = b.dataset.px;
-    if (a === 'quitar') quitarTrabajoPx();
-  }));
-  box.querySelectorAll('[data-paso]').forEach((b) => b.addEventListener('click', () => accionPasoPx(b.dataset.paso, b.classList.contains('ok'))));
+  box.innerHTML = confirmarPxHtml();
   enlazarConfirmarPx(box);
 }
 // Avance de la publicación: qué ya tiene (✓) y qué le falta; tocar un paso pendiente hace que el Jefe te ayude ahí mismo.
@@ -1830,6 +1844,7 @@ async function cargarContenidoPx(){
 /* ─── INIT ─── */
 renderContenido();
 setModo('guia');
+chatIniciado = true;
 pintarChatThread();
 cargarConversacion();
 cargarContenidoPx();
