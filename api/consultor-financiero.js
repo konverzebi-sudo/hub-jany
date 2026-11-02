@@ -382,7 +382,7 @@ async function llamarClaudeChat({ system, messages, maxTokens, cacheHistorial })
   }
   const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
   if (!text) return { ok: false, status: 502, error: 'Respuesta vacía del modelo.' };
-  return { ok: true, text, usage: data.usage };
+  return { ok: true, text, usage: data.usage, stop: data.stop_reason };
 }
 
 // total = mensajes válidos antes del recorte (para decidir si el historial se puede cachear).
@@ -472,7 +472,8 @@ async function handleMetaAds(req, res, body) {
   const r = await llamarClaudeChat({ system, messages: limpio, maxTokens: 12000, cacheHistorial: { total, max: MAX_MESSAGES_METAADS } });
   if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
   await registrarUsoTokens(clienteId, 'consultor-optimizacion', r.usage);
-  return res.status(200).json({ text: extraerHtmlDashboard(r.text) });
+  // truncado = el modelo se quedó sin espacio: la página le pide que continúe y junta las partes
+  return res.status(200).json({ text: extraerHtmlDashboard(r.text), truncado: r.stop === 'max_tokens' });
 }
 
 // ---------- rama Generador de Imágenes (Jefe de Producción de Video) ----------
