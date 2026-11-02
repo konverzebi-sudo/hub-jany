@@ -691,6 +691,20 @@
 
   analyzeBtn.addEventListener('click', function(){ analizarReporte(); });
 
+  // Tasa de cierre real: la que el usuario midió en el módulo WhatsApp / Mensajes (ventas ÷ leads recibidos). Si no existe, el
+  // deslizador arranca en un valor de simulación marcado como tal.
+  async function leerCierreBase(){
+    try {
+      var r = await window.storage.get(CLIENTE_ID + ':conversion-cierre-diagnostico-mensaje');
+      var d = r && r.value ? JSON.parse(r.value) : null;
+      if (d && d.leadsRecibidos > 0 && d.ventasCerradas >= 0 && d.ventasCerradas != null) {
+        var pct = Math.round(d.ventasCerradas / d.leadsRecibidos * 100);
+        if (pct >= 1 && pct <= 100) return { cierreBase: pct, cierreReal: true };
+      }
+    } catch (e) {}
+    return { cierreBase: 10, cierreReal: false };
+  }
+
   async function analizarReporte(){
     if (!csvText) return;
     document.getElementById('upload-section').style.display = 'none';
@@ -698,6 +712,10 @@
     document.getElementById('loadingBlock').style.display = 'flex';
     document.getElementById('resultBlock').style.display = 'none';
     iniciarLoadingSteps();
+
+    // Tablero numérico (KPIs, gráficas, calculadora de cierre y meta): se calcula aquí del CSV y se inyecta en el reporte.
+    var tablero = null;
+    try { tablero = MetaTablero.calcular(csvFiles, await leerCierreBase()); } catch (e) { tablero = null; }
 
     try {
       const response = await fetch('/api/consultor-financiero', {
@@ -720,6 +738,7 @@
         return;
       }
       ultimoDashboardHtml = limpiarDashboardHtml(data.text);
+      if (tablero) { try { ultimoDashboardHtml = MetaTablero.inyectar(ultimoDashboardHtml, tablero); } catch (e) {} }
       guardarEnHistorial(csvFileName, ultimoDashboardHtml);
       mostrarDashboard(ultimoDashboardHtml);
     } catch (err) {
@@ -866,6 +885,7 @@
   }
 </script>
 
+<script src="/js/meta-tablero.js"></script>
 <script src="/js/guia-jefe.js"></script>
 <script>
 // ─── RECORRIDO (popup paso a paso): la primera vez se abre solo; después con "Cómo usar este módulo" ───

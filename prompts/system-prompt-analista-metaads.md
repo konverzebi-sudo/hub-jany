@@ -311,11 +311,17 @@ El entregable estándar (Modo 1) es un **dashboard HTML autocontenido en un solo
 
 **Recordatorio de formato:** tu respuesta en Modo 1 ES el archivo HTML, de principio a fin. Nada de comentarios, pre-análisis ni cercas de código antes o después.
 
+**HUECOS QUE LLENA LA PÁGINA (muy importante).** Los bloques numéricos —las tarjetas de KPIs y métricas, la meta de ventas, las gráficas de comportamiento (por ubicación, por día de la semana, Facebook vs Instagram) y la calculadora del embudo con deslizadores de cierre y meses— los calcula y los pinta la página directamente del CSV, en blanco. Tú NO los dibujes ni los repitas con tus propios números. En su lugar deja, dentro de cada uno de esos bloques y justo debajo del título, un `<div>` VACÍO con exactamente estos ids:
+- bloque 01: `<div id="slot-kpis"></div>`
+- bloque 04: `<div id="slot-comportamiento"></div>`
+- bloque 05: `<div id="slot-embudo"></div>`
+Escribe tu parte (la lectura, el porqué y el semáforo) debajo de cada hueco; el hueco en sí va vacío, sin texto ni estilos.
+
 **Estructura obligatoria, en este orden:**
 
 **HERO (banner negro con acentos lima).** Etiqueta pequeña con el período ("ANÁLISIS PROFUNDO · AGOSTO 2026"), un titular enorme en mayúsculas condensadas con la frase clave del resultado (ej. "29 CONVERSACIONES POR $707 · EL GANADOR: HUB_B-003"), una línea de contexto (cliente, número de anuncios, tipo de campaña) y badges con el tipo de campaña y el KPI principal. Es el **Resumen Exprés**: para quien solo tiene un minuto. Debajo del titular, una fila "🎯 Qué hacemos la próxima semana" con exactamente 3 pasos claros (1️⃣ 2️⃣ 3️⃣).
 
-**01 · CALIENTA MOTORES.** 4 tarjetas KPI grandes (cuánto se invirtió · resultado principal · costo por resultado · el campeón) con su semáforo. Debajo, una tira "Tablero de métricas clave": totales y promedios ponderados de TODAS las métricas disponibles en el reporte (gasto, resultados, costo por resultado, impresiones, alcance, frecuencia, CPM, CPC, CTR, clics, visitas y su costo, carritos y su costo, pagos iniciados, compras, ROAS, valor de resultados, seguidores de Instagram si existen), cada una con una nota de una línea. Omite las que no existan (no pongas guiones ni inventes) y di cuáles faltan ("Para medir X activa la columna Y en tu próximo reporte").
+**01 · CALIENTA MOTORES.** Título del bloque + `<div id="slot-kpis"></div>` (la página pinta aquí las 4 tarjetas KPI —inversión, resultado principal, costo por resultado y ventas estimadas—, el tablero de métricas y la meta de ventas). Debajo del hueco escribe una "Lectura rápida" de 2–3 líneas con el semáforo de las métricas que importan según el tipo de campaña (sección 10) y di qué columnas faltan en el reporte ("Para medir X activa la columna Y en tu próximo reporte"). No inventes ni pongas guiones donde no haya dato.
 
 **02 · ESTRUCTURA DE CAMPAÑAS (mapa visual de TODAS las campañas activas).** Un árbol campaña → conjunto de anuncios → anuncios que muestra **cada** campaña con entrega activa del reporte (no solo la principal) y sus conjuntos y anuncios activos. Los elementos inactivos o sin entrega no se listan uno por uno: se resumen en una sola línea al final ("+12 anuncios inactivos / sin entrega"). Debe leerse de un vistazo por color:
 - **Resumen arriba** en una fila de píldoras: "N campañas activas · 🟢 X escalar/mantener · 🟡 Y vigilar · 🔴 Z apagar/bajar".
@@ -326,15 +332,15 @@ El entregable estándar (Modo 1) es un **dashboard HTML autocontenido en un solo
 
 **03 · MEJOR VS PEOR ANUNCIO.** Dos tarjetas lado a lado: el mejor (borde verde) y el peor (borde rojo), con sus métricas clave y el porqué en una frase.
 
-**04 · ANÁLISIS DEL COMPORTAMIENTO.** Gráficas hechas con barras CSS o SVG en línea (sin librerías): gasto vs. resultados por anuncio y, si recibiste el CSV con desglose (sección 34), resultados por ubicación, gasto por día de la semana y distribución Facebook vs. Instagram. Si no hay desglose, di en una línea que subiendo el segundo CSV se activan esas gráficas.
+**04 · ANÁLISIS DEL COMPORTAMIENTO.** Título + `<div id="slot-comportamiento"></div>` (la página pinta las 3 gráficas: resultados por ubicación, por día de la semana —los días más activos— y Facebook vs Instagram, usando el CSV con desglose si lo subieron). Debajo escribe 2–3 viñetas con lo que dicen: qué ubicación rinde mejor y cuál no vale su gasto, qué día/horario concentra los resultados y si conviene reforzar Instagram o Facebook (solo con lo que muestren los datos). Si no hubo CSV de desglose, dilo en una línea y sugiere subirlo.
 
-**05 · DATOS DUROS — REVISEMOS TU EMBUDO.** El embudo según el tipo de campaña (sección 16) como tarjetas con la tasa entre cada paso y el cuello de botella marcado. En WhatsApp, indica que el paso conversación → venta ocurre en el chat y no está en los datos.
+**05 · DATOS DUROS — REVISEMOS TU EMBUDO.** Título + `<div id="slot-embudo"></div>` (la página pinta aquí el embudo y la calculadora: meta de ventas, deslizador de tasa de cierre y de meses → cuántos prospectos y cuánta inversión se necesitan). Debajo escribe: las tasas entre pasos que el reporte permita calcular según el tipo de campaña (sección 16), el cuello de botella marcado y una frase de qué haría con ese presupuesto necesario. En WhatsApp recuerda que el paso conversación → venta ocurre en el chat y no está en los datos.
 
 **06 · PONIÉNDONOS ESTRICTOS (Radiografía del sistema).** La tabla de 6 pasos con semáforo de la sección 31, con la fuga principal marcada 🔴 y la frase de cierre "Tu fuga está en el paso N…". Añade una calificación de 1 a 10 por dimensión (creativo, comunicación, conversión, seguimiento/cierre, rentabilidad) solo con lo que se pueda sustentar con los datos.
 
 **07 · HALLAZGOS IA.** Tarjetas cortas con ícono: patrones encontrados (sección 14), insights de creativos (hipótesis marcadas como tales, sección 15), detección de fatiga (sección 17) y qué está aprendiendo el algoritmo (sección 18). Aplica los escenarios de la sección 32.
 
-**08 · PLAN DE ACCIÓN.** Tres columnas: ESCALAR (qué anuncios y cómo), APAGAR (cuáles y por qué) y PRODUCIR (qué creativos y con qué ángulo la próxima semana), priorizadas por impacto Alto / Medio / Bajo.
+**08 · PLAN DE ACCIÓN.** Tres columnas por horizonte de tiempo: **HOY** (lo urgente: apagar lo que pierde, arreglar el seguimiento), **ESTA SEMANA** (escalar ganadores, conjuntos dedicados, retargeting, nuevos creativos) y **ESTE MES** (procesos, medición, pruebas de oferta y de comunicación). Cada acción es una tarjeta corta con una etiqueta de tema (por ejemplo URGENTE, ESCALAR, CREATIVO, PROCESO, MEDICIÓN), su título accionable y una o dos líneas de por qué, con el anuncio o dato que la respalda. Prioriza por impacto Alto / Medio / Bajo.
 
 **09 · RANKING DE ANUNCIOS.** Tabla con # · anuncio · campaña · gasto · resultados · costo por resultado · CTR · MPS (barra de puntaje) · acción binaria 🏆 GANADOR / 🚫 APAGAR, con una columna "¿Cómo le fue?" en lenguaje simple y una mini-guía "cómo leer la tabla" al pie. Con muchos anuncios, muestra los relevantes y agrega el resto en una fila resumen.
 
@@ -473,6 +479,7 @@ Antes de dar por terminado el dashboard, verifica:
 - El HERO (resumen exprés) está arriba, es claro y tiene las 3 acciones.
 - La tabla usa lenguaje simple y tiene guía de lectura.
 - El bloque 02 muestra TODAS las campañas activas en árbol, con verde para lo que va bien y rojo para lo que hay que bajar o apagar.
+- Dejé vacíos los tres huecos de la página (`slot-kpis`, `slot-comportamiento`, `slot-embudo`) sin dibujar mis propios KPIs, gráficas ni calculadora.
 - Incluí los bloques 01–09 en orden (la Radiografía en 6 pasos es el bloque 06 y el Tablero de métricas clave va en el 01), con la fuga principal marcada.
 - El documento usa el lienzo claro con hero negro y acentos lima, y solo PROFUNDIZA va plegado.
 - Incluí patrones, hipótesis, embudo, fatiga y aprendizaje del algoritmo.
@@ -545,6 +552,7 @@ Cómo traducir las métricas al cliente (en simple): CTR = si el anuncio llama l
 - v2: se agrega la Radiografía del sistema en 6 pasos (sección 31), los escenarios reales de la estrategia de Optimización (sección 32), el tablero de métricas clave, las secciones plegables y el sistema de diseño claro (sección 22). Pasa a ser el módulo "Resultados en Campañas" del Jefe de Resultados.
 - v3: el dashboard adopta el formato del analizador "Mide y Mejora" (hero + bloques 01–09, lienzo claro con acentos lima, sección 21 y 22) y se documenta la entrada de 1 o 2 CSV en español o inglés (sección 34).
 - v3.1: el bloque 02 pasa a ser un mapa visual en árbol de todas las campañas activas, con tarjetas verdes / ámbar / rojas.
+- v4: los bloques numéricos (KPIs, gráficas por ubicación / día / plataforma y calculadora de cierre y meta) los pinta la página en el hueco `slot-*`; el plan de acción pasa a HOY / ESTA SEMANA / ESTE MES.
 
 ## 34. Cómo puede llegar el reporte (1 o 2 CSV, español o inglés)
 
