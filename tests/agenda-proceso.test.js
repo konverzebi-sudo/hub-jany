@@ -416,3 +416,11 @@ test('pendientes de hoy: también muestra lo atrasado de los últimos días que 
   assert.ok(agenda.includes('function atrasadosDe(') && agenda.includes('Se quedaron atrás'), 'sección de atrasados en el panel');
   assert.ok(agenda.includes("info.hecha || vistos.has(info.clave)"), 'solo lo que sigue sin hacer y sin repetir etapas largas');
 });
+
+test('los días que el usuario fija para cada etapa se guardan en "tiempos" y se limpian', () => {
+  assert.deepEqual(AP.limpiarProceso({ campanas: {}, tiempos: { grabar: 3, nada: 4, editar: 'x', definir: 999 } }), { campanas: {}, tiempos: { grabar: 3, definir: AP.MAX_DURACION } });
+  assert.deepEqual(AP.limpiarProceso({ campanas: {}, tiempos: {} }), { campanas: {} });
+  const agenda = fs.readFileSync(path.join(RAIZ, 'consultor-agenda.html'), 'utf8');
+  assert.ok(agenda.includes('function secuenciaTiempos(') && agenda.includes('async function cambiarTiempo('), 'la secuencia de tiempos es editable');
+  assert.ok(agenda.includes('Object.assign(AP.promedios(planesVivos()), proceso.tiempos || {})'), 'lo que fija el usuario manda sobre el promedio');
+});

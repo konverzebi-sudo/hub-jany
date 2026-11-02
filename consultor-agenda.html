@@ -93,6 +93,35 @@
     /* ── Tiempos del proceso de campaña ── */
     .ag-estado { font: 600 12.5px "JetBrains Mono", monospace; color: var(--accent-texto); min-height: 18px; }
     .ag-estado.error { color: #B42318; }
+    /* secuencia de tiempos editable */
+    .seq { border: 1px solid var(--line); border-radius: 18px; background: var(--surface); padding: 16px 16px 14px; margin: 0 0 18px; display: flex; flex-direction: column; gap: 14px; }
+    .seq-cab h3 { margin: 0 0 2px; font: 800 18px Inter, sans-serif; }
+    .seq-cab p { margin: 0; font: 500 14px/1.45 Inter, sans-serif; color: var(--text-dim); }
+    .seq-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px 26px; }
+    .seq-paso { position: relative; width: 148px; border: 1.5px solid var(--line); border-radius: 14px; padding: 10px 10px 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; background: var(--surface); }
+    .seq-paso.fijado { border-color: var(--accent-texto); background: #FAFFE8; }
+    .seq-paso + .seq-paso::before { content: "→"; position: absolute; left: -22px; top: 50%; transform: translateY(-50%); width: 18px; text-align: center; color: var(--text-dim); font: 700 16px Inter, sans-serif; }
+    .seq-num { width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #0F0B16; font: 800 12px/24px Inter, sans-serif; }
+    .seq-nom { font: 800 14.5px Inter, sans-serif; }
+    .seq-cuando { font: 700 11px "JetBrains Mono", monospace; text-transform: uppercase; letter-spacing: .04em; color: var(--accent-texto); }
+    .seq-edit { display: flex; align-items: center; gap: 4px; margin-top: 2px; }
+    .seq-edit button { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--text); font: 800 18px/1 Inter, sans-serif; cursor: pointer; padding: 0; }
+    .seq-edit button:hover { border-color: var(--accent-texto); background: var(--accent-soft); }
+    .seq-edit input { width: 50px; height: 38px; border: 1.5px solid var(--line); border-radius: 10px; text-align: center; font: 800 17px Inter, sans-serif; color: var(--text); background: var(--surface); -moz-appearance: textfield; }
+    .seq-edit input::-webkit-outer-spin-button, .seq-edit input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .seq-edit input:focus { outline: none; border-color: var(--accent-texto); }
+    .seq-dias { font: 600 12px Inter, sans-serif; color: var(--text-dim); margin-top: -2px; }
+    .seq-nota { font: 500 11.5px/1.3 Inter, sans-serif; color: var(--text-dim); }
+    .seq-paso .seq-volver { min-height: 0; padding: 2px; font-size: 12.5px; }
+    .seq-pie { display: flex; flex-wrap: wrap; gap: 8px; }
+    @media (max-width: 640px) {
+      .seq-lista { flex-direction: column; flex-wrap: nowrap; gap: 24px; }
+      .seq-paso { width: auto; display: grid; grid-template-columns: 28px 1fr auto; grid-template-areas: "num nom edit" "num cuando edit" "num nota edit" "num volver edit"; column-gap: 10px; text-align: left; align-items: center; justify-items: start; }
+      .seq-paso + .seq-paso::before { content: "↓"; left: 14px; top: -22px; transform: none; }
+      .seq-num { grid-area: num; align-self: start; justify-self: center; text-align: center; }
+      .seq-nom { grid-area: nom; } .seq-cuando { grid-area: cuando; } .seq-nota { grid-area: nota; } .seq-volver { grid-area: volver; }
+      .seq-edit { grid-area: edit; margin: 0; } .seq-dias { display: none; }
+    }
     .prom-fila { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px; }
     .prom-chip { font: 600 12.5px Inter, sans-serif; padding: 6px 12px; border-radius: 99px; background: var(--surface-2); color: var(--text); }
     .prom-chip b { font-weight: 800; }
@@ -474,7 +503,7 @@ let calMonth = new Date().getMonth();
 let calYear = new Date().getFullYear();
 let agendaData = { eventos: [], temporadas: [] };
 let campanas = [];                 // campañas de Jefe de Temporada (llave <hub>:temporada-campanas)
-let proceso = { campanas: {} };    // plan de cada campaña (llave <hub>:agenda-proceso)
+let proceso = { campanas: {} };    // plan de cada campaña y, en proceso.tiempos, lo que tarda cada etapa según el usuario (llave <hub>:agenda-proceso)
 let catalogo = [];                 // productos del ADN (los da la pastilla de foco)
 let idxContenido = {}, idxAnuncios = {};   // a qué producto/grupo pertenece cada evento
 let promedio = {};                 // promedio real por etapa (se recalcula en cada render)
@@ -560,7 +589,8 @@ const planesVivos = () => {
 const anclasDe = (c) => AP.anclasDeCampana(c);
 const detalleDe = (c) => AP.detalleEfectivo(proceso.campanas[c.id], promedio, anclasDe(c));
 const planDe = (c) => detalleDe(c).plan;
-const calcularPromedio = () => { promedio = AP.promedios(planesVivos()); };
+// Lo que tarda cada etapa en tu negocio: lo que tú fijaste en la secuencia y, si no, lo que has acomodado en tus campañas.
+const calcularPromedio = () => { promedio = Object.assign(AP.promedios(planesVivos()), proceso.tiempos || {}); };
 
 // Cada campaña guarda su plan la primera vez que se ve (con el promedio de ese momento).
 async function asegurarPlanes() {
@@ -585,7 +615,7 @@ async function guardarProceso(ids, ganaRemoto) {
       else delete merged[id];
     });
     proceso.campanas = merged;
-    await window.storage.set(PROCESO_KEY, JSON.stringify({ campanas: merged }));
+    await window.storage.set(PROCESO_KEY, JSON.stringify(proceso.tiempos && Object.keys(proceso.tiempos).length ? { campanas: merged, tiempos: proceso.tiempos } : { campanas: merged }));
     setEstado('Guardado ✓');
     setTimeout(() => { if ($('ag-estado').textContent === 'Guardado ✓') setEstado(''); }, 2200);
   } catch (e) {
@@ -659,7 +689,7 @@ async function reiniciarEtapa(campId, etapaId) {
   const planes = {};
   Object.keys(planesVivos()).forEach((id) => { planes[id] = Object.assign({}, proceso.campanas[id]); });
   delete planes[campId][etapaId];
-  const base = AP.instantanea(AP.promedios(planes));
+  const base = AP.instantanea(Object.assign(AP.promedios(planes), proceso.tiempos || {}));
   plan[etapaId] = AP.limpiarEtapa({ n: base[etapaId].n, h: plan[etapaId].h });   // vuelve a la duración sugerida y a su lugar según las fechas: ya no cuenta como "ajustada por ti"
   calcularPromedio();
   render();
@@ -888,16 +918,8 @@ function renderProceso() {
 
   // Promedio real: las etapas salen de lo que el usuario ha acomodado; precampaña y postcampaña, de las fechas que ya puso en Temporada.
   const pp = AP.promedioPrePost(todas.map(anclasDe));
-  if (Object.keys(promedio).length || pp.nPre || pp.nPost) {
-    const fila = document.createElement('div');
-    fila.className = 'prom-fila';
-    const chip = (html) => { const c = document.createElement('span'); c.className = 'prom-chip'; c.innerHTML = html; fila.appendChild(c); };
-    AP.ETAPAS.filter((e) => promedio[e.id]).forEach((e) => {
-      chip(esc(e.corto) + ': <b>' + diasTxt(promedio[e.id]) + '</b> <span style="color:var(--text-dim);">(recomendado ' + AP.recomendado(e.id).n + ')</span>');
-    });
-    if (pp.nPre) chip('Precampaña: <b>' + diasTxt(pp.pre) + '</b> <span style="color:var(--text-dim);">(' + pp.nPre + (pp.nPre === 1 ? ' campaña' : ' campañas') + ')</span>');
-    if (pp.nPost) chip('Postcampaña: <b>' + diasTxt(pp.post) + '</b> <span style="color:var(--text-dim);">(' + pp.nPost + (pp.nPost === 1 ? ' campaña' : ' campañas') + ')</span>');
-    resumen.appendChild(fila);
+  {
+    resumen.appendChild(secuenciaTiempos(pp));
   }
 
   if (!todas.length) {
@@ -914,6 +936,69 @@ function renderProceso() {
     p.innerHTML = 'Sin fecha de arranque (no aparecen aquí todavía): ' + sinFecha.map((c) => '<a class="ag-link" href="' + esc(rutaJefe('jefe-temporada') + '?campana=' + encodeURIComponent(c.id)) + '">' + esc(nombreCampana(c)) + '</a>').join(', ') + '.';
     lista.appendChild(p);
   }
+}
+
+// Los días que tarda cada etapa, en orden y editables: se usan en las campañas nuevas y en las que aún no acomodas a mano.
+function secuenciaTiempos(pp) {
+  const aprendido = AP.promedios(planesVivos()), fijados = proceso.tiempos || {};
+  const caja = nodo('section', 'seq');
+  const cab = nodo('div', 'seq-cab');
+  const tit = nodo('div');
+  tit.appendChild(nodo('h3', '', 'Cuánto tardas en cada etapa'));
+  tit.appendChild(nodo('p', '', 'Cambia los días de cada una según lo que tú tardes. Las etapas van una después de otra.'));
+  cab.appendChild(tit);
+  const lista = nodo('ol', 'seq-lista');
+  let acum = 0;
+  AP.ETAPAS.forEach((e, i) => {
+    const rec = AP.recomendado(e.id).n, n = promedio[e.id] || rec;
+    const ini = acum + 1, fin = acum + n;
+    acum = fin;
+    const li = nodo('li', 'seq-paso' + (fijados[e.id] ? ' fijado' : ''));
+    li.dataset.etapa = e.id;
+    li.appendChild(nodo('span', 'seq-num', String(i + 1)));
+    li.appendChild(nodo('b', 'seq-nom', e.corto));
+    li.appendChild(nodo('span', 'seq-cuando', n === 1 ? 'Día ' + ini : 'Días ' + ini + ' a ' + fin));
+    const ed = nodo('div', 'seq-edit');
+    const menos = nodo('button', '', '−'); menos.type = 'button'; menos.setAttribute('aria-label', 'Un día menos en ' + e.corto);
+    const inp = nodo('input'); inp.type = 'number'; inp.min = 1; inp.max = AP.MAX_DURACION; inp.value = n; inp.setAttribute('aria-label', 'Días que tardas en ' + e.corto);
+    const mas = nodo('button', '', '+'); mas.type = 'button'; mas.setAttribute('aria-label', 'Un día más en ' + e.corto);
+    menos.onclick = () => cambiarTiempo(e.id, Math.max(1, n - 1));
+    mas.onclick = () => cambiarTiempo(e.id, Math.min(AP.MAX_DURACION, n + 1));
+    inp.onchange = () => { const v = Math.round(Number(inp.value)); cambiarTiempo(e.id, isFinite(v) && v >= 1 ? v : n); };
+    ed.appendChild(menos); ed.appendChild(inp); ed.appendChild(mas);
+    li.appendChild(ed);
+    li.appendChild(nodo('small', 'seq-dias', n === 1 ? 'día' : 'días'));
+    li.appendChild(nodo('small', 'seq-nota', (fijados[e.id] ? 'Lo fijaste tú' : aprendido[e.id] ? 'Tu promedio' : 'Recomendado') + (n !== rec ? ' · recomendado ' + rec : '')));
+    if (fijados[e.id]) { const r = nodo('button', 'tarea-quiet seq-volver', 'Volver'); r.type = 'button'; r.onclick = () => cambiarTiempo(e.id, null); li.appendChild(r); }
+    lista.appendChild(li);
+  });
+  caja.appendChild(cab);
+  caja.appendChild(lista);
+  const pie = nodo('div', 'seq-pie');
+  pie.appendChild(nodo('span', 'prom-chip', 'Proceso completo: ' + diasTxt(acum)));
+  if (pp.nPre) pie.appendChild(nodo('span', 'prom-chip', 'Precampaña: ' + diasTxt(pp.pre) + ' (de Temporada, ' + pp.nPre + (pp.nPre === 1 ? ' campaña' : ' campañas') + ')'));
+  if (pp.nPost) pie.appendChild(nodo('span', 'prom-chip', 'Postcampaña: ' + diasTxt(pp.post) + ' (de Temporada, ' + pp.nPost + (pp.nPost === 1 ? ' campaña' : ' campañas') + ')'));
+  caja.appendChild(pie);
+  return caja;
+}
+// valor = días; null = volver a lo que has acomodado en tus campañas (o a lo recomendado).
+async function cambiarTiempo(id, valor) {
+  proceso.tiempos = Object.assign({}, proceso.tiempos || {});
+  if (valor === null) delete proceso.tiempos[id];
+  else proceso.tiempos[id] = Math.max(1, Math.min(AP.MAX_DURACION, Math.round(Number(valor) || 1)));
+  const nuevo = proceso.tiempos[id] || AP.promedios(planesVivos())[id] || AP.recomendado(id).n;
+  const tocadas = [];
+  Object.keys(proceso.campanas).forEach((cid) => {         // las etapas que ya acomodaste tú o ya hiciste no se tocan
+    const v = proceso.campanas[cid][id];
+    if (!v || v.u || v.h || v.n === nuevo) return;
+    proceso.campanas[cid][id] = AP.limpiarEtapa({ n: nuevo });
+    tocadas.push(cid);
+  });
+  calcularPromedio();
+  render();
+  await guardarProceso(tocadas, false);
+  const e = AP.etapaPorId(id);
+  avisarToast('"' + e.corto + '" ahora tarda ' + diasTxt(nuevo) + (tocadas.length ? ' en tus campañas nuevas y en ' + (tocadas.length === 1 ? '1 campaña' : tocadas.length + ' campañas') + ' que no has acomodado a mano.' : ' en tus campañas nuevas.'));
 }
 
 const ETIQUETA_ORIGEN = { usuario: 'ajustada', jefe: 'de Temporada', precampana: 'por precampaña', secuencia: 'en secuencia', sugerido: 'sugerido' };
