@@ -217,11 +217,12 @@
 
   var CSS = '' +
     '.nx *{box-sizing:border-box}.nx{font-family:Inter,system-ui,sans-serif;color:#111}' +
-    '.nx-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin:0 0 20px}' +
-    '.nx-kpi{background:#fff;border:1px solid #ececec;border-radius:24px;padding:22px 24px;position:relative;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.06)}' +
+    '.nx-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin:0 0 20px}' +
+    '@media(min-width:1000px){.nx-kpis{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr)}}' +
+    '.nx-kpi{background:#fff;border:1px solid #ececec;border-radius:24px;padding:20px;position:relative;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.06)}' +
     '.nx-kpi:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:#C0F800}' +
-    '.nx-kl{font:700 13px/1.2 Inter,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#6b6b6b;margin-bottom:8px}' +
-    '.nx-kv{font:800 clamp(34px,4vw,44px)/1 Sora,Inter,sans-serif;letter-spacing:-.01em}' +
+    '.nx-kl{font:700 13px/1.3 Inter,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#6b6b6b;margin-bottom:8px;min-height:34px}' +
+    '.nx-kv{font:800 clamp(28px,2.7vw,40px)/1.05 Sora,Inter,sans-serif;letter-spacing:-.01em;overflow-wrap:anywhere}' +
     '.nx-ks{margin-top:8px;font-size:14px;color:#6b6b6b;line-height:1.45}' +
     '.nx-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin:0 0 20px}' +
     '.nx-tile{background:#fff;border:1px solid #ececec;border-radius:18px;padding:16px 18px;box-shadow:0 6px 22px rgba(0,0,0,.05)}.nx-tile b{display:block;font:800 24px Sora,Inter,sans-serif;margin-bottom:2px}.nx-tile span{font-size:14px;color:#6b6b6b}' +
@@ -231,6 +232,7 @@
     '.nx-input{background:#f0f0f0;border:1.5px solid #C0F800;border-radius:10px;font:800 28px Sora,Inter,sans-serif;padding:8px 14px;width:140px;color:#111;outline:none}' +
     '.nx-big{font:800 34px Sora,Inter,sans-serif;color:#111;min-width:70px;background:#F1FFC2;border-radius:10px;padding:2px 12px}' +
     '.nx-range{flex:1;min-width:180px;accent-color:#4E7A00}' +
+    '.nx-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin:0 0 20px}.nx-2 .nx-card{margin:0}.nx-lab{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600;color:#6b6b6b}' +
     '.nx-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin:0 0 20px}' +
     '.nx-3 .nx-card{margin:0}' +
     '.nx-donut-wrap{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.nx-donut{width:130px;height:130px;border-radius:50%;position:relative;flex:none}.nx-donut-hole{position:absolute;inset:26px;background:#fff;border-radius:50%}' +
@@ -249,7 +251,7 @@
     k.push('<div class="nx-kpi"><div class="nx-kl">Inversión total</div><div class="nx-kv">' + dinero(d.gasto) + '</div><div class="nx-ks">' + entero(d.nAnuncios) + ' anuncios con gasto' + porDia + '</div></div>');
     k.push('<div class="nx-kpi"><div class="nx-kl">' + esc(d.etiqueta) + '</div><div class="nx-kv">' + entero(d.res) + '</div><div class="nx-ks">Costo por resultado: ' + dinero(d.cpr) + '</div></div>');
     if (d.esProspecto) {
-      k.push('<div class="nx-kpi"><div class="nx-kl">Ventas estimadas</div><div class="nx-kv" id="nx-ventas">~' + entero(d.res * d.cierre / 100) + '</div><div class="nx-ks" id="nx-ventas-sub">Con cierre ' + d.cierre + '%' + (d.cierreReal ? ' (tu cierre real)' : ' <span class="nx-sim">simulación</span>') + '</div></div>');
+      k.push('<div class="nx-kpi"><div class="nx-kl" id="nx-ventas-l">Ventas estimadas</div><div class="nx-kv" id="nx-ventas">~' + entero(d.res * d.cierre / 100) + '</div><div class="nx-ks" id="nx-ventas-sub">Con cierre ' + d.cierre + '%' + (d.cierreReal ? ' (tu cierre real)' : ' <span class="nx-sim">simulación</span>') + '</div></div>');
     } else if (d.tipo === 'compras') {
       k.push('<div class="nx-kpi"><div class="nx-kl">ROAS</div><div class="nx-kv">' + (d.roas != null ? dec(d.roas, 2) + 'x' : '—') + '</div><div class="nx-ks">Valor de compras: ' + dinero(d.valor) + '</div></div>');
     } else {
@@ -267,7 +269,12 @@
     var meta = d.esProspecto || d.tipo === 'compras'
       ? '<div class="nx-card"><h4>Meta de ventas del período</h4><p>¿Cuántas ventas quieres lograr? Con esto calculo cuánto invertir (abajo, en «Datos duros»).</p><div class="nx-row"><input id="nx-meta" class="nx-input" type="number" min="1" max="9999" value="' + d.metaDef + '" inputmode="numeric"><div id="nx-meta-res" class="nx-ks"></div></div></div>'
       : '';
-    return '<div class="nx"><div class="nx-kpis">' + k.join('') + '</div>' + (tiles.length ? '<div class="nx-tiles">' + tiles.join('') + '</div>' : '') + meta + '</div>';
+    // Dato que el reporte de Meta no trae: las ventas que se cerraron con estas conversaciones
+    var periodo = d.esProspecto
+      ? '<div class="nx-card" id="nx-periodo"><h4>Tus ventas del periodo</h4><p>Este dato no viene en el reporte de Meta. Dime cuántas ventas cerraste con estas ' + esc(d.etiqueta.toLowerCase()) + ' y calculo tu cierre real, tu costo por venta y, si me das tu ticket, tu ROAS.</p><div class="nx-row"><label class="nx-lab">Ventas cerradas<input id="nx-ventas-in" class="nx-input" type="number" min="0" placeholder="0" inputmode="numeric"></label><label class="nx-lab">Ticket promedio (opcional)<input id="nx-ticket-in" class="nx-input" type="number" min="0" placeholder="$" inputmode="decimal"></label></div><div class="nx-tiles" id="nx-periodo-res" style="margin-top:14px"></div></div>'
+      : '';
+    var fila2 = (meta || periodo) ? '<div class="nx-2">' + meta + periodo + '</div>' : '';
+    return '<div class="nx"><div class="nx-kpis">' + k.join('') + '</div>' + (tiles.length ? '<div class="nx-tiles">' + tiles.join('') + '</div>' : '') + fila2 + '</div>';
   }
 
   function bloqueComportamiento(d) {
@@ -298,7 +305,7 @@
     var calc = '';
     if (d.esProspecto || d.tipo === 'compras') {
       var sliderCierre = d.esProspecto
-        ? '<div class="nx-card"><h4>Cierre de ventas' + (d.cierreReal ? '' : ' <span class="nx-sim">simulación</span>') + '</h4><p>' +
+        ? '<div class="nx-card"><h4 id="nx-cierre-h">Cierre de ventas' + (d.cierreReal ? '' : ' <span class="nx-sim">simulación</span>') + '</h4><p>' +
           (d.cierreReal ? 'Arranca con tu tasa de cierre real (la que mediste en WhatsApp / Mensajes). ' : 'Aún no mides tu cierre: mueve el deslizador a tu tasa real. ') +
           'Todo se recalcula solo.</p><div class="nx-row"><input id="nx-cierre" class="nx-range" type="range" min="1" max="100" value="' + d.cierre + '"><span class="nx-big" id="nx-cierre-v">' + d.cierre + '%</span></div><div class="nx-tiles" id="nx-calc" style="margin-top:14px"></div></div>'
         : '<div class="nx-card"><h4>Meta de ventas</h4><p>En campañas de compras cada resultado ya es una venta.</p><div class="nx-tiles" id="nx-calc"></div></div>';
@@ -312,14 +319,27 @@
   // Script que mueve la calculadora (va dentro del reporte, así también funciona al descargarlo)
   var SCRIPT = '(function(){var D=window.__NX;if(!D)return;function $(i){return document.getElementById(i)}' +
     'function m(n){if(n==null||!isFinite(n))return"—";return"$"+Math.round(n).toLocaleString("es-MX")}' +
+    'var cierreVentas=null;' +
     'function calc(){var metaEl=$("nx-meta");var meta=Math.max(1,parseInt(metaEl&&metaEl.value)||D.metaDef);var cEl=$("nx-cierre");var cierre=D.esProspecto?(cEl?+cEl.value:D.cierre):100;var meses=$("nx-meses")?+$("nx-meses").value:3;' +
+    'var real=cierreVentas!=null&&cierre===cierreVentas||(D.cierreReal&&cierre===D.cierre);' +
     'if($("nx-cierre-v"))$("nx-cierre-v").textContent=cierre+"%";if($("nx-meses-v"))$("nx-meses-v").textContent=meses+(meses===1?" mes":" meses");' +
-    'if($("nx-ventas"))$("nx-ventas").textContent="~"+Math.round(D.res*cierre/100).toLocaleString("es-MX");' +
-    'if($("nx-ventas-sub"))$("nx-ventas-sub").innerHTML="Con cierre "+cierre+"%"+(D.cierreReal&&cierre===D.cierre?" (tu cierre real)":" <span class=\\"nx-sim\\">simulación</span>");' +
+    'if($("nx-cierre-h"))$("nx-cierre-h").innerHTML="Cierre de ventas"+(real?"":" <span class=\\"nx-sim\\">simulación</span>");' +
+    'if(D.ventasReal!=null){if($("nx-ventas-l"))$("nx-ventas-l").textContent="Ventas cerradas";if($("nx-ventas"))$("nx-ventas").textContent=Math.round(D.ventasReal).toLocaleString("es-MX");if($("nx-ventas-sub"))$("nx-ventas-sub").textContent="Cierre real "+(D.res>0?Math.round(Math.min(100,D.ventasReal/D.res*100)*10)/10:0)+"% · dato que capturaste"}' +
+    'else{if($("nx-ventas-l"))$("nx-ventas-l").textContent="Ventas estimadas";if($("nx-ventas"))$("nx-ventas").textContent="~"+Math.round(D.res*cierre/100).toLocaleString("es-MX");if($("nx-ventas-sub"))$("nx-ventas-sub").innerHTML="Con cierre "+cierre+"%"+(real?" (tu cierre real)":" <span class=\\"nx-sim\\">simulación</span>")}' +
     'var prosp=Math.ceil(meta/(cierre/100));var cpr=D.cpr;var pres=cpr!=null?prosp*cpr:null;var mens=pres!=null?pres/meses:null;' +
     'if($("nx-meta-res"))$("nx-meta-res").innerHTML=cpr!=null?"Para <b>"+meta+" ventas</b> necesitas ~<b>"+prosp.toLocaleString("es-MX")+" "+(D.esProspecto?D.etiqueta.toLowerCase():"compras")+"</b> → inversión aprox. <b>"+m(pres)+"</b>"+(pres>D.gasto?" ("+m(pres-D.gasto)+" más de lo que invertiste)":""):"";' +
     'var t=$("nx-calc");if(t)t.innerHTML=[["Meta de ventas",meta,"Definida arriba"],[D.esProspecto?"Prospectos necesarios":"Compras necesarias",prosp.toLocaleString("es-MX"),"Con cierre "+cierre+"%"],["Costo por "+(D.esProspecto?"prospecto":"resultado"),m(cpr),"Real del período"],["Presupuesto necesario",m(pres),"("+meta+" × "+m(cpr)+") ÷ "+cierre+"%"]].map(function(x){return"<div class=\\"nx-tile\\"><b>"+x[1]+"</b><span>"+x[0]+" · "+x[2]+"</span></div>"}).join("");' +
     'var f=$("nx-fecha");if(f){var dt=new Date();dt.setMonth(dt.getMonth()+meses);f.innerHTML="📅 Meta para <b>"+dt.toLocaleDateString("es-MX",{month:"long",year:"numeric"})+"</b> · Inversión mensual necesaria: <b>"+m(mens)+"/mes</b><br>Para "+meta+" ventas en "+meses+(meses===1?" mes":" meses")+" necesitas invertir "+m(pres)+" en total con tu costo actual de "+m(cpr)+"."}}' +
+    // ventas cerradas del periodo -> cierre real, costo por venta, ingresos y ROAS
+    'function ventas(setSlider,emitir){var vi=$("nx-ventas-in"),ti=$("nx-ticket-in"),r=$("nx-periodo-res");if(!vi)return;var v=vi.value===""?null:parseFloat(vi.value);var tk=ti&&ti.value!==""?parseFloat(ti.value):null;' +
+    'if(v==null||!isFinite(v)||v<0){D.ventasReal=null;cierreVentas=null;if(r)r.innerHTML="";calc();return}' +
+    'D.ventasReal=v;var cr=D.res>0?Math.min(100,v/D.res*100):null;cierreVentas=cr!=null?Math.max(1,Math.round(cr)):null;if(setSlider&&cierreVentas!=null&&$("nx-cierre"))$("nx-cierre").value=cierreVentas;' +
+    'var tl=[["Cierre real",cr==null?"—":(Math.round(cr*10)/10)+"%","ventas ÷ "+D.etiqueta.toLowerCase()],["Costo por venta",v>0?m(D.gasto/v):"—","inversión ÷ ventas"]];' +
+    'if(tk>0){var ing=v*tk;tl.push(["Ingresos",m(ing),v+" × "+m(tk)]);if(D.gasto>0)tl.push(["ROAS real",(Math.round(ing/D.gasto*100)/100)+"x","ingresos ÷ inversión"])}' +
+    'if(r)r.innerHTML=tl.map(function(x){return"<div class=\\"nx-tile\\"><b>"+x[1]+"</b><span>"+x[0]+" · "+x[2]+"</span></div>"}).join("");' +
+    'calc();if(emitir){try{parent.postMessage({tipo:"nx-periodo",ventas:v,ticket:tk>0?tk:null},"*")}catch(e){}}}' +
+    'window.nxAplicar=function(v,t){var vi=$("nx-ventas-in"),ti=$("nx-ticket-in");if(vi&&v!=null)vi.value=v;if(ti&&t!=null)ti.value=t;ventas(true,false)};' +
+    '["nx-ventas-in","nx-ticket-in"].forEach(function(id){var e=$(id);if(e){e.addEventListener("input",function(){ventas(true,true)});e.addEventListener("change",function(){ventas(true,true)})}});' +
     '["nx-meta","nx-cierre","nx-meses"].forEach(function(id){var e=$(id);if(e){e.addEventListener("input",calc);e.addEventListener("change",calc)}});calc()})();';
 
   var SLOTS = [
@@ -328,9 +348,20 @@
     ['slot-embudo', bloqueEmbudo, '05 · Datos duros — revisemos tu embudo']
   ];
 
+  // Si el modelo se quedó sin espacio y el reporte quedó cortado (a media etiqueta, sin </body> ni </html>), lo cierra
+  // para que lo que se inyecte no quede pegado a una etiqueta rota ni se vea como texto.
+  function reparar(html) {
+    var s = String(html || '');
+    s = s.replace(/<[a-zA-Z][^<>]*(?=<script>window\.__NX=)/, '');   // reportes guardados con la etiqueta rota pegada al script
+    s = s.replace(/<[a-zA-Z\/!][^<>]*$/, '');                          // etiqueta a medias al final
+    if (!/<\/body>/i.test(s)) s += '</body>';
+    if (!/<\/html>/i.test(s)) s += '</html>';
+    return s;
+  }
+
   function inyectar(html, d) {
     if (!d || !html) return html;
-    var out = String(html), faltan = [];
+    var out = reparar(html), faltan = [];
     SLOTS.forEach(function (s) {
       var re = new RegExp('<div[^>]*id=["\']' + s[0] + '["\'][^>]*>\\s*</div>', 'i');
       if (re.test(out)) out = out.replace(re, function () { return s[1](d); });
@@ -346,5 +377,5 @@
     return out;
   }
 
-  window.MetaTablero = { calcular: calcular, inyectar: inyectar, _parseCsv: parseCsv, _pNum: pNum };
+  window.MetaTablero = { calcular: calcular, inyectar: inyectar, reparar: reparar, _parseCsv: parseCsv, _pNum: pNum };
 })();

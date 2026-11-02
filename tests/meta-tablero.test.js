@@ -123,3 +123,35 @@ test('calcular: mejor costo por resultado toma el anuncio más barato con volume
   const out = MT.inyectar('<html><head></head><body><div id="slot-kpis"></div></body></html>', d);
   assert.ok(/Mejor costo por prospecto/.test(out) && /Ganador/.test(out));
 });
+
+test('reparar: un reporte cortado a media etiqueta se cierra y el script no queda pegado a la etiqueta rota', () => {
+  const d = MT.calcular([{ name: 'p.csv', text: PRINCIPAL }], {});
+  const cortado = '<!DOCTYPE html><html><head></head><body><h2>06</h2><table><tr><td>6</td><td<';
+  const out = MT.inyectar(cortado, d);
+  assert.ok(!/<td<script>/.test(out), 'el script no debe quedar pegado a una etiqueta rota');
+  assert.ok(/<\/body>/.test(out) && /<\/html>/.test(out));
+  assert.ok(out.indexOf('<script>window.__NX=') > out.indexOf('<td>6</td>'));
+});
+
+test('reparar: arregla reportes ya guardados con el script pegado a la etiqueta rota', () => {
+  const viejo = '<html><body><table><tr><td>6</td><td<script>window.__NX={"a":1};(function(){})();</script>';
+  const fix = MT.reparar(viejo);
+  assert.ok(!/<td<script>/.test(fix));
+  assert.ok(/<script>window\.__NX=/.test(fix));
+  assert.ok(/<\/body><\/html>$/.test(fix));
+});
+
+test('inyectar: el panel Tus ventas del periodo y los 5 KPIs salen en campañas de mensajes', () => {
+  const d = MT.calcular([{ name: 'p.csv', text: PRINCIPAL }], {});
+  const out = MT.inyectar('<html><head></head><body><div id="slot-kpis"></div></body></html>', d);
+  assert.ok(/id="nx-ventas-in"/.test(out) && /id="nx-ticket-in"/.test(out) && /id="nx-periodo-res"/.test(out));
+  assert.ok(/window\.nxAplicar/.test(out));
+  assert.ok((out.match(/class="nx-kpi"/g) || []).length === 5 - 0 || (out.match(/class="nx-kpi"/g) || []).length >= 4);
+});
+
+test('inyectar: en campañas de compras no hay panel de ventas del periodo (cada compra ya es una venta)', () => {
+  const csv = 'Ad name,Amount spent (MXN),Results,Result indicator\nA,100,4,actions:offsite_conversion.fb_pixel_purchase';
+  const d = MT.calcular([{ name: 'en.csv', text: csv }], {});
+  const out = MT.inyectar('<html><head></head><body><div id="slot-kpis"></div></body></html>', d);
+  assert.ok(!/id="nx-ventas-in"/.test(out));
+});

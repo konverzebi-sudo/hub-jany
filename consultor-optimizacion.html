@@ -465,7 +465,8 @@
     if (ini > 0) t = t.slice(ini);
     var fin = t.search(/<\/html\s*>/i);
     if (fin > -1) t = t.slice(0, fin + 7);
-    return t.trim();
+    t = t.trim();
+    return (window.MetaTablero && MetaTablero.reparar) ? MetaTablero.reparar(t) : t;
   }
 
   // ── TUTORIAL DESCARGABLE: cómo bajar las métricas de Meta Ads Manager ──
@@ -711,7 +712,8 @@
   }
 
   function guardarEnHistorial(archivo, html){
-    historial.unshift({ id: Date.now().toString(), fecha: new Date().toISOString(), archivo: archivo, html: html });
+    entradaActualId = Date.now().toString();
+    historial.unshift({ id: entradaActualId, fecha: new Date().toISOString(), archivo: archivo, html: html });
     historial = historial.slice(0, MAX_HISTORIAL);
     renderHistorial();
     persistirHistorial();
@@ -720,6 +722,7 @@
   function verAnalisisGuardado(id){
     var entry = historial.find(function(h){ return h.id === id; });
     if (!entry) return;
+    entradaActualId = entry.id;
     ultimoDashboardHtml = limpiarDashboardHtml(entry.html);
     csvFileName = entry.archivo;
     csvText = null; // solo se guardo el HTML resultante, no el CSV original -- sin chat de seguimiento aqui
@@ -785,7 +788,30 @@
         showUploadError(data.error || 'No se pudo generar el análisis. Intenta de nuevo.');
         return;
       }
-      ultimoDashboardHtml = limpiarDashboardHtml(data.text);
+      // Si el reporte se cortó por longitud, se le pide al Jefe que continúe y se juntan las partes
+      var textoAcum = data.text, truncado = !!data.truncado, intentos = 0;
+      while (truncado && intentos < 3) {
+        intentos++;
+        detenerLoadingSteps();
+        document.getElementById('loadingStepText').textContent = 'El reporte es largo: terminando de escribirlo…';
+        var r2 = await fetch('/api/consultor-financiero', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agente: 'metaads', cliente: CLIENTE_ID, reporteCsv: csvText,
+            messages: [
+              { role: 'user', content: 'Analiza este reporte completo y dame el Dashboard Ejecutivo (Modo 1).' },
+              { role: 'assistant', content: textoAcum },
+              { role: 'user', content: 'Tu respuesta se cortó por longitud. Continúa EXACTAMENTE desde el último carácter que escribiste, sin repetir nada, sin explicaciones ni cercas de código, hasta cerrar </html>.' },
+            ],
+          }),
+        });
+        var d2 = await r2.json();
+        if (!r2.ok) break;
+        textoAcum += d2.text;
+        truncado = !!d2.truncado;
+      }
+      ultimoDashboardHtml = limpiarDashboardHtml(textoAcum);
       if (tablero) { try { ultimoDashboardHtml = MetaTablero.inyectar(ultimoDashboardHtml, tablero); } catch (e) {} }
       guardarEnHistorial(csvFileName, ultimoDashboardHtml);
       mostrarDashboard(ultimoDashboardHtml);
@@ -810,6 +836,11 @@
   }
   document.getElementById('dashboardFrame').addEventListener('load', function(){
     ajustarAltoReporte();
+    // Si ya habías capturado las ventas del periodo de este análisis, se vuelven a poner
+    try {
+      var en = historial.find(function(h){ return h.id === entradaActualId; });
+      if (en && en.periodo && this.contentWindow.nxAplicar) this.contentWindow.nxAplicar(en.periodo.ventas, en.periodo.ticket);
+    } catch (e) {}
     try {
       var d = this.contentDocument;
       if (window.ResizeObserver && d && d.body) new ResizeObserver(ajustarAltoReporte).observe(d.body);
@@ -819,6 +850,7 @@
   });
 
   var viendoReporte = false;
+  var entradaActualId = null;   // análisis que se está viendo (para guardar las ventas del periodo)
   function mostrarDashboard(html){
     document.getElementById('dashboardFrame').srcdoc = html;
     document.body.classList.add('viendo-reporte');
@@ -853,6 +885,16 @@
     renderAgentChat();
     window.scrollTo(0, 0);
   }
+  // El reporte avisa cuando capturas tus ventas del periodo: se guardan junto con el análisis
+  window.addEventListener('message', function(e){
+    var f = document.getElementById('dashboardFrame');
+    if (!f || e.source !== f.contentWindow || !e.data || e.data.tipo !== 'nx-periodo') return;
+    var en = historial.find(function(h){ return h.id === entradaActualId; });
+    if (!en) return;
+    en.periodo = { ventas: e.data.ventas, ticket: e.data.ticket };
+    persistirHistorial();
+  });
+
   document.getElementById('newAnalysisBtn').addEventListener('click', function(){
     var habiaEntrada = viendoReporte;
     viendoReporte = false;
