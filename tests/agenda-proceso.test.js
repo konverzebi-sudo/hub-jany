@@ -405,7 +405,8 @@ test('agenda del día: tocar un día o una marca abre sus pasos, con botón para
   assert.ok(agenda.includes("abrirDia(m.iso, { tipo: 'mk'"), 'la marca de una etapa abre la agenda de su día');
   assert.ok(agenda.includes("abrirDia(ev.fecha, { tipo: 'ev'"), 'una tarea de otro Jefe abre la agenda de su día');
   assert.ok(agenda.includes("cell.addEventListener('click', () => abrirDia(iso))"), 'tocar el día abre su agenda');
-  assert.ok(agenda.includes('Ver el post →') && agenda.includes('Ya lo hice') && agenda.includes('Ya lo publiqué'), 'botones de ver el post y de marcar como hecho');
+  assert.ok(agenda.includes('Ver el post →') && agenda.includes("'chk-caja'") && agenda.includes('Pendientes de hoy'), 'botón de ver el post, casillas de checklist y panel "Pendientes de hoy"');
+  assert.ok(agenda.includes('id="hoy-panel"') && agenda.includes('renderHoy();'), 'el panel de hoy está arriba del calendario y se repinta');
   assert.ok(agenda.includes('id="cal-que-toca"'), 'botón "Qué toca hoy"');
   assert.ok(agenda.includes('tituloCorto(ev)'), 'las tareas de Temporada muestran lo que toca, no el nombre de la campaña');
 });
