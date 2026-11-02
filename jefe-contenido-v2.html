@@ -292,7 +292,10 @@
   .ideas-table tr:hover{background:var(--surface-2);}
   .ideas-table tr.ai-gen:hover{background:rgba(34,197,94,.08);}
   .ideas-table td.idea-cell{font-weight:600;font-family:'Sora',sans-serif;min-width:180px;max-width:220px;}
-  .ideas-table td.angle-cell{min-width:160px;max-width:200px;font-size:11px;}
+  .ideas-table td.angle-cell{min-width:160px;max-width:200px;font-size:11px;cursor:pointer;transition:background .12s,box-shadow .12s;}
+  .ideas-table td.angle-cell:hover{background:var(--accent-soft);}
+  .ideas-table tr td.angle-cell.sel{background:var(--accent);color:#1A1A1A !important;box-shadow:inset 0 0 0 2px #1A1A1A;font-weight:600;}
+  .banco-hint{font-size:13px;color:var(--text-dim);margin:0 0 10px;}
   .ideas-table td.uso-cell,.ideas-table td.pri-cell{white-space:nowrap;min-width:80px;}
   .pri-alta{color:#157A38;font-weight:700;}
   .pri-media{color:#9A6200;font-weight:700;}
@@ -1413,6 +1416,12 @@ function parseIdeaJSON(text){
   return null;
 }
 
+// Con un ángulo elegido, las notas llevan solo ese; sin elegir, los 7 como siempre.
+function notasDeAngulo(item){
+  const par=ANGULOS_BANCO.find(([k])=>k===item.anguloSel);
+  if(!par || !item[par[0]]) return anguloToNotas(item);
+  return `Ángulo elegido — ${par[1]}: ${item[par[0]]}`+(item.uso||item.uso_sugerido?`\nUso sugerido: ${item.uso||item.uso_sugerido}`:'');
+}
 function anguloToNotas(item){
   const partes=[];
   if(item.problema) partes.push(`Problema: ${item.problema}`);
@@ -1446,18 +1455,14 @@ function mkBancoIdea(obj, src){
   };
 }
 
+// Los 7 ángulos de cada idea: se toca uno para armar el post desde ese ángulo.
+const ANGULOS_BANCO = [['problema','Problema'],['error','Error'],['deseo','Deseo'],['historia','Historia'],['descubrimiento','Descubrimiento'],['objecion','Objeción'],['comparacion','Comparación']];
 function ideaRowHTML(item){
   const priCls={alta:'pri-alta',media:'pri-media',baja:'pri-baja'}[(item.prioridad||'').toLowerCase()]||'pri-media';
   return `<tr class="${item.source==='ai'?'ai-gen':''}" data-bid="${item.id}">
     <td style="text-align:center;"><input type="checkbox" class="idea-check" data-bid="${item.id}"${item.selected?' checked':''}></td>
     <td class="idea-cell">${escHtml(item.idea)}</td>
-    <td class="angle-cell">${escHtml(item.problema)}</td>
-    <td class="angle-cell">${escHtml(item.error)}</td>
-    <td class="angle-cell">${escHtml(item.deseo)}</td>
-    <td class="angle-cell">${escHtml(item.historia)}</td>
-    <td class="angle-cell">${escHtml(item.descubrimiento)}</td>
-    <td class="angle-cell">${escHtml(item.objecion)}</td>
-    <td class="angle-cell">${escHtml(item.comparacion)}</td>
+    ${ANGULOS_BANCO.map(([k,n])=>`<td class="angle-cell${item.anguloSel===k?' sel':''}" data-ang="${k}" title="${item.anguloSel===k?'Quitar este ángulo':'Elegir el ángulo '+n}" role="button" tabindex="0" aria-pressed="${item.anguloSel===k}">${escHtml(item[k])}</td>`).join('')}
     <td class="uso-cell">${escHtml(item.uso)}</td>
     <td class="pri-cell"><span class="${priCls}">${escHtml(item.prioridad)}</span></td>
     <td><button class="row-del" data-bid="${item.id}" title="Eliminar">✕</button></td>
@@ -1571,6 +1576,21 @@ function renderBancoTable(){
       if(selAll) selAll.checked=visibles.length>0&&visibles.every(i=>i.selected);
     });
   });
+  tbody.querySelectorAll('.angle-cell').forEach(td=>{
+    const alternar=()=>{
+      if(String(window.getSelection()).trim()) return; // si está copiando texto, no cuenta como elegir
+      const tr=td.closest('tr'); const item=state.bancoIdeas.find(i=>i.id===tr.dataset.bid);
+      if(!item) return;
+      const k=td.dataset.ang;
+      item.anguloSel = item.anguloSel===k ? '' : k;
+      if(item.anguloSel) item.selected=true; // elegir un ángulo marca la idea para pasarla a Contenido o Historias
+      tr.querySelectorAll('.angle-cell').forEach(c=>{ const on=c.dataset.ang===item.anguloSel; c.classList.toggle('sel',on); c.setAttribute('aria-pressed',on); });
+      const cb=tr.querySelector('.idea-check'); if(cb) cb.checked=!!item.selected;
+      scheduleSave();
+    };
+    td.addEventListener('click',alternar);
+    td.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); alternar(); } });
+  });
   tbody.querySelectorAll('.row-del').forEach(btn=>{
     btn.addEventListener('click',e=>{
       const bid=e.currentTarget.dataset.bid;
@@ -1628,6 +1648,7 @@ function renderBanco(host){
           <button class="btn-outline to-contenido" id="btn-to-contenido" type="button">→ Agregar a Contenido</button>
         </div>
       </div>
+      <p class="banco-hint">Toca el ángulo que quieres (Problema, Error, Deseo…) y pasa la idea a Contenido o Historias: el post se arma desde ese ángulo. Si no eliges ninguno, va con los 7.</p>
       <div id="actualizar-status" class="suggest-status" style="margin-bottom:8px;min-height:18px;"></div>
       <div class="ideas-table-wrap">
         <table class="ideas-table">
@@ -1737,10 +1758,11 @@ function renderBanco(host){
         orden:state[targetTab].length+1,
         fase:targetTab==='historias'?'Semana 1 · Atraer/Conexión':'Semana 1',
         gancho:item.idea,
-        descripcion:item.descubrimiento||'',
+        descripcion:(item.anguloSel && item[item.anguloSel]) || item.descubrimiento || '',
         ganchoIdea:item.gancho||'',
         caption:'',
-        notas:anguloToNotas(item),
+        notas:notasDeAngulo(item),
+        ...(item.anguloSel ? {anguloElegido:item.anguloSel} : {}),
         linkRef:'',linkArchivo:'',
         fecha:'',estado:'idea',
         ...(item.productoId ? {productoId:item.productoId, productoNombre:nombreProducto(item.productoId)} : {})
@@ -1749,8 +1771,9 @@ function renderBanco(host){
     actualizarContadores();
     scheduleSave();
     stEl.className='suggest-status';
-    stEl.textContent=`✅ ${selected.length} idea(s) añadida(s) a ${targetTab==='historias'?'Historias':'Contenido'}.`;
-    state.bancoIdeas.forEach(i=>i.selected=false);
+    const conAngulo=selected.filter(i=>i.anguloSel).length;
+    stEl.textContent=`✅ ${selected.length} idea(s) añadida(s) a ${targetTab==='historias'?'Historias':'Contenido'}`+(conAngulo?` (${conAngulo} desde el ángulo que elegiste)`:'')+'.';
+    state.bancoIdeas.forEach(i=>{ i.selected=false; i.anguloSel=''; });
     renderBancoTable();
   }
 
