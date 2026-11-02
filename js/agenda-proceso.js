@@ -151,9 +151,17 @@
     if (v.h) out.h = 1;                 // h = ya la hizo (se marca desde la agenda del día)
     return out;
   }
-  // Lo que se guarda en "<hub>:agenda-proceso": { campanas: { <id>: { <etapa>: { n } | { d, n, u } } } }
+  // Lo que se guarda en "<hub>:agenda-proceso": { campanas: { <id>: { <etapa>: { n } | { d, n, u } } }, tiempos?: { <etapa>: días } }
+  // tiempos = cuánto tarda cada etapa según el usuario (los días que él fija en la secuencia); solo aparece si hay alguno.
   function limpiarProceso(crudo) {
     var out = { campanas: {} };
+    var tiempos = {}, hayT = false;
+    var t = crudo && typeof crudo === 'object' && crudo.tiempos && typeof crudo.tiempos === 'object' ? crudo.tiempos : {};
+    Object.keys(t).forEach(function (eid) {
+      var n = Number(t[eid]);
+      if (etapaPorId(eid) && isFinite(n)) { tiempos[eid] = entero(n, 1, MAX_DURACION, 1); hayT = true; }
+    });
+    if (hayT) out.tiempos = tiempos;
     var src = crudo && typeof crudo === 'object' && crudo.campanas && typeof crudo.campanas === 'object' ? crudo.campanas : {};
     Object.keys(src).forEach(function (cid) {
       var plan = {}, hay = false;

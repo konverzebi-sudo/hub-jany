@@ -405,7 +405,22 @@ test('agenda del día: tocar un día o una marca abre sus pasos, con botón para
   assert.ok(agenda.includes("abrirDia(m.iso, { tipo: 'mk'"), 'la marca de una etapa abre la agenda de su día');
   assert.ok(agenda.includes("abrirDia(ev.fecha, { tipo: 'ev'"), 'una tarea de otro Jefe abre la agenda de su día');
   assert.ok(agenda.includes("cell.addEventListener('click', () => abrirDia(iso))"), 'tocar el día abre su agenda');
-  assert.ok(agenda.includes('Ver el post →') && agenda.includes('Ya lo hice') && agenda.includes('Ya lo publiqué'), 'botones de ver el post y de marcar como hecho');
+  assert.ok(agenda.includes('Ver el post →') && agenda.includes("'chk-caja'") && agenda.includes('Pendientes de hoy'), 'botón de ver el post, casillas de checklist y panel "Pendientes de hoy"');
+  assert.ok(agenda.includes('id="hoy-panel"') && agenda.includes('renderHoy();'), 'el panel de hoy está arriba del calendario y se repinta');
   assert.ok(agenda.includes('id="cal-que-toca"'), 'botón "Qué toca hoy"');
   assert.ok(agenda.includes('tituloCorto(ev)'), 'las tareas de Temporada muestran lo que toca, no el nombre de la campaña');
+});
+
+test('pendientes de hoy: también muestra lo atrasado de los últimos días que no se marcó como hecho', () => {
+  const agenda = fs.readFileSync(path.join(RAIZ, 'consultor-agenda.html'), 'utf8');
+  assert.ok(agenda.includes('function atrasadosDe(') && agenda.includes('Se quedaron atrás'), 'sección de atrasados en el panel');
+  assert.ok(agenda.includes("info.hecha || vistos.has(info.clave)"), 'solo lo que sigue sin hacer y sin repetir etapas largas');
+});
+
+test('los días que el usuario fija para cada etapa se guardan en "tiempos" y se limpian', () => {
+  assert.deepEqual(AP.limpiarProceso({ campanas: {}, tiempos: { grabar: 3, nada: 4, editar: 'x', definir: 999 } }), { campanas: {}, tiempos: { grabar: 3, definir: AP.MAX_DURACION } });
+  assert.deepEqual(AP.limpiarProceso({ campanas: {}, tiempos: {} }), { campanas: {} });
+  const agenda = fs.readFileSync(path.join(RAIZ, 'consultor-agenda.html'), 'utf8');
+  assert.ok(agenda.includes('function secuenciaTiempos(') && agenda.includes('async function cambiarTiempo('), 'la secuencia de tiempos es editable');
+  assert.ok(agenda.includes('Object.assign(AP.promedios(planesVivos()), proceso.tiempos || {})'), 'lo que fija el usuario manda sobre el promedio');
 });
