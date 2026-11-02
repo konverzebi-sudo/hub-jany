@@ -133,8 +133,9 @@
     .panel-intro h2 { font-size: 20px; margin: 0 0 4px; }
     .panel-intro p { font-size: 14px; color: var(--text-dim); margin: 0; line-height: 1.5; }
     /* Módulo Resultados en Campañas: el analizador de Meta Ads va dentro de la misma pantalla */
-    #panel-campanas.active { flex: 1; min-height: 0; }
-    #campanasFrame { flex: 1; width: 100%; min-height: 520px; border: 1px solid var(--line); border-radius: 18px; background: #fff; box-shadow: var(--sombra); }
+    #panel-campanas.active { flex: none; }
+    /* Sin caja: el módulo se funde con la página y crece a su alto real (un solo scroll, el de la página) */
+    #campanasFrame { display: block; flex: none; width: 100%; height: 70vh; min-height: 520px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 
     .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
     .card-label { font-family: "JetBrains Mono", monospace; font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent-texto, var(--accent)); margin-bottom: 12px; }
@@ -445,7 +446,6 @@ function syncLayoutClasses() {
   document.body.classList.toggle('route-active', activa);
   ['tienda', 'evento', 'mensaje', 'campanas'].forEach((r) => document.body.classList.toggle('ruta-' + r, rutaActual === r));
   document.getElementById('routeSwitch').hidden = !activa;
-  document.body.classList.toggle('chat-fullscreen', rutaActual === 'campanas');
   document.getElementById('chatHero').hidden = !(activa && rutaActual !== 'campanas');
 }
 
@@ -865,6 +865,12 @@ async function calcularDiagnostico() {
   if (['tienda', 'evento', 'mensaje', 'campanas'].indexOf(ruta) >= 0) { window.__rutaInicial = true; seleccionarRuta(ruta); window.__rutaInicial = false; }
 })();
 window.addEventListener('popstate', () => { if (rutaActual) volverASelectorRuta(); });
+// Meta Ads avisa su alto real para que la página lo muestre completo, sin scroll interno ni "cajita"
+window.addEventListener('message', (e) => {
+  const frame = document.getElementById('campanasFrame');
+  if (!frame || e.source !== frame.contentWindow || !e.data || e.data.tipo !== 'alto-meta') return;
+  frame.style.height = Math.max(520, Math.ceil(e.data.h)) + 'px';
+});
 
 </script>
 <script src="/js/guia-jefe.js"></script>

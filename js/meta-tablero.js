@@ -111,7 +111,7 @@
     var main = parseCsv(files[0].text), c = columnas(main);
     if (c.gasto < 0) return null;
     var tot = { gasto: 0, res: 0, imp: 0, alc: 0, clics: 0, visitas: 0, pagos: 0, compras: 0, valor: 0 };
-    var anuncios = {}, indicadores = [], fMin = null, fMax = null;
+    var anuncios = {}, porAnuncio = {}, indicadores = [], fMin = null, fMax = null;
     main.rows.forEach(function (r) {
       var g = pNum(r[c.gasto]);
       tot.gasto += g;
@@ -124,7 +124,11 @@
       tot.compras += c.compras >= 0 ? pNum(r[c.compras]) : 0;
       tot.valor += c.valor >= 0 ? pNum(r[c.valor]) : 0;
       if (g > 0) {
-        if (c.anuncio >= 0) anuncios[r[c.anuncio]] = 1;
+        if (c.anuncio >= 0) {
+          anuncios[r[c.anuncio]] = 1;
+          var pa = porAnuncio[r[c.anuncio]] = porAnuncio[r[c.anuncio]] || { gasto: 0, res: 0 };
+          pa.gasto += g; pa.res += c.res >= 0 ? pNum(r[c.res]) : 0;
+        }
         if (c.indicador >= 0) indicadores.push(String(r[c.indicador] || '').trim());
       }
       [c.ini, c.fin].forEach(function (ix) {
@@ -132,6 +136,14 @@
         var d = parseFecha(r[ix]);
         if (d) { if (!fMin || d < fMin) fMin = d; if (!fMax || d > fMax) fMax = d; }
       });
+    });
+    // Mejor costo por resultado: entre los anuncios con volumen suficiente (al menos 10% de los resultados o 3), el más barato
+    var mejor = null;
+    var cand = Object.keys(porAnuncio).filter(function (k) { return porAnuncio[k].res >= Math.max(3, tot.res * 0.1); });
+    if (!cand.length) cand = Object.keys(porAnuncio).filter(function (k) { return porAnuncio[k].res > 0; });
+    cand.forEach(function (k) {
+      var a = porAnuncio[k], cpr = a.gasto / a.res;
+      if (!mejor || cpr < mejor.cpr) mejor = { nombre: k, cpr: cpr, res: a.res, gasto: a.gasto };
     });
     var ti = tipoDe(indicadores);
     var dias = fMin && fMax ? Math.round((fMax - fMin) / 86400000) + 1 : null;
@@ -170,7 +182,7 @@
     return {
       tipo: ti.tipo, etiqueta: ti.etiqueta, esProspecto: esProspecto,
       nAnuncios: Object.keys(anuncios).length, dias: dias,
-      gasto: tot.gasto, res: tot.res, cpr: tot.res > 0 ? tot.gasto / tot.res : null,
+      gasto: tot.gasto, res: tot.res, cpr: tot.res > 0 ? tot.gasto / tot.res : null, mejor: mejor,
       imp: tot.imp, alc: tot.alc, clics: tot.clics, visitas: tot.visitas, pagos: tot.pagos, compras: tot.compras, valor: tot.valor,
       frec: tot.alc > 0 ? tot.imp / tot.alc : null,
       cpm: tot.imp > 0 ? tot.gasto / tot.imp * 1000 : null,
@@ -205,29 +217,29 @@
 
   var CSS = '' +
     '.nx *{box-sizing:border-box}.nx{font-family:Inter,system-ui,sans-serif;color:#111}' +
-    '.nx-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:0 0 14px}' +
-    '.nx-kpi{background:#fff;border:1px solid #e2e2e2;border-radius:14px;padding:16px 18px;position:relative;overflow:hidden;box-shadow:0 4px 18px rgba(0,0,0,.05)}' +
+    '.nx-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin:0 0 20px}' +
+    '.nx-kpi{background:#fff;border:1px solid #ececec;border-radius:24px;padding:22px 24px;position:relative;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.06)}' +
     '.nx-kpi:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:#C0F800}' +
-    '.nx-kl{font:700 11px/1.2 Inter,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#6b6b6b;margin-bottom:8px}' +
-    '.nx-kv{font:800 clamp(30px,4vw,40px)/1 Sora,Inter,sans-serif;letter-spacing:-.01em}' +
-    '.nx-ks{margin-top:6px;font-size:12.5px;color:#6b6b6b;line-height:1.4}' +
-    '.nx-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:0 0 14px}' +
-    '.nx-tile{background:#f7f7f7;border:1px solid #ececec;border-radius:12px;padding:11px 13px}.nx-tile b{display:block;font:800 19px Sora,Inter,sans-serif}.nx-tile span{font-size:11.5px;color:#6b6b6b}' +
-    '.nx-card{background:#fff;border:1px solid #e2e2e2;border-radius:14px;padding:18px 20px;margin:0 0 14px;box-shadow:0 4px 18px rgba(0,0,0,.05)}' +
-    '.nx-card h4{margin:0 0 4px;font:800 12px Inter,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#4E7A00}.nx-card p{margin:0 0 12px;font-size:13px;color:#6b6b6b;line-height:1.5}' +
+    '.nx-kl{font:700 13px/1.2 Inter,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#6b6b6b;margin-bottom:8px}' +
+    '.nx-kv{font:800 clamp(34px,4vw,44px)/1 Sora,Inter,sans-serif;letter-spacing:-.01em}' +
+    '.nx-ks{margin-top:8px;font-size:14px;color:#6b6b6b;line-height:1.45}' +
+    '.nx-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin:0 0 20px}' +
+    '.nx-tile{background:#fff;border:1px solid #ececec;border-radius:18px;padding:16px 18px;box-shadow:0 6px 22px rgba(0,0,0,.05)}.nx-tile b{display:block;font:800 24px Sora,Inter,sans-serif;margin-bottom:2px}.nx-tile span{font-size:14px;color:#6b6b6b}' +
+    '.nx-card{background:#fff;border:1px solid #ececec;border-radius:24px;padding:24px;margin:0 0 20px;box-shadow:0 8px 30px rgba(0,0,0,.06)}' +
+    '.nx-card h4{margin:0 0 6px;font:800 13px Inter,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#4E7A00}.nx-card p{margin:0 0 14px;font-size:15px;color:#6b6b6b;line-height:1.5}' +
     '.nx-row{display:flex;flex-wrap:wrap;align-items:center;gap:14px 18px}' +
-    '.nx-input{background:#f0f0f0;border:1.5px solid #C0F800;border-radius:10px;font:800 26px Sora,Inter,sans-serif;padding:8px 14px;width:130px;color:#111;outline:none}' +
+    '.nx-input{background:#f0f0f0;border:1.5px solid #C0F800;border-radius:10px;font:800 28px Sora,Inter,sans-serif;padding:8px 14px;width:140px;color:#111;outline:none}' +
     '.nx-big{font:800 34px Sora,Inter,sans-serif;color:#111;min-width:70px;background:#F1FFC2;border-radius:10px;padding:2px 12px}' +
     '.nx-range{flex:1;min-width:180px;accent-color:#4E7A00}' +
-    '.nx-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin:0 0 14px}' +
+    '.nx-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin:0 0 20px}' +
     '.nx-3 .nx-card{margin:0}' +
     '.nx-donut-wrap{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.nx-donut{width:130px;height:130px;border-radius:50%;position:relative;flex:none}.nx-donut-hole{position:absolute;inset:26px;background:#fff;border-radius:50%}' +
-    '.nx-leyenda{list-style:none;margin:0;padding:0;flex:1;min-width:120px;font-size:12.5px}.nx-leyenda li{display:flex;align-items:center;gap:8px;padding:3px 0}.nx-leyenda i{width:10px;height:10px;border-radius:3px;flex:none}.nx-ln{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nx-leyenda b{font-weight:700}' +
-    '.nx-bars{display:flex;align-items:flex-end;gap:8px;height:150px;padding-top:6px}.nx-bar{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;font-size:11px;color:#6b6b6b}.nx-bar i{display:block;width:100%;max-width:34px;border-radius:7px 7px 3px 3px;background:#d9f58a;min-height:3px}.nx-bar.top i{background:#C0F800;outline:2px solid #4E7A00}.nx-bar b{font-size:11.5px;color:#111;margin-bottom:3px}' +
-    '.nx-vacio{font-size:13px;color:#6b6b6b;background:#f7f7f7;border:1px dashed #d4d4d4;border-radius:10px;padding:14px;line-height:1.5}' +
-    '.nx-nota{font-size:12.5px;color:#6b6b6b;margin-top:10px;line-height:1.5}.nx-nota b{color:#111}' +
-    '.nx-sim{display:inline-block;font:700 10.5px Inter,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#4E7A00;background:#F1FFC2;border-radius:99px;padding:2px 8px;margin-left:6px;vertical-align:middle}' +
-    '.nx-sec-t{font:800 20px Sora,Inter,sans-serif;margin:26px 0 12px;padding-bottom:8px;border-bottom:3px solid #C0F800}' +
+    '.nx-leyenda{list-style:none;margin:0;padding:0;flex:1;min-width:120px;font-size:14px}.nx-leyenda li{display:flex;align-items:center;gap:8px;padding:3px 0}.nx-leyenda i{width:10px;height:10px;border-radius:3px;flex:none}.nx-ln{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nx-leyenda b{font-weight:700}' +
+    '.nx-bars{display:flex;align-items:flex-end;gap:8px;height:150px;padding-top:6px}.nx-bar{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;font-size:13px;color:#6b6b6b}.nx-bar i{display:block;width:100%;max-width:34px;border-radius:7px 7px 3px 3px;background:#d9f58a;min-height:3px}.nx-bar.top i{background:#C0F800;outline:2px solid #4E7A00}.nx-bar b{font-size:14px;color:#111;margin-bottom:3px}' +
+    '.nx-vacio{font-size:15px;color:#6b6b6b;background:#f7f7f7;border:1px dashed #d4d4d4;border-radius:10px;padding:14px;line-height:1.5}' +
+    '.nx-nota{font-size:14px;color:#6b6b6b;margin-top:12px;line-height:1.5}.nx-nota b{color:#111}' +
+    '.nx-sim{display:inline-block;font:700 13px Inter,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#4E7A00;background:#F1FFC2;border-radius:99px;padding:2px 8px;margin-left:6px;vertical-align:middle}' +
+    '.nx-sec-t{font:800 30px Sora,Inter,sans-serif;margin:32px 0 14px}' +
     '@media(max-width:560px){.nx-card{padding:14px}.nx-input{width:110px}}' +
     '@media print{.nx-card,.nx-kpi{box-shadow:none;break-inside:avoid}.nx-range{display:none}}';
 
@@ -244,6 +256,7 @@
       k.push('<div class="nx-kpi"><div class="nx-kl">Alcance</div><div class="nx-kv">' + entero(d.alc) + '</div><div class="nx-ks">Personas alcanzadas (suma por anuncio)</div></div>');
     }
     k.push('<div class="nx-kpi"><div class="nx-kl">Costo por ' + (d.esProspecto ? 'prospecto' : 'resultado') + '</div><div class="nx-kv">' + dinero(d.cpr) + '</div><div class="nx-ks">Gasto ÷ ' + esc(d.etiqueta.toLowerCase()) + '</div></div>');
+    if (d.mejor) k.push('<div class="nx-kpi"><div class="nx-kl">🏆 Mejor costo por ' + (d.esProspecto ? 'prospecto' : 'resultado') + '</div><div class="nx-kv">' + dinero(d.mejor.cpr) + '</div><div class="nx-ks">' + esc(d.mejor.nombre) + ' · ' + entero(d.mejor.res) + ' ' + esc(d.etiqueta.toLowerCase()) + '</div></div>');
 
     var tiles = [];
     [['Impresiones', entero(d.imp), d.imp], ['Alcance', entero(d.alc), d.alc], ['Frecuencia', dec(d.frec, 2), d.frec], ['CPM', dinero(d.cpm), d.cpm],
@@ -281,7 +294,7 @@
   function bloqueEmbudo(d) {
     var items = [['Inversión', dinero(d.gasto), 'Total invertido en el período'], ['Alcance', entero(d.alc), 'Personas alcanzadas'], ['Impresiones', entero(d.imp), 'Veces que se mostró tu anuncio'],
       [d.etiqueta, entero(d.res), 'Resultados del período'], ['Costo por resultado', dinero(d.cpr), 'Gasto ÷ resultados']];
-    var cards = '<div class="nx-kpis">' + items.map(function (i) { return '<div class="nx-kpi"><div class="nx-kl">' + esc(i[0]) + '</div><div class="nx-kv" style="font-size:28px">' + i[1] + '</div><div class="nx-ks">' + i[2] + '</div></div>'; }).join('') + '</div>';
+    var cards = '<div class="nx-kpis">' + items.map(function (i) { return '<div class="nx-kpi"><div class="nx-kl">' + esc(i[0]) + '</div><div class="nx-kv" style="font-size:32px">' + i[1] + '</div><div class="nx-ks">' + i[2] + '</div></div>'; }).join('') + '</div>';
     var calc = '';
     if (d.esProspecto || d.tipo === 'compras') {
       var sliderCierre = d.esProspecto
