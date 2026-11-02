@@ -1973,7 +1973,7 @@ async function startAnalysis() {
   let ai;
   try {
     const aiPromise = callAI(ads,m,proj);
-    const timeoutPromise = new Promise((_,reject) => setTimeout(() => reject(new Error('timeout')), 25000));
+    const timeoutPromise = new Promise((_,reject) => setTimeout(() => reject(new Error('timeout')), 60000));
     ai = await Promise.race([aiPromise, timeoutPromise]);
     if (!ai || !ai.insights) throw new Error('respuesta vacía');
   } catch(e) {
@@ -2038,10 +2038,11 @@ ${segFB||segIG?'REDES SOCIALES ORGÁNICAS:\n'+(segFB?'- Seguidores Facebook: '+s
 Genera 4 hallazgos y 5 acciones. Sé ESPECÍFICO: menciona nombres reales de anuncios, cifras exactas del CSV, porcentajes de mejora esperados.
 
 Responde SOLO JSON sin markdown ni backticks:
-{"insights":[{"tipo":"good|bad|warn","tag":"ETIQUETA 2-3 PALABRAS","titulo":"TÍTULO IMPACTANTE EN MAYÚSCULAS","cuerpo":"Análisis de 3-4 oraciones. Menciona el nombre del anuncio, la cifra exacta, qué significa y qué revela sobre la estrategia. NO seas genérico."}],"acciones":[{"urgencia":"urgent|warn|normal","titulo":"ACCIÓN ESPECÍFICA Y MEDIBLE","descripcion":"Qué hacer exactamente, con qué anuncio, cuánto presupuesto mover, en qué plazo y qué resultado esperar. Sé concreto."}]}`;
-  const r=await fetch('https://hub-jany-api.konverze-bi.workers.dev',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:1500,messages:[{role:'user',content:prompt}]})});
+{"insights":[{"tipo":"good|bad|warn","tag":"ETIQUETA 2-3 PALABRAS","titulo":"TÍTULO IMPACTANTE EN MAYÚSCULAS","cuerpo":"Análisis de 2-3 oraciones. Menciona el nombre del anuncio, la cifra exacta, qué significa y qué revela sobre la estrategia. NO seas genérico."}],"acciones":[{"urgencia":"urgent|warn|normal","titulo":"ACCIÓN ESPECÍFICA Y MEDIBLE","descripcion":"Qué hacer exactamente, con qué anuncio, cuánto presupuesto mover, en qué plazo y qué resultado esperar. Sé concreto."}]}`;
+  const r=await fetch('https://hub-jany-api.konverze-bi.workers.dev',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:3500,messages:[{role:'user',content:prompt}]})});
   const d=await r.json();
-  return JSON.parse(d.content?.find(b=>b.type==='text')?.text.replace(/```json|```/g,'').trim());
+  const txt=d.content?.find(b=>b.type==='text')?.text||'';
+  return JSON.parse(txt.slice(txt.indexOf('{'),txt.lastIndexOf('}')+1));
 }
 function fbInsights(ads,m){const b=[...ads].sort((a,b)=>b.resultados-a.resultados)[0],w=[...ads].sort((a,b)=>b.gasto-a.gasto).find(a=>a.resultados===0),ins=[];if(b&&b.resultados>0)ins.push({tipo:'good',tag:'TOP',titulo:`"${b.nombre.slice(0,22)}" LIDERA`,cuerpo:`Generó ${b.resultados} resultados con CTR de ${b.ctr.toFixed(2)}%.`});if(w)ins.push({tipo:'bad',tag:'FUGA',titulo:'GASTO SIN RESULTADOS',cuerpo:`"${w.nombre.slice(0,22)}" gastó $${w.gasto.toFixed(2)} con 0 resultados.`});ins.push({tipo:'warn',tag:'RESUMEN',titulo:'MÉTRICAS GLOBALES',cuerpo:`CTR: ${m.ctr.toFixed(2)}% · CPM: $${m.cpm.toFixed(2)} · ${m.tR} resultados totales.`});return ins;}
 function fbAcciones(ads,m){return[{urgencia:'urgent',titulo:'PAUSA ANUNCIOS SIN RESULTADOS',descripcion:'Pausa los anuncios con gasto > $20 y 0 resultados. Redistribuye el presupuesto.'},{urgencia:'normal',titulo:'ESCALA EL MEJOR CREATIVO',descripcion:`Sube el presupuesto del anuncio con mejor CTR un 20-30% esta semana.`}];}
