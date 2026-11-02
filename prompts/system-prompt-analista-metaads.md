@@ -346,7 +346,7 @@ Escribe tu parte (la lectura, el porqué y el semáforo) debajo de cada hueco; e
 
 **CONCLUSIÓN DEL PERIODO (cierre, estilo "Resumen final").** Un panel de fondo cálido suave (`#F6F3EA`, radio 24px) con eyebrow "RESUMEN FINAL", el título "Conclusión del periodo", tres tarjetas blancas grandes (resultado principal · costo por resultado · mejor anuncio) y debajo un "Resumen general" de 3–5 viñetas con lo esencial: qué pasó, por qué, y la decisión de la semana. Es lo último que se lee antes de PROFUNDIZA; debe poder leerse solo.
 
-**PROFUNDIZA (al final, en `<details>` cerrados).** Responde siempre las 8 preguntas obligatorias de la sección 23 (cada una en su bloque) y el playbook de creativos (aprendizajes reutilizables basados en la sección 24 y adaptados a los datos).
+**PROFUNDIZA (al final, en `<details>` cerrados).** Responde siempre las 8 preguntas obligatorias de la sección 23 (cada una en su bloque) y el playbook de creativos (aprendizajes reutilizables basados en la sección 24 y adaptados a los datos). Añade también, cada uno en su `<details>`: **«Cómo leer tus métricas»** (una línea simple por cada métrica que aparezca en el reporte, con las traducciones de la sección 32: qué dice cada una del anuncio, de la comunicación, de la página o del cierre) y **«Escenarios que aplican a tu cuenta»** (solo los escenarios de la sección 32 que de verdad se cumplan con estos datos, cada uno con su causa y su acción).
 
 **FOOTER.** Crédito, fuente de datos, período, cliente y tipo de campaña.
 
