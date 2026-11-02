@@ -410,3 +410,9 @@ test('agenda del día: tocar un día o una marca abre sus pasos, con botón para
   assert.ok(agenda.includes('id="cal-que-toca"'), 'botón "Qué toca hoy"');
   assert.ok(agenda.includes('tituloCorto(ev)'), 'las tareas de Temporada muestran lo que toca, no el nombre de la campaña');
 });
+
+test('pendientes de hoy: también muestra lo atrasado de los últimos días que no se marcó como hecho', () => {
+  const agenda = fs.readFileSync(path.join(RAIZ, 'consultor-agenda.html'), 'utf8');
+  assert.ok(agenda.includes('function atrasadosDe(') && agenda.includes('Se quedaron atrás'), 'sección de atrasados en el panel');
+  assert.ok(agenda.includes("info.hecha || vistos.has(info.clave)"), 'solo lo que sigue sin hacer y sin repetir etapas largas');
+});

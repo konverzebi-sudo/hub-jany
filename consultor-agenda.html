@@ -217,8 +217,13 @@
     .hoy-cab { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; }
     .hoy-cab h3 { margin: 0; font: 800 19px Inter, sans-serif; }
     .hoy-cab .hoy-fecha { font: 600 13.5px Inter, sans-serif; color: var(--text-dim); }
-    .hoy-cuenta { margin-left: auto; padding: 4px 12px; border-radius: 99px; background: var(--hoy-suave); color: var(--hoy); font: 800 13px Inter, sans-serif; }
+    .hoy-cuenta { padding: 4px 12px; border-radius: 99px; background: var(--hoy-suave); color: var(--hoy); font: 800 13px Inter, sans-serif; }
     .hoy-cuenta.completo { background: var(--accent-soft); color: var(--accent-texto); }
+    .hoy-cuentas { margin-left: auto; display: flex; flex-wrap: wrap; gap: 6px; }
+    .hoy-cuentas .hoy-cuenta { margin-left: 0; }
+    .hoy-cuenta.atraso { background: #FFF1D6; color: #9A5B00; }
+    .hoy-sub { margin-top: 2px; font: 700 11.5px "JetBrains Mono", monospace; letter-spacing: .06em; text-transform: uppercase; color: #9A5B00; }
+    .hoy-mas { font: 500 13px Inter, sans-serif; color: var(--text-dim); }
     .hoy-barra { height: 6px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
     .hoy-barra > i { display: block; height: 100%; border-radius: 99px; background: var(--hoy); transition: width .25s; }
     .hoy-barra.completo > i { background: var(--accent-texto); }
@@ -1476,16 +1481,49 @@ function abrirDia(iso, destacar) {
   if (t && t.scrollIntoView) t.scrollIntoView({ block: 'nearest' });
 }
 // Panel de arriba: lo que toca hoy, con casilla para ir marcando y el título para ver toda la info.
+const DIAS_ATRASO = 14;      // cuántos días hacia atrás se buscan pendientes sin hacer
+const MAX_ATRASADOS = 6;
+function cuandoFue(dias) { return dias === 1 ? 'ayer' : 'hace ' + dias + ' días'; }
+function filaHoy(info, iso, nota) {
+  const fila = nodo('div', 'hoy-fila' + (info.hecha ? ' lista' : ''));
+  fila.appendChild(casilla(info));
+  const ver = nodo('button', 'hoy-ver'); ver.type = 'button';
+  ver.appendChild(nodo('span', 'hoy-nom', info.titulo));
+  ver.appendChild(nodo('small', '', info.tag + (nota ? ' · ' + nota : '')));
+  ver.onclick = () => abrirDia(iso, { tipo: info.tipo, clave: info.clave });
+  fila.appendChild(ver);
+  return fila;
+}
+// Lo de días anteriores que no se marcó como hecho (las etapas largas cuentan una sola vez, en su último día).
+function atrasadosDe(porDia, iso) {
+  const vistos = new Set((porDia[iso] || []).map((it) => infoTarea(it).clave));
+  const out = [];
+  for (let i = 1; i <= DIAS_ATRASO; i++) {
+    const f = AP.sumarDias(iso, -i);
+    ordenDelDia(porDia[f] || []).forEach((it) => {
+      const info = infoTarea(it);
+      if (info.hecha || vistos.has(info.clave)) return;
+      vistos.add(info.clave);
+      out.push({ info, iso: f, dias: i });
+    });
+  }
+  return out;
+}
+// Panel de arriba: lo que toca hoy y lo que se quedó atrasado, con casilla para ir marcando y el título para ver toda la info.
 function renderHoy() {
   const cont = $('hoy-panel');
   const iso = hoyISO(), porDia = itemsPorDia();
   const infos = ordenDelDia(porDia[iso] || []).map((it) => ({ it, info: infoTarea(it) }));
+  const atras = atrasadosDe(porDia, iso);
   const hechas = infos.filter((x) => x.info.hecha).length;
   cont.textContent = '';
   const cab = nodo('div', 'hoy-cab');
   cab.appendChild(nodo('h3', '', 'Pendientes de hoy'));
   cab.appendChild(nodo('span', 'hoy-fecha', cap(fmtDiaLargo(iso))));
-  if (infos.length) cab.appendChild(nodo('span', 'hoy-cuenta' + (hechas === infos.length ? ' completo' : ''), hechas === infos.length ? 'Todo listo ✓' : hechas + ' de ' + infos.length + ' listas'));
+  const cuentas = nodo('span', 'hoy-cuentas');
+  if (infos.length) cuentas.appendChild(nodo('span', 'hoy-cuenta' + (hechas === infos.length ? ' completo' : ''), hechas === infos.length ? 'Todo listo ✓' : hechas + ' de ' + infos.length + ' listas'));
+  if (atras.length) cuentas.appendChild(nodo('span', 'hoy-cuenta atraso', atras.length + (atras.length === 1 ? ' atrasado' : ' atrasados')));
+  cab.appendChild(cuentas);
   cont.appendChild(cab);
   if (!infos.length) {
     const v = nodo('div', 'hoy-vacio');
@@ -1493,24 +1531,22 @@ function renderHoy() {
     v.appendChild(nodo('span', '', 'Hoy no tienes nada marcado.' + (sig ? ' Lo siguiente es el ' + fmtDiaLargo(sig) + '.' : '')));
     if (sig) { const b = nodo('button', 'pb-btn pb-btn-sec', 'Ver ese día →'); b.type = 'button'; b.onclick = () => abrirDia(sig); v.appendChild(b); }
     cont.appendChild(v);
-    return;
+  } else {
+    const barra = nodo('div', 'hoy-barra' + (hechas === infos.length ? ' completo' : ''));
+    const rel = nodo('i'); rel.style.width = Math.round(hechas / infos.length * 100) + '%';
+    barra.appendChild(rel);
+    cont.appendChild(barra);
+    const lista = nodo('div', 'hoy-lista');
+    infos.forEach(({ info }) => lista.appendChild(filaHoy(info, iso, '')));
+    cont.appendChild(lista);
   }
-  const barra = nodo('div', 'hoy-barra' + (hechas === infos.length ? ' completo' : ''));
-  const rel = nodo('i'); rel.style.width = Math.round(hechas / infos.length * 100) + '%';
-  barra.appendChild(rel);
-  cont.appendChild(barra);
-  const lista = nodo('div', 'hoy-lista');
-  infos.forEach(({ info }) => {
-    const fila = nodo('div', 'hoy-fila' + (info.hecha ? ' lista' : ''));
-    fila.appendChild(casilla(info));
-    const ver = nodo('button', 'hoy-ver'); ver.type = 'button';
-    ver.appendChild(nodo('span', 'hoy-nom', info.titulo));
-    ver.appendChild(nodo('small', '', info.tag));
-    ver.onclick = () => abrirDia(iso, { tipo: info.tipo, clave: info.clave });
-    fila.appendChild(ver);
-    lista.appendChild(fila);
-  });
-  cont.appendChild(lista);
+  if (atras.length) {
+    cont.appendChild(nodo('div', 'hoy-sub', 'Se quedaron atrás'));
+    const l = nodo('div', 'hoy-lista');
+    atras.slice(0, MAX_ATRASADOS).forEach((x) => l.appendChild(filaHoy(x.info, x.iso, cuandoFue(x.dias))));
+    cont.appendChild(l);
+    if (atras.length > MAX_ATRASADOS) cont.appendChild(nodo('div', 'hoy-mas', '+' + (atras.length - MAX_ATRASADOS) + ' más de los últimos ' + DIAS_ATRASO + ' días. Ábrelos desde el calendario.'));
+  }
 }
 function moverDia(delta) {
   if (!diaActivo) return;
