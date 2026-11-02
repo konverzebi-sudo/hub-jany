@@ -18,6 +18,7 @@ const { sql } = require('@vercel/postgres');
 const { sumarAlMes } = require('./_lib/uso-mensual');
 const { revisar: revisarSaldo, cobrar: cobrarSaldo } = require('./_lib/saldo');
 const { systemConCache, historialConCache, camposUso } = require('./_lib/cache-claude');
+const { normalizar, sufijoFoco, leerEnfoque, resolverSeleccion, haySeleccion, filtrarPorProducto, filtrarPorGrupo, elegirCampana, lineaFoco } = require('./_lib/enfoque');
 
 const DEFAULT_CLIENTE = 'rancho-seco';
 
@@ -290,24 +291,7 @@ function formatearComunicaciones366(items, grupos) {
 // auditoría reflejen la promoción y urgencia reales de esa campaña en vez de una genérica.
 // Importante: NO se filtra solo por "ya está corriendo hoy" -- lo normal es armar la landing
 // ANTES de que arranque la campaña, no durante. Por eso se incluyen también las que todavía no
-// empiezan, y solo se descartan las que ya terminaron en fecha.
-async function leerCampanaTemporadaActiva(clienteId) {
-  const campanas = await leerJSON(`${clienteId}:temporada-campanas`).catch(() => null);
-  if (!Array.isArray(campanas) || campanas.length === 0) return null;
-  const hoy = new Date().toISOString().slice(0, 10);
-  const noVencidas = campanas.filter((c) => c && (!c.fecha_fin_activa || c.fecha_fin_activa >= hoy));
-  if (noVencidas.length === 0) return null;
-  // De las no vencidas, prioriza la que ya arrancó o arranca más pronto (fecha_inicio_activa
-  // más cercana). Si ninguna trae fechas todavía (se está armando recién, borrador), usa la
-  // más reciente por fecha de creación -- es la que más probablemente se está trabajando ahora.
-  const conFecha = noVencidas.filter((c) => c.fecha_inicio_activa);
-  if (conFecha.length > 0) {
-    conFecha.sort((a, b) => a.fecha_inicio_activa.localeCompare(b.fecha_inicio_activa));
-    return conFecha[0];
-  }
-  const porCreacion = [...noVencidas].sort((a, b) => (b.creadoEn || '').localeCompare(a.creadoEn || ''));
-  return porCreacion[0] || null;
-}
+// empiezan, y solo se descartan las que ya terminaron en fecha. La selección vive en api/_lib/enfoque.js (elegirCampana).
 
 // Tablas de la campaña: mismas llaves y columnas que TEMPORADA_TABLAS en jefe-temporada.html.
 // `esencial` son las columnas que traen el contenido real: las filas precargadas del documento
@@ -406,8 +390,10 @@ function formatearCampanaTemporada(c) {
   return 'CAMPAÑA DE TEMPORADA (de Jefe de Temporada — úsala COMPLETA y tal cual: los deseos, dolores, miedos y objeciones de esta temporada, el mensaje elegido, la urgencia real, las frases maestras, las respuestas a objeciones y los CTAs alimentan el Hero, "Problema/deseo", las FAQs y los botones de la página o el guion del evento. No la resumas ni inventes una distinta):\n' + secciones.join('\n\n');
 }
 
-async function construirContextoNegocio(clienteId) {
-  const [identidad, tono, catalogo, grupos, audienciasRaw, productosRaw, sistemasRaw, comunicacionesRaw, campanaTemporada] = await Promise.all([
+// `enfoque` = lo que eligió la persona: el filtro de arriba (producto, grupo o campaña de temporada) y/o lo que etiquetó
+// con @ en este mensaje (ver api/_lib/enfoque.js). Sin enfoque el contexto es el de siempre (todo el negocio + la campaña vigente).
+async function construirContextoNegocio(clienteId, enfoque) {
+  const [identidad, tono, catalogo, grupos, audienciasRaw, productosRaw, sistemasRaw, comunicacionesRaw, campanasRaw] = await Promise.all([
     leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
     leerJSON(`${clienteId}:brand-book.tono`).catch(() => null),
     leerJSON(`${clienteId}:catalogo-productos`).catch(() => null),
@@ -416,23 +402,58 @@ async function construirContextoNegocio(clienteId) {
     leerProductos366(clienteId).catch(() => []),
     leerSistemas366(clienteId).catch(() => []),
     leerComunicaciones366(clienteId).catch(() => []),
-    leerCampanaTemporadaActiva(clienteId).catch(() => null),
+    leerJSON(`${clienteId}:temporada-campanas`).catch(() => null),
   ]);
 
-  // El orden importa: lo más específico y vigente (la campaña de Temporada y la oferta) va
+  const sel = resolverSeleccion(enfoque);
+  const campanas = Array.isArray(campanasRaw) ? campanasRaw : [];
+  const campanaTemporada = elegirCampana(campanas, sel);
+  const catalogoArr = Array.isArray(catalogo) ? catalogo : [];
+
+  // Qué producto / grupo se trabaja (si se eligió una campaña, el de esa campaña)
+  let productoId = sel.productoId;
+  let productoNombre = sel.productoNombre;
+  let grupoId = sel.grupoId;
+  if (sel.tipo === 'campana' && campanaTemporada) {
+    productoId = campanaTemporada.producto_origen !== 'nuevo' ? (campanaTemporada.producto_id || '') : '';
+    productoNombre = campanaTemporada.producto_nombre || '';
+    grupoId = campanaTemporada.grupo_id || '';
+  }
+  const itemCatalogo = productoId ? catalogoArr.find((p) => p && p.id === productoId) : null;
+  if (itemCatalogo) { productoNombre = itemCatalogo.nombre || productoNombre; grupoId = grupoId || itemCatalogo.grupo_id || ''; }
+  const enfocado = haySeleccion(sel);
+  const acotar = (items) => (enfocado ? filtrarPorGrupo(filtrarPorProducto(items, productoId, productoNombre), grupoId) : items);
+
+  // Catálogo: con un producto elegido va solo el suyo y, aparte, los nombres de los demás (para que sepa que existen, sin mezclarlos)
+  let catalogoUsado = catalogo;
+  let otrosProductos = '';
+  if (enfocado && catalogoArr.length) {
+    const n = normalizar(productoNombre);
+    const suyos = productoId || n
+      ? catalogoArr.filter((p) => p && ((productoId && p.id === productoId) || (n && normalizar(p.nombre) === n)))
+      : grupoId ? catalogoArr.filter((p) => p && p.grupo_id === grupoId) : [];
+    if (suyos.length) {
+      catalogoUsado = suyos;
+      const nombres = catalogoArr.filter((p) => p && p.nombre && !suyos.includes(p)).map((p) => p.nombre);
+      if (nombres.length) otrosProductos = 'OTROS PRODUCTOS DEL NEGOCIO (solo los nombres; NO los uses en esta conversación): ' + nombres.join(', ');
+    }
+  }
+
+  const lineaDeFoco = lineaFoco(sel, { sinCampana: enfocado && !campanaTemporada, campanaNombre: campanaTemporada ? (campanaTemporada.nombre || campanaTemporada.producto_nombre || '') : '' });
+
+  // El orden importa: lo más específico y vigente (el foco, la campaña de Temporada y la oferta) va
   // primero para que, si algún día el contexto de una marca crece mucho, lo que se recorte sea lo
-  // menos crítico y no la campaña. Antes iba al final con un tope global de 7000 caracteres, y el
-  // contexto real de una marca (~11,000) se cortaba justo antes de la Comunicación 366 y la
-  // campaña: el agente nunca las recibía aunque estuvieran guardadas y bien detectadas.
-  // Además cada bloque tiene su propio tope, para que uno largo no deje sin lugar a los demás.
+  // menos crítico. Además cada bloque tiene su propio tope, para que uno largo no deje sin lugar a los demás.
   const bloques = [
+    lineaDeFoco,
     formatearCampanaTemporada(campanaTemporada),
     formatearIdentidad(identidad),
-    formatearProductos366(productosRaw, grupos),
-    formatearComunicaciones366(comunicacionesRaw, grupos),
-    formatearSistemas366(sistemasRaw, grupos),
-    formatearAudiencias(audienciasRaw, grupos),
-    formatearCatalogo(catalogo, grupos),
+    formatearProductos366(acotar(productosRaw), grupos),
+    formatearComunicaciones366(acotar(comunicacionesRaw), grupos),
+    formatearSistemas366(acotar(sistemasRaw), grupos),
+    formatearAudiencias(enfocado && grupoId ? filtrarPorGrupo(audienciasRaw, grupoId) : audienciasRaw, grupos),
+    formatearCatalogo(catalogoUsado, grupos),
+    otrosProductos,
     formatearTono(tono),
   ].filter(Boolean).map((b) => truncar(b, b.startsWith('CAMPAÑA DE TEMPORADA') ? CAMPANA_BLOCK_CHAR_LIMIT : BLOCK_CHAR_LIMIT));
 
@@ -573,14 +594,15 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const contextoNegocio = await construirContextoNegocio(clienteId);
+    const enfoque = leerEnfoque(body);
+    const contextoNegocio = await construirContextoNegocio(clienteId, enfoque);
 
     if (MODOS_DIAGNOSTICO.has(modo)) {
       const datos = body.datos && typeof body.datos === 'object' ? body.datos : {};
       const sufijoRuta = modo === 'diagnostico-tienda' ? 'tienda' : modo === 'diagnostico-evento' ? 'evento' : 'mensaje';
       const tasas = modo === 'diagnostico-tienda' ? calcularTasasTienda(datos) : modo === 'diagnostico-evento' ? calcularTasasEvento(datos) : calcularTasasMensaje(datos);
 
-      await escribirJSON(`${clienteId}:conversion-cierre-diagnostico-${sufijoRuta}`, datos).catch(() => {});
+      await escribirJSON(`${clienteId}:conversion-cierre-diagnostico-${sufijoRuta}${sufijoFoco(enfoque.foco)}`, datos).catch(() => {});
 
       const contextoDatos = formatearContextoDiagnostico(modo, datos, tasas);
       const system = systemConCache([promptBase, promptModo].join('\n\n'), contextoNegocio, contextoDatos);
