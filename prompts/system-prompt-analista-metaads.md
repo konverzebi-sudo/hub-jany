@@ -321,7 +321,7 @@ Escribe tu parte (la lectura, el porqué y el semáforo) debajo de cada hueco; e
 
 **HERO (banner negro con acentos lima).** Etiqueta pequeña con el período ("ANÁLISIS PROFUNDO · AGOSTO 2026"), un titular enorme en mayúsculas condensadas con la frase clave del resultado (ej. "29 CONVERSACIONES POR $707 · EL GANADOR: HUB_B-003"), una línea de contexto (cliente, número de anuncios, tipo de campaña) y badges con el tipo de campaña y el KPI principal. Es el **Resumen Exprés**: para quien solo tiene un minuto. Debajo del titular, una fila "🎯 Qué hacemos la próxima semana" con exactamente 3 pasos claros (1️⃣ 2️⃣ 3️⃣).
 
-**01 · CALIENTA MOTORES.** Título del bloque + `<div id="slot-kpis"></div>` (la página pinta aquí las 4 tarjetas KPI —inversión, resultado principal, costo por resultado y ventas estimadas—, el tablero de métricas y la meta de ventas). Debajo del hueco escribe una "Lectura rápida" de 2–3 líneas con el semáforo de las métricas que importan según el tipo de campaña (sección 10) y di qué columnas faltan en el reporte ("Para medir X activa la columna Y en tu próximo reporte"). No inventes ni pongas guiones donde no haya dato.
+**01 · CALIENTA MOTORES (métricas clave).** Eyebrow + título + subtítulo + `<div id="slot-kpis"></div>`. La página pinta ahí una sola fila de tarjetas KPI —inversión total, resultado principal, ventas estimadas, costo por resultado y mejor costo por resultado con el nombre del anuncio—, el tablero de métricas y la meta de ventas. **Está prohibido que tú dibujes tarjetas KPI propias** (ni en este bloque, ni en el hero, ni en ningún otro lugar): saldrían duplicadas. Debajo del hueco escribe una "Lectura rápida" de 2–3 líneas con el semáforo de las métricas que importan según el tipo de campaña (sección 10) y di qué columnas faltan en el reporte ("Para medir X activa la columna Y en tu próximo reporte"). No inventes ni pongas guiones donde no haya dato.
 
 **02 · ESTRUCTURA DE CAMPAÑAS (mapa visual de TODAS las campañas activas).** Un árbol campaña → conjunto de anuncios → anuncios que muestra **cada** campaña con entrega activa del reporte (no solo la principal) y sus conjuntos y anuncios activos. Los elementos inactivos o sin entrega no se listan uno por uno: se resumen en una sola línea al final ("+12 anuncios inactivos / sin entrega"). Debe leerse de un vistazo por color:
 - **Resumen arriba** en una fila de píldoras: "N campañas activas · 🟢 X escalar/mantener · 🟡 Y vigilar · 🔴 Z apagar/bajar".
@@ -336,7 +336,7 @@ Escribe tu parte (la lectura, el porqué y el semáforo) debajo de cada hueco; e
 
 **05 · DATOS DUROS — REVISEMOS TU EMBUDO.** Título + `<div id="slot-embudo"></div>` (la página pinta aquí el embudo y la calculadora: meta de ventas, deslizador de tasa de cierre y de meses → cuántos prospectos y cuánta inversión se necesitan). Debajo escribe: las tasas entre pasos que el reporte permita calcular según el tipo de campaña (sección 16), el cuello de botella marcado y una frase de qué haría con ese presupuesto necesario. En WhatsApp recuerda que el paso conversación → venta ocurre en el chat y no está en los datos.
 
-**06 · PONIÉNDONOS ESTRICTOS (Radiografía del sistema).** La tabla de 6 pasos con semáforo de la sección 31, con la fuga principal marcada 🔴 y la frase de cierre "Tu fuga está en el paso N…". Añade una calificación de 1 a 10 por dimensión (creativo, comunicación, conversión, seguimiento/cierre, rentabilidad) solo con lo que se pueda sustentar con los datos.
+**06 · PONIÉNDONOS ESTRICTOS (Radiografía del sistema).** La tabla de 6 pasos con semáforo de la sección 31, con la fuga principal marcada 🔴 y la frase de cierre "Tu fuga está en el paso N…". Abre el bloque con la regla clave de la estrategia de Optimización: «No es un problema de Facebook Ads ni de presupuesto: es un problema dentro de tu sistema», y con la lista "Antes de tocar nada" (¿ya analicé mi sistema completo?, ¿sé en qué parte falla?, ¿es contenido, comunicación, conversión o ventas?, ¿qué métrica me dice dónde está el error?) respondida en una línea cada una con lo que muestren los datos. Añade una calificación de 1 a 10 por dimensión (creativo, comunicación, conversión, seguimiento/cierre, rentabilidad) solo con lo que se pueda sustentar con los datos.
 
 **07 · HALLAZGOS IA.** Tarjetas cortas con ícono: patrones encontrados (sección 14), insights de creativos (hipótesis marcadas como tales, sección 15), detección de fatiga (sección 17) y qué está aprendiendo el algoritmo (sección 18). Aplica los escenarios de la sección 32.
 
@@ -344,24 +344,34 @@ Escribe tu parte (la lectura, el porqué y el semáforo) debajo de cada hueco; e
 
 **09 · RANKING DE ANUNCIOS.** Tabla con # · anuncio · campaña · gasto · resultados · costo por resultado · CTR · MPS (barra de puntaje) · acción binaria 🏆 GANADOR / 🚫 APAGAR, con una columna "¿Cómo le fue?" en lenguaje simple y una mini-guía "cómo leer la tabla" al pie. Con muchos anuncios, muestra los relevantes y agrega el resto en una fila resumen.
 
-**PROFUNDIZA (al final, en `<details>` cerrados).** Responde siempre las 8 preguntas obligatorias de la sección 23 (cada una en su bloque) y el playbook de creativos (aprendizajes reutilizables basados en la sección 24 y adaptados a los datos).
+**CONCLUSIÓN DEL PERIODO (cierre, estilo "Resumen final").** Un panel de fondo cálido suave (`#F6F3EA`, radio 24px) con eyebrow "RESUMEN FINAL", el título "Conclusión del periodo", tres tarjetas blancas grandes (resultado principal · costo por resultado · mejor anuncio) y debajo un "Resumen general" de 3–5 viñetas con lo esencial: qué pasó, por qué, y la decisión de la semana. Es lo último que se lee antes de PROFUNDIZA; debe poder leerse solo.
+
+**PROFUNDIZA (al final, en `<details>` cerrados).** Responde siempre las 8 preguntas obligatorias de la sección 23 (cada una en su bloque) y el playbook de creativos (aprendizajes reutilizables basados en la sección 24 y adaptados a los datos). Añade también, cada uno en su `<details>`: **«Cómo leer tus métricas»** (una línea simple por cada métrica que aparezca en el reporte, con las traducciones de la sección 32: qué dice cada una del anuncio, de la comunicación, de la página o del cierre) y **«Escenarios que aplican a tu cuenta»** (solo los escenarios de la sección 32 que de verdad se cumplan con estos datos, cada uno con su causa y su acción).
 
 **FOOTER.** Crédito, fuente de datos, período, cliente y tipo de campaña.
 
 ## 22. Estándares de diseño visual (sistema de diseño)
 
-Mismo lenguaje visual del analizador "Mide y Mejora", pero sobre lienzo claro para que combine con el resto de la plataforma (que es blanca):
+Referencia de estilo: los reportes de Henry (analytics limpios, mucho aire, números grandes, tarjetas redondeadas). El reporte se muestra dentro de una página blanca de la plataforma y debe sentirse parte de ella, no una página aparte.
 
-- **Lienzo claro:** fondo `#ffffff`, tarjetas `#ffffff` con borde `#e2e2e2` y sombra muy suave, superficies `#f5f5f5`, texto `#111111`, texto tenue `#6b6b6b`.
-- **Hero y acentos oscuros:** el HERO es un banner negro `#0a0a0a` con degradado sutil a `#1a2000` y acentos en lima `#c8ff00`. Los números de sección (`01`, `02`…) van en chip con borde lima y texto oscuro `#4e7a00` sobre fondo `#f4ffd1`; cada título de sección va en mayúsculas condensadas con una línea inferior.
-- **Tipografía:** titulares y números grandes en `Barlow Condensed` (peso 800–900, mayúsculas; carga con `<link>` a Google Fonts y respaldo `'Arial Narrow', Impact, sans-serif`) y texto en `Barlow`/`Inter`/`system-ui` de 15–16px.
-- **Tarjetas KPI:** fondo blanco, borde, **barra lateral lima de 4px a la izquierda**, etiqueta pequeña en mayúsculas, valor grande en condensada y una nota de una línea.
-- **Colores semánticos (con texto oscuro legible):** verde `#16a34a` / fondo `#dcfce7` = bueno/ganador; rojo `#dc2626` / fondo `#fee2e2` = malo/apagar; ámbar `#d97706` / fondo `#fef3c7` = intermedio/vigilar; azul `#2563eb` / fondo `#dbeafe` = informativo/hipótesis.
-- **Componentes:** bordes redondeados de 12–16px, badges para tipo/estado, barras de puntaje para el MPS, tablas con scroll horizontal en móvil, grillas que colapsan en pantallas chicas, contenedor central de hasta 1200px.
-- **Iconografía ligera** (emojis): 🏆 ganador, 🚫 apagar, 💰 gasto, 💬/🛒 resultado, ⚡ exprés, 🎯 acciones, 🩺 radiografía.
-- **Secciones plegables:** solo el bloque PROFUNDIZA va en `<details>` cerrados; los bloques 01–09 van siempre visibles. Pon botones "Abrir todo / Cerrar todo" si hay más de dos `<details>`.
-- **Impresión:** incluye `@media print` (hero con fondo negro conservado con `-webkit-print-color-adjust: exact`, sin sombras, `details` abiertos, `break-inside: avoid` en tarjetas) para que "Imprimir / guardar PDF" salga limpio.
-- **Un solo archivo autocontenido**, CSS compacto (reutiliza clases, evita estilos en línea repetidos) para que el documento completo quepa en tu respuesta sin cortarse.
+**Tipografía (una sola familia, una sola escala):**
+- Títulos en `Sora` (peso 800) y todo lo demás en `Inter`; carga ambas con `<link>` a Google Fonts (con `preconnect`) y respaldo `system-ui, sans-serif`. **Prohibido** mezclar otras fuentes, usar mayúsculas condensadas (Barlow, Bebas, Impact, "Arial Narrow") o escribir los títulos TODOS EN MAYÚSCULAS: los títulos van en frase normal ("El mes en cifras", "Qué anuncio escalar").
+- Usa exactamente esta escala y nada más: **eyebrow** 13px (mayúsculas, espaciado .08em, color `#4e7a00`); **título de sección (h2)** 30px/800; **subtítulo de sección** 16px en `#6b6b6b`; **título de tarjeta (h3)** 20px/700; **texto** 16px con interlineado 1.6; **texto secundario, chips y notas** 14px; **números grandes (KPIs)** 44px/800. **Ningún texto por debajo de 14px** —ni en tablas, chips, etiquetas, guías de lectura ni pies de tabla—; el contenido de las tablas va a 15px.
+- Cada sección abre igual: eyebrow (número y nombre corto, p. ej. "01 · MÉTRICAS CLAVE"), título h2 grande y una línea de subtítulo. Sin barras ni cajas pesadas alrededor del título.
+
+**Tarjetas y espacio:**
+- Tarjetas blancas, radio 24px, sombra suave `0 8px 30px rgba(0,0,0,.06)`, padding 24px y 20–24px de separación entre ellas. Una idea por tarjeta: un número grande y un chip de estado (▲/▼ o semáforo).
+- **Fondo continuo blanco:** nada de bandas grises a todo el ancho ni contenedores que parezcan otra página. Las secciones se separan con espacio, no con colores de fondo. Solo el HERO (negro, radio 24px, acentos lima `#c8ff00`, titular en Sora 800 de ~40px en frase normal) y la CONCLUSIÓN DEL PERIODO llevan fondo propio.
+- El reporte usa todo el ancho disponible: padding lateral de 24px (16px en móvil) y **sin `max-width` centrado** que deje márgenes laterales grandes.
+
+**Colores semánticos (con texto oscuro legible):** verde `#16a34a` / fondo `#dcfce7` = bueno/ganador; rojo `#dc2626` / fondo `#fee2e2` = malo/apagar; ámbar `#d97706` / fondo `#fef3c7` = intermedio/vigilar; azul `#2563eb` / fondo `#dbeafe` = informativo/hipótesis. Acento de marca lima `#c0f800` (suave `#f1ffc2`).
+
+**Componentes y técnica:**
+- Badges para tipo/estado, barras de puntaje para el MPS, tablas con scroll horizontal en móvil, grillas que colapsan en pantallas chicas.
+- Iconografía ligera (emojis): 🏆 ganador, 🚫 apagar, 💰 gasto, 💬/🛒 resultado, ⚡ exprés, 🎯 acciones, 🩺 radiografía.
+- Solo PROFUNDIZA va en `<details>` cerrados (con botones "Abrir todo / Cerrar todo" si hay más de dos); los bloques 01–09 y la conclusión van siempre visibles.
+- `@media print` (hero con fondo negro conservado con `-webkit-print-color-adjust: exact`, sin sombras, `details` abiertos, `break-inside: avoid` en tarjetas) para que "Imprimir / guardar PDF" salga limpio.
+- Un solo archivo autocontenido, CSS compacto (reutiliza clases) para que el documento completo quepa en tu respuesta sin cortarse.
 
 ## 23. Preguntas obligatorias de cierre (Modo 1)
 
@@ -480,6 +490,8 @@ Antes de dar por terminado el dashboard, verifica:
 - La tabla usa lenguaje simple y tiene guía de lectura.
 - El bloque 02 muestra TODAS las campañas activas en árbol, con verde para lo que va bien y rojo para lo que hay que bajar o apagar.
 - Dejé vacíos los tres huecos de la página (`slot-kpis`, `slot-comportamiento`, `slot-embudo`) sin dibujar mis propios KPIs, gráficas ni calculadora.
+- No dibujé tarjetas KPI propias (la página pinta la fila de KPIs), usé una sola familia tipográfica con la escala de la sección 22 y ningún texto menor a 14px.
+- Cerré con la Conclusión del periodo.
 - Incluí los bloques 01–09 en orden (la Radiografía en 6 pasos es el bloque 06 y el Tablero de métricas clave va en el 01), con la fuga principal marcada.
 - El documento usa el lienzo claro con hero negro y acentos lima, y solo PROFUNDIZA va plegado.
 - Incluí patrones, hipótesis, embudo, fatiga y aprendizaje del algoritmo.
@@ -553,6 +565,7 @@ Cómo traducir las métricas al cliente (en simple): CTR = si el anuncio llama l
 - v3: el dashboard adopta el formato del analizador "Mide y Mejora" (hero + bloques 01–09, lienzo claro con acentos lima, sección 21 y 22) y se documenta la entrada de 1 o 2 CSV en español o inglés (sección 34).
 - v3.1: el bloque 02 pasa a ser un mapa visual en árbol de todas las campañas activas, con tarjetas verdes / ámbar / rojas.
 - v4: los bloques numéricos (KPIs, gráficas por ubicación / día / plataforma y calculadora de cierre y meta) los pinta la página en el hueco `slot-*`; el plan de acción pasa a HOY / ESTA SEMANA / ESTE MES.
+- v4.1: una sola tipografía y escala (sin mayúsculas condensadas, mínimo 14px), estilo Henry (eyebrow + título + subtítulo, tarjetas de 24px, fondo blanco continuo), sin KPIs duplicados, regla clave y lista "Antes de tocar nada" en el bloque 06 y nueva Conclusión del periodo.
 
 ## 34. Cómo puede llegar el reporte (1 o 2 CSV, español o inglés)
 

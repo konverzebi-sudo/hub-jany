@@ -107,3 +107,19 @@ test('inyectar sin huecos agrega las secciones al final para no perder el tabler
 test('inyectar sin datos devuelve el reporte tal cual', () => {
   assert.equal(MT.inyectar('<html></html>', null), '<html></html>');
 });
+
+test('calcular: mejor costo por resultado toma el anuncio más barato con volumen suficiente', () => {
+  const csv = [
+    'Nombre del anuncio,Importe gastado (MXN),Resultados,Indicador de resultado',
+    'Barato pero casi sin datos,5,1,actions:onsite_conversion.messaging_conversation_started_7d',
+    'Ganador,500,19,actions:onsite_conversion.messaging_conversation_started_7d',
+    'Caro,90,1,actions:onsite_conversion.messaging_conversation_started_7d',
+    'Medio,300,10,actions:onsite_conversion.messaging_conversation_started_7d',
+  ].join('\n');
+  const d = MT.calcular([{ name: 'p.csv', text: csv }], {});
+  assert.equal(d.mejor.nombre, 'Ganador');
+  assert.equal(Math.round(d.mejor.cpr * 100) / 100, 26.32);
+  assert.equal(d.mejor.res, 19);
+  const out = MT.inyectar('<html><head></head><body><div id="slot-kpis"></div></body></html>', d);
+  assert.ok(/Mejor costo por prospecto/.test(out) && /Ganador/.test(out));
+});
