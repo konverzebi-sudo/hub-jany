@@ -805,6 +805,8 @@
   .conjunto-card{background:#FAFAFA;border:1px solid var(--line);border-left:4px solid var(--con);border-radius:16px;padding:18px 20px;display:flex;flex-direction:column;gap:12px;}
   .conjunto-top{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;}
   .conjunto-fields-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;}
+  .presu-conjuntos{margin-top:12px;display:flex;flex-direction:column;gap:12px;}
+  .presu-fila-t{grid-column:1/-1;font:700 13px 'Sora',sans-serif;}
   .conjunto-fields-grid .mode-field input,.conjunto-fields-grid .mode-field textarea{width:100%;}
   .conjunto-fields-grid .mode-field textarea{min-height:44px;resize:vertical;font-family:'Inter',sans-serif;}
   .anuncios-nota-box{background:var(--accent-soft);border:1px dashed #A8CC3A;border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;}
@@ -2310,18 +2312,20 @@ function htmlMapaColumnas(campana, opts){
     const origen = origenPublico(c);
     const genero = c.genero && c.genero!=='Todos' ? c.genero : ((c.edad||c.ubicacion) ? 'Todos' : '');
     const presu = campana.presupuesto_nivel==='campana' ? '' : (c.presupuesto_diario || '');
-    return `<div class="res-conj"><div class="res-conj-t">Público #${i+1}${origen ? `<span class="res-tag">${escHtml(origen)}</span>` : ''}</div>`
+    return `<div class="res-conj"><div class="res-conj-t">Mercado #${i+1}${origen ? `<span class="res-tag">${escHtml(origen)}</span>` : ''}</div>`
       + kv('Edad', escHtml(c.edad)) + kv('Género', escHtml(genero)) + kv('Ubicación', escHtml(c.ubicacion))
       + kv('Intereses', escHtml((c.intereses||'').slice(0,140))) + kv('Presupuesto diario', escHtml(presu)) + '</div>';
   };
+  // el conjunto de anuncios define dos cosas: el presupuesto (por campaña o por conjunto) y el mercado (a quién le llega)
+  const presupuestoTexto = (c)=> c.presupuesto_nivel==='campana' ? 'Por campaña'+(c.presupuesto_diario ? ' · '+c.presupuesto_diario : '') : (c.presupuesto_nivel==='conjunto' ? 'Por conjunto' : 'Sin elegir');
   const objIcono = ((OBJETIVOS.find(x=>x.key===campana.objetivo)||{}).label||'').split(' ')[0];
   const col1 = dark('Objetivo de campaña', 'obj', false, !objetivoTextoCampana(campana))
     + (objetivoTextoCampana(campana)
         ? kv('Objetivo', `${objIcono ? objIcono+' ' : ''}${escHtml(objetivoTextoCampana(campana))}`) + kv('Tipo', escHtml(campana.tipo)) + kv('Resultado esperado', escHtml(campana.resultado_esperado))
         : '<div class="res-vacio">Sin definir</div>');
   const col2 = dark('Conjunto de anuncios' + (ed ? ' ('+conjuntos.length+')' : ''), 'esp', opts.abEsp, !conjuntos.length)
-    + (campana.presupuesto_nivel==='campana' && campana.presupuesto_diario ? kv('Presupuesto de la campaña', escHtml(campana.presupuesto_diario)) : '')
-    + (conjuntos.length ? conjuntos.map(publico).join('') : '<div class="res-vacio">Sin conjuntos todavía</div>');
+    + kv('Presupuesto', escHtml(presupuestoTexto(campana)))
+    + (conjuntos.length ? conjuntos.map(publico).join('') : kv('Mercado', 'Sin conjuntos todavía'));
   const col3 = dark('Anuncios', 'anu', opts.abAnu, !nAnuncios) + `<div class="res-anuncios"${ed ? ` data-vinculados="${campana.id}"` : ''}>${htmlAnunciosVinculados(campana, opts.anuncioId)}</div>`;
   return `<div class="res-col">${col1}</div><div class="res-col">${col2}</div><div class="res-col res-col-anuncios">${col3}</div>`;
 }
@@ -2396,7 +2400,7 @@ function proponerCampanaParaLote(ids){
   ov.innerHTML = `<div class="ay-box" role="dialog" aria-modal="true">
     <h3>¿En qué campaña van estos ${ids.length} anuncios?</h3>
     <p class="ay-nota" style="margin-top:-4px;">Para no confundirte, propongo esto. Tú decides:</p>
-    <label class="ay-op"><input type="radio" name="ay-camp" value="" checked><span><b>🆕 Una campaña nueva</b> con todos estos anuncios<small>Campaña: ${escHtml(nombreNueva)} · se crea con su primer conjunto de anuncios (público #1). Después completas objetivo y público en “Estructura de Ads”.</small></span></label>
+    <label class="ay-op"><input type="radio" name="ay-camp" value="" checked><span><b>🆕 Una campaña nueva</b> con todos estos anuncios<small>Campaña: ${escHtml(nombreNueva)} · se crea con su primer conjunto de anuncios (mercado #1). Después completas objetivo, presupuesto y mercado en “Estructura de Ads”.</small></span></label>
     ${existentes.map(({c,i,ok})=>`<label class="ay-op${ok?'':' ay-off'}"><input type="radio" name="ay-camp" value="${c.id}"${ok?'':' disabled'}><span><b>➕ Agregarlos a una campaña que ya tengo</b><small>${escHtml(etiquetaCampana(c,i))}${ok ? (c.producto_id||c.grupo_id ? ' · mismo producto/grupo' : ' · campaña general') : ' · no se puede: '+motivoNoAcepta(c)}</small></span></label>`).join('')}
     <div class="ay-btns"><button type="button" class="btn btn-outline" data-ay-luego>Decidir después</button><button type="button" class="btn btn-solid" data-ay-ok>Aceptar</button></div>
   </div>`;
@@ -2500,7 +2504,9 @@ function htmlPasoPresupuesto(campana){
         ${op('conjunto','🧩','Por conjunto','Tú decides cuánto gasta cada público.','Cada conjunto lleva su propio presupuesto diario. Úsalo si quieres controlar cuánto se invierte en cada audiencia o probarlas con montos iguales.')}
       </div>
       ${nivel==='campana' ? `<div class="mode-field paso-presu-campo"><label>Presupuesto diario de la campaña</label><input type="text" data-campana-presu placeholder="Ej: $300 MXN" value="${escHtml(campana.presupuesto_diario||'')}"></div>` : ''}
-      ${nivel==='conjunto' ? '<p class="paso-hint">Cada conjunto lleva su presupuesto diario (lo defines en su bloque, abajo).</p>' : ''}
+      ${nivel ? `<div class="presu-conjuntos">${(campana.conjuntos||[]).length ? campana.conjuntos.map((cj,i)=>`<div class="conjunto-fields-grid presu-fila"><div class="presu-fila-t">Conjunto ${i+1}</div>
+        ${nivel==='conjunto' ? `<div class="mode-field"><label>Presupuesto diario</label><input type="text" data-conjunto="${cj.id}" data-field="presupuesto_diario" placeholder="Ej: $200 MXN" value="${escHtml(cj.presupuesto_diario)}"></div>` : ''}
+        <div class="mode-field"><label>Duración de campaña</label><input type="text" data-conjunto="${cj.id}" data-field="duracion" placeholder="Ej: Indefinido / 7 días" value="${escHtml(cj.duracion)}"></div></div>`).join('') : '<p class="paso-hint">Agrega un conjunto de anuncios (abajo) para ponerle su presupuesto y su duración.</p>'}</div>` : ''}
     </div>
   </details>`;
 }
@@ -2513,7 +2519,7 @@ function buildCampanaEstructuraCard(campana, numero, verProducto){
 
   card.innerHTML = `
     <div class="res-top">
-      <button type="button" class="res-pill-white res-colapsar" data-res-colapsar title="Clic para encoger o abrir">Campaña ${numero || numeroCampana(campana)}${verProducto ? ' · '+escHtml(nombreAlcance(campana)) : ''}<span class="res-flecha">→</span></button>
+      <button type="button" class="res-pill-white res-colapsar" data-res-colapsar title="Clic para encoger o abrir">Campaña ${numero || numeroCampana(campana)} · ${escHtml(nombreAlcance(campana))}<span class="res-flecha">→</span></button>
       <div class="campana-top-actions">
         <button type="button" class="res-btn res-btn-white" data-guardar-campana>Guardar campaña</button>
         <button type="button" class="item-del" data-del-campana title="Eliminar campaña">✕</button>
@@ -2524,9 +2530,9 @@ function buildCampanaEstructuraCard(campana, numero, verProducto){
         <label class="res-fecha">Fecha de inicio:
           <input type="date" class="res-fecha-input" data-campana="${campana.id}" data-field="fecha_inicio" value="${escHtml(campana.fecha_inicio||'')}">
         </label>
-        ${verProducto ? `<label class="res-fecha">Producto:
-          <select class="res-fecha-input" data-campana="${campana.id}" data-field="alcance">${opcionesAlcance(campana)}</select>
-        </label>` : ''}
+        <label class="res-fecha">Producto:
+          ${verProducto ? `<select class="res-fecha-input" data-campana="${campana.id}" data-field="alcance">${opcionesAlcance(campana)}</select>` : `<span class="res-fecha-lect">${escHtml(nombreAlcance(campana))}</span>`}
+        </label>
       </div>
       <div class="res-mapa">${htmlMapaColumnas(campana, { editable:true, abEsp, abAnu })}</div>
     </div>
@@ -2554,8 +2560,9 @@ function buildCampanaEstructuraCard(campana, numero, verProducto){
   const conjuntosList = card.querySelector('.conjuntos-list');
   campana.conjuntos.forEach((conjunto,i)=>conjuntosList.appendChild(buildConjuntoCard(campana, conjunto, i)));
   const anuBox = card.querySelector('[data-anu-conjuntos]');
+  // sin conjuntos todavía se muestra uno en blanco: se crea de verdad en cuanto se marca un anuncio
   if(campana.conjuntos.length) campana.conjuntos.forEach((conjunto,i)=>anuBox.appendChild(buildAnunciosConjunto(campana, conjunto, i)));
-  else anuBox.innerHTML = '<p class="mode-status">Primero define un conjunto de anuncios (paso 2) para poder vincularle anuncios.</p>';
+  else anuBox.appendChild(buildAnunciosConjunto(campana, mkConjunto(), 0));
   ligarPasos(card);
   card.querySelectorAll('.paso-presu .alc-card').forEach(c=>{
     const elegir = ()=>{ campana.presupuesto_nivel = c.dataset.presu; scheduleEstructuraSave(); render(); };
@@ -2563,6 +2570,10 @@ function buildCampanaEstructuraCard(campana, numero, verProducto){
     c.addEventListener('keydown',(e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); elegir(); } });
   });
   card.querySelectorAll('.paso-presu [data-como]').forEach(b=>b.addEventListener('click',(e)=>{ e.preventDefault(); e.stopPropagation(); b.closest('.alc-card').classList.toggle('abierto'); }));
+  card.querySelectorAll('.paso-presu input[data-conjunto]').forEach(inp=>inp.addEventListener('input',(e)=>{
+    const cj = campana.conjuntos.find(c=>c.id===inp.dataset.conjunto); if(!cj) return;
+    cj[inp.dataset.field] = e.target.value; scheduleEstructuraSave();
+  }));
   const presuInp = card.querySelector('[data-campana-presu]');
   if(presuInp) presuInp.addEventListener('input',(e)=>{ campana.presupuesto_diario = e.target.value; scheduleEstructuraSave(); });
   card.querySelector('[data-siguiente-anuncios]').addEventListener('click',()=>{
@@ -2677,9 +2688,9 @@ function buildConjuntoCard(campana, conjunto, idx){
       <button type="button" class="item-del" data-conjunto="${conjunto.id}" title="Eliminar conjunto">✕</button>
     </div>
     <details class="paso-det" data-paso="${k}"${pasoAbierto(k)?' open':''}>
-      <summary class="paso-t"><span class="paso-n">2</span> Público <span class="paso-res">· ${escHtml(origen)}</span><span class="paso-car">▾</span></summary>
+      <summary class="paso-t"><span class="paso-n">2</span> Mercado <span class="paso-res">· ${escHtml(origen)}</span><span class="paso-car">▾</span></summary>
       <div class="paso-cuerpo">
-        <p class="paso-hint">¿De dónde partimos para llenar este público?</p>
+        <p class="paso-hint">¿De dónde partimos para llenar este mercado?</p>
         <div class="paso-sub">Recomendado</div>
         <div class="alc-cards chicas" role="listbox">
           ${tarjeta('data-pub="ia"','✨','Solo con IA','Es lo que mejor está funcionando: el Jefe arma el público con tu ADN, tu 366 y el Radar de Mercado.','No eliges nada: la IA propone ubicación, edad, género e intereses pensando en tu producto.', fuente==='ia', true)}
@@ -2703,18 +2714,6 @@ function buildConjuntoCard(campana, conjunto, idx){
             <select data-conjunto="${conjunto.id}" data-field="genero">
               ${GENEROS.map(g=>`<option value="${g}"${conjunto.genero===g?' selected':''}>${g}</option>`).join('')}
             </select>
-          </div>
-          ${campana.presupuesto_nivel==='campana' ? '' : `<div class="mode-field">
-            <label>Presupuesto diario</label>
-            <input type="text" data-conjunto="${conjunto.id}" data-field="presupuesto_diario" placeholder="Ej: $200 MXN" value="${escHtml(conjunto.presupuesto_diario)}">
-          </div>`}
-          <div class="mode-field">
-            <label>Duración de campaña</label>
-            <input type="text" data-conjunto="${conjunto.id}" data-field="duracion" placeholder="Ej: Indefinido / 7 días" value="${escHtml(conjunto.duracion)}">
-          </div>
-          <div class="mode-field">
-            <label>Tipo de contenido</label>
-            <input type="text" data-conjunto="${conjunto.id}" data-field="tipo_contenido" placeholder="Ej: Video UGC mostrando el producto" value="${escHtml(conjunto.tipo_contenido)}">
           </div>
           <div class="mode-field" style="grid-column:1/-1;">
             <label>Intereses</label>
@@ -2787,6 +2786,10 @@ function buildAnunciosConjunto(campana, conjunto, idx){
   const resumen = [conjunto.edad, conjunto.ubicacion].filter(Boolean).join(' · ');
   box.innerHTML = `
     <div class="anu-conj-t">Conjunto ${idx+1}${resumen ? ' · '+escHtml(resumen) : ''}</div>
+    <div class="mode-field" style="margin-bottom:10px;">
+      <label>Tipo de contenido</label>
+      <input type="text" data-tipo-contenido placeholder="Ej: Video UGC mostrando el producto" value="${escHtml(conjunto.tipo_contenido)}">
+    </div>
     <div class="anuncios-nota-box">
       <p><b>📌 No olvides utilizar formatos:</b> UGC · Testimonio · Demostración · Ángulos...</p>
       <div class="anuncios-link-list">
@@ -2801,13 +2804,18 @@ function buildAnunciosConjunto(campana, conjunto, idx){
       </div>
     </div>`;
   box.querySelectorAll('[data-editar-card]').forEach(el=>el.addEventListener('click', ()=>irAEditarCard(el.dataset.editarCard)));
+  // un conjunto en blanco (la campaña aún no tiene ninguno) se agrega a la campaña con el primer cambio
+  const asegurar = ()=>{ if(campana.conjuntos.includes(conjunto)) return false; campana.conjuntos.push(conjunto); return true; };
+  box.querySelector('[data-tipo-contenido]').addEventListener('input',(e)=>{ asegurar(); conjunto.tipo_contenido = e.target.value; scheduleEstructuraSave(); });
   box.querySelectorAll('input[data-conjunto-anuncio]').forEach(cb=>{
     cb.addEventListener('change',(e)=>{
       const cardId = e.target.dataset.card;
+      const nuevo = asegurar();
       if(!Array.isArray(conjunto.anuncios_ids)) conjunto.anuncios_ids=[];
       if(e.target.checked){ if(!conjunto.anuncios_ids.includes(cardId)) conjunto.anuncios_ids.push(cardId); }
       else conjunto.anuncios_ids = conjunto.anuncios_ids.filter(id=>id!==cardId);
       scheduleEstructuraSave();
+      if(nuevo){ resEstado.set(campana.id+':anu', true); render(); return; }
       const vincBox = document.querySelector('[data-vinculados="'+campana.id+'"]');
       if(vincBox) vincBox.innerHTML = htmlAnunciosVinculados(campana);
       const nTotal = new Set((campana.conjuntos||[]).flatMap(cj=>cj.anuncios_ids||[])).size;
