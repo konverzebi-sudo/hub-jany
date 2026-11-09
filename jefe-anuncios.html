@@ -1020,6 +1020,7 @@ function autoGrow(el){ el.style.height='auto'; el.style.height=el.scrollHeight+'
 let grupos = [];
 let productos = [];
 let angulos366 = [];
+let productos366 = new Set(); // nombres (normalizados) de los productos con ficha en el Jefe 366
 let audiencias366 = [], campsTemporada = []; // perfiles de cliente del Jefe 366 y campañas vivas de Jefe de Temporada (para armar el público)
 let comunicaciones366 = []; // las Comunicaciones 366 guardadas (puede haber varias: por grupo o por producto)
 let angulosFirma = '';
@@ -1190,6 +1191,12 @@ async function cargarInicial(){
   }catch(e){ comunicaciones366=[]; angulos366=[]; }
   try{ const r=await window.storage.get(CLIENTE_ID+':brand-book.audiencias'); const d=r&&r.value?JSON.parse(r.value):{}; audiencias366 = Array.isArray(d.lista) ? d.lista.filter(a=>a&&String(a.nombre||'').trim()) : []; }catch(e){ audiencias366=[]; }
   try{ const r=await window.storage.get(CLIENTE_ID+':temporada-campanas'); const d=r&&r.value?JSON.parse(r.value):[]; campsTemporada = Array.isArray(d) ? d.filter(c=>c&&c.id&&c.estado!=='cerrada') : []; }catch(e){ campsTemporada=[]; }
+  try{
+    let r=await window.storage.get(CLIENTE_ID+':brand-book.366-producto');
+    if(!r || !r.value) r=await window.storage.get(CLIENTE_ID+':brand-book.evergreen-producto');
+    const d = r&&r.value?JSON.parse(r.value):{};
+    productos366 = new Set((Array.isArray(d.lista) ? d.lista : (Object.keys(d).length ? [d] : [])).filter(Boolean).map(p=>claveNombre(p.nombre)).filter(Boolean));
+  }catch(e){ productos366 = new Set(); }
   try{ const r=await window.storage.get(BORRADOR_KEY); borradorStore = r&&r.value?JSON.parse(r.value):{}; }catch(e){ borradorStore={}; }
   await cargarEstiloRef();
   try{
@@ -1197,6 +1204,7 @@ async function cargarInicial(){
     cards = r&&r.value?JSON.parse(r.value):[];
   }catch(e){ cards=[]; }
   if(migrarFechasLegacyCards()){ scheduleCardsSave(); }
+  if(migrarNombresAnuncios()){ scheduleCardsSave(); }
   scheduleAgendaSync();
   try{
     const r=await window.storage.get(ESTRUCTURA_KEY);
@@ -1691,32 +1699,69 @@ async function generarIdeas(){
   }
 }
 
-// ─── CÓDIGO DE CADA ANUNCIO: "HUM 01_ Título" ───────────────────────────────────────────────────
-// Al pasar una idea a Campañas guardadas, su nombre empieza con un código corto: las 3 primeras letras del producto o servicio,
-// el número consecutivo del anuncio (01, 02, 03… en el orden de las etapas: primero adquisición, luego consideración y conversión)
-// y un guion bajo. Así se sabe cuál es cuál. Si ese producto ya tiene anuncios con código (aunque se hayan puesto a mano), se sigue
-// con el mismo prefijo y el número que sigue.
-const RE_CODIGO_ANUNCIO = /^\s*([A-Z0-9]{3}) (\d{1,3})_\s*/;
+// ─── NOMBRE DE CADA ANUNCIO: "C1JT_001_ A_ Idea" ────────────────────────────────────────────────
+// 1) código del producto (3 caracteres, se escribe en el Catálogo del ADN) + T si es de Temporada o 3 si es del Jefe 366,
+// 2) guion bajo, 3) número del anuncio de ese producto (001, 002… sigue desde el último que ya existe), 4) guion bajo,
+// 5) etapa: A adquisición, B consideración, C conversión, 6) guion bajo y el inicio de la idea.
+const RE_CODIGO_ANUNCIO = /^\s*([A-Z0-9]{3})([T3]?)_(\d{3})_ ([ABC])(?:_\s*|\s+)/; // acepta también "A Idea" (sin el guion bajo después de la letra)
+const RE_CODIGO_VIEJO = /^\s*[A-Z0-9]{3} \d{1,3}_\s*/; // formato anterior: "HUM 01_ Título"
+const LETRA_ETAPA = { adquisicion:'A', consideracion:'B', conversion:'C' };
 const PALABRAS_SIN_CODIGO = new Set(['DE','DEL','LA','EL','LOS','LAS','UN','UNA','Y','E','O','PARA','POR','CON','EN','A','AL']);
 function prefijoDeNombre(nombre){
   const palabras = (nombre||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().split(/[^A-Z0-9]+/).filter(Boolean);
   const utiles = palabras.filter(p=>!PALABRAS_SIN_CODIGO.has(p));
   return ((utiles.length ? utiles : palabras).join('') + 'XXX').slice(0,3);
 }
-// { prefijo, max }: el prefijo que ya usan los anuncios de ese producto (o el que sale de su nombre) y el último número usado.
-function baseCodigoAnuncio(prodId, grpId){
-  const delAlcance = cards.filter(c=> prodId ? c.producto_id===prodId : (!c.producto_id && (c.grupo_id||'')===(grpId||'')));
-  const usados = {};
-  delAlcance.forEach(c=>{ const m = RE_CODIGO_ANUNCIO.exec(c.titulo||''); if(m){ const u = usados[m[1]] = usados[m[1]] || { n:0, max:0 }; u.n++; u.max = Math.max(u.max, parseInt(m[2],10)); } });
-  const conocido = Object.keys(usados).sort((a,b)=>usados[b].n-usados[a].n)[0];
-  if(conocido) return { prefijo:conocido, max:usados[conocido].max };
-  const prod = productos.find(x=>x&&x.id===prodId), grp = grupos.find(x=>x&&x.id===grpId);
-  return { prefijo: prefijoDeNombre((prod&&prod.nombre) || (grp&&grp.nombre) || 'Anuncio'), max:0 };
+function claveNombre(t){ return String(t||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim(); }
+function cardsDelAlcance(prodId, grpId){
+  return cards.filter(c=> prodId ? c.producto_id===prodId : (!c.producto_id && (c.grupo_id||'')===(grpId||'')));
 }
-function tituloConCodigo(titulo, prefijo, n){
+// { codigo, marca, max }: el código del producto, si es de Temporada (T) o del 366 (3) y el último número usado.
+// Si ese producto ya tiene anuncios con el formato nuevo, se toma de ellos (son la referencia); si no, del Catálogo del ADN y, al final, del nombre.
+function baseCodigoAnuncio(prodId, grpId){
+  const usados = {}, marcas = {}; let max = 0;
+  cardsDelAlcance(prodId, grpId).forEach(c=>{
+    const m = RE_CODIGO_ANUNCIO.exec(c.titulo||''); if(!m) return;
+    usados[m[1]] = (usados[m[1]]||0)+1; marcas[m[2]] = (marcas[m[2]]||0)+1; max = Math.max(max, parseInt(m[3],10));
+  });
+  const masUsado = (o)=>Object.keys(o).sort((a,b)=>o[b]-o[a])[0];
+  const prod = productos.find(x=>x&&x.id===prodId), grp = grupos.find(x=>x&&x.id===grpId);
+  const delADN = String((prod&&prod.codigo)||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,3);
+  const codigo = delADN.length===3 ? delADN : (masUsado(usados) || prefijoDeNombre((prod&&prod.nombre) || (grp&&grp.nombre) || 'Anuncio'));
+  let marca = masUsado(marcas);
+  if(marca===undefined){
+    if(prod && campsTemporada.some(c=>c && c.producto_origen!=='nuevo' && c.producto_id===prodId)) marca = 'T';
+    else if(prod && productos366.has(claveNombre(prod.nombre))) marca = '3';
+    else marca = '';
+  }
+  return { codigo, marca, max };
+}
+function tituloConCodigo(titulo, base, n, etapa){
   const t = (titulo||'').trim();
-  if(RE_CODIGO_ANUNCIO.test(t)) return t; // ya trae su código
-  return (prefijo+' '+String(n).padStart(2,'0')+'_ '+t).trim();
+  if(RE_CODIGO_ANUNCIO.test(t)) return t; // ya trae su nombre completo
+  const idea = t.replace(RE_CODIGO_VIEJO,'').trim();
+  return (base.codigo + base.marca + '_' + String(n).padStart(3,'0') + '_ ' + (LETRA_ETAPA[etapa]||'A') + '_ ' + idea).trim();
+}
+// Los anuncios que todavía tienen el nombre viejo (o ninguno) pasan al formato nuevo, del más antiguo al más nuevo y siguiendo el último número usado.
+function migrarNombresAnuncios(){
+  let cambio = false;
+  cards.forEach(c=>{ // ya nombrados pero sin el guion bajo después de la letra: se completa
+    const t = c.titulo||'', f = t.replace(/^(\s*[A-Z0-9]{3}[T3]?_\d{3}_ [ABC])(?:_\s*|\s+)/, '$1_ ');
+    if(RE_CODIGO_ANUNCIO.test(t) && f!==t){ c.titulo = f; cambio = true; }
+  });
+  const alcances = new Map();
+  cards.forEach(c=>{
+    if(RE_CODIGO_ANUNCIO.test(c.titulo||'')) return;
+    const k = (c.producto_id||'')+'|'+(c.producto_id ? '' : (c.grupo_id||''));
+    if(!alcances.has(k)) alcances.set(k, { prodId:c.producto_id||'', grpId:c.producto_id ? '' : (c.grupo_id||''), lista:[] });
+    alcances.get(k).lista.push(c);
+  });
+  alcances.forEach(a=>{
+    const base = baseCodigoAnuncio(a.prodId, a.grpId);
+    let n = base.max;
+    [...a.lista].reverse().forEach(c=>{ c.titulo = tituloConCodigo(c.titulo, base, ++n, c.etapa); cambio = true; });
+  });
+  return cambio;
 }
 
 async function generarDetalleSeleccionadas(){
@@ -1759,7 +1804,7 @@ async function generarDetalleSeleccionadas(){
         formato: data.formato || formato,
         grupo_id: grupoId || '',
         producto_id: productoId || '',
-        titulo: tituloConCodigo(it.titulo, base.prefijo, numeroDe[it.id]),
+        titulo: tituloConCodigo(it.titulo, base, numeroDe[it.id], it.etapa),
         hook: it.hook,
         objetivo: det.objetivo || '',
         angulo: det.angulo || '',
@@ -3146,13 +3191,14 @@ function usarRespuestaChatComoCampana(idx){
   const preguntaPrevia = (chatMessages[idx-1] && chatMessages[idx-1].role==='user') ? chatMessages[idx-1].content : '';
   const primeraLinea = (msg.content.split('\n').find(l=>l.trim())||'').slice(0,140);
   const baseCod = baseCodigoAnuncio(productoId || '', grupoId || '');
+  const etapaChat = (msg.etapa && ETAPAS.some(e=>e.key===msg.etapa)) ? msg.etapa : 'consideracion';
   cards.unshift({
     id: mkCardId(),
-    etapa: (msg.etapa && ETAPAS.some(e=>e.key===msg.etapa)) ? msg.etapa : 'consideracion',
+    etapa: etapaChat,
     formato: 'reel',
     grupo_id: grupoId || '',
     producto_id: productoId || '',
-    titulo: tituloConCodigo(primeraLinea || 'Idea desde Consulta en vivo', baseCod.prefijo, baseCod.max + 1),
+    titulo: tituloConCodigo(primeraLinea || 'Idea desde Consulta en vivo', baseCod, baseCod.max + 1, etapaChat),
     hook: primeraLinea,
     objetivo: '', angulo: '', audiencia: '',
     guion: { hook:'', problema:'', solucion:'', prueba:'', costo_inaccion:'', cta:'' },
