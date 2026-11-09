@@ -781,7 +781,7 @@ Al terminar, dame cada respuesta con su etiqueta en orden para copiar y pegar di
     <div class="table-scroll">
       <table class="data-table">
         <thead><tr>
-          <th style="width:22px;"></th><th>Nombre</th><th>Tipo</th><th>Grupo</th><th>Precio ($)</th><th>Costo ($)</th><th>Margen</th><th>Se vende</th><th>Inventario</th><th>Notas</th><th></th>
+          <th style="width:22px;"></th><th>Nombre</th><th title="3 caracteres: así empiezan los nombres de sus anuncios (ej. C1J)">Código</th><th>Tipo</th><th>Grupo</th><th>Precio ($)</th><th>Costo ($)</th><th>Margen</th><th>Se vende</th><th>Inventario</th><th>Notas</th><th></th>
         </tr></thead>
         <tbody id="catalogo-tbody"></tbody>
       </table>
@@ -1911,13 +1911,14 @@ function renderCatalogo(){
   const tbody = document.getElementById('catalogo-tbody');
   renderGruposAsignar();
   if(!catalogoState.length){
-    tbody.innerHTML='<tr><td colspan="11" class="log-empty">Todavía no hay productos. Usa "+ Agregar fila".</td></tr>';
+    tbody.innerHTML='<tr><td colspan="12" class="log-empty">Todavía no hay productos. Usa "+ Agregar fila".</td></tr>';
     return;
   }
   tbody.innerHTML = catalogoState.map(row=>`
     <tr data-id="${row.id}" draggable="true">
       <td style="text-align:center;padding:0 4px;"><span class="drag-handle" title="Arrastrar para reordenar">⠿</span></td>
       <td><input type="text" value="${escapeHtml(row.nombre)}" data-field="nombre"></td>
+      <td><input type="text" value="${escapeHtml(row.codigo)}" data-field="codigo" maxlength="3" placeholder="C1J" style="width:62px;text-transform:uppercase;"></td>
       <td><select data-field="tipo">${['Producto','Servicio','Paquete'].map(t=>`<option value="${t}"${row.tipo===t?' selected':''}>${t}</option>`).join('')}</select></td>
       <td><select data-field="grupo_id">
         <option value="">—</option>
@@ -1940,7 +1941,7 @@ function renderCatalogo(){
       const tr=e.target.closest('tr'), id=tr.dataset.id, field=e.target.dataset.field;
       const row=catalogoState.find(r=>r.id===id);
       if(!row) return;
-      row[field]=e.target.value;
+      row[field]=field==='codigo' ? e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'') : e.target.value;
       if(field==='precio'||field==='costo'){
         row.margen_pct=calcMargen(row.precio,row.costo);
         tr.querySelector('.margin-cell').textContent=row.margen_pct;
@@ -1963,7 +1964,7 @@ function renderCatalogo(){
   });
 }
 function addCatalogoRow(){
-  catalogoState.push({id:newId(),nombre:'',tipo:'Producto',grupo_id:'',precio:'',costo:'',margen_pct:'',que_tanto_se_vende:'',inventario:'',notas:''});
+  catalogoState.push({id:newId(),nombre:'',codigo:'',tipo:'Producto',grupo_id:'',precio:'',costo:'',margen_pct:'',que_tanto_se_vende:'',inventario:'',notas:''});
   renderCatalogo(); scheduleCatalogoSave();
 }
 function deleteCatalogoRow(id){
