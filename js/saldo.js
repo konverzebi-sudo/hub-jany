@@ -22,6 +22,7 @@
     '.sld-bar i{display:block;height:100%;border-radius:99px;background:var(--accent,#B8F725);transition:width .6s ease}',
     // Cerrada: solo la línea de avance y el %. Al tocarla se ve el plan y cuándo se renueva.
     '.sld-min{display:flex;align-items:center;gap:10px}.sld-min .sld-bar{flex:1}',
+    '.sld-inf{flex:1;font-weight:700;color:var(--accent,#B8F725)}',
     '.sld-mas{display:none;margin-top:8px}.sld-hub.abierta .sld-mas,.sld-hub.tope .sld-mas{display:block}',
     '.sld-sub{margin-top:6px;opacity:.75;font-size:11.5px}',
     '.sld-btn{display:block;text-align:center;text-decoration:none;font-weight:800;font-size:13px;padding:10px 12px;border-radius:10px;',
@@ -57,8 +58,20 @@
   function montarEnHub(slug) {
     ponerCss();
     return cargar(slug).then(function (e) {
-      if (!e || e.sinTope) return;
+      if (!e) return;
       var caja = document.createElement('div');
+      if (e.sinTope) {
+        // Hub sin tope: no hay barra que se llene; se ve "Sin límite" y lo que lleva este ciclo.
+        caja.className = 'sld sld-hub';
+        caja.setAttribute('role', 'status');
+        caja.title = 'Toca para ver tu consumo';
+        caja.innerHTML = '<div class="sld-min"><span class="sld-inf">∞ Sin límite</span><span class="sld-pct">' + millones(e.tokensCiclo || 0).replace(' millones', ' M').replace(' millón', ' M') + '</span></div>' +
+          '<div class="sld-mas"><b>Tokens sin límite</b><div class="sld-sub">Llevas ' + millones(e.tokensCiclo || 0) + ' de tokens en este ciclo</div>' +
+          '<div class="sld-sub">El conteo se reinicia el ' + fechaCorta(e.renueva) + '</div></div>';
+        caja.addEventListener('click', function () { caja.classList.toggle('abierta'); });
+        document.body.appendChild(caja);
+        return;
+      }
       caja.className = 'sld sld-hub' + (e.bloqueado ? ' tope' : '');
       caja.setAttribute('role', 'status');
       caja.title = 'Toca para ver tu plan';

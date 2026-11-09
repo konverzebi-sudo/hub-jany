@@ -28,6 +28,14 @@ test('tope de $15: al llegar se bloquea; jefeshub nunca se bloquea', () => {
   assert.equal(saldo.estado(doc, 'jefeshub', HOY).sinTope, true);
 });
 
+test('hub sin tope: tokensCiclo da el consumo real aunque pase del plan', () => {
+  const doc = saldo.docNuevo(HOY);
+  saldo.descontar(doc, 20, HOY);
+  const e = saldo.estado(doc, 'jefeshub', HOY);
+  assert.equal(e.tokensUsados, 4500000);
+  assert.equal(e.tokensCiclo, 6000000);
+});
+
 test('porcentaje y tokens: $6 de $15 = 40% y 1.8 de 4.5 millones', () => {
   const doc = saldo.docNuevo(HOY);
   saldo.descontar(doc, 6, HOY);
