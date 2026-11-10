@@ -2382,9 +2382,29 @@ const SECCIONES_RESPUESTA_CHAT = ['CAPTION','GUI[OÓ]N','GANCHO','DESARROLLO','C
 const DECORADORES_ETIQUETA = '[\\s*_#>\\-]*';
 function extraerSeccionRespuestaChat(texto, etiqueta){
   const otras=SECCIONES_RESPUESTA_CHAT.filter(s=>s!==etiqueta).join('|');
-  const re=new RegExp('(?:^|\\n)'+DECORADORES_ETIQUETA+etiqueta+DECORADORES_ETIQUETA+':?'+DECORADORES_ETIQUETA+'\\n?([\\s\\S]*?)(?:\\n'+DECORADORES_ETIQUETA+'(?:-{2,}\\s*$|(?:'+otras+')'+DECORADORES_ETIQUETA+':)|$)','i');
+  const re=new RegExp('(?:^|\\n)'+DECORADORES_ETIQUETA+etiqueta+DECORADORES_ETIQUETA+':?'+DECORADORES_ETIQUETA+'\\n?([\\s\\S]*?)(?:\\n'+DECORADORES_ETIQUETA+'(?:-{3,}[ \\t]*(?=\\n|$)|(?:'+otras+')'+DECORADORES_ETIQUETA+':)|$)','i');
   const m=texto.match(re);
   return m ? m[1].trim() : null;
+}
+// El chat suele cerrar con una pregunta para la persona ("¿Quieres más opciones o le movemos algo a esta?"), a veces
+// después de una línea "---": eso no es parte del texto del post, así que se quita del final.
+function quitarPreguntaFinalChat(texto){
+  if(!texto) return texto;
+  const colaSuelta=/\n[ \t]*-{3,}[ \t]*$/;
+  const preguntaCierre=/^¿[^?\n]*\?$/;
+  const sobreElTexto=/(m[aá]s opciones|otra(?:s)? (?:opci[oó]n|opciones|versi[oó]n|versiones)|le movemos|le muevo|le cambio|le ajust|lo ajust|la ajust|lo cambio|la cambio|te gust[oó]|te gusta|as[ií] est[aá] bien|lo dejamos|la dejamos)/i;
+  let t=texto.trim();
+  for(let i=0;i<3;i++){
+    const antes=t;
+    t=t.replace(colaSuelta,'').trim();
+    const partes=t.split(/\n[ \t]*\n/);
+    if(partes.length>1){
+      const ult=partes[partes.length-1].trim();
+      if(preguntaCierre.test(ult) && sobreElTexto.test(ult)){ partes.pop(); t=partes.join('\n\n').trim(); }
+    }
+    if(t===antes) break;
+  }
+  return t || texto.trim();
 }
 function limpiarPreambuloChat(linea){
   const preambulo=/^(listo|claro|perfecto|ok(?:ay)?|aqu[ií]\s+(?:tienes|va[ns]?|te dejo|est[aá][ns]?)|te comparto|por supuesto|de acuerdo|entendido|hecho)\b[^.:\n]*[:.]\s*/i;
@@ -2422,9 +2442,9 @@ function usarRespuestaChatEnContenido(idx){
     gancho,
     descripcion: preguntaPrevia,
     ganchoIdea:'',
-    caption: quitarLineasIntroChat(captionExtraida || msg.content),
-    guion: guionExtraido || '',
-    notas: notasExtraidas || '',
+    caption: quitarLineasIntroChat(quitarPreguntaFinalChat(captionExtraida || msg.content)),
+    guion: quitarPreguntaFinalChat(guionExtraido || ''),
+    notas: quitarPreguntaFinalChat(notasExtraidas || ''),
     linkRef:'', linkArchivo:'',
     fecha:'', estado:'proceso',
     agregadoEn: Date.now()
