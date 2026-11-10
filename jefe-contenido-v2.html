@@ -566,6 +566,11 @@
   .ed-mat-add input.ed-mal{border-color:#C62828;}
   .ed-mat-pregunta{margin-top:8px;padding:10px 12px;background:var(--surface-2);border:1px solid var(--line);border-radius:14px;}
   .ed-mat-pregunta[hidden]{display:none;}
+  .ed-mat-pregunta{border-color:var(--accent-text);}
+  .ed-mat-pregunta.flash{animation:edMatFlash 1.1s ease;}
+  @keyframes edMatFlash{0%,60%{box-shadow:0 0 0 4px var(--accent);}100%{box-shadow:0 0 0 0 transparent;}}
+  .ed-mat-q{margin-bottom:8px;color:var(--text);}
+  .ed-chip.lleno::after{content:' ✓';color:var(--accent-text);font-weight:800;}
   .ed-mat-lista{display:flex;flex-direction:column;gap:6px;margin-top:8px;}
   .ed-mat-fila{display:flex;align-items:center;gap:10px;padding:6px 10px;border:1px solid var(--line);border-radius:12px;background:var(--surface);font-size:14px;}
   .ed-mat-et{flex:0 0 auto;font:700 12px 'Sora',sans-serif;background:var(--accent-soft);color:var(--accent-text);border-radius:100px;padding:3px 10px;}
@@ -3627,6 +3632,16 @@ function enlazarMaterial(ov){
     if(!url) return;
     if(!/[.]/.test(url) || !infoMaterial(url)){ inp.classList.add('ed-mal'); setTimeout(()=>inp.classList.remove('ed-mal'),1200); return; }
     pendiente=url; preg.hidden=false;
+    // Se marca cuál etapa ya tiene link (el nuevo la reemplaza) y se lleva la pregunta a la vista con un destello.
+    let hayLleno=false;
+    preg.querySelectorAll('[data-etapa-mat]').forEach(b=>{
+      const et=ETAPAS_MATERIAL.find(x=>x[0]===b.dataset.etapaMat);
+      const lleno=!!(et && (d[et[1]]||'').trim()); hayLleno=hayLleno||lleno;
+      b.classList.toggle('lleno',lleno); b.title=lleno?'Ya hay un link aquí: se reemplaza':'';
+    });
+    ov.querySelector('#ed-mat-aviso').textContent=hayLleno?' El ✓ es una etapa que ya tiene link: si la eliges, se reemplaza.':'';
+    preg.classList.remove('flash'); void preg.offsetWidth; preg.classList.add('flash');
+    preg.scrollIntoView({block:'start'});
   };
   ov.querySelector('#ed-mat-agregar').addEventListener('click',agregar);
   inp.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); agregar(); } });
@@ -3848,7 +3863,7 @@ function pintarEditor(){
               <button type="button" class="btn-guion" id="ed-mat-agregar">+ Agregar</button>
             </div>
             <div class="ed-mat-pregunta" id="ed-mat-pregunta" hidden>
-              <div class="ed-hint">¿Qué material es?</div>
+              <div class="ed-hint ed-mat-q"><b>¿Qué material es?</b> Toca una opción para guardar el link.<span id="ed-mat-aviso"></span></div>
               <div class="ed-chips">${ETAPAS_MATERIAL.map(([k,c,l])=>`<button type="button" class="ed-chip" data-etapa-mat="${k}">${l}</button>`).join('')}<button type="button" class="link-btn" id="ed-mat-cancelar">Cancelar</button></div>
             </div>
             <div class="ed-mat-lista" id="ed-mat-lista"></div>
