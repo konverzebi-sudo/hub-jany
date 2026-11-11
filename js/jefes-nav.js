@@ -144,6 +144,29 @@
     // Ventana de confirmar (en lugar del cuadro gris del navegador)
     '.jn-dlg p{font-size:14px!important;color:var(--text,#F3EEF9)!important;margin:0 0 4px!important}',
     '.jn-rm-act .jn-dlg-del{background:#EF4444;border-color:#EF4444;color:#fff}',
+    // Robot trabajando mientras la IA piensa (el mismo en todos los Jefes)
+    '.jnp{position:fixed;z-index:9000;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);display:flex;align-items:center;gap:12px;',
+    'padding:8px 18px 8px 10px;border-radius:18px;background:#fff;color:#1A1A1A;border:1px solid #E4E6DB;box-shadow:0 12px 34px rgba(0,0,0,.16);',
+    'font:600 14px Inter,system-ui,sans-serif;pointer-events:none;animation:jnpEntra .22s cubic-bezier(.23,1,.32,1)}',
+    '@media (min-width:721px){body.jn-on .jnp{left:calc(var(--jn-w,0px) + (100% - var(--jn-w,0px)) / 2)}}',
+    '@media (max-width:720px){.jnp{bottom:calc(76px + env(safe-area-inset-bottom,0px));max-width:calc(100vw - 32px)}}',
+    '@keyframes jnpEntra{from{opacity:0;transform:translate(-50%,8px) scale(.97)}to{opacity:1;transform:translate(-50%,0)}}',
+    '.jnp svg{width:74px;height:auto;flex:none;overflow:visible}',
+    '.jnp-txt{display:grid;gap:1px}.jnp-txt small{font-weight:500;font-size:12px;color:#5D6055}',
+    '.jnp-robot{animation:jnpBob 1.6s ease-in-out infinite}',
+    '.jnp-ant{animation:jnpPulse 1s ease-in-out infinite;transform-box:fill-box;transform-origin:center}',
+    '.jnp-eye{animation:jnpBlink 3.2s infinite;transform-box:fill-box;transform-origin:center}',
+    '.jnp-hand{animation:jnpType .5s ease-in-out infinite alternate;transform-box:fill-box;transform-origin:center}.jnp-hand-r{animation-delay:.25s}',
+    '.jnp-code line{stroke-dasharray:30;animation:jnpLine 1.4s linear infinite}',
+    '.jnp-gear{animation:jnpSpin 3s linear infinite;transform-box:fill-box;transform-origin:center}.jnp-gear-b{animation-direction:reverse;animation-duration:2.2s}',
+    '.jnp-spark{animation:jnpTwinkle 1.6s ease-in-out infinite}',
+    '@keyframes jnpBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}',
+    '@keyframes jnpPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.35);opacity:.65}}',
+    '@keyframes jnpBlink{0%,92%,100%{transform:scaleY(1)}96%{transform:scaleY(.1)}}',
+    '@keyframes jnpType{from{transform:translateY(0)}to{transform:translateY(-5px)}}',
+    '@keyframes jnpLine{0%{stroke-dashoffset:30}60%,100%{stroke-dashoffset:0}}',
+    '@keyframes jnpSpin{to{transform:rotate(360deg)}}',
+    '@keyframes jnpTwinkle{0%,100%{opacity:.25}50%{opacity:1}}',
     '@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}',
     // Links de trabajo (carpeta de Drive y Business Manager): mismos círculos que las redes.
     '.jn-links .jn-red-off{opacity:.38;border-style:dashed}',
@@ -709,8 +732,85 @@
     leer();
   }
 
+  // ── Robot trabajando: mientras un Jefe espera la respuesta de la IA (cualquier POST a /api/ menos
+  // storage y check-link) sale abajo el robotsito tecleando, para que no parezca que se congeló.
+  // Es el mismo dibujo del Jefe de Resultados. Otras partes de la página pueden usarlo con
+  // window.__jnPensando.mostrar('texto') / .ocultar().
+  var ROBOT_SVG = '<svg viewBox="0 0 240 190" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+    '<g class="jnp-gear" transform="translate(36 48)"><circle r="13" fill="none" stroke="#111" stroke-width="7" stroke-dasharray="5.1 5.1"/><circle r="9" fill="#C0F800" stroke="#111" stroke-width="3"/><circle r="3" fill="#111"/></g>' +
+    '<g class="jnp-gear jnp-gear-b" transform="translate(208 70)"><circle r="9" fill="none" stroke="#111" stroke-width="6" stroke-dasharray="3.6 3.6"/><circle r="6" fill="#fff" stroke="#111" stroke-width="3"/><circle r="2" fill="#111"/></g>' +
+    '<g class="jnp-spark"><circle cx="184" cy="26" r="3" fill="#C0F800" stroke="#111" stroke-width="1.5"/><circle cx="198" cy="42" r="2" fill="#C0F800" stroke="#111" stroke-width="1.2"/><circle cx="64" cy="22" r="2.4" fill="#C0F800" stroke="#111" stroke-width="1.2"/></g>' +
+    '<g class="jnp-robot"><line x1="120" y1="26" x2="120" y2="42" stroke="#111" stroke-width="4" stroke-linecap="round"/>' +
+    '<circle class="jnp-ant" cx="120" cy="22" r="7" fill="#C0F800" stroke="#111" stroke-width="3.5"/>' +
+    '<rect x="82" y="42" width="76" height="58" rx="22" fill="#fff" stroke="#111" stroke-width="4"/>' +
+    '<rect x="72" y="60" width="10" height="22" rx="5" fill="#C0F800" stroke="#111" stroke-width="3"/><rect x="158" y="60" width="10" height="22" rx="5" fill="#C0F800" stroke="#111" stroke-width="3"/>' +
+    '<rect x="92" y="55" width="56" height="32" rx="14" fill="#111"/>' +
+    '<ellipse class="jnp-eye" cx="108" cy="71" rx="6" ry="8" fill="#C0F800"/><ellipse class="jnp-eye" cx="132" cy="71" rx="6" ry="8" fill="#C0F800"/>' +
+    '<rect x="96" y="100" width="48" height="26" rx="10" fill="#C0F800" stroke="#111" stroke-width="4"/><circle cx="120" cy="113" r="4.5" fill="#fff" stroke="#111" stroke-width="2.5"/></g>' +
+    '<rect x="58" y="136" width="124" height="10" rx="5" fill="#111"/>' +
+    '<path d="M70 136 L80 112 H160 L170 136 Z" fill="#f0f0f0" stroke="#111" stroke-width="4" stroke-linejoin="round"/>' +
+    '<g class="jnp-code" stroke="#4E7A00" stroke-width="3" stroke-linecap="round"><line x1="94" y1="121" x2="122" y2="121"/><line x1="94" y1="129" x2="140" y2="129" style="animation-delay:.25s"/><line x1="128" y1="121" x2="146" y2="121" style="animation-delay:.5s"/></g>' +
+    '<circle class="jnp-hand" cx="102" cy="124" r="7" fill="#C0F800" stroke="#111" stroke-width="3.5"/><circle class="jnp-hand jnp-hand-r" cx="138" cy="124" r="7" fill="#C0F800" stroke="#111" stroke-width="3.5"/></svg>';
+  var FRASES = ['Analizando lo que me diste…', 'Revisando tu información…', 'Armando tu respuesta…', 'Ya casi queda…'];
+  function montarPensando() {
+    var orig = window.fetch;
+    if (!orig || orig.__jnPensando) return;
+    var activos = 0, espera = null, caja = null, giro = null, manual = false;
+    function mostrar(texto) {
+      if (!caja) {
+        caja = document.createElement('div');
+        caja.className = 'jnp';
+        caja.setAttribute('role', 'status');
+        caja.setAttribute('aria-live', 'polite');
+        caja.innerHTML = ROBOT_SVG + '<span class="jnp-txt"><span>Tu Jefe está trabajando</span><small></small></span>';
+        document.body.appendChild(caja);
+      }
+      var i = 0, sub = caja.querySelector('small');
+      sub.textContent = texto || FRASES[0];
+      clearInterval(giro);
+      if (!texto) giro = setInterval(function () { i = (i + 1) % FRASES.length; sub.textContent = FRASES[i]; }, 2600);
+    }
+    function ocultar() {
+      clearTimeout(espera); clearInterval(giro); espera = null;
+      if (caja) { caja.remove(); caja = null; }
+    }
+    function esIA(url, metodo) {
+      try {
+        var u = new URL(url, location.href);
+        if (u.origin !== location.origin || u.pathname.indexOf('/api/') !== 0) return false;
+        if (/^\/api\/(storage|check-link)(\/|$)/.test(u.pathname)) return false;
+        return String(metodo || 'GET').toUpperCase() === 'POST';
+      } catch (e) { return false; }
+    }
+    function empieza() {
+      activos++;
+      // Solo si tarda: una respuesta rápida no hace parpadear al robot.
+      if (activos === 1 && !manual) espera = setTimeout(function () { if (activos > 0) mostrar(); }, 450);
+    }
+    function termina() {
+      activos = Math.max(0, activos - 1);
+      if (activos === 0 && !manual) ocultar();
+    }
+    var nuevo = function (entrada, opciones) {
+      var url = typeof entrada === 'string' ? entrada : (entrada && entrada.url) || '';
+      var metodo = (opciones && opciones.method) || (entrada && entrada.method);
+      if (!esIA(url, metodo)) return orig.apply(this, arguments);
+      empieza();
+      var p = orig.apply(this, arguments);
+      p.then(termina, termina);
+      return p;
+    };
+    nuevo.__jnPensando = true;
+    window.fetch = nuevo;
+    window.__jnPensando = {
+      mostrar: function (texto) { manual = true; mostrar(texto); },
+      ocultar: function () { manual = false; if (activos === 0) ocultar(); }
+    };
+  }
+
   function montar() {
     if (!document.body) return;
+    montarPensando();
     var st = document.createElement('style');
     st.textContent = css;
     document.head.appendChild(st);
