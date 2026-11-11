@@ -265,12 +265,13 @@ section.briefing > p {
 	font-weight: 600;
 	color: var(--fg);
 }
+.briefing-grid label[hidden] { display: none; }
 .briefing-grid .hint {
 	font-weight: 400;
 	font-size: 12px;
 	color: var(--muted);
 }
-.briefing-grid input {
+.briefing-grid input, .briefing-grid select {
 	font-family: var(--font-body);
 	font-size: 14px;
 	color: var(--fg);
@@ -279,10 +280,20 @@ section.briefing > p {
 	border-radius: 10px;
 	padding: 10px 12px;
 }
-.briefing-grid input:focus-visible {
+.briefing-grid input:focus-visible, .briefing-grid select:focus-visible {
 	outline: 2px solid var(--accent-text);
 	outline-offset: 1px;
 }
+.briefing-grid .range-row { display: flex; align-items: center; gap: 8px; }
+.briefing-grid .range-row input { flex: 1; min-width: 0; }
+.briefing-grid .range-sep { color: var(--muted); font-size: 13px; }
+.briefing-grid label.check-row {
+	flex-direction: row;
+	align-items: center;
+	gap: 10px;
+	font-weight: 600;
+}
+.briefing-grid label.check-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent-text); }
 .briefing-actions {
 	display: flex;
 	align-items: center;
@@ -356,6 +367,43 @@ pre.prompt {
 .thumb .dot { width: 6px; height: 6px; border-radius: 999px; background: var(--muted); }
 .thumb[data-estado="ok"] .dot { background: var(--accent-text); }
 .thumb[data-estado="partial"] .dot { background: #e0b24a; }
+
+section.config-prompts {
+	border-top: 1px solid var(--border);
+	padding-top: 24px;
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+}
+section.config-prompts h3 { font-family: var(--font-display); font-size: 24px; letter-spacing: .5px; margin: 0; }
+section.config-prompts > p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; max-width: 68ch; }
+.config-card {
+	border: 1px solid var(--border);
+	border-radius: 14px;
+	padding: 16px;
+	background: var(--bg-card);
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+.config-card-head { display: flex; gap: 12px; align-items: flex-start; }
+.config-num {
+	font-family: var(--font-display);
+	font-size: 20px;
+	color: var(--accent-ink);
+	background: var(--accent-text);
+	width: 30px;
+	height: 30px;
+	min-width: 30px;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+.config-card.pending .config-num { background: transparent; border: 1px dashed var(--muted); color: var(--muted); }
+.config-card-head h4 { margin: 0 0 4px; font-family: var(--font-display); font-size: 18px; letter-spacing: .3px; }
+.config-when { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.config-prompt-text { max-height: none; }
 
 section.personalize {
 	border-top: 1px solid var(--border);
@@ -434,12 +482,25 @@ footer code { font-family: var(--font-mono); color: var(--fg); }
 			<label>Público<span class="hint">quién lo va a ver</span><input id="bf-publico" type="text" placeholder="ej. dueños de negocio local" /></label>
 			<label>Video original<span class="hint">nombre del documento/archivo</span><input id="bf-video" type="text" placeholder="ej. C1JT_008.mp4" /></label>
 			<label>Materiales de apoyo<span class="hint">archivos o ninguno</span><input id="bf-materiales" type="text" placeholder="ej. logo.png, ninguno" /></label>
-			<label>Formato<span class="hint">fijo</span><input id="bf-formato" type="text" value="1080 × 1920" /></label>
+			<label>Formato<span class="hint">elige uno</span>
+				<select id="bf-formato">
+					<option value="Reel / TikTok — 1080 × 1920">Reel / TikTok (1080×1920)</option>
+					<option value="Historia — 1080 × 1920">Historia (1080×1920)</option>
+					<option value="Publicación cuadrada — 1080 × 1080">Publicación cuadrada (1080×1080)</option>
+				</select>
+			</label>
 			<label>Estilo<span class="hint">2 o 3 criterios observables</span><input id="bf-estilo" type="text" placeholder="ej. lima/negro, Bebas Neue, sin música" /></label>
 			<label>Mensaje principal<span class="hint">la idea</span><input id="bf-mensaje" type="text" placeholder="ej. la IA te ahorra 10 horas a la semana" /></label>
 			<label>CTA<span class="hint">llamado real o sin CTA</span><input id="bf-cta" type="text" placeholder="ej. link en bio, o 'sin CTA'" /></label>
-			<label class="span2">¿Dónde aplicarla?<span class="hint">de qué segundo a qué segundo, o la frase exacta del video</span><input id="bf-donde" type="text" placeholder="ej. del segundo 4 al 7, o en la frase 'ya tienes jefe IA'" /></label>
-			<label class="span2">Inserciones deseadas<span class="hint">qué material mostrar ahí, o pide una propuesta</span><input id="bf-inserciones" type="text" placeholder="ej. mostrar captura del dashboard" /></label>
+			<label class="span2">¿Dónde aplicarla?<span class="hint">segundo de inicio y de fin en el video</span>
+				<div class="range-row">
+					<input id="bf-donde-desde" type="number" min="0" step="1" placeholder="Desde (seg)" />
+					<span class="range-sep">a</span>
+					<input id="bf-donde-hasta" type="number" min="0" step="1" placeholder="Hasta (seg)" />
+				</div>
+			</label>
+			<label class="span2 check-row"><input id="bf-tiene-material" type="checkbox" /><span>¿Vas a insertar ahí un video o imagen de referencia?</span></label>
+			<label class="span2" id="bf-inserciones-wrap" hidden>Inserciones deseadas<span class="hint">qué material mostrar y cómo se llama el archivo</span><input id="bf-inserciones" type="text" placeholder="ej. mostrar captura del dashboard (archivo: dashboard.png)" /></label>
 			<label class="span2">Otras decisiones aprobadas<span class="hint">opcional</span><input id="bf-otras" type="text" placeholder="ej. mantener el chiste del minuto 2" /></label>
 		</div>
 		<div class="briefing-actions">
@@ -447,6 +508,45 @@ footer code { font-family: var(--font-mono); color: var(--fg); }
 			<span class="briefing-copied" id="bfCopiedMsg" hidden>Copiado ✓</span>
 		</div>
 		<pre class="prompt" id="bfPreview"></pre>
+	</section>
+
+	<section class="config-prompts">
+		<h3>Catálogo de prompts de configuración</h3>
+		<p>Para antes de editar: prompts listos para copiar y pegar, en el orden en que los usamos la primera vez. No cambian por video — se usan una sola vez por proyecto nuevo, no por técnica.</p>
+
+		<div class="config-card">
+			<div class="config-card-head">
+				<span class="config-num">1</span>
+				<div>
+					<h4>Preparar el espacio del proyecto</h4>
+					<p class="config-when">Úsalo al arrancar un proyecto Remotion nuevo, antes de editar cualquier video.</p>
+				</div>
+			</div>
+			<pre class="prompt config-prompt-text">En la carpeta proyecto de este trabajo, prepara un proyecto Remotion para videos verticales 1080 × 1920. Conserva los archivos existentes y los originales. Instala las skills oficiales de remotion-dev/skills siguiendo la documentación actual en https://www.remotion.dev/docs/ai/skills y el procedimiento compatible con este agente. Confirma que están disponibles y dime cómo se van a usar. En esta etapa, solo prepara y verifica la configuración; crearemos la composición de prueba en el próximo pedido.</pre>
+			<button class="prompt-toggle config-copy-btn" type="button">Copiar prompt</button>
+		</div>
+
+		<div class="config-card">
+			<div class="config-card-head">
+				<span class="config-num">2</span>
+				<div>
+					<h4>Tope de gastos</h4>
+					<p class="config-when">Úsalo justo después del anterior, para que nunca se contrate un servicio de pago sin avisarte primero.</p>
+				</div>
+			</div>
+			<pre class="prompt config-prompt-text">En este proyecto, mi tope de gastos es [PERÍODO Y MONTO, ej. "$20 USD al mes"]. Usa herramientas locales y los assets proporcionados siempre que sean suficientes. No contrates servicios, no compres créditos ni uses una API de pago adicional sin mi aprobación específica. Si la tarea depende de eso, presenta la necesidad, una alternativa y cómo consultar el costo. No estimes el saldo de mi cuenta ni prometas un costo fijo por video. Registra solo cobros confirmados y los valores que yo te dé.</pre>
+			<button class="prompt-toggle config-copy-btn" type="button">Copiar prompt</button>
+		</div>
+
+		<div class="config-card pending">
+			<div class="config-card-head">
+				<span class="config-num">3</span>
+				<div>
+					<h4>Más configuraciones (pendiente)</h4>
+					<p class="config-when">Dime qué otras configuraciones recomendadas del curso quieres guardar aquí (ej. nomenclatura de archivos, formato de entrega) y las agrego en orden.</p>
+				</div>
+			</div>
+		</div>
 	</section>
 
 	<section class="personalize">
@@ -623,26 +723,55 @@ footer code { font-family: var(--font-mono); color: var(--fg); }
 
 <script>
 (function () {
-	var fieldIds = ['objetivo', 'publico', 'video', 'materiales', 'formato', 'estilo', 'mensaje', 'cta', 'donde', 'inserciones', 'otras'];
+	var fieldIds = ['objetivo', 'publico', 'video', 'materiales', 'formato', 'estilo', 'mensaje', 'cta', 'donde-desde', 'donde-hasta', 'inserciones', 'otras'];
 	var placeholders = {
 		objetivo: '[ACCIÓN ESPERADA]',
 		publico: '[QUIÉN LO VA A VER]',
 		video: '[ARCHIVO]',
 		materiales: '[ARCHIVOS O NINGUNO]',
-		formato: '1080 × 1920',
 		estilo: '[2 O 3 CRITERIOS OBSERVABLES]',
 		mensaje: '[IDEA]',
 		cta: '[LLAMADO REAL O SIN CTA]',
-		donde: '[SEGUNDOS O FRASE EXACTA DEL VIDEO]',
-		inserciones: '[QUÉ MOSTRAR AHÍ, O PIDE UNA PROPUESTA]',
+		inserciones: '[QUÉ MOSTRAR AHÍ Y ARCHIVO]',
 		otras: '[OTRAS DECISIONES APROBADAS]'
 	};
 	var inputs = {};
 	fieldIds.forEach(function (id) { inputs[id] = document.getElementById('bf-' + id); });
+	var tieneMaterialBox = document.getElementById('bf-tiene-material');
+	var insercionesWrap = document.getElementById('bf-inserciones-wrap');
 
 	function val(id) {
 		var v = inputs[id] && inputs[id].value.trim();
 		return v || placeholders[id];
+	}
+
+	function dondeText() {
+		var desde = inputs['donde-desde'] && inputs['donde-desde'].value.trim();
+		var hasta = inputs['donde-hasta'] && inputs['donde-hasta'].value.trim();
+		if (desde && hasta) return 'del segundo ' + desde + ' al ' + hasta;
+		if (desde) return 'a partir del segundo ' + desde;
+		return '[SEGUNDO DE INICIO Y DE FIN]';
+	}
+
+	function insercionesText() {
+		if (!tieneMaterialBox || !tieneMaterialBox.checked) return 'ninguna, no hay material de referencia para insertar';
+		return val('inserciones');
+	}
+
+	if (tieneMaterialBox && insercionesWrap) {
+		tieneMaterialBox.addEventListener('change', function () {
+			insercionesWrap.hidden = !tieneMaterialBox.checked;
+			if (tieneMaterialBox.checked) {
+				var insercionesInput = document.getElementById('bf-inserciones');
+				if (insercionesInput) setTimeout(function () { insercionesInput.focus(); }, 50);
+			}
+			if (window.__catalogoRefreshPrompt) window.__catalogoRefreshPrompt();
+			try { localStorage.setItem('catalogo-animaciones:tieneMaterial', tieneMaterialBox.checked ? '1' : ''); } catch (e) {}
+		});
+		try {
+			tieneMaterialBox.checked = localStorage.getItem('catalogo-animaciones:tieneMaterial') === '1';
+			insercionesWrap.hidden = !tieneMaterialBox.checked;
+		} catch (e) {}
 	}
 
 	function currentTechnique() {
@@ -660,8 +789,8 @@ footer code { font-family: var(--font-mono); color: var(--fg); }
 			'Estilo: ' + val('estilo') + '. ' +
 			'Mensaje principal: ' + val('mensaje') + '. ' +
 			'CTA: ' + val('cta') + '. ' +
-			'Dónde aplicar esta técnica: ' + val('donde') + '. ' +
-			'Inserciones deseadas: ' + val('inserciones') + '. ' +
+			'Dónde aplicar esta técnica: ' + dondeText() + '. ' +
+			'Inserciones deseadas: ' + insercionesText() + '. ' +
 			'Conserva lo que se dice, la voz original y ' + val('otras') + '. ' +
 			'No inventes precios, resultados ni pruebas. ' +
 			'Antes de editar, revisa docs/catalogo-animaciones.md para el componente y sus props, propón una secuencia visual breve y señala cualquier información que falte. ' +
@@ -708,6 +837,22 @@ footer code { font-family: var(--font-mono); color: var(--fg); }
 	});
 
 	refresh();
+
+	document.querySelectorAll('.config-copy-btn').forEach(function (btn) {
+		btn.addEventListener('click', function () {
+			var card = btn.closest('.config-card');
+			var text = card && card.querySelector('.config-prompt-text');
+			if (!text) return;
+			var original = btn.textContent;
+			var done = function () {
+				btn.textContent = 'Copiado ✓';
+				setTimeout(function () { btn.textContent = original; }, 1800);
+			};
+			if (navigator.clipboard && navigator.clipboard.writeText) {
+				navigator.clipboard.writeText(text.textContent).then(done).catch(function () {});
+			}
+		});
+	});
 })();
 </script>
 </body>
