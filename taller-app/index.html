@@ -369,6 +369,24 @@
   .mural-prev b { font-family: 'Sora', sans-serif; } .mural-prev span { color: var(--dim); }
   .ok-t { color: #1C7A47; font-weight: 600; } .warn-t { color: #8A6400; font-weight: 600; }
   .kpi-alerta { border-color: #E0A100; background: #FFF8E1; }
+  .tel-wrap { background: #C9F507; border-radius: 18px; padding: 4% 5%; }
+  .tel-wrap.xl { border-radius: 0; min-height: 100vh; display: grid; place-items: center; padding: 3vh 4vw; }
+  .tel { position: relative; width: 100%; max-width: 1400px; margin: 0 auto; aspect-ratio: 19/9; background: #111; border-radius: clamp(22px, 5vw, 60px); padding: clamp(8px, 1.6vw, 20px); box-shadow: 0 20px 50px -20px rgba(0,0,0,.6); }
+  .tel-cam { position: absolute; left: clamp(10px, 1.6vw, 22px); top: 50%; width: clamp(5px, .7vw, 10px); height: 14%; transform: translateY(-50%); border-radius: 99px; background: #2a2a2a; }
+  .tel-pantalla { height: 100%; background: #fff; border-radius: clamp(14px, 3.6vw, 44px); padding: 3% 5%; display: flex; flex-direction: column; gap: 4%; overflow: hidden; }
+  .tel-h { text-align: center; } .tel-h b { display: block; font: 800 clamp(16px, 2.6vw, 40px) 'Sora', sans-serif; text-transform: uppercase; color: #111; }
+  .tel-h small { display: block; font-size: clamp(10px, 1vw, 16px); color: #555; margin-top: 2px; }
+  .tel-grid { flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 1fr; gap: clamp(6px, 1.4vw, 18px); min-height: 0; }
+  .tel-c { background: #1E88FF; color: #fff; border-radius: clamp(10px, 1.4vw, 20px); display: grid; place-items: center; text-align: center; padding: 4% 6%; font-weight: 700; overflow: hidden; box-shadow: 0 6px 14px -8px rgba(30,136,255,.9); }
+  .tel-c span { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+  .tel-c.l { font-size: clamp(12px, 1.7vw, 30px); } .tel-c.m { font-size: clamp(11px, 1.3vw, 22px); } .tel-c.s { font-size: clamp(10px, 1vw, 17px); }
+  .tel-c.nuevo { animation: telEntra .5s ease-out both; }
+  @keyframes telEntra { from { opacity: 0; transform: scale(.85); } }
+  .tel-vacio { grid-column: 1 / -1; align-self: center; text-align: center; color: #666; font-weight: 600; }
+  @media (max-width: 560px) { .tel { aspect-ratio: 4/3; } .tel-grid { grid-template-columns: repeat(2, 1fr); } }
+  .apoyo { margin-top: 14px; padding: 12px; border-radius: 12px; background: #FFF8E1; border: 1px dashed #E0A100; }
+  .apoyo-r { background: #fff; } .tag-apoyo { font: 700 10px 'JetBrains Mono', monospace; padding: 2px 6px; border-radius: 6px; background: #E0A100; color: #fff; }
+  .link-x { margin-left: 8px; font-size: 12px; color: var(--bad); text-decoration: underline; }
   body.embed { background: transparent; }
   body.embed .din { padding-left: 0; padding-bottom: 0; }
   body.embed .din-list::before, body.embed .din .node, body.embed .din h3, body.embed .din .din-q { display: none; }
@@ -429,7 +447,7 @@ const STOP = new Set('que de la el en y a los las un una mi me lo no se es con p
    CAPA DE DATOS
    ===================================================================== */
 function crearApiDemo(rol) {
-  const KEY = 'taller-demo-v4';
+  const KEY = 'taller-demo-v5';
   const bc = 'BroadcastChannel' in window ? new BroadcastChannel('taller-demo') : null;
   const uid = 'u-' + rol;
   const base = () => ({
@@ -499,7 +517,7 @@ function crearApiDemo(rol) {
       const a = db.actividades.find(x => x.id === aid);
       return db.respuestas.filter(r => r.actividad_id === aid && r.datos?.texto && (rol === 'ponente' || a.config.publico || a.config.mostrar_grupo || r.destacada))
         .sort((x, y) => (x.actualizado_en || '').localeCompare(y.actualizado_en || ''))
-        .map(r => ({ id: r.id, nombre: a.config.publico === 'chat' ? (db.perfiles[r.user_id]?.nombre || 'Participante').split(' ')[0] : null, usuario: a.config.publico === 'chat' ? (r.datos.usuario || '') : '', texto: r.datos.texto }));
+        .map(r => ({ id: r.id, nombre: a.config.publico === 'chat' ? (db.perfiles[r.user_id]?.nombre || 'Participante').split(' ')[0] : null, usuario: a.config.publico === 'chat' ? (r.datos.usuario || '') : '', texto: r.datos.texto, actualizado_en: r.actualizado_en }));
     },
     async reiniciar(aid) { if (rol !== 'ponente') throw new Error('Solo la ponente'); db.respuestas = db.respuestas.filter(r => r.actividad_id !== aid); guardar(); },
     async destacar(rid, v) { if (rol !== 'ponente') throw new Error('Solo la ponente'); const r = db.respuestas.find(x => x.id === rid); if (r) r.destacada = !!v; guardar(); },
@@ -679,7 +697,7 @@ var CONTENIDO_EMPIEZA_DEMO = {
 };
 var ACTIVIDADES_DEMO = [
   { id: 'a5', seccion_id: 's2', clave: 'dedicas', tipo: 'abierta', titulo: '¿A qué te dedicas? Cuéntanos qué vendes o qué servicio ofreces.', orden: 1, estado: 'cerrada', config: { nombre: '¿A qué te dedicas?', instruccion: 'Cuéntanos brevemente qué haces, qué productos vendes o qué servicios ofreces. Queremos conocer los negocios que forman parte de este grupo.', corta: true, max: 280, editable: true, publico: 'chat', mural: true, boton: 'ENVIAR RESPUESTA', placeholder: 'Ej. Vendo pasteles personalizados para eventos en Saltillo' } },
-  { id: 'a6', seccion_id: 's2', clave: 'delegarias', tipo: 'abierta', titulo: 'Si tuvieras un asistente que conociera tu negocio y pudiera ayudarte, ¿qué tarea le delegarías primero?', orden: 2, estado: 'cerrada', config: { nombre: '¿Qué delegarías?', instruccion: 'Piensa en esas actividades que te quitan tiempo, que repites constantemente o que no sabes cómo resolver. ¿Qué te gustaría que tu asistente hiciera por ti?', max: 1500, editable: true, publico: 'cuadros', boton: 'ENVIAR RESPUESTA', compartir: true } },
+  { id: 'a6', seccion_id: 's2', clave: 'delegarias', tipo: 'abierta', titulo: 'Si tuvieras un asistente que conociera tu negocio y pudiera ayudarte, ¿qué tarea le delegarías primero?', orden: 2, estado: 'cerrada', config: { nombre: '¿Qué delegarías?', instruccion: 'Piensa en esas actividades que te quitan tiempo, que repites constantemente o que no sabes cómo resolver. ¿Qué te gustaría que tu asistente hiciera por ti?', max: 1500, editable: true, publico: 'cuadros', telefono: true, ultimas: 6, boton: 'ENVIAR RESPUESTA', compartir: true } },
   { id: 'a7', seccion_id: 's2', clave: 'marketing', tipo: 'opciones', titulo: '¿Qué parte del marketing de tu negocio te cuesta más trabajo?', orden: 3, estado: 'cerrada', config: { nombre: '¿Qué parte del marketing te cuesta más?', instruccion: 'Selecciona todas las opciones que representen tus principales dificultades.', multiple: true, otro: true, destacar: 3, burbujas: true, boton: 'ENVIAR RESPUESTAS', opciones: ['No sé qué publicar en redes sociales.', 'No sé qué producto o servicio promocionar.', 'Me cuesta conseguir nuevos clientes.', 'No sé crear imágenes o videos atractivos.', 'No sé cómo hacer campañas de publicidad.', 'No tengo tiempo para crear contenido.', 'No sé cómo organizar mi estrategia de marketing.', 'No sé cómo medir si mis publicaciones o campañas funcionan.', 'Me cuesta mantener la constancia.'] } },
   { id: 'a9', seccion_id: 's2', clave: 'historia', tipo: 'opciones', titulo: '¿Estás haciendo marketing o estás improvisando?', orden: 4, estado: 'cerrada', config: { nombre: '¿Improvisando o planificando?', instruccion: 'Mientras Jany cuenta su historia irán apareciendo preguntas. Elige la opción que más se parece a lo que haces hoy.', quiz: true, visibles: 0, opciones: ['Improvisando', 'Planificando'], preguntas: [{ q: '¿Cómo decides cuándo publicar?', a: 'Publico cuando puedo.', b: 'Tengo objetivos claros.' }, { q: '¿Sabes qué producto impulsar?', a: 'No sé qué producto impulsar.', b: 'Sé qué producto promover.' }, { q: '¿Cómo usas las herramientas?', a: 'Pruebo herramientas sin un objetivo.', b: 'Trabajo con una estrategia.' }, { q: '¿Cómo creas tu contenido?', a: 'Creo contenido desde cero cada vez.', b: 'Sigo un proceso de creación.' }, { q: '¿Sabes qué te está funcionando?', a: 'No sé qué está funcionando.', b: 'Reviso y mido mis resultados.' }] } },
   { id: 'a8', seccion_id: 's2', clave: 'improvisas', tipo: 'opciones', titulo: 'Cuando tienes que promocionar tu negocio, ¿cómo decides qué hacer?', orden: 5, estado: 'cerrada', config: { nombre: '¿Estás haciendo marketing o estás improvisando?', instruccion: 'Selecciona la opción que mejor describa tu situación actual. No hay respuestas buenas ni malas; queremos identificar desde dónde estás comenzando.', unica: true, boton: 'ENVIAR RESPUESTA', opciones: ['Improviso', 'Tengo ideas, pero no un plan', 'Planifico algunas acciones', 'Tengo una estrategia', 'Trabajo con un método'], detalles: ['Publico cuando puedo. No siempre sé qué producto impulsar ni qué está funcionando.', 'Sé algunas cosas que quiero comunicar, pero no tengo un calendario ni una estrategia definida.', 'Organizo publicaciones y promociones, pero no siempre tengo objetivos o procesos claros.', 'Sé qué producto promover, a quién quiero llegar y qué quiero comunicar.', 'Tengo objetivos, estrategia, procesos de creación y reviso mis resultados para hacer ajustes.'], grupos: [{ nombre: 'Improvisando', opciones: [0] }, { nombre: 'Comenzando a planificar', opciones: [1, 2] }, { nombre: 'Con estrategia o método', opciones: [3, 4] }] } },
@@ -787,9 +805,24 @@ function muralHtml(a, lista, grande) {
   return `<div class="mural-wrap ${grande ? 'xl' : ''}"><div class="mural" data-mural="${a.id}"></div>${grande ? '' : '<button type="button" class="mural-full" data-mural-full>⛶ Pantalla completa</button>'}<span class="mural-cuenta">${lista.length} ${lista.length === 1 ? 'negocio' : 'negocios'}</span></div>`;
 }
 
+/* TELÉFONO: solo las N respuestas más recientes (reales + apoyo del equipo), sin nombres */
+const TEL_VISTOS = new Set();
+function telefonoHtml(a, lista, grande) {
+  const n = a.config.ultimas || 6;
+  const todas = [...lista.map(x => ({ k: 'r' + (x.id || x.texto), t: x.texto, at: x.actualizado_en || '' })),
+    ...(a.config.apoyo || []).map(x => ({ k: 'a' + x.id, t: x.texto, at: x.creado_en || '' }))]
+    .sort((x, y) => String(x.at).localeCompare(String(y.at))).slice(-n).reverse();
+  const tam = t => t.length <= 30 ? 'l' : t.length <= 70 ? 'm' : 's';
+  return `<div class="tel-wrap ${grande ? 'xl' : ''}"><div class="tel"><span class="tel-cam"></span><div class="tel-pantalla">
+    <div class="tel-h"><b>¿Qué delegarías?</b><small>Si tuvieras un asistente que conociera tu negocio, ¿qué tarea le delegarías primero?</small></div>
+    <div class="tel-grid">${todas.map(x => { const nuevo = !TEL_VISTOS.has(x.k); TEL_VISTOS.add(x.k); return `<div class="tel-c ${tam(x.t)} ${nuevo ? 'nuevo' : ''}"><span>${esc(x.t)}</span></div>`; }).join('') || '<p class="tel-vacio">Aquí aparecerán las tareas que el grupo delegaría ✨</p>'}</div>
+  </div></div></div>`;
+}
+
 /* Chat (con nombre) o cuadritos (sin nombre) con lo que responde el grupo */
 function muroHtml(a, lista, grande) {
   if (a.config.mural) return muralHtml(a, lista, grande);
+  if (a.config.telefono) return telefonoHtml(a, lista, grande);
   if (!lista.length) return '<p class="muted small">Aún no hay respuestas. ¡Sé la primera persona!</p>';
   if (a.config.publico === 'chat') return `<div class="muro-chat ${grande ? 'xl' : ''}">${lista.map((x, i) => `<div class="b-chat ${i % 2 ? 'der' : ''}"><b>${esc(x.nombre || 'Participante')}</b>${esc(x.texto)}</div>`).join('')}</div>`;
   return `<div class="muro-cuadros ${grande ? 'xl' : ''}">${lista.map(x => `<div class="cuadro">${esc(x.texto)}</div>`).join('')}</div>`;
@@ -1139,11 +1172,24 @@ function pintarDinamica(a, num, cont) {
   }
 }
 
+/* Respuestas de apoyo del equipo: viven en la configuración de la actividad (no en respuestas, no cuentan) */
+document.addEventListener('submit', async e => {
+  const f = e.target.closest('[data-apoyo-form]'); if (!f) return; e.preventDefault();
+  const t = f.t.value.trim(); if (t.length < 3) return toast('Escribe la tarea de ejemplo');
+  const a = S.actividades.find(x => x.id === f.dataset.apoyoForm);
+  try { await api.setConfig(a.id, { ...a.config, apoyo: [...(a.config.apoyo || []), { id: Math.random().toString(36).slice(2, 10), texto: t, creado_en: new Date().toISOString() }] }); toast('Respuesta de apoyo agregada'); await recargar(); } catch (err) { toast(err.message); }
+});
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-apoyo-del]'); if (!b) return;
+  const a = S.actividades.find(x => x.id === b.dataset.apoyoDel);
+  try { await api.setConfig(a.id, { ...a.config, apoyo: (a.config.apoyo || []).filter(x => x.id !== b.dataset.id) }); toast('Quitada'); await recargar(); } catch (err) { toast(err.message); }
+});
+
 /* Cajas con lo que ve el grupo; se refrescan solas cada pocos segundos */
 async function llenarPublico(el) {
   const a = S.actividades.find(x => x.id === el.dataset.aid); if (!a) return;
   try {
-    if (el.dataset.publico === 'muro') { const l = await api.publicas(a.id); el.innerHTML = `<h3 style="font-size:16px;margin:18px 0 10px">${a.config.mural ? '🟩 El mural del grupo' : a.config.publico === 'chat' ? '💬 El chat del grupo' : '🟦 Lo que respondió el grupo'}</h3>${muroHtml(a, l)}`; }
+    if (el.dataset.publico === 'muro') { const l = await api.publicas(a.id); el.innerHTML = `<h3 style="font-size:16px;margin:18px 0 10px">${a.config.telefono ? '📱 Lo que delegaría el grupo' : a.config.mural ? '🟩 El mural del grupo' : a.config.publico === 'chat' ? '💬 El chat del grupo' : '🟦 Lo que respondió el grupo'}</h3>${muroHtml(a, l)}`; }
     else { const g = await api.resultados(a.id); el.innerHTML = `<h3 style="font-size:16px;margin:18px 0 12px">📊 Así va el grupo</h3>${el.dataset.publico === 'burbujas' ? burbujasHtml(a, g) : vizHtml(a, g)}`; }
   } catch (err) { el.innerHTML = ''; }
 }
@@ -1356,6 +1402,10 @@ async function vistaProyectar(clave) {
     $('#root').innerHTML = `<div class="mural-proj"><a class="proj-x" href="#resultados">✕ Salir</a>${muralHtml(a, await api.publicas(a.id), true)}</div>`;
     if (a.estado === 'abierta') clearTimeout(vistaProyectar.t), vistaProyectar.t = setTimeout(() => { if (UI.ruta === 'proyectar-' + clave) vistaProyectar(clave); }, 4000);
     return;
+  } else if (a.config.telefono) {
+    $('#root').innerHTML = `<div class="mural-proj"><a class="proj-x" href="#resultados">✕ Salir</a>${telefonoHtml(a, await api.publicas(a.id), true)}</div>`;
+    if (a.estado === 'abierta') clearTimeout(vistaProyectar.t), vistaProyectar.t = setTimeout(() => { if (UI.ruta === 'proyectar-' + clave) vistaProyectar(clave); }, 4000);
+    return;
   } else if (a.config.publico) {
     cuerpo = muroHtml(a, await api.publicas(a.id), true);
   } else if (a.tipo === 'opciones') {
@@ -1392,7 +1442,12 @@ function resultadosPonenteHtml(a, rs, alumnos) {
   } else {
     const textos = rs.map(r => r.datos?.texto || '').filter(Boolean);
     h += `<b class="small">Temas más repetidos</b><div class="chips" style="margin:8px 0 14px">${temasFrecuentes(textos).map(([w, n]) => `<span class="chip">${esc(w)} · ${n}</span>`).join('') || '<span class="small muted">—</span>'}</div>
-      ${a.config.mural ? `<p class="small" style="margin-bottom:8px">👀 El grupo ve estas respuestas en el mural, con su @.</p>${muralHtml(a, rs.filter(r => r.datos?.texto).map(r => ({ id: r.id, nombre: r.nombre, usuario: r.datos?.usuario, texto: r.datos.texto })))}<div style="height:12px"></div>`
+      ${a.config.telefono ? `<p class="small" style="margin-bottom:8px">👀 La pantalla pública muestra solo las ${a.config.ultimas || 6} más recientes, sin nombres. Aquí ves todas.</p>${telefonoHtml(a, rs.filter(r => r.datos?.texto).map(r => ({ id: r.id, texto: r.datos.texto, actualizado_en: r.actualizado_en })))}
+        <div class="apoyo"><b class="small">🛟 Respuestas de apoyo del equipo (${(a.config.apoyo || []).length}) · no cuentan como participación</b>
+          <form data-apoyo-form="${a.id}" class="row" style="margin:8px 0"><input type="text" name="t" maxlength="140" placeholder="Ej. Contestar mensajes de WhatsApp" style="flex:1;min-width:200px"><button class="btn sm">+ Agregar</button></form>
+          ${(a.config.apoyo || []).slice().reverse().map(x => `<div class="answer apoyo-r"><span class="tag-apoyo">APOYO</span> ${esc(x.texto)} <button type="button" class="link-x" data-apoyo-del="${a.id}" data-id="${esc(x.id)}">quitar</button></div>`).join('')}</div>
+        <p class="small" style="margin:12px 0 6px"><b>${rs.length} respuestas reales de participantes</b></p>`
+        : a.config.mural ? `<p class="small" style="margin-bottom:8px">👀 El grupo ve estas respuestas en el mural, con su @.</p>${muralHtml(a, rs.filter(r => r.datos?.texto).map(r => ({ id: r.id, nombre: r.nombre, usuario: r.datos?.usuario, texto: r.datos.texto })))}<div style="height:12px"></div>`
         : a.config.publico ? `<p class="small" style="margin-bottom:8px">👀 El grupo ve estas respuestas ${a.config.publico === 'chat' ? 'en forma de chat, con su nombre' : 'en cuadritos, sin nombre'}.</p>` : ''}
       <div class="answers">${rs.map(r => `<div class="answer ${r.destacada ? 'compartida' : ''}"><div class="row space"><b>${esc(r.nombre || 'Participante')}${a.config.mural ? ` <span class="muted small">${esc(arroba(r.nombre, r.datos?.usuario))}</span>` : ''}</b><span class="small muted">${r.actualizado_en ? hora(r.actualizado_en) : ''}</span></div>
         <p style="margin:4px 0 8px">${esc(r.datos?.texto || '')}</p>
