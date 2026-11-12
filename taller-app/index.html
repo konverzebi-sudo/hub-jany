@@ -376,14 +376,19 @@
   .tel-pantalla { height: 100%; background: #fff; border-radius: clamp(14px, 3.6vw, 44px); padding: 3% 5%; display: flex; flex-direction: column; gap: 4%; overflow: hidden; }
   .tel-h { text-align: center; } .tel-h b { display: block; font: 800 clamp(16px, 2.6vw, 40px) 'Sora', sans-serif; text-transform: uppercase; color: #111; }
   .tel-h small { display: block; font-size: clamp(10px, 1vw, 16px); color: #555; margin-top: 2px; }
-  .tel-grid { flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 1fr; gap: clamp(6px, 1.4vw, 18px); min-height: 0; }
+  .tel-car { position: relative; flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+  .tel-track { flex: 1; display: flex; transition: transform .7s cubic-bezier(.4,0,.2,1); min-height: 0; }
+  .tel-track > .tel-grid { flex: 0 0 100%; }
+  .tel-grid { flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: clamp(6px, 1.4vw, 18px); min-height: 0; padding: 2px; }
+  .tel-dots { display: flex; justify-content: center; gap: 6px; padding-top: 6px; } .tel-dots i { width: 8px; height: 8px; border-radius: 50%; background: #CFD8E3; cursor: pointer; } .tel-dots i.on { background: #1E88FF; width: 20px; border-radius: 99px; }
+  .tel-n { position: absolute; right: 2px; bottom: 0; font: 700 11px 'JetBrains Mono', monospace; color: #888; }
   .tel-c { background: #1E88FF; color: #fff; border-radius: clamp(10px, 1.4vw, 20px); display: grid; place-items: center; text-align: center; padding: 4% 6%; font-weight: 700; overflow: hidden; box-shadow: 0 6px 14px -8px rgba(30,136,255,.9); }
   .tel-c span { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
   .tel-c.l { font-size: clamp(12px, 1.7vw, 30px); } .tel-c.m { font-size: clamp(11px, 1.3vw, 22px); } .tel-c.s { font-size: clamp(10px, 1vw, 17px); }
   .tel-c.nuevo { animation: telEntra .5s ease-out both; }
   @keyframes telEntra { from { opacity: 0; transform: scale(.85); } }
   .tel-vacio { grid-column: 1 / -1; align-self: center; text-align: center; color: #666; font-weight: 600; }
-  @media (max-width: 560px) { .tel { aspect-ratio: 4/3; } .tel-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .tel { aspect-ratio: 4/3; } .tel-grid { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(3, minmax(0, 1fr)); } }
   .apoyo { margin-top: 14px; padding: 12px; border-radius: 12px; background: #FFF8E1; border: 1px dashed #E0A100; }
   .apoyo-r { background: #fff; } .tag-apoyo { font: 700 10px 'JetBrains Mono', monospace; padding: 2px 6px; border-radius: 6px; background: #E0A100; color: #fff; }
   .link-x { margin-left: 8px; font-size: 12px; color: var(--bad); text-decoration: underline; }
@@ -835,16 +840,24 @@ function muralHtml(a, lista, grande) {
 }
 
 /* TELÉFONO: solo las N respuestas más recientes (reales + apoyo del equipo), sin nombres */
-const TEL_VISTOS = new Set();
+const TEL_VISTOS = new Set(), TEL_PAG = {};
+function moverTel(el, i) { const n = +el.dataset.pags || 1; i = ((i % n) + n) % n; TEL_PAG[el.dataset.tel] = i; el.querySelector('.tel-track').style.transform = `translateX(-${i * 100}%)`; el.querySelectorAll('.tel-dots i').forEach((d, k) => d.classList.toggle('on', k === i)); }
+function activarTelefonos() { document.querySelectorAll('[data-tel]').forEach(el => moverTel(el, TEL_PAG[el.dataset.tel] || 0)); }
+setInterval(() => document.querySelectorAll('[data-tel]').forEach(el => { if (+el.dataset.pags > 1) moverTel(el, (TEL_PAG[el.dataset.tel] || 0) + 1); }), 5000);
+document.addEventListener('click', e => { const d = e.target.closest('.tel-dots i'); if (d) moverTel(d.closest('[data-tel]'), +d.dataset.i); });
+new MutationObserver(() => { if (document.querySelector('[data-tel]')) activarTelefonos(); }).observe(document.documentElement, { childList: true, subtree: true });
 function telefonoHtml(a, lista, grande) {
-  const n = a.config.ultimas || 6;
+  const n = 6;
   const todas = [...lista.map(x => ({ k: 'r' + (x.id || x.texto), t: x.texto, at: x.actualizado_en || '' })),
     ...(a.config.apoyo || []).map(x => ({ k: 'a' + x.id, t: x.texto, at: x.creado_en || '' }))]
-    .sort((x, y) => String(x.at).localeCompare(String(y.at))).slice(-n).reverse();
+    .sort((x, y) => String(x.at).localeCompare(String(y.at)));
   const tam = t => t.length <= 30 ? 'l' : t.length <= 70 ? 'm' : 's';
   return `<div class="tel-wrap ${grande ? 'xl' : ''}"><div class="tel"><span class="tel-cam"></span><div class="tel-pantalla">
     <div class="tel-h"><b>¿Qué delegarías?</b><small>Si tuvieras un asistente que conociera tu negocio, ¿qué tarea le delegarías primero?</small></div>
-    <div class="tel-grid">${todas.map(x => { const nuevo = !TEL_VISTOS.has(x.k); TEL_VISTOS.add(x.k); return `<div class="tel-c ${tam(x.t)} ${nuevo ? 'nuevo' : ''}"><span>${esc(x.t)}</span></div>`; }).join('') || '<p class="tel-vacio">Aquí aparecerán las tareas que el grupo delegaría ✨</p>'}</div>
+    ${todas.length ? (() => { const pags = []; for (let i = 0; i < todas.length; i += n) pags.push(todas.slice(i, i + n)); let hayNuevo = false;
+      const html = `<div class="tel-car" data-tel="${a.id}" data-pags="${pags.length}"><div class="tel-track">${pags.map(pg => `<div class="tel-grid">${pg.map(x => { const nuevo = !TEL_VISTOS.has(x.k); if (nuevo) hayNuevo = true; TEL_VISTOS.add(x.k); return `<div class="tel-c ${tam(x.t)} ${nuevo ? 'nuevo' : ''}"><span>${esc(x.t)}</span></div>`; }).join('')}</div>`).join('')}</div>
+        ${pags.length > 1 ? `<div class="tel-dots">${pags.map((_, i) => `<i data-i="${i}"></i>`).join('')}</div>` : ''}<span class="tel-n">${todas.length} ${todas.length === 1 ? 'tarea' : 'tareas'}</span></div>`;
+      if (hayNuevo) TEL_PAG[a.id] = pags.length - 1; return html; })() : '<div class="tel-grid"><p class="tel-vacio">Aquí aparecerán las tareas que el grupo delegaría ✨</p></div>'}
   </div></div></div>`;
 }
 
@@ -1626,7 +1639,7 @@ function resultadosPonenteHtml(a, rs, alumnos) {
   } else {
     const textos = rs.map(r => r.datos?.texto || '').filter(Boolean);
     h += `<b class="small">Temas más repetidos</b><div class="chips" style="margin:8px 0 14px">${temasFrecuentes(textos).map(([w, n]) => `<span class="chip">${esc(w)} · ${n}</span>`).join('') || '<span class="small muted">—</span>'}</div>
-      ${a.config.telefono ? `<p class="small" style="margin-bottom:8px">👀 La pantalla pública muestra solo las ${a.config.ultimas || 6} más recientes, sin nombres. Aquí ves todas.</p>${telefonoHtml(a, rs.filter(r => r.datos?.texto).map(r => ({ id: r.id, texto: r.datos.texto, actualizado_en: r.actualizado_en })))}
+      ${a.config.telefono ? `<p class="small" style="margin-bottom:8px">👀 La pantalla pública muestra todas las respuestas en un carrusel de 6 en 6 que pasa solo, sin nombres. Aquí ves la lista completa.</p>${telefonoHtml(a, rs.filter(r => r.datos?.texto).map(r => ({ id: r.id, texto: r.datos.texto, actualizado_en: r.actualizado_en })))}
         <div class="apoyo"><b class="small">🛟 Respuestas de apoyo del equipo (${(a.config.apoyo || []).length}) · no cuentan como participación</b>
           <form data-apoyo-form="${a.id}" class="row" style="margin:8px 0"><input type="text" name="t" maxlength="140" placeholder="Ej. Contestar mensajes de WhatsApp" style="flex:1;min-width:200px"><button class="btn sm">+ Agregar</button></form>
           ${(a.config.apoyo || []).slice().reverse().map(x => `<div class="answer apoyo-r"><span class="tag-apoyo">APOYO</span> ${esc(x.texto)} <button type="button" class="link-x" data-apoyo-del="${a.id}" data-id="${esc(x.id)}">quitar</button></div>`).join('')}</div>
@@ -1985,9 +1998,12 @@ function vistaEmbed() {
 }
 function avisarAltura() {
   if (window.parent === window) return;
-  const h = Math.ceil(document.getElementById('root').getBoundingClientRect().height) + 8;
+  const r = document.getElementById('root'), h = Math.ceil(Math.max(r.getBoundingClientRect().bottom + window.scrollY, r.scrollHeight)) + 24;
+  if (h === avisarAltura.u) return; avisarAltura.u = h;
   window.parent.postMessage({ taller: 'altura', din: EMBED, h }, '*');
 }
+// Respaldo: si el navegador no avisa un cambio de tamaño (contenido que llega después), se revisa cada segundo
+if (EMBED) setInterval(avisarAltura, 1000);
 if (EMBED && 'ResizeObserver' in window) new ResizeObserver(() => avisarAltura()).observe(document.getElementById('root'));
 
 async function recargar() {
