@@ -135,7 +135,7 @@
     // Con la barra lateral abierta, el título va al centro del espacio de la derecha (no de toda la pantalla).
     '@media (min-width:901px){body.jn-on .topbar h1{position:absolute!important;left:calc(var(--jn-w,0px) + (100% - var(--jn-w,0px)) / 2)!important;top:50%;',
     'transform:translate(-50%,-50%);margin:0!important;max-width:calc(100% - var(--jn-w,0px) - 240px);text-align:center}}',
-    '@media (max-width:900px){.topbar h1{white-space:normal!important;overflow:visible!important;text-overflow:clip!important;text-align:center;font-size:clamp(17px,5vw,22px)!important;line-height:1.15!important}}',
+    '@media (max-width:900px){.topbar h1{white-space:normal!important;overflow:visible!important;text-overflow:clip!important;text-align:center;font-size:clamp(22px,6.4vw,28px)!important;line-height:1!important}}',
     // Teclado: se ve en qué botón estás (solo al navegar con teclado, no al tocar).
     'a:focus-visible,button:focus-visible,[role="button"]:focus-visible,summary:focus-visible{outline:2px solid #8FC400!important;outline-offset:2px}',
     // Botones: se hunden un poco al presionarlos.
@@ -147,6 +147,9 @@
     // Estándar de marca (docs/ESTANDAR-MARCA.md): 2 letras oficiales, títulos apretados y bloques lima.
     'h1,h2,.pb-titulo{font-family:"Inter Tight",sans-serif;letter-spacing:-.025em}',
     'h1,.pb-titulo{font-weight:800}',
+    // Bebas Neue = la letra de la marca (logo JEFESHUB): nombre del Jefe en la barra de arriba y cifras grandes.
+    '.topbar h1{font-family:"Bebas Neue",Impact,sans-serif!important;font-weight:400!important;letter-spacing:.03em!important;text-transform:uppercase;font-size:clamp(26px,2.6vw,34px)!important;line-height:1!important}',
+    '.marca-grande{font-family:"Bebas Neue",Impact,sans-serif;font-weight:400;letter-spacing:.03em;text-transform:uppercase;line-height:.95}',
     '.marca-resalta{background:#C9F507;color:#0F0E0C;padding:0 .12em;box-decoration-break:clone;-webkit-box-decoration-break:clone}',
     '.marca-etiqueta{display:inline-block;background:#C9F507;color:#0F0E0C;font:700 11px Barlow,sans-serif;letter-spacing:.12em;text-transform:uppercase;padding:4px 10px;border-radius:7px}',
     '.marca-opcion{height:44px;padding:0 16px;border-radius:12px;border:1px solid #E4E6DB;background:#fff;color:#0F0E0C;font:700 14px Barlow,sans-serif;cursor:pointer}',

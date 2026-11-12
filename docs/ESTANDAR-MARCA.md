@@ -6,11 +6,12 @@ Todo lo que se ve dentro de un Jefe, el ADN y los hubs sale de aquí. Si algo no
 > Esto es el estilo de **la plataforma**. Los datos de marca de cada cliente (sus colores, su logo, su
 > combinación de letras del ADN) se leen siempre de su hub y se usan solo en lo que genera para él.
 
-## Letras: solo 2
+## Letras: solo 3
 
 | Uso | Letra | Peso | Detalle |
 |---|---|---|---|
-| Títulos (h1, h2, encabezado del Jefe, títulos de tarjetas) | **Inter Tight** | 800 (ExtraBold); 900 en títulos gigantes | Mayúsculas y minúsculas normales, letras juntas (`letter-spacing: -0.025em` a `-0.035em`) |
+| **Marca**: logo JEFESHUB, "HUB DE JEFES", nombre del Jefe en la barra de arriba, cifras gigantes | **Bebas Neue** | 400 (es la única) | Siempre MAYÚSCULAS, `letter-spacing: .03em–.04em`. Clase `.marca-grande` |
+| Títulos dentro de la página (h1/h2 de sección, títulos de tarjetas) | **Inter Tight** | 800 (ExtraBold); 900 en títulos gigantes | Mayúsculas y minúsculas normales, letras juntas (`letter-spacing: -0.025em` a `-0.035em`); frase clave en bloque lima |
 | Texto, botones, campos, subtítulos | **Barlow** | 400 texto · 600 subtítulos · 700 botones | |
 | Etiquetas chicas (encima de un campo o sección) | **Barlow** | 700 | MAYÚSCULAS, 11–12 px, `letter-spacing: .12em–.16em` |
 
@@ -18,7 +19,7 @@ Prohibidas en pantallas nuevas: Sora, Inter, JetBrains Mono y cualquier otra. (L
 cliente sí se usan, pero solo en sus imágenes, anuncios y muestras de su marca.)
 
 Google Fonts:
-`https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800;900&family=Barlow:wght@400;500;600;700&display=swap`
+`https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800;900&family=Bebas+Neue&family=Barlow:wght@400;500;600;700&display=swap`
 
 ## Colores y lo que significan
 
@@ -57,7 +58,8 @@ Todos: esquinas de 12 px, alto mínimo 44 px en celular, se hunden un poco al pr
 ## Ya aplicado (PR "Estándar de marca")
 
 - Sora → Inter Tight, Inter → Barlow y JetBrains Mono → Barlow en los 12 Jefes, el ADN y los hubs.
-- `js/jefes-nav.js` trae las clases `.marca-resalta`, `.marca-etiqueta` y `.marca-opcion` para todos los Jefes.
+- Bebas Neue en "HUB DE JEFES" (5 hubs) y en el nombre de cada Jefe en la barra de arriba.
+- `js/jefes-nav.js` trae las clases `.marca-grande`, `.marca-resalta`, `.marca-etiqueta` y `.marca-opcion` para todos los Jefes.
 
 ## Siguiente (por Jefe)
 
