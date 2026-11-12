@@ -251,6 +251,15 @@
   .chk { display: flex; align-items: center; gap: 12px; cursor: pointer; font-size: 15px; }
   .chk input { width: 20px; height: 20px; accent-color: #7B2FBE; }
   .chk input:checked + span { text-decoration: line-through; color: var(--dim); }
+  .revisa { display: flex; flex-direction: column; gap: 14px; padding: 24px 26px; }
+  .rev-bar { height: 6px; border-radius: 99px; background: #F0E6FC; overflow: hidden; margin-bottom: 6px; }
+  .rev-bar i { display: block; height: 100%; background: linear-gradient(90deg, #7B2FBE, #A65BE8); border-radius: 99px; transition: width .35s; }
+  .chk-box input { appearance: none; -webkit-appearance: none; flex: none; width: 26px; height: 26px; border-radius: 8px; border: 2px solid #C9A7EE; background: #fff; display: grid; place-items: center; cursor: pointer; transition: .15s; }
+  .chk-box input:hover { border-color: #7B2FBE; }
+  .chk-box input:checked { background: #7B2FBE; border-color: #7B2FBE; }
+  .chk-box input:checked::after { content: ""; width: 7px; height: 12px; border: solid #fff; border-width: 0 3px 3px 0; transform: rotate(45deg) translate(-1px, -1px); }
+  .chk-box span { font-size: 16px; color: var(--muted); }
+  .chk-box input:checked + span { text-decoration: none; color: var(--text); }
 
   /* ---------- RESPONSIVE ---------- */
   @media (max-width: 1000px) {
@@ -475,7 +484,13 @@ let done = {};
 try { done = JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) {}
 let chks = {};
 try { chks = JSON.parse(localStorage.getItem(KEY + '-checks')) || {}; } catch (e) {}
-document.addEventListener('change', e => { const i = e.target.closest('[data-chk]'); if (!i) return; chks[i.dataset.chk] = i.checked; try { localStorage.setItem(KEY + '-checks', JSON.stringify(chks)); } catch (err) {} });
+document.addEventListener('change', e => {
+  const i = e.target.closest('[data-chk]'); if (!i) return;
+  chks[i.dataset.chk] = i.checked;
+  try { localStorage.setItem(KEY + '-checks', JSON.stringify(chks)); } catch (err) {}
+  const box = i.closest('.revisa');
+  if (box) { const all = box.querySelectorAll('input'), on = box.querySelectorAll('input:checked'); box.querySelector('.rev-bar i').style.width = Math.round(on.length / all.length * 100) + '%'; if (on.length === all.length) toast('¡Todo listo! Ya puedes completar la clase 🎉'); }
+});
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(done)); } catch (e) {} };
 const nDone = () => CLASES.filter(c => done[c.id]).length;
 const siguiente = () => CLASES.find(c => !done[c.id]) || CLASES[CLASES.length - 1];
@@ -578,7 +593,8 @@ function viewClase(c) {
           </div>`).join('')}
       </li>`).join('')}</ol>
     <div class="sec-title"><span class="ico">✅</span><div><h2>Revisa antes de avanzar</h2></div></div>
-    <div class="card"><ul class="checklist">${c.revisa.map(a => `<li>${esc(a)}</li>`).join('')}</ul></div>
+    <div class="card revisa" data-revisa="${esc(c.id)}"><div class="rev-bar"><i style="width:${Math.round(c.revisa.filter((a, j) => chks[c.id + '-rev-' + j]).length / c.revisa.length * 100)}%"></i></div>
+      ${c.revisa.map((a, j) => `<label class="chk chk-box"><input type="checkbox" data-chk="${esc(c.id)}-rev-${j}" ${chks[c.id + '-rev-' + j] ? 'checked' : ''}><span>${esc(a)}</span></label>`).join('')}</div>
     <div class="complete-bar"><b>${done[c.id] ? '¡Clase completada! 🎉' : '¿Terminaste esta clase?'}</b><button class="btn" data-done="${esc(c.id)}" data-go="${next ? next.id : ''}">${done[c.id] ? (next ? 'Ir a la siguiente →' : 'Volver al inicio') : 'Completar clase'}</button></div>
     <div class="pager">
       ${prev ? `<a href="#clase-${prev.id}"><small>← ANTERIOR</small><b>${esc(prev.titulo)}</b></a>` : `<a href="#inicio"><small>← INICIO</small><b>Guía del taller</b></a>`}
