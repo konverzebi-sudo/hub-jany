@@ -1,6 +1,6 @@
 -- =====================================================================
 -- PLATAFORMA DE TALLERES · HUB JEFES
--- Esquema inicial para "Tu Primer Agente con IA" (reutilizable para
+-- Esquema inicial para "Tu Primer Asesor con IA" (reutilizable para
 -- otros talleres). Ejecutar completo en: Supabase → SQL Editor → Run.
 --
 -- Principios:

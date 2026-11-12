@@ -1,5 +1,5 @@
 -- =====================================================================
--- DATOS INICIALES · "Tu Primer Agente con IA"
+-- DATOS INICIALES · "Tu Primer Asesor con IA"
 -- Ejecutar DESPUÉS de 01_esquema.sql.
 -- Antes de correrlo, cambia los 2 correos marcados con <<< (el tuyo y
 -- el de la persona de soporte). No subas este archivo con correos reales.
@@ -10,7 +10,7 @@ declare
   s_empieza uuid; s_calienta uuid; s_prepara uuid;
 begin
   insert into public.talleres(slug, nombre, fecha)
-  values ('primer-agente', 'Tu Primer Agente con IA', null)
+  values ('primer-agente', 'Tu Primer Asesor con IA', null)
   on conflict (slug) do update set nombre = excluded.nombre
   returning id into t;
 
@@ -32,8 +32,8 @@ begin
   -- Contenido de "Empieza por aquí"
   insert into public.contenidos(seccion_id, cuerpo) values (s_empieza, jsonb_build_object(
     'bienvenida', jsonb_build_object(
-      'titulo', '¡BIENVENIDO A TU PRIMER AGENTE CON IA!',
-      'texto',  'En este taller vas a construir tu primer agente con IA aplicado a tu negocio: con tu información, tus productos y tus objetivos. Este espacio te acompaña antes y durante la sesión en vivo.'),
+      'titulo', '¡BIENVENIDO A TU PRIMER ASESOR CON IA!',
+      'texto',  'En este taller vas a construir tu primer asesor con IA aplicado a tu negocio: con tu información, tus productos y tus objetivos. Este espacio te acompaña antes y durante la sesión en vivo.'),
     'como_funciona', jsonb_build_array(
       jsonb_build_object('titulo','Presentación en vivo','texto','Jany comparte la presentación y explica cada etapa. Síguela en la videollamada.'),
       jsonb_build_object('titulo','Plataforma','texto','Aquí encuentras instrucciones, materiales, actividades y tu avance.'),

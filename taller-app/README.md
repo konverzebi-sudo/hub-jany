@@ -1,6 +1,6 @@
 # Plataforma de talleres · Hub Jefes
 
-Primera etapa: **"Tu Primer Agente con IA"** (alumno · ponente · soporte).
+Primera etapa: **"Tu Primer Asesor con IA"** (alumno · ponente · soporte).
 Construida nueva sobre **Supabase** (proyecto exclusivo para talleres) con páginas
 estáticas publicadas en jefeshub.com. Colores y letras de la marca actual
 (#0F0B16 · #BBF802 · morado #7B2FBE · Sora / Inter / JetBrains Mono).
@@ -50,3 +50,6 @@ en dos pestañas para ver el tiempo real). Para reiniciar: cerrar sesión en el 
 - Probar con cuentas reales: RLS, tiempo real y subida de archivos (el SQL aún no se ha ejecutado).
 - Fecha del taller en la tabla `talleres`.
 - Contenido de los módulos posteriores (hoy son marcadores bloqueados).
+
+## Actualización: 4 dinámicas de Calentando motores
+Corre `supabase/04_dinamicas.sql` después de 01, 02 y 03. Agrega ¿A qué te dedicas?, ¿Qué delegarías?, ¿Qué parte del marketing te cuesta más? y ¿Marketing o improvisando?; conserva las 3 anteriores; cambia el nombre a "Tu Primer Asesor con IA"; permite a la ponente compartir respuestas (sin nombre) y reiniciar resultados.
