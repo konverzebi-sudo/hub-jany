@@ -298,6 +298,11 @@
   .vivo-banner { padding: 14px 18px; border-radius: 14px; background: var(--card-2); color: var(--dim); font-weight: 600; }
   .vivo-banner.on { background: var(--lime); color: var(--ink); }
   @media (max-width: 900px) { .cl-head { grid-template-columns: 1fr; } .cl-cover { display: none; } .din { padding-left: 54px; } .grupos, .dk { grid-template-columns: 1fr 1fr; } }
+  body.embed { background: transparent; }
+  body.embed .din { padding-left: 0; padding-bottom: 0; }
+  body.embed .din-list::before, body.embed .din .node, body.embed .din h3, body.embed .din .din-q { display: none; }
+  body.embed .din .card { margin-top: 8px; }
+  body.embed .steps { margin-top: 0; }
   .login { min-height: 100vh; display: grid; place-items: center; padding: 20px; background: linear-gradient(160deg, #3B1468, #1C0A33); }
   .login .card { width: min(440px, 100%); }
   .view-switch { position: fixed; top: 10px; right: 14px; z-index: 50; display: flex; align-items: center; gap: 4px; padding: 5px; border-radius: 99px;
@@ -339,6 +344,8 @@
 const CFG = window.TALLER_CONFIG || {};
 const qs = new URLSearchParams(location.search);
 const DEMO = qs.get('demo') || (!CFG.supabaseUrl ? 'alumno' : '');
+/* Modo incrustado: la guía del taller muestra aquí dentro una dinámica (?embed=clave) o el formulario (?embed=prepara) */
+const EMBED = qs.get('embed') || '';
 const $ = s => document.querySelector(s);
 const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const toast = t => { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), 1800); };
@@ -842,7 +849,7 @@ function pintarDinamica(a, num, cont) {
       <form>${campo}<div style="margin-top:12px"><button class="btn">${esc(r ? 'GUARDAR CAMBIOS' : (a.config.boton || 'ENVIAR'))}</button></div></form>
       ${r ? `<div class="ok-msg" style="margin-top:14px">✅ Respuesta recibida. Puedes editarla mientras la actividad esté abierta.${a.config.compartir ? ' Solo Jany la ve, a menos que decida compartirla (sin tu nombre).' : ''}</div>` : ''}<div data-extra></div></div>`;
   }
-  li.innerHTML = `<span class="node">${num}</span><small class="et">DINÁMICA ${num} · <span class="pill ${e.c}">${e.t}</span></small>
+  li.innerHTML = `<span class="node">${num}</span><small class="et">${num !== '' ? `DINÁMICA ${num} · ` : ''}<span class="pill ${e.c}">${e.t}</span></small>
     <h3>${esc(nombreAct(a))}</h3>${a.config?.nombre ? `<p class="din-q">${esc(a.titulo)}</p>` : ''}${cuerpo}`;
   cont.appendChild(li);
   const form = li.querySelector('form');
@@ -1277,9 +1284,32 @@ async function vistaSoporte() {
 /* =====================================================================
    ARRANQUE Y RUTEO
    ===================================================================== */
+/* ---------------- INCRUSTADO EN LA GUÍA ---------------- */
+function vistaEmbed() {
+  document.body.classList.add('embed');
+  const root = $('#root');
+  if (EMBED === 'prepara') {
+    const s = sec('prepara'), a = act('prework');
+    if (!s || s.estado === 'bloqueada' || !a) root.innerHTML = `<div class="card din-espera">🔒 Se habilitará pronto.</div>`;
+    else { root.innerHTML = `${a.estado === 'finalizada' ? `<div class="ok-msg">🔒 Jany cerró la preparación. Puedes consultar tus respuestas, ya no editarlas.</div>` : ''}<div class="steps" id="steps"></div><div class="card" id="bloque"></div>`; montarPrepara(); }
+  } else {
+    const a = act(EMBED);
+    if (a) { root.innerHTML = '<ol class="din-list" id="dinamicas"></ol>'; pintarDinamica(a, '', $('#dinamicas')); }
+    else root.innerHTML = `<div class="card din-espera">⏳ Esta dinámica se abrirá cuando Jany lo indique durante la presentación.</div>`;
+  }
+  avisarAltura();
+}
+function avisarAltura() {
+  if (window.parent === window) return;
+  const h = Math.ceil(document.getElementById('root').getBoundingClientRect().height) + 8;
+  window.parent.postMessage({ taller: 'altura', din: EMBED, h }, '*');
+}
+if (EMBED && 'ResizeObserver' in window) new ResizeObserver(() => avisarAltura()).observe(document.getElementById('root'));
+
 async function recargar() { const d = await api.cargar(); if (!d.sinAcceso) S = d; render(); }
 function render() {
   UI.ruta = decodeURIComponent(location.hash.slice(1));
+  if (EMBED && S.rol === 'alumno') return vistaEmbed();
   if (S.rol === 'ponente') vistaPonente();
   else if (S.rol === 'soporte') vistaSoporte();
   else vistaAlumno();
