@@ -412,7 +412,7 @@
   .bal-fila { display: grid; grid-template-columns: 1fr auto 60px; gap: 10px; align-items: center; margin-bottom: 6px; }
   .bal-fila b { font: 800 20px 'Sora', sans-serif; } .bal-fila em { font-style: normal; font-weight: 700; text-align: right; }
   .balance small { display: block; margin-top: 8px; color: var(--dim); }
-  .balance.xl { background: rgba(255,255,255,.08); color: #fff; } .balance.xl .bal-fila { font-size: 24px; } .balance.xl .bal-fila b { font-size: 40px; color: var(--lime); } .balance.xl .med-barra { height: 40px; } .balance.xl small { color: #CDBCE6; font-size: 16px; }
+  .balance.xl { background: rgba(255,255,255,.08); color: #fff; } .balance.xl .med-barra .a { background: #fff; } .balance.xl .med-barra .b { background: #C9F507; } .balance.xl .med-barra { background: transparent; } .balance.xl .bal-fila { font-size: 24px; } .balance.xl .bal-fila b { font-size: 40px; color: var(--lime); } .balance.xl .med-barra { height: 40px; } .balance.xl small { color: #CDBCE6; font-size: 16px; }
   .res-tq-k { display: flex; gap: 40px; margin-bottom: 10px; } .res-tq-k b { display: block; font: 800 34px 'Sora', sans-serif; color: var(--purple-d); } .res-tq-k small { color: var(--dim); }
   .res-tq.xl .res-tq-k b { color: var(--lime); font-size: 56px; } .res-tq.xl .res-tq-k small { color: #CDBCE6; font-size: 18px; }
   .res-top { margin-top: 14px; } .res-tq.xl .res-top { font-size: 20px; color: #EDE4FA; }
@@ -454,6 +454,8 @@
   .mf-titulo { position: absolute; left: 6%; top: 34%; margin: 0; font: 800 clamp(22px, 4.2vw, 60px) 'Sora', sans-serif; line-height: 1.02; color: #fff; text-shadow: 0 2px 0 rgba(0,0,0,.06); }
   .mf-card { position: absolute; right: 4%; bottom: 6%; width: 17%; text-align: center; }
   .mf-card .cat-img { border-radius: 14px; } .mf-card b { display: block; font: 800 clamp(10px, 1.1vw, 16px) 'Sora', sans-serif; margin-top: 6px; color: #0F0B16; } .mf-card small { display: block; font-size: clamp(8px, .8vw, 12px); color: #2B2E22; }
+  .brief-pct { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; font-weight: 600; font-size: 14px; } .brief-pct em { font-style: normal; color: #1C7A47; }
+  .rec-barra { flex: 1; min-width: 120px; height: 10px; border-radius: 99px; background: #F0E6FC; overflow: hidden; } .rec-barra i { display: block; height: 100%; background: linear-gradient(90deg, #7B2FBE, #BBF802); }
   body.embed { background: transparent; }
   body.embed .din { padding-left: 0; padding-bottom: 0; }
   body.embed .din-list::before, body.embed .din .node, body.embed .din h3, body.embed .din .din-q { display: none; }
@@ -514,7 +516,7 @@ const STOP = new Set('que de la el en y a los las un una mi me lo no se es con p
    CAPA DE DATOS
    ===================================================================== */
 function crearApiDemo(rol) {
-  const KEY = 'taller-demo-v11';
+  const KEY = 'taller-demo-v12';
   const bc = 'BroadcastChannel' in window ? new BroadcastChannel('taller-demo') : null;
   const uid = 'u-' + rol;
   const base = () => ({
@@ -523,9 +525,9 @@ function crearApiDemo(rol) {
     miembros: [{ user_id: 'u-alumno', rol: 'alumno' }, { user_id: 'u-luis', rol: 'alumno' }, { user_id: 'u-marta', rol: 'alumno' }, { user_id: 'u-ponente', rol: 'ponente' }, { user_id: 'u-soporte', rol: 'soporte' }],
     secciones: [
       { id: 's1', clave: 'empieza', titulo: 'Empieza por aquí', orden: 1, estado: 'disponible' },
-      { id: 's2', clave: 'calienta', titulo: 'Calentando motores', orden: 2, estado: 'disponible' },
+      { id: 's2', clave: 'calienta', titulo: 'Rompehielo', orden: 2, estado: 'disponible' },
       { id: 's3', clave: 'prepara', titulo: 'Prepara tu negocio', orden: 3, estado: 'disponible' },
-      { id: 's4', clave: 'modulo-2', titulo: 'Módulo 2', orden: 4, estado: 'bloqueada' },
+      { id: 's4', clave: 'modulo-2', titulo: 'Calienta motores', orden: 4, estado: 'bloqueada' },
       { id: 's5', clave: 'modulo-3', titulo: 'Módulo 3', orden: 5, estado: 'bloqueada' }],
     contenidos: { s1: CONTENIDO_EMPIEZA_DEMO, s2: { intro: 'Cuatro dinámicas rápidas para conocernos. Jany abre cada una durante la presentación: respóndela aquí cuando te lo indique.' }, s3: { intro: 'Esta información la usará El Hubcito para personalizar tu ejercicio práctico. Puedes guardar y continuar después.' } },
     actividades: ACTIVIDADES_DEMO,
@@ -1518,6 +1520,9 @@ function montarPrepara() {
   const r = miResp(a);
   const D = JSON.parse(JSON.stringify(r?.datos || {}));
   D._ok = D._ok || {};
+  const pct = Math.round('ABCDEF'.split('').filter(b => D._ok[b]).length / 6 * 100);
+  if (window.parent !== window) window.parent.postMessage({ taller: 'brief', pct }, '*');
+  const st = $('#steps'); if (st && !$('#briefPct')) st.insertAdjacentHTML('beforebegin', `<div id="briefPct" class="brief-pct"><span>Avance de tu brief</span><div class="rec-barra"><i style="width:${pct}%"></i></div><b>${pct}%</b>${pct >= 100 ? '<em>✅ Completo</em>' : ''}</div>`);
   const soloLectura = a.estado !== 'abierta';
   const pintarPasos = () => $('#steps').innerHTML = BLOQUES.map((b, i) => `<button class="step ${UI.paso === i ? 'on' : ''} ${D._ok[b.k] ? 'done' : ''}" data-p="${i}">${D._ok[b.k] ? '✓ ' : ''}${b.k} · ${esc(b.t)}</button>`).join('')
     + `<button class="step ${UI.paso === 6 ? 'on' : ''}" data-p="6">Resumen</button>`;
@@ -2170,6 +2175,16 @@ async function vistaEmbedPonente() {
 function vistaEmbed() {
   document.body.classList.add('embed');
   if (EMBED === 'presentacion') return vistaPresentacion();
+  if (EMBED === 'estado') { window.parent.postMessage({ taller: 'estado', secciones: S.secciones.map(x => ({ clave: x.clave, estado: x.estado })) }, '*'); $('#root').innerHTML = ''; return; }
+  if (EMBED === 'seccion') {
+    const sc = sec(qs.get('s')); if (!sc || S.rol !== 'ponente') { $('#root').innerHTML = ''; return avisarAltura(); }
+    const nom = { bloqueada: ['off', '🔒 BLOQUEADO PARA EL GRUPO'], disponible: ['live', '🔓 ABIERTO PARA EL GRUPO'], cerrada: ['on', '✓ CERRADO (solo lectura)'] }[sc.estado] || ['off', sc.estado];
+    $('#root').innerHTML = `<div class="ctrl-verde"><div class="cv-h"><b>🎤 Módulo: ${esc(sc.titulo)}</b><span class="pill ${nom[0]}">${nom[1]}</span></div>
+      <div class="row dbtns" style="margin-top:8px"><button class="btn sm" data-sc="disponible" ${sc.estado === 'disponible' ? 'disabled' : ''}>🔓 ABRIR PARA EL GRUPO</button><button class="btn ghost sm" data-sc="bloqueada" ${sc.estado === 'bloqueada' ? 'disabled' : ''}>🔒 BLOQUEAR</button></div>
+      <p class="small" style="margin-top:6px">Mientras esté bloqueado, los alumnos no pueden entrar ni adelantarse.</p></div>`;
+    $('#root').querySelectorAll('[data-sc]').forEach(b => b.onclick = async () => { try { await api.setSeccion(sc.id, b.dataset.sc); toast('Módulo actualizado'); await recargar(); } catch (e) { toast(e.message); } });
+    return avisarAltura();
+  }
   if (EMBED === 'ayuda') { $('#root').innerHTML = '<div class="card" id="drawer"></div>'; return pintarAyuda().then(avisarAltura); }
   if (S.rol === 'ponente') return vistaEmbedPonente();
   const root = $('#root');
@@ -2200,7 +2215,7 @@ async function recargar() {
 }
 function render() {
   UI.ruta = decodeURIComponent(location.hash.slice(1));
-  if (EMBED && (S.rol === 'alumno' || S.rol === 'ponente')) return vistaEmbed();
+  if (EMBED && (S.rol === 'alumno' || S.rol === 'ponente' || EMBED === 'estado')) return vistaEmbed();
   if (S.rol === 'ponente') vistaPonente();
   else if (S.rol === 'soporte') vistaSoporte();
   else vistaAlumno();
