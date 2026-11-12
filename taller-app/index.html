@@ -336,6 +336,19 @@
   .cv-det { margin-top: 12px; } .cv-det summary { cursor: pointer; font-weight: 600; font-size: 14px; color: #2E4A00; }
   .cv-tag { font: 600 11px 'JetBrains Mono', monospace; letter-spacing: .1em; color: var(--dim); }
   .vista-alumno { opacity: .92; }
+  .pres-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .pres-top .btn { margin-left: auto; }
+  .pres-img { border-radius: 16px; overflow: hidden; background: #0F0B16; box-shadow: 0 14px 40px -24px rgba(15,11,22,.7); }
+  .pres-img.verde { box-shadow: 0 0 0 4px #BBF802, 0 14px 40px -24px rgba(15,11,22,.7); }
+  .pres-img img { display: block; width: 100%; height: auto; aspect-ratio: 16/9; object-fit: contain; background: #0F0B16; }
+  .pres-nota { margin-top: 10px; font-size: 14px; color: #2E4A00; }
+  .pres-tira { display: flex; gap: 6px; overflow-x: auto; margin-top: 10px; padding-bottom: 4px; }
+  .pres-tira button { position: relative; flex: none; width: 96px; border-radius: 8px; overflow: hidden; border: 2px solid transparent; padding: 0; background: #000; }
+  .pres-tira button.verde { border-color: #9CCB00; }
+  .pres-tira button.on { border-color: #7B2FBE; box-shadow: 0 0 0 2px #7B2FBE; }
+  .pres-tira img { display: block; width: 100%; aspect-ratio: 16/9; object-fit: cover; }
+  .pres-tira span { position: absolute; left: 4px; bottom: 2px; font: 700 11px 'JetBrains Mono', monospace; color: #fff; text-shadow: 0 1px 3px #000; }
+  .pres-din { margin-top: 16px; } .pres-din h3 { font-size: 18px; margin-bottom: 6px; }
   body.embed { background: transparent; }
   body.embed .din { padding-left: 0; padding-bottom: 0; }
   body.embed .din-list::before, body.embed .din .node, body.embed .din h3, body.embed .din .din-q { display: none; }
@@ -450,7 +463,8 @@ function crearApiDemo(rol) {
     },
     async setSeccion(sid, estado) { db.secciones.find(s => s.id === sid).estado = estado; guardar(); },
     async setActividad(aid, estado) { db.actividades.find(a => a.id === aid).estado = estado; guardar(); },
-    async setEtapa(etapa_actual, actividad_activa) { db.estado_vivo = { etapa_actual, actividad_activa }; guardar(); },
+    async setEtapa(etapa_actual, actividad_activa) { db.estado_vivo = { ...db.estado_vivo, etapa_actual, actividad_activa }; guardar(); },
+    async setDiapo(n) { if (rol !== 'ponente') throw new Error('Solo la ponente'); db.estado_vivo = { ...db.estado_vivo, diapositiva: n }; guardar(); },
     async respuestasDe(aid) { return db.respuestas.filter(r => r.actividad_id === aid).map(r => ({ ...r, nombre: db.perfiles[r.user_id]?.nombre })); },
     async miembros() { return db.miembros.map(m => ({ ...m, nombre: db.perfiles[m.user_id]?.nombre, email: db.perfiles[m.user_id]?.email })); },
     async todasRespuestas() { return db.respuestas; },
@@ -525,6 +539,7 @@ function crearApiSupabase() {
     },
     async setSeccion(id, estado) { chk(await sb.from('secciones').update({ estado }).eq('id', id)); },
     async setActividad(id, estado) { chk(await sb.from('actividades').update({ estado }).eq('id', id)); },
+    async setDiapo(n) { chk(await sb.from('estado_vivo').upsert({ taller_id: T.id, diapositiva: n, actualizado_en: new Date().toISOString() })); },
     async setEtapa(etapa_actual, actividad_activa) { chk(await sb.from('estado_vivo').upsert({ taller_id: T.id, etapa_actual, actividad_activa: actividad_activa || null, actualizado_en: new Date().toISOString() })); },
     async miembros() {
       const m = chk(await sb.from('miembros').select('user_id,rol').eq('taller_id', T.id));
@@ -1416,6 +1431,66 @@ async function vistaSoporte() {
 /* =====================================================================
    ARRANQUE Y RUTEO
    ===================================================================== */
+/* ---------------- PRESENTACIÓN EN VIVO (diapositivas sincronizadas) ---------------- */
+// Prueba con las primeras 14 diapositivas del Canva. Las verdes llevan su dinámica debajo.
+const DIAPOS = Array.from({ length: 14 }, (_, i) => `diapos/${String(i + 1).padStart(2, '0')}.jpg`);
+const DIAPO_DIN = { 5: 'dedicas', 6: 'delegarias', 7: 'marketing', 8: 'marketing', 14: 'historia' };
+const DIAPO_NOTA = {
+  1: 'Bienvenida. Presenta el taller y cuéntales que todo lo verán aquí: diapositivas, dinámicas y su manual.',
+  2: 'Tu promesa: al final tendrán su primer asistente con IA. Pide que lo escriban en su libreta.',
+  3: 'No están solos: presenta el chat de rescate (botón "Pedir ayuda") y al equipo de soporte.',
+  4: 'Manual del Hubcito: pide que lo abran en su celular o compu. Espera 1 minuto antes de avanzar.',
+  5: '🟩 Dinámica 1 · Abre la dinámica. Lee en voz alta 3 o 4 giros del chat del grupo.',
+  6: '🟩 Dinámica 2 · Abre la dinámica. Cuando haya respuestas, comenta las tareas que más se repiten.',
+  7: '🟩 Dinámica 3 · Abre la dinámica y deja 1 minuto para que elijan. No muestres resultados todavía.',
+  8: '🟩 Dinámica 3 · Resultados: proyecta las burbujas y comenta el TOP 3. Después cierra la dinámica.',
+  9: 'Mi historia. Abre la Dinámica 4 y ve mostrando una pregunta por bloque de tu historia.',
+  10: 'La IA ya está cambiando los negocios. Muestra la pregunta 1 de la Dinámica 4.',
+  11: 'Tu formación. Muestra la pregunta 2 de la Dinámica 4.',
+  12: 'Hacer marketing vs operar un negocio. Muestra la pregunta 3.',
+  13: 'No solo es dinero, también tiempo. Muestra las preguntas 4 y 5.',
+  14: '🟩 Dinámica 4 · Comenta de qué lado quedó el grupo. Transición: "para que la IA nos ayude, primero hay que enseñarle quiénes somos".'
+};
+async function vistaPresentacion() {
+  const root = $('#root'), ponente = S.rol === 'ponente';
+  const n = Math.min(DIAPOS.length, Math.max(1, Number(S.estado?.diapositiva) || 1)), empezo = !!S.estado?.diapositiva;
+  const din = DIAPO_DIN[n] && act(DIAPO_DIN[n]);
+  root.innerHTML = `<div class="pres">
+      <div class="pres-top"><span class="pill ${empezo ? 'live' : 'off'}">${empezo ? '● EN VIVO' : 'POR EMPEZAR'}</span><span class="small muted">Diapositiva ${n} de ${DIAPOS.length}</span>
+        <button class="btn ghost sm" id="pFull">⛶ Pantalla completa</button></div>
+      <div class="pres-img ${DIAPO_DIN[n] ? 'verde' : ''}"><img src="${DIAPOS[n - 1]}" alt="Diapositiva ${n}" id="pImg"></div>
+      ${!empezo && !ponente ? '<p class="small muted" style="margin-top:8px">La presentación avanza sola cuando Jany pasa de diapositiva.</p>' : ''}
+      ${ponente ? `<div class="ctrl-verde"><div class="cv-h"><b>🎤 Tú controlas la presentación</b><span class="small">Todos ven la diapositiva que tú elijas</span></div>
+        <div class="row dbtns" style="margin-top:10px"><button class="btn ghost sm" id="pPrev" ${n <= 1 ? 'disabled' : ''}>◀ ANTERIOR</button><button class="btn sm" id="pNext" ${n >= DIAPOS.length ? 'disabled' : ''}>SIGUIENTE ▶</button>${!empezo ? '<button class="btn dark sm" id="pIni">● EMPEZAR EN VIVO</button>' : ''}</div>
+        <p class="pres-nota">💡 ${esc(DIAPO_NOTA[n] || '')}</p>
+        <div class="pres-tira">${DIAPOS.map((src, i) => `<button class="${i + 1 === n ? 'on' : ''} ${DIAPO_DIN[i + 1] ? 'verde' : ''}" data-ir="${i + 1}" title="Diapositiva ${i + 1}"><img src="${src}" alt=""><span>${i + 1}</span></button>`).join('')}</div></div>` : ''}
+      ${din ? `<div class="pres-din"><h3>✋ Actividad: ${esc(nombreAct(din))}</h3><ol class="din-list" id="dinamicas"></ol>${ponente ? '<div id="pCtrl"></div>' : ''}</div>` : ''}
+    </div>`;
+  if (din) {
+    pintarDinamica(din, '', $('#dinamicas'));
+    if (ponente) {
+      root.querySelectorAll('.pres-din .din input, .pres-din .din textarea, .pres-din .din button').forEach(x => { x.disabled = true; });
+      const st = estadoPonente(din);
+      $('#pCtrl').innerHTML = `<div class="ctrl-verde"><div class="cv-h"><b>🎤 Dinámica en esta diapositiva</b><span class="pill ${st.c}">${st.t}</span></div><div class="row dbtns" style="margin-top:10px">
+        <button class="btn sm" data-d="abierta" ${din.estado === 'abierta' ? 'disabled' : ''}>▶ ABRIR</button><button class="btn dark sm" data-d="finalizada" ${din.estado !== 'abierta' ? 'disabled' : ''}>■ CERRAR</button>
+        ${din.config.quiz ? `<button class="btn sm" data-q="1" ${(din.config.visibles || 0) >= din.config.preguntas.length ? 'disabled' : ''}>➕ PREGUNTA ${Math.min((din.config.visibles || 0) + 1, din.config.preguntas.length)}</button>` : ''}
+        <a class="btn ghost sm" href="./?${api.demo ? 'rol=ponente&' : ''}#proyectar-${esc(din.clave)}" target="_blank" rel="noopener">📺 RESULTADOS</a></div></div>`;
+      $('#pCtrl').querySelectorAll('[data-d]').forEach(b => b.onclick = async () => { try { await api.setActividad(din.id, b.dataset.d); await recargar(); } catch (e) { toast(e.message); } });
+      $('#pCtrl').querySelectorAll('[data-q]').forEach(b => b.onclick = async () => { try { await api.setConfig(din.id, { ...din.config, visibles: Math.min(din.config.preguntas.length, (din.config.visibles || 0) + 1) }); await recargar(); } catch (e) { toast(e.message); } });
+    }
+  }
+  const ir = async k => { try { await api.setDiapo(Math.min(DIAPOS.length, Math.max(1, k))); await recargar(); } catch (e) { toast(e.message); } };
+  if (ponente) {
+    $('#pPrev').onclick = () => ir(n - 1); $('#pNext').onclick = () => ir(n + 1);
+    const pi = $('#pIni'); if (pi) pi.onclick = () => ir(1);
+    root.querySelectorAll('[data-ir]').forEach(b => b.onclick = () => ir(+b.dataset.ir));
+    document.onkeydown = e => { if (e.target.closest('input,textarea')) return; if (e.key === 'ArrowRight') ir(n + 1); if (e.key === 'ArrowLeft') ir(n - 1); };
+  }
+  $('#pFull').onclick = () => { const el = $('#pImg'); (el.requestFullscreen || el.webkitRequestFullscreen || (() => {})).call(el); };
+  $('#pImg').onload = avisarAltura;
+  avisarAltura();
+}
+
 /* ---------------- INCRUSTADO EN LA GUÍA ---------------- */
 async function vistaEmbedPonente() {
   const root = $('#root');
@@ -1464,6 +1539,7 @@ async function vistaEmbedPonente() {
 
 function vistaEmbed() {
   document.body.classList.add('embed');
+  if (EMBED === 'presentacion') return vistaPresentacion();
   if (S.rol === 'ponente') return vistaEmbedPonente();
   const root = $('#root');
   if (EMBED === 'prepara') {
