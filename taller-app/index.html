@@ -328,6 +328,14 @@
   .medidor.xl .med-lados { font-size: 26px; color: #fff; } .medidor.xl .med-barra { height: 46px; } .medidor.xl .med-txt { font-size: 24px; color: #fff; }
   .proj-q { font-size: 26px; color: var(--lime); margin-bottom: 20px; font-weight: 700; }
   @media (max-width: 600px) { .qz-ops { grid-template-columns: 1fr; } }
+  .ctrl-verde { margin-top: 12px; padding: 16px; border-radius: 18px; background: #F3FDD6; border: 2px solid #9CCB00; box-shadow: 0 0 0 4px rgba(187,248,2,.25); }
+  .ctrl-verde.activa { box-shadow: 0 0 0 4px rgba(187,248,2,.55); }
+  .cv-h { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .cv-h b { font-family: 'Sora', sans-serif; font-size: 15px; color: #2E4A00; }
+  .ctrl-verde .dk div { background: #fff; }
+  .cv-det { margin-top: 12px; } .cv-det summary { cursor: pointer; font-weight: 600; font-size: 14px; color: #2E4A00; }
+  .cv-tag { font: 600 11px 'JetBrains Mono', monospace; letter-spacing: .1em; color: var(--dim); }
+  .vista-alumno { opacity: .92; }
   body.embed { background: transparent; }
   body.embed .din { padding-left: 0; padding-bottom: 0; }
   body.embed .din-list::before, body.embed .din .node, body.embed .din h3, body.embed .din .din-q { display: none; }
@@ -373,7 +381,7 @@
    ===================================================================== */
 const CFG = window.TALLER_CONFIG || {};
 const qs = new URLSearchParams(location.search);
-const DEMO = qs.get('demo') || (!CFG.supabaseUrl ? 'alumno' : '');
+const DEMO = qs.get('demo') || (!CFG.supabaseUrl ? (['ponente', 'soporte'].includes(qs.get('rol')) ? qs.get('rol') : 'alumno') : '');
 /* Modo incrustado: la guía del taller muestra aquí dentro una dinámica (?embed=clave) o el formulario (?embed=prepara) */
 const EMBED = qs.get('embed') || '';
 const $ = s => document.querySelector(s);
@@ -756,8 +764,8 @@ function pantallaSinAcceso() {
 
 function marco(navHtml, cuerpo, titulo) {
   const p = S.rol === 'alumno' ? progreso() : null;
-  const vistas = [['alumno', '🎓 Alumno'], ['ponente', '🎤 Ponente'], ['soporte', '🛟 Soporte']];
-  return `${api.demo ? `<div class="view-switch" role="group" aria-label="Cambiar de vista"><span>Ver como</span>${vistas.map(([r, t]) => `<a href="${r === 'alumno' ? '../guia-taller-ia.html#inicio' : r === 'ponente' ? '?demo=ponente#dinamicas' : '?demo=soporte'}" class="${S.rol === r ? 'on' : ''}">${t}</a>`).join('')}</div>` : ''}
+  const vistas = [['alumno', '🎓 Alumno'], ['ponente', '🎤 Ponente'], ['panel', '📊 Panel'], ['soporte', '🛟 Soporte']];
+  return `${api.demo ? `<div class="view-switch" role="group" aria-label="Cambiar de vista"><span>Ver como</span>${vistas.map(([r, t]) => `<a href="${r === 'alumno' ? '../guia-taller-ia.html#inicio' : r === 'ponente' ? '../guia-taller-ia.html?vista=ponente#inicio' : r === 'panel' ? '?demo=ponente#dinamicas' : '?demo=soporte'}" class="${(r === 'panel' && S.rol === 'ponente') || (r !== 'panel' && r !== 'ponente' && S.rol === r) ? 'on' : ''}">${t}</a>`).join('')}</div>` : ''}
   <div class="app">
     <aside>
       <div class="brand">JEFES<span>HUB</span><small>${esc(S.taller.nombre)}</small></div>
@@ -1409,8 +1417,54 @@ async function vistaSoporte() {
    ARRANQUE Y RUTEO
    ===================================================================== */
 /* ---------------- INCRUSTADO EN LA GUÍA ---------------- */
+async function vistaEmbedPonente() {
+  const root = $('#root');
+  if (EMBED === 'prepara') {
+    const a = act('prework');
+    if (!a) { root.innerHTML = '<div class="card din-espera">Sin formulario.</div>'; return avisarAltura(); }
+    const [miembros, rs] = await Promise.all([api.miembros(), api.respuestasDe(a.id)]);
+    const alumnos = miembros.filter(m => m.rol === 'alumno');
+    const listos = rs.filter(r => 'ABCDEF'.split('').every(b => r.datos?._ok?.[b])).length;
+    root.innerHTML = `<div class="ctrl-verde"><div class="cv-h"><b>🎤 Tu decisión como ponente</b><span class="pill ${a.estado === 'abierta' ? 'live' : 'off'}">${a.estado === 'abierta' ? 'ABIERTO' : 'CERRADO'}</span></div>
+      <div class="dk"><div><b>${alumnos.length}</b><small>inscritos</small></div><div><b>${rs.length}</b><small>empezaron</small></div><div><b>${listos}</b><small>completaron A–F</small></div></div>
+      <div class="row dbtns"><button class="btn sm" data-pe="abierta" ${a.estado === 'abierta' ? 'disabled' : ''}>▶ ABRIR FORMULARIO</button><button class="btn dark sm" data-pe="finalizada" ${a.estado !== 'abierta' ? 'disabled' : ''}>■ CERRAR (solo lectura)</button></div>
+      <details class="cv-det"><summary>Ver quién lo ha llenado</summary><div class="answers" style="margin-top:8px">${alumnos.map(m => { const r = rs.find(x => x.user_id === m.user_id); const n = r ? 'ABCDEF'.split('').filter(b => r.datos?._ok?.[b]).length : 0; return `<div class="answer"><b>${esc(m.nombre || m.email || 'Participante')}</b> · ${n}/6 bloques</div>`; }).join('') || '<p class="muted small">Sin participantes.</p>'}</div></details></div>`;
+    root.querySelectorAll('[data-pe]').forEach(b => b.onclick = async () => { try { await api.setActividad(a.id, b.dataset.pe); toast('Listo'); await recargar(); } catch (err) { toast(err.message); } });
+    return avisarAltura();
+  }
+  const a = act(EMBED);
+  if (!a) { root.innerHTML = '<div class="card din-espera">Esta dinámica no existe todavía en la base de datos.</div>'; return avisarAltura(); }
+  const [miembros, rs] = await Promise.all([api.miembros(), api.respuestasDe(a.id)]);
+  const alumnos = miembros.filter(m => m.rol === 'alumno'), st = estadoPonente(a), resp = new Set(rs.map(r => r.user_id)).size;
+  root.innerHTML = `<div class="vista-alumno"><small class="cv-tag">👀 ASÍ LO VE EL ALUMNO</small><ol class="din-list" id="dinamicas"></ol></div>
+    <div class="ctrl-verde ${a.estado === 'abierta' ? 'activa' : ''}"><div class="cv-h"><b>🎤 Tu decisión como ponente</b><span class="pill ${st.c}">${st.t}</span></div>
+      <div class="dk"><div><b>${alumnos.length}</b><small>inscritos</small></div><div><b>${resp}</b><small>respuestas</small></div><div><b>${Math.max(0, alumnos.length - resp)}</b><small>pendientes</small></div></div>
+      <div class="row dbtns">
+        <button class="btn sm" data-ac="abrir" ${a.estado === 'abierta' ? 'disabled' : ''}>▶ ABRIR ACTIVIDAD</button>
+        <button class="btn dark sm" data-ac="cerrar" ${a.estado !== 'abierta' ? 'disabled' : ''}>■ CERRAR ACTIVIDAD</button>
+        ${a.config.quiz ? `<button class="btn sm" data-ac="qmas" ${(a.config.visibles || 0) >= a.config.preguntas.length ? 'disabled' : ''}>➕ MOSTRAR PREGUNTA ${Math.min((a.config.visibles || 0) + 1, a.config.preguntas.length)} DE ${a.config.preguntas.length}</button><button class="btn ghost sm" data-ac="qmenos" ${(a.config.visibles || 0) <= 0 ? 'disabled' : ''}>➖ OCULTAR ÚLTIMA</button>` : ''}
+        <a class="btn ghost sm" href="./?${api.demo ? 'rol=ponente&' : ''}#proyectar-${esc(a.clave)}" target="_blank" rel="noopener">📺 PROYECTAR</a>
+        <button class="btn ghost sm danger" data-ac="reiniciar">↺ REINICIAR</button>
+      </div>
+      <details class="cv-det" ${UI.cvAbierto ? 'open' : ''}><summary>📊 Ver resultados y quién falta</summary><div class="dres">${resultadosPonenteHtml(a, rs, alumnos)}</div></details></div>`;
+  pintarDinamica(a, '', $('#dinamicas'));
+  root.querySelectorAll('.vista-alumno input, .vista-alumno textarea, .vista-alumno button, .vista-alumno select').forEach(x => { x.disabled = true; });
+  const accion = async (fn, msg) => { try { await fn(); toast(msg); await recargar(); } catch (err) { toast(err.message); } };
+  root.querySelector('details.cv-det').ontoggle = e => { UI.cvAbierto = e.target.open; avisarAltura(); };
+  root.querySelectorAll('[data-ac]').forEach(b => b.onclick = () => {
+    const k = b.dataset.ac;
+    if (k === 'abrir') accion(() => api.setActividad(a.id, 'abierta'), 'Abierta: el grupo ya puede responder');
+    if (k === 'cerrar') accion(() => api.setActividad(a.id, 'finalizada'), 'Actividad cerrada');
+    if (k === 'qmas' || k === 'qmenos') { const v = Math.max(0, Math.min(a.config.preguntas.length, (a.config.visibles || 0) + (k === 'qmas' ? 1 : -1))); accion(() => api.setConfig(a.id, { ...a.config, visibles: v }), v ? `Pregunta ${v} visible` : 'Preguntas ocultas'); }
+    if (k === 'reiniciar' && confirm(`¿Borrar TODAS las respuestas de "${nombreAct(a)}"? No se puede deshacer.`)) accion(() => api.reiniciar(a.id), 'Resultados reiniciados');
+  });
+  root.querySelectorAll('[data-destacar]').forEach(i => i.onchange = () => accion(() => api.destacar(i.dataset.destacar, i.checked), i.checked ? 'Compartida con el grupo' : 'Ya no se comparte'));
+  avisarAltura();
+}
+
 function vistaEmbed() {
   document.body.classList.add('embed');
+  if (S.rol === 'ponente') return vistaEmbedPonente();
   const root = $('#root');
   if (EMBED === 'prepara') {
     const s = sec('prepara'), a = act('prework');
@@ -1433,7 +1487,7 @@ if (EMBED && 'ResizeObserver' in window) new ResizeObserver(() => avisarAltura()
 async function recargar() { const d = await api.cargar(); if (!d.sinAcceso) S = d; render(); }
 function render() {
   UI.ruta = decodeURIComponent(location.hash.slice(1));
-  if (EMBED && S.rol === 'alumno') return vistaEmbed();
+  if (EMBED && (S.rol === 'alumno' || S.rol === 'ponente')) return vistaEmbed();
   if (S.rol === 'ponente') vistaPonente();
   else if (S.rol === 'soporte') vistaSoporte();
   else vistaAlumno();
