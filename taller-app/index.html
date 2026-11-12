@@ -175,6 +175,12 @@
   .proj-answers { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; margin-top: 26px; }
   .proj .answer { background: rgba(255,255,255,.08); color: #fff; font-size: 18px; padding: 18px; }
   /* Calentando motores: mismo modelo que la guía del taller */
+  .view > div > .eyebrow:first-child, .view > .eyebrow:first-child { font: 700 13px 'JetBrains Mono', monospace; letter-spacing: .06em; padding: 7px 14px; background: var(--lime); color: var(--ink); }
+  .view > div > .eyebrow:first-child::before, .view > .eyebrow:first-child::before { display: none; }
+  .view > div > .eyebrow:first-child + h1, .view > .eyebrow:first-child + h1 { font-size: clamp(30px, 4.4vw, 46px); font-weight: 800; }
+  .cl-head.solo { grid-template-columns: 1fr; }
+  .nav-item .nn { font: 700 12px 'JetBrains Mono', monospace; padding: 3px 8px; border-radius: 8px; background: rgba(255,255,255,.1); color: #EDE4FA; }
+  .nav-item.on .nn { background: var(--lime); color: var(--ink); }
   .cl-tags { display: flex; gap: 8px; flex-wrap: wrap; }
   .cl-tag { font: 700 13px 'JetBrains Mono', monospace; letter-spacing: .06em; padding: 7px 14px; border-radius: 999px; background: var(--lime); color: var(--ink); }
   .cl-tag.soft { background: #fff; border: 1px solid var(--line); color: var(--purple); font-weight: 600; }
@@ -642,13 +648,13 @@ function marco(navHtml, cuerpo, titulo) {
 function vistaAlumno() {
   const ruta = UI.ruta || 'empieza';
   const estadoTxt = s => s.estado === 'bloqueada' ? '🔒' : s.estado === 'cerrada' ? '✓' : '';
-  const nav = `<div class="nav-mod">Tu taller</div>` + S.secciones.map(s =>
-    `<a href="#${s.clave}" class="nav-item ${ruta === s.clave ? 'on' : ''} ${s.estado === 'bloqueada' ? 'locked' : ''}">${esc(s.titulo)}<span class="st">${estadoTxt(s)}</span></a>`).join('')
+  const nav = `<div class="nav-mod">Tu taller</div>` + S.secciones.map((s, i) =>
+    `<a href="#${s.clave}" class="nav-item ${ruta === s.clave ? 'on' : ''} ${s.estado === 'bloqueada' ? 'locked' : ''}"><span class="nn">${String(i + 1).padStart(2, '0')}</span>${esc(s.titulo)}<span class="st">${estadoTxt(s)}</span></a>`).join('')
     + `<div class="nav-mod">Comunidad</div><a href="#chat" class="nav-item ${ruta === 'chat' ? 'on' : ''}">💬 Chat del grupo</a>
        <a href="#historial" class="nav-item ${ruta === 'historial' ? 'on' : ''}">🗂️ Mis respuestas</a>`;
   const s = sec(ruta);
   let cuerpo;
-  if (ruta === 'chat') cuerpo = `<span class="eyebrow">Comunidad</span><h1 style="margin:12px 0 16px">Chat del grupo</h1><div id="chatBox"></div>`;
+  if (ruta === 'chat') cuerpo = encabezado({ modulo: 'Comunidad', emoji: '💬', titulo: 'Chat del grupo', sub: 'Saluda, comparte y pregunta. Todo el grupo lo ve.', portada: false }) + `<div id="chatBox" style="margin-top:22px"></div>`;
   else if (ruta === 'historial') cuerpo = vistaHistorial();
   else if (!s || s.estado === 'bloqueada' || !S.contenidos[s.id]) cuerpo = `<div class="card lockbox"><div class="ico">🔒</div><h2>${esc(s ? s.titulo : 'Contenido')}</h2><p>Este contenido se habilitará durante el taller en vivo.</p></div>`;
   else if (ruta === 'empieza') cuerpo = vistaEmpieza(S.contenidos[s.id]);
@@ -657,21 +663,35 @@ function vistaAlumno() {
   else cuerpo = `<div class="card"><h2>${esc(s.titulo)}</h2><pre style="white-space:pre-wrap">${esc(JSON.stringify(S.contenidos[s.id], null, 2))}</pre></div>`;
   $('#root').innerHTML = marco(nav, cuerpo, `<b>${esc(s ? s.titulo : ruta === 'chat' ? 'Chat' : 'Mis respuestas')}</b>`);
   if (ruta === 'empieza') localStorage.setItem('vio-empieza', '1');
+  document.querySelectorAll('[data-ir]').forEach(b => b.onclick = () => document.getElementById(b.dataset.ir)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   if (ruta === 'chat') montarChat('#chatBox', 'grupal');
   if (ruta === 'calienta') montarCalienta();
   if (ruta === 'prepara') montarPrepara();
   montarAyuda();
 }
 
+/* Encabezado con el modelo de la guía: etiqueta lima, título grande, portada morada */
+function encabezado({ clase, modulo, emoji, titulo, sub, chips = [], portada = true }) {
+  return `<div class="cl-tags">${clase ? `<span class="cl-tag">${esc(clase)}</span>` : ''}<span class="cl-tag soft">${emoji} ${esc(modulo)}</span></div>
+    <div class="cl-head ${portada ? '' : 'solo'}"><div><h1>${esc(titulo)}</h1>${sub ? `<p class="sub">${esc(sub)}</p>` : ''}
+      ${chips.length ? `<div class="cl-chips">${chips.map(c => `<span>${c}</span>`).join('')}</div>` : ''}</div>
+      ${portada ? `<div class="cl-cover"><span class="emoji">${emoji}</span><small>${esc(clase || modulo)}</small><b>${esc(modulo)}</b></div>` : ''}</div>`;
+}
+const tipHtml = t => t ? `<div class="cl-tip"><span>💡</span><div>${esc(t)}</div></div>` : '';
+const secHtml = (ico, t) => `<div class="cl-sec"><span class="ico">${ico}</span><h2>${esc(t)}</h2></div>`;
+
 function vistaEmpieza(c) {
-  return `<section class="hero"><span class="eyebrow">01 · Bienvenida</span><h1>${esc(c.bienvenida?.titulo)}</h1><p>${esc(c.bienvenida?.texto)}</p></section>
-  <div class="sec-h"><span class="n">02</span><h2>Cómo funciona este espacio</h2></div>
-  <div class="grid3">${(c.como_funciona || []).map((x, i) => `<div class="card"><span class="pill on">${'ABC'[i]}</span><h3 style="margin:10px 0 6px;font-size:18px">${esc(x.titulo)}</h3><p class="muted">${esc(x.texto)}</p></div>`).join('')}</div>
-  <div class="sec-h"><span class="n">03</span><h2>Cómo avanzar</h2></div>
-  <div class="card"><p>${esc(c.como_avanzar)}</p></div>
-  <div class="sec-h"><span class="n">04</span><h2>Herramientas que utilizaremos</h2></div>
-  <div class="grid2">${(c.herramientas || []).map(h => `<div class="tool"><div><b>${esc(h.nombre)}</b><small>${esc(h.nota)}</small></div><a class="btn ghost sm go" href="${esc(h.url)}" target="_blank" rel="noopener">Abrir ↗</a></div>`).join('')}</div>
-  <div style="text-align:center;margin-top:36px"><a class="btn" href="#calienta" style="font-size:18px;padding:16px 34px">¡ARRANCA YA! →</a></div>`;
+  const cf = c.como_funciona || [], hs = c.herramientas || [];
+  return encabezado({ clase: 'CLASE 1', modulo: 'Empieza por aquí', emoji: '🚀', titulo: (c.bienvenida?.titulo || 'Bienvenida').toLowerCase().replace(/(^[¡¿]?)(\p{L})/u, (m, a, b) => a + b.toUpperCase()).replace(/\bia\b/g, 'IA'), sub: c.bienvenida?.texto,
+      chips: [`🧩 ${cf.length} pasos`, `🛠️ ${hs.length} herramientas`] })
+    + tipHtml(c.como_avanzar)
+    + secHtml('🗺️', 'Mapa de la clase')
+    + `<div class="cl-map">${[...cf.map(x => x.titulo), 'Herramientas que utilizaremos'].map((t, k) => `<a href="javascript:void 0" data-ir="emp-${k + 1}"><i>${k + 1}</i><div>${esc(t)}</div></a>`).join('')}</div>`
+    + secHtml('🪜', 'Cómo funciona este espacio')
+    + `<ol class="din-list">${cf.map((x, k) => `<li class="din" id="emp-${k + 1}"><span class="node">${k + 1}</span><small class="et">PASO ${k + 1}</small><h3>${esc(x.titulo)}</h3><p class="muted">${esc(x.texto)}</p></li>`).join('')}
+      <li class="din" id="emp-${cf.length + 1}"><span class="node">${cf.length + 1}</span><small class="et">PASO ${cf.length + 1}</small><h3>Herramientas que utilizaremos</h3>
+        <div class="grid2" style="margin-top:12px">${hs.map(h => `<div class="tool"><div><b>${esc(h.nombre)}</b><small>${esc(h.nota)}</small></div><a class="btn ghost sm go" href="${esc(h.url)}" target="_blank" rel="noopener">Abrir ↗</a></div>`).join('')}</div></li></ol>`
+    + `<div style="text-align:center;margin-top:20px"><a class="btn" href="#calienta" style="font-size:18px;padding:16px 34px">¡ARRANCA YA! →</a></div>`;
 }
 
 function vistaCalienta() {
@@ -790,8 +810,11 @@ const CHECKS = ['Tengo acceso a ChatGPT', 'Tengo acceso a Gemini', 'Puedo ingres
 function vistaPrepara() {
   const a = act('prework');
   if (!a) return `<div class="card lockbox"><div class="ico">🔒</div><h2>Prepara tu negocio</h2><p>Se habilitará pronto.</p></div>`;
-  return `<span class="eyebrow">Primer módulo</span><h1 style="margin:12px 0 6px">Prepara tu negocio</h1>
-    <p class="muted">${esc(S.contenidos[sec('prepara').id]?.intro || '')}</p>
+  const listos = 'ABCDEF'.split('').filter(b => miResp(a)?.datos?._ok?.[b]).length;
+  return encabezado({ clase: 'CLASE 3', modulo: 'Prepara tu negocio', emoji: '🗂️', titulo: 'Prepara tu negocio', sub: 'Deja lista la información de tu negocio para que El Hubcito trabaje contigo durante el taller.',
+      chips: ['🧩 6 bloques', `✅ ${listos} de 6 listos`] })
+    + tipHtml(S.contenidos[sec('prepara').id]?.intro || '')
+    + secHtml('🪜', 'Sigue este orden') + `
     ${a.estado === 'finalizada' ? `<div class="ok-msg" style="margin-top:14px">🔒 Jany cerró la preparación. Puedes consultar tus respuestas, ya no editarlas.</div>` : ''}
     <div class="steps" id="steps"></div><div class="card" id="bloque"></div>`;
 }
@@ -921,8 +944,8 @@ function vistaHistorial() {
     const txt = a.tipo === 'opciones' ? [...(r.datos.opciones || []), r.datos.otro].filter(Boolean).join(', ') : a.tipo === 'abierta' ? r.datos.texto : (r.completada ? 'Completada' : 'En progreso');
     return `<tr><td>${esc(a.titulo)}</td><td>${esc(txt)}</td><td><span class="pill ${r.completada ? 'on' : 'warn'}">${r.completada ? 'COMPLETADA' : 'EN PROGRESO'}</span></td></tr>`;
   }).join('');
-  return `<span class="eyebrow">Historial</span><h1 style="margin:12px 0 16px">Mis respuestas</h1>
-    <div class="card">${filas ? `<table><tr><th>Actividad</th><th>Tu respuesta</th><th>Estado</th></tr>${filas}</table>` : '<p class="muted">Todavía no has respondido actividades.</p>'}</div>`;
+  return encabezado({ modulo: 'Historial', emoji: '🗂️', titulo: 'Mis respuestas', sub: 'Todo lo que has respondido en el taller.', portada: false }) + `
+    <div class="card" style="margin-top:22px">${filas ? `<table><tr><th>Actividad</th><th>Tu respuesta</th><th>Estado</th></tr>${filas}</table>` : '<p class="muted">Todavía no has respondido actividades.</p>'}</div>`;
 }
 
 /* ---- Ayuda (alumno) ---- */
