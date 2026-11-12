@@ -421,6 +421,23 @@
   .tag-sug { font: 700 10px 'JetBrains Mono', monospace; padding: 2px 6px; border-radius: 6px; background: var(--lime); color: var(--ink); }
   .cl-improvisar { color: #8A3A00; font-weight: 700; } .cl-planificar { color: #1C7A47; font-weight: 700; } .cl-operacion { color: var(--dim); font-weight: 700; }
   .tq-aviso { background: #FFF2CC; padding: 8px 12px; border-radius: 10px; margin-bottom: 10px; }
+  .tp { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 16px; align-items: start; }
+  @media (max-width: 760px) { .tp { grid-template-columns: 1fr; } }
+  .tp-col .pres-top { justify-content: space-between; }
+  .pres-sin { aspect-ratio: 16/9; display: grid; place-content: center; text-align: center; color: #fff; gap: 6px; background: radial-gradient(ellipse at 70% 20%, rgba(187,248,2,.2), transparent 60%), linear-gradient(160deg, #3B1468, #1C0A33); }
+  .pres-sin b { font: 800 26px 'Sora', sans-serif; } .pres-sin span { color: #CDBCE6; font-size: 14px; }
+  .tp-ir { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; } .tp-ir input { width: 70px; padding: 6px 8px; }
+  .tp-notas { position: sticky; top: 8px; background: #0F0B16; color: #F3EEF9; border-radius: 16px; padding: 14px 16px; }
+  .tp-h { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; } .tp-h small { font: 600 10px 'JetBrains Mono', monospace; letter-spacing: .1em; color: var(--lime); }
+  .tp-h b { width: 100%; font-family: 'Sora', sans-serif; font-size: 15px; color: #fff; }
+  .tp-zoom { margin-left: auto; display: inline-flex; gap: 4px; } .tp-zoom button { padding: 3px 8px; border-radius: 8px; background: rgba(255,255,255,.12); color: #fff; font-weight: 700; }
+  .tp-texto { max-height: 70vh; overflow-y: auto; line-height: 1.5; padding-right: 6px; }
+  .tp-botones { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+  .tp-b { display: grid; grid-template-columns: 26px 1fr auto; gap: 8px; align-items: center; padding: 8px 10px; border-radius: 12px; background: #fff; border: 1px solid var(--line); }
+  .tp-b.publicado { background: #E6F7D0; border-color: #9CCB00; } .tp-b.sug { box-shadow: 0 0 0 3px rgba(187,248,2,.6); } .tp-b.desactivado { opacity: .6; }
+  .tp-n { font: 700 12px 'JetBrains Mono', monospace; color: var(--purple); } .tp-c { font-weight: 600; font-size: 14px; } .tp-c small { display: block; font-weight: 400; color: var(--dim); font-size: 11px; } .tp-c i { font-style: normal; }
+  .mch-l.activo { background: #0F0B16; color: var(--lime); transform: translate(-50%, -50%) scale(1.15); }
+  .mch-activo { position: absolute; left: 50%; top: 3vh; transform: translateX(-50%); font: 800 clamp(20px, 3vw, 44px) 'Sora', sans-serif; color: #0F0B16; text-align: center; max-width: 90vw; }
   body.embed { background: transparent; }
   body.embed .din { padding-left: 0; padding-bottom: 0; }
   body.embed .din-list::before, body.embed .din .node, body.embed .din h3, body.embed .din .din-q { display: none; }
@@ -481,7 +498,7 @@ const STOP = new Set('que de la el en y a los las un una mi me lo no se es con p
    CAPA DE DATOS
    ===================================================================== */
 function crearApiDemo(rol) {
-  const KEY = 'taller-demo-v7';
+  const KEY = 'taller-demo-v9';
   const bc = 'BroadcastChannel' in window ? new BroadcastChannel('taller-demo') : null;
   const uid = 'u-' + rol;
   const base = () => ({
@@ -591,6 +608,7 @@ function crearApiDemo(rol) {
         responsables: new Set(db.solicitudes.map(x => x.atendida_por).filter(Boolean)).size }];
     },
     async objetivosSoporte() { return db.taller.soporte_objetivos || {}; },
+    async notasCanva() { if (rol !== 'ponente') return null; const r = await fetch('notas-canva.json', { cache: 'no-store' }); return r.ok ? r.json() : null; },
     async setObjetivosSoporte(o) { if (rol !== 'ponente') throw new Error('Solo la ponente'); db.taller.soporte_objetivos = o; guardar(); },
     async mensajes(canal, solicitud_id) {
       return db.mensajes.filter(m => m.canal === canal && (canal !== 'ayuda' || m.solicitud_id === solicitud_id))
@@ -680,6 +698,11 @@ function crearApiSupabase() {
     },
     async actualizarSolicitud(id, patch) { chk(await sb.from('solicitudes').update({ ...patch, atendida_por: U.id }).eq('id', id)); },
     async soporteDetalle() { return chk(await sb.rpc('soporte_detalle', { t: T.id })) || []; },
+    async notasCanva() {
+      const r = await sb.from('notas_canva').select('n,page_id,notas').eq('taller_id', T.id).order('n');
+      if (r.error || !r.data?.length) return null;
+      const notas = {}; return { paginas: r.data.map(x => { if (x.notas) notas['p' + x.n] = x.notas; return { n: x.n, page_id: x.page_id, nota: x.notas ? 'p' + x.n : null }; }), notas };
+    },
     async soporteSesiones() { return chk(await sb.rpc('soporte_sesiones')) || []; },
     async objetivosSoporte() { return (chk(await sb.from('talleres').select('soporte_objetivos').eq('id', T.id).maybeSingle()) || {}).soporte_objetivos || {}; },
     async setObjetivosSoporte(o) { chk(await sb.rpc('set_objetivos_soporte', { t: T.id, o })); },
@@ -732,7 +755,7 @@ var CONTENIDO_EMPIEZA_DEMO = {
 var ACTIVIDADES_DEMO = [
   { id: 'a5', seccion_id: 's2', clave: 'dedicas', tipo: 'abierta', titulo: '¿A qué te dedicas? Cuéntanos qué vendes o qué servicio ofreces.', orden: 1, estado: 'cerrada', config: { nombre: '¿A qué te dedicas?', instruccion: 'Cuéntanos brevemente qué haces, qué productos vendes o qué servicios ofreces. Queremos conocer los negocios que forman parte de este grupo.', corta: true, max: 280, editable: true, publico: 'chat', mural: true, boton: 'ENVIAR RESPUESTA', placeholder: 'Ej. Vendo pasteles personalizados para eventos en Saltillo' } },
   { id: 'a6', seccion_id: 's2', clave: 'delegarias', tipo: 'abierta', titulo: 'Si tuvieras un asistente que conociera tu negocio y pudiera ayudarte, ¿qué tarea le delegarías primero?', orden: 2, estado: 'cerrada', config: { nombre: '¿Qué delegarías?', instruccion: 'Escribe una tarea que actualmente realizas en tu negocio y que te gustaría delegar a un asistente de IA.', max: 1500, editable: true, publico: 'cuadros', telefono: true, ultimas: 6, boton: 'ENVIAR RESPUESTA', compartir: true } },
-  { id: 'a7', seccion_id: 's2', clave: 'marketing', tipo: 'opciones', titulo: '¿Qué parte del marketing de tu negocio te cuesta más trabajo?', orden: 3, estado: 'cerrada', config: { nombre: '¿Qué parte del marketing te cuesta más?', instruccion: 'Selecciona todas las opciones que representen tus principales dificultades.', multiple: true, otro: true, destacar: 3, burbujas: true, toques: true, provisional: true, conceptos: [{ id: 'i1', nombre: 'Publico cuando puedo', clase: 'improvisar', estado: 'pendiente' }, { id: 'i2', nombre: 'No sé qué producto impulsar', clase: 'improvisar', estado: 'pendiente' }, { id: 'i3', nombre: 'Pruebo herramientas sin un objetivo', clase: 'improvisar', estado: 'pendiente' }, { id: 'i4', nombre: 'Creo contenido desde cero cada vez', clase: 'improvisar', estado: 'pendiente' }, { id: 'i5', nombre: 'No sé qué está funcionando', clase: 'improvisar', estado: 'pendiente' }, { id: 'p1', nombre: 'Tengo objetivos claros', clase: 'planificar', estado: 'pendiente' }, { id: 'p2', nombre: 'Sé qué producto promover', clase: 'planificar', estado: 'pendiente' }, { id: 'p3', nombre: 'Trabajo con una estrategia', clase: 'planificar', estado: 'pendiente' }, { id: 'p4', nombre: 'Sigo un proceso de creación', clase: 'planificar', estado: 'pendiente' }, { id: 'p5', nombre: 'Reviso y mido mis resultados', clase: 'planificar', estado: 'pendiente' }], boton: 'ENVIAR RESPUESTAS', opciones: ['No sé qué publicar en redes sociales.', 'No sé qué producto o servicio promocionar.', 'Me cuesta conseguir nuevos clientes.', 'No sé crear imágenes o videos atractivos.', 'No sé cómo hacer campañas de publicidad.', 'No tengo tiempo para crear contenido.', 'No sé cómo organizar mi estrategia de marketing.', 'No sé cómo medir si mis publicaciones o campañas funcionan.', 'Me cuesta mantener la constancia.'] } },
+  { id: 'a7', seccion_id: 's2', clave: 'marketing', tipo: 'opciones', titulo: '¿Qué parte del marketing de tu negocio te cuesta más trabajo?', orden: 3, estado: 'cerrada', config: { nombre: '¿Qué parte del marketing te cuesta más?', instruccion: 'Selecciona todas las opciones que representen tus principales dificultades.', multiple: true, otro: true, destacar: 3, burbujas: true, toques: true, conceptos: [{"id": "g01", "nombre": "Hablar con proveedores", "clase": "operacion", "estado": "pendiente", "pagina": "PBL8JRx14QK8QbCY", "seccion": "Operar un negocio también consume tiempo"}, {"id": "g02", "nombre": "Coordinar entregas y rutas", "clase": "operacion", "estado": "pendiente", "pagina": "PBL8JRx14QK8QbCY", "seccion": "Operar un negocio también consume tiempo"}, {"id": "g03", "nombre": "Crear contenido constantemente", "clase": "improvisar", "estado": "pendiente", "pagina": "PBvMq3yTcXlykvDL", "seccion": "El marketing nunca se detiene"}, {"id": "g04", "nombre": "Publicar cuando puedo", "clase": "improvisar", "estado": "pendiente", "pagina": "PBvMq3yTcXlykvDL", "seccion": "El marketing nunca se detiene"}, {"id": "g05", "nombre": "Tener mi planeación de contenido", "clase": "planificar", "estado": "pendiente", "pagina": "PBvMq3yTcXlykvDL", "seccion": "El marketing nunca se detiene"}, {"id": "g06", "nombre": "Organizar ideas de contenido por adelantado", "clase": "planificar", "estado": "pendiente", "pagina": "PBvMq3yTcXlykvDL", "seccion": "El marketing nunca se detiene"}, {"id": "g07", "nombre": "Crear campañas de venta sobre la marcha", "clase": "improvisar", "estado": "pendiente", "pagina": "PBvMq3yTcXlykvDL", "seccion": "El marketing nunca se detiene"}, {"id": "g08", "nombre": "Planear campañas de venta con anticipación", "clase": "planificar", "estado": "pendiente", "pagina": "PBvMq3yTcXlykvDL", "seccion": "El marketing nunca se detiene"}, {"id": "g09", "nombre": "Crear contenido desde cero en ChatGPT", "clase": "improvisar", "estado": "pendiente", "pagina": "PBvMq3yTcXlykvDL", "seccion": "Dejar de empezar desde cero"}, {"id": "g10", "nombre": "Volver a explicar el contexto de mi negocio", "clase": "improvisar", "estado": "pendiente", "pagina": "PBvMq3yTcXlykvDL", "seccion": "Dejar de empezar desde cero"}, {"id": "g11", "nombre": "Utilizar la memoria de ChatGPT", "clase": "planificar", "estado": "pendiente", "pagina": "PBvMq3yTcXlykvDL", "seccion": "Dejar de empezar desde cero"}, {"id": "g12", "nombre": "Tener instrucciones y contexto preparados", "clase": "planificar", "estado": "pendiente", "pagina": "PBvMq3yTcXlykvDL", "seccion": "Dejar de empezar desde cero"}, {"id": "g13", "nombre": "Elegir qué producto promocionar sobre la marcha", "clase": "improvisar", "estado": "pendiente", "pagina": "PBvMq3yTcXlykvDL", "seccion": "Dejar de empezar desde cero"}, {"id": "g14", "nombre": "Planear qué producto voy a promocionar", "clase": "planificar", "estado": "pendiente", "pagina": "PBvMq3yTcXlykvDL", "seccion": "Dejar de empezar desde cero"}, {"id": "g15", "nombre": "Probar herramientas sin un objetivo claro", "clase": "improvisar", "estado": "pendiente", "pagina": "PBvMq3yTcXlykvDL", "seccion": "Dejar de empezar desde cero"}, {"id": "g16", "nombre": "Elegir herramientas para optimizar procesos", "clase": "planificar", "estado": "pendiente", "pagina": "PBvMq3yTcXlykvDL", "seccion": "Dejar de empezar desde cero"}, {"id": "g17", "nombre": "Contestar prospectos conforme van llegando", "clase": "improvisar", "estado": "pendiente", "pagina": "PBvMq3yTcXlykvDL", "seccion": "Vender, responder, editar y medir"}, {"id": "g18", "nombre": "Improvisar respuestas de WhatsApp", "clase": "improvisar", "estado": "pendiente", "pagina": "PBvMq3yTcXlykvDL", "seccion": "Vender, responder, editar y medir"}, {"id": "g19", "nombre": "Tener respuestas preparadas en WhatsApp", "clase": "planificar", "estado": "pendiente", "pagina": "PBvMq3yTcXlykvDL", "seccion": "Vender, responder, editar y medir"}, {"id": "g20", "nombre": "Tener procesos de seguimiento a prospectos", "clase": "planificar", "estado": "pendiente", "pagina": "PBvMq3yTcXlykvDL", "seccion": "Vender, responder, editar y medir"}, {"id": "g21", "nombre": "Editar videos desde cero", "clase": "improvisar", "estado": "pendiente", "pagina": "PBvMq3yTcXlykvDL", "seccion": "Vender, responder, editar y medir"}, {"id": "g22", "nombre": "Utilizar plantillas con mis colores y formatos", "clase": "planificar", "estado": "pendiente", "pagina": "PBvMq3yTcXlykvDL", "seccion": "Vender, responder, editar y medir"}, {"id": "g23", "nombre": "Tener recursos gráficos preparados", "clase": "planificar", "estado": "pendiente", "pagina": "PBvMq3yTcXlykvDL", "seccion": "Vender, responder, editar y medir"}, {"id": "g24", "nombre": "Utilizar herramientas para agilizar la edición", "clase": "planificar", "estado": "pendiente", "pagina": "PBvMq3yTcXlykvDL", "seccion": "Vender, responder, editar y medir"}, {"id": "g25", "nombre": "Decidir qué repetir por intuición", "clase": "improvisar", "estado": "pendiente", "pagina": "PBvMq3yTcXlykvDL", "seccion": "Vender, responder, editar y medir"}, {"id": "g26", "nombre": "Medir resultados de publicaciones y campañas", "clase": "planificar", "estado": "pendiente", "pagina": "PBvMq3yTcXlykvDL", "seccion": "Vender, responder, editar y medir"}, {"id": "g27", "nombre": "Ajustar mi estrategia con base en resultados", "clase": "planificar", "estado": "pendiente", "pagina": "PBvMq3yTcXlykvDL", "seccion": "Vender, responder, editar y medir"}], boton: 'ENVIAR RESPUESTAS', opciones: ['No sé qué publicar en redes sociales.', 'No sé qué producto o servicio promocionar.', 'Me cuesta conseguir nuevos clientes.', 'No sé crear imágenes o videos atractivos.', 'No sé cómo hacer campañas de publicidad.', 'No tengo tiempo para crear contenido.', 'No sé cómo organizar mi estrategia de marketing.', 'No sé cómo medir si mis publicaciones o campañas funcionan.', 'Me cuesta mantener la constancia.'] } },
   { id: 'a9', seccion_id: 's2', clave: 'historia', tipo: 'opciones', titulo: '¿Estás haciendo marketing o estás improvisando?', orden: 4, estado: 'cerrada', config: { nombre: '¿Improvisando o planificando?', instruccion: 'Mientras Jany cuenta su historia irán apareciendo preguntas. Elige la opción que más se parece a lo que haces hoy.', quiz: true, visibles: 0, opciones: ['Improvisando', 'Planificando'], preguntas: [{ q: '¿Cómo decides cuándo publicar?', a: 'Publico cuando puedo.', b: 'Tengo objetivos claros.' }, { q: '¿Sabes qué producto impulsar?', a: 'No sé qué producto impulsar.', b: 'Sé qué producto promover.' }, { q: '¿Cómo usas las herramientas?', a: 'Pruebo herramientas sin un objetivo.', b: 'Trabajo con una estrategia.' }, { q: '¿Cómo creas tu contenido?', a: 'Creo contenido desde cero cada vez.', b: 'Sigo un proceso de creación.' }, { q: '¿Sabes qué te está funcionando?', a: 'No sé qué está funcionando.', b: 'Reviso y mido mis resultados.' }] } },
   { id: 'a8', seccion_id: 's2', clave: 'improvisas', tipo: 'opciones', titulo: 'Cuando tienes que promocionar tu negocio, ¿cómo decides qué hacer?', orden: 5, estado: 'cerrada', config: { nombre: '¿Estás haciendo marketing o estás improvisando?', instruccion: 'Selecciona la opción que mejor describa tu situación actual. No hay respuestas buenas ni malas; queremos identificar desde dónde estás comenzando.', unica: true, boton: 'ENVIAR RESPUESTA', opciones: ['Improviso', 'Tengo ideas, pero no un plan', 'Planifico algunas acciones', 'Tengo una estrategia', 'Trabajo con un método'], detalles: ['Publico cuando puedo. No siempre sé qué producto impulsar ni qué está funcionando.', 'Sé algunas cosas que quiero comunicar, pero no tengo un calendario ni una estrategia definida.', 'Organizo publicaciones y promociones, pero no siempre tengo objetivos o procesos claros.', 'Sé qué producto promover, a quién quiero llegar y qué quiero comunicar.', 'Tengo objetivos, estrategia, procesos de creación y reviso mis resultados para hacer ajustes.'], grupos: [{ nombre: 'Improvisando', opciones: [0] }, { nombre: 'Comenzando a planificar', opciones: [1, 2] }, { nombre: 'Con estrategia o método', opciones: [3, 4] }] } },
   { id: 'a1', seccion_id: 's2', clave: 'metas', tipo: 'opciones', titulo: '¿Qué te gustaría lograr con ayuda de la IA en tu negocio?', orden: 11, estado: 'cerrada', config: { multiple: true, otro: true, opciones: ['Vender más', 'Conseguir nuevos clientes', 'Activar o mejorar mis redes sociales', 'Activar mi tienda en línea', 'Crear contenido más rápido', 'Mejorar mi publicidad', 'Ahorrar tiempo y delegar tareas', 'Organizar mejor mi negocio', 'Automatizar procesos'] } },
@@ -917,7 +940,7 @@ function pintarManchas(el, a, porC) {
     g.style.transform = `translate(${p.cx}px,${p.cy}px) scale(${(p.R / 100).toFixed(3)})`;
     let l = lbls.querySelector(`[data-c="${p.c.id}"]`);
     if (!l) { l = document.createElement('div'); l.className = 'mch-l'; l.dataset.c = p.c.id; lbls.appendChild(l); }
-    l.innerHTML = `${esc(p.c.nombre)} <b>${porC[p.c.id] || 0}</b>`;
+    l.innerHTML = esc(p.c.nombre); l.classList.toggle('activo', a.config.activo === p.c.id);
     l.style.left = (p.cx / W * 100) + '%'; l.style.top = ((p.cy + p.R + 18) / H * 100) + '%';
   });
   svg.querySelectorAll('g.mch').forEach(g => { if (!vivos.has(g.dataset.c)) g.remove(); });
@@ -957,7 +980,7 @@ document.addEventListener('click', async e => {
   const b = e.target.closest('[data-tq-est],[data-tq-res]'); if (!b) return;
   const a = S.actividades.find(x => x.id === (b.dataset.a || b.dataset.tqRes)); if (!a) return;
   const cfg = b.dataset.tqRes ? { ...a.config, mostrar_resultado: !a.config.mostrar_resultado }
-    : { ...a.config, conceptos: conceptosDe(a).map(c => c.id === b.dataset.c ? { ...c, estado: b.dataset.tqEst } : c) };
+    : { ...a.config, conceptos: conceptosDe(a).map(c => c.id === b.dataset.c ? { ...c, estado: b.dataset.tqEst } : c), activo: b.dataset.tqEst === 'publicado' ? b.dataset.c : (a.config.activo === b.dataset.c ? null : a.config.activo) };
   try { await api.setConfig(a.id, cfg); toast(b.dataset.tqRes ? (cfg.mostrar_resultado ? 'Resultados en pantalla' : 'Manchas en pantalla') : (b.dataset.tqEst === 'publicado' ? 'Publicado en los celulares' : 'Desactivado')); await recargar(); } catch (err) { toast(err.message); }
 });
 document.addEventListener('submit', async e => {
@@ -1581,8 +1604,9 @@ async function vistaProyectar(clave) {
       $('#root').innerHTML = `<div class="proj"><a class="proj-x" href="#resultados">✕ Salir</a><span class="eyebrow">Hub Jefes · Resultados</span><h1>¿Estás haciendo marketing o estás improvisando?</h1>${resultadosToquesHtml(a, g, true)}</div>`;
     } else {
       let el = document.querySelector(`.manchas[data-a="${a.id}"]`);
-      if (!el) { $('#root').innerHTML = `<div class="mural-proj"><a class="proj-x" href="#resultados">✕ Salir</a><div class="manchas" data-a="${a.id}"></div><span class="mural-cuenta">${g.participantes} participantes</span></div>`; el = document.querySelector('.manchas'); }
-      else document.querySelector('.mural-proj .mural-cuenta').textContent = `${g.participantes} participantes`;
+      const act0 = conceptosDe(a).find(c => c.id === a.config.activo && c.estado === 'publicado');
+      if (!el) { $('#root').innerHTML = `<div class="mural-proj"><a class="proj-x" href="#resultados">✕ Salir</a><div class="manchas" data-a="${a.id}"></div><div class="mch-activo"></div></div>`; el = document.querySelector('.manchas'); }
+      document.querySelector('.mch-activo').innerHTML = act0 ? esc(act0.nombre) : '';
       pintarManchas(el, a, porC);
     }
     if (a.estado === 'abierta' || a.config.mostrar_resultado) vuelve();
@@ -1873,6 +1897,19 @@ async function vistaSoporte() {
    ARRANQUE Y RUTEO
    ===================================================================== */
 /* ---------------- PRESENTACIÓN EN VIVO (diapositivas sincronizadas) ---------------- */
+// Orden de las diapositivas de Canva por su identificador (no por número: si se mueven, todo sigue ligado).
+const CANVA_PAGINAS = ["PBRQ9KJltSBTlY5h", "PBc4x2xgy26Tf0TK", "PBQFbXwSNyH9XgQw", "PBX0gKslWD86lpfV", "PBp0tRZqg0mPbPN6", "PBFmcxLNfldHmVGZ", "PBWLgbtFnnvhzBNH", "PBbkJP6Gm9grWxK6", "PBS95l367kQ0lJlQ", "PBrSlBWbtLNZHWrk", "PBnDBGTBnmFWpMfN", "PByzMJGbrw50JXGk", "PBwTfyGqwHYzXSFM", "PBL8JRx14QK8QbCY", "PBvMq3yTcXlykvDL", "PB5fHFylSM3bjhlg", "PBgGphWbgzQLZPMX", "PBtBfYW5qp5wXLFc", "PBV2MmzZvTyRkZx7", "PBFbbFSW1rj67S5b", "PB8s5507KVsWzCPm", "PB6zXBmdRWz2WGSX", "PBWM73FV4zb1gkf8", "PB9B6DDnBlFv9WcQ", "PBJwnnbf1D9HqWp0", "PBNh5vbc3ZJmMYTJ", "PBG9M0Z2WvGFDX9K", "PBKc293tK1pFNhmp", "PBQkVM7PVK4rWyWm", "PBv1KDV9xYcWz1sZ", "PBYkbb2LjnDmV0ws", "PBfPGMwpPrhgMy88", "PBqy5ZrldWm5Rwzv", "PBpMjq3JK9QM4HcW", "PBKHtmKtf5jPK3wk", "PBR65HfF7Gng4DHn", "PBkTLKS242vl3Fqr", "PByMcpfkXkry8BYH", "PBKnKsHhN0jFPLds", "PBwBwVlPbQPCWDQR", "PB3XGdlNdwJxn18K", "PB2VsHWh76pYWVYf", "PBJjf6Xwqdkj8pKZ", "PBj3SHYsshzyBxCc", "PBQGGgbFmjWGgz6w", "PBGpT862jyTyMZpg", "PBfRwLYGDrVpJ175", "PB19RNrfYKBhTTTt", "PBMD7d3qjn5B1GJx", "PBzKfBx5k0hkLF2c", "PBFLnRNbbNSz4cNk", "PBVdBP80tDcCtX1R", "PBmljTwKZD1fJh8G", "PBKMlTT27spKt80T", "PBJBQ8FNgRC33Y8f", "PBsjPx96wzbS0hB7", "PBDFZTslcwHsSyjv", "PBMgrGDP2QnxhqYq", "PBzZwqbJHWZCWYSC", "PBR2HyVF5YmbLx9d", "PB0tY0HXQWq40dGv", "PBSZGdY9mFPd51j1", "PBkGwqHN87X3Sn1J", "PBPmFClmWZjHyPtY", "PBC2wlGNH63Md09D", "PBrZ7lbrHXwLx5Cy", "PBD4ZW5s6PL38XFG", "PBB56YsG8mjlnmPD", "PBzbp8Vb1vD6x0wF", "PBClGfH8GVfzVYNH", "PBfY74xt2mlSPlLB", "PBQYF4bP4wrGbqYf", "PBHDjzgt2gch8YYL"];
+// Imágenes exportadas (borrador) por identificador de Canva
+const DIAPO_IMG = { PBRQ9KJltSBTlY5h: '01', PBc4x2xgy26Tf0TK: '02', PBp0tRZqg0mPbPN6: '04', PBWLgbtFnnvhzBNH: '05', PBrSlBWbtLNZHWrk: '06', PBL8JRx14QK8QbCY: '07', PBvMq3yTcXlykvDL: '08', PBnDBGTBnmFWpMfN: '09', PBwTfyGqwHYzXSFM: '10', PByzMJGbrw50JXGk: '11', PB6zXBmdRWz2WGSX: '12', PBV2MmzZvTyRkZx7: '13', PB8s5507KVsWzCPm: '14' };
+// Dinámica de cada diapositiva (por identificador)
+const DIAPO_DIN_ID = { PBWLgbtFnnvhzBNH: 'dedicas', PBrSlBWbtLNZHWrk: 'delegarias', PBL8JRx14QK8QbCY: 'marketing', PBvMq3yTcXlykvDL: 'marketing', PB5fHFylSM3bjhlg: 'marketing', PBgGphWbgzQLZPMX: 'marketing', PBtBfYW5qp5wXLFc: 'marketing' };
+const DIAPO_RESULTADOS = new Set(['PB5fHFylSM3bjhlg', 'PBgGphWbgzQLZPMX', 'PBtBfYW5qp5wXLFc']);
+// Notas originales de Canva: solo se cargan en la vista de ponente (nunca para alumnos ni proyección)
+async function cargarNotasCanva() {
+  if (cargarNotasCanva.v !== undefined) return cargarNotasCanva.v;
+  try { cargarNotasCanva.v = api.notasCanva ? await api.notasCanva() : null; } catch (e) { cargarNotasCanva.v = null; }
+  return cargarNotasCanva.v;
+}
 // Prueba con las primeras 14 diapositivas del Canva. Las verdes llevan su dinámica debajo.
 const DIAPOS = Array.from({ length: 14 }, (_, i) => `diapos/${String(i + 1).padStart(2, '0')}.jpg`);
 const DIAPO_DIN = { 5: 'dedicas', 6: 'delegarias', 7: 'marketing', 8: 'marketing', 14: 'historia' };
@@ -1893,6 +1930,7 @@ const DIAPO_NOTA = {
   14: '🟩 Dinámica 4 · Comenta de qué lado quedó el grupo. Transición: "para que la IA nos ayude, primero hay que enseñarle quiénes somos".'
 };
 async function vistaPresentacion() {
+  if (CANVA_PAGINAS.length) return vistaTeleprompter();
   const root = $('#root'), ponente = S.rol === 'ponente';
   const n = Math.min(DIAPOS.length, Math.max(1, Number(S.estado?.diapositiva) || 1)), empezo = !!S.estado?.diapositiva;
   const din = DIAPO_DIN[n] && act(DIAPO_DIN[n]);
@@ -1929,6 +1967,58 @@ async function vistaPresentacion() {
   }
   $('#pFull').onclick = () => { const el = $('#pImg'); (el.requestFullscreen || el.webkitRequestFullscreen || (() => {})).call(el); };
   $('#pImg').onload = avisarAltura;
+  avisarAltura();
+}
+
+/* Presentación ligada a Canva: el alumno ve la diapositiva; la ponente ve además sus notas (teleprompter) y los botones de la dinámica */
+async function vistaTeleprompter() {
+  const root = $('#root'), ponente = S.rol === 'ponente', total = CANVA_PAGINAS.length;
+  const n = Math.min(total, Math.max(1, Number(S.estado?.diapositiva) || 1)), empezo = !!S.estado?.diapositiva, pid = CANVA_PAGINAS[n - 1];
+  const img = DIAPO_IMG[pid] ? `diapos/${DIAPO_IMG[pid]}.jpg` : null;
+  const din = DIAPO_DIN_ID[pid] && act(DIAPO_DIN_ID[pid]);
+  const diapo = `<div class="pres-img ${din ? 'verde' : ''}">${img ? `<img src="${img}" alt="Diapositiva ${n}" id="pImg">` : `<div class="pres-sin"><b>Diapositiva ${n}</b><span>${ponente ? 'Aún sin imagen exportada (se ve en Zoom)' : 'Sigue la explicación de Jany'}</span></div>`}</div>`;
+  if (!ponente) {
+    root.innerHTML = `<div class="pres"><div class="pres-top"><span class="pill ${empezo ? 'live' : 'off'}">${empezo ? '● EN VIVO' : 'POR EMPEZAR'}</span><span class="small muted">Diapositiva ${n}</span>${img ? '<button class="btn ghost sm" id="pFull">⛶ Pantalla completa</button>' : ''}</div>${diapo}
+      ${din ? `<div class="pres-din"><h3>✋ Actividad: ${esc(nombreAct(din))}</h3><ol class="din-list" id="dinamicas"></ol></div>` : ''}</div>`;
+    if (din) pintarDinamica(din, '', $('#dinamicas'));
+  } else {
+    const NC = await cargarNotasCanva(), pag = NC?.paginas?.find(x => x.page_id === pid) || NC?.paginas?.[n - 1];
+    const texto = pag?.nota ? NC.notas[pag.nota] : null;
+    const titulo = (texto && (texto.match(/^(?:#\s*)?(Diapositiva[^\n]*|NOTAS[^\n]*)/m) || [])[1]) || '';
+    root.innerHTML = `<div class="tp">
+      <div class="tp-col"><div class="pres-top"><span class="pill ${empezo ? 'live' : 'off'}">${empezo ? '● EN VIVO' : 'POR EMPEZAR'}</span><b>Diapositiva ${n} de ${total}</b></div>${diapo}
+        <div class="row dbtns" style="margin-top:10px"><button class="btn ghost sm" id="pPrev" ${n <= 1 ? 'disabled' : ''}>◀ ANTERIOR</button><button class="btn sm" id="pNext" ${n >= total ? 'disabled' : ''}>SIGUIENTE ▶</button>${!empezo ? '<button class="btn dark sm" id="pIni">● EMPEZAR EN VIVO</button>' : ''}
+          <label class="small tp-ir">Ir a <input type="number" min="1" max="${total}" value="${n}" id="pIr"></label></div>
+        <div id="tpDin"></div></div>
+      <div class="tp-notas"><div class="tp-h"><small>NOTAS DE CANVA · SOLO TÚ LAS VES</small>${titulo ? `<b>${esc(titulo.replace(/^#\s*/, ''))}</b>` : ''}<span class="tp-zoom"><button type="button" data-tpz="-1">A−</button><button type="button" data-tpz="1">A+</button></span></div>
+        <div class="tp-texto" id="tpTexto" style="font-size:${UI.tpFont || 22}px">${texto ? esc(texto).replace(/\n/g, '<br>') : NC ? '<p class="muted">Esta diapositiva no tiene notas en Canva.</p>' : '<p class="muted">Las notas de Canva todavía no están cargadas para esta versión.</p>'}</div></div></div>`;
+    const caja = $('#tpDin');
+    if (din && din.config.toques) {
+      const cs = conceptosDe(din), deEsta = cs.filter(c => c.pagina === pid), resultados = DIAPO_RESULTADOS.has(pid);
+      const ultimo = cs.reduce((k, c, i) => c.estado === 'publicado' ? i : k, -1), sug = cs.findIndex((c, i) => i > ultimo && c.estado === 'pendiente');
+      caja.innerHTML = `<div class="ctrl-verde"><div class="cv-h"><b>🎤 ${esc(nombreAct(din))}</b><span class="pill ${estadoPonente(din).c}">${estadoPonente(din).t}</span></div>
+        <div class="row dbtns" style="margin:8px 0">${din.estado !== 'abierta' ? `<button class="btn sm" data-d="abierta">▶ ABRIR DINÁMICA</button>` : `<button class="btn dark sm" data-d="finalizada">■ CERRAR</button>`}
+          ${resultados ? `<button type="button" class="btn ${din.config.mostrar_resultado ? 'dark' : ''} sm" data-tq-res="${din.id}">${din.config.mostrar_resultado ? '◀ VOLVER A LAS MANCHAS' : '📊 MOSTRAR RESULTADOS'}</button>` : ''}
+          <a class="btn ghost sm" href="./?${api.demo ? 'rol=ponente&' : ''}#proyectar-${esc(din.clave)}" target="_blank" rel="noopener">📺 PROYECTAR</a></div>
+        ${deEsta.length ? `<div class="tp-botones">${deEsta.map(c => { const i = cs.indexOf(c); return `<div class="tp-b ${c.estado} ${i === sug ? 'sug' : ''}"><span class="tp-n">${i + 1}</span><span class="tp-c">${esc(c.nombre)}<small>${esc(c.seccion || '')} · <i class="cl-${c.clase}">${NOM_CLASE[c.clase]}</i></small></span>
+          ${c.estado === 'publicado' ? `<button type="button" class="btn ghost sm" data-tq-est="desactivado" data-a="${din.id}" data-c="${c.id}">Desactivar</button>` : `<button type="button" class="btn sm" data-tq-est="publicado" data-a="${din.id}" data-c="${c.id}">▶ Publicar</button>`}</div>`; }).join('')}</div>`
+          : resultados ? '<p class="small">Muestra los resultados cuando termines de publicar los conceptos.</p>' : ''}</div>`;
+    } else if (din) {
+      const st = estadoPonente(din);
+      caja.innerHTML = `<div class="ctrl-verde"><div class="cv-h"><b>🎤 ${esc(nombreAct(din))}</b><span class="pill ${st.c}">${st.t}</span></div><div class="row dbtns" style="margin-top:8px">
+        <button class="btn sm" data-d="abierta" ${din.estado === 'abierta' ? 'disabled' : ''}>▶ ABRIR</button><button class="btn dark sm" data-d="finalizada" ${din.estado !== 'abierta' ? 'disabled' : ''}>■ CERRAR</button>
+        <a class="btn ghost sm" href="./?${api.demo ? 'rol=ponente&' : ''}#proyectar-${esc(din.clave)}" target="_blank" rel="noopener">📺 PROYECTAR</a></div></div>`;
+    }
+    caja.querySelectorAll('[data-d]').forEach(b => b.onclick = async () => { try { await api.setActividad(din.id, b.dataset.d); await recargar(); } catch (e) { toast(e.message); } });
+    const ir = async k => { try { await api.setDiapo(Math.min(total, Math.max(1, k))); await recargar(); } catch (e) { toast(e.message); } };
+    $('#pPrev').onclick = () => ir(n - 1); $('#pNext').onclick = () => ir(n + 1);
+    const pi = $('#pIni'); if (pi) pi.onclick = () => ir(1);
+    $('#pIr').onchange = e => ir(+e.target.value);
+    root.querySelectorAll('[data-tpz]').forEach(b => b.onclick = () => { UI.tpFont = Math.min(40, Math.max(14, (UI.tpFont || 22) + 2 * b.dataset.tpz)); $('#tpTexto').style.fontSize = UI.tpFont + 'px'; });
+    document.onkeydown = e => { if (e.target.closest('input,textarea')) return; if (e.key === 'ArrowRight' || e.key === 'PageDown') ir(n + 1); if (e.key === 'ArrowLeft' || e.key === 'PageUp') ir(n - 1); };
+  }
+  const pf = $('#pFull'); if (pf) pf.onclick = () => { const el = $('#pImg'); (el.requestFullscreen || el.webkitRequestFullscreen || (() => {})).call(el); };
+  const pim = $('#pImg'); if (pim) pim.onload = avisarAltura;
   avisarAltura();
 }
 
