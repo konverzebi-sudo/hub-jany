@@ -367,6 +367,8 @@
   .mural-proj .proj-x { z-index: 2; background: rgba(15,11,22,.8); color: #fff; }
   .mural-form { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; background: var(--card-2); }
   .mural-prev b { font-family: 'Sora', sans-serif; } .mural-prev span { color: var(--dim); }
+  .ok-t { color: #1C7A47; font-weight: 600; } .warn-t { color: #8A6400; font-weight: 600; }
+  .kpi-alerta { border-color: #E0A100; background: #FFF8E1; }
   body.embed { background: transparent; }
   body.embed .din { padding-left: 0; padding-bottom: 0; }
   body.embed .din-list::before, body.embed .din .node, body.embed .din h3, body.embed .din .din-q { display: none; }
@@ -503,14 +505,41 @@ function crearApiDemo(rol) {
     async destacar(rid, v) { if (rol !== 'ponente') throw new Error('Solo la ponente'); const r = db.respuestas.find(x => x.id === rid); if (r) r.destacada = !!v; guardar(); },
     async notas() { return db.notas; },
     async guardarNota(n) { if (n.id) Object.assign(db.notas.find(x => x.id === n.id), n); else db.notas.push({ ...n, id: id() }); guardar(); },
-    async crearSolicitud(tema) { const s = { id: id(), user_id: uid, tema, estado: 'pendiente', etiquetas: [], creado_en: new Date().toISOString() }; db.solicitudes.push(s); guardar(); return s; },
+    async crearSolicitud(tema) { const s = { id: id(), user_id: uid, tema, estado: 'pendiente', etiquetas: [], creado_en: new Date().toISOString() }; db.solicitudes.push(s); (db.sol_eventos = db.sol_eventos || []).push({ solicitud_id: s.id, estado_anterior: null, estado_nuevo: 'pendiente', actor: uid, creado_en: s.creado_en }); guardar(); return s; },
     async solicitudes() {
       const all = db.solicitudes.map(s => ({ ...s, nombre: db.perfiles[s.user_id]?.nombre }));
       if (rol === 'soporte') return all;
       if (rol === 'ponente') return all.filter(s => s.etiquetas.includes('PARA PONENTE')).map(({ id, nombre, tema, estado, etiquetas, resumen_ponente, creado_en }) => ({ id, nombre, tema, estado, etiquetas, resumen_ponente, creado_en }));
       return all.filter(s => s.user_id === uid);
     },
-    async actualizarSolicitud(sid, patch) { Object.assign(db.solicitudes.find(s => s.id === sid), patch, { atendida_por: uid }); guardar(); },
+    async actualizarSolicitud(sid, patch) {
+      const s = db.solicitudes.find(x => x.id === sid);
+      if (patch.estado && patch.estado !== s.estado) (db.sol_eventos = db.sol_eventos || []).push({ solicitud_id: sid, estado_anterior: s.estado, estado_nuevo: patch.estado, actor: uid, creado_en: new Date().toISOString() });
+      Object.assign(s, patch, { atendida_por: uid }); guardar();
+    },
+    async soporteDetalle() {
+      const ev = db.sol_eventos || [], hum = t => /[\p{L}\p{N}]/u.test(t || '');
+      return db.solicitudes.map(s => {
+        const m = db.mensajes.filter(x => x.canal === 'ayuda' && x.solicitud_id === s.id), e = ev.filter(x => x.solicitud_id === s.id);
+        const eq = m.filter(x => x.user_id !== s.user_id);
+        return { id: s.id, estado: s.estado, creado_en: s.creado_en,
+          primera_respuesta: eq.filter(x => hum(x.texto)).map(x => x.creado_en).sort()[0] || null,
+          inicio_atencion: e.filter(x => x.estado_nuevo === 'atendiendo').map(x => x.creado_en).sort()[0] || null,
+          cierre: s.estado === 'resuelta' ? (e.filter(x => x.estado_nuevo === 'resuelta').map(x => x.creado_en).sort().pop() || null) : null,
+          reaperturas: e.filter(x => x.estado_anterior === 'resuelta').length,
+          responsable: db.perfiles[s.atendida_por]?.nombre || null,
+          msgs_alumno: m.length - eq.length, msgs_equipo: eq.length, ahora: new Date().toISOString() };
+      });
+    },
+    async soporteSesiones() {
+      const d = await this.soporteDetalle(), med = a => { a = a.filter(x => x != null).sort((x, y) => x - y); return a.length ? +(a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2).toFixed(1) : null; };
+      return [{ taller_id: 't1', nombre: db.taller.nombre, fecha: null, participantes: db.miembros.filter(m => m.rol === 'alumno').length, solicitudes: d.length, pendientes: d.filter(x => x.estado !== 'resuelta').length,
+        primera_resp_mediana_min: med(d.map(x => x.primera_respuesta && (new Date(x.primera_respuesta) - new Date(x.creado_en)) / 60000)),
+        resolucion_mediana_min: med(d.map(x => x.cierre && (new Date(x.cierre) - new Date(x.creado_en)) / 60000)),
+        responsables: new Set(db.solicitudes.map(x => x.atendida_por).filter(Boolean)).size }];
+    },
+    async objetivosSoporte() { return db.taller.soporte_objetivos || {}; },
+    async setObjetivosSoporte(o) { if (rol !== 'ponente') throw new Error('Solo la ponente'); db.taller.soporte_objetivos = o; guardar(); },
     async mensajes(canal, solicitud_id) {
       return db.mensajes.filter(m => m.canal === canal && (canal !== 'ayuda' || m.solicitud_id === solicitud_id))
         .map(m => ({ ...m, nombre: db.perfiles[m.user_id]?.nombre }));
@@ -598,6 +627,10 @@ function crearApiSupabase() {
       return s.map(x => ({ ...x, nombre: p.find(y => y.id === x.user_id)?.nombre }));
     },
     async actualizarSolicitud(id, patch) { chk(await sb.from('solicitudes').update({ ...patch, atendida_por: U.id }).eq('id', id)); },
+    async soporteDetalle() { return chk(await sb.rpc('soporte_detalle', { t: T.id })) || []; },
+    async soporteSesiones() { return chk(await sb.rpc('soporte_sesiones')) || []; },
+    async objetivosSoporte() { return (chk(await sb.from('talleres').select('soporte_objetivos').eq('id', T.id).maybeSingle()) || {}).soporte_objetivos || {}; },
+    async setObjetivosSoporte(o) { chk(await sb.rpc('set_objetivos_soporte', { t: T.id, o })); },
     async mensajes(canal, solicitud_id) {
       let q = sb.from('mensajes').select('*').eq('taller_id', T.id).eq('canal', canal).order('creado_en').limit(300);
       if (canal === 'ayuda') q = q.eq('solicitud_id', solicitud_id);
@@ -1379,6 +1412,7 @@ async function vistaPonente() {
     <a href="#participacion" class="nav-item ${ruta === 'participacion' ? 'on' : ''}">👥 Participación</a>
     <a href="#notas" class="nav-item ${ruta === 'notas' ? 'on' : ''}">📝 Notas de ponente</a>
     <a href="#coordinacion" class="nav-item ${ruta === 'coordinacion' ? 'on' : ''}">🤝 Soporte y coordinación</a>
+    <a href="#soporte-metricas" class="nav-item ${ruta === 'soporte-metricas' ? 'on' : ''}">⏱️ Métricas de soporte</a>
     <a href="#chat" class="nav-item ${ruta === 'chat' ? 'on' : ''}">💬 Chat del grupo</a>`;
   $('#root').innerHTML = marco(nav, `<div id="pv">Cargando…</div>`, `<b>Panel de ponente</b> · <span id="conectados">—</span> conectados`);
   api.presencia(n => { const el = $('#conectados'); if (el) el.textContent = n; }, S.rol);
@@ -1425,6 +1459,51 @@ async function vistaPonente() {
       accion(() => api.reiniciar(a.id), 'Resultados reiniciados');
     });
     pv.querySelectorAll('[data-destacar]').forEach(i => i.onchange = () => accion(() => api.destacar(i.dataset.destacar, i.checked), i.checked ? 'Compartida con el grupo (sin nombre)' : 'Ya no se comparte'));
+  } else if (ruta === 'soporte-metricas') {
+    const [d, ses, obj] = await Promise.all([api.soporteDetalle(), api.soporteSesiones(), api.objetivosSoporte()]);
+    const T = x => x ? new Date(x).getTime() : null, ahora = d[0] ? T(d[0].ahora) : Date.now();
+    const dur = ms => { if (ms == null) return '—'; const s = Math.round(ms / 1000); return s < 60 ? `${s} s` : s < 3600 ? `${Math.floor(s / 60)} min ${s % 60 ? (s % 60) + ' s' : ''}` : `${Math.floor(s / 3600)} h ${Math.round(s % 3600 / 60)} min`; };
+    const prom = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+    const med = a => { a = [...a].sort((x, y) => x - y); return a.length ? (a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2) : null; };
+    const pr = d.filter(x => x.primera_respuesta).map(x => T(x.primera_respuesta) - T(x.creado_en));
+    const rs = d.filter(x => x.cierre).map(x => T(x.cierre) - T(x.creado_en));
+    const abiertas = d.filter(x => x.estado !== 'resuelta');
+    // Máximo de solicitudes abiertas al mismo tiempo (de su creación a su cierre)
+    const marcas = []; d.forEach(x => { marcas.push([T(x.creado_en), 1]); marcas.push([x.cierre ? T(x.cierre) : ahora, -1]); });
+    let cur = 0, maxSim = 0; marcas.sort((a, b) => a[0] - b[0] || a[1] - b[1]).forEach(m => { cur += m[1]; maxSim = Math.max(maxSim, cur); });
+    // Por hora (hora local del navegador sobre marcas del servidor)
+    const hora = x => { const t = new Date(x); t.setMinutes(0, 0, 0); return t.getTime(); };
+    const horas = {}; const H = k => (horas[k] = horas[k] || { rec: 0, at: 0, ma: 0, me: 0, pr: [] });
+    d.forEach(x => { const h = H(hora(x.creado_en)); h.rec++; h.ma += x.msgs_alumno; h.me += x.msgs_equipo; if (x.primera_respuesta) h.pr.push(T(x.primera_respuesta) - T(x.creado_en)); if (x.cierre) H(hora(x.cierre)).at++; });
+    const filasHora = Object.entries(horas).sort((a, b) => a[0] - b[0]);
+    const carga = {}; d.forEach(x => { if (!x.responsable) return; const c = (carga[x.responsable] = carga[x.responsable] || { at: 0, ab: 0 }); x.estado === 'resuelta' ? c.at++ : c.ab++; });
+    const oPr = Number(obj.primera_respuesta_min) || null, oRs = Number(obj.resolucion_min) || null, oAb = Number(obj.abiertas_por_persona) || null;
+    const dentro = (arr, o) => o ? `<small class="${arr.filter(v => v <= o * 60000).length / Math.max(1, arr.length) >= 1 ? 'ok-t' : 'warn-t'}">${arr.filter(v => v <= o * 60000).length} de ${arr.length} dentro del objetivo (${o} min)</small>` : '<small class="muted">Sin objetivo definido</small>';
+    const nResp = Math.max(1, Object.keys(carga).length);
+    pv.innerHTML = `<span class="eyebrow">Solo lectura</span><h1 style="margin:12px 0 6px">Métricas de soporte</h1>
+      <p class="muted" style="margin-bottom:16px">Se calculan solas con las horas del servidor. Soporte gestiona las solicitudes; aquí solo se consultan. Un emoji o sticker no cuenta como respuesta.</p>
+      <div class="kpis"><div class="kpi"><b>${d.length}</b><small>solicitudes recibidas</small></div><div class="kpi"><b>${d.filter(x => x.estado === 'pendiente').length}</b><small>pendientes</small></div>
+        <div class="kpi"><b>${d.filter(x => x.estado === 'atendiendo').length}</b><small>en atención</small></div><div class="kpi"><b>${d.filter(x => x.estado === 'resuelta').length}</b><small>atendidas</small></div></div>
+      <div class="sec-h"><span class="n">⏱</span><h2>Tiempos</h2></div>
+      <div class="grid2"><div class="card"><b>Primera respuesta humana</b><p style="margin:8px 0 4px">Promedio <b>${dur(prom(pr))}</b> · Mediana <b>${dur(med(pr))}</b></p><small class="muted">${pr.length} de ${d.length} solicitudes ya tienen respuesta escrita.</small><br>${dentro(pr, oPr)}</div>
+        <div class="card"><b>Resolución</b><p style="margin:8px 0 4px">Promedio <b>${dur(prom(rs))}</b> · Mediana <b>${dur(med(rs))}</b></p><small class="muted">${rs.length} atendidas · ${d.reduce((n, x) => n + x.reaperturas, 0)} reaperturas (el cierre anterior se conserva).</small><br>${dentro(rs, oRs)}</div></div>
+      <div class="sec-h"><span class="n">⚠</span><h2>Señales de capacidad</h2></div>
+      <div class="kpis"><div class="kpi"><b>${abiertas.length}</b><small>abiertas ahora</small></div><div class="kpi"><b>${maxSim}</b><small>máximo abiertas al mismo tiempo</small></div>
+        <div class="kpi"><b>${dur(abiertas.length ? Math.max(...abiertas.map(x => ahora - T(x.creado_en))) : null)}</b><small>espera más larga sin resolver</small></div>
+        <div class="kpi ${oAb && abiertas.length / nResp > oAb ? 'kpi-alerta' : ''}"><b>${(abiertas.length / nResp).toFixed(1)}</b><small>abiertas por responsable${oAb ? ` (objetivo ≤ ${oAb})` : ''}</small></div></div>
+      <div class="card" style="margin-top:14px"><b>Por hora</b><table style="margin-top:8px"><tr><th>Hora</th><th>Recibidas</th><th>Atendidas</th><th>Mensajes de alumnos</th><th>Respuestas del equipo</th><th>Mediana 1ª respuesta</th></tr>
+        ${filasHora.map(([h, v]) => `<tr><td>${new Date(+h).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</td><td>${v.rec}</td><td>${v.at}</td><td>${v.ma}</td><td>${v.me}</td><td>${dur(med(v.pr))}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Sin solicitudes todavía.</td></tr>'}</table>
+        <p class="small muted" style="margin-top:8px">Si las recibidas superan a las atendidas o la mediana sube hora tras hora, es señal de que hace falta otra persona de soporte.</p></div>
+      <div class="grid2" style="margin-top:14px"><div class="card"><b>Pendientes más antiguas</b><div class="answers" style="margin-top:8px">${abiertas.sort((a, b) => T(a.creado_en) - T(b.creado_en)).slice(0, 6).map((x, i) => `<div class="answer"><b>#${i + 1}</b> · esperando ${dur(ahora - T(x.creado_en))} · ${x.estado === 'atendiendo' ? 'en atención' : 'pendiente'}${x.primera_respuesta ? '' : ' · <span class="warn-t">sin respuesta escrita</span>'}${x.responsable ? ' · ' + esc(x.responsable) : ''}</div>`).join('') || '<p class="muted small">No hay pendientes.</p>'}</div></div>
+        <div class="card"><b>Carga por responsable</b><table style="margin-top:8px"><tr><th>Responsable</th><th>Atendidas</th><th>Abiertas</th></tr>${Object.entries(carga).map(([n, c]) => `<tr><td>${esc(n)}</td><td>${c.at}</td><td>${c.ab}</td></tr>`).join('') || '<tr><td colspan="3" class="muted">Nadie ha tomado solicitudes.</td></tr>'}</table></div></div>
+      <div class="card" style="margin-top:14px"><b>Comparación entre sesiones</b><table style="margin-top:8px"><tr><th>Sesión</th><th>Participantes</th><th>Solicitudes</th><th>Pendientes</th><th>Mediana 1ª resp.</th><th>Mediana resolución</th><th>Responsables</th></tr>
+        ${ses.map(x => `<tr><td>${esc(x.nombre)}${x.fecha ? ' · ' + new Date(x.fecha).toLocaleDateString('es-MX') : ''}</td><td>${x.participantes}</td><td>${x.solicitudes}</td><td>${x.pendientes}</td><td>${x.primera_resp_mediana_min != null ? x.primera_resp_mediana_min + ' min' : '—'}</td><td>${x.resolucion_mediana_min != null ? x.resolucion_mediana_min + ' min' : '—'}</td><td>${x.responsables}</td></tr>`).join('')}</table></div>
+      <form class="card" id="fObj" style="margin-top:14px"><b>Objetivos de servicio (opcional)</b><p class="small muted" style="margin:4px 0 10px">Déjalos vacíos hasta tener datos de las primeras sesiones; sin objetivo no se califica nada.</p>
+        <div class="grid3"><label class="small">1ª respuesta (min)<input type="number" min="0" step="any" name="primera_respuesta_min" value="${esc(obj.primera_respuesta_min ?? '')}"></label>
+        <label class="small">Resolución (min)<input type="number" min="0" step="any" name="resolucion_min" value="${esc(obj.resolucion_min ?? '')}"></label>
+        <label class="small">Abiertas por responsable (máx.)<input type="number" min="0" step="1" name="abiertas_por_persona" value="${esc(obj.abiertas_por_persona ?? '')}"></label></div>
+        <button class="btn sm" style="margin-top:10px">Guardar objetivos</button></form>`;
+    $('#fObj').onsubmit = async e => { e.preventDefault(); const f = new FormData(e.target), o = {}; ['primera_respuesta_min', 'resolucion_min', 'abiertas_por_persona'].forEach(k => { const v = Number(f.get(k)); if (f.get(k) !== '' && v >= 0) o[k] = v; }); try { await api.setObjetivosSoporte(o); toast('Objetivos guardados'); render(); } catch (err) { toast(err.message); } };
   } else if (ruta === 'control') {
     const etapas = ['antes', ...S.secciones.map(s => s.clave), 'cierre'];
     pv.innerHTML = `<span class="eyebrow">Control</span><h1 style="margin:12px 0 18px">Control de etapas</h1>
