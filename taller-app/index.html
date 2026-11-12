@@ -349,6 +349,24 @@
   .pres-tira img { display: block; width: 100%; aspect-ratio: 16/9; object-fit: cover; }
   .pres-tira span { position: absolute; left: 4px; bottom: 2px; font: 700 11px 'JetBrains Mono', monospace; color: #fff; text-shadow: 0 1px 3px #000; }
   .pres-din { margin-top: 16px; } .pres-din h3 { font-size: 18px; margin-bottom: 6px; }
+  .mural-wrap { position: relative; border-radius: 18px; overflow: hidden; background: #C9F507; }
+  .mural { position: relative; width: 100%; aspect-ratio: 16/9; min-height: 300px; }
+  .mural-wrap:fullscreen, .mural-wrap.xl { border-radius: 0; }
+  .mural-wrap:fullscreen .mural, .mural-wrap.xl .mural { aspect-ratio: auto; height: 100vh; }
+  .m-item { position: absolute; white-space: nowrap; line-height: 1.06; text-align: center; }
+  .m-in b { display: block; font-family: 'Sora', sans-serif; font-weight: 800; letter-spacing: -.02em; }
+  .m-in small { display: block; font: 700 .5em 'Inter', sans-serif; color: #2B2E22; margin-top: .12em; }
+  .m-item.t0 b { color: #0F0B16; } .m-item.t1 b { color: #2B2E22; } .m-item.t2 b { color: #45493A; }
+  .m-in.nuevo { animation: muralEntra .7s cubic-bezier(.2,.9,.3,1.2) both; }
+  @keyframes muralEntra { from { opacity: 0; transform: scale(.55); } to { opacity: 1; transform: scale(1); } }
+  .mural-vacio { position: absolute; inset: 0; display: grid; place-items: center; font: 700 18px 'Sora', sans-serif; color: #2B2E22; }
+  .mural-full { position: absolute; right: 10px; bottom: 10px; padding: 6px 12px; border-radius: 99px; background: rgba(15,11,22,.82); color: #fff; font-size: 12px; font-weight: 600; }
+  .mural-wrap:fullscreen .mural-full { display: none; }
+  .mural-cuenta { position: absolute; left: 12px; bottom: 10px; font: 700 12px 'JetBrains Mono', monospace; color: #2B2E22; }
+  .mural-proj { position: fixed; inset: 0; background: #C9F507; }
+  .mural-proj .proj-x { z-index: 2; background: rgba(15,11,22,.8); color: #fff; }
+  .mural-form { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; background: var(--card-2); }
+  .mural-prev b { font-family: 'Sora', sans-serif; } .mural-prev span { color: var(--dim); }
   body.embed { background: transparent; }
   body.embed .din { padding-left: 0; padding-bottom: 0; }
   body.embed .din-list::before, body.embed .din .node, body.embed .din h3, body.embed .din .din-q { display: none; }
@@ -409,7 +427,7 @@ const STOP = new Set('que de la el en y a los las un una mi me lo no se es con p
    CAPA DE DATOS
    ===================================================================== */
 function crearApiDemo(rol) {
-  const KEY = 'taller-demo-v3';
+  const KEY = 'taller-demo-v4';
   const bc = 'BroadcastChannel' in window ? new BroadcastChannel('taller-demo') : null;
   const uid = 'u-' + rol;
   const base = () => ({
@@ -479,7 +497,7 @@ function crearApiDemo(rol) {
       const a = db.actividades.find(x => x.id === aid);
       return db.respuestas.filter(r => r.actividad_id === aid && r.datos?.texto && (rol === 'ponente' || a.config.publico || a.config.mostrar_grupo || r.destacada))
         .sort((x, y) => (x.actualizado_en || '').localeCompare(y.actualizado_en || ''))
-        .map(r => ({ nombre: a.config.publico === 'chat' ? (db.perfiles[r.user_id]?.nombre || 'Participante').split(' ')[0] : null, texto: r.datos.texto }));
+        .map(r => ({ id: r.id, nombre: a.config.publico === 'chat' ? (db.perfiles[r.user_id]?.nombre || 'Participante').split(' ')[0] : null, usuario: a.config.publico === 'chat' ? (r.datos.usuario || '') : '', texto: r.datos.texto }));
     },
     async reiniciar(aid) { if (rol !== 'ponente') throw new Error('Solo la ponente'); db.respuestas = db.respuestas.filter(r => r.actividad_id !== aid); guardar(); },
     async destacar(rid, v) { if (rol !== 'ponente') throw new Error('Solo la ponente'); const r = db.respuestas.find(x => x.id === rid); if (r) r.destacada = !!v; guardar(); },
@@ -566,7 +584,10 @@ function crearApiSupabase() {
     async anonimas(aid) { return (chk(await sb.rpc('respuestas_anonimas', { a: aid })) || []).map(r => r.texto); },
     async setConfig(aid, config) { chk(await sb.from('actividades').update({ config }).eq('id', aid)); },
     async reiniciar(aid) { chk(await sb.rpc('reiniciar_actividad', { a: aid })); },
-    async publicas(aid) { return chk(await sb.rpc('respuestas_publicas', { a: aid })) || []; },
+    async publicas(aid) {
+      const a = S.actividades.find(x => x.id === aid);
+      return chk(await sb.rpc(a?.config?.mural ? 'respuestas_mural' : 'respuestas_publicas', { a: aid })) || [];
+    },
     async destacar(rid, v) { chk(await sb.rpc('destacar_respuesta', { r: rid, v: !!v })); },
     async notas() { return chk(await sb.from('notas_ponente').select('*').eq('taller_id', T.id).order('orden')); },
     async guardarNota(n) { chk(await sb.from('notas_ponente').upsert({ ...n, taller_id: T.id })); },
@@ -624,7 +645,7 @@ var CONTENIDO_EMPIEZA_DEMO = {
   herramientas: [{ nombre: 'ChatGPT', url: 'https://chatgpt.com/', nota: 'Ten tu cuenta abierta.' }, { nombre: 'Gemini', url: 'https://gemini.google.com/', nota: 'Ten tu cuenta abierta.' }]
 };
 var ACTIVIDADES_DEMO = [
-  { id: 'a5', seccion_id: 's2', clave: 'dedicas', tipo: 'abierta', titulo: '¿A qué te dedicas? Cuéntanos qué vendes o qué servicio ofreces.', orden: 1, estado: 'cerrada', config: { nombre: '¿A qué te dedicas?', instruccion: 'Cuéntanos brevemente qué haces, qué productos vendes o qué servicios ofreces. Queremos conocer los negocios que forman parte de este grupo.', corta: true, max: 280, editable: true, publico: 'chat', boton: 'ENVIAR RESPUESTA', placeholder: 'Ej. Vendo pasteles personalizados para eventos en Saltillo' } },
+  { id: 'a5', seccion_id: 's2', clave: 'dedicas', tipo: 'abierta', titulo: '¿A qué te dedicas? Cuéntanos qué vendes o qué servicio ofreces.', orden: 1, estado: 'cerrada', config: { nombre: '¿A qué te dedicas?', instruccion: 'Cuéntanos brevemente qué haces, qué productos vendes o qué servicios ofreces. Queremos conocer los negocios que forman parte de este grupo.', corta: true, max: 280, editable: true, publico: 'chat', mural: true, boton: 'ENVIAR RESPUESTA', placeholder: 'Ej. Vendo pasteles personalizados para eventos en Saltillo' } },
   { id: 'a6', seccion_id: 's2', clave: 'delegarias', tipo: 'abierta', titulo: 'Si tuvieras un asistente que conociera tu negocio y pudiera ayudarte, ¿qué tarea le delegarías primero?', orden: 2, estado: 'cerrada', config: { nombre: '¿Qué delegarías?', instruccion: 'Piensa en esas actividades que te quitan tiempo, que repites constantemente o que no sabes cómo resolver. ¿Qué te gustaría que tu asistente hiciera por ti?', max: 1500, editable: true, publico: 'cuadros', boton: 'ENVIAR RESPUESTA', compartir: true } },
   { id: 'a7', seccion_id: 's2', clave: 'marketing', tipo: 'opciones', titulo: '¿Qué parte del marketing de tu negocio te cuesta más trabajo?', orden: 3, estado: 'cerrada', config: { nombre: '¿Qué parte del marketing te cuesta más?', instruccion: 'Selecciona todas las opciones que representen tus principales dificultades.', multiple: true, otro: true, destacar: 3, burbujas: true, boton: 'ENVIAR RESPUESTAS', opciones: ['No sé qué publicar en redes sociales.', 'No sé qué producto o servicio promocionar.', 'Me cuesta conseguir nuevos clientes.', 'No sé crear imágenes o videos atractivos.', 'No sé cómo hacer campañas de publicidad.', 'No tengo tiempo para crear contenido.', 'No sé cómo organizar mi estrategia de marketing.', 'No sé cómo medir si mis publicaciones o campañas funcionan.', 'Me cuesta mantener la constancia.'] } },
   { id: 'a9', seccion_id: 's2', clave: 'historia', tipo: 'opciones', titulo: '¿Estás haciendo marketing o estás improvisando?', orden: 4, estado: 'cerrada', config: { nombre: '¿Improvisando o planificando?', instruccion: 'Mientras Jany cuenta su historia irán apareciendo preguntas. Elige la opción que más se parece a lo que haces hoy.', quiz: true, visibles: 0, opciones: ['Improvisando', 'Planificando'], preguntas: [{ q: '¿Cómo decides cuándo publicar?', a: 'Publico cuando puedo.', b: 'Tengo objetivos claros.' }, { q: '¿Sabes qué producto impulsar?', a: 'No sé qué producto impulsar.', b: 'Sé qué producto promover.' }, { q: '¿Cómo usas las herramientas?', a: 'Pruebo herramientas sin un objetivo.', b: 'Trabajo con una estrategia.' }, { q: '¿Cómo creas tu contenido?', a: 'Creo contenido desde cero cada vez.', b: 'Sigo un proceso de creación.' }, { q: '¿Sabes qué te está funcionando?', a: 'No sé qué está funcionando.', b: 'Reviso y mido mis resultados.' }] } },
@@ -663,8 +684,79 @@ function gruposHtml(a, g) {
   return `<div class="grupos">${a.config.grupos.map((gr, i) => { const n = gr.opciones.reduce((s, k) => s + votos(a.config.opciones[k]), 0);
     return `<div class="grupo g${i}"><b>${Math.round(n / tot * 100)}%</b><span>${esc(gr.nombre)}</span><small>${n} ${n === 1 ? 'persona' : 'personas'}</small></div>`; }).join('')}</div>`;
 }
+/* @usuario visible: el que escribió la persona o, si no, su nombre de perfil */
+function arroba(nombre, usuario) {
+  const u = String(usuario || '').trim().replace(/^@+/, '').replace(/\s+/g, '');
+  if (u) return '@' + u.slice(0, 30);
+  const n = String(nombre || '').trim().split(/\s+/)[0].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9ñ]/g, '');
+  return '@' + (n || 'participante');
+}
+/* MURAL: palabras de distintos tamaños y ángulos, sin encimarse; cada respuesta con su @ como una sola pieza */
+const MURAL = { datos: {}, vistos: new Set() };
+function hashTxt(t) { let h = 2166136261; for (const c of String(t)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
+function azar(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function partirLineas(t, max) {
+  const out = []; let cur = '';
+  String(t).split(/\s+/).forEach(w => { if ((cur + ' ' + w).trim().length > max && cur) { out.push(cur); cur = w; } else cur = (cur + ' ' + w).trim(); });
+  if (cur) out.push(cur); return out;
+}
+const ANGULOS = [0, 0, -40, 40, 90, 0, -20, 20, -65, 65, -90, 0];
+function pintarMural(el) {
+  const lista = MURAL.datos[el.dataset.mural] || [];
+  const W = el.clientWidth, H = el.clientHeight;
+  if (!W || !H) return;
+  if (!lista.length) { el.innerHTML = '<p class="mural-vacio">Aquí aparecerán los negocios del grupo ✨</p>'; return; }
+  const ctx = (pintarMural.c = pintarMural.c || document.createElement('canvas').getContext('2d'));
+  let escala = Math.min(1.5, Math.max(.55, W / 900)), cajas = [], ok = false;
+  for (let intento = 0; intento < 22; intento++) {
+    cajas = []; ok = true;
+    for (const it of lista) {
+      const h = hashTxt(it.key), ang = ANGULOS[h % ANGULOS.length], len = it.texto.length;
+      const fs = Math.max(10, (len <= 16 ? 48 : len <= 36 ? 36 : len <= 80 ? 27 : 21) * escala);
+      const lineas = partirLineas(it.texto, len <= 16 ? 16 : len <= 80 ? 24 : 30);
+      ctx.font = `800 ${fs}px Sora, sans-serif`;
+      let w = Math.max(...lineas.map(l => ctx.measureText(l).width));
+      ctx.font = `700 ${fs * .5}px Inter, sans-serif`;
+      w = Math.max(w, ctx.measureText(it.user).width) + 4;
+      const alto = lineas.length * fs * 1.06 + fs * .7;
+      const r = ang * Math.PI / 180, bw = Math.abs(w * Math.cos(r)) + Math.abs(alto * Math.sin(r)), bh = Math.abs(w * Math.sin(r)) + Math.abs(alto * Math.cos(r));
+      if (bw > W - 12 || bh > H - 12) { ok = false; break; }
+      const rnd = azar(h); let puesta = null;
+      for (let t = 0; t < 400 && !puesta; t++) {
+        const cx = bw / 2 + 6 + rnd() * (W - bw - 12), cy = bh / 2 + 6 + rnd() * (H - bh - 12);
+        const caja = { x1: cx - bw / 2 - 5, x2: cx + bw / 2 + 5, y1: cy - bh / 2 - 5, y2: cy + bh / 2 + 5 };
+        if (!cajas.some(c => caja.x1 < c.x2 && caja.x2 > c.x1 && caja.y1 < c.y2 && caja.y2 > c.y1)) puesta = { ...caja, cx, cy };
+      }
+      if (!puesta) { ok = false; break; }
+      cajas.push({ ...puesta, it, ang, fs, lineas, tono: h % 3 });
+    }
+    if (ok) break;
+    escala *= .88;
+  }
+  // Nunca se queda nadie fuera: si no caben, el mural crece hacia abajo y se vuelve a acomodar
+  if (!ok && (+el.dataset.crece || 0) < 6) { el.dataset.crece = (+el.dataset.crece || 0) + 1; el.style.minHeight = Math.round(H * 1.3) + 'px'; return pintarMural(el); }
+  el.innerHTML = cajas.map(c => {
+    const nuevo = !MURAL.vistos.has(c.it.key); MURAL.vistos.add(c.it.key);
+    return `<div class="m-item t${c.tono}" style="left:${c.cx.toFixed(1)}px;top:${c.cy.toFixed(1)}px;font-size:${c.fs.toFixed(1)}px;transform:translate(-50%,-50%) rotate(${c.ang}deg)"><div class="m-in ${nuevo && el.dataset.listo ? 'nuevo' : ''}"><b>${c.lineas.map(esc).join('<br>')}</b><small>${esc(c.it.user)}</small></div></div>`;
+  }).join('');
+  el.dataset.listo = '1';
+}
+function activarMurales() {
+  const go = () => document.querySelectorAll('[data-mural]').forEach(pintarMural);
+  (document.fonts && document.fonts.load ? Promise.all([document.fonts.load('800 40px Sora'), document.fonts.load('600 16px Inter')]).catch(() => {}) : Promise.resolve()).then(go);
+}
+new MutationObserver(muts => { if (muts.some(m => [...m.addedNodes].some(n => n.nodeType === 1 && (n.matches?.('[data-mural]') || n.querySelector?.('[data-mural]'))))) activarMurales(); }).observe(document.documentElement, { childList: true, subtree: true });
+let muralT; window.addEventListener('resize', () => { clearTimeout(muralT); muralT = setTimeout(activarMurales, 200); });
+document.addEventListener('fullscreenchange', () => setTimeout(activarMurales, 150));
+document.addEventListener('click', e => { const b = e.target.closest('[data-mural-full]'); if (!b) return; const w = b.closest('.mural-wrap'); (w.requestFullscreen || w.webkitRequestFullscreen || (() => {})).call(w); });
+function muralHtml(a, lista, grande) {
+  MURAL.datos[a.id] = lista.map((x, i) => ({ key: x.id || (x.texto + '|' + i), texto: x.texto, user: arroba(x.nombre, x.usuario) }));
+  return `<div class="mural-wrap ${grande ? 'xl' : ''}"><div class="mural" data-mural="${a.id}"></div>${grande ? '' : '<button type="button" class="mural-full" data-mural-full>⛶ Pantalla completa</button>'}<span class="mural-cuenta">${lista.length} ${lista.length === 1 ? 'negocio' : 'negocios'}</span></div>`;
+}
+
 /* Chat (con nombre) o cuadritos (sin nombre) con lo que responde el grupo */
 function muroHtml(a, lista, grande) {
+  if (a.config.mural) return muralHtml(a, lista, grande);
   if (!lista.length) return '<p class="muted small">Aún no hay respuestas. ¡Sé la primera persona!</p>';
   if (a.config.publico === 'chat') return `<div class="muro-chat ${grande ? 'xl' : ''}">${lista.map((x, i) => `<div class="b-chat ${i % 2 ? 'der' : ''}"><b>${esc(x.nombre || 'Participante')}</b>${esc(x.texto)}</div>`).join('')}</div>`;
   return `<div class="muro-cuadros ${grande ? 'xl' : ''}">${lista.map(x => `<div class="cuadro">${esc(x.texto)}</div>`).join('')}</div>`;
@@ -950,13 +1042,22 @@ function pintarDinamica(a, num, cont) {
     const campo = a.config.corta
       ? `<input type="text" maxlength="${a.config.max || 280}" placeholder="${esc(a.config.placeholder || 'Escribe tu respuesta')}" value="${esc(r?.datos?.texto || '')}" ${bloqueada ? 'disabled' : ''}>`
       : `<textarea maxlength="${a.config.max || 1500}" placeholder="${esc(a.config.placeholder || 'Escribe tu respuesta')}" ${bloqueada ? 'disabled' : ''}>${esc(r?.datos?.texto || '')}</textarea>`;
+    const extraMural = a.config.mural ? `<div class="mural-form"><label class="small" style="font-weight:600">Tu @ en el mural <span class="muted">(opcional: tu Instagram o el de tu negocio)</span></label>
+        <input type="text" name="usuario" maxlength="30" placeholder="${esc(arroba(S.perfil?.nombre))}" value="${esc(r?.datos?.usuario || '')}" ${bloqueada ? 'disabled' : ''}>
+        <p class="small mural-prev">Así aparecerá en el mural: <b data-prev-t>${esc(r?.datos?.texto || 'tu negocio')}</b> <span data-prev-u>${esc(arroba(S.perfil?.nombre, r?.datos?.usuario))}</span></p>
+        <label class="row small"><input type="checkbox" name="confirma" ${r ? 'checked' : ''} ${bloqueada ? 'disabled' : ''}> Acepto que mi negocio y mi @ se muestren a todo el grupo en el mural.</label></div>` : '';
     cuerpo = `<div class="card"><p class="muted" style="margin-bottom:12px">${esc(a.config.instruccion || '')}</p>
-      <form>${campo}<div style="margin-top:12px"><button class="btn">${esc(r ? 'GUARDAR CAMBIOS' : (a.config.boton || 'ENVIAR'))}</button></div></form>
+      <form>${campo}${extraMural}<div style="margin-top:12px"><button class="btn">${esc(r ? 'GUARDAR CAMBIOS' : (a.config.boton || 'ENVIAR'))}</button></div></form>
       ${r ? `<div class="ok-msg" style="margin-top:14px">✅ Respuesta recibida. Puedes editarla mientras la actividad esté abierta.${a.config.publico === 'chat' ? ' Aparece en el chat del grupo con tu nombre.' : a.config.publico ? ' Aparece en la pantalla del grupo, sin tu nombre.' : a.config.compartir ? ' Solo Jany la ve, a menos que decida compartirla (sin tu nombre).' : ''}</div>` : ''}<div data-extra></div></div>`;
   }
   li.innerHTML = `<span class="node">${num}</span><small class="et">${num !== '' ? `DINÁMICA ${num} · ` : ''}<span class="pill ${e.c}">${e.t}</span></small>
     <h3>${esc(nombreAct(a))}</h3>${a.config?.nombre ? `<p class="din-q">${esc(a.titulo)}</p>` : ''}${cuerpo}`;
   cont.appendChild(li);
+  if (a.config.mural) {
+    const pt = li.querySelector('[data-prev-t]'), pu = li.querySelector('[data-prev-u]'), tx = li.querySelector('form input[type=text], form textarea'), us = li.querySelector('[name=usuario]');
+    const prev = () => { if (pt) pt.textContent = tx?.value.trim() || 'tu negocio'; if (pu) pu.textContent = arroba(S.perfil?.nombre, us?.value); };
+    tx && tx.addEventListener('input', prev); us && us.addEventListener('input', prev);
+  }
   li.querySelectorAll('.qz-op').forEach(b => b.onclick = async () => {
     const resp = { ...(r?.datos?.resp || {}), [b.dataset.q]: b.dataset.v };
     const opciones = Object.values(resp).map(v => v === 'a' ? 'Improvisando' : 'Planificando');
@@ -982,6 +1083,10 @@ function pintarDinamica(a, num, cont) {
         const texto = li.querySelector('textarea, input[type=text]').value.trim();
         if (texto.length < 3) return toast('Escribe tu respuesta');
         datos = { texto };
+        if (a.config.mural) {
+          if (!li.querySelector('[name=confirma]')?.checked) return toast('Confirma que aceptas aparecer en el mural');
+          datos.usuario = (li.querySelector('[name=usuario]')?.value || '').trim().replace(/^@+/, '');
+        }
       }
       const b = form.querySelector('button'); b.disabled = true;
       try { await api.responder(a.id, datos, true); toast('¡Gracias! Respuesta enviada'); await recargar(); } catch (err) { b.disabled = false; toast(err.message); }
@@ -1005,7 +1110,7 @@ function pintarDinamica(a, num, cont) {
 async function llenarPublico(el) {
   const a = S.actividades.find(x => x.id === el.dataset.aid); if (!a) return;
   try {
-    if (el.dataset.publico === 'muro') { const l = await api.publicas(a.id); el.innerHTML = `<h3 style="font-size:16px;margin:18px 0 10px">${a.config.publico === 'chat' ? '💬 El chat del grupo' : '🟦 Lo que respondió el grupo'}</h3>${muroHtml(a, l)}`; }
+    if (el.dataset.publico === 'muro') { const l = await api.publicas(a.id); el.innerHTML = `<h3 style="font-size:16px;margin:18px 0 10px">${a.config.mural ? '🟩 El mural del grupo' : a.config.publico === 'chat' ? '💬 El chat del grupo' : '🟦 Lo que respondió el grupo'}</h3>${muroHtml(a, l)}`; }
     else { const g = await api.resultados(a.id); el.innerHTML = `<h3 style="font-size:16px;margin:18px 0 12px">📊 Así va el grupo</h3>${el.dataset.publico === 'burbujas' ? burbujasHtml(a, g) : vizHtml(a, g)}`; }
   } catch (err) { el.innerHTML = ''; }
 }
@@ -1214,6 +1319,10 @@ async function vistaProyectar(clave) {
     cuerpo = `${pq ? `<p class="proj-q">Pregunta ${vis}: ${esc(pq.q)}</p>` : ''}${medidorHtml(tA, tB, `El grupo va: <b>${ladoDe(tA, tB)}</b>`, true)}`;
   } else if (a.config.burbujas) {
     cuerpo = burbujasHtml(a, await api.resultados(a.id), true);
+  } else if (a.config.mural) {
+    $('#root').innerHTML = `<div class="mural-proj"><a class="proj-x" href="#resultados">✕ Salir</a>${muralHtml(a, await api.publicas(a.id), true)}</div>`;
+    if (a.estado === 'abierta') clearTimeout(vistaProyectar.t), vistaProyectar.t = setTimeout(() => { if (UI.ruta === 'proyectar-' + clave) vistaProyectar(clave); }, 4000);
+    return;
   } else if (a.config.publico) {
     cuerpo = muroHtml(a, await api.publicas(a.id), true);
   } else if (a.tipo === 'opciones') {
@@ -1250,8 +1359,9 @@ function resultadosPonenteHtml(a, rs, alumnos) {
   } else {
     const textos = rs.map(r => r.datos?.texto || '').filter(Boolean);
     h += `<b class="small">Temas más repetidos</b><div class="chips" style="margin:8px 0 14px">${temasFrecuentes(textos).map(([w, n]) => `<span class="chip">${esc(w)} · ${n}</span>`).join('') || '<span class="small muted">—</span>'}</div>
-      ${a.config.publico ? `<p class="small" style="margin-bottom:8px">👀 El grupo ve estas respuestas ${a.config.publico === 'chat' ? 'en forma de chat, con su nombre' : 'en cuadritos, sin nombre'}.</p>` : ''}
-      <div class="answers">${rs.map(r => `<div class="answer ${r.destacada ? 'compartida' : ''}"><div class="row space"><b>${esc(r.nombre || 'Participante')}</b><span class="small muted">${r.actualizado_en ? hora(r.actualizado_en) : ''}</span></div>
+      ${a.config.mural ? `<p class="small" style="margin-bottom:8px">👀 El grupo ve estas respuestas en el mural, con su @.</p>${muralHtml(a, rs.filter(r => r.datos?.texto).map(r => ({ id: r.id, nombre: r.nombre, usuario: r.datos?.usuario, texto: r.datos.texto })))}<div style="height:12px"></div>`
+        : a.config.publico ? `<p class="small" style="margin-bottom:8px">👀 El grupo ve estas respuestas ${a.config.publico === 'chat' ? 'en forma de chat, con su nombre' : 'en cuadritos, sin nombre'}.</p>` : ''}
+      <div class="answers">${rs.map(r => `<div class="answer ${r.destacada ? 'compartida' : ''}"><div class="row space"><b>${esc(r.nombre || 'Participante')}${a.config.mural ? ` <span class="muted small">${esc(arroba(r.nombre, r.datos?.usuario))}</span>` : ''}</b><span class="small muted">${r.actualizado_en ? hora(r.actualizado_en) : ''}</span></div>
         <p style="margin:4px 0 8px">${esc(r.datos?.texto || '')}</p>
         <label class="row small"><input type="checkbox" data-destacar="${esc(r.id)}" ${r.destacada ? 'checked' : ''}> Compartir con el grupo (sin nombre)</label></div>`).join('') || '<p class="muted small">Sin respuestas todavía.</p>'}</div>`;
   }
@@ -1540,6 +1650,7 @@ async function vistaEmbedPonente() {
 function vistaEmbed() {
   document.body.classList.add('embed');
   if (EMBED === 'presentacion') return vistaPresentacion();
+  if (EMBED === 'ayuda') { $('#root').innerHTML = '<div class="card" id="drawer"></div>'; return pintarAyuda().then(avisarAltura); }
   if (S.rol === 'ponente') return vistaEmbedPonente();
   const root = $('#root');
   if (EMBED === 'prepara') {
