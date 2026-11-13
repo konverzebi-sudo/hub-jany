@@ -33,6 +33,12 @@
     .back-link { justify-self: start; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: .13em; text-transform: uppercase; color: var(--text-dim); text-decoration: none; display: inline-flex; align-items: center; gap: 8px; padding: 6px 16px; border: 1px solid rgba(255,255,255,.14); border-radius: 100px; background: rgba(255,255,255,.03); transition: .15s; }
     .back-link:hover { color: var(--accent-texto, var(--accent)); border-color: var(--accent); }
     .lbl-s { display: none; }
+    .topbar-izq { justify-self: start; display: flex; align-items: center; gap: 10px; min-width: 0; max-width: 100%; }
+    /* Si falta espacio se recorta primero el nombre de la marca y no la pastilla de foco */
+    .topbar-izq .back-link { flex: 0 5 auto; min-width: 0; }
+    .topbar-izq #foco-slot { flex: 0 0 auto; }
+    /* Meta Ads analiza un reporte con varias campañas: el filtro de producto no aplica ahí */
+    body.ruta-campanas #foco-slot { display: none; }
 
     * { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.18) transparent; }
     *::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -80,6 +86,19 @@
     .diag-titulo span { margin-left: .35em; }
     #panel-diagnostico { max-width: 1240px; width: 100%; margin: 0 auto; }
     .chat-card .whatsapp-banner { margin: 12px 0 4px; }
+    /* Chip que dice con qué proyecto se está trabajando */
+    .foco-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 99px; background: var(--accent-soft); color: var(--accent-texto, #4E7A00); font: 700 13px Inter, sans-serif; vertical-align: middle; }
+    .foco-chip:empty { display: none; }
+    .diag-titulo .foco-chip { margin-left: 10px; font-size: 14px; }
+    .hero-hint { font-size: 13.5px; color: var(--text-dim); }
+    /* @ para etiquetar un producto o campaña */
+    .menu-mencion { position: fixed; z-index: 120; max-height: 260px; overflow-y: auto; background: #FFFFFF; border: 1px solid #E5E7EB; border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.18); padding: 6px; display: flex; flex-direction: column; }
+    .menu-mencion button { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; text-align: left; background: transparent; border: none; border-radius: 10px; padding: 9px 10px; font: 600 15px Inter, sans-serif; color: #111827; cursor: pointer; }
+    .menu-mencion button:hover { background: #F1FFC2; }
+    .menu-mencion small { font: 500 13px Inter, sans-serif; color: #6B7280; }
+    .aviso-mencion { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; background: #F1FFC2; border: 1.5px solid #C0F800; border-radius: 12px; padding: 8px 10px; margin: 0 0 8px; font-size: 14px; line-height: 1.4; color: #111827; text-align: left; }
+    .aviso-mencion[hidden] { display: none; }
+    .aviso-mencion button { background: #FFFFFF; border: 1px solid #C0F800; border-radius: 8px; padding: 5px 10px; font: 700 13px Inter, sans-serif; color: #111827; cursor: pointer; }
     body.route-active header .pb-eyebrow, body.route-active header .pb-titulo, body.route-active header p { display: none; }
 
     /* ── CONTENEDOR PRINCIPAL: ancho tipo app (como henry.cm, hasta ~1480px) ── */
@@ -200,6 +219,17 @@
     footer { text-align: center; padding: 24px 20px; font-size: 12px; color: var(--text-dim); font-family: "JetBrains Mono", monospace; border-top: 1px solid var(--line); margin-top: 20px; }
 
     /* ── CELULAR / PANTALLAS ANGOSTAS (o con mucho zoom) ── */
+    @media (max-width: 900px) {
+      /* En pantallas angostas la pastilla de foco baja a una segunda fila de la barra fija */
+      :root { --topbar-h: 104px; }
+      body .topbar { height: auto; min-height: 56px; padding: 8px 10px; grid-template-columns: auto minmax(0,1fr); grid-template-areas: "back titulo" "foco foco"; row-gap: 8px; }
+      .topbar-izq { display: contents; }
+      .topbar-izq .back-link { grid-area: back; }
+      .topbar-izq #foco-slot { grid-area: foco; }
+      .topbar h1 { grid-area: titulo; }
+      body.ruta-campanas .topbar { grid-template-areas: "back titulo"; }
+      body.ruta-campanas { --topbar-h: 60px; }
+    }
     @media (max-width: 720px) {
       :root { --topbar-h: 56px; }
       .topbar { padding: 0 12px; }
@@ -218,6 +248,8 @@
       .agent-chat { margin: 4px 0 10px; }
       header { padding-top: calc(var(--topbar-h) + 22px); }
       body.route-active header { padding-top: calc(var(--topbar-h) + 6px); }
+      :root { --topbar-h: 104px; }
+      body.ruta-campanas { --topbar-h: 60px; }
       .corner-btn { left: 12px; top: calc(var(--topbar-h) + 8px); padding: 6px 11px; font-size: 11px; }
       body.route-active header .jefe-logo { width: 72px; margin-bottom: 8px; }
       .hero-lupa, .hero-search-sep { display: none; }
@@ -244,11 +276,20 @@
 <body class="piel-blanca">
 
 <div class="topbar">
-  <a id="cierre-back-hub" href="/" class="back-link"><span class="lbl-l">&lt;&lt; Hub de Jefes</span><span class="lbl-s">‹ Hub</span> <span class="sep" style="opacity:.4;">//</span> <span id="brand-marca-label">—</span></a>
+  <div class="topbar-izq">
+    <a id="cierre-back-hub" href="/" class="back-link"><span class="lbl-l">&lt;&lt; Hub de Jefes</span><span class="lbl-s">‹ Hub</span> <span class="sep" style="opacity:.4;">//</span> <span id="brand-marca-label">—</span></a>
+    <div id="foco-slot"></div>
+  </div>
   <h1>Jefe de Resultados</h1>
 </div>
 
 <script src="/js/storage-client.js"></script>
+<script>
+  // Filtro de arriba (js/jefes-foco.js): con qué producto, servicio, grupo o CAMPAÑA DE TEMPORADA se trabaja. Al elegir una
+  // campaña el Jefe se queda aquí y recibe toda su estrategia; el chat, el diagnóstico y las etiquetas @ usan ese enfoque.
+  window.__focoConfig = { grupos: true, productos366: true, campanaLocal: true, marcarDesglose: true, pagina: 'resultados' };
+</script>
+<script src="/js/jefes-foco.js"></script>
 <script>
   // Multi-tenant: detectado por pathname — Vercel no expone ?cliente= al browser (mismo
   // patron que consultor-financiero.html / consultor-radar-mercado.html).
@@ -282,6 +323,7 @@
     <div class="chat-card" id="chatCard">
       <div class="chat-head" id="chatHead" hidden>
         <span class="mode-label" id="modeLabel">Modo: Auditoría</span>
+        <span class="foco-chip" id="focoChip"></span>
         <div id="eventoSubmodoRow" style="display:none;" class="agent-suggestions">
           <button class="agent-suggestion" id="btnSubmodoPropio" onclick="elegirSubmodoEvento('propio')">🎤 Auditar mi evento</button>
           <button class="agent-suggestion" id="btnSubmodoReferencia" onclick="elegirSubmodoEvento('referencia')">📺 Analizar evento de referencia</button>
@@ -293,6 +335,7 @@
         <button class="link-btn chat-ocultar" type="button" onclick="cerrarChat()">Ocultar ▴</button>
       </div>
       <div class="agent-chat" id="agentChat" hidden></div>
+      <div class="aviso-mencion" id="avisoMencion" hidden></div>
       <div class="hero-search" onclick="if(!event.target.closest('button')){document.getElementById('agentInput').focus();abrirChat();}">
         <span class="hero-lupa" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
@@ -308,6 +351,7 @@
           <a class="cta-whatsapp" id="whatsappCtaLink" href="#" target="_blank" rel="noopener">💬 Explorar a fondo con el Jefe de WhatsApp →</a>
         </div>
       <div class="hero-meta">
+        <span class="hero-hint">Escribe @ para elegir un producto o una campaña</span>
         <button class="link-btn" id="chatRetomar" type="button" hidden onclick="abrirChat()">Continuar mi conversación</button>
         <button class="link-btn" id="agentResetBtn" type="button" hidden onclick="reiniciarAgente()">Nueva conversación</button>
       </div>
@@ -351,7 +395,7 @@
       <!-- PASO: DIAGNÓSTICO NUMÉRICO -->
       <div class="panel" id="panel-diagnostico">
         <div class="panel-intro">
-          <h2 class="diag-titulo">Diagnóstico numérico <span id="diagRutaNombre"></span></h2>
+          <h2 class="diag-titulo">Diagnóstico numérico <span id="diagRutaNombre"></span><span class="foco-chip" id="diagFoco"></span></h2>
           <p>Mete tus conteos agregados de los últimos días (no nombres ni datos por persona) y te calculo tus tasas y dónde está la fuga.</p>
         </div>
 
@@ -578,8 +622,34 @@ function copyText(btn, text) {
 let agentMessages = [];
 let agentBusy = false;
 
+/* ─── FOCO: con qué producto, grupo o campaña se trabaja (pastilla de arriba, js/jefes-foco.js) ─── */
+function focoActual() { try { return window.__foco ? window.__foco.get() : null; } catch (e) { return null; } }
+// Cada enfoque guarda su propio hilo y su propio diagnóstico (con "ecosistema completo" se usan las llaves de siempre)
+function sufijoFoco() {
+  const f = focoActual();
+  return f && !f.esTodo && f.id ? '-' + String(f.id).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80) : '';
+}
+function focoPayload() {
+  const f = focoActual();
+  if (!f || f.esTodo) return null;
+  return { id: f.id, nombre: f.nombre, esGrupo: !!f.esGrupo, esCampana: !!f.esCampana, campanaId: f.campanaId || '', productoId: f.productoId || '', grupoId: f.grupoId || '' };
+}
+function etiquetaFoco() {
+  const f = focoActual();
+  if (!f || f.esTodo) return 'Todo tu ecosistema';
+  return (f.esCampana ? '🗓️ Campaña: ' : f.esGrupo ? 'Grupo: ' : 'Producto: ') + f.nombre;
+}
+function actualizarFocoChips() {
+  const f = focoActual();
+  const t = etiquetaFoco();
+  const c1 = document.getElementById('focoChip'), c2 = document.getElementById('diagFoco');
+  if (c1) c1.textContent = t;
+  if (c2) c2.textContent = f && !f.esTodo ? t : '';
+}
+async function esperarFoco() { try { if (window.__foco && window.__foco.ready) await window.__foco.ready; } catch (e) {} }
+
 function conversacionKey() {
-  return CLIENTE_ID + ':conversion-cierre-' + rutaActual + '-conversacion';
+  return CLIENTE_ID + ':conversion-cierre-' + rutaActual + '-conversacion' + sufijoFoco();
 }
 
 function renderAgentChat() {
@@ -621,6 +691,8 @@ function persistirAgente() {
 }
 
 async function cargarHiloRuta() {
+  await esperarFoco();
+  actualizarFocoChips();
   try {
     const r = await window.storage.get(conversacionKey());
     const guardado = r && r.value ? JSON.parse(r.value) : [];
@@ -645,7 +717,7 @@ async function llamarAgente(modo) {
     const response = await fetch('/api/consultor-cierre', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ modo, cliente: CLIENTE_ID, messages: agentMessages }),
+      body: JSON.stringify({ modo, cliente: CLIENTE_ID, messages: agentMessages, foco: focoPayload(), menciones: mencionesActivas() }),
     });
     const data = await response.json();
     if (!response.ok) {
@@ -774,11 +846,22 @@ function pintarDatosDiagnostico(datos) {
   }
 }
 
+// Cada enfoque tiene sus propios números: al cambiar de producto o campaña se limpian los campos y se cargan los suyos
+function limpiarCamposDiagnostico() {
+  document.querySelectorAll('#panel-diagnostico .card input').forEach((i) => { i.value = ''; });
+  const rc = document.getElementById('diagResultCard'), tb = document.getElementById('diagTextBox');
+  if (rc) rc.style.display = 'none';
+  if (tb) tb.style.display = 'none';
+}
+
 async function cargarDiagnosticoGuardado() {
+  await esperarFoco();
+  limpiarCamposDiagnostico();
+  const ruta = rutaActual;
   try {
-    const key = CLIENTE_ID + ':conversion-cierre-diagnostico-' + rutaActual;
+    const key = CLIENTE_ID + ':conversion-cierre-diagnostico-' + ruta + sufijoFoco();
     const r = await window.storage.get(key);
-    if (r && r.value) pintarDatosDiagnostico(JSON.parse(r.value));
+    if (ruta === rutaActual && r && r.value) pintarDatosDiagnostico(JSON.parse(r.value));
   } catch (e) {}
 }
 
@@ -834,11 +917,11 @@ async function calcularDiagnostico() {
   const datos = leerDatosDiagnostico();
   const modo = MODO_DIAGNOSTICO_POR_RUTA[rutaActual];
   try {
-    window.storage.set(CLIENTE_ID + ':conversion-cierre-diagnostico-' + rutaActual, JSON.stringify(datos)).catch(() => {});
+    window.storage.set(CLIENTE_ID + ':conversion-cierre-diagnostico-' + rutaActual + sufijoFoco(), JSON.stringify(datos)).catch(() => {});
     const response = await fetch('/api/consultor-cierre', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ modo, cliente: CLIENTE_ID, datos }),
+      body: JSON.stringify({ modo, cliente: CLIENTE_ID, datos, foco: focoPayload() }),
     });
     const data = await response.json();
     if (!response.ok) {
@@ -865,6 +948,109 @@ async function calcularDiagnostico() {
   if (['tienda', 'evento', 'mensaje', 'campanas'].indexOf(ruta) >= 0) { window.__rutaInicial = true; seleccionarRuta(ruta); window.__rutaInicial = false; }
 })();
 window.addEventListener('popstate', () => { if (rutaActual) volverASelectorRuta(); });
+
+/* ─── @ para etiquetar un producto o una campaña de temporada ───
+   Al escribir @ sale la lista; lo etiquetado manda en ESE mensaje (el Jefe recibe su contexto en vez del filtro de arriba).
+   Un aviso deja cambiar el filtro de una vez para que todo quede unificado. */
+let menciones = [];
+let menuMenciones = null;
+const normTxt = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+function cerrarMenuMenciones() { if (menuMenciones) { menuMenciones.remove(); menuMenciones = null; } }
+function opcionesMencion(q) {
+  const foco = window.__foco;
+  if (!foco) return [];
+  const n = normTxt(q);
+  const coincide = (nombre) => !n || normTxt(nombre).indexOf(n) !== -1;
+  const out = [];
+  foco.lista().forEach((p) => { if (p && p.nombre && coincide(p.nombre)) out.push({ tipo: 'producto', id: p.id, nombre: String(p.nombre).trim(), sub: 'Producto' }); });
+  (foco.campanasTodas ? foco.campanasTodas() : []).forEach((c) => { if (c.nombre && coincide(c.nombre)) out.push({ tipo: 'campana', id: c.id, nombre: String(c.nombre).trim(), sub: 'Campaña de temporada' }); });
+  return out.slice(0, 8);
+}
+function revisarMencion(ta) {
+  const antes = ta.value.slice(0, ta.selectionStart);
+  const m = antes.match(/(^|\s)@([^\s@]*)$/);
+  cerrarMenuMenciones();
+  if (!m) return;
+  const opts = opcionesMencion(m[2]);
+  if (!opts.length) return;
+  const box = document.createElement('div');
+  box.className = 'menu-mencion';
+  opts.forEach((o) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.innerHTML = '<span>' + (o.tipo === 'campana' ? '🗓️ ' : '') + escaparHtmlCierre(o.nombre) + '</span><small>' + o.sub + '</small>';
+    b.onmousedown = (e) => { e.preventDefault(); elegirMencion(ta, m[2], o); };
+    box.appendChild(b);
+  });
+  document.body.appendChild(box);
+  const r = ta.getBoundingClientRect();
+  box.style.left = Math.max(8, r.left) + 'px';
+  box.style.width = Math.min(380, window.innerWidth - 16) + 'px';
+  box.style.top = (r.bottom + 6) + 'px';
+  menuMenciones = box;
+}
+function elegirMencion(ta, consulta, o) {
+  const pos = ta.selectionStart;
+  const inicio = pos - consulta.length - 1;
+  ta.value = ta.value.slice(0, inicio) + '@' + o.nombre + ' ' + ta.value.slice(pos);
+  const nueva = inicio + o.nombre.length + 2;
+  try { ta.setSelectionRange(nueva, nueva); } catch (e) {}
+  if (!menciones.some((x) => x.id === o.id && x.tipo === o.tipo)) menciones.push(o);
+  cerrarMenuMenciones();
+  autoAlturaAgentInput(ta);
+  ta.focus();
+  avisoMencion(o);
+}
+function avisoMencion(o) {
+  const av = document.getElementById('avisoMencion');
+  if (!av) return;
+  const foco = focoActual();
+  const yaEsElFiltro = foco && !foco.esTodo && (o.tipo === 'campana' ? foco.campanaId === o.id : foco.id === o.id);
+  av.innerHTML = '';
+  const cerrar = () => { av.hidden = true; av.innerHTML = ''; };
+  if (yaEsElFiltro) { cerrar(); return; }
+  const txt = document.createElement('span');
+  txt.textContent = 'Etiquetaste «' + o.nombre + '»: en este mensaje el Jefe trabaja con ' + (o.tipo === 'campana' ? 'esa campaña' : 'ese producto') + '.';
+  av.appendChild(txt);
+  const b = document.createElement('button');
+  b.type = 'button'; b.textContent = 'Cambiar el filtro de arriba a «' + o.nombre + '»';
+  b.onclick = () => { menciones = menciones.filter((x) => x.id !== o.id); if (window.__foco) window.__foco.set(o.tipo === 'campana' ? 'c:' + o.id : o.id); cerrar(); };
+  av.appendChild(b);
+  const x = document.createElement('button');
+  x.type = 'button'; x.textContent = '✕'; x.setAttribute('aria-label', 'Cerrar'); x.onclick = cerrar;
+  av.appendChild(x);
+  av.hidden = false;
+}
+// Solo cuentan las etiquetas que siguen escritas en el último mensaje
+function mencionesActivas() {
+  const ult = agentMessages[agentMessages.length - 1];
+  const texto = ult && ult.role === 'user' && typeof ult.content === 'string' ? ult.content : '';
+  const vivas = menciones.filter((m) => texto.indexOf('@' + m.nombre) !== -1).map((m) => ({ tipo: m.tipo, id: m.id, nombre: m.nombre }));
+  menciones = [];
+  return vivas;
+}
+(function () {
+  const ta = document.getElementById('agentInput');
+  if (!ta) return;
+  ta.addEventListener('input', () => revisarMencion(ta));
+  ta.addEventListener('keyup', (e) => { if (e.key !== 'Escape') revisarMencion(ta); });
+  ta.addEventListener('keydown', (e) => { if (e.key === 'Escape') cerrarMenuMenciones(); });
+  ta.addEventListener('blur', () => setTimeout(cerrarMenuMenciones, 150));
+})();
+
+// Al cambiar el filtro de arriba, el chat y el diagnóstico pasan a los de ese producto o campaña
+if (window.__foco) {
+  window.__foco.onChange(() => {
+    actualizarFocoChips();
+    if (rutaActual && rutaActual !== 'campanas') {
+      agentMessages = [];
+      renderAgentChat();
+      cargarHiloRuta();
+      cargarDiagnosticoGuardado();
+    }
+  });
+}
+actualizarFocoChips();
 // Meta Ads avisa su alto real para que la página lo muestre completo, sin scroll interno ni "cajita"
 window.addEventListener('message', (e) => {
   const frame = document.getElementById('campanasFrame');

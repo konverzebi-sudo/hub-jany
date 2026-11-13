@@ -746,7 +746,12 @@
   // deslizador arranca en un valor de simulación marcado como tal.
   async function leerCierreBase(){
     try {
-      var r = await window.storage.get(CLIENTE_ID + ':conversion-cierre-diagnostico-mensaje');
+      // Si en Jefe de Resultados hay un producto o campaña elegido arriba, primero se busca su cierre; si no hay, el general
+      var f = null; try { f = JSON.parse(localStorage.getItem('jefeshub_foco_' + window.__hub.slug) || 'null'); } catch (e) {}
+      var sufijo = f && f.id && f.id !== 'all' ? '-' + String(f.id).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80) : '';
+      var base = CLIENTE_ID + ':conversion-cierre-diagnostico-mensaje';
+      var r = sufijo ? await window.storage.get(base + sufijo) : null;
+      if (!(r && r.value)) r = await window.storage.get(base);
       var d = r && r.value ? JSON.parse(r.value) : null;
       if (d && d.leadsRecibidos > 0 && d.ventasCerradas >= 0 && d.ventasCerradas != null) {
         var pct = Math.round(d.ventasCerradas / d.leadsRecibidos * 100);
