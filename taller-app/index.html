@@ -456,6 +456,28 @@
   .mf-card .cat-img { border-radius: 14px; } .mf-card b { display: block; font: 800 clamp(10px, 1.1vw, 16px) 'Sora', sans-serif; margin-top: 6px; color: #0F0B16; } .mf-card small { display: block; font-size: clamp(8px, .8vw, 12px); color: #2B2E22; }
   .brief-pct { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; font-weight: 600; font-size: 14px; } .brief-pct em { font-style: normal; color: #1C7A47; }
   .rec-barra { flex: 1; min-width: 120px; height: 10px; border-radius: 99px; background: #F0E6FC; overflow: hidden; } .rec-barra i { display: block; height: 100%; background: linear-gradient(90deg, #7B2FBE, #BBF802); }
+  .spx { border-radius: 20px; overflow: hidden; background: #080808; color: #FFFFFF; }
+  .spx-top { padding: 20px; background: radial-gradient(ellipse at 90% 0%, rgba(192,248,0,.22), transparent 55%), #080808; }
+  .spx-top small { font: 700 11px 'JetBrains Mono', monospace; letter-spacing: .14em; color: #C0F800; }
+  .spx-top h3 { font: 800 26px 'Sora', sans-serif; margin: 4px 0; } .spx-top p { color: #CFCFCF; font-size: 14px; }
+  .spx-ver { display: flex; align-items: center; gap: 10px; margin-top: 12px; } .spx-v { font: 800 13px 'JetBrains Mono', monospace; background: #C0F800; color: #080808; padding: 4px 10px; border-radius: 99px; }
+  .spx-bar { flex: 1; height: 8px; border-radius: 99px; background: rgba(255,255,255,.12); overflow: hidden; } .spx-bar i { display: block; height: 100%; background: #C0F800; } .spx-ver b { font-size: 12px; color: #CFCFCF; }
+  .spx-body { padding: 18px 20px 20px; background: #111; }
+  .spx-btn { width: 100%; padding: 16px; border-radius: 14px; background: #C0F800; color: #080808; font: 800 16px 'Sora', sans-serif; letter-spacing: .02em; }
+  .spx-btn:active { transform: scale(.99); }
+  .spx-pasos { margin: 14px 0 0 18px; font-size: 14px; color: #E8E8E8; display: grid; gap: 4px; } .spx-pasos a { color: #C0F800; }
+  .spx-brief { margin-top: 10px; font-size: 13px; color: #BDBDBD; } .spx-brief a { color: #C0F800; }
+  .spx-ruta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
+  .spx-ruta div { padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,.12); display: flex; flex-direction: column; gap: 2px; }
+  .spx-ruta div.act { border-color: #C0F800; background: rgba(192,248,0,.08); } .spx-ruta div.prox { opacity: .55; }
+  .spx-ruta b { font: 800 14px 'JetBrains Mono', monospace; color: #C0F800; } .spx-ruta span { font-size: 13px; font-weight: 600; } .spx-ruta em { font: 700 10px 'JetBrains Mono', monospace; font-style: normal; color: #9A9A9A; }
+  .spx-ruta div.act em { color: #C0F800; }
+  .spx details { margin-top: 12px; } .spx summary { cursor: pointer; font-size: 13px; color: #CFCFCF; }
+  .spx textarea { width: 100%; min-height: 240px; margin-top: 8px; font-size: 12px; background: #080808; color: #E8E8E8; border: 1px solid rgba(255,255,255,.15); }
+  .spx-nota { margin-top: 8px; font-size: 12px; color: #9A9A9A; }
+  @media (max-width: 520px) { .spx-ruta { grid-template-columns: repeat(2, 1fr); } }
+  .sp-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; } .sp-h b { font-family: 'Sora', sans-serif; }
+  .sp-falta { background: #FFF8E1; border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; }
   body.embed { background: transparent; }
   body.embed .din { padding-left: 0; padding-bottom: 0; }
   body.embed .din-list::before, body.embed .din .node, body.embed .din h3, body.embed .din .din-q { display: none; }
@@ -2125,6 +2147,140 @@ async function vistaTeleprompter() {
   avisarAltura();
 }
 
+/* ---------------- SUPERPROMPT V0.1: instrucciones + contexto real del PRE-BRIEF ----------------
+   La plataforma y ChatGPT están separados: el contexto viaja dentro del texto que el participante copia.
+   Fuente de verdad: la respuesta del formulario "prework" (bloques A–F). Lo que no existe se marca "No proporcionado". */
+function construirSuperprompt(D, perfil) {
+  const v = x => (x == null || String(x).trim() === '') ? 'No proporcionado' : String(x).trim();
+  const A = D.A || {}, B = D.B || {}, C = D.C?.items || [], Ob = D.D || {}, E = D.E || {};
+  const prods = C.filter(x => (x.tipo || 'producto') === 'producto'), servs = C.filter(x => x.tipo === 'servicio');
+  const linea = (it, campos) => campos.map(([k, l]) => `${l}: ${v(it[k])}`).join(' | ');
+  const archivos = MATERIALES.map(([k, l]) => `- ${l}: ${(E[k] || []).length ? (E[k].length + ' archivo(s) subido(s) en la plataforma → ADJÚNTALOS aquí en ChatGPT') : 'No proporcionado'}`).join('\n');
+  const faltan = [];
+  if (!A.nombre) faltan.push('nombre del negocio'); if (!A.giro && !A.vende) faltan.push('a qué se dedica / qué vende');
+  if (!B.cliente_ideal) faltan.push('cliente ideal'); if (!C.length) faltan.push('productos o servicios');
+  if (!(Ob.objetivos || []).length && !Ob.otro && !Ob.meta) faltan.push('objetivo del negocio');
+  const dyn = D._dinamicas || {};
+  const contexto = `=== CONTEXTO DE MI NEGOCIO (de mi PRE-BRIEF) ===
+Participante: ${v(perfil?.nombre)}
+
+CONTEXTO DEL NEGOCIO
+- Nombre del negocio: ${v(A.nombre)}
+- Giro / a qué se dedica: ${v(A.giro)}
+- Qué vende: ${v(A.vende)}
+- Descripción: ${v(A.descripcion)}
+- Ciudad o zona: ${v(A.zona)}
+- Sitio web: ${v(A.web)}
+- Redes sociales: ${v(A.redes)}
+- WhatsApp: ${v(A.whatsapp)}
+
+CLIENTES
+- Cliente ideal: ${v(B.cliente_ideal)}
+- A quién le vendo actualmente: ${v(B.vende_a)}
+- Problema que resuelvo: ${v(B.problema)}
+- Qué me diferencia: ${v(B.diferencia)}
+
+PRODUCTOS
+${prods.length ? prods.map((x, i) => `${i + 1}. ${linea(x, CAMPOS_PROD)}`).join('\n') : 'No proporcionado'}
+
+SERVICIOS
+${servs.length ? servs.map((x, i) => `${i + 1}. ${linea(x, CAMPOS_SERV)}`).join('\n') : 'No proporcionado'}
+
+OBJETIVO COMERCIAL
+- Objetivos: ${(Ob.objetivos || []).length ? Ob.objetivos.join(', ') : 'No proporcionado'}
+- Otro objetivo: ${v(Ob.otro)}
+- Meta: ${v(Ob.meta)}
+
+IDENTIDAD DE MARCA
+- Colores corporativos: No proporcionado en el PRE-BRIEF
+- Estilo visual: No proporcionado en el PRE-BRIEF
+- Personalidad y tono de comunicación: No proporcionado en el PRE-BRIEF
+(Si los necesitas, pregúntamelos de forma breve; también puedes deducir estilo y colores de mi logotipo y fotos cuando los adjunte.)
+
+MATERIALES VISUALES (archivos que no viajan como texto)
+${archivos}
+
+MIS RESPUESTAS EN LAS DINÁMICAS DEL TALLER
+- ¿A qué me dedico?: ${v(dyn.dedicas)}
+- ¿Qué tarea delegaría primero?: ${v(dyn.delegarias)}
+- Partes del marketing que más me cuestan: ${v(dyn.marketing)}
+- ¿Improviso o planeo?: ${v(dyn.historia)}
+=== FIN DEL CONTEXTO ===`;
+  const instrucciones = `SUPERPROMPT V0.1 · JEFE DE MARKETING IA (El Hubcito) — Hub de Jefes
+Taller "Tu Primer Asistente con IA"
+
+QUIÉN ERES
+Eres mi Jefe de Marketing IA. No vamos a hacer preguntas sueltas: estamos construyendo un solo asistente que conoce mi negocio y que irá creciendo por versiones durante el taller.
+
+REGLAS DE TRABAJO (siempre)
+1. Usa mi PRE-BRIEF (abajo) como contexto permanente en todas las misiones.
+2. Haz UNA pregunta por turno.
+3. No repitas preguntas que ya respondí en el contexto.
+4. No inventes información. Lo marcado como "No proporcionado" no lo supongas: pregúntamelo si lo necesitas.
+5. Identifica los datos que faltan.
+6. Distingue siempre entre HECHOS (lo que yo te dije), HIPÓTESIS (lo que supones) y RECOMENDACIONES.
+7. Trabaja paso a paso.
+8. No avances a la siguiente etapa sin mi aprobación.
+9. Al terminar cada misión, haz un resumen.
+10. Conserva las decisiones que tomemos y úsalas en las siguientes misiones.
+11. Mantén la identidad visual y verbal de mi negocio. No inventes ni cambies la personalidad de mi marca.
+12. Adapta todo al giro y al tipo de mi negocio. Nada genérico.
+
+RECORRIDO (un solo asistente que evoluciona)
+- V0.1 Producto estrella ← MISIÓN ACTIVA
+- V0.2 Cliente ideal (próximamente)
+- V0.3 Ideas de contenido (próximamente)
+- V0.4 Tres piezas de campaña (próximamente)
+- V0.5 Imagen promocional con fotografía de referencia (próximamente)
+- V0.6 Animación en Gemini (próximamente)
+Cuando te comparta una nueva versión, se suma a esta: conserva el contexto y las decisiones anteriores.
+
+MISIÓN 1 · V0.1 — ENCONTRAR EL PRODUCTO ESTRELLA
+Empieza así (con tus palabras): "Ya conozco el contexto de tu negocio, tu marca y la información que compartiste antes del taller. Vamos a utilizar todo esto para construir una estrategia de marketing alineada con tu negocio. Nuestra primera misión será encontrar el producto que más conviene impulsar."
+Luego:
+1. Dame un resumen breve de lo que entendiste de mi negocio y mi marca${faltan.length ? `, y dime qué información importante falta (por ejemplo: ${faltan.join(', ')})` : ' y si falta información importante'}.
+2. Pregúntame cuál es mi objetivo prioritario: incrementar ventas, mejorar rentabilidad o dar salida al inventario.
+3. Con mis productos o servicios del contexto, evalúa tres criterios: A) el que más vende, B) el que deja mayor margen de ganancia, C) el que tiene más inventario disponible y necesita movimiento. Pide solo los datos que falten para compararlos.
+4. Analiza: ventas, margen, inventario, demanda, potencial comercial, facilidad de promoción y coherencia con mi negocio y mis objetivos.
+5. Dame tu recomendación y explica por qué. La decisión final es mía.
+6. Cuando la apruebe, regístrala así: "DECISIÓN V0.1 · PRODUCTO ESTRELLA: [producto] — Motivo: [motivo]" y úsala como base de la estrategia.
+En esta misión NO generes todavía publicaciones, anuncios, imágenes ni videos.`;
+  return { texto: instrucciones + '\n\n' + contexto, faltan };
+}
+const VERSIONES_SP = [['V0.1', 'Producto estrella'], ['V0.2', 'Cliente ideal'], ['V0.3', 'Ideas de contenido'], ['V0.4', 'Tres piezas de campaña'], ['V0.5', 'Imagen promocional'], ['V0.6', 'Animación Gemini']];
+async function vistaSuperprompt() {
+  const root = $('#root'), a = act('prework'), D = { ...(miResp(a)?.datos || {}) };
+  // Solo respuestas propias (las reglas de la base de datos no dejan leer las de otros)
+  const propio = k => { const x = act(k), r = x && miResp(x); return r ? r.datos : null; };
+  const mk = act('marketing'), mr = propio('marketing'), hq = propio('historia');
+  D._dinamicas = {
+    dedicas: propio('dedicas')?.texto, delegarias: propio('delegarias')?.texto,
+    marketing: mr ? (modoCat(mk) ? catsDe(mk).filter(c => mr.sel?.[c.id]).map(c => c.nombre).join(', ') : (mr.opciones || []).join(', ')) : '',
+    historia: hq?.resp ? (() => { const v = Object.values(hq.resp), nA = v.filter(x => x === 'a').length, nB = v.length - nA; return `${nA} respuesta(s) de improvisar y ${nB} de planear`; })() : ''
+  };
+  const { texto, faltan } = construirSuperprompt(D, S.perfil);
+  const pct = Math.round('ABCDEF'.split('').filter(b => D._ok?.[b]).length / 6 * 100);
+  const nArch = MATERIALES.reduce((n, [k]) => n + ((D.E || {})[k] || []).length, 0);
+  root.innerHTML = `<div class="spx">
+      <div class="spx-top"><small>SUPERPROMPT</small><h3>Jefe de Marketing IA</h3><p>Un solo asistente que conoce tu negocio y crece contigo en cada misión.</p>
+        <div class="spx-ver"><span class="spx-v">V0.1</span><div class="spx-bar"><i style="width:${100 / 6}%"></i></div><b>1 de 6</b></div></div>
+      <div class="spx-body">
+        <button type="button" class="spx-btn" id="spCopiar">📋 COPIAR MI SUPERPROMPT PERSONALIZADO</button>
+        <ol class="spx-pasos"><li>Abre <a href="https://chatgpt.com/" target="_blank" rel="noopener">ChatGPT</a> y empieza un chat nuevo.</li><li>Pega tu SUPERPROMPT y envíalo.</li>${nArch ? `<li>Adjunta tus ${nArch} archivo(s) del brief (logo, fotos, referencias).</li>` : ''}<li>Responde una pregunta a la vez.</li></ol>
+        <p class="spx-brief">Incluye tu PRE-BRIEF <b>(${pct}%)</b>${faltan.length ? ` · Falta: ${esc(faltan.join(', '))}${pct < 100 ? ' · <a href="#" data-ir-brief>completar</a>' : ''}` : ''}</p>
+        <div class="spx-ruta">${VERSIONES_SP.map(([v, n], i) => `<div class="${i ? 'prox' : 'act'}"><b>${v}</b><span>${n}</span><em>${i ? 'PRÓXIMAMENTE' : 'ACTIVO'}</em></div>`).join('')}</div>
+        <details><summary>Ver mi SUPERPROMPT</summary><textarea id="spTexto" readonly>${esc(texto)}</textarea></details>
+        ${S.rol === 'ponente' ? '<p class="spx-nota">Vista de ponente: cada participante copia el suyo, con su propio brief.</p>' : ''}
+      </div></div>`;
+  $('#spCopiar').onclick = async () => {
+    try { await navigator.clipboard.writeText(texto); }
+    catch (e) { const t = $('#spTexto'); t.closest('details').open = true; t.select(); document.execCommand('copy'); }
+    const b = $('#spCopiar'); b.textContent = '✅ ¡COPIADO! PÉGALO EN CHATGPT'; setTimeout(() => { if ($('#spCopiar')) $('#spCopiar').textContent = '📋 COPIAR MI SUPERPROMPT PERSONALIZADO'; }, 2500);
+  };
+  const ib = root.querySelector('[data-ir-brief]'); if (ib) ib.onclick = e => { e.preventDefault(); window.parent.postMessage({ taller: 'ir', hash: '#clase-1/etapa-1' }, '*'); };
+  avisarAltura();
+}
+
 /* ---------------- INCRUSTADO EN LA GUÍA ---------------- */
 async function vistaEmbedPonente() {
   const root = $('#root');
@@ -2175,6 +2331,7 @@ async function vistaEmbedPonente() {
 function vistaEmbed() {
   document.body.classList.add('embed');
   if (EMBED === 'presentacion') return vistaPresentacion();
+  if (EMBED === 'superprompt') return vistaSuperprompt();
   if (EMBED === 'estado') { window.parent.postMessage({ taller: 'estado', secciones: S.secciones.map(x => ({ clave: x.clave, estado: x.estado })) }, '*'); $('#root').innerHTML = ''; return; }
   if (EMBED === 'seccion') {
     const sc = sec(qs.get('s')); if (!sc || S.rol !== 'ponente') { $('#root').innerHTML = ''; return avisarAltura(); }
