@@ -352,6 +352,7 @@
   .bloq-card { text-align: center; padding: 50px 24px; } .bloq-ico { font-size: 46px; } .bloq-card h2 { margin: 10px 0 6px; } .bloq-card p { color: var(--muted); }
   .cuenta { margin-top: 14px; padding: 16px; border-radius: 16px; background: #0F0B16; color: #fff; text-align: center; }
   .cuenta small { font: 600 11px 'JetBrains Mono', monospace; letter-spacing: .12em; color: #BBF802; }
+  .cuenta-fecha { font: 800 24px 'Sora', sans-serif; margin-top: 4px; } .cuenta-hora { color: #CDBCE6; font-size: 13px; margin-top: 4px; }
   .cuenta-n { display: flex; justify-content: center; gap: 14px; margin-top: 6px; } .cuenta-n span { display: flex; flex-direction: column; } .cuenta-n b { font: 800 30px 'Sora', sans-serif; } .cuenta-n i { font-style: normal; font-size: 12px; color: #CDBCE6; }
   .recordatorios { margin-bottom: 18px; padding: 14px 16px; border-radius: 16px; background: #fff; border: 1px solid #E6DDF2; box-shadow: 0 6px 24px -18px rgba(59,20,104,.35); }
   .rec-fila { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-weight: 600; } .rec-fila a { color: #7B2FBE; } .rec-fila em { font-style: normal; color: #1C7A47; }
@@ -646,7 +647,7 @@ const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;',
 const CLASES = CURSO.modulos.flatMap(m => m.clases.map(c => ({ ...c, mod: m })));
 const KEY = 'guia-taller-ia-progreso';
 /* Fecha y hora de la clase (para la cuenta regresiva). Formato: '2026-11-20T17:00:00-06:00'. Vacío = por confirmar. */
-const SESION = { inicio: '' };
+const SESION = { fecha: '2026-12-03', hora: '', inicio: '' };   // Jueves 3 de diciembre de 2026 · hora por confirmar (cuando haya hora: inicio = '2026-12-03T17:00:00-06:00')
 const etiq = c => c.etiqueta ? (/^\d+$/.test(c.etiqueta) ? 'CLASE ' + esc(c.etiqueta) : esc(c.etiqueta)) : 'CLASE ' + esc(c.id);
 /* Estado de los módulos que Jany abre o bloquea (viene de la plataforma) */
 let ESTADO_SECC = null, BRIEF = (() => { try { return JSON.parse(localStorage.getItem(KEY + '-brief')) || null; } catch (e) { return null; } })();
@@ -663,7 +664,12 @@ function viewBloqueada(c) {
 }
 function pintarCuenta() {
   document.querySelectorAll('[data-cuenta]').forEach(el => {
-    if (!SESION.inicio) { el.innerHTML = '<b>📅 Fecha y hora por confirmar</b>'; return; }
+    if (!SESION.inicio) {
+      if (!SESION.fecha) { el.innerHTML = '<b>📅 Fecha y hora por confirmar</b>'; return; }
+      const dias = Math.ceil((new Date(SESION.fecha + 'T00:00:00') - new Date(new Date().toDateString())) / 864e5);
+      el.innerHTML = `<small>LA CLASE ES EL</small><div class="cuenta-fecha">Jueves 3 de diciembre</div><div class="cuenta-n"><span><b>${String(Math.max(0, dias)).padStart(2, '0')}</b><i>${dias === 1 ? 'día' : 'días'}</i></span></div><p class="cuenta-hora">${SESION.hora ? esc(SESION.hora) : 'Hora por confirmar'}</p>`;
+      return;
+    }
     const ms = new Date(SESION.inicio) - Date.now();
     if (ms <= 0) { el.innerHTML = '<b>🔴 ¡La clase ya comenzó! Entra a la sesión.</b>'; return; }
     const d = Math.floor(ms / 864e5), h = Math.floor(ms % 864e5 / 36e5), m = Math.floor(ms % 36e5 / 6e4), s = Math.floor(ms % 6e4 / 1e3);
