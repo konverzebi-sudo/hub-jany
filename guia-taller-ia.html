@@ -514,6 +514,17 @@ const CURSO = {
         ],
         revisa: ['Respondiste la dinámica 3 mientras Jany contaba su historia.', 'Viste los resultados del grupo.'] }
     ]},
+    { id: 'superprompt', titulo: 'Jefe de Marketing IA', emoji: '🧠', seccion: 'modulo-3', bloqueado: true, clases: [
+      { id: 'SP', etiqueta: 'IA', titulo: 'Tu SUPERPROMPT', resumen: 'Comienza la práctica: construye un asistente que conoce tu negocio y crece por versiones.',
+        objetivo: 'Copiar tu SUPERPROMPT personalizado y completar la Misión 1: encontrar tu producto estrella.',
+        tip: 'No vas a crear seis prompts separados: vas a construir un solo asistente que irá evolucionando. Hoy empieza la versión V0.1.',
+        antes: [],
+        etapas: [
+          { titulo: 'Comienza la práctica · Diapositiva 32', texto: 'Tu SUPERPROMPT ya incluye la información de tu PRE-BRIEF. Cópialo, pégalo en un chat nuevo de ChatGPT y tu Jefe de Marketing IA empezará directo con tu producto estrella.', embed: 'superprompt' },
+          { titulo: 'Misión 1 · V0.1 Producto estrella', texto: 'Responde una pregunta a la vez. Tu asistente te recomendará qué producto impulsar según ventas, margen e inventario; la decisión final es tuya. Cuando la apruebes, guarda la "DECISIÓN V0.1".' }
+        ],
+        revisa: ['Copiaste tu SUPERPROMPT y lo pegaste en ChatGPT.', 'Tu asistente te dio un resumen de tu negocio sin volver a preguntarte todo.', 'Elegiste tu producto estrella.'] }
+    ]},
     { id: 'proposito', titulo: 'Propósito', emoji: '🎯', clases: [
       { id: '3', etiqueta: '04', titulo: 'Tu propósito', resumen: 'Las 3 actividades para conocer tus metas y lo que se te complica hoy.',
         objetivo: 'Compartir qué quieres lograr con la IA y qué se te complica hoy, para que el taller se enfoque en tu negocio.',
@@ -639,7 +650,9 @@ const SESION = { inicio: '' };
 const etiq = c => c.etiqueta ? (/^\d+$/.test(c.etiqueta) ? 'CLASE ' + esc(c.etiqueta) : esc(c.etiqueta)) : 'CLASE ' + esc(c.id);
 /* Estado de los módulos que Jany abre o bloquea (viene de la plataforma) */
 let ESTADO_SECC = null, BRIEF = (() => { try { return JSON.parse(localStorage.getItem(KEY + '-brief')) || null; } catch (e) { return null; } })();
+const BLOQUEOS_ACTIVOS = false;   // Jany: "por ahora muéstralo todo". Cambiar a true para que la guía respete los módulos bloqueados.
 function moduloBloqueado(m) {
+  if (!BLOQUEOS_ACTIVOS) return false;
   if (!m.seccion || (typeof MODO_PONENTE !== 'undefined' && MODO_PONENTE)) return false;
   const est = ESTADO_SECC ? ESTADO_SECC[m.seccion] : (m.bloqueado ? 'bloqueada' : 'disponible');
   return est === 'bloqueada';
@@ -673,6 +686,7 @@ window.addEventListener('message', ev => {
     const antes = JSON.stringify(ESTADO_SECC); ESTADO_SECC = {}; (d.secciones || []).forEach(x => ESTADO_SECC[x.clave] = x.estado);
     if (antes !== JSON.stringify(ESTADO_SECC)) route();
   }
+  if (d.taller === 'ir' && d.hash) { location.hash = d.hash; return; }
   if (d.taller === 'brief') {
     BRIEF = { pct: d.pct }; try { localStorage.setItem(KEY + '-brief', JSON.stringify(BRIEF)); } catch (e) {}
     const c = CLASES.find(x => x.recordatorios);
@@ -809,7 +823,7 @@ function viewClase(c) {
         ${e.cuenta ? `<div class="cuenta" data-cuenta></div>` : ''}
         ${e.boton === 'ayuda' ? `<button type="button" class="btn" data-abrir-ayuda>🛟 Probar el botón de soporte</button>` : ''}
         ${e.herramienta ? `<div class="gm-hueco" data-metricas="${esc(e.herramienta)}"></div>` : ''}
-        ${e.embed ? `<iframe class="embed-taller" data-din="${esc(e.embed)}" src="taller-app/?embed=${encodeURIComponent(e.embed)}${MODO_PONENTE ? '&rol=ponente' : ''}" title="${esc(e.titulo)}" loading="lazy"></iframe>` : ''}
+        ${e.embed ? `<iframe class="embed-taller" data-din="${esc(e.embed)}" src="taller-app/?embed=${encodeURIComponent(e.embed)}${MODO_PONENTE ? '&rol=ponente' : ''}" title="${esc(e.titulo)}" loading="lazy" allow="clipboard-write"></iframe>` : ''}
         ${e.checks ? `<div class="card etapa-checks">${e.checks.map((t, j) => `<label class="chk"><input type="checkbox" data-chk="${esc(c.id)}-${k}-${j}" ${chks[c.id + '-' + k + '-' + j] ? 'checked' : ''}><span>${esc(t)}</span></label>`).join('')}</div>` : ''}
         ${(e.prompts || []).map(p => `
           <div class="prompt">
