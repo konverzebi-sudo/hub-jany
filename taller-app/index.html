@@ -476,6 +476,11 @@
   .spx textarea { width: 100%; min-height: 240px; margin-top: 8px; font-size: 12px; background: #080808; color: #E8E8E8; border: 1px solid rgba(255,255,255,.15); }
   .spx-nota { margin-top: 8px; font-size: 12px; color: #9A9A9A; }
   @media (max-width: 520px) { .spx-ruta { grid-template-columns: repeat(2, 1fr); } }
+  .mc { margin-top: 10px; padding: 12px; border-radius: 12px; background: var(--card-2); }
+  .mc-cols { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .mc-c { display: flex; align-items: center; gap: 6px; padding: 4px 8px 4px 4px; border-radius: 99px; background: #fff; border: 1px solid var(--line); font: 600 12px 'JetBrains Mono', monospace; }
+  .mc-c input[type=color] { width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; }
+  .mc-c button { font-size: 11px; color: var(--dim); }
   .sp-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; } .sp-h b { font-family: 'Sora', sans-serif; }
   .sp-falta { background: #FFF8E1; border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; }
   body.embed { background: transparent; }
@@ -1582,7 +1587,7 @@ function montarPrepara() {
     html += `<p class="muted small" style="margin-bottom:14px">Solo imágenes PNG, JPG o WEBP de hasta 8 MB.</p>` + MATERIALES.map(([k, l, max]) => `
       <div class="field"><label class="f">${esc(l)}</label>
       ${soloLectura ? '' : `<input type="file" accept="image/png,image/jpeg,image/webp" ${max > 1 ? 'multiple' : ''} data-cat="${k}" data-max="${max}">`}
-      <div class="thumbs" data-thumbs="${k}"></div></div>`).join('');
+      <div class="thumbs" data-thumbs="${k}"></div>${k === 'logo' ? '<div id="marcaColores"></div>' : ''}</div>`).join('');
   } else if (b.k === 'F') {
     const v = D.F || {};
     html += CHECKS.map((c, i) => `<label class="opt ${v[i] ? 'sel' : ''}" style="margin-bottom:8px"><input type="checkbox" name="chk" data-i="${i}" ${v[i] ? 'checked' : ''} ${dis}>${esc(c)}</label>`).join('');
@@ -1630,8 +1635,24 @@ async function montarArchivos(D, a, soloLectura) {
     }
   };
   MATERIALES.forEach(([cat]) => pintar(cat));
+  // 🎨 Colores de marca: se detectan del logotipo y el participante los aprueba (van al SUPERPROMPT)
+  const guardarD = () => api.responder(a.id, D, 'ABCDEF'.split('').every(x => D._ok[x])).catch(() => {});
+  const pintarColores = () => {
+    const box = document.getElementById('marcaColores'); if (!box) return;
+    const m = D.marca || {}, cols = m.colores || [];
+    if (!cols.length) { box.innerHTML = (D.E.logo || []).length && !soloLectura ? '<button type="button" class="btn ghost sm" id="mcDetectar" style="margin-top:8px">🎨 Detectar los colores de mi logo</button>' : '<p class="small muted" style="margin-top:6px">🎨 Cuando subas tu logotipo detectaremos los colores de tu marca.</p>'; }
+    else box.innerHTML = `<div class="mc"><b>🎨 Colores de tu marca</b><p class="small muted">Los detectamos de tu logotipo. Ajústalos si hace falta y apruébalos: tu asistente los usará en imágenes y recomendaciones.</p>
+      <div class="mc-cols">${cols.map((c, i) => `<label class="mc-c"><input type="color" value="${esc(c)}" data-mc="${i}" ${soloLectura ? 'disabled' : ''}><span>${esc(c.toUpperCase())}</span>${soloLectura ? '' : `<button type="button" data-mcx="${i}" title="Quitar">✕</button>`}</label>`).join('')}</div>
+      ${soloLectura ? '' : `<div class="row" style="margin-top:8px"><button type="button" class="btn sm" id="mcAprobar" ${m.aprobado ? 'disabled' : ''}>${m.aprobado ? '✅ Colores aprobados' : '✓ Aprobar mis colores'}</button><button type="button" class="btn ghost sm" id="mcDetectar">↻ Detectar de nuevo</button></div>`}</div>`;
+    box.querySelectorAll('[data-mc]').forEach(inp => inp.onchange = () => { D.marca.colores[+inp.dataset.mc] = inp.value; D.marca.aprobado = false; guardarD(); pintarColores(); });
+    box.querySelectorAll('[data-mcx]').forEach(b => b.onclick = () => { D.marca.colores.splice(+b.dataset.mcx, 1); D.marca.aprobado = false; guardarD(); pintarColores(); });
+    const ap = document.getElementById('mcAprobar'); if (ap) ap.onclick = () => { D.marca.aprobado = true; D.marca.aprobado_en = new Date().toISOString(); guardarD(); pintarColores(); toast('¡Colores de tu marca aprobados!'); };
+    const de = document.getElementById('mcDetectar'); if (de) de.onclick = async () => { const p = (D.E.logo || [])[0]; if (!p) return; try { D.marca = { colores: await extraerColores(await api.urlArchivo(p)), aprobado: false }; guardarD(); pintarColores(); } catch (e) { toast('No pudimos leer los colores de tu logo'); } };
+  };
+  pintarColores();
   document.querySelectorAll('input[type=file]').forEach(inp => inp.onchange = async () => {
     const cat = inp.dataset.cat, max = +inp.dataset.max;
+    if (cat === 'logo' && inp.files[0]) { const u = URL.createObjectURL(inp.files[0]); extraerColores(u).then(c => { if (c.length) { D.marca = { colores: c, aprobado: false }; guardarD(); pintarColores(); } }).catch(() => {}).finally(() => URL.revokeObjectURL(u)); }
     const files = [...inp.files];
     if ((D.E[cat] || []).length + files.length > max) { toast(`Máximo ${max} en esta categoría`); inp.value = ''; return; }
     for (const f of files) {
@@ -1641,6 +1662,29 @@ async function montarArchivos(D, a, soloLectura) {
     inp.value = '';
     try { await api.responder(a.id, D, 'ABCDEF'.split('').every(x => D._ok[x])); } catch (e) {}
     pintar(cat); toast('Archivos guardados');
+  });
+}
+/* Paleta de un logotipo: ignora transparencias y el fondo blanco; agrupa tonos parecidos y devuelve hasta 5 colores */
+function extraerColores(src) {
+  return new Promise((ok, mal) => {
+    const img = new Image(); img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const n = 80, cv = document.createElement('canvas'); cv.width = n; cv.height = n;
+        const cx = cv.getContext('2d'); cx.drawImage(img, 0, 0, n, n);
+        const px = cx.getImageData(0, 0, n, n).data, cub = {};
+        for (let i = 0; i < px.length; i += 4) {
+          const [r, g, b, al] = [px[i], px[i + 1], px[i + 2], px[i + 3]];
+          if (al < 128 || (r > 238 && g > 238 && b > 238)) continue;
+          const k = (r >> 4) + ',' + (g >> 4) + ',' + (b >> 4), c = cub[k] = cub[k] || { n: 0, r: 0, g: 0, b: 0 };
+          c.n++; c.r += r; c.g += g; c.b += b;
+        }
+        const lista = Object.values(cub).map(c => ({ n: c.n, r: c.r / c.n, g: c.g / c.n, b: c.b / c.n })).sort((x, y) => y.n - x.n), elegidos = [];
+        for (const c of lista) { if (elegidos.every(e => Math.hypot(e.r - c.r, e.g - c.g, e.b - c.b) > 60)) elegidos.push(c); if (elegidos.length === 5) break; }
+        ok(elegidos.map(c => '#' + [c.r, c.g, c.b].map(v => Math.round(v).toString(16).padStart(2, '0')).join('')));
+      } catch (e) { mal(e); }
+    };
+    img.onerror = mal; img.src = src;
   });
 }
 function resumenPrework(D) {
@@ -2192,10 +2236,10 @@ OBJETIVO COMERCIAL
 - Meta: ${v(Ob.meta)}
 
 IDENTIDAD DE MARCA
-- Colores corporativos: No proporcionado en el PRE-BRIEF
+- Colores corporativos: ${(D.marca?.colores || []).length ? D.marca.colores.map(c => c.toUpperCase()).join(', ') + (D.marca.aprobado ? ' (aprobados por mí, detectados de mi logotipo)' : ' (detectados de mi logotipo; aún no los confirmo)') : 'No proporcionado en el PRE-BRIEF'}
 - Estilo visual: No proporcionado en el PRE-BRIEF
 - Personalidad y tono de comunicación: No proporcionado en el PRE-BRIEF
-(Si los necesitas, pregúntamelos de forma breve; también puedes deducir estilo y colores de mi logotipo y fotos cuando los adjunte.)
+(Usa mis colores corporativos en todas las imágenes, diseños y recomendaciones visuales. Si falta algún dato de marca, pregúntamelo de forma breve; también puedes deducir el estilo de mi logotipo y fotos cuando los adjunte.)
 
 MATERIALES VISUALES (archivos que no viajan como texto)
 ${archivos}
