@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reloj · Hub de Jefes</title>
+<style>
+  :root { --bg: #101522; --neon: #C9F507; --txt: #FFFFFF; --dim: #8A93A8; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: radial-gradient(ellipse at 50% 0%, rgba(201,245,7,.10), transparent 60%), var(--bg);
+    color: var(--txt); font-family: 'Arial Black', Arial, Helvetica, sans-serif;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 4vmin; padding: 4vmin; overflow: hidden; cursor: default; user-select: none;
+  }
+  body::before {
+    content: ''; position: fixed; inset: 0; pointer-events: none;
+    background-image: linear-gradient(rgba(201,245,7,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(201,245,7,.05) 1px, transparent 1px);
+    background-size: 6vmin 6vmin;
+    mask-image: radial-gradient(ellipse at center, #000 30%, transparent 75%);
+    -webkit-mask-image: radial-gradient(ellipse at center, #000 30%, transparent 75%);
+  }
+  .marca { font-size: clamp(14px, 3vmin, 30px); letter-spacing: .3em; color: var(--txt); }
+  .marca b { color: var(--neon); }
+  .reloj { display: flex; align-items: center; gap: 2.5vmin; }
+  .bloque {
+    width: clamp(90px, 26vmin, 340px); aspect-ratio: 1 / 1.05;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    border: max(2px, .45vmin) solid var(--neon); border-radius: 4vmin;
+    background: linear-gradient(160deg, rgba(201,245,7,.08), rgba(16,21,34,.6));
+    box-shadow: 0 0 3vmin rgba(201,245,7,.35), inset 0 0 3vmin rgba(201,245,7,.12);
+  }
+  .num { font-size: clamp(44px, 15vmin, 200px); line-height: 1; color: var(--neon); font-variant-numeric: tabular-nums; text-shadow: 0 0 2.5vmin rgba(201,245,7,.55); }
+  .lbl { margin-top: 1.6vmin; font-family: Arial, Helvetica, sans-serif; font-weight: 700; font-size: clamp(11px, 2.6vmin, 28px); letter-spacing: .25em; color: var(--txt); }
+  .sep { font-size: clamp(30px, 10vmin, 130px); color: var(--neon); opacity: .8; animation: lat 1s steps(1) infinite; }
+  @keyframes lat { 50% { opacity: .2; } }
+  .fin { display: none; text-align: center; font-size: clamp(34px, 11vmin, 150px); line-height: 1.05; color: var(--neon); text-shadow: 0 0 3vmin rgba(201,245,7,.6); animation: pulso 1.2s ease-in-out infinite; }
+  @keyframes pulso { 50% { transform: scale(1.04); } }
+  body.acabado .reloj { display: none; } body.acabado .fin { display: block; }
+  .full { position: fixed; right: 2vmin; bottom: 2vmin; font: 700 12px Arial, sans-serif; color: var(--dim); background: none; border: 1px solid rgba(255,255,255,.15); border-radius: 99px; padding: 6px 12px; cursor: pointer; opacity: .5; }
+  .full:hover { opacity: 1; color: var(--neon); border-color: var(--neon); }
+  @media (max-aspect-ratio: 3/4) { .reloj { gap: 1.5vmin; } .sep { display: none; } }
+</style>
+</head>
+<body>
+  <div class="marca">HUB DE <b>JEFES</b></div>
+  <div class="reloj">
+    <div class="bloque"><span class="num" id="h">00</span><span class="lbl">HORAS</span></div>
+    <span class="sep">:</span>
+    <div class="bloque"><span class="num" id="m">00</span><span class="lbl">MINUTOS</span></div>
+    <span class="sep">:</span>
+    <div class="bloque"><span class="num" id="s">00</span><span class="lbl">SEGUNDOS</span></div>
+  </div>
+  <div class="fin">¡SE ACABÓ<br>EL TIEMPO!</div>
+  <button class="full" id="full" type="button" title="Pantalla completa">⛶ Pantalla completa</button>
+<script>
+  // Meta: las próximas 12:00 AM (00:00) según la hora local del dispositivo. Se fija una sola vez: al llegar a cero se detiene y no se reinicia.
+  var meta = new Date(); meta.setHours(24, 0, 0, 0);
+  var dos = function (n) { return (n < 10 ? '0' : '') + n; };
+  var el = { h: document.getElementById('h'), m: document.getElementById('m'), s: document.getElementById('s') };
+  var timer;
+  function pintar() {
+    var ms = meta - Date.now();
+    if (ms <= 0) { clearInterval(timer); el.h.textContent = el.m.textContent = el.s.textContent = '00'; document.body.classList.add('acabado'); return; }
+    var t = Math.ceil(ms / 1000);
+    el.h.textContent = dos(Math.floor(t / 3600)); el.m.textContent = dos(Math.floor(t % 3600 / 60)); el.s.textContent = dos(t % 60);
+  }
+  pintar(); timer = setInterval(pintar, 250);
+  var f = document.getElementById('full');
+  if (!document.fullscreenEnabled) f.style.display = 'none';
+  f.onclick = function () { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen().catch(function () {}); };
+  document.addEventListener('fullscreenchange', function () { f.style.display = document.fullscreenElement ? 'none' : ''; });
+</script>
+</body>
+</html>
