@@ -138,6 +138,10 @@
   .tags { display: flex; gap: 8px; flex-wrap: wrap; }
   .tag { font: 600 12px 'JetBrains Mono', monospace; padding: 5px 12px; border-radius: 999px; background: var(--lime); color: var(--ink); }
   .tag.soft { background: rgba(255,255,255,.05); color: var(--pink); border: 1px solid var(--line); }
+  .class-head.vivo { position: sticky; top: 70px; z-index: 15; background: #FAF8FD; padding: 12px 0 14px; margin-top: 4px; border-bottom: 1px solid #E6DDF2; grid-template-columns: 1fr minmax(300px, 46%); gap: 22px; }
+  .class-head.vivo h1 { font-size: clamp(26px, 3.4vw, 40px); margin-bottom: 6px; } .class-head.vivo .sub { font-size: 15px; }
+  .cover-vivo { aspect-ratio: 16 / 9; padding: 0; background: #0F0B16; }
+  .vivo-frame { display: block; width: 100%; height: 100%; border: 0; }
   .class-head { display: grid; grid-template-columns: 1fr 300px; gap: 30px; align-items: center; margin-top: 16px; }
   .class-head h1 { font-size: clamp(30px, 4.4vw, 46px); margin-bottom: 10px; }
   .class-head .sub { color: var(--muted); font-size: 17px; }
@@ -371,6 +375,10 @@
     .steps4 { grid-template-columns: 1fr 1fr; }
     .class-head { grid-template-columns: 1fr; }
     .cover { display: none; }
+    .class-head.vivo { top: 56px; grid-template-columns: 1fr; gap: 8px; padding: 8px 0 10px; }
+    .class-head.vivo .cover-vivo { display: block; order: -1; }
+    .class-head.vivo .sub, .class-head.vivo .chips, .class-head.vivo .class-actions { display: none; }
+    .class-head.vivo h1 { font-size: 22px; margin: 0; }
   }
   @media (max-width: 860px) {
     .app { grid-template-columns: 1fr; }
@@ -832,6 +840,9 @@ function viewInicio() {
 
 function marcar(t) { return esc(t).replace(/\[([^\]]+)\]/g, '<mark>[$1]</mark>'); }
 
+/* Clases de la sesión en vivo: arriba, fija, la diapositiva que va dando Jany */
+const MODULOS_EN_VIVO = ['calienta', 'superprompt'];
+const enVivoClase = c => MODULOS_EN_VIVO.includes(c.mod.id);
 function viewClase(c) {
   const i = CLASES.indexOf(c), prev = CLASES[i - 1], next = CLASES[i + 1];
   const nP = c.etapas.reduce((n, e) => n + (e.prompts || []).length, 0);
@@ -840,7 +851,7 @@ function viewClase(c) {
     ${c.recordatorios ? `<div class="recordatorios" data-recordatorios></div>` : ''}
     ${MODO_PONENTE && c.mod.seccion ? `<iframe class="embed-taller" data-din="seccion" src="taller-app/?embed=seccion&s=${encodeURIComponent(c.mod.seccion)}&rol=ponente" title="Control del módulo"></iframe>` : ''}
     <div class="tags"><span class="tag">${etiq(c)}</span><span class="tag soft">${c.mod.emoji} ${esc(c.mod.titulo)}</span></div>
-    <div class="class-head">
+    <div class="class-head ${enVivoClase(c) ? 'vivo' : ''}">
       <div>
         <h1>${esc(c.titulo)}</h1>
         <p class="sub">${esc(c.objetivo)}</p>
@@ -850,7 +861,7 @@ function viewClase(c) {
           ${nP ? `<button class="chip-btn" data-copyall>⬇ Copiar todos los prompts</button>` : ''}
         </div>
       </div>
-      <div class="cover"><span class="emoji">${c.mod.emoji}</span><small>${etiq(c)}</small><b>${esc(c.titulo)}</b></div>
+      ${enVivoClase(c) ? `<div class="cover cover-vivo"><iframe class="vivo-frame" src="taller-app/?embed=presentacion&mini=1${MODO_PONENTE ? '&rol=ponente' : ''}" title="Presentación en vivo"></iframe></div>` : `<div class="cover"><span class="emoji">${c.mod.emoji}</span><small>${etiq(c)}</small><b>${esc(c.titulo)}</b></div>`}
     </div>
     <div class="tip"><span>💡</span><div>${esc(c.tip)}</div></div>
     <div class="sec-title"><span class="ico">🗺️</span><div><h2>Mapa de la clase</h2></div></div>

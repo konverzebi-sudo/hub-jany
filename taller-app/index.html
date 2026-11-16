@@ -485,6 +485,12 @@
   .bt-sello { display: inline-block; margin-top: 2px; font: 700 11px 'JetBrains Mono', monospace; letter-spacing: .1em; color: #C9F507; }
   .bt-id-body { padding: 14px 16px; font-size: 14.5px; line-height: 1.55; } .bt-id-body h4 { font: 700 12px 'JetBrains Mono', monospace; letter-spacing: .1em; text-transform: uppercase; color: #7B2FBE; margin: 12px 0 4px; } .bt-id-body h4:first-child { margin-top: 0; } .bt-id-body p { margin: 3px 0; } .bt-id-body b { color: #3B1468; }
   .bt-ficha.listo { padding: 0; border: 0; background: none; }
+  body.mini { background: transparent !important; overflow: hidden; } body.mini #root { padding: 0 !important; margin: 0 !important; max-width: none !important; }
+  .mini-pres { position: fixed; inset: 0; background: #0F0B16; display: flex; align-items: center; justify-content: center; }
+  .mini-pres img { width: 100%; height: 100%; object-fit: contain; } .mini-pres iframe { width: 100%; height: 100%; border: 0; }
+  .mini-pres .pres-sin { color: #fff; }
+  .mini-pill { position: absolute; left: 10px; top: 10px; font: 700 10px 'JetBrains Mono', monospace; letter-spacing: .08em; padding: 3px 8px; border-radius: 99px; background: rgba(15,11,22,.75); color: #fff; }
+  .mini-pill.live { background: #C9F507; color: #0F0B16; }
   .pres-reloj { aspect-ratio: 16 / 9; background: #101522; } .pres-reloj iframe { display: block; width: 100%; height: 100%; border: 0; }
   .spx { border-radius: 20px; overflow: hidden; background: #080808; color: #FFFFFF; }
   .spx-top { padding: 20px; background: radial-gradient(ellipse at 90% 0%, rgba(192,248,0,.22), transparent 55%), #080808; }
@@ -2162,6 +2168,8 @@ const DIAPO_RESULTADOS = new Set(['PB5fHFylSM3bjhlg', 'PBgGphWbgzQLZPMX', 'PBtBf
 // Diapositivas donde, en lugar de la imagen, corre en vivo el reloj regresivo (diapositiva 62 de Canva)
 const DIAPO_RELOJ = new Set(['PBPmFClmWZjHyPtY']);
 const RELOJ_URL = '../reloj-hub-de-jefes.html';
+const CANVA_IMG = new Set(CANVA_PAGINAS);   // exportadas de Canva el 2026-11-16
+const MINI = qs.get('mini') === '1';        // solo la diapositiva (ventanita fija de la guía)
 // Notas originales de Canva: solo se cargan en la vista de ponente (nunca para alumnos ni proyección)
 async function cargarNotasCanva() {
   if (cargarNotasCanva.v !== undefined) return cargarNotasCanva.v;
@@ -2232,8 +2240,13 @@ async function vistaPresentacion() {
 async function vistaTeleprompter() {
   const root = $('#root'), ponente = S.rol === 'ponente', total = CANVA_PAGINAS.length;
   const n = Math.min(total, Math.max(1, Number(S.estado?.diapositiva) || 1)), empezo = !!S.estado?.diapositiva, pid = CANVA_PAGINAS[n - 1];
-  const img = DIAPO_IMG[pid] ? `diapos/${DIAPO_IMG[pid]}.jpg` : null;
+  const img = CANVA_IMG.has(pid) ? `diapos/canva/${pid}.jpg` : DIAPO_IMG[pid] ? `diapos/${DIAPO_IMG[pid]}.jpg` : null;
   const din = DIAPO_DIN_ID[pid] && act(DIAPO_DIN_ID[pid]);
+  if (MINI) {
+    document.body.classList.add('mini');
+    root.innerHTML = `<div class="mini-pres">${DIAPO_RELOJ.has(pid) ? `<iframe src="${RELOJ_URL}" title="Reloj regresivo"></iframe>` : img ? `<img src="${img}" alt="Diapositiva ${n}">` : `<div class="pres-sin"><b>Diapositiva ${n}</b></div>`}<span class="mini-pill ${empezo ? 'live' : ''}">${empezo ? '● EN VIVO' : 'POR EMPEZAR'} · ${n}</span></div>`;
+    return;
+  }
   const reloj = DIAPO_RELOJ.has(pid);
   const diapo = reloj ? `<div class="pres-img pres-reloj"><iframe src="${RELOJ_URL}" title="Reloj regresivo" id="pReloj" allow="fullscreen"></iframe></div>` : `<div class="pres-img ${din ? 'verde' : ''}">${img ? `<img src="${img}" alt="Diapositiva ${n}" id="pImg">` : `<div class="pres-sin"><b>Diapositiva ${n}</b><span>${ponente ? 'Aún sin imagen exportada (se ve en Zoom)' : 'Sigue la explicación de Jany'}</span></div>`}</div>`;
   if (!ponente) {
