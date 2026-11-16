@@ -142,6 +142,12 @@
   .class-head.vivo h1 { font-size: clamp(26px, 3.4vw, 40px); margin-bottom: 6px; } .class-head.vivo .sub { font-size: 15px; }
   .cover-vivo { aspect-ratio: 16 / 9; padding: 0; background: #0F0B16; }
   .cover-vivo { position: relative; }
+  /* Reacciones tipo historias: un solo botón y lluvia de emojis de dinero */
+  .vivo-react { position: absolute; left: 10px; bottom: 10px; z-index: 3; width: 44px; height: 44px; border-radius: 50%; border: 2px solid #C9F507; background: rgba(15,11,22,.8); font-size: 22px; line-height: 1; cursor: pointer; box-shadow: 0 0 14px rgba(201,245,7,.45); transition: transform .12s; }
+  .vivo-react:active { transform: scale(.88); }
+  .reac-capa { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 2; border-radius: inherit; }
+  .reac { position: absolute; bottom: -10%; line-height: 1; animation: reacSube var(--d, 2.6s) ease-out forwards; }
+  @keyframes reacSube { 0% { transform: translate(0, 0) scale(.6); opacity: 0; } 12% { opacity: 1; transform: translate(calc(var(--x) * .2), -12%) scale(1); } 60% { opacity: 1; } 100% { transform: translate(var(--x), calc(var(--h) * -1)) scale(1.15) rotate(var(--r)); opacity: 0; } }
   .vivo-btns { position: absolute; right: 10px; bottom: 10px; display: flex; gap: 6px; }
   .vivo-btns button { padding: 6px 12px; border: 0; border-radius: 99px; background: #C9F507; color: #0F0B16; font: 800 12px 'Sora', sans-serif; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,.35); }
   .vivo-btns button:hover { filter: brightness(.95); }
@@ -739,6 +745,26 @@ window.addEventListener('message', ev => {
   }
 });
 document.addEventListener('click', e => { if (e.target.closest('[data-abrir-ayuda]')) document.getElementById('ayudaFab')?.click(); });
+/* Reacciones: un toque = lluvia de emojis de dinero sobre la ventanita (por ahora solo en tu pantalla;
+   al conectar usuarios se mandarán en vivo a todos por el canal de la sesión) */
+const EMOJIS_DINERO = ['💰', '💸', '🤑', '💵', '💲', '🪙', '💶', '💷', '💴', '🏦', '💳', '🫰'];
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-reaccion]'); if (!b) return;
+  const caja = b.parentElement;
+  let capa = caja.querySelector('.reac-capa'); if (!capa) { capa = document.createElement('div'); capa.className = 'reac-capa'; caja.appendChild(capa); }
+  const n = 5 + Math.floor(Math.random() * 4), alto = caja.offsetHeight + 40;
+  for (let i = 0; i < n; i++) setTimeout(() => {
+    const el = document.createElement('span'); el.className = 'reac';
+    el.textContent = EMOJIS_DINERO[Math.floor(Math.random() * EMOJIS_DINERO.length)];
+    el.style.left = (4 + Math.random() * 30) + '%';
+    el.style.fontSize = (22 + Math.random() * 22) + 'px';
+    el.style.setProperty('--x', (Math.random() * 140 - 30) + 'px');
+    el.style.setProperty('--h', alto + 'px');
+    el.style.setProperty('--r', (Math.random() * 60 - 30) + 'deg');
+    el.style.setProperty('--d', (2.2 + Math.random() * 1.4) + 's');
+    capa.appendChild(el); el.addEventListener('animationend', () => el.remove());
+  }, i * 90);
+});
 /* Ventanita de la presentación: más grande (sigue fija) o pantalla completa */
 document.addEventListener('click', e => {
   const t = e.target.closest('[data-vivo-teatro]'); if (!t) return;
@@ -883,7 +909,7 @@ function viewClase(c) {
           ${nP ? `<button class="chip-btn" data-copyall>⬇ Copiar todos los prompts</button>` : ''}
         </div>
       </div>
-      ${enVivoClase(c) ? `<div class="cover cover-vivo"><iframe class="vivo-frame" src="taller-app/?embed=presentacion&mini=1${MODO_PONENTE ? '&rol=ponente' : ''}" title="Presentación en vivo" allow="fullscreen"></iframe><div class="vivo-btns"><button type="button" data-vivo-teatro title="Más grande, puedes seguir bajando a las actividades">${vivoGrande() ? '▭ Más chica' : '▭ Más grande'}</button><button type="button" data-vivo-grande title="Pantalla completa">⛶ Pantalla completa</button></div></div>` : `<div class="cover"><span class="emoji">${c.mod.emoji}</span><small>${etiq(c)}</small><b>${esc(c.titulo)}</b></div>`}
+      ${enVivoClase(c) ? `<div class="cover cover-vivo"><iframe class="vivo-frame" src="taller-app/?embed=presentacion&mini=1${MODO_PONENTE ? '&rol=ponente' : ''}" title="Presentación en vivo" allow="fullscreen"></iframe><button type="button" class="vivo-react" data-reaccion title="¡Estoy aquí! Manda una reacción" aria-label="Mandar reacción">🤑</button><div class="vivo-btns"><button type="button" data-vivo-teatro title="Más grande, puedes seguir bajando a las actividades">${vivoGrande() ? '▭ Más chica' : '▭ Más grande'}</button><button type="button" data-vivo-grande title="Pantalla completa">⛶ Pantalla completa</button></div></div>` : `<div class="cover"><span class="emoji">${c.mod.emoji}</span><small>${etiq(c)}</small><b>${esc(c.titulo)}</b></div>`}
     </div>
     <div class="tip"><span>💡</span><div>${esc(c.tip)}</div></div>
     <div class="sec-title"><span class="ico">🗺️</span><div><h2>Mapa de la clase</h2></div></div>
