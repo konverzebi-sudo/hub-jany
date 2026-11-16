@@ -417,6 +417,8 @@
   .res-tq.xl .res-tq-k b { color: var(--lime); font-size: 56px; } .res-tq.xl .res-tq-k small { color: #CDBCE6; font-size: 18px; }
   .res-top { margin-top: 14px; } .res-tq.xl .res-top { font-size: 20px; color: #EDE4FA; }
   .tq-ctrl { gap: 8px; margin-bottom: 10px; }
+  .tq-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .tq-acc { white-space: nowrap; } .tq-acc .btn { display: block; margin-bottom: 6px; } .tq-acc .pill { font-size: 10px; }
   .tq-tabla { font-size: 13px; } .tq-tabla tr.sug { background: #F3FDD6; }
   .tag-sug { font: 700 10px 'JetBrains Mono', monospace; padding: 2px 6px; border-radius: 6px; background: var(--lime); color: var(--ink); }
   .cl-improvisar { color: #8A3A00; font-weight: 700; } .cl-planificar { color: #1C7A47; font-weight: 700; } .cl-operacion { color: var(--dim); font-weight: 700; }
@@ -456,6 +458,11 @@
   .mf-card .cat-img { border-radius: 14px; } .mf-card b { display: block; font: 800 clamp(10px, 1.1vw, 16px) 'Sora', sans-serif; margin-top: 6px; color: #0F0B16; } .mf-card small { display: block; font-size: clamp(8px, .8vw, 12px); color: #2B2E22; }
   .brief-pct { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; font-weight: 600; font-size: 14px; } .brief-pct em { font-style: normal; color: #1C7A47; }
   .rec-barra { flex: 1; min-width: 120px; height: 10px; border-radius: 99px; background: #F0E6FC; overflow: hidden; } .rec-barra i { display: block; height: 100%; background: linear-gradient(90deg, #7B2FBE, #BBF802); }
+  .rm { display: grid; gap: 14px; } @media (min-width: 760px) { .rm { grid-template-columns: 1fr 1fr; } }
+  .rm-card { border-radius: 20px; padding: 18px; background: #fff; border: 1px solid #E6DDF2; color: #1C0A33; }
+  .rm-card h3 { font: 800 20px/1.2 'Sora', sans-serif; margin: 6px 0 12px; }
+  .rm-yo { background: linear-gradient(160deg, #3B1468, #1C0A33); color: #fff; border: 0; } .rm-yo h3 { color: #fff; } .rm-yo .bip-h, .rm-yo .bip-h b { color: #fff; }
+  .rm-lado { margin-top: 10px; font-size: 15px; color: #E5DCF2; } .rm-lado b { color: #C9F507; }
   .bt { border-radius: 20px; padding: 22px 20px; background: #fff; border: 1px solid #E6DDF2; color: #1C0A33; font-family: 'Inter', system-ui, sans-serif; }
   .bt h3 { font: 800 22px/1.2 'Sora', sans-serif; margin: 4px 0 6px; color: #1C0A33; }
   .bt-eyebrow { display: inline-block; font: 700 11px 'JetBrains Mono', monospace; letter-spacing: .12em; color: #3B1468; background: #C9F507; padding: 3px 8px; border-radius: 6px; }
@@ -1146,10 +1153,9 @@ function consolaToquesHtml(a, rs, alumnos) {
   return `${a.config.provisional ? '<p class="small tq-aviso">⚠️ Lista provisional de conceptos. Pega el guion real en "Editar conceptos".</p>' : ''}
     <div class="tq-ctrl row"><button type="button" class="btn ${a.config.mostrar_resultado ? 'dark' : ''} sm" data-tq-res="${a.id}">${a.config.mostrar_resultado ? '◀ VOLVER A LAS MANCHAS' : '📊 MOSTRAR RESULTADOS (DIAP. 19)'}</button>
       <a class="btn ghost sm" href="./?${api.demo ? 'rol=ponente&' : ''}#proyectar-${esc(a.clave)}" target="_blank" rel="noopener">📺 PROYECTAR</a></div>
-    <table class="tq-tabla"><tr><th>#</th><th>Concepto</th><th>Clase (interna)</th>${modoBloques(a) ? '<th>Bloque</th>' : ''}<th>Estado</th><th>Toques · personas</th><th></th></tr>
+    <div class="tq-scroll"><table class="tq-tabla"><tr><th>#</th><th>Concepto</th><th>Clase (interna)</th>${modoBloques(a) ? '<th>Bloque</th>' : ''}<th>Estado · botón</th><th>Toques · personas</th></tr>
     ${cs.map((c, i) => `<tr class="${i === sugerido ? 'sug' : ''}"><td>${i + 1}</td><td>${esc(c.nombre)}${i === sugerido ? ' <span class="tag-sug">SIGUIENTE</span>' : ''}</td><td><span class="cl-${c.clase}">${NOM_CLASE[c.clase] || c.clase}</span></td>${modoBloques(a) ? `<td>${c.bloque ? `<i class="cat-pt" style="background:${catsDe(a).find(b => b.id === c.bloque)?.color || '#ccc'}"></i> ${esc(catsDe(a).find(b => b.id === c.bloque)?.nombre || c.bloque)}` : '—'}</td>` : ''}
-      <td><span class="pill ${pill[c.estado || 'pendiente'][0]}">${pill[c.estado || 'pendiente'][1]}</span></td><td>${porC[c.id] || 0} · ${(personas[c.id] || new Set()).size}</td>
-      <td>${c.estado === 'publicado' ? `<button type="button" class="btn ghost sm" data-tq-est="desactivado" data-a="${a.id}" data-c="${c.id}">Desactivar</button>` : `<button type="button" class="btn sm" data-tq-est="publicado" data-a="${a.id}" data-c="${c.id}">▶ Publicar</button>`}</td></tr>`).join('')}</table>
+      <td class="tq-acc">${c.estado === 'publicado' ? `<button type="button" class="btn ghost sm" data-tq-est="desactivado" data-a="${a.id}" data-c="${c.id}">Desactivar</button>` : `<button type="button" class="btn sm" data-tq-est="publicado" data-a="${a.id}" data-c="${c.id}">▶ Publicar</button>`}<span class="pill ${pill[c.estado || 'pendiente'][0]}">${pill[c.estado || 'pendiente'][1]}</span></td><td>${porC[c.id] || 0} · ${(personas[c.id] || new Set()).size}</td></tr>`).join('')}</table></div>
     ${modoBloques(a) ? `<div class="balance"><b class="bal-t">Resultado por personas (en vivo · solo tú lo ves)</b>${resultadosBloquesHtml(a, rs)}</div>` : balanceHtml(tot, 'Resultado del grupo (en vivo)')}
     <details class="cv-det"><summary>🗂️ Respaldo individual (${Object.keys(porUser).length} participantes)</summary><table class="tq-tabla" style="margin-top:8px"><tr><th>Participante</th><th>Toques</th><th>Improvisar</th><th>Planificar</th><th>Operación</th><th>Detalle</th></tr>
       ${Object.values(porUser).map(({ r, ct }) => { const t = { improvisar: 0, planificar: 0, operacion: 0 }; let n = 0; Object.entries(ct).forEach(([c, v]) => { n += v; const k = cs.find(x => x.id === c)?.clase; if (t[k] != null) t[k] += v; });
@@ -1160,7 +1166,9 @@ function consolaToquesHtml(a, rs, alumnos) {
 document.addEventListener('click', async e => {
   const b = e.target.closest('[data-tq-est],[data-tq-res]'); if (!b) return;
   const a = S.actividades.find(x => x.id === (b.dataset.a || b.dataset.tqRes)); if (!a) return;
-  const cfg = b.dataset.tqRes ? { ...a.config, mostrar_resultado: !a.config.mostrar_resultado }
+  let fotoGrupo = a.config.resultado_grupo;
+  if (b.dataset.tqRes && !a.config.mostrar_resultado) { try { const R = resultadoPersonas(a, await api.respuestasDe(a.id)); fotoGrupo = { global: { n: R.global.n, imp: R.global.imp, pla: R.global.pla }, bloques: R.bloques.map(x => ({ id: x.b.id, nombre: x.b.nombre, n: x.n, imp: x.imp, pla: x.pla })), en: new Date().toISOString() }; } catch (e) {} }
+  const cfg = b.dataset.tqRes ? { ...a.config, mostrar_resultado: !a.config.mostrar_resultado, resultado_grupo: fotoGrupo }
     : { ...a.config, conceptos: conceptosDe(a).map(c => c.id === b.dataset.c ? { ...c, estado: b.dataset.tqEst } : c), activo: b.dataset.tqEst === 'publicado' ? b.dataset.c : (a.config.activo === b.dataset.c ? null : a.config.activo) };
   try { await api.setConfig(a.id, cfg); toast(b.dataset.tqRes ? (cfg.mostrar_resultado ? 'Resultados en pantalla' : 'Manchas en pantalla') : (b.dataset.tqEst === 'publicado' ? 'Publicado en los celulares' : 'Desactivado')); await recargar(); } catch (err) { toast(err.message); }
 });
@@ -2456,6 +2464,30 @@ async function vistaSuperprompt() {
   avisarAltura();
 }
 
+/* ---------------- DINÁMICA 3 · CONOCE TUS RESULTADOS: el grupo + tu resultado personal ---------------- */
+function vistaResultadosMarketing() {
+  const root = $('#root'), a = act('marketing');
+  if (!a) { root.innerHTML = '<div class="card din-espera">Sin dinámica.</div>'; return avisarAltura(); }
+  const r = miResp(a), yo = resultadoPersonas(a, r ? [r] : []), g = a.config.resultado_grupo;
+  const ponente = S.rol === 'ponente';
+  const lado = x => !x.n ? '' : x.imp > x.pla ? 'Por ahora estás más del lado de <b>improvisar</b> 🌀' : x.pla > x.imp ? 'Vas más del lado de <b>planear</b> 🎯' : 'Estás <b>justo a la mitad</b> ⚖️';
+  const grupoHtml = gg => `${barraIP(gg.global, '¿Improvisamos o planeamos? · Todo el grupo')}<div class="bip-ley"><span><i class="a"></i>Improvisamos</span><span><i class="b"></i>Planeamos</span></div>
+    <div class="res-bq-b" style="margin-top:10px">${gg.bloques.map(x => barraIP(x, esc(x.nombre || x.b?.nombre || ''))).join('')}</div>`;
+  const run = async () => {
+    let grupo = '';
+    if (ponente) { const R = resultadoPersonas(a, await api.respuestasDe(a.id)); grupo = grupoHtml({ global: R.global, bloques: R.bloques }) + '<p class="small muted" style="margin-top:8px">Vista de ponente: el grupo lo ve cuando tocas "Mostrar resultados".</p>'; }
+    else if (a.config.mostrar_resultado && g) grupo = grupoHtml(g);
+    else grupo = '<div class="din-espera card">⏳ Cuando te muestre los resultados en pantalla, aquí verás cómo está el grupo.</div>';
+    root.innerHTML = `<div class="rm">
+      <div class="rm-card rm-grupo"><small class="bt-eyebrow">EL GRUPO</small><h3>¿Cómo está el grupo?</h3>${grupo}</div>
+      <div class="rm-card rm-yo"><small class="bt-eyebrow">TU RESULTADO · SOLO TÚ LO VES</small><h3>¿Y tú cómo estás?</h3>
+        ${yo.global.n ? `${barraIP(yo.global, 'Tu balance')}<p class="rm-lado">${lado(yo.global)}</p><div class="res-bq-b" style="margin-top:10px">${yo.bloques.filter(x => x.n).map(x => barraIP(x, esc(x.b.nombre))).join('')}</div>`
+          : '<div class="din-espera card">Toca los conceptos de la dinámica 3 con los que te identificas y aquí aparecerá tu resultado.</div>'}</div></div>`;
+    avisarAltura();
+  };
+  run();
+}
+
 /* ---------------- HUBCITO EN MARCHA: lo que el participante trae de ChatGPT ----------------
    Una sola respuesta por persona (actividad "bitacora"); cada meta guarda su parte y su historial. */
 const MONITO = '<svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="58" fill="#EFE7FA"/><circle cx="60" cy="46" r="20" fill="#3B1468"/><path d="M22 104c4-22 20-34 38-34s34 12 38 34" fill="#3B1468"/><circle cx="60" cy="60" r="58" fill="none" stroke="#C9F507" stroke-width="4"/></svg>';
@@ -2600,6 +2632,7 @@ function vistaEmbed() {
   document.body.classList.add('embed');
   if (EMBED === 'presentacion') return vistaPresentacion();
   if (EMBED === 'superprompt') return vistaSuperprompt();
+  if (EMBED === 'resultados-marketing') return vistaResultadosMarketing();
   if (EMBED === 'producto' || EMBED === 'mercado') return S.rol === 'ponente' ? vistaBitacoraPonente(EMBED) : vistaBitacora(EMBED);
   if (EMBED === 'estado') { window.parent.postMessage({ taller: 'estado', secciones: S.secciones.map(x => ({ clave: x.clave, estado: x.estado })) }, '*'); $('#root').innerHTML = ''; return; }
   if (EMBED === 'seccion') {
