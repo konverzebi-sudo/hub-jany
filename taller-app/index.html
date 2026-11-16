@@ -487,6 +487,9 @@
   .bt-ficha.listo { padding: 0; border: 0; background: none; }
   body.mini { background: transparent !important; overflow: hidden; } body.mini #root { padding: 0 !important; margin: 0 !important; max-width: none !important; }
   .din-enviar { margin: 14px 0 20px; }
+  .mis-tareas { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .mi-tarea { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 12px; background: #EEF5FF; border: 1px solid #CFE2FF; }
+  .mi-tarea button { border: 0; background: none; color: #8A7BA0; font-size: 14px; cursor: pointer; }
   .mural-lbl { display: block; font-weight: 700; margin-bottom: 6px; }
   textarea.falta, input.falta { border-color: #E5484D !important; box-shadow: 0 0 0 3px rgba(229,72,77,.18); }
   .mini-pres { position: fixed; inset: 0; background: #0F0B16; display: flex; align-items: center; justify-content: center; }
@@ -659,7 +662,7 @@ function crearApiDemo(rol) {
       const a = db.actividades.find(x => x.id === aid);
       return db.respuestas.filter(r => r.actividad_id === aid && r.datos?.texto && (rol === 'ponente' || a.config.publico || a.config.mostrar_grupo || r.destacada))
         .sort((x, y) => (x.actualizado_en || '').localeCompare(y.actualizado_en || ''))
-        .map(r => ({ id: r.id, nombre: a.config.publico === 'chat' ? (db.perfiles[r.user_id]?.nombre || 'Participante').split(' ')[0] : null, usuario: a.config.publico === 'chat' ? (r.datos.usuario || '') : '', texto: r.datos.texto, actualizado_en: r.actualizado_en }));
+        .flatMap(r => (multiDe(a) ? textosDe(r.datos) : [r.datos.texto]).map((t, i) => ({ id: multiDe(a) ? r.id + '-' + i : r.id, nombre: a.config.publico === 'chat' ? (db.perfiles[r.user_id]?.nombre || 'Participante').split(' ')[0] : null, usuario: a.config.publico === 'chat' ? (r.datos.usuario || '') : '', texto: t, actualizado_en: r.actualizado_en })));
     },
     async reiniciar(aid) { if (rol !== 'ponente') throw new Error('Solo la ponente'); db.respuestas = db.respuestas.filter(r => r.actividad_id !== aid); guardar(); },
     async destacar(rid, v) { if (rol !== 'ponente') throw new Error('Solo la ponente'); const r = db.respuestas.find(x => x.id === rid); if (r) r.destacada = !!v; guardar(); },
@@ -869,6 +872,9 @@ const miResp = a => a && S.misRespuestas.find(r => r.actividad_id === a.id);
 const CLAVES_DINAMICAS = ['dedicas', 'delegarias', 'marketing', 'historia'];
 const CLAVES_ANTERIORES = ['improvisas', 'metas', 'situacion', 'diagnostico'];
 const nombreAct = a => a.config?.nombre || a.titulo;
+/* Dinámicas con varias respuestas por persona (¿Qué delegarías?): se guardan en datos.textos; datos.texto queda como resumen */
+const multiDe = a => a?.config?.multiples || (a?.clave === 'delegarias' ? 5 : 0);
+const textosDe = d => Array.isArray(d?.textos) ? d.textos.filter(Boolean) : d?.texto ? [d.texto] : [];
 /* Estado que ve el alumno: Pendiente (Jany no la abre) · Abierta · Respondida · Cerrada */
 function estadoAlumno(a) {
   if (a.estado === 'cerrada') return { k: 'pend', t: 'PENDIENTE', c: 'off' };
@@ -1436,7 +1442,7 @@ function pintarDinamica(a, num, cont) {
       const t = { improvisar: 0, planificar: 0, operacion: 0 }; Object.entries(r?.datos?.conteo || {}).forEach(([c, v]) => { const k = conceptosDe(a).find(x => x.id === c)?.clase; if (t[k] != null) t[k] += v; });
       cuerpo = `<div class="card"><div class="ok-msg">🏁 Esta actividad ha finalizado. Gracias por participar.</div>${r ? `<div style="margin-top:12px">${balanceHtml(t, 'Tu balance personal')}</div>` : ''}</div>`;
     }
-    const mia = a.config.toques ? '' : r ? (a.tipo === 'opciones' ? [...(r.datos.opciones || []), r.datos.otro].filter(Boolean).join(' · ') : r.datos.texto) : '';
+    const mia = a.config.toques ? '' : r ? (a.tipo === 'opciones' ? [...(r.datos.opciones || []), r.datos.otro].filter(Boolean).join(' · ') : multiDe(a) ? textosDe(r.datos).join(' · ') : r.datos.texto) : '';
     if (!a.config.toques && !modoCat(a)) cuerpo = `<div class="card"><div class="ok-msg">🏁 Esta actividad ha finalizado. Gracias por participar.</div>
       ${mia ? `<p class="small muted" style="margin-top:12px"><b>Tu respuesta:</b> ${esc(mia)}</p>` : ''}<div data-extra></div></div>`;
   } else if (modoCat(a)) {
@@ -1479,7 +1485,12 @@ function pintarDinamica(a, num, cont) {
         <input type="text" name="usuario" maxlength="30" placeholder="${esc(arroba(S.perfil?.nombre))}" value="${esc(r?.datos?.usuario || '')}" ${bloqueada ? 'disabled' : ''}>
         <p class="small mural-prev">Así aparecerá en el mural: <b data-prev-t>${esc(r?.datos?.texto || 'tu negocio')}</b> <span data-prev-u>${esc(arroba(S.perfil?.nombre, r?.datos?.usuario))}</span></p>
         <label class="row small"><input type="checkbox" name="confirma" ${r ? 'checked' : ''} ${bloqueada ? 'disabled' : ''}> Acepto que mi negocio y mi @ se muestren a todo el grupo en el mural.</label></div>` : '';
-    cuerpo = `<div class="card"><p class="muted" style="margin-bottom:12px">${esc(a.config.instruccion || '')}</p>
+    const mult = multiDe(a), mias = textosDe(r?.datos);
+    if (mult) cuerpo = `<div class="card"><p class="muted" style="margin-bottom:12px">${esc(a.config.instruccion || '')}</p>
+      ${mias.length ? `<div class="mis-tareas"><b class="small">Tus tareas (${mias.length} de ${mult})</b>${mias.map((t, i) => `<div class="mi-tarea"><span>${esc(t)}</span><button type="button" data-quitar-tarea="${i}" title="Quitar">✕</button></div>`).join('')}</div>` : ''}
+      ${mias.length < mult ? `<form><textarea maxlength="${a.config.max || 1500}" placeholder="${esc(mias.length ? 'Escribe otra tarea que delegarías' : (a.config.placeholder || 'Escribe tu respuesta'))}"></textarea><div class="din-enviar"><button class="btn">${mias.length ? '➕ AGREGAR OTRA TAREA' : esc(a.config.boton || 'ENVIAR')}</button></div></form>` : `<div class="ok-msg" style="margin-top:12px">Ya agregaste ${mult} tareas. Puedes quitar alguna para cambiarla.</div>`}
+      ${mias.length ? `<div class="ok-msg" style="margin-top:14px">✅ Cada tarea aparece en la pantalla del grupo, sin tu nombre.</div>` : ''}<div data-extra></div></div>`;
+    else cuerpo = `<div class="card"><p class="muted" style="margin-bottom:12px">${esc(a.config.instruccion || '')}</p>
       <form>${a.config.mural ? '<label class="small mural-lbl">Tu respuesta: ¿a qué se dedica tu negocio?</label>' : ''}${campo}${extraMural}<div class="din-enviar"><button class="btn">${esc(r ? 'GUARDAR CAMBIOS' : (a.config.boton || 'ENVIAR'))}</button></div></form>
       ${r ? `<div class="ok-msg" style="margin-top:14px">✅ Respuesta recibida. Puedes editarla mientras la actividad esté abierta.${a.config.publico === 'chat' ? ' Aparece en el chat del grupo con tu nombre.' : a.config.publico ? ' Aparece en la pantalla del grupo, sin tu nombre.' : a.config.compartir ? ' Solo yo la veo, a menos que decida compartirla (sin tu nombre).' : ''}</div>` : ''}<div data-extra></div></div>`;
   }
@@ -1554,15 +1565,20 @@ function pintarDinamica(a, num, cont) {
           return toast(a.config.mural ? 'Escribe arriba a qué se dedica tu negocio' : 'Escribe tu respuesta');
         }
         datos = { texto };
+        if (multiDe(a)) { const textos = [...textosDe(r?.datos), texto].slice(0, multiDe(a)); datos = { textos, texto: textos.join(' · ') }; }
         if (a.config.mural) {
           if (!li.querySelector('[name=confirma]')?.checked) return toast('Confirma que aceptas aparecer en el mural');
           datos.usuario = (li.querySelector('[name=usuario]')?.value || '').trim().replace(/^@+/, '');
         }
       }
       const b = form.querySelector('button'); b.disabled = true;
-      try { await api.responder(a.id, datos, true); toast('¡Gracias! Respuesta enviada'); await recargar(); } catch (err) { b.disabled = false; toast(err.message); }
+      try { await api.responder(a.id, datos, true); toast(multiDe(a) ? '¡Tarea agregada!' : '¡Gracias! Respuesta enviada'); await recargar(); } catch (err) { b.disabled = false; toast(err.message); }
     };
   }
+  li.querySelectorAll('[data-quitar-tarea]').forEach(b => b.onclick = async () => {
+    const textos = textosDe(r?.datos).filter((_, i) => i !== +b.dataset.quitarTarea);
+    try { await api.responder(a.id, { textos, texto: textos.join(' · ') }, textos.length > 0); toast('Tarea quitada'); await recargar(); } catch (err) { toast(err.message); }
+  });
   /* Lo que el grupo puede ver: resultados agregados o respuestas compartidas por Jany (sin nombre) */
   const extra = li.querySelector('[data-extra]');
   if (extra && a.tipo === 'opciones' && !a.config.quiz && !a.config.toques && r) {
@@ -1931,7 +1947,7 @@ function resultadosPonenteHtml(a, rs, alumnos) {
   } else {
     const textos = rs.map(r => r.datos?.texto || '').filter(Boolean);
     h += `<b class="small">Temas más repetidos</b><div class="chips" style="margin:8px 0 14px">${temasFrecuentes(textos).map(([w, n]) => `<span class="chip">${esc(w)} · ${n}</span>`).join('') || '<span class="small muted">—</span>'}</div>
-      ${a.config.telefono ? `<p class="small" style="margin-bottom:8px">👀 La pantalla pública muestra todas las respuestas en un carrusel de 6 en 6 que pasa solo, sin nombres. Aquí ves la lista completa.</p>${telefonoHtml(a, rs.filter(r => r.datos?.texto).map(r => ({ id: r.id, texto: r.datos.texto, actualizado_en: r.actualizado_en })))}
+      ${a.config.telefono ? `<p class="small" style="margin-bottom:8px">👀 La pantalla pública muestra todas las respuestas en un carrusel de 6 en 6 que pasa solo, sin nombres. Aquí ves la lista completa.</p>${telefonoHtml(a, rs.flatMap(r => textosDe(r.datos).map((t, i) => ({ id: r.id + '-' + i, texto: t, actualizado_en: r.actualizado_en }))))}
         <div class="apoyo"><b class="small">🛟 Respuestas de apoyo del equipo (${(a.config.apoyo || []).length}) · no cuentan como participación</b>
           <form data-apoyo-form="${a.id}" class="row" style="margin:8px 0"><input type="text" name="t" maxlength="140" placeholder="Ej. Contestar mensajes de WhatsApp" style="flex:1;min-width:200px"><button class="btn sm">+ Agregar</button></form>
           ${(a.config.apoyo || []).slice().reverse().map(x => `<div class="answer apoyo-r"><span class="tag-apoyo">APOYO</span> ${esc(x.texto)} <button type="button" class="link-x" data-apoyo-del="${a.id}" data-id="${esc(x.id)}">quitar</button></div>`).join('')}</div>
