@@ -198,6 +198,19 @@
   .vi.grande { z-index: 1; }
   .vi.chico { z-index: 2; left: auto; top: auto; right: 14px; bottom: 14px; width: min(34%, 320px); aspect-ratio: 16 / 9; border-radius: 16px; overflow: hidden; border: 2px solid #BBF802; }
   .vi.oculto { visibility: hidden; opacity: 0; pointer-events: none; }
+  .vs-fila { display: grid; gap: 6px; }
+  .vs-botones { display: flex; flex-wrap: wrap; gap: 8px; }
+  .vs-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 96px; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--card-2, #FAF8FD); cursor: pointer; font: 600 12px 'Inter', sans-serif; }
+  .vs-ico { font-size: 22px; line-height: 1; }
+  .vs-btn.on { background: #BBF802; border-color: #9CCB00; color: #0F0B16; }
+  .ej-sel { display: grid; gap: 6px; } .ej-sel.oculto-ej { display: none; }
+  .ej-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .ej-chip { padding: 6px 12px; border-radius: 99px; border: 1px solid var(--line); background: #fff; cursor: pointer; font: 800 12px 'Sora', sans-serif; }
+  .ej-chip.on { background: #BBF802; }
+  .pp-cab { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .pp-acts li { margin: 6px 0; list-style: none; }
+  .pp-ea { border: 0; background: none; font-size: 16px; cursor: pointer; padding: 0 4px; }
+  .pp-num.on { background: #BBF802; color: #0F0B16; }
   .zoom-vivo { display: block; width: 100%; height: min(70vh, 620px); min-height: 420px; border: 0; border-radius: 16px; background: #0F0B16; }
   .panel-ponente { margin-top: 20px; display: grid; gap: 10px; border-left: 4px solid #BBF802; }
   .pp-h { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -995,7 +1008,7 @@ function moduloBloqueado(m) {
   const est = ESTADO_SECC ? ESTADO_SECC[m.seccion] : (m.seccion === 'empieza' ? 'disponible' : 'bloqueada');
   return est === 'bloqueada';
 }
-const claseBloq = (c, m) => moduloBloqueado(c.seccion ? c : m);
+const claseBloq = (c, m) => claseBloqueada(c, m);
 function viewBloqueada(c) {
   $('#crumbs').innerHTML = `Guía del taller › <b>${esc(c.mod.titulo)}</b>`;
   return `<div class="card bloq-card"><div class="bloq-ico">🔒</div><h2>${esc(c.mod.titulo)}</h2><p>Este módulo se abre durante la clase en vivo, cuando yo te lo indique. ¡No te adelantes! 😉</p></div>`;
@@ -1191,70 +1204,103 @@ function renderNav(activo) {
   $('#continuarTop').href = '#clase-' + s.id;
 }
 
-/* Panel del ponente en Clase en vivo: botón para iniciar la reunión y los módulos con sus actividades.
-   Pasa el mouse sobre un número para ver el nombre del módulo. Solo lo ve el ponente (?vista=ponente). */
+/* Panel del ponente: TODAS las clases (PRE, 01…10) con candado. Al tocar un número salen sus actividades;
+   cada una se puede bloquear o desbloquear. Hasta conectar Supabase, los cambios solo se ven en tu pantalla. */
 const ZOOM_INICIAR = 'https://zoom.us/s/6215331135'; // ID personal: el anfitrión inicia sesión y la reunión arranca
+const DESB_KEY = KEY + '-desbloq', DESBE_KEY = KEY + '-desbloqe';
+function leerJSON(k) { try { return JSON.parse(localStorage.getItem(k)) || {}; } catch (e) { return {}; } }
+function guardarJSON(k, o) { try { localStorage.setItem(k, JSON.stringify(o)); } catch (e) {} }
+/* true = la clase está cerrada para los alumnos. Manda lo que tocaste en el panel; si no tocaste nada, manda la plataforma. */
+function bloqueoDeClase(c, m) {
+  const d = leerJSON(DESB_KEY);
+  if (d[c.id] === true) return false;
+  if (d[c.id] === false) return true;
+  const sec = (c.seccion ? c : m).seccion;
+  const est = ESTADO_SECC ? ESTADO_SECC[sec] : (sec === 'empieza' ? 'disponible' : 'bloqueada');
+  return est === 'bloqueada';
+}
+function claseBloqueada(c, m) { return !MODO_PONENTE && bloqueoDeClase(c, m); }
+function etapaBloqueada(c, k) { return !MODO_PONENTE && leerJSON(DESBE_KEY)[c.id + '|' + k] === false; }
 function bloquePanelPonente() {
-  const mods = CURSO.modulos.filter(m => m.clases && m.clases.length);
   return `<div class="card panel-ponente">
     <div class="pp-h"><b>🎤 Panel del ponente</b><a class="btn sm" href="${ZOOM_INICIAR}" target="_blank" rel="noopener">▶ Iniciar la reunión de Zoom</a></div>
-    <p class="small">Toca un número para ver las actividades de ese módulo. Pasa el mouse sobre el número para ver su nombre.</p>
-    <div class="pp-nums">${mods.map((m, i) => `<button type="button" class="pp-num" title="${esc(m.titulo)}" data-pp="${i}">${esc(m.clases[0].etiqueta || String(i + 1))}</button>`).join('')}</div>
+    <p class="small">Toca un número para ver sus actividades. 🔒 = cerrado para los alumnos · 🔓 = abierto. Pasa el mouse sobre el número para ver su nombre.</p>
+    <div class="pp-nums">${CLASES.map(c => `<button type="button" class="pp-num" title="${esc(c.titulo)}" data-pp="${c.id}">${bloqueoDeClase(c, c.mod) ? '🔒' : '🔓'} ${esc(c.etiqueta || c.id)}</button>`).join('')}</div>
     <div class="pp-det" id="ppDetalle"></div></div>`;
 }
-document.addEventListener('click', e => {
-  const b = e.target.closest && e.target.closest('[data-pp]'); if (!b) return;
-  const m = CURSO.modulos.filter(x => x.clases && x.clases.length)[+b.dataset.pp]; if (!m) return;
-  const acts = m.clases.flatMap(c => (c.etapas || []).map(et => et.titulo));
-  document.getElementById('ppDetalle').innerHTML = `<b>${esc(m.titulo)}</b><ol>${acts.map(t => `<li>${esc(t)}</li>`).join('') || '<li>Sin actividades</li>'}</ol>`;
-  document.querySelectorAll('.pp-num').forEach(x => x.classList.toggle('on', x === b));
-});
-/* Clase en vivo, vista del ponente: dos cuadros. Tú decides qué ve cada uno: tu cara (Zoom), la presentación o un ejercicio.
-   Solo cambian de lugar (no se recargan), así la reunión de Zoom no se corta. Por ahora la elección es solo para tu pantalla. */
+function mostrarDetallePP(id) {
+  const c = CLASES.find(x => x.id === id); const det = document.getElementById('ppDetalle'); if (!c || !det) return;
+  const dE = leerJSON(DESBE_KEY), cerrada = bloqueoDeClase(c, c.mod);
+  det.innerHTML = `<div class="pp-cab"><b>${esc(etiq(c))} · ${esc(c.titulo)}</b><button type="button" class="btn sm" data-ppl="${c.id}">${cerrada ? '🔓 Abrir esta clase' : '🔒 Cerrar esta clase'}</button></div>
+    <p class="small">Actividades (ábrelas una por una):</p>
+    <ol class="pp-acts">${(c.etapas || []).map((et, k) => { const cer = dE[c.id + '|' + k] === false; return `<li><button type="button" class="pp-ea" data-ppe="${c.id}|${k}" aria-label="${cer ? 'Abrir' : 'Cerrar'} actividad">${cer ? '🔒' : '🔓'}</button> ${esc(et.titulo)}</li>`; }).join('')}</ol>`;
+  document.querySelectorAll('.pp-num').forEach(x => x.classList.toggle('on', x.dataset.pp === id));
+}
+function refrescarNumerosPP() {
+  document.querySelectorAll('.pp-num').forEach(b => { const c = CLASES.find(x => x.id === b.dataset.pp); if (c) b.textContent = `${bloqueoDeClase(c, c.mod) ? '🔒' : '🔓'} ${c.etiqueta || c.id}`; });
+}
+
+/* Clase en vivo, vista del ponente: dos cuadros. Tú decides qué ve cada uno: presentación, tu cara, un ejercicio o nada.
+   Cambian de lugar sin recargar, así la reunión de Zoom no se corta. Por ahora la elección es solo para tu pantalla. */
 const VISTA_KEY = KEY + '-vista';
 function leerVista() {
-  let v = {}; try { v = JSON.parse(localStorage.getItem(VISTA_KEY)) || {}; } catch (e) {}
+  const v = leerJSON(VISTA_KEY);
   return { grande: v.grande || 'pres', chico: v.chico || 'cara', ej: v.ej || (CLASES[0] && CLASES[0].id) || '' };
 }
-function guardarVista(v) { try { localStorage.setItem(VISTA_KEY, JSON.stringify(v)); } catch (e) {} }
-const OPCIONES_VISTA = [['cara', 'Mi cara (Zoom)'], ['pres', 'Presentación'], ['ej', 'Ejercicio']];
+function guardarVista(v) { guardarJSON(VISTA_KEY, v); }
 function bloqueVistaPonente() {
   const v = leerVista();
-  const cls = key => v.grande === key ? 'grande' : v.chico === key ? 'chico' : 'oculto';
-  const opts = sel => OPCIONES_VISTA.map(([k, t]) => `<option value="${k}" ${sel === k ? 'selected' : ''}>${t}</option>`).join('');
+  const boton = (slot, val, icono, texto) => `<button type="button" class="vs-btn ${v[slot] === val ? 'on' : ''}" data-vs="${slot}" data-val="${val}" aria-label="${texto}" title="${texto}"><span class="vs-ico">${icono}</span><span>${texto}</span></button>`;
+  const fila = (slot, titulo) => `<div class="vs-fila"><b class="small">${titulo}</b><div class="vs-botones">${boton(slot, 'pres', '🖥️', 'Presentación')}${boton(slot, 'cara', '🙂', 'Mi cara')}${boton(slot, 'ej', '🧩', 'Ejercicio')}${boton(slot, 'nada', '✖️', 'Nada')}</div></div>`;
+  const chips = CLASES.map(c => `<button type="button" class="ej-chip ${c.id === v.ej ? 'on' : ''}" data-ejc="${c.id}">${esc(c.etiqueta || c.id)}</button>`).join('');
+  const hayEj = v.grande === 'ej' || v.chico === 'ej';
   return `<div class="card vista-ctl">
     <b>🎛️ Qué ve cada cuadro</b>
-    <div class="vc-row">
-      <label class="small">Cuadro grande<select data-vc="grande" data-prev="${v.grande}">${opts(v.grande)}</select></label>
-      <label class="small">Cuadrito<select data-vc="chico" data-prev="${v.chico}">${opts(v.chico)}</select></label>
-      <label class="small">Ejercicio (si lo eliges)<select data-vc="ej">${CLASES.map(c => `<option value="${c.id}" ${c.id === v.ej ? 'selected' : ''}>${esc(etiq(c))} · ${esc(c.titulo)}</option>`).join('')}</select></label>
-    </div>
+    ${fila('grande', 'Cuadro grande')}
+    ${fila('chico', 'Cuadrito')}
+    <div class="ej-sel ${hayEj ? '' : 'oculto-ej'}"><small class="muted">Ejercicio que se muestra:</small><div class="ej-chips">${chips}</div></div>
     <p class="small muted">Solo lo ves tú. Para que los alumnos vean tu elección hace falta conectar Supabase.</p>
   </div>
   <div class="vista-box">
-    <div class="vi vi-cara ${cls('cara')}"><iframe class="zoom-vivo" src="taller-app/zoom.html" title="Clase en vivo por Zoom" allow="camera; microphone; fullscreen; display-capture; autoplay"></iframe></div>
-    <div class="vi vi-pres ${cls('pres')}"><iframe src="taller-app/?embed=presentacion&rol=ponente" title="Presentación en vivo"></iframe></div>
-    <div class="vi vi-ej ${cls('ej')}"><iframe src="guia-taller-ia.html?vista=ponente#clase-${v.ej}" title="Ejercicio"></iframe></div>
+    <div class="vi vi-cara"><iframe class="zoom-vivo" src="taller-app/zoom.html" title="Clase en vivo por Zoom" allow="camera; microphone; fullscreen; display-capture; autoplay"></iframe></div>
+    <div class="vi vi-pres"><iframe src="taller-app/?embed=presentacion&rol=ponente" title="Presentación en vivo"></iframe></div>
+    <div class="vi vi-ej"><iframe src="guia-taller-ia.html?vista=ponente#clase-${v.ej}" title="Ejercicio"></iframe></div>
   </div>`;
 }
-document.addEventListener('change', e => {
-  const s = e.target.closest && e.target.closest('[data-vc]'); if (!s || !document.querySelector('.vista-box')) return;
-  const sel = k => document.querySelector(`[data-vc="${k}"]`);
-  const v = { grande: sel('grande').value, chico: sel('chico').value, ej: sel('ej').value };
-  if (s.dataset.vc === 'grande' || s.dataset.vc === 'chico') {
-    const otro = s.dataset.vc === 'grande' ? 'chico' : 'grande';
-    if (v[otro] === v[s.dataset.vc]) v[otro] = s.dataset.prev; // intercambiar para que no se repitan
-    sel('grande').value = v.grande; sel('chico').value = v.chico;
-    sel('grande').dataset.prev = v.grande; sel('chico').dataset.prev = v.chico;
-  }
+function aplicarVistaDom(v) {
   const clase = k => v.grande === k ? 'grande' : v.chico === k ? 'chico' : 'oculto';
-  document.querySelector('.vi-cara').className = `vi vi-cara ${clase('cara')}`;
-  document.querySelector('.vi-pres').className = `vi vi-pres ${clase('pres')}`;
-  document.querySelector('.vi-ej').className = `vi vi-ej ${clase('ej')}`;
-  const ifr = document.querySelector('.vi-ej iframe');
-  const nuevoSrc = `guia-taller-ia.html?vista=ponente#clase-${v.ej}`;
-  if (ifr && ifr.getAttribute('src') !== nuevoSrc) ifr.setAttribute('src', nuevoSrc);
-  guardarVista(v);
+  const cara = document.querySelector('.vi-cara'), pres = document.querySelector('.vi-pres'), ej = document.querySelector('.vi-ej');
+  if (!cara || !pres || !ej) return;
+  cara.className = `vi vi-cara ${clase('cara')}`; pres.className = `vi vi-pres ${clase('pres')}`; ej.className = `vi vi-ej ${clase('ej')}`;
+  document.querySelectorAll('[data-vs]').forEach(b => b.classList.toggle('on', v[b.dataset.vs] === b.dataset.val));
+  document.querySelectorAll('[data-ejc]').forEach(b => b.classList.toggle('on', b.dataset.ejc === v.ej));
+  const sel = document.querySelector('.ej-sel'); if (sel) sel.classList.toggle('oculto-ej', !(v.grande === 'ej' || v.chico === 'ej'));
+  const ifr = ej.querySelector('iframe'), src = `guia-taller-ia.html?vista=ponente#clase-${v.ej}`;
+  if (ifr && ifr.getAttribute('src') !== src) ifr.setAttribute('src', src);
+}
+document.addEventListener('click', e => {
+  const t = e.target;
+  const pp = t.closest && t.closest('[data-pp]'); if (pp) { mostrarDetallePP(pp.dataset.pp); return; }
+  const pl = t.closest && t.closest('[data-ppl]'); if (pl) {
+    const c = CLASES.find(x => x.id === pl.dataset.ppl); if (!c) return;
+    const d = leerJSON(DESB_KEY); d[c.id] = !bloqueoDeClase(c, c.mod); guardarJSON(DESB_KEY, d);
+    refrescarNumerosPP(); mostrarDetallePP(c.id); return;
+  }
+  const pe = t.closest && t.closest('[data-ppe]'); if (pe) {
+    const d = leerJSON(DESBE_KEY), k = pe.dataset.ppe; d[k] = d[k] === false ? true : false; guardarJSON(DESBE_KEY, d);
+    mostrarDetallePP(k.split('|')[0]); return;
+  }
+  const vs = t.closest && t.closest('[data-vs]'); const ejc = t.closest && t.closest('[data-ejc]');
+  if ((vs || ejc) && document.querySelector('.vista-box')) {
+    const v = leerVista();
+    if (ejc) v.ej = ejc.dataset.ejc;
+    else {
+      const slot = vs.dataset.vs, val = vs.dataset.val, otro = slot === 'grande' ? 'chico' : 'grande';
+      if (val !== 'nada' && v[otro] === val) v[otro] = v[slot]; // si ya estaba en el otro cuadro, se intercambian
+      v[slot] = val;
+    }
+    guardarVista(v); aplicarVistaDom(v);
+  }
 });
 function viewEnVivo() {
   $('#crumbs').innerHTML = `Guía del taller › <b>Clase en vivo</b>`;
@@ -1333,7 +1379,7 @@ function viewClase(c) {
     ${(c.antes || []).length ? `<div class="sec-title"><span class="ico">📋</span><div><h2>Antes de empezar</h2></div></div>
     <div class="card"><ul class="checklist">${c.antes.map(a => `<li>${esc(a)}</li>`).join('')}</ul></div>` : ''}
     <div class="sec-title"><span class="ico">🪜</span><div><h2>Sigue este orden</h2></div></div>
-    <ol class="timeline">${c.etapas.map((e, k) => `
+    <ol class="timeline">${c.etapas.map((e, k) => etapaBloqueada(c, k) ? `<li class="etapa"><span class="node">🔒</span><small>ETAPA ${k + 1}</small><h3>Se abre en la clase</h3></li>` : `
       <li class="etapa" id="etapa-${k + 1}">
         <span class="node">${k + 1}</span>
         <small>ETAPA ${k + 1}</small>
