@@ -911,7 +911,7 @@ var ACTIVIDADES_DEMO = [
 /* =====================================================================
    ESTADO Y UTILIDADES
    ===================================================================== */
-const api = DEMO ? crearApiDemo(['alumno', 'ponente', 'soporte'].includes(DEMO) ? DEMO : 'alumno') : crearApiSupabase();
+let api = DEMO ? crearApiDemo(['alumno', 'ponente', 'soporte'].includes(DEMO) ? DEMO : 'alumno') : crearApiSupabase();
 let S = {};          // datos cargados
 let UI = { ruta: '', paso: 0, solicitudSel: null, ayudaAbierta: false };
 const sec = clave => S.secciones.find(s => s.clave === clave);
@@ -2873,8 +2873,13 @@ document.addEventListener('click', e => { if (document.body.classList.contains('
   try {
     if (!api.demo) {
       const u = await api.sesion();
-      if (!u) return pantallaLogin();
-      api.sb.auth.onAuthStateChange((ev) => { if (ev === 'SIGNED_OUT') location.reload(); });
+      if (!u) {
+        // El brief no pide correo: sin sesión se llena en este navegador (la misma base de demo, solo en local).
+        if (qs.get('embed') !== 'prepara') return pantallaLogin();
+        api = crearApiDemo('alumno');
+      } else {
+        api.sb.auth.onAuthStateChange((ev) => { if (ev === 'SIGNED_OUT') location.reload(); });
+      }
     }
     const d = await api.cargar();
     if (d.sinAcceso) return pantallaSinAcceso();
