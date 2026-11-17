@@ -2555,6 +2555,8 @@ function quitarFondo(src) {
     img.onerror = mal; img.src = src;
   });
 }
+/* Avisa a la guía cuáles son los colores de marca del participante (para personalizar los prompts de imagen) */
+function avisarMarca() { try { const c = miResp(act('prework'))?.datos?.marca?.colores || []; if (c.length && window.parent !== window) window.parent.postMessage({ taller: 'marca', colores: c }, '*'); } catch (e) {} }
 async function vistaMarca() {
   const root = $('#root'), a = act('prework');
   if (!a) { root.innerHTML = '<div class="card din-espera">⏳ Esta sección se activa durante el taller.</div>'; return avisarAltura(); }
@@ -2607,7 +2609,7 @@ async function vistaMarca() {
     q('mkCopiarPrompt').onclick = () => copiar(PROMPT_SIN_FONDO, 'Prompt copiado');
     root.querySelectorAll('img').forEach(i => i.addEventListener('load', avisarAltura));
     root.querySelector('.mk-prompt').addEventListener('toggle', avisarAltura);
-    avisarAltura();
+    avisarMarca(); avisarAltura();
   };
   return pintar();
 }
@@ -2782,6 +2784,7 @@ async function recargar() {
 }
 function render() {
   UI.ruta = decodeURIComponent(location.hash.slice(1));
+  if (EMBED) avisarMarca();
   if (EMBED && (S.rol === 'alumno' || S.rol === 'ponente' || EMBED === 'estado')) return vistaEmbed();
   if (S.rol === 'ponente') vistaPonente();
   else if (S.rol === 'soporte') vistaSoporte();
