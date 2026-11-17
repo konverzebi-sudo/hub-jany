@@ -5,7 +5,7 @@ Cuando alguien paga en la landing de GHL, entra solo al taller y todo lo que lle
 
 ## Cómo funciona
 1. La persona paga en la landing de GHL (formulario de pago con Stripe conectado en GHL).
-2. Un workflow de GHL manda un aviso a `https://jefeshub.com/api/storage/ghl-pago`.
+2. Un workflow de GHL manda un aviso a `https://agentes.jefeshub.com/api/storage/ghl-pago`.
 3. El servidor revisa la clave secreta y agrega su correo a la lista de invitados del taller (Supabase).
 4. GHL le manda el link `https://jefeshub.com/taller-app/` por correo y/o WhatsApp.
 5. Entra con **el mismo correo con el que pagó** → le llega un enlace mágico (sin contraseña) → ya está dentro.
@@ -28,7 +28,7 @@ Después: Deployments → Redeploy para que las tome.
 - **Disparador:** "Order Submitted" / "Payment Received" filtrado por el producto del taller.
 - **Acción 1:** Add Tag → `pago-taller` (para tus listas y recordatorios).
 - **Acción 2:** Webhook
-  - URL: `https://jefeshub.com/api/storage/ghl-pago` · Método: POST
+  - URL: `https://agentes.jefeshub.com/api/storage/ghl-pago` · Método: POST
   - Custom Data: `secreto` = la misma frase de `GHL_WEBHOOK_SECRET`
   - (Opcional) `taller` = `primer-agente` (si un día hay otro taller, aquí va su nombre corto)
 - **Acción 3:** Wait 1 minuto.

@@ -1,7 +1,7 @@
 // Alta automática al taller cuando alguien paga en la landing de GoHighLevel (GHL).
 //
 // Flujo: la persona paga en GHL → un workflow de GHL manda un aviso (acción "Webhook") a
-// POST /api/storage/ghl-pago → aquí se revisa la clave secreta y se agrega su correo a la
+// POST https://agentes.jefeshub.com/api/storage/ghl-pago → aquí se revisa la clave secreta y se agrega su correo a la
 // tabla `invitados` del taller en Supabase. Cuando entra a jefeshub.com/taller-app/ con ese
 // correo (enlace mágico, sin contraseña) queda dentro del taller y todo lo que llena se guarda
 // en SU cuenta (las reglas de Supabase no dejan que nadie más lo vea).
