@@ -644,7 +644,7 @@ function crearApiDemo(rol) {
     miembros: [{ user_id: 'u-alumno', rol: 'alumno' }, { user_id: 'u-luis', rol: 'alumno' }, { user_id: 'u-marta', rol: 'alumno' }, { user_id: 'u-ponente', rol: 'ponente' }, { user_id: 'u-soporte', rol: 'soporte' }],
     secciones: [
       { id: 's1', clave: 'empieza', titulo: 'Empieza por aquí', orden: 1, estado: 'disponible' },
-      { id: 's2', clave: 'calienta', titulo: 'Rompehielo', orden: 2, estado: 'disponible' },
+      { id: 's2', clave: 'calienta', titulo: 'Rompehielo', orden: 2, estado: 'bloqueada' },
       { id: 's3', clave: 'prepara', titulo: 'Prepara tu negocio', orden: 3, estado: 'disponible' },
       { id: 's4', clave: 'modulo-2', titulo: 'Calienta motores', orden: 4, estado: 'bloqueada' },
       { id: 's5', clave: 'modulo-3', titulo: 'Módulo 3', orden: 5, estado: 'bloqueada' }],
@@ -2154,12 +2154,14 @@ async function vistaPonente() {
       <div class="card"><div class="row space"><div><b>Etapa actual en pantalla</b><p class="small muted">Referencia para el equipo (no mueve Canva).</p></div>
         <select id="etapa" style="width:auto">${etapas.map(e => `<option ${S.estado.etapa_actual === e ? 'selected' : ''}>${esc(e)}</option>`).join('')}</select></div></div>
       <div class="sec-h"><span class="n">1</span><h2>Secciones</h2></div>
+      <div class="card"><div class="row dbtns" style="margin-bottom:12px"><button class="btn sm" data-todas="disponible">🔓 Encender todos los módulos</button><button class="btn sm" data-todas="bloqueada">🔒 Bloquear todos</button></div></div>
       <div class="card">${S.secciones.map(s => `<div class="ctrl"><div><b>${esc(s.titulo)}</b></div><div class="seg" data-sec="${s.id}">${['bloqueada', 'disponible', 'cerrada'].map(e => `<button data-e="${e}" class="${s.estado === e ? 'on' : ''}">${e}</button>`).join('')}</div></div>`).join('')}</div>
       <div class="sec-h"><span class="n">2</span><h2>Actividades y dinámicas</h2></div>
       <div class="card">${S.actividades.map(a => `<div class="ctrl"><div><b>${esc(a.titulo)}</b><p class="small muted">${esc(S.secciones.find(s => s.id === a.seccion_id)?.titulo || '')} · ${a.tipo}</p></div><div class="seg" data-act="${a.id}">${['cerrada', 'abierta', 'finalizada'].map(e => `<button data-e="${e}" class="${a.estado === e ? 'on' : ''}">${e}</button>`).join('')}</div></div>`).join('')}</div>
       <p class="small muted" style="margin-top:12px">Completar una actividad no desbloquea nada: solo tú cambias estos estados. Los alumnos lo ven en tiempo real.</p>`;
     $('#etapa').onchange = e => api.setEtapa(e.target.value).then(() => toast('Etapa actualizada'));
     pv.querySelectorAll('[data-sec] button').forEach(b => b.onclick = async () => { try { await api.setSeccion(b.parentNode.dataset.sec, b.dataset.e); toast('Sección actualizada'); await recargar(); } catch (err) { toast(err.message); } });
+    pv.querySelectorAll('[data-todas]').forEach(b => b.onclick = async () => { try { for (const s of S.secciones) if (s.estado !== b.dataset.todas) await api.setSeccion(s.id, b.dataset.todas); toast(b.dataset.todas === 'disponible' ? 'Módulos encendidos' : 'Módulos bloqueados'); await recargar(); } catch (err) { toast(err.message); } });
     pv.querySelectorAll('[data-act] button').forEach(b => b.onclick = async () => { try { await api.setActividad(b.parentNode.dataset.act, b.dataset.e); toast('Actividad actualizada'); await recargar(); } catch (err) { toast(err.message); } });
   } else if (ruta === 'resultados') {
     let html = `<span class="eyebrow">En vivo</span><h1 style="margin:12px 0 18px">Resultados en vivo</h1>`;
