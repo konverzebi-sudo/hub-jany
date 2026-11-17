@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Hub de Jefes widgets</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@800;900&family=Bebas+Neue&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blanco:#FFFFFF; --gris-fondo:#F6F7F1; --gris-borde:#E4E6DB; --negro:#0F0E0C;
+    --lima:#C9F507; --oliva:#A4B41C; --gris-texto:#5D6055;
+    --fondo: var(--gris-fondo);
+  }
+  body[data-fondo="verde"]{ --fondo: var(--lima); }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--fondo); color:var(--negro); font-family:'Barlow',sans-serif; transition:background .3s; }
+  a{ color:inherit; text-decoration:none; }
+
+  /* Aviso de propuesta */
+  .aviso{ background:var(--negro); color:#fff; font-size:13px; padding:8px 16px; display:flex; gap:12px; align-items:center; justify-content:center; flex-wrap:wrap; }
+  .aviso b{ color:var(--lima); }
+  .fondo-sw{ display:flex; gap:6px; }
+  .fondo-sw button{ font:700 12px 'Barlow'; border:1px solid #444; background:transparent; color:#fff; border-radius:999px; padding:4px 12px; cursor:pointer; }
+  .fondo-sw button[aria-pressed="true"]{ background:var(--lima); color:var(--negro); border-color:var(--lima); }
+
+  .wrap{ max-width:1240px; margin:0 auto; padding:28px 24px 60px; }
+  header{ display:flex; justify-content:space-between; align-items:flex-end; gap:16px; flex-wrap:wrap; margin-bottom:22px; }
+  .marca{ font-family:'Bebas Neue'; font-size:38px; letter-spacing:.04em; line-height:1; }
+  h1{ font-family:'Inter Tight'; font-weight:900; font-size:clamp(28px,4vw,44px); letter-spacing:-.035em; margin:6px 0 0; line-height:1.05; }
+  .resalta{ background:var(--lima); padding:0 .18em; border-radius:4px; box-decoration-break:clone; -webkit-box-decoration-break:clone; }
+  body[data-fondo="verde"] .resalta{ background:var(--negro); color:var(--lima); }
+  .fecha{ font-size:14px; color:var(--gris-texto); font-weight:600; }
+  body[data-fondo="verde"] .fecha{ color:var(--negro); }
+
+  .etiqueta{ font:700 11px 'Barlow'; letter-spacing:.14em; text-transform:uppercase; color:var(--gris-texto); }
+  .chip{ display:inline-block; font:700 10.5px 'Barlow'; letter-spacing:.12em; text-transform:uppercase; background:var(--lima); color:var(--negro); padding:3px 8px; border-radius:4px; }
+  .chip.gris{ background:var(--gris-fondo); color:var(--gris-texto); border:1px solid var(--gris-borde); }
+
+  /* Rejilla de widgets */
+  .grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:16px; }
+  .w{ background:var(--blanco); border:1px solid var(--gris-borde); border-radius:20px; padding:20px; display:flex; flex-direction:column; gap:14px; position:relative; cursor:pointer; transition:transform .18s, box-shadow .18s; min-width:0; }
+  .w:hover{ transform:translateY(-3px); box-shadow:0 14px 32px rgba(15,14,12,.10); }
+  .w:focus-visible{ outline:3px solid var(--negro); outline-offset:3px; }
+  .span2{ grid-column:span 2; } .row2{ grid-row:span 2; }
+  /* Módulo doble: dos Jefes juntos en una misma caja */
+  .doble{ grid-column:1/-1; display:grid; grid-template-columns:1fr 1fr; background:var(--blanco); border:1px solid var(--gris-borde); border-radius:20px; overflow:hidden; }
+  .doble > .w{ border:0; border-radius:0; }
+  .doble > .w + .w{ border-left:1px solid var(--gris-borde); }
+  .doble > .w:hover{ transform:none; box-shadow:none; background:#FCFDF8; }
+  @media (max-width:800px){ .doble{ grid-template-columns:1fr; } .doble > .w + .w{ border-left:0; border-top:1px solid var(--gris-borde); } }
+
+  .w-top{ display:flex; align-items:center; gap:12px; }
+  .w-logo{ width:46px; height:46px; flex:none; border-radius:14px; background:var(--gris-fondo); display:grid; place-items:center; }
+  .w-logo img{ width:32px; height:32px; object-fit:contain; }
+  .w-nombre{ font-family:'Bebas Neue'; font-size:24px; letter-spacing:.03em; line-height:1; }
+  .w-que{ font-size:13.5px; color:var(--gris-texto); line-height:1.3; margin-top:2px; }
+  .w-ir{ margin-left:auto; width:32px; height:32px; border-radius:50%; border:1px solid var(--gris-borde); display:grid; place-items:center; font-weight:700; flex:none; transition:background .2s; }
+  .w:hover .w-ir{ background:var(--negro); color:#fff; border-color:var(--negro); }
+
+  .w-body{ flex:1; display:flex; flex-direction:column; gap:10px; }
+  .w-acciones{ display:flex; gap:8px; flex-wrap:wrap; }
+  .btn{ font:700 14px 'Barlow'; border-radius:12px; padding:10px 16px; border:1px solid var(--gris-borde); background:transparent; cursor:pointer; }
+  .btn.principal{ background:var(--lima); border-color:var(--lima); color:var(--negro); }
+  .btn:hover{ filter:brightness(.96); }
+
+  /* Jefe 366: la vista previa del día va en negro (= así se verá) */
+  .preview{ background:var(--negro); color:#fff; border-radius:16px; padding:18px; }
+  .preview .etiqueta{ color:#B9BCAE; }
+  .preview h3{ font-family:'Inter Tight'; font-weight:800; letter-spacing:-.025em; font-size:22px; margin:6px 0 8px; line-height:1.15; }
+  .preview p{ margin:0; color:#D9DBD0; font-size:14.5px; line-height:1.45; }
+  .preview[data-href]{ cursor:pointer; transition:transform .15s; }
+  .preview[data-href]:hover{ transform:translateY(-2px); }
+  .faro-por-que{ display:flex; gap:10px; align-items:flex-start; margin-top:14px; padding-top:12px; border-top:1px solid #2E2D29; }
+  .faro-por-que img{ width:26px; height:26px; object-fit:contain; flex:none; margin-top:2px; }
+  .faro-por-que p{ font-size:13.5px; margin-top:3px; }
+  .faro-por-que .etiqueta{ color:var(--lima); }
+  .ir-contenido{ display:inline-block; margin-top:12px; background:var(--lima); color:var(--negro); font:700 13px 'Barlow'; padding:6px 12px; border-radius:10px; }
+  .w-top[data-href]{ cursor:pointer; border-radius:12px; }
+  .w-top[data-href]:hover .w-nombre{ text-decoration:underline; text-decoration-color:var(--oliva); text-underline-offset:4px; }
+  .dia{ display:flex; align-items:baseline; gap:10px; }
+  .dia .num{ font-family:'Bebas Neue'; font-size:56px; line-height:.9; }
+  .barra{ height:8px; background:var(--gris-fondo); border-radius:99px; overflow:hidden; border:1px solid var(--gris-borde); }
+  .barra i{ display:block; height:100%; background:var(--lima); border-radius:99px; }
+  .semana{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px; }
+  .semana div{ text-align:center; font-size:11px; color:var(--gris-texto); font-weight:700; }
+  .semana span{ display:block; margin-top:4px; height:30px; border-radius:8px; background:var(--gris-fondo); border:1px solid var(--gris-borde); }
+  .semana span.hecho{ background:var(--oliva); border-color:var(--oliva); }
+  .semana span.hoy{ background:var(--lima); border-color:var(--negro); }
+
+  /* Listas */
+  .lista{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
+  .lista li{ display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:12px; background:var(--gris-fondo); font-size:14px; }
+  .lista .dot{ width:8px; height:8px; border-radius:50%; background:var(--oliva); flex:none; }
+  .lista .txt{ flex:1; min-width:0; }
+  .lista .txt b{ display:block; font-weight:600; }
+  .lista .txt small{ color:var(--gris-texto); }
+  .mini-post{ width:38px; height:48px; border-radius:8px; background:var(--negro); flex:none; display:grid; place-items:center; color:var(--lima); font:700 10px 'Barlow'; }
+
+  /* Mensaje sugerido (negro = así se manda) */
+  .burbuja{ background:var(--negro); color:#fff; border-radius:16px 16px 16px 4px; padding:12px 14px; font-size:14px; line-height:1.4; }
+
+  .cifra{ font-family:'Bebas Neue'; font-size:52px; line-height:.9; letter-spacing:.02em; }
+  .cifra small{ font-size:22px; color:var(--gris-texto); }
+
+  /* Tarjeta del negocio / ADN */
+  .w.negocio{ background:var(--negro); color:#fff; border-color:var(--negro); }
+  .w.negocio .w-que{ color:#B9BCAE; }
+  .w.negocio .etiqueta{ color:#B9BCAE; }
+  .w.negocio .barra{ background:#2A2925; border-color:#2A2925; }
+  .w.negocio .w-ir{ border-color:#333; }
+  .w.negocio:hover .w-ir{ background:var(--lima); color:var(--negro); }
+  .neg-nombre{ font-family:'Inter Tight'; font-weight:900; font-size:26px; letter-spacing:-.03em; line-height:1.05; }
+
+  /* Más Jefes (versión compacta) */
+  .seccion{ margin:34px 0 14px; display:flex; align-items:center; gap:12px; }
+  .seccion h2{ font-family:'Inter Tight'; font-weight:800; font-size:22px; letter-spacing:-.025em; margin:0; }
+  .seccion .linea{ flex:1; height:1px; background:var(--gris-borde); }
+  body[data-fondo="verde"] .seccion .linea{ background:var(--negro); opacity:.25; }
+  .compactos{ display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:12px; }
+  .c{ background:var(--blanco); border:1px solid var(--gris-borde); border-radius:16px; padding:14px; display:flex; gap:12px; align-items:flex-start; cursor:pointer; transition:transform .18s, box-shadow .18s; }
+  .c:hover{ transform:translateY(-2px); box-shadow:0 10px 24px rgba(15,14,12,.08); }
+  .c .w-logo{ width:42px; height:42px; }
+  .c .w-nombre{ font-size:20px; }
+  .c .aviso-c{ margin-top:8px; font-size:13px; font-weight:600; display:flex; gap:6px; align-items:center; }
+  .c .aviso-c::before{ content:''; width:7px; height:7px; border-radius:50%; background:var(--oliva); flex:none; }
+
+  @media (max-width:1000px){ .grid{ grid-template-columns:repeat(2,1fr); } .row2{ grid-row:auto; } }
+  @media (max-width:640px){ .wrap{ padding:20px 16px 40px; } .grid{ grid-template-columns:1fr; } .span2{ grid-column:auto; } }
+  @media (prefers-reduced-motion:reduce){ .w,.c{ transition:none; } }
+</style>
+</head>
+<body data-fondo="blanco">
+
+<div class="aviso">
+  <span><b>PROPUESTA</b> · datos de ejemplo (menos la idea del Faro, que es real) · no es pública</span>
+  <span class="fondo-sw" role="group" aria-label="Color de fondo">
+    <button type="button" data-f="blanco" aria-pressed="true">Fondo blanco</button>
+    <button type="button" data-f="verde" aria-pressed="false">Fondo verde</button>
+  </span>
+</div>
+
+<div class="wrap">
+  <header>
+    <div>
+      <div class="marca">HUB DE JEFES</div>
+      <h1>Tu equipo, <span class="resalta">listo para hoy</span></h1>
+    </div>
+    <div class="fecha" id="fecha"></div>
+  </header>
+
+  <div class="grid">
+
+    <!-- MÓDULO DOBLE: JEFE 366 + JEFE DE TEMPORADA -->
+    <section class="doble">
+    <article class="w" data-href="/jefe-366" tabindex="0">
+      <div class="w-top">
+        <div class="w-logo"><img src="img/jefe-366-blanco.webp" alt="" style="filter:invert(1)"></div>
+        <div><div class="w-nombre">JEFE 366</div><div class="w-que">Tu estrategia base: una idea de contenido para cada día del año.</div></div>
+        <span class="w-ir" aria-hidden="true">›</span>
+      </div>
+      <div class="w-body">
+        <div class="dia"><span class="num">DÍA 321</span><span class="etiqueta">de 366</span></div>
+        <div class="barra"><i style="width:88%"></i></div>
+        <div class="preview" data-href="/jefe-contenido" title="Crear este post con el Jefe de Contenido">
+          <span class="etiqueta">La idea de hoy</span>
+          <h3>“3 errores que cometes al elegir…”</h3>
+          <p>Carrusel de 5 láminas. Termina invitando a escribir por WhatsApp.</p>
+          <div class="faro-por-que" data-href="/jefe-radar" title="Ver la idea completa en el Faro">
+            <img src="img/jefe-faro-logo-blanco.webp" alt="">
+            <div><span class="etiqueta">Idea del día · Jefe del Faro</span>
+            <p id="faroPorQueTxt">Buscando la idea de hoy del Faro…</p></div>
+          </div>
+          <span class="ir-contenido">Hacerlo con el Jefe de Contenido ›</span>
+        </div>
+        <div>
+          <div class="etiqueta" style="margin-bottom:8px">Esta semana</div>
+          <div class="semana">
+            <div>L<span class="hecho"></span></div><div>M<span class="hecho"></span></div><div>M<span class="hoy"></span></div>
+            <div>J<span></span></div><div>V<span></span></div><div>S<span></span></div><div>D<span></span></div>
+          </div>
+        </div>
+      </div>
+      <div class="w-acciones">
+        <button class="btn principal" data-href="/jefe-contenido">Crear este post</button>
+        <button class="btn" data-href="/jefe-366">Ver otra idea</button>
+      </div>
+    </article>
+
+    <article class="w" data-href="/jefe-temporada" tabindex="0">
+      <div class="w-top">
+        <div class="w-logo"><img src="img/jefe-temporada-logo-negro.webp" alt=""></div>
+        <div><div class="w-nombre">JEFE DE TEMPORADA</div><div class="w-que">Las fechas clave del año para vender más.</div></div>
+        <span class="w-ir" aria-hidden="true">›</span>
+      </div>
+      <div class="w-body">
+        <div class="dia"><span class="num">3 DÍAS</span><span class="etiqueta">para el Buen Fin</span></div>
+        <div class="barra"><i style="width:85%"></i></div>
+        <div class="preview" data-href="/jefe-contenido" title="Crear esta campaña con el Jefe de Contenido">
+          <span class="etiqueta">Idea para la temporada</span>
+          <h3>“Solo este fin: 2x1 en tu servicio estrella”</h3>
+          <p>Post + historia + mensaje de WhatsApp para tus clientes de siempre.</p>
+          <span class="ir-contenido">Hacerlo con el Jefe de Contenido ›</span>
+        </div>
+        <div>
+          <div class="etiqueta" style="margin-bottom:8px">Lo que viene</div>
+          <ul class="lista">
+            <li><span class="dot"></span><span class="txt"><b>Navidad</b><small>en 38 días · empieza a preparar en 2 semanas</small></span></li>
+            <li><span class="dot"></span><span class="txt"><b>Día de Reyes</b><small>en 50 días</small></span></li>
+          </ul>
+        </div>
+      </div>
+      <div class="w-acciones">
+        <button class="btn principal" data-href="/jefe-temporada">Armar campaña</button>
+        <button class="btn" data-href="/jefe-temporada">Ver calendario</button>
+      </div>
+    </article>
+    </section>
+
+    <!-- JEFE DE CONTENIDO -->
+    <article class="w span2" data-href="/jefe-contenido" tabindex="0">
+      <div class="w-top">
+        <div class="w-logo"><img src="img/jefe-contenido-logo-negro.webp" alt=""></div>
+        <div><div class="w-nombre">JEFE DE CONTENIDO</div><div class="w-que">Te escribe guiones y posts con la voz de tu marca.</div></div>
+        <span class="w-ir" aria-hidden="true">›</span>
+      </div>
+      <div class="w-body">
+        <div style="display:flex;justify-content:space-between;align-items:center"><span class="etiqueta">Por publicar</span><span class="chip">2 listos</span></div>
+        <ul class="lista">
+          <li><span class="mini-post">REEL</span><span class="txt"><b>Detrás de cámaras del equipo</b><small>Listo · hoy 7 pm</small></span></li>
+          <li><span class="mini-post">POST</span><span class="txt"><b>Testimonio de cliente</b><small>Listo · jueves</small></span></li>
+          <li><span class="mini-post" style="background:var(--gris-borde);color:var(--gris-texto)">—</span><span class="txt"><b>Viernes sin contenido</b><small>Pídele una idea</small></span></li>
+        </ul>
+      </div>
+    </article>
+
+    <!-- JEFE DE WHATSAPP -->
+    <article class="w" data-href="/jefe-whatsapp" tabindex="0">
+      <div class="w-top">
+        <div class="w-logo"><img src="img/jefe-whatsapp-logo-negro.webp" alt=""></div>
+        <div><div class="w-nombre">WHATSAPP Y VENTAS</div><div class="w-que">Mensajes que cierran ventas.</div></div>
+      </div>
+      <div class="w-body">
+        <span class="etiqueta">Mensaje sugerido</span>
+        <div class="burbuja">¡Hola! Te guardé tu lugar para el sábado. ¿Te confirmo la inscripción?</div>
+      </div>
+      <div class="w-acciones"><button class="btn principal" data-href="/jefe-whatsapp">Copiar y usar</button></div>
+    </article>
+
+    <!-- JEFE DE FINANZAS -->
+    <article class="w" data-href="/jefe-financiero" tabindex="0">
+      <div class="w-top">
+        <div class="w-logo"><img src="img/jefe-finanzas-logo-negro.webp" alt=""></div>
+        <div><div class="w-nombre">FINANZAS</div><div class="w-que">Tus números claros.</div></div>
+      </div>
+      <div class="w-body">
+        <span class="etiqueta">Meta del mes</span>
+        <div class="cifra">62% <small>logrado</small></div>
+        <div class="barra"><i style="width:62%"></i></div>
+        <span class="w-que">Te faltan 9 ventas para llegar.</span>
+      </div>
+    </article>
+
+    <!-- NEGOCIO / ADN -->
+    <article class="w negocio span2" data-href="/adn" tabindex="0" style="grid-column:1/-1">
+      <div class="w-top">
+        <div><span class="etiqueta">ADN del negocio</span><div class="neg-nombre">Tu negocio</div></div>
+        <span class="w-ir" aria-hidden="true">›</span>
+      </div>
+      <div class="w-body">
+        <div style="display:flex;justify-content:space-between"><span class="w-que">Lo que tus Jefes saben de ti</span><span class="chip">80%</span></div>
+        <div class="barra"><i style="width:80%"></i></div>
+        <span class="w-que">Completa “Tono de voz” para que todos escriban más como tú.</span>
+      </div>
+    </article>
+  </div>
+
+  <div class="seccion"><h2>Más Jefes</h2><span class="linea"></span></div>
+  <div class="compactos" id="compactos"></div>
+</div>
+
+<script>
+  // Datos de ejemplo. En la versión real cada aviso se lee en vivo de lo que guarda cada Jefe (storage del hub).
+  const compactos = [
+    {n:'JEFE DE ANUNCIOS', i:'jefe-anuncios-logo-negro', q:'Crea anuncios listos para Meta.', a:'1 anuncio en borrador', h:'/jefe-anuncios'},
+    {n:'JEFE PRODUCTOR IA', i:'jefe-produccion-video-logo-negro', q:'Imágenes y videos con IA.', a:'Haz la imagen del post de hoy', h:'/jefe-produccion-video'},
+    {n:'JEFE DEL FARO', i:'jefe-faro-logo-negro', q:'Vigila tu mercado y competencia.', a:'3 novedades esta semana', h:'/jefe-radar'},
+    {n:'JEFE DE RESULTADOS', i:'jefe-resultados-logo-negro', q:'Mide y mejora tus ventas.', a:'Revisa: 2 anuncios bajaron', h:'/jefe-cierre'},
+    {n:'JEFE DE AGENDA', i:'jefe-agenda-logo-negro', q:'Organiza tu semana.', a:'2 pendientes para hoy', h:'/jefe-agenda'},
+    {n:'JEFE DE HERRAMIENTAS', i:'jefe-herramientas-logo-negro', q:'Las apps de tu negocio.', a:'Todo en orden', h:'/herramientas'},
+  ];
+  document.getElementById('compactos').innerHTML = compactos.map(c => `
+    <a class="c" href="${c.h}">
+      <div class="w-logo"><img src="img/${c.i}.webp" alt=""></div>
+      <div><div class="w-nombre">${c.n}</div><div class="w-que">${c.q}</div><div class="aviso-c">${c.a}</div></div>
+    </a>`).join('');
+
+  // Al Jefe se entra picando su logo y su nombre (la parte de arriba de la tarjeta).
+  // Lo de adentro (la idea, los botones) lleva a la acción, por ejemplo al Jefe de Contenido.
+  document.querySelectorAll('article[data-href]').forEach(a => {
+    const top = a.querySelector('.w-top');
+    if (top) { top.dataset.href = a.dataset.href; top.tabIndex = 0; }
+    a.removeAttribute('data-href'); a.removeAttribute('tabindex'); a.style.cursor = 'default';
+  });
+  document.querySelectorAll('[data-href]').forEach(el => {
+    el.addEventListener('click', e => { e.stopPropagation(); location.href = el.dataset.href; });
+    el.addEventListener('keydown', e => { if (e.key === 'Enter') location.href = el.dataset.href; });
+  });
+
+  // Idea del día REAL del Jefe del Faro (la misma que sale al abrir el hub). Aquí solo se lee: no se genera.
+  (function(){
+    const txt = document.getElementById('faroPorQueTxt');
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    fetch('/api/consultor-radar', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ cliente:'jefeshub', foco:{ id:'all', nombre:'' }, modo:'ideas-dia-estado' }) })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        const e = d && d.idea;
+        if (!e || !e.idea) { txt.textContent = 'Todavía no hay idea de hoy. Abre tu hub o el Faro y se prepara sola.'; return; }
+        const i = e.idea, t = i.tendencia || {};
+        txt.innerHTML = '<b style="color:#fff">' + esc(i.tema) + '</b> · “' + esc(i.gancho) + '”'
+          + (i.por_que_te_sirve ? '<br>' + esc(i.por_que_te_sirve) : '')
+          + (t.que ? '<br><span style="color:#B9BCAE">De dónde salió: ' + esc(t.que) + (t.verificada ? '' : ' (sin verificar)') + '</span>' : '');
+      })
+      .catch(() => { txt.textContent = 'No pude traer la idea del Faro.'; });
+  })();
+
+  document.getElementById('fecha').textContent = new Date().toLocaleDateString('es-MX', {weekday:'long', day:'numeric', month:'long'});
+
+  document.querySelectorAll('.fondo-sw button').forEach(b => b.addEventListener('click', () => {
+    document.body.dataset.fondo = b.dataset.f;
+    document.querySelectorAll('.fondo-sw button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  }));
+</script>
+</body>
+</html>
