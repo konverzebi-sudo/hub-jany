@@ -530,6 +530,19 @@
   .mc-c { display: flex; align-items: center; gap: 6px; padding: 4px 8px 4px 4px; border-radius: 99px; background: #fff; border: 1px solid var(--line); font: 600 12px 'JetBrains Mono', monospace; }
   .mc-c input[type=color] { width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; }
   .mc-c button { font-size: 11px; color: var(--dim); }
+  .tp-box { margin-top: 12px; }
+  .tp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; margin-top: 10px; }
+  .tp-card { display: flex; flex-direction: column; text-align: left; padding: 0; border-radius: 16px; overflow: hidden; border: 2px solid #E3DEEA; background: #F1F0F3; cursor: pointer; font: inherit; color: inherit; }
+  .tp-card.on { border-color: #BBF802; box-shadow: 0 0 0 4px rgba(187,248,2,.3); }
+  .tp-card:disabled { cursor: default; }
+  .tp-top { position: relative; background: #121212; color: #fff; padding: 18px 16px 16px; display: flex; flex-direction: column; gap: 10px; min-height: 170px; }
+  .tp-top i { width: 30px; height: 4px; border-radius: 4px; background: #E6F21B; }
+  .tp-t { font-size: 30px; line-height: 1.05; overflow-wrap: anywhere; }
+  .tp-x { font-size: 14px; line-height: 1.45; color: #CFCFD4; }
+  .tp-top em { position: absolute; right: 10px; top: 10px; width: 26px; height: 26px; border-radius: 50%; background: #BBF802; color: #0F0B16; font: 800 14px/26px 'Inter', sans-serif; text-align: center; font-style: normal; }
+  .tp-bot { padding: 12px 16px 14px; display: flex; flex-direction: column; gap: 4px; }
+  .tp-bot small { font: 700 11px 'JetBrains Mono', monospace; letter-spacing: .1em; text-transform: uppercase; color: #5B5566; }
+  .tp-bot span { font-size: 13px; color: #6C6577; }
   .bip { margin-top: 10px; } .bip-h { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; margin-bottom: 4px; } .bip-h span { font-weight: 700; }
   .bip .med-barra { height: 16px; } .bip .med-barra .a { background: #FFFFFF; border: 1px solid #ddd; } .bip .med-barra .b { background: #C9F507; }
   .bip-ley { display: flex; gap: 14px; font-size: 12px; margin-top: 6px; } .bip-ley i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 4px; vertical-align: -2px; } .bip-ley i.a { background: #fff; border: 1px solid #ccc; } .bip-ley i.b { background: #C9F507; }
@@ -1655,6 +1668,25 @@ const CAMPOS_PROD = [['nombre', 'Nombre'], ['descripcion', 'Descripción'], ['pr
 const CAMPOS_SERV = [['nombre', 'Nombre del servicio'], ['precio', 'Precio', 1], ['costo', 'Costo directo estimado', 1], ['tiempo', 'Tiempo necesario para prestarlo'], ['capacidad', 'Capacidad mensual', 1], ['ventas', 'Ventas aproximadas al mes', 1]];
 const OBJETIVOS = ['Vender más', 'Conseguir clientes', 'Posicionar mi marca', 'Promocionar un producto o servicio', 'Mejorar mis redes'];
 const MATERIALES = [['logo', 'Logotipo (PNG, de preferencia transparente)', 1], ['productos', 'Fotos reales de productos o servicios (3 a 5)', 5], ['negocio', 'Fotos del negocio (si tienes)', 5], ['publicaciones', 'Ejemplos de publicaciones anteriores', 5], ['referencias', 'Referencias visuales que te gusten', 5]];
+/* 🔤 Combinaciones tipográficas de marca (se elige en el brief; va al SUPERPROMPT) */
+const TIPOS_MARCA = [
+  { id: 'impacto', estilo: 'Impacto / Actitud', para: 'Restaurantes, fitness, eventos, marcas con actitud.', t: 'Bebas Neue', tw: 400, x: 'Inter', up: 1 },
+  { id: 'moderno', estilo: 'Moderno / Profesional', para: 'Servicios, consultoría, tecnología, tiendas en línea.', t: 'Montserrat', tw: 600, x: 'Lato' },
+  { id: 'elegante', estilo: 'Elegante / Lujo', para: 'Moda, belleza, joyería, gastronomía premium.', t: 'Playfair Display', tw: 700, x: 'Raleway' },
+  { id: 'energia', estilo: 'Energía / Editorial', para: 'Deporte, gaming, entretenimiento, streetwear.', t: 'Oswald', tw: 600, x: 'Roboto', up: 1 },
+  { id: 'fuerte', estilo: 'Fuerte / Cancha', para: 'Academias deportivas, equipos, gimnasios.', t: 'Anton', tw: 400, x: 'Barlow', up: 1 },
+  { id: 'rustico', estilo: 'Rústico / Artesanal', para: 'Ranchos, asadores, cuero, productos de campo.', t: 'Rye', tw: 400, x: 'Roboto Slab' },
+  { id: 'amigable', estilo: 'Amigable / Cercano', para: 'Cafeterías, repostería, niños, mascotas.', t: 'Poppins', tw: 700, x: 'Nunito' },
+  { id: 'minimal', estilo: 'Minimal / Limpio', para: 'Diseño, bienestar, skincare, arquitectura.', t: 'Outfit', tw: 300, x: 'Inter' },
+  { id: 'clasico', estilo: 'Clásico / Confiable', para: 'Salud, educación, despachos, finanzas.', t: 'DM Serif Display', tw: 400, x: 'Source Sans 3' }
+];
+function cargarFuentesMarca() {
+  if (document.getElementById('fuentesMarca')) return;
+  const l = document.createElement('link'); l.id = 'fuentesMarca'; l.rel = 'stylesheet';
+  l.href = 'https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Montserrat:wght@600&family=Lato&family=Playfair+Display:wght@700&family=Raleway&family=Oswald:wght@600&family=Roboto&family=Anton&family=Barlow&family=Rye&family=Roboto+Slab&family=Poppins:wght@700&family=Nunito&family=Outfit:wght@300&family=DM+Serif+Display&family=Source+Sans+3&display=swap';
+  document.head.appendChild(l);
+}
+const tipoTxt = tp => tp ? `títulos en ${tp.titulos} y textos en ${tp.texto} (estilo ${tp.estilo})` : '';
 const CHECKS = ['Tengo acceso a ChatGPT', 'Tengo acceso a Gemini', 'Puedo ingresar a la plataforma del taller', 'Tengo mis fotografías disponibles', 'Tengo la información de mis productos o servicios'];
 
 function vistaPrepara() {
@@ -1713,7 +1745,7 @@ function montarPrepara() {
     html += `<p class="muted small" style="margin-bottom:14px">Solo imágenes PNG, JPG o WEBP de hasta 8 MB.</p>` + MATERIALES.map(([k, l, max]) => `
       <div class="field"><label class="f">${esc(l)}</label>
       ${soloLectura ? '' : `<input type="file" accept="image/png,image/jpeg,image/webp" ${max > 1 ? 'multiple' : ''} data-cat="${k}" data-max="${max}">`}
-      <div class="thumbs" data-thumbs="${k}"></div>${k === 'logo' ? '<div id="marcaColores"></div>' : ''}</div>`).join('');
+      <div class="thumbs" data-thumbs="${k}"></div>${k === 'logo' ? '<div id="marcaColores"></div><div id="marcaTipos"></div>' : ''}</div>`).join('');
   } else if (b.k === 'F') {
     const v = D.F || {};
     html += CHECKS.map((c, i) => `<label class="opt ${v[i] ? 'sel' : ''}" style="margin-bottom:8px"><input type="checkbox" name="chk" data-i="${i}" ${v[i] ? 'checked' : ''} ${dis}>${esc(c)}</label>`).join('');
@@ -1769,13 +1801,30 @@ async function montarArchivos(D, a, soloLectura) {
     if (!cols.length) { box.innerHTML = (D.E.logo || []).length && !soloLectura ? '<button type="button" class="btn ghost sm" id="mcDetectar" style="margin-top:8px">🎨 Detectar los colores de mi logo</button>' : '<p class="small muted" style="margin-top:6px">🎨 Cuando subas tu logotipo detectaremos los colores de tu marca.</p>'; }
     else box.innerHTML = `<div class="mc"><b>🎨 Colores de tu marca</b><p class="small muted">Los detectamos de tu logotipo. Ajústalos si hace falta y apruébalos: tu asistente los usará en imágenes y recomendaciones.</p>
       <div class="mc-cols">${cols.map((c, i) => `<label class="mc-c"><input type="color" value="${esc(c)}" data-mc="${i}" ${soloLectura ? 'disabled' : ''}><span>${esc(c.toUpperCase())}</span>${soloLectura ? '' : `<button type="button" data-mcx="${i}" title="Quitar">✕</button>`}</label>`).join('')}</div>
-      ${soloLectura ? '' : `<div class="row" style="margin-top:8px"><button type="button" class="btn sm" id="mcAprobar" ${m.aprobado ? 'disabled' : ''}>${m.aprobado ? '✅ Colores aprobados' : '✓ Aprobar mis colores'}</button><button type="button" class="btn ghost sm" id="mcDetectar">↻ Detectar de nuevo</button></div>`}</div>`;
+      ${soloLectura ? '' : `<div class="row" style="margin-top:8px"><button type="button" class="btn sm" id="mcAprobar" ${m.aprobado ? 'disabled' : ''}>${m.aprobado ? '✅ Colores aprobados' : '✓ Aprobar mis colores'}</button><button type="button" class="btn ghost sm" id="mcDetectar">↻ Detectar de nuevo</button>${cols.length < 6 ? '<button type="button" class="btn ghost sm" id="mcAgregar">＋ Agregar color</button>' : ''}</div>`}</div>`;
     box.querySelectorAll('[data-mc]').forEach(inp => inp.onchange = () => { D.marca.colores[+inp.dataset.mc] = inp.value; D.marca.aprobado = false; guardarD(); pintarColores(); });
     box.querySelectorAll('[data-mcx]').forEach(b => b.onclick = () => { D.marca.colores.splice(+b.dataset.mcx, 1); D.marca.aprobado = false; guardarD(); pintarColores(); });
+    const ag = document.getElementById('mcAgregar'); if (ag) ag.onclick = () => { D.marca.colores.push('#888888'); D.marca.aprobado = false; guardarD(); pintarColores(); toast('Toca el nuevo color para elegirlo'); };
     const ap = document.getElementById('mcAprobar'); if (ap) ap.onclick = () => { D.marca.aprobado = true; D.marca.aprobado_en = new Date().toISOString(); guardarD(); pintarColores(); toast('¡Colores de tu marca aprobados!'); };
     const de = document.getElementById('mcDetectar'); if (de) de.onclick = async () => { const p = (D.E.logo || [])[0]; if (!p) return; try { D.marca = { colores: await extraerColores(await api.urlArchivo(p)), aprobado: false }; guardarD(); pintarColores(); } catch (e) { toast('No pudimos leer los colores de tu logo'); } };
   };
   pintarColores();
+  const pintarTipos = () => {
+    const box = document.getElementById('marcaTipos'); if (!box) return;
+    cargarFuentesMarca();
+    const nombre = (D.A?.nombre || '').trim() || 'Tu negocio', sel = D.tipografia?.id;
+    box.innerHTML = `<div class="mc tp-box"><b>🔤 Elige las letras de tu marca</b><p class="small muted">Así se vería el nombre de tu negocio y tus textos. La que elijas es la que usará tu asistente en tus diseños.</p>
+      <div class="tp-grid">${TIPOS_MARCA.map(tp => `<button type="button" class="tp-card ${sel === tp.id ? 'on' : ''}" data-tipo="${tp.id}" ${soloLectura ? 'disabled' : ''}>
+        <div class="tp-top"><i></i><span class="tp-t" style="font-family:'${tp.t}',serif;font-weight:${tp.tw};${tp.up ? 'text-transform:uppercase;' : ''}">${esc(nombre)}</span>
+        <span class="tp-x" style="font-family:'${tp.x}',sans-serif">Así se leen tus textos, precios y descripciones.</span>${sel === tp.id ? '<em>✓</em>' : ''}</div>
+        <div class="tp-bot"><small>${esc(tp.estilo)}</small><span>${esc(tp.para)}</span></div></button>`).join('')}</div></div>`;
+    box.querySelectorAll('[data-tipo]').forEach(b => b.onclick = () => {
+      const tp = TIPOS_MARCA.find(x => x.id === b.dataset.tipo);
+      D.tipografia = { id: tp.id, estilo: tp.estilo, titulos: tp.t, texto: tp.x, en: new Date().toISOString() };
+      guardarD(); pintarTipos(); toast('¡Listo! Estas son las letras de tu marca');
+    });
+  };
+  pintarTipos();
   document.querySelectorAll('input[type=file]').forEach(inp => inp.onchange = async () => {
     const cat = inp.dataset.cat, max = +inp.dataset.max;
     if (cat === 'logo' && inp.files[0]) { const u = URL.createObjectURL(inp.files[0]); extraerColores(u).then(c => { if (c.length) { D.marca = { colores: c, aprobado: false }; guardarD(); pintarColores(); } }).catch(() => {}).finally(() => URL.revokeObjectURL(u)); }
@@ -2394,9 +2443,10 @@ OBJETIVO COMERCIAL
 
 IDENTIDAD DE MARCA
 - Colores corporativos: ${(D.marca?.colores || []).length ? D.marca.colores.map(c => c.toUpperCase()).join(', ') + (D.marca.aprobado ? ' (aprobados por mí, detectados de mi logotipo)' : ' (detectados de mi logotipo; aún no los confirmo)') : 'No proporcionado en el PRE-BRIEF'}
-- Estilo visual: No proporcionado en el PRE-BRIEF
+- Tipografías de mi marca: ${D.tipografia ? tipoTxt(D.tipografia) + ', elegidas por mí' : 'No proporcionado en el PRE-BRIEF'}
+- Estilo visual: ${D.tipografia ? D.tipografia.estilo : 'No proporcionado en el PRE-BRIEF'}
 - Personalidad y tono de comunicación: No proporcionado en el PRE-BRIEF
-(Usa mis colores corporativos en todas las imágenes, diseños y recomendaciones visuales. Si falta algún dato de marca, pregúntamelo de forma breve; también puedes deducir el estilo de mi logotipo y fotos cuando los adjunte.)
+(Usa mis colores corporativos y mis tipografías en todas las imágenes, diseños y recomendaciones visuales. Si falta algún dato de marca, pregúntamelo de forma breve; también puedes deducir el estilo de mi logotipo y fotos cuando los adjunte.)
 
 MATERIALES VISUALES (archivos que no viajan como texto)
 ${archivos}
