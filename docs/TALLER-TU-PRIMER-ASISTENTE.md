@@ -43,6 +43,7 @@ Módulos: Producto ganador · Mercado meta · CONTENIDO Y CAMPAÑAS (Contenido /
 - Al recibir un prompt nuevo de Jany: cambiar los colores fijos del **escenario** por el token (nunca los del producto) y decirle qué se cambió.
 
 ## Pendientes
+0. **Pago en GHL → acceso automático**: listo en código (`docs/TALLER-PAGO-GHL.md`). Falta: variables en Vercel, workflow en GHL, SMTP propio en Supabase y una compra de prueba.
 1. **Zoom**: opción 1 botón "Entrar al Zoom" (falta que Jany pase el link de la reunión); opción 2 Zoom dentro de la plataforma (Meeting SDK, junto con Supabase).
 2. **Conectar Supabase** (crítico: resultados de grupo y control de diapositivas solo de la ponente no funcionan en modo demo).
 3. Cambiar el texto "[LINK DE LA SESIÓN]".
