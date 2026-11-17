@@ -78,6 +78,11 @@ Ruta del hub de Jany sin prefijo; clientes: `/<hub>/<ruta>`. Hubs (mapa de Jefes
 
 Admin de hubs y accesos de clientes: `/hubs` (`hubs.html`). Prellenado del ADN para clientes: `/pre-hub`.
 
+## Taller "Tu Primer Asistente con IA" (3 dic 2026)
+
+Si la tarea es de la guía (`guia-taller-ia.html`) o la plataforma del taller (`taller-app/`), **leer primero
+`docs/TALLER-TU-PRIMER-ASISTENTE.md`** (estado, reglas, cómo publicar y pendientes) y actualizarlo al terminar.
+
 ## Para ahorrar créditos
 
 - Una conversación por tarea; al terminar y mergear, se cierra. Lo permanente va aquí o en `docs/`.
