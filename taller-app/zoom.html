@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clase en vivo · Zoom · Taller</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #0F0B16; color: #EDE4FA; font-family: 'Inter', system-ui, sans-serif; }
+  #zoom-root { width: 100%; height: 100%; }
+  #aviso { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 24px; text-align: center; font-size: 16px; line-height: 1.5; }
+  #aviso.on { display: flex; }
+</style>
+</head>
+<body>
+<div id="zoom-root"></div>
+<div id="aviso"></div>
+
+<script src="config.js"></script>
+<script src="https://source.zoom.us/6.10.0/zoom-meeting-embedded-6.10.0.min.js"></script>
+<script>
+(function () {
+  var cfg = window.TALLER_CONFIG || {};
+  var params = new URLSearchParams(location.search);
+  var mn = (params.get('mn') || cfg.zoomMeetingNumber || '').replace(/\D/g, '');
+  var pwd = params.get('pwd') || cfg.zoomPassword || '';
+  var nombre = (params.get('nombre') || 'Participante').slice(0, 60);
+  var API = 'https://agentes.jefeshub.com/api/storage/zoom-firma';
+
+  function aviso(texto) {
+    var a = document.getElementById('aviso');
+    a.textContent = texto; a.classList.add('on');
+  }
+
+  if (!mn) { aviso('Falta el número de la reunión de Zoom. Pídele a Jany el link de la clase.'); return; }
+  if (typeof ZoomMtgEmbedded === 'undefined') { aviso('No se pudo cargar Zoom. Revisa tu conexión y recarga la página.'); return; }
+
+  fetch(API + '?mn=' + encodeURIComponent(mn), { cache: 'no-store' })
+    .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+    .then(function (res) {
+      if (!res.ok || !res.j.signature) { aviso(res.j.error || 'No se pudo preparar la reunión.'); return; }
+      var client = ZoomMtgEmbedded.createClient();
+      client.init({
+        zoomAppRoot: document.getElementById('zoom-root'),
+        language: 'es-ES',
+        patchJsMedia: true,
+        leaveOnPageUnload: true
+      }).then(function () {
+        return client.join({
+          sdkKey: res.j.sdkKey,
+          signature: res.j.signature,
+          meetingNumber: mn,
+          password: pwd,
+          userName: nombre
+        });
+      }).catch(function (e) {
+        aviso('No se pudo entrar a la reunión: ' + ((e && (e.reason || e.message)) || 'error desconocido'));
+      });
+    })
+    .catch(function () { aviso('No se pudo conectar con el servidor de la clase. Intenta de nuevo.'); });
+})();
+</script>
+</body>
+</html>
