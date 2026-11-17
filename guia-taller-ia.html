@@ -394,6 +394,13 @@
   .gal-grupo li a { display: inline-block; padding: 7px 12px; border-radius: 999px; background: var(--card-2); border: 1px solid var(--line); font-size: 13px; font-weight: 600; color: var(--text); transition: border-color .2s, background .2s; }
   .gal-grupo li a:hover { border-color: var(--lime); background: var(--lime-soft); }
   .gal-nota { font-size: 12px; color: var(--dim); margin-top: 10px; }
+  /* Antes y después */
+  .ad-par { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; max-width: 520px; }
+  .ad-par figure { margin: 0; position: relative; }
+  .ad-par img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 14px; border: 1px solid var(--line); display: block; background: #fff; }
+  .ad-par figcaption { position: absolute; left: 10px; top: 10px; padding: 3px 10px; border-radius: 999px; background: var(--lime); color: var(--ink); font: 700 11px 'JetBrains Mono', monospace; letter-spacing: .08em; text-transform: uppercase; }
+  .ad-par figure:first-child figcaption { background: var(--card-2); color: var(--text); }
+  .prompt.corto pre { max-height: 56px; }
   /* Mini prompts de tamaño */
   .tam-box { margin-top: 16px; padding: 16px; border-radius: 16px; border: 1px dashed var(--lime); background: var(--card); }
   .tam-box > b { font: 700 16px 'Sora', sans-serif; } .tam-box > p { font-size: 14px; margin: 4px 0 0; }
@@ -811,7 +818,8 @@ const CURSO = {
         etapas: [
           { titulo: 'Tu logo sin fondo', texto: 'Descarga tu logo ya sin fondo o conviértelo en PNG. Varios diseños te lo van a pedir.', embed: 'marca' },
           { titulo: 'Borra el fondo de cualquier imagen', texto: '¿Tienes una foto de tu producto con un fondo que no te gusta? Súbela a ChatGPT, pega este prompt y te la regresa sin fondo, lista para usar.',
-            prompts: [{ nombre: 'Quitar el fondo', texto: "Te subo una imagen. Quítale el fondo y entrégamela como PNG con fondo transparente, lista para descargar.\n\nReglas:\n* Conserva exactamente el objeto o la persona principal: forma, colores, detalles y proporciones.\n* No lo redibujes ni inventes una versión diferente.\n* Deja los bordes limpios y nítidos, incluso en cabello, pelo o partes finas.\n* No agregues sombras, textos ni elementos nuevos.\n\nCuando termine, dame también una versión con fondo blanco liso por si la necesito para mi catálogo." }] },
+            antesDespues: { antes: 'img/estilos/sin-fondo-antes.webp', despues: 'img/estilos/sin-fondo-despues.webp' },
+            prompts: [{ corto: true, nombre: 'Quitar el fondo', texto: "Te subo una imagen. Quítale el fondo y entrégamela como PNG con fondo transparente, lista para descargar.\n\nReglas:\n* Conserva exactamente el objeto o la persona principal: forma, colores, detalles y proporciones.\n* No lo redibujes ni inventes una versión diferente.\n* Deja los bordes limpios y nítidos, incluso en cabello, pelo o partes finas.\n* No agregues sombras, textos ni elementos nuevos.\n\nCuando termine, dame también una versión con fondo blanco liso por si la necesito para mi catálogo." }] },
           { titulo: 'Diseños de referencia', texto: 'Te preparé estos diseños que me encantan para fotos de producto. Elige el que más vaya con tu marca, copia su prompt y pégalo en ChatGPT junto con la foto de tu producto. Si el diseño usa foto base, descárgala primero y súbela también.',
             estilos: ESTILOS_IMAGEN },
           { titulo: 'Edita lo que quieras', texto: 'Con estos mini prompts cambias cualquier cosa de tu imagen, en el mismo chat de ChatGPT. Te recomiendo este orden: primero el fondo, luego los colores, después los textos y las caras, y al final agrega tu logo.',
@@ -1135,12 +1143,13 @@ function viewClase(c) {
         ${e.estilos ? `<div class="estilos-grid">${e.estilos.map((x, j) => x.pendiente ? '' : `<div class="estilo-card"><button type="button" class="estilo-foto" data-estilo="${j}" aria-label="Ver el prompt de ${esc(x.nombre)}"><img src="${esc(x.img)}" alt="${esc(x.nombre)}" loading="lazy">${x.hover ? `${[].concat(x.hover).map((h, k, arr) => `<img class="estilo-hover${arr.length > 1 ? ' ciclo' : ''}" src="${esc(h)}" alt="" style="animation-delay:${(k * 2 - 1.8).toFixed(1)}s">`).join('')}<span class="estilo-tip">👆 Así se vería con otro producto</span>` : ''}<span class="estilo-num">ESTILO ${esc(x.n)}</span></button><div class="estilo-txt"><b>${esc(x.nombre)}</b><p>${esc(x.desc)}</p>${x.colores ? '<span class="estilo-fotos estilo-col">🎨 Se adapta a los colores de tu marca</span>' : ''}<span class="estilo-fotos">📷 ${x.fotosTxt ? esc(x.fotosTxt) : x.fotos === 3 ? 'Sube 3 fotos: tu producto + tu logo + la foto base' : x.fotos === 2 ? 'Sube 2 fotos: la foto base + tu producto' : 'Sube 1 foto: tu producto'}</span><div class="estilo-acc"><button type="button" class="btn" data-estilo="${j}">Ver y copiar prompt</button>${x.fotos >= 2 && !x.sinBase ? `<a class="chip-btn" href="${esc(x.img)}" download="estilo-${esc(x.n)}-foto-base${esc(x.img.slice(x.img.lastIndexOf('.')))}">⬇ Foto base</a>` : ''}</div></div></div>`).join('')}</div>` : ''}
         ${e.galeria ? `<div class="gal-box">${e.galeria.map(g => `<div class="gal-grupo"><b>${esc(g.emoji)} ${esc(g.titulo)}</b><p>${esc(g.texto)}</p><ul>${g.items.map(t => `<li><a href="https://mx.pinterest.com/search/pins/?q=${encodeURIComponent(t)}&rs=typed" target="_blank" rel="noopener" title="Ver ideas en Pinterest">📌 ${esc(t)}</a></li>`).join('')}</ul><p class="gal-nota">Toca cualquiera para ver ideas en Pinterest.</p></div>`).join('')}</div>` : ''}
         ${e.checks ? `<div class="card etapa-checks">${e.checks.map((t, j) => `<label class="chk"><input type="checkbox" data-chk="${esc(c.id)}-${k}-${j}" ${chks[c.id + '-' + k + '-' + j] ? 'checked' : ''}><span>${esc(t)}</span></label>`).join('')}</div>` : ''}
+        ${e.antesDespues ? `<div class="ad-par"><figure><img src="${esc(e.antesDespues.antes)}" alt="Antes" loading="lazy"><figcaption>Antes</figcaption></figure><figure><img src="${esc(e.antesDespues.despues)}" alt="Después" loading="lazy"><figcaption>Después</figcaption></figure></div>` : ''}
         ${(e.prompts || []).map(p => `
-          <div class="prompt">
+          <div class="prompt${p.corto ? ' corto' : ''}">
             <div class="prompt-head"><b>${esc(p.nombre)}</b><button class="copy" data-copy><svg><use href="#i-copy"/></svg><span>Copiar prompt</span></button></div>
             ${p.nota ? `<div class="prompt-note">ⓘ ${esc(p.nota)}</div>` : ''}
             <pre data-raw="${esc(conMarca(p.texto))}">${marcar(conMarca(p.texto))}</pre>
-            <button class="expand" data-expand>Ver prompt completo ⌄</button>
+            ${p.corto ? '' : '<button class="expand" data-expand>Ver prompt completo ⌄</button>'}
           </div>`).join('')}
       </li>`).join('')}</ol>
     <div class="sec-title"><span class="ico">✅</span><div><h2>Revisa antes de avanzar</h2></div></div>
