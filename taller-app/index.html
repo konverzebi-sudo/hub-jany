@@ -597,6 +597,8 @@
   .mk-col { display: flex; align-items: center; gap: 8px; padding: 6px 12px 6px 6px; border-radius: 99px; border: 1px solid #DCCFEE; background: #fff; cursor: pointer; font: 600 13px 'JetBrains Mono', monospace; color: #1C0A33; }
   .mk-col i { width: 26px; height: 26px; border-radius: 50%; border: 1px solid rgba(0,0,0,.12); }
   .mk-prompt { margin-top: 16px; font-size: 14px; } .mk-prompt summary { cursor: pointer; font-weight: 700; color: #7B2FBE; }
+  .mk-prompt-abierto { padding: 14px; border-radius: 14px; background: #F7F3FC; border: 1px dashed #C9B6E6; } .mk-prompt-abierto pre { background: #fff; }
+  .mk-grande { display: inline-block; width: auto; margin: 0; padding: 12px 18px; text-decoration: none; font-size: 14px; }
   .mk-prompt pre { white-space: pre-wrap; font: 13px/1.55 'Inter', sans-serif; background: #F7F3FC; padding: 12px; border-radius: 12px; margin: 8px 0; color: #3B1468; }
 </style>
 </head>
@@ -2576,7 +2578,7 @@ function parsearFicha(t) {
   return filas;
 }
 /* 🎨 Tu logo y tus colores (Hacer diseños): el logo y la paleta del brief, a la mano para los prompts de imagen */
-const PROMPT_SIN_FONDO = 'Quita el fondo de este logotipo y entrégamelo como PNG con fondo transparente.\n\nReglas:\n* No cambies colores, tipografía, proporciones ni ningún detalle del logotipo.\n* No lo redibujes ni inventes una versión diferente.\n* Conserva los bordes limpios y nítidos.\n* No agregues sombras, textos ni elementos nuevos.';
+const PROMPT_SIN_FONDO = 'Te subo mi logotipo. Quítale el fondo y entrégamelo como PNG con fondo transparente, listo para descargar.\n\nReglas:\n* No cambies colores, tipografía, proporciones ni ningún detalle del logotipo.\n* No lo redibujes ni inventes una versión diferente.\n* Conserva los bordes limpios y nítidos.\n* No agregues sombras, textos ni elementos nuevos.';
 function quitarFondo(src) {
   return new Promise((ok, mal) => {
     const img = new Image(); img.crossOrigin = 'anonymous';
@@ -2618,51 +2620,45 @@ async function vistaMarca() {
     await api.responder(a.id, nuevo, 'ABCDEF'.split('').every(x => nuevo._ok?.[x]));
     S.misRespuestas = S.misRespuestas.filter(x => x.actividad_id !== a.id).concat([{ ...(miResp(a) || {}), actividad_id: a.id, datos: nuevo }]);
   };
-  let sinFondo = null;
+  let sinFondo = null, procesando = false;
   const pintar = async () => {
     const d = D(), path = (d.E?.logo || [])[0], cols = d.marca?.colores || [];
     const url = path ? await api.urlArchivo(path).catch(() => '') : '';
     const ext = (url.match(/^data:image\/(\w+)/) || url.match(/\.(png|jpe?g|webp)(\?|$)/i) || [, 'png'])[1].replace('jpeg', 'jpg');
+    // El fondo se quita solo, en cuanto hay logo (no se guarda nada nuevo: se calcula aquí)
+    if (url && !sinFondo && !procesando) { procesando = true; quitarFondo(url).then(r => { sinFondo = r; }).catch(() => { sinFondo = { error: true }; }).finally(() => { procesando = false; pintar(); }); }
+    const listo = sinFondo?.url || sinFondo?.yaTransparente;
     root.innerHTML = `<div class="bt mk">
       <small class="bt-eyebrow">TU MARCA</small><h3>Tu logo y tus colores</h3>
-      <p class="bt-sub">Te los dejo a la mano para que los subas a ChatGPT junto con tus prompts de imagen.</p>
+      <p class="bt-sub">Aquí tienes el logo que subiste en el Pre, ya sin fondo, para que lo subas a ChatGPT junto con tus prompts de imagen.</p>
       ${url ? `<div class="mk-logos">
-          <figure><div class="mk-cuadro"><img src="${esc(url)}" alt="Tu logo"></div><figcaption>Tu logo original</figcaption></figure>
-          ${sinFondo?.url ? `<figure><div class="mk-cuadro mk-ajedrez"><img src="${sinFondo.url}" alt="Tu logo sin fondo"></div><figcaption>Sin fondo · revísalo</figcaption></figure>` : ''}
+          <figure><div class="mk-cuadro mk-ajedrez">${sinFondo?.url ? `<img src="${sinFondo.url}" alt="Tu logo sin fondo">` : `<img src="${esc(url)}" alt="Tu logo">`}</div>
+          <figcaption>${procesando ? 'Quitando el fondo…' : sinFondo?.url ? 'Tu logo sin fondo · revísalo' : sinFondo?.yaTransparente ? 'Tu logo ya no tenía fondo' : 'Tu logo'}</figcaption></figure>
         </div>
         <div class="mk-acc">
-          <a class="bt-chip mk-dl" href="${esc(url)}" download="mi-logo.${esc(ext)}">⬇ Descargar mi logo</a>
-          ${sinFondo?.url ? `<a class="bt-chip mk-dl mk-ok" href="${sinFondo.url}" download="mi-logo-sin-fondo.png">⬇ Descargar PNG sin fondo</a>` : sinFondo?.yaTransparente ? '<span class="mk-nota">✅ Tu logo ya no tiene fondo: descárgalo tal cual.</span>' : '<button type="button" class="bt-chip" id="mkQuitar">✨ Quitarle el fondo</button>'}
+          ${sinFondo?.url ? `<a class="bt-btn mk-dl mk-grande" href="${sinFondo.url}" download="mi-logo-sin-fondo.png">⬇ Descargar mi logo sin fondo (PNG)</a>`
+            : sinFondo?.yaTransparente ? `<a class="bt-btn mk-dl mk-grande" href="${esc(url)}" download="mi-logo.${esc(ext)}">⬇ Descargar mi logo sin fondo</a>`
+            : procesando ? '<span class="mk-nota">⏳ Un momento, estoy quitándole el fondo…</span>' : ''}
+          <a class="bt-chip mk-dl" href="${esc(url)}" download="mi-logo-original.${esc(ext)}">Descargar el original</a>
         </div>
-        ${sinFondo?.url ? '<p class="mk-nota">Si se borró algo que no debía, usa el prompt de abajo en ChatGPT.</p>' : ''}`
-      : `<div class="mk-vacio"><p>Aún no subiste tu logo. Súbelo aquí y detecto los colores de tu marca.</p><label class="bt-btn mk-subir">📤 Subir mi logo<input type="file" accept="image/png,image/jpeg,image/webp" id="mkFile" hidden></label></div>`}
+        ${sinFondo?.url ? '<p class="mk-nota">Si se borró algo que no debía (por ejemplo, partes blancas de tu logo), usa el prompt de abajo en ChatGPT.</p>' : sinFondo?.error ? '<p class="mk-nota">No pude quitarle el fondo a tu logo: usa el prompt de abajo en ChatGPT.</p>' : ''}`
+      : `<div class="mk-vacio"><p>📝 Tu logo se sube en tu <b>brief del Pre</b>, en la parte de <b>Materiales</b>. En cuanto lo subas, aquí te aparece ya sin fondo y con los colores de tu marca.</p></div>`}
       <div class="mk-cols-h"><b>🎨 Colores de tu marca</b>${d.marca?.aprobado ? '<span class="mk-nota">✅ aprobados</span>' : ''}</div>
       ${cols.length ? `<div class="mk-cols">${cols.map(c => `<button type="button" class="mk-col" data-hex="${esc(c.toUpperCase())}" title="Copiar"><i style="background:${esc(c)}"></i><span>${esc(c.toUpperCase())}</span></button>`).join('')}</div>
         <button type="button" class="bt-link" id="mkCopiarCols">📋 Copiar mis colores</button>`
-        : `<p class="mk-nota">${url ? '<button type="button" class="bt-chip" id="mkDetectar">🎨 Detectar los colores de mi logo</button>' : 'Cuando subas tu logo, aquí aparecen tus colores.'}</p>`}
+        : `<p class="mk-nota">${url ? '<button type="button" class="bt-chip" id="mkDetectar">🎨 Detectar los colores de mi logo</button>' : 'Cuando subas tu logo en el Pre, aquí aparecen tus colores.'}</p>`}
       ${d.tipografia ? `<div class="mk-cols-h"><b>🔤 La letra de tu marca</b></div><p class="mk-nota">Estilo ${esc(d.tipografia.estilo)}: ${esc(d.tipografia.desc || d.tipografia.titulos)}.</p>` : ''}
-      <details class="mk-prompt"><summary>¿Tu logo tiene un fondo complicado? Usa este prompt en ChatGPT</summary>
-        <pre>${esc(PROMPT_SIN_FONDO)}</pre><button type="button" class="bt-chip" id="mkCopiarPrompt">📋 Copiar prompt</button></details>
+      <div class="mk-prompt mk-prompt-abierto"><b>🪄 ¿No llenaste el brief o tienes otro logo?</b>
+        <p class="mk-nota">Abre ChatGPT, sube tu logo, pega este prompt y te lo regresa sin fondo.</p>
+        <pre>${esc(PROMPT_SIN_FONDO)}</pre><button type="button" class="bt-chip" id="mkCopiarPrompt">📋 Copiar prompt</button></div>
     </div>`;
     const q = id => document.getElementById(id);
-    if (q('mkQuitar')) q('mkQuitar').onclick = async () => { q('mkQuitar').disabled = true; q('mkQuitar').textContent = 'Quitando el fondo…'; try { sinFondo = await quitarFondo(url); } catch (e) { toast('No pude quitar el fondo: usa el prompt de abajo'); } pintar(); };
     if (q('mkDetectar')) q('mkDetectar').onclick = async () => { try { const nd = D(); nd.marca = { colores: await extraerColores(url), aprobado: false }; await guardar(nd); pintar(); } catch (e) { toast('No pude leer los colores de tu logo'); } };
-    if (q('mkFile')) q('mkFile').onchange = async e => {
-      const f = e.target.files[0]; if (!f) return;
-      try {
-        const nd = D(), pth = await api.subir(f, 'logo');
-        nd.E = { ...(nd.E || {}), logo: [pth] };
-        const u = URL.createObjectURL(f);
-        try { const c = await extraerColores(u); if (c.length) nd.marca = { colores: c, aprobado: false }; } catch (er) {} finally { URL.revokeObjectURL(u); }
-        await guardar(nd); toast('¡Logo guardado!'); sinFondo = null; pintar();
-      } catch (er) { toast(er.message || 'No se pudo subir tu logo'); }
-    };
     const copiar = (t, msg) => navigator.clipboard.writeText(t).then(() => toast(msg));
     root.querySelectorAll('[data-hex]').forEach(b => b.onclick = () => copiar(b.dataset.hex, 'Color ' + b.dataset.hex + ' copiado'));
     if (q('mkCopiarCols')) q('mkCopiarCols').onclick = () => copiar('Colores de mi marca: ' + cols.map(c => c.toUpperCase()).join(', '), 'Colores copiados');
     q('mkCopiarPrompt').onclick = () => copiar(PROMPT_SIN_FONDO, 'Prompt copiado');
     root.querySelectorAll('img').forEach(i => i.addEventListener('load', avisarAltura));
-    root.querySelector('.mk-prompt').addEventListener('toggle', avisarAltura);
     avisarMarca(); avisarAltura();
   };
   return pintar();
