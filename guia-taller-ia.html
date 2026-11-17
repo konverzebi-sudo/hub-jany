@@ -188,6 +188,16 @@
   .done-toggle { display: inline-flex; align-items: center; gap: 10px; padding: 12px 18px; border-radius: 999px; border: 1px solid var(--line); font-weight: 600; font-size: 14px; }
   .done-toggle .box { width: 20px; height: 20px; border-radius: 6px; border: 2px solid var(--dim); display: grid; place-items: center; }
   .done-toggle.on { border-color: var(--lime); }
+  .vista-ctl { margin-top: 20px; display: grid; gap: 10px; }
+  .vc-row { display: flex; flex-wrap: wrap; gap: 12px; }
+  .vc-row label { display: grid; gap: 4px; min-width: 180px; }
+  .vc-row select { width: auto; }
+  .vista-box { position: relative; aspect-ratio: 16 / 9; background: #0F0B16; border-radius: 16px; overflow: hidden; margin-top: 16px; }
+  .vi { position: absolute; inset: 0; transition: opacity .2s; }
+  .vi iframe { width: 100%; height: 100%; border: 0; display: block; background: #0F0B16; }
+  .vi.grande { z-index: 1; }
+  .vi.chico { z-index: 2; left: auto; top: auto; right: 14px; bottom: 14px; width: min(26%, 240px); aspect-ratio: 1 / 1; border-radius: 16px; overflow: hidden; border: 2px solid #BBF802; }
+  .vi.oculto { visibility: hidden; opacity: 0; pointer-events: none; }
   .zoom-vivo { display: block; width: 100%; height: min(70vh, 620px); min-height: 420px; border: 0; border-radius: 16px; background: #0F0B16; }
   .panel-ponente { margin-top: 20px; display: grid; gap: 10px; border-left: 4px solid #BBF802; }
   .pp-h { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -1199,22 +1209,60 @@ document.addEventListener('click', e => {
   document.getElementById('ppDetalle').innerHTML = `<b>${esc(m.titulo)}</b><ol>${acts.map(t => `<li>${esc(t)}</li>`).join('') || '<li>Sin actividades</li>'}</ol>`;
   document.querySelectorAll('.pp-num').forEach(x => x.classList.toggle('on', x === b));
 });
-/* Modo dinámica (solo ponente): deja solo el video de Zoom en un círculo y oculta la presentación */
-document.addEventListener('click', e => {
-  if (!(e.target.closest && e.target.closest('[data-circulo]'))) return;
-  const z = document.querySelector('.zoom-wrap'), p = document.querySelector('.pres-wrap');
-  if (!z || !p) return;
-  const on = z.classList.toggle('circulo'); p.classList.toggle('oculto', on);
-  e.target.closest('[data-circulo]').textContent = on ? '⬜ Volver a la presentación' : '🔵 Modo dinámica: solo mi cara';
+/* Clase en vivo, vista del ponente: dos cuadros. Tú decides qué ve cada uno: tu cara (Zoom), la presentación o un ejercicio.
+   Solo cambian de lugar (no se recargan), así la reunión de Zoom no se corta. Por ahora la elección es solo para tu pantalla. */
+const VISTA_KEY = KEY + '-vista';
+function leerVista() {
+  let v = {}; try { v = JSON.parse(localStorage.getItem(VISTA_KEY)) || {}; } catch (e) {}
+  return { grande: v.grande || 'pres', chico: v.chico || 'cara', ej: v.ej || (CLASES[0] && CLASES[0].id) || '' };
+}
+function guardarVista(v) { try { localStorage.setItem(VISTA_KEY, JSON.stringify(v)); } catch (e) {} }
+const OPCIONES_VISTA = [['cara', 'Mi cara (Zoom)'], ['pres', 'Presentación'], ['ej', 'Ejercicio']];
+function bloqueVistaPonente() {
+  const v = leerVista();
+  const cls = key => v.grande === key ? 'grande' : v.chico === key ? 'chico' : 'oculto';
+  const opts = sel => OPCIONES_VISTA.map(([k, t]) => `<option value="${k}" ${sel === k ? 'selected' : ''}>${t}</option>`).join('');
+  return `<div class="card vista-ctl">
+    <b>🎛️ Qué ve cada cuadro</b>
+    <div class="vc-row">
+      <label class="small">Cuadro grande<select data-vc="grande" data-prev="${v.grande}">${opts(v.grande)}</select></label>
+      <label class="small">Cuadrito<select data-vc="chico" data-prev="${v.chico}">${opts(v.chico)}</select></label>
+      <label class="small">Ejercicio (si lo eliges)<select data-vc="ej">${CLASES.map(c => `<option value="${c.id}" ${c.id === v.ej ? 'selected' : ''}>${esc(etiq(c))} · ${esc(c.titulo)}</option>`).join('')}</select></label>
+    </div>
+    <p class="small muted">Solo lo ves tú. Para que los alumnos vean tu elección hace falta conectar Supabase.</p>
+  </div>
+  <div class="vista-box">
+    <div class="vi vi-cara ${cls('cara')}"><iframe class="zoom-vivo" src="taller-app/zoom.html" title="Clase en vivo por Zoom" allow="camera; microphone; fullscreen; display-capture; autoplay"></iframe></div>
+    <div class="vi vi-pres ${cls('pres')}"><iframe src="taller-app/?embed=presentacion&rol=ponente" title="Presentación en vivo"></iframe></div>
+    <div class="vi vi-ej ${cls('ej')}"><iframe src="guia-taller-ia.html?vista=ponente#clase-${v.ej}" title="Ejercicio"></iframe></div>
+  </div>`;
+}
+document.addEventListener('change', e => {
+  const s = e.target.closest && e.target.closest('[data-vc]'); if (!s || !document.querySelector('.vista-box')) return;
+  const sel = k => document.querySelector(`[data-vc="${k}"]`);
+  const v = { grande: sel('grande').value, chico: sel('chico').value, ej: sel('ej').value };
+  if (s.dataset.vc === 'grande' || s.dataset.vc === 'chico') {
+    const otro = s.dataset.vc === 'grande' ? 'chico' : 'grande';
+    if (v[otro] === v[s.dataset.vc]) v[otro] = s.dataset.prev; // intercambiar para que no se repitan
+    sel('grande').value = v.grande; sel('chico').value = v.chico;
+    sel('grande').dataset.prev = v.grande; sel('chico').dataset.prev = v.chico;
+  }
+  const clase = k => v.grande === k ? 'grande' : v.chico === k ? 'chico' : 'oculto';
+  document.querySelector('.vi-cara').className = `vi vi-cara ${clase('cara')}`;
+  document.querySelector('.vi-pres').className = `vi vi-pres ${clase('pres')}`;
+  document.querySelector('.vi-ej').className = `vi vi-ej ${clase('ej')}`;
+  const ifr = document.querySelector('.vi-ej iframe');
+  const nuevoSrc = `guia-taller-ia.html?vista=ponente#clase-${v.ej}`;
+  if (ifr && ifr.getAttribute('src') !== nuevoSrc) ifr.setAttribute('src', nuevoSrc);
+  guardarVista(v);
 });
 function viewEnVivo() {
   $('#crumbs').innerHTML = `Guía del taller › <b>Clase en vivo</b>`;
-  return `<span class="eyebrow">En vivo</span><h1 style="font-size:clamp(30px,4.4vw,46px);margin:16px 0 8px">Clase en vivo</h1>
-    <p style="color:var(--muted)">Aquí me ves en vivo y ves la presentación al mismo tiempo que yo la voy dando. Cuando aparezca una actividad, respóndela justo debajo de la presentación.</p>
-    ${MODO_PONENTE ? bloquePanelPonente() : ''}
-    ${MODO_PONENTE ? '<div class="circ-bar"><button type="button" class="btn sm" data-circulo>🔵 Modo dinámica: solo mi cara</button><small>Solo lo ves tú: cambia la vista de la clase.</small></div>' : ''}
-    <div class="zoom-wrap"><iframe class="zoom-vivo" src="taller-app/zoom.html" title="Clase en vivo por Zoom" allow="camera; microphone; fullscreen; display-capture; autoplay" style="margin-top:20px"></iframe></div>
-    <div class="pres-wrap"><iframe class="embed-taller" data-din="presentacion" src="taller-app/?embed=presentacion${MODO_PONENTE ? '&rol=ponente' : ''}" title="Presentación en vivo" style="margin-top:20px"></iframe></div>`;
+  const cabecera = `<span class="eyebrow">En vivo</span><h1 style="font-size:clamp(30px,4.4vw,46px);margin:16px 0 8px">Clase en vivo</h1>
+    <p style="color:var(--muted)">Aquí me ves en vivo y ves la presentación al mismo tiempo que yo la voy dando. Cuando aparezca una actividad, respóndela justo debajo de la presentación.</p>`;
+  if (MODO_PONENTE) return cabecera + bloquePanelPonente() + bloqueVistaPonente();
+  return cabecera + `<div class="zoom-wrap"><iframe class="zoom-vivo" src="taller-app/zoom.html" title="Clase en vivo por Zoom" allow="camera; microphone; fullscreen; display-capture; autoplay" style="margin-top:20px"></iframe></div>
+    <div class="pres-wrap"><iframe class="embed-taller" data-din="presentacion" src="taller-app/?embed=presentacion" title="Presentación en vivo" style="margin-top:20px"></iframe></div>`;
 }
 
 function viewInicio() {
