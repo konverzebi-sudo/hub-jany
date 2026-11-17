@@ -5,5 +5,7 @@
 window.TALLER_CONFIG = {
   supabaseUrl: '',        // ej. https://abcd1234.supabase.co
   supabaseAnonKey: '',    // anon public key
-  taller: 'primer-agente' // slug del taller en la tabla talleres
+  taller: 'primer-agente', // slug del taller en la tabla talleres
+  zoomMeetingNumber: '6215331135',  // número de la reunión de Zoom (solo números)
+  zoomPassword: '1111'        // contraseña de la reunión, si tiene
 };
