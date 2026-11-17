@@ -25,6 +25,7 @@
 //   - 'chat':                  conversación libre del Faro sobre lo que ya hay en el radar.
 //   - 'ficha-audiencia':       resume el ADN, la Temporada y el 366 en una ficha corta (api/_lib/ficha-audiencia.js) que se guarda y se lee en vez de las tres fuentes completas.
 //   - 'idea-del-dia':          UNA propuesta de contenido por día y por foco: tendencias del nicho (web_search) + la ficha + lo que ya aprendió el Faro.
+//   - 'post-de-idea':          arma el post (formato del Jefe de Contenido) de una idea ya guardada que no lo trae.
 //   - 'ficha-estado', 'ficha-guardar', 'ideas-dia-estado': leen o corrigen lo guardado, sin llamar a Claude.
 
 const fs = require('fs');
@@ -1244,6 +1245,14 @@ function ideaDeHoy(items, focoId, hoy) {
   return null;
 }
 
+// El post va en el mismo formato que usa el Jefe de Contenido para cada post (gancho, caption, guion y notas de grabación).
+function normalizarPost(p) {
+  if (!p || typeof p !== 'object' || Array.isArray(p)) return null;
+  const t = (v, n) => (typeof v === 'string' ? v.trim().slice(0, n) : '');
+  const post = { gancho: t(p.gancho, 220), caption: t(p.caption, 2200), guion: t(p.guion, 4000), notas: t(p.notas, 1500) };
+  return post.guion || post.caption ? post : null;
+}
+
 function normalizarIdea(o) {
   if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
   const t = (v, n) => (typeof v === 'string' ? v.trim().slice(0, n) : '');
@@ -1252,12 +1261,15 @@ function normalizarIdea(o) {
     tema: t(o.tema, 160),
     gancho: t(o.gancho, 220),
     formato: t(o.formato, 60),
-    como_hacerlo: t(o.como_hacerlo, 900),
     por_que_te_sirve: t(o.por_que_te_sirve, 500),
     tendencia: { que: t(tr.que, 400), fuente: t(tr.fuente, 300), verificada: tr.verificada === true },
-    cta_sugerido: t(o.cta_sugerido, 200),
     base: (Array.isArray(o.base) ? o.base : []).filter((x) => typeof x === 'string').map((x) => x.trim().slice(0, 40)).filter(Boolean).slice(0, 6),
   };
+  const post = normalizarPost(o.post);
+  if (post) idea.post = post;
+  // Ideas guardadas antes de que existiera el post traían estos dos campos; se respetan si llegan.
+  if (t(o.como_hacerlo, 900)) idea.como_hacerlo = t(o.como_hacerlo, 900);
+  if (t(o.cta_sugerido, 200)) idea.cta_sugerido = t(o.cta_sugerido, 200);
   return idea.tema && idea.gancho ? idea : null;
 }
 
@@ -1269,21 +1281,51 @@ async function handleIdeasDiaEstado(req, res, clienteId) {
   return res.status(200).json({ fecha: hoy, idea: ideaDeHoy(items, foco.id, hoy), ficha: respuestaFicha(e && e.ficha ? e : null, fuentes) });
 }
 
+// Formato del post del Jefe de Contenido (mismas reglas que prompts/system-prompt-guion-organico.md, modo "contenido").
+const FORMATO_POST_CONTENIDO =
+  'POST EN EL FORMATO DEL JEFE DE CONTENIDO (campo "post"), listo para pasarlo tal cual a Contenido:\n' +
+  '- "gancho": la primera frase, dicha en voz alta por una persona (máximo 14 palabras), sin sonar a publicidad ni a IA.\n' +
+  '- "caption": el texto para publicar junto al video: breve, dinámico, con emojis donde ayuden a leer y un CTA claro y suave. Cierra con EXACTAMENTE 5 hashtags: ' +
+  '1) el nombre de la marca sin espacios (de NOMBRE DE LA MARCA), 2) uno de posicionamiento (del giro o la categoría del negocio), 3 a 5) tres estratégicos para esta idea (nada de #viral ni #instagood). ' +
+  'Si el CTA pide contactar o visitar, NO inventes número, link ni dirección: déjalo como "mándame mensaje" o "visítanos".\n' +
+  '- "guion": el guion listo para grabar, con cada parte etiquetada (por ejemplo "GANCHO:", "DESARROLLO:", "REMATE:", "CTA:"), siguiendo la estructura del objetivo que mejor le quede: ' +
+  'alcance o tendencia = hook de interés general + punto de vista + remate compartible + CTA suave; educativo = hook problema + explicación simple + ejemplo + mini conclusión + CTA a comentar o guardar; ' +
+  'confianza = situación real + aprendizaje + prueba + conexión con la oferta; opinión = creencia común + postura contraria + argumento + ejemplo + pregunta final; ' +
+  'venta sutil = problema real + insight + solución natural + invitación suave.\n' +
+  '- "notas": recomendación de voz (tono y ritmo), qué mostrar en cámara y la duración aproximada.\n' +
+  'Todo en primera persona del singular y hablándole a UNA persona (yo/voy/tengo, tú/vas/tienes), nunca en plural. No metas la marca a la fuerza si la idea no es de venta.';
+
 const INSTRUCCION_IDEA_DIA =
   'ESTÁS EN LA IDEA DEL DÍA DEL JEFE DEL FARO. Cada día propones UNA idea de contenido para este negocio, basada en el NICHO DE MERCADO y no solo en la competencia.\n' +
   '1) Usa web_search para ver qué se está hablando ESTA SEMANA en el nicho y en el tema de este negocio: tendencias, noticias, preguntas que hace la gente, formatos que están creciendo y fechas cercanas. ' +
   'Busca tendencias generales del nicho; no intentes abrir Instagram ni TikTok (no se puede sin sesión).\n' +
   '2) Cruza lo que encuentres con la FICHA DE AUDIENCIA de arriba (dolores, deseos, dudas, tono, momento de temporada) y con lo que ya aprendió el Faro de los referentes y de los números de la persona (si aparece abajo).\n' +
-  '3) Propón UNA sola idea que la persona pueda grabar o publicar hoy o mañana, distinta de las ideas anteriores (abajo).\n' +
+  '3) Propón UNA sola idea que la persona pueda grabar o publicar hoy o mañana, distinta de las ideas anteriores (abajo), y déjala armada como un post.\n' +
+  'Escribe corto y con ganas: el "tema" es un título que dé ganas de grabarlo; "por_que_te_sirve" es una sola frase (máximo 25 palabras); "tendencia.que" es una sola frase.\n' +
   'Reglas: no inventes cifras, precios, resultados, promociones ni fechas; de la tendencia afirma solo lo que leíste, y si no pudiste verificarla pon "verificada": false. ' +
-  'No copies frases, guiones ni identidad visual de nadie. Nada de presión falsa ni promesas exageradas. Lenguaje cotidiano y con la voz de la marca.';
+  'No copies frases, guiones ni identidad visual de nadie. Nada de presión falsa ni promesas exageradas. Lenguaje cotidiano y con la voz de la marca.\n\n' +
+  FORMATO_POST_CONTENIDO;
 
 const FORMATO_IDEA_DIA =
   'Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional antes ni después, con este formato exacto ("base" lleva solo lo que realmente usaste):\n' +
-  '{"tema": "título corto de la idea", "gancho": "primera frase del video o post (máximo 14 palabras)", "formato": "reel | carrusel | historia | post | video largo | en vivo", ' +
-  '"como_hacerlo": "2 a 4 frases: qué se dice o se muestra, en orden", "por_que_te_sirve": "1 o 2 frases ligadas a su cliente ideal y a lo que vende", ' +
-  '"tendencia": {"que": "qué está pasando en el nicho", "fuente": "URL leída o nombre de la fuente", "verificada": true}, "cta_sugerido": "una acción suave para cerrar", ' +
+  '{"tema": "título corto que dé ganas de grabarlo", "gancho": "primera frase del video o post (máximo 14 palabras)", "formato": "reel | carrusel | historia | post | video largo | en vivo", ' +
+  '"por_que_te_sirve": "una frase ligada a su cliente ideal y a lo que vende", ' +
+  '"tendencia": {"que": "una frase: qué está pasando en el nicho", "fuente": "URL leída o nombre de la fuente", "verificada": true}, ' +
+  '"post": {"gancho": "...", "caption": "...", "guion": "...", "notas": "..."}, ' +
   '"base": ["ADN", "Temporada", "366", "Faro", "Tendencias del nicho"]}';
+
+const INSTRUCCION_POST_DE_IDEA =
+  'ESTÁS ARMANDO EL POST DE LA IDEA DEL DÍA DEL JEFE DEL FARO. La persona ya eligió una idea y quiere llevarla al Jefe de Contenido: conviértela en un post completo usando SOLO el contexto de arriba. ' +
+  'No inventes cifras, precios, resultados ni fechas, y no cambies el tema ni la tendencia de la idea.\n\n' + FORMATO_POST_CONTENIDO + '\n\n' +
+  'Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional antes ni después, con este formato exacto:\n' +
+  '{"post": {"gancho": "...", "caption": "...", "guion": "...", "notas": "..."}}';
+
+// Nombre de la marca para el primer hashtag: viene del ADN del hub, nunca del código.
+async function nombreDeMarca(clienteId) {
+  const id = await leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null);
+  const n = id && typeof id === 'object' && typeof id.nombre === 'string' ? id.nombre.trim() : '';
+  return n ? `NOMBRE DE LA MARCA (para el primer hashtag): ${n.slice(0, 80)}` : '';
+}
 
 async function handleIdeaDelDia(req, res, clienteId, systemPrompt) {
   const foco = normalizarFoco(req.body && req.body.foco);
@@ -1292,13 +1334,14 @@ async function handleIdeaDelDia(req, res, clienteId, systemPrompt) {
   const yaHoy = ideaDeHoy(items, foco.id, hoy);
   if (yaHoy && !(req.body && req.body.forzar)) return res.status(200).json({ idea: yaHoy, generada: false });
 
-  const [fuentes, fichas, historial, referentes, estilos, numeros] = await Promise.all([
+  const [fuentes, fichas, historial, referentes, estilos, numeros, marca] = await Promise.all([
     fuentesDeFicha(clienteId, foco),
     leerFichas(clienteId),
     leerHistorial(clienteId),
     leerJSON(`${clienteId}:radar-referentes`).catch(() => null),
     leerJSON(`${clienteId}:radar-estilo`).catch(() => null),
     leerJSON(`${clienteId}:radar-mis-numeros`).catch(() => null),
+    nombreDeMarca(clienteId),
   ]);
   const entradaFicha = fichas[foco.id] && fichas[foco.id].ficha ? fichas[foco.id] : null;
   const fichaTxt = FichaAudiencia.formatearFicha(entradaFicha);
@@ -1306,7 +1349,7 @@ async function handleIdeaDelDia(req, res, clienteId, systemPrompt) {
 
   // Con ficha se lee el resumen corto; sin ella (todavía no se armó) se usan las tres fuentes completas.
   const producto = await contextoProductoFoco(clienteId, foco).catch(() => '');
-  const contexto = [fichaTxt ? [fichaTxt, producto].filter(Boolean).join('\n\n') : truncar(fuentes.texto, 9000), bloqueMisNumeros(numeros, foco), lineaFoco(foco)].filter(Boolean).join('\n\n');
+  const contexto = [fichaTxt ? [fichaTxt, producto].filter(Boolean).join('\n\n') : truncar(fuentes.texto, 9000), bloqueMisNumeros(numeros, foco), marca, lineaFoco(foco)].filter(Boolean).join('\n\n');
 
   const diag = ultimaEntradaPorTipo(historial, 'diagnostico-general', foco.id);
   const analisis = ultimaEntradaPorTipo(historial, 'analisis-general', foco.id);
@@ -1322,7 +1365,7 @@ async function handleIdeaDelDia(req, res, clienteId, systemPrompt) {
 
   const instruccion = `${INSTRUCCION_IDEA_DIA}\nFECHA DE HOY: ${hoy}.\n\n${FORMATO_IDEA_DIA}`;
   const promptCompleto = [systemPrompt, contexto, faro, instruccion].filter(Boolean).join('\n\n');
-  const r = await llamarClaude({ promptCompleto, webSearch: true, maxTokens: 1600 });
+  const r = await llamarClaude({ promptCompleto, webSearch: true, maxTokens: 3200 });
   if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
   await registrarUsoTokens(clienteId, 'consultor-radar-idea-del-dia', r.usage);
 
@@ -1333,6 +1376,50 @@ async function handleIdeaDelDia(req, res, clienteId, systemPrompt) {
   try {
     const otras = items.filter((e) => !(e && e.fecha === hoy && e.foco && e.foco.id === foco.id));
     await escribirJSON(`${clienteId}:radar-ideas-dia`, otras.concat([entry]).slice(-MAX_IDEAS_DIA));
+  } catch (err) {
+    guardado = false;
+  }
+  return res.status(200).json({ idea: entry, generada: true, guardado });
+}
+
+// Arma (o completa) el post de una idea ya guardada: para ideas de antes de que existiera el post, o si el modelo no lo entregó.
+// No busca en la web: parte de la idea tal como está guardada.
+async function handlePostDeIdea(req, res, clienteId, systemPrompt) {
+  const ideaId = String((req.body && req.body.ideaId) || '').slice(0, 40);
+  const items = await leerIdeasDia(clienteId);
+  const entry = ideaId ? items.find((e) => e && e.id === ideaId && e.idea) : null;
+  if (!entry) return res.status(404).json({ error: 'No encontré esa idea. Actualiza la página e intenta de nuevo.' });
+  if (entry.idea.post) return res.status(200).json({ idea: entry, generada: false });
+
+  const foco = normalizarFoco(req.body && req.body.foco);
+  const [fuentes, fichas, marca] = await Promise.all([fuentesDeFicha(clienteId, foco), leerFichas(clienteId), nombreDeMarca(clienteId)]);
+  const fichaTxt = FichaAudiencia.formatearFicha(fichas[foco.id] && fichas[foco.id].ficha ? fichas[foco.id] : null);
+  if (!fichaTxt && fuentes.vacio) return res.status(400).json({ error: AVISO_SIN_FUENTES });
+
+  const i = entry.idea;
+  const t = i.tendencia || {};
+  const contexto = [fichaTxt || truncar(fuentes.texto, 9000), marca, lineaFoco(foco)].filter(Boolean).join('\n\n');
+  const laIdea = [
+    `TEMA: ${i.tema}`,
+    `GANCHO: ${i.gancho}`,
+    i.formato ? `FORMATO: ${i.formato}` : '',
+    i.como_hacerlo ? `CÓMO HACERLO: ${i.como_hacerlo}` : '',
+    i.por_que_te_sirve ? `POR QUÉ LE SIRVE: ${i.por_que_te_sirve}` : '',
+    t.que ? `TENDENCIA EN LA QUE SE BASA: ${t.que}${t.verificada ? '' : ' (no verificada)'}` : '',
+    i.cta_sugerido ? `CIERRE SUGERIDO: ${i.cta_sugerido}` : '',
+  ].filter(Boolean).join('\n');
+  const promptCompleto = [systemPrompt, contexto, `IDEA ELEGIDA:\n${laIdea}`, INSTRUCCION_POST_DE_IDEA].filter(Boolean).join('\n\n');
+  const r = await llamarClaude({ promptCompleto, webSearch: false, maxTokens: 2400 });
+  if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
+  await registrarUsoTokens(clienteId, 'consultor-radar-post-de-idea', r.usage);
+
+  const salida = extractJson(r.text);
+  const post = normalizarPost(salida && salida.post ? salida.post : salida);
+  if (!post) return res.status(502).json({ error: 'No pude armar el post esta vez. Intenta de nuevo.' });
+  entry.idea.post = post;
+  let guardado = true;
+  try {
+    await escribirJSON(`${clienteId}:radar-ideas-dia`, items);
   } catch (err) {
     guardado = false;
   }
@@ -1409,6 +1496,7 @@ module.exports = async function handler(req, res) {
     if (modo === 'chat') return await handleChat(req, res, clienteId, systemPrompt);
     if (modo === 'ficha-audiencia') return await handleFichaAudiencia(req, res, clienteId);
     if (modo === 'idea-del-dia') return await handleIdeaDelDia(req, res, clienteId, systemPrompt);
+    if (modo === 'post-de-idea') return await handlePostDeIdea(req, res, clienteId, systemPrompt);
   } catch (err) {
     return res.status(500).json({ error: 'Error de conexión con el Agente.' });
   }
@@ -1417,4 +1505,4 @@ module.exports = async function handler(req, res) {
 };
 
 // Solo para las pruebas (tests/radar-investigacion.test.js): funciones puras, sin red.
-module.exports._probar = { analizarLinkRed, bloqueDeCuenta, normalizarPostsInstagram, normalizarPostsTikTok, normalizarPostsFacebook, leerRssYouTube, normalizarFoco, lineaFoco, coincideFoco, ultimaEntradaPorTipo, frecuenciaPosts, bloqueMisNumeros, normalizarIdea, ideaDeHoy };
+module.exports._probar = { analizarLinkRed, bloqueDeCuenta, normalizarPostsInstagram, normalizarPostsTikTok, normalizarPostsFacebook, leerRssYouTube, normalizarFoco, lineaFoco, coincideFoco, ultimaEntradaPorTipo, frecuenciaPosts, bloqueMisNumeros, normalizarIdea, normalizarPost, ideaDeHoy };
