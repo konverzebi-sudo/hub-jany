@@ -195,6 +195,10 @@
   .pp-num { min-width: 42px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card-2, #FAF8FD); font: 800 14px 'Sora', sans-serif; cursor: pointer; }
   .pp-num.on { background: #BBF802; color: #0F0B16; }
   .pp-det ol { margin: 8px 0 0 18px; }
+  .circ-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 16px; }
+  .zoom-wrap.circulo { width: 300px; height: 300px; margin: 20px auto 0; border-radius: 50%; overflow: hidden; }
+  .zoom-wrap.circulo .zoom-vivo { height: 100%; min-height: 0; border-radius: 0; }
+  .pres-wrap.oculto { display: none; }
   .carpeta-card { display: grid; gap: 6px; text-decoration: none; color: inherit; border-left: 4px solid #BBF802; }
   .done-toggle.on .box { background: var(--lime); border-color: var(--lime); color: var(--ink); }
   .cover { aspect-ratio: 16/10; border-radius: 20px; overflow: hidden; border: 1px solid var(--line); background: radial-gradient(ellipse at 70% 20%, rgba(123,47,190,.6), transparent 60%), var(--card-2); display: flex; flex-direction: column; justify-content: flex-end; padding: 18px; }
@@ -1195,13 +1199,22 @@ document.addEventListener('click', e => {
   document.getElementById('ppDetalle').innerHTML = `<b>${esc(m.titulo)}</b><ol>${acts.map(t => `<li>${esc(t)}</li>`).join('') || '<li>Sin actividades</li>'}</ol>`;
   document.querySelectorAll('.pp-num').forEach(x => x.classList.toggle('on', x === b));
 });
+/* Modo dinámica (solo ponente): deja solo el video de Zoom en un círculo y oculta la presentación */
+document.addEventListener('click', e => {
+  if (!(e.target.closest && e.target.closest('[data-circulo]'))) return;
+  const z = document.querySelector('.zoom-wrap'), p = document.querySelector('.pres-wrap');
+  if (!z || !p) return;
+  const on = z.classList.toggle('circulo'); p.classList.toggle('oculto', on);
+  e.target.closest('[data-circulo]').textContent = on ? '⬜ Volver a la presentación' : '🔵 Modo dinámica: solo mi cara';
+});
 function viewEnVivo() {
   $('#crumbs').innerHTML = `Guía del taller › <b>Clase en vivo</b>`;
   return `<span class="eyebrow">En vivo</span><h1 style="font-size:clamp(30px,4.4vw,46px);margin:16px 0 8px">Clase en vivo</h1>
     <p style="color:var(--muted)">Aquí me ves en vivo y ves la presentación al mismo tiempo que yo la voy dando. Cuando aparezca una actividad, respóndela justo debajo de la presentación.</p>
     ${MODO_PONENTE ? bloquePanelPonente() : ''}
-    <iframe class="zoom-vivo" src="taller-app/zoom.html" title="Clase en vivo por Zoom" allow="camera; microphone; fullscreen; display-capture; autoplay" style="margin-top:20px"></iframe>
-    <iframe class="embed-taller" data-din="presentacion" src="taller-app/?embed=presentacion${MODO_PONENTE ? '&rol=ponente' : ''}" title="Presentación en vivo" style="margin-top:20px"></iframe>`;
+    ${MODO_PONENTE ? '<div class="circ-bar"><button type="button" class="btn sm" data-circulo>🔵 Modo dinámica: solo mi cara</button><small>Solo lo ves tú: cambia la vista de la clase.</small></div>' : ''}
+    <div class="zoom-wrap"><iframe class="zoom-vivo" src="taller-app/zoom.html" title="Clase en vivo por Zoom" allow="camera; microphone; fullscreen; display-capture; autoplay" style="margin-top:20px"></iframe></div>
+    <div class="pres-wrap"><iframe class="embed-taller" data-din="presentacion" src="taller-app/?embed=presentacion${MODO_PONENTE ? '&rol=ponente' : ''}" title="Presentación en vivo" style="margin-top:20px"></iframe></div>`;
 }
 
 function viewInicio() {
