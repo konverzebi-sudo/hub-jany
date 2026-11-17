@@ -226,6 +226,11 @@
   .id-post-vacio{font-size:13.5px;color:var(--text-dim);}
   .id-acciones{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0 8px;}
   .id-principal{background:#111 !important;color:#C0F800 !important;border-color:#111 !important;}
+  /* Textos que se pueden corregir antes de confirmar */
+  #ideaDia [contenteditable="true"]{border-radius:6px;outline:1px dashed transparent;outline-offset:3px;transition:outline-color .15s, background .15s;cursor:text;}
+  #ideaDia [contenteditable="true"]:hover{outline-color:#A4B41C;}
+  #ideaDia [contenteditable="true"]:focus{outline:2px solid #A4B41C;background:#FBFDF2;}
+  .id-editar{font-size:12.5px;color:var(--text-dim);margin:-4px 0 10px;}
   .id-base{font-size:12px;color:var(--text-dim);margin-top:6px;}
   .id-trabajando{display:flex;align-items:center;gap:14px;padding:6px 0;}
   .id-robot svg{width:120px;height:auto;overflow:visible;flex:none;}
@@ -2156,9 +2161,19 @@ async function crearPostEnContenido(e){
   const r = await window.storage.get(llave, false);
   if(r && r.value) data = JSON.parse(r.value) || {};
   const lista = Array.isArray(data.contenido) ? data.contenido : [];
-  const previo = lista.find(x => x && x.faroIdeaId === e.id);
-  if(previo) return previo.id;
   const p = e.idea.post;
+  // Si esta idea ya se pasó antes, se actualiza ese mismo post con lo último que se corrigió aquí (no se duplica).
+  const previo = lista.find(x => x && x.faroIdeaId === e.id);
+  if(previo){
+    previo.gancho = String(p.gancho || e.idea.gancho || '').slice(0, 140);
+    previo.descripcion = e.idea.tema || previo.descripcion || '';
+    previo.caption = p.caption || '';
+    previo.guion = p.guion || '';
+    previo.notas = p.notas || '';
+    data.contenido = lista;
+    await window.storage.set(llave, JSON.stringify(Object.assign({ historias: [], banco: [], bancoIdeas: [] }, data)), false);
+    return previo.id;
+  }
   const item = {
     id: 'c_faro' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
     orden: lista.length + 1,
@@ -2184,26 +2199,48 @@ async function crearPostEnContenido(e){
 
 function ideaStatus(html){ const el = document.getElementById('ideaStatus'); if(el) el.innerHTML = html; }
 
-async function trabajarConContenido(e){
+// Lo que la persona corrigió a mano en la tarjeta (tema, gancho y el post) se lee de los textos editables.
+function ideaConCambios(e){
+  // Solo cuenta lo que de verdad se editó (data-cambio). innerText sale vacío si el texto está dentro de un
+  // "Ver el guion" cerrado, por eso se cae a textContent.
+  const val = (k) => {
+    const el = document.querySelector(`#ideaDia [data-ed="${k}"]`);
+    if(!el || !el.dataset.cambio) return null;
+    return (el.innerText || el.textContent || '').trim();
+  };
+  const idea = Object.assign({}, e.idea);
+  const tema = val('tema'), gancho = val('gancho');
+  if(tema) idea.tema = tema;
+  if(gancho) idea.gancho = gancho;
+  if(idea.post){
+    const post = Object.assign({}, idea.post);
+    ['gancho', 'caption', 'guion', 'notas'].forEach(k => { const v = val('post-' + k); if(v !== null) post[k] = v; });
+    idea.post = post;
+  }
+  return Object.assign({}, e, { idea });
+}
+
+// Paso 1 (si la idea aún no trae post): el Faro lo arma y se queda aquí para revisarlo. No se manda todavía.
+async function armarPostDeIdea(e){
   const botones = document.querySelectorAll('#ideaDia .id-acciones button');
   botones.forEach(b => { b.disabled = true; });
-  const libera = () => document.querySelectorAll('#ideaDia .id-acciones button').forEach(b => { b.disabled = false; });
+  ideaStatus('<div class="loading-card">Armando tu post en el formato del Jefe de Contenido…</div>');
+  const r = await postRadar({ modo: 'post-de-idea', ideaId: e.id });
+  if(!r.ok){ ideaStatus(`<div class="error-card">${escapeHtml(r.error)}</div>`); botones.forEach(b => { b.disabled = false; }); return; }
+  renderIdeaDia(r.data.idea);
+}
+
+// Paso 2: ya revisada (y corregida si hizo falta), se confirma y pasa al Jefe de Contenido como post.
+async function confirmarParaContenido(e){
+  const botones = document.querySelectorAll('#ideaDia .id-acciones button');
+  botones.forEach(b => { b.disabled = true; });
   try{
-    let entry = e;
-    if(!entry.idea.post){
-      ideaStatus('<div class="loading-card">Armando tu post en el formato del Jefe de Contenido…</div>');
-      const r = await postRadar({ modo: 'post-de-idea', ideaId: e.id });
-      if(!r.ok){ ideaStatus(`<div class="error-card">${escapeHtml(r.error)}</div>`); libera(); return; }
-      entry = r.data.idea;
-      renderIdeaDia(entry);
-      document.querySelectorAll('#ideaDia .id-acciones button').forEach(b => { b.disabled = true; });
-    }
     ideaStatus('<div class="loading-card">Pasando tu post al Jefe de Contenido…</div>');
-    const id = await crearPostEnContenido(entry);
+    const id = await crearPostEnContenido(ideaConCambios(e));
     location.href = `${hubPrefijo()}/jefe-contenido#post=${encodeURIComponent(id)}`;
   }catch(err){
     ideaStatus('<div class="error-card">No pude pasar el post al Jefe de Contenido. Intenta de nuevo.</div>');
-    libera();
+    botones.forEach(b => { b.disabled = false; });
   }
 }
 
@@ -2214,22 +2251,25 @@ function renderIdeaDia(e){
   document.getElementById('ideaDiaFecha').textContent = '· ' + e.date + (e.foco && e.foco.nombre ? ' · ' + e.foco.nombre : '');
   const postHtml = p
     ? `<div class="id-post"><div class="id-post-top">📱 Tu post ya armado <span>en el formato del Jefe de Contenido</span></div>`
-      + (p.gancho ? `<div class="id-post-gancho">${escapeHtml(p.gancho)}</div>` : '')
-      + (p.caption ? `<div class="id-post-caption">${escapeHtml(p.caption)}</div>` : '')
+      + `<div class="id-post-gancho" contenteditable="true" data-ed="post-gancho">${escapeHtml(p.gancho || '')}</div>`
+      + `<div class="id-post-caption" contenteditable="true" data-ed="post-caption">${escapeHtml(p.caption || '')}</div>`
       + `<details><summary>Ver el guion y las notas de grabación</summary><div class="id-post-sec">`
-      + (p.guion ? `<b>Guion</b>${escapeHtml(p.guion)}` : '')
-      + (p.notas ? `<b>Notas de grabación</b>${escapeHtml(p.notas)}` : '')
+      + `<b>Guion</b><div contenteditable="true" data-ed="post-guion">${escapeHtml(p.guion || '')}</div>`
+      + `<b>Notas de grabación</b><div contenteditable="true" data-ed="post-notas">${escapeHtml(p.notas || '')}</div>`
       + '</div></details></div>'
-    : '<div class="id-post id-post-vacio">📱 Esta idea todavía no tiene el post armado. Al darle “Trabajar con el Jefe de Contenido” el Faro lo arma en el mismo formato que usa Contenido.</div>';
+    : '<div class="id-post id-post-vacio">📱 Esta idea todavía no tiene el post armado. Dale “Armar el post” y el Faro lo arma aquí en el formato del Jefe de Contenido para que lo revises.</div>';
   ideaDiaPintar(
     (i.formato ? `<span class="id-formato">🎬 ${escapeHtml(i.formato)}</span>` : '')
-    + `<h3 class="id-tema">${escapeHtml(i.tema)}</h3>`
-    + `<div class="id-gancho">${escapeHtml(i.gancho)}<small>Así abres tu video</small></div>`
+    + `<h3 class="id-tema" contenteditable="true" data-ed="tema">${escapeHtml(i.tema)}</h3>`
+    + `<div class="id-editar">✏️ Puedes corregir cualquier texto de esta tarjeta antes de confirmarla.</div>`
+    + `<div class="id-gancho"><span contenteditable="true" data-ed="gancho">${escapeHtml(i.gancho)}</span><small>Así abres tu video</small></div>`
     + (i.por_que_te_sirve ? `<div class="id-linea"><span class="id-ico">✨</span><span><b>Por qué te sirve:</b> ${escapeHtml(i.por_que_te_sirve)}</span></div>` : '')
     + (t.que ? `<div class="id-linea"><span class="id-ico">🔥</span><span><b>Lo que se está moviendo:</b> ${escapeHtml(t.que)}${fuente ? ` <span class="nota-chica">· Fuente: ${fuente}</span>` : ''}</span></div>` : '')
     + (t.que && !t.verificada ? '<div class="id-aviso">El Faro no pudo verificar esta tendencia. Revísala antes de apoyarte en ella.</div>' : '')
     + postHtml
-    + '<div class="id-acciones"><button type="button" class="pb-btn" id="ideaMas">Quiero más ideas →</button><button type="button" class="pb-btn id-principal" id="ideaContenido">Trabajar con el Jefe de Contenido →</button></div>'
+    + '<div class="id-acciones"><button type="button" class="pb-btn" id="ideaOtra">Investigar otra idea</button><button type="button" class="pb-btn" id="ideaMas">Quiero más ideas →</button>'
+    + (p ? '<button type="button" class="pb-btn id-principal" id="ideaContenido">Confirmar para Contenido ✓</button>' : '<button type="button" class="pb-btn id-principal" id="ideaContenido">Armar el post para revisarlo →</button>')
+    + '</div>'
     + '<div id="ideaStatus"></div>'
     + `<div class="id-base">${(i.base || []).length ? 'Se basó en: ' + (i.base || []).map(b => escapeHtml(b)).join(' · ') + '. ' : ''}Una idea nueva cada día.</div>`
   );
@@ -2238,7 +2278,14 @@ function renderIdeaDia(e){
     const caja = document.getElementById('faroChatBox');
     if(caja && caja.scrollIntoView) caja.scrollIntoView({ behavior: 'smooth', block: 'center' });
   });
-  document.getElementById('ideaContenido').addEventListener('click', () => trabajarConContenido(e));
+  document.getElementById('ideaDiaCuerpo').addEventListener('input', (ev) => {
+    const el = ev.target.closest && ev.target.closest('[data-ed]');
+    if(el) el.dataset.cambio = '1';
+  });
+  document.getElementById('ideaContenido').addEventListener('click', () => (p ? confirmarParaContenido(e) : armarPostDeIdea(e)));
+  document.getElementById('ideaOtra').addEventListener('click', () => {
+    if(confirm('El Faro va a investigar otra idea para hoy y esta se reemplaza. ¿Seguimos?')) generarIdeaDia(true);
+  });
 }
 
 async function cargarIdeaDia(auto){
@@ -2346,7 +2393,7 @@ GuiaJefe.registrar({
     { selector: '.foco-pill', titulo: 'Aquí eliges tu producto o servicio',
       texto: 'Todo lo que investigues y analices en esta página es de ESE producto o servicio. Si manejas varios, cámbialo aquí y el Faro te muestra solo lo suyo.' },
     { selector: '#ideaDia', titulo: 'La idea del día',
-      texto: 'Cada día el Faro te propone UNA idea de contenido: busca qué se mueve en tu nicho y la cruza con tu ADN, tu Temporada y tu Jefe 366. Con "Quiero más ideas" le pides más aquí mismo, y con "Trabajar con el Jefe de Contenido" el post ya armado pasa a Contenido, listo para programar. Abajo está la ficha de tu audiencia, por si quieres corregirla.' },
+      texto: 'Cada día el Faro te propone UNA idea de contenido: busca qué se mueve en tu nicho y la cruza con tu ADN, tu Temporada y tu Jefe 366. Puedes corregir cualquier texto de la tarjeta, pedir que investigue otra idea o "Quiero más ideas" para que te dé más aquí mismo. Cuando el post te guste, dale "Confirmar para Contenido" y pasa a Contenido, listo para programar. Abajo está la ficha de tu audiencia, por si quieres corregirla.' },
     { selector: '#paso-1', titulo: 'Paso 1: tus referentes',
       texto: 'Agrega los links de tu competencia y de quienes quieres tomar de inspiración. Puedes guardar hasta 10.' },
     { selector: '#importTabs', titulo: 'Paso 2: cómo traer la información',
