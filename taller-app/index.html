@@ -121,6 +121,11 @@
   .brow .track { grid-column: 1 / -1; height: 10px; border-radius: 99px; background: var(--card-2); overflow: hidden; }
   .brow .track i { display: block; height: 100%; border-radius: 99px; transition: width .5s; }
   .brow .pct { text-align: right; font: 600 12px 'JetBrains Mono', monospace; color: var(--muted); }
+  .brow .pct { color: #1E9E4A; font-weight: 700; }
+  .estrellas { display: flex; gap: 6px; }
+  .estrellas button { border: 0; background: none; font-size: 30px; line-height: 1; color: #CFC6DE; cursor: pointer; padding: 0 2px; }
+  .estrellas button.on { color: #E0A800; }
+  @media (max-width: 600px) { .bars { display: flex; flex-direction: column-reverse; } }
 
   /* Stepper prework */
   .steps { display: flex; gap: 6px; flex-wrap: wrap; margin: 18px 0; }
@@ -1660,7 +1665,7 @@ setInterval(() => { if (document.hidden) return; document.querySelectorAll('[dat
 
 /* ---- Prepara tu negocio (prework por bloques) ---- */
 const BLOQUES = [
-  { k: 'A', t: 'Información del negocio', campos: [['nombre', 'Nombre del negocio', 'text', 1], ['giro', '¿A qué se dedica?', 'text', 1], ['vende', '¿Qué vende?', 'text', 1], ['descripcion', 'Descripción breve', 'area'], ['zona', 'Ciudad o zona donde ofreces tus productos o servicios', 'text'], ['web', 'Sitio web (si tienes)', 'url'], ['redes', 'Redes sociales (pega tus enlaces o @usuario)', 'area', 0, 'No podemos leer perfiles privados: puedes pegar textos o ejemplos.'], ['whatsapp', 'WhatsApp del negocio (opcional)', 'text']] },
+  { k: 'A', t: 'Información del negocio', campos: [['nombre', 'Nombre del negocio', 'text', 1], ['giro', '¿A qué se dedica?', 'text', 1], ['vende', '¿Qué vende?', 'text', 1], ['descripcion', 'Descripción breve', 'area'], ['zona', 'Ciudad o zona donde ofreces tus productos o servicios', 'text'], ['web', 'Sitio web (si tienes)', 'url'], ['facebook', 'Facebook (pega el link o tu nombre para buscarte)', 'text'], ['instagram', 'Instagram (pega el link o tu @usuario)', 'text'], ['tiktok', 'TikTok (pega el link o tu @usuario)', 'text'], ['whatsapp', 'WhatsApp del negocio (número, opcional)', 'text'], ['redes', 'Otras redes o perfiles (opcional)', 'area', 0, 'No podemos leer perfiles privados: puedes pegar textos o ejemplos.']] },
   { k: 'B', t: 'Clientes', campos: [['cliente_ideal', '¿Quién es tu cliente ideal?', 'area', 1], ['vende_a', '¿A quién le vendes actualmente?', 'area'], ['problema', '¿Qué problema resuelves?', 'area'], ['diferencia', '¿Qué diferencia tu negocio de otros?', 'area']] },
   { k: 'C', t: 'Productos y servicios' },
   { k: 'D', t: 'Objetivo' },
@@ -1771,8 +1776,21 @@ function itemHtml(it, i, dis) {
   const campos = it.tipo === 'servicio' ? CAMPOS_SERV : CAMPOS_PROD;
   return `<div class="prod" data-item="${i}"><div class="row space" style="margin-bottom:10px"><b>#${i + 1}</b>
     <select data-tipo style="width:auto" ${dis}><option value="producto" ${it.tipo !== 'servicio' ? 'selected' : ''}>Producto</option><option value="servicio" ${it.tipo === 'servicio' ? 'selected' : ''}>Servicio</option></select></div>
-    <div class="grid2">${campos.map(([k, l, num]) => `<div class="field"><label class="f">${esc(l)}</label><input type="text" data-k="${k}" value="${esc(it[k] || '')}" placeholder="${num ? 'Ej. 250 · o "No sé"' : ''}" ${dis}></div>`).join('')}</div></div>`;
+    <div class="grid2">${campos.map(([k, l, num]) => k === 'facilidad' ? estrellasHtml(it, dis) : `<div class="field"><label class="f">${esc(l)}</label><input type="text" data-k="${k}" value="${esc(it[k] || '')}" placeholder="${num ? 'Ej. 250 · o "No sé"' : ''}" ${dis}></div>`).join('')}</div></div>`;
 }
+/* ¿Qué tan fácil es venderlo?: 1 a 5 estrellas (1 = muy difícil, 5 = muy fácil). El valor queda en un campo oculto data-k="facilidad". */
+function estrellasHtml(it, dis) {
+  const n = Math.min(5, Math.max(0, +it.facilidad || 0));
+  return `<div class="field"><label class="f">¿Qué tan fácil es venderlo?</label>
+    <div class="estrellas">${[1, 2, 3, 4, 5].map(i => `<button type="button" data-n="${i}" class="${i <= n ? 'on' : ''}" aria-label="${i} de 5" ${dis}>★</button>`).join('')}</div>
+    <p class="f-help">1 = muy difícil · 3 = medio · 5 = muy fácil</p><input type="hidden" data-k="facilidad" value="${n || ''}"></div>`;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('.estrellas button'); if (!b || b.disabled) return;
+  const n = +b.dataset.n, cont = b.closest('.estrellas');
+  cont.querySelectorAll('button').forEach(x => x.classList.toggle('on', +x.dataset.n <= n));
+  cont.parentNode.querySelector('input[data-k=facilidad]').value = n;
+});
 function wireTipos(D) {
   document.querySelectorAll('[data-tipo]').forEach(s => s.onchange = () => { leerBloque('C', D); D.C.items[+s.closest('[data-item]').dataset.item].tipo = s.value; $('#prods').innerHTML = D.C.items.map((it, i) => itemHtml(it, i, '')).join(''); wireTipos(D); });
 }
@@ -2429,7 +2447,10 @@ CONTEXTO DEL NEGOCIO
 - Descripción: ${v(A.descripcion)}
 - Ciudad o zona: ${v(A.zona)}
 - Sitio web: ${v(A.web)}
-- Redes sociales: ${v(A.redes)}
+- Facebook: ${v(A.facebook)}
+- Instagram: ${v(A.instagram)}
+- TikTok: ${v(A.tiktok)}
+- Otras redes: ${v(A.redes)}
 - WhatsApp: ${v(A.whatsapp)}
 
 CLIENTES
