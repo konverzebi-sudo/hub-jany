@@ -23,12 +23,16 @@
 //   - 'brief-estilo':          convierte el diagnóstico en un brief que Contenido y Anuncios pueden usar.
 //   - 'mis-numeros':           ordena las estadísticas de las cuentas PROPIAS (CSV/capturas) para compararlas con los referentes.
 //   - 'chat':                  conversación libre del Faro sobre lo que ya hay en el radar.
+//   - 'ficha-audiencia':       resume el ADN, la Temporada y el 366 en una ficha corta (api/_lib/ficha-audiencia.js) que se guarda y se lee en vez de las tres fuentes completas.
+//   - 'idea-del-dia':          UNA propuesta de contenido por día y por foco: tendencias del nicho (web_search) + la ficha + lo que ya aprendió el Faro.
+//   - 'ficha-estado', 'ficha-guardar', 'ideas-dia-estado': leen o corrigen lo guardado, sin llamar a Claude.
 
 const fs = require('fs');
 const path = require('path');
 const { sql } = require('@vercel/postgres');
 const { sumarAlMes } = require('./_lib/uso-mensual');
 const { revisar: revisarSaldo, cobrar: cobrarSaldo } = require('./_lib/saldo');
+const FichaAudiencia = require('./_lib/ficha-audiencia');
 
 const PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-consultor-radar.md');
 const DEFAULT_CLIENTE = 'jefeshub';
@@ -1130,8 +1134,213 @@ async function handleChat(req, res, clienteId, systemPrompt) {
   return res.status(200).json({ respuesta: r.text });
 }
 
+// ---------- Ficha de audiencia e Idea del día ----------
+// Ficha ({cliente}:ficha-audiencia, un objeto con una ficha por foco): resumen corto del ADN, la Temporada y el 366. Se arma
+// una vez con Claude y desde entonces los Jefes la leen en vez de volver a mandar las tres fuentes completas (menos tokens).
+// Idea del día ({cliente}:radar-ideas-dia, últimas 30): UNA propuesta de contenido por día y por foco, basada en el nicho
+// (tendencias de web_search) cruzado con la ficha y con lo que ya aprendió el Faro. NO va dentro de radar-historial:
+// Contenido y Anuncios leen la última entrada de ese historial buscando "insights".
+
+const MAX_FOCOS_FICHA = 12;
+const MAX_IDEAS_DIA = 30;
+const CAMPOS_ADN = ['brand-book.identidad', 'brand-book.tono', 'brand-book.audiencia', 'brand-book.contenido_actual', 'lista-maestra-cliente-ideal'];
+const AVISO_SIN_FUENTES = 'Primero llena el ADN de tu negocio (o la Temporada o el Jefe 366): el Faro necesita saber a quién le vendes para armar la ficha y proponerte ideas.';
+
+async function fuentesDeFicha(clienteId, foco) {
+  const [adn, producto] = await Promise.all([
+    construirContexto(clienteId, CAMPOS_ADN).catch(() => ''),
+    contextoProductoFoco(clienteId, foco).catch(() => ''),
+  ]);
+  return FichaAudiencia.reunirFuentes({ leerJSON, clienteId, foco, adn: [adn, producto].filter(Boolean).join('\n\n') });
+}
+
+async function leerFichas(clienteId) {
+  const d = await leerJSON(`${clienteId}:ficha-audiencia`).catch(() => null);
+  return d && typeof d === 'object' && !Array.isArray(d) ? d : {};
+}
+
+async function guardarFicha(clienteId, foco, entrada) {
+  const todas = await leerFichas(clienteId);
+  todas[foco.id] = entrada;
+  const ids = Object.keys(todas);
+  if (ids.length > MAX_FOCOS_FICHA) {
+    ids.sort((a, b) => String((todas[a] && todas[a].fecha) || '').localeCompare(String((todas[b] && todas[b].fecha) || '')))
+      .slice(0, ids.length - MAX_FOCOS_FICHA)
+      .forEach((id) => { delete todas[id]; });
+  }
+  await escribirJSON(`${clienteId}:ficha-audiencia`, todas);
+}
+
+// Lo que ve la página: la ficha, de cuándo es y si el ADN, la Temporada o el 366 cambiaron desde que se armó.
+function respuestaFicha(entrada, fuentes) {
+  return {
+    existe: !!entrada,
+    ficha: entrada ? entrada.ficha : null,
+    date: entrada ? entrada.date : null,
+    editada: !!(entrada && entrada.editada),
+    desactualizada: !!(entrada && fuentes && entrada.huella !== fuentes.huella),
+    sinFuentes: !!(fuentes && fuentes.vacio),
+  };
+}
+
+async function handleFichaEstado(req, res, clienteId) {
+  const foco = normalizarFoco(req.body && req.body.foco);
+  const [fuentes, fichas] = await Promise.all([fuentesDeFicha(clienteId, foco), leerFichas(clienteId)]);
+  const e = fichas[foco.id];
+  return res.status(200).json(respuestaFicha(e && e.ficha ? e : null, fuentes));
+}
+
+// Correcciones a mano de la persona: la ficha queda "editada" y NO se vuelve a armar sola.
+async function handleFichaGuardar(req, res, clienteId) {
+  const foco = normalizarFoco(req.body && req.body.foco);
+  const ficha = FichaAudiencia.normalizarFicha(req.body && req.body.ficha);
+  if (!ficha) return res.status(400).json({ error: 'La ficha no puede quedar vacía.' });
+  const [fuentes, fichas] = await Promise.all([fuentesDeFicha(clienteId, foco), leerFichas(clienteId)]);
+  const previa = fichas[foco.id];
+  const entrada = {
+    date: fechaHoy(),
+    fecha: FichaAudiencia.fechaMx(),
+    foco: { id: foco.id, nombre: foco.nombre },
+    huella: previa && previa.huella ? previa.huella : fuentes.huella,
+    editada: true,
+    ficha,
+  };
+  await guardarFicha(clienteId, foco, entrada);
+  return res.status(200).json(respuestaFicha(entrada, fuentes));
+}
+
+async function handleFichaAudiencia(req, res, clienteId) {
+  const foco = normalizarFoco(req.body && req.body.foco);
+  const fuentes = await fuentesDeFicha(clienteId, foco);
+  if (fuentes.vacio) return res.status(400).json({ error: AVISO_SIN_FUENTES });
+
+  const r = await llamarClaude({ promptCompleto: FichaAudiencia.instruccionFicha(fuentes, lineaFoco(foco)), webSearch: false, maxTokens: 1800 });
+  if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
+  await registrarUsoTokens(clienteId, 'consultor-radar-ficha-audiencia', r.usage);
+
+  const ficha = FichaAudiencia.normalizarFicha(extractJson(r.text));
+  if (!ficha) return res.status(502).json({ error: 'No pude armar la ficha esta vez. Intenta de nuevo.' });
+  const entrada = { date: fechaHoy(), fecha: FichaAudiencia.fechaMx(), foco: { id: foco.id, nombre: foco.nombre }, huella: fuentes.huella, editada: false, ficha };
+  let guardado = true;
+  try {
+    await guardarFicha(clienteId, foco, entrada);
+  } catch (err) {
+    guardado = false;
+  }
+  return res.status(200).json(Object.assign(respuestaFicha(entrada, fuentes), { guardado }));
+}
+
+async function leerIdeasDia(clienteId) {
+  const d = await leerJSON(`${clienteId}:radar-ideas-dia`).catch(() => null);
+  return Array.isArray(d) ? d : [];
+}
+
+// Una idea por día y por foco: el foco tiene que ser exactamente el mismo (aquí "ecosistema" no ve las de cada producto).
+function ideaDeHoy(items, focoId, hoy) {
+  for (let i = items.length - 1; i >= 0; i--) {
+    const e = items[i];
+    if (e && e.fecha === hoy && e.foco && e.foco.id === focoId) return e;
+  }
+  return null;
+}
+
+function normalizarIdea(o) {
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
+  const t = (v, n) => (typeof v === 'string' ? v.trim().slice(0, n) : '');
+  const tr = o.tendencia && typeof o.tendencia === 'object' ? o.tendencia : {};
+  const idea = {
+    tema: t(o.tema, 160),
+    gancho: t(o.gancho, 220),
+    formato: t(o.formato, 60),
+    como_hacerlo: t(o.como_hacerlo, 900),
+    por_que_te_sirve: t(o.por_que_te_sirve, 500),
+    tendencia: { que: t(tr.que, 400), fuente: t(tr.fuente, 300), verificada: tr.verificada === true },
+    cta_sugerido: t(o.cta_sugerido, 200),
+    base: (Array.isArray(o.base) ? o.base : []).filter((x) => typeof x === 'string').map((x) => x.trim().slice(0, 40)).filter(Boolean).slice(0, 6),
+  };
+  return idea.tema && idea.gancho ? idea : null;
+}
+
+async function handleIdeasDiaEstado(req, res, clienteId) {
+  const foco = normalizarFoco(req.body && req.body.foco);
+  const hoy = FichaAudiencia.fechaMx();
+  const [items, fuentes, fichas] = await Promise.all([leerIdeasDia(clienteId), fuentesDeFicha(clienteId, foco), leerFichas(clienteId)]);
+  const e = fichas[foco.id];
+  return res.status(200).json({ fecha: hoy, idea: ideaDeHoy(items, foco.id, hoy), ficha: respuestaFicha(e && e.ficha ? e : null, fuentes) });
+}
+
+const INSTRUCCION_IDEA_DIA =
+  'ESTÁS EN LA IDEA DEL DÍA DEL JEFE DEL FARO. Cada día propones UNA idea de contenido para este negocio, basada en el NICHO DE MERCADO y no solo en la competencia.\n' +
+  '1) Usa web_search para ver qué se está hablando ESTA SEMANA en el nicho y en el tema de este negocio: tendencias, noticias, preguntas que hace la gente, formatos que están creciendo y fechas cercanas. ' +
+  'Busca tendencias generales del nicho; no intentes abrir Instagram ni TikTok (no se puede sin sesión).\n' +
+  '2) Cruza lo que encuentres con la FICHA DE AUDIENCIA de arriba (dolores, deseos, dudas, tono, momento de temporada) y con lo que ya aprendió el Faro de los referentes y de los números de la persona (si aparece abajo).\n' +
+  '3) Propón UNA sola idea que la persona pueda grabar o publicar hoy o mañana, distinta de las ideas anteriores (abajo).\n' +
+  'Reglas: no inventes cifras, precios, resultados, promociones ni fechas; de la tendencia afirma solo lo que leíste, y si no pudiste verificarla pon "verificada": false. ' +
+  'No copies frases, guiones ni identidad visual de nadie. Nada de presión falsa ni promesas exageradas. Lenguaje cotidiano y con la voz de la marca.';
+
+const FORMATO_IDEA_DIA =
+  'Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional antes ni después, con este formato exacto ("base" lleva solo lo que realmente usaste):\n' +
+  '{"tema": "título corto de la idea", "gancho": "primera frase del video o post (máximo 14 palabras)", "formato": "reel | carrusel | historia | post | video largo | en vivo", ' +
+  '"como_hacerlo": "2 a 4 frases: qué se dice o se muestra, en orden", "por_que_te_sirve": "1 o 2 frases ligadas a su cliente ideal y a lo que vende", ' +
+  '"tendencia": {"que": "qué está pasando en el nicho", "fuente": "URL leída o nombre de la fuente", "verificada": true}, "cta_sugerido": "una acción suave para cerrar", ' +
+  '"base": ["ADN", "Temporada", "366", "Faro", "Tendencias del nicho"]}';
+
+async function handleIdeaDelDia(req, res, clienteId, systemPrompt) {
+  const foco = normalizarFoco(req.body && req.body.foco);
+  const hoy = FichaAudiencia.fechaMx();
+  const items = await leerIdeasDia(clienteId);
+  const yaHoy = ideaDeHoy(items, foco.id, hoy);
+  if (yaHoy && !(req.body && req.body.forzar)) return res.status(200).json({ idea: yaHoy, generada: false });
+
+  const [fuentes, fichas, historial, referentes, estilos, numeros] = await Promise.all([
+    fuentesDeFicha(clienteId, foco),
+    leerFichas(clienteId),
+    leerHistorial(clienteId),
+    leerJSON(`${clienteId}:radar-referentes`).catch(() => null),
+    leerJSON(`${clienteId}:radar-estilo`).catch(() => null),
+    leerJSON(`${clienteId}:radar-mis-numeros`).catch(() => null),
+  ]);
+  const entradaFicha = fichas[foco.id] && fichas[foco.id].ficha ? fichas[foco.id] : null;
+  const fichaTxt = FichaAudiencia.formatearFicha(entradaFicha);
+  if (!fichaTxt && fuentes.vacio) return res.status(400).json({ error: AVISO_SIN_FUENTES });
+
+  // Con ficha se lee el resumen corto; sin ella (todavía no se armó) se usan las tres fuentes completas.
+  const producto = await contextoProductoFoco(clienteId, foco).catch(() => '');
+  const contexto = [fichaTxt ? [fichaTxt, producto].filter(Boolean).join('\n\n') : truncar(fuentes.texto, 9000), bloqueMisNumeros(numeros, foco), lineaFoco(foco)].filter(Boolean).join('\n\n');
+
+  const diag = ultimaEntradaPorTipo(historial, 'diagnostico-general', foco.id);
+  const analisis = ultimaEntradaPorTipo(historial, 'analisis-general', foco.id);
+  const estilo = (Array.isArray(estilos) ? estilos : []).filter((e) => coincideFoco(e, foco.id)).pop();
+  const previas = items.slice(-14).filter((e) => e && e.idea && e.idea.tema).map((e) => `- ${e.idea.tema}${e.idea.gancho ? ' · "' + e.idea.gancho + '"' : ''}`);
+  const faro = [
+    lineasReferentes(referentes),
+    diag ? `ÚLTIMO DIAGNÓSTICO DE REFERENTES (${diag.date}):\n${truncar(diag.diagnostico || '', 2500)}` : '',
+    analisis && Array.isArray(analisis.insights) && analisis.insights.length ? `ÚLTIMOS INSIGHTS (${analisis.date}):\n${truncar(JSON.stringify(analisis.insights), 1500)}` : '',
+    estilo ? `ÚLTIMO BRIEF DE ESTILO (${estilo.date}):\n${truncar(JSON.stringify(estilo.brief), 1500)}` : '',
+    previas.length ? `IDEAS QUE YA SE PROPUSIERON (no las repitas ni propongas algo casi igual):\n${previas.join('\n')}` : '',
+  ].filter(Boolean).join('\n\n');
+
+  const instruccion = `${INSTRUCCION_IDEA_DIA}\nFECHA DE HOY: ${hoy}.\n\n${FORMATO_IDEA_DIA}`;
+  const promptCompleto = [systemPrompt, contexto, faro, instruccion].filter(Boolean).join('\n\n');
+  const r = await llamarClaude({ promptCompleto, webSearch: true, maxTokens: 1600 });
+  if (!r.ok) return res.status(r.status || 500).json({ error: r.error });
+  await registrarUsoTokens(clienteId, 'consultor-radar-idea-del-dia', r.usage);
+
+  const idea = normalizarIdea(extractJson(r.text));
+  if (!idea) return res.status(502).json({ error: 'No pude armar la idea de hoy. Intenta de nuevo.' });
+  const entry = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), fecha: hoy, date: fechaHoy(), foco: { id: foco.id, nombre: foco.nombre }, conFicha: !!fichaTxt, idea };
+  let guardado = true;
+  try {
+    const otras = items.filter((e) => !(e && e.fecha === hoy && e.foco && e.foco.id === foco.id));
+    await escribirJSON(`${clienteId}:radar-ideas-dia`, otras.concat([entry]).slice(-MAX_IDEAS_DIA));
+  } catch (err) {
+    guardado = false;
+  }
+  return res.status(200).json({ idea: entry, generada: true, guardado });
+}
+
 // Modos que no llaman a Claude: no cuentan contra el tope de tokens del hub (api/_lib/saldo.js).
-const MODOS_SIN_IA = new Set(['estado-lectura', 'lectura-automatica']);
+const MODOS_SIN_IA = new Set(['estado-lectura', 'lectura-automatica', 'ficha-estado', 'ficha-guardar', 'ideas-dia-estado']);
 
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
@@ -1172,6 +1381,15 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ error: 'No se pudo hacer la lectura automática.' });
   }
 
+  // Leer o corregir la ficha y ver la idea de hoy no usa la IA: siguen funcionando aunque el hub haya llegado a su tope.
+  try {
+    if (modo === 'ficha-estado') return await handleFichaEstado(req, res, clienteId);
+    if (modo === 'ficha-guardar') return await handleFichaGuardar(req, res, clienteId);
+    if (modo === 'ideas-dia-estado') return await handleIdeasDiaEstado(req, res, clienteId);
+  } catch (err) {
+    return res.status(500).json({ error: 'No se pudo leer lo guardado. Intenta de nuevo.' });
+  }
+
   if (!process.env.ANTHROPIC_API_KEY) {
     return res.status(500).json({ error: 'Falta configurar ANTHROPIC_API_KEY en el servidor.' });
   }
@@ -1189,6 +1407,8 @@ module.exports = async function handler(req, res) {
     if (modo === 'brief-estilo') return await handleBriefEstilo(req, res, clienteId, systemPrompt);
     if (modo === 'mis-numeros') return await handleMisNumeros(req, res, clienteId, systemPrompt);
     if (modo === 'chat') return await handleChat(req, res, clienteId, systemPrompt);
+    if (modo === 'ficha-audiencia') return await handleFichaAudiencia(req, res, clienteId);
+    if (modo === 'idea-del-dia') return await handleIdeaDelDia(req, res, clienteId, systemPrompt);
   } catch (err) {
     return res.status(500).json({ error: 'Error de conexión con el Agente.' });
   }
@@ -1197,4 +1417,4 @@ module.exports = async function handler(req, res) {
 };
 
 // Solo para las pruebas (tests/radar-investigacion.test.js): funciones puras, sin red.
-module.exports._probar = { analizarLinkRed, bloqueDeCuenta, normalizarPostsInstagram, normalizarPostsTikTok, normalizarPostsFacebook, leerRssYouTube, normalizarFoco, lineaFoco, coincideFoco, ultimaEntradaPorTipo, frecuenciaPosts, bloqueMisNumeros };
+module.exports._probar = { analizarLinkRed, bloqueDeCuenta, normalizarPostsInstagram, normalizarPostsTikTok, normalizarPostsFacebook, leerRssYouTube, normalizarFoco, lineaFoco, coincideFoco, ultimaEntradaPorTipo, frecuenciaPosts, bloqueMisNumeros, normalizarIdea, ideaDeHoy };
