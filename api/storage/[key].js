@@ -4,6 +4,7 @@
 const crypto = require('crypto');
 const { sql } = require('@vercel/postgres');
 const saldo = require('../_lib/saldo');
+const tallerPago = require('../_lib/taller-pago');
 
 async function ensureTable() {
   await sql`CREATE TABLE IF NOT EXISTS kv_store (
@@ -907,6 +908,11 @@ module.exports = async function handler(req, res) {
 
   if (key === 'stripe-webhook') {
     return manejarStripeWebhook(req, res);
+  }
+
+  // Pago en la landing de GoHighLevel → acceso al taller (api/_lib/taller-pago.js).
+  if (key === 'ghl-pago') {
+    return tallerPago.manejarPagoGhl(req, res);
   }
 
   if (key === 'acceso-hub') {
