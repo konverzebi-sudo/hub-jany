@@ -14,7 +14,7 @@
   function pesos(n) { return '$' + n.toLocaleString('es-MX') + ' MXN'; }
 
   var css = [
-    '.sld{font-family:Inter,system-ui,sans-serif;line-height:1.35}',
+    '.sld{font-family:Barlow,system-ui,sans-serif;line-height:1.35}',
     '.sld-hub{position:fixed;right:20px;bottom:20px;z-index:15;width:240px;padding:10px 14px;border-radius:14px;cursor:pointer;',
     'background:rgba(17,20,8,.82);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);color:#F3F6E8;font-size:12.5px}',
     '.sld-pct{font-weight:800;font-size:15px}',
