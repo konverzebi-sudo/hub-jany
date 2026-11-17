@@ -27,15 +27,26 @@ const IDEA = JSON.stringify({
   como_hacerlo: 'Muestra tu calendario vacío y llénalo en pantalla.',
   por_que_te_sirve: 'Tu cliente ideal sufre por no saber qué publicar.',
   tendencia: { que: 'Crece el contenido de organización semanal', fuente: 'https://ejemplo.com/tendencia', verificada: true },
-  cta_sugerido: 'Guarda este reel para el lunes',
+  post: {
+    gancho: 'Este lunes no publiques sin hacer esto',
+    caption: 'Antes de grabar nada, llena tu semana 📅 Guarda este reel y arma tu calendario. #TallerDemo #ContenidoConOrden #Calendario #Planeacion #Semana',
+    guion: 'GANCHO: Este lunes no publiques sin hacer esto.\nDESARROLLO: Muestro mi calendario vacío y lo lleno con tres temas.\nCTA: Guarda este reel.',
+    notas: 'Voz tranquila y directa. Muestra la pantalla del calendario. Dura unos 40 segundos.',
+  },
   base: ['ADN', 'Tendencias del nicho'],
 });
+const POST = JSON.stringify({ post: {
+  gancho: 'Gancho armado después',
+  caption: 'Caption armado después #TallerDemo #A #B #C #D',
+  guion: 'GANCHO: algo\nREMATE: algo más',
+  notas: 'Notas armadas después',
+} });
 
 // Una respuesta según lo que se le pida: la ficha o la idea del día.
 function responder(texto) {
   return (cuerpo) => S.respuestaJSON(texto(JSON.stringify(cuerpo)), USO)(cuerpo);
 }
-const SEGUN_PEDIDO = responder((c) => (c.includes('ESTÁS EN LA IDEA DEL DÍA') ? IDEA : FICHA));
+const SEGUN_PEDIDO = responder((c) => (c.includes('ESTÁS ARMANDO EL POST') ? POST : c.includes('ESTÁS EN LA IDEA DEL DÍA') ? IDEA : FICHA));
 
 const DATOS = {
   'demo:brand-book.identidad': { nombre: 'Taller Demo', que_vendemos: 'ADN-IDENTIDAD-LARGA' },
@@ -142,6 +153,11 @@ test('idea-del-dia con ficha: lee el resumen (no las fuentes completas), busca t
   assert.ok(enviado.includes('FECHA DE HOY: '));
   assert.ok(enviado.includes('no inventes cifras'), 'regla de no inventar');
   assert.ok(S.enviados[0].tools.some((t) => t.name === 'web_search'), 'busca tendencias del nicho en la web');
+  assert.ok(enviado.includes('POST EN EL FORMATO DEL JEFE DE CONTENIDO'), 'pide el post en el formato de Contenido');
+  assert.ok(enviado.includes('EXACTAMENTE 5 hashtags'));
+  assert.ok(enviado.includes('NOMBRE DE LA MARCA (para el primer hashtag): Taller Demo'), 'el nombre de la marca sale del ADN');
+  assert.equal(r.cuerpo.idea.idea.post.gancho, 'Este lunes no publiques sin hacer esto');
+  assert.match(r.cuerpo.idea.idea.post.guion, /DESARROLLO/);
 
   const guardado = S.leerDato('demo:radar-ideas-dia');
   assert.equal(guardado.length, 2);
@@ -239,4 +255,56 @@ test('campanasDelFoco: producto y grupo toman sus campañas vigentes; todo el hu
   assert.deepEqual(ids({ id: 'g:g1', nombre: 'Grupo', esGrupo: true }), ['c4']);
   assert.deepEqual(ids({ id: 'all', nombre: '', esGrupo: false }), ['c1', 'c3', 'c4']);
   assert.deepEqual(ids({ id: 'p7', nombre: 'Sin campaña', esGrupo: false }), []);
+});
+
+test('post-de-idea arma el post de una idea que no lo trae, sin buscar en la web y sin repetir si ya existe', async () => {
+  const sinPost = { id: 'i1', fecha: '2026-11-17', date: '17 nov 2026', foco: { id: 'all', nombre: '' }, idea: { tema: 'Tema viejo', gancho: 'Gancho viejo', formato: 'reel', como_hacerlo: 'Lo que se hacía antes', tendencia: { que: 'Tendencia vieja', fuente: '', verificada: false } } };
+  S.reiniciar({ datos: Object.assign({ 'demo:radar-ideas-dia': [sinPost] }, DATOS), respuesta: SEGUN_PEDIDO });
+  assert.equal((await S.llamar(RADAR, { modo: 'post-de-idea', cliente: 'demo', ideaId: 'no-existe' })).codigo, 404);
+  assert.equal(S.enviados.length, 0);
+
+  const r = await S.llamar(RADAR, { modo: 'post-de-idea', cliente: 'demo', ideaId: 'i1' });
+  assert.equal(r.codigo, 200, JSON.stringify(r.cuerpo));
+  assert.equal(r.cuerpo.generada, true);
+  assert.equal(r.cuerpo.idea.idea.post.caption, 'Caption armado después #TallerDemo #A #B #C #D');
+  const enviado = JSON.stringify(S.enviados[0]);
+  assert.ok(enviado.includes('TEMA: Tema viejo'));
+  assert.ok(enviado.includes('CÓMO HACERLO: Lo que se hacía antes'));
+  assert.ok(enviado.includes('NOMBRE DE LA MARCA (para el primer hashtag): Taller Demo'));
+  assert.equal(S.enviados[0].tools, undefined, 'armar el post no busca en la web');
+  assert.equal(S.leerDato('demo:radar-ideas-dia')[0].idea.post.gancho, 'Gancho armado después', 'queda guardado en la idea');
+  assert.equal(S.registroUso('demo').length, 1);
+
+  const otra = await S.llamar(RADAR, { modo: 'post-de-idea', cliente: 'demo', ideaId: 'i1' });
+  assert.equal(otra.cuerpo.generada, false);
+  assert.equal(S.enviados.length, 1, 'si ya tiene post no vuelve a llamar a la IA');
+});
+
+test('post-de-idea: 402 con el tope lleno, 502 si el modelo no devuelve un post, 400 sin nada que leer', async () => {
+  const sinPost = { id: 'i1', fecha: '2026-11-17', date: '17 nov 2026', foco: { id: 'all', nombre: '' }, idea: { tema: 'T', gancho: 'G', tendencia: {} } };
+  const LLENO = { cicloInicio: new Date().toISOString(), usadoCicloUSD: 99, paquetes: [], pagos: [] };
+  S.reiniciar({ datos: Object.assign({ 'demo:saldo': LLENO, 'demo:radar-ideas-dia': [sinPost] }, DATOS), respuesta: SEGUN_PEDIDO });
+  const tope = await S.llamar(RADAR, { modo: 'post-de-idea', cliente: 'demo', ideaId: 'i1' });
+  assert.equal(tope.codigo, 402);
+  assert.equal(S.enviados.length, 0);
+
+  S.reiniciar({ datos: Object.assign({ 'demo:radar-ideas-dia': [sinPost] }, DATOS), respuesta: S.respuestaJSON('No pude.', USO) });
+  const mal = await S.llamar(RADAR, { modo: 'post-de-idea', cliente: 'demo', ideaId: 'i1' });
+  assert.equal(mal.codigo, 502);
+  assert.equal(S.leerDato('demo:radar-ideas-dia')[0].idea.post, undefined);
+
+  S.reiniciar({ datos: { 'demo:radar-ideas-dia': [sinPost] }, respuesta: SEGUN_PEDIDO });
+  const vacio = await S.llamar(RADAR, { modo: 'post-de-idea', cliente: 'demo', ideaId: 'i1' });
+  assert.equal(vacio.codigo, 400);
+  assert.equal(S.enviados.length, 0);
+});
+
+test('normalizarPost acota los textos y exige guion o caption', () => {
+  const P = S.cargar(RADAR)._probar;
+  assert.equal(P.normalizarPost({ gancho: 'solo gancho' }), null);
+  assert.equal(P.normalizarPost('texto'), null);
+  const p = P.normalizarPost({ gancho: ' G ', caption: 'c'.repeat(5000), guion: 'g', notas: 5 });
+  assert.equal(p.gancho, 'G');
+  assert.equal(p.caption.length, 2200);
+  assert.equal(p.notas, '');
 });
