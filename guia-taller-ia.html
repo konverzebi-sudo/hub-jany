@@ -386,6 +386,12 @@
   .embed-taller { display: block; width: 100%; min-height: 140px; border: 0; margin-top: 14px; background: transparent; }
 
   /* ---------- RESPONSIVE ---------- */
+  /* Imágenes sugeridas para la galería */
+  .gal-box { margin-top: 18px; padding: 18px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); }
+  .gal-box h4 { font: 700 18px 'Sora', sans-serif; margin-bottom: 6px; }
+  .gal-grupo { margin-top: 12px; } .gal-grupo b { font-size: 15px; } .gal-grupo p { font-size: 14px; margin: 4px 0 10px; }
+  .gal-grupo ul { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; padding: 0; margin: 0; }
+  .gal-grupo li { padding: 7px 12px; border-radius: 999px; background: var(--card-2); border: 1px solid var(--line); font-size: 13px; font-weight: 600; color: var(--text); }
   /* Mini prompts de tamaño */
   .tam-box { margin-top: 16px; padding: 16px; border-radius: 16px; border: 1px dashed var(--lime); background: var(--card); }
   .tam-box > b { font: 700 16px 'Sora', sans-serif; } .tam-box > p { font-size: 14px; margin: 4px 0 0; }
@@ -524,6 +530,31 @@ const TAMANOS_IMAGEN = [
   "nombre": "📱 Historia",
   "medida": "9:16",
   "texto": "Adapta la última imagen que creaste a formato vertical 9:16 (1080 x 1920 px), para historia. Conserva exactamente el mismo producto, estilo, colores, iluminación, textos y logotipo. Reacomoda la composición para que el producto quede completo; si hace falta espacio, extiende el fondo de forma natural. No recortes el producto ni el logotipo, no deformes nada y no agregues elementos nuevos. Deja libre el 14 % de arriba y el 20 % de abajo, donde aparecen tu foto de perfil y la barra para responder: el producto y los textos importantes deben quedar en la zona central."
+ }
+];
+/* Imágenes que debe tener cada participante en su galería (por tipo de negocio) */
+const GALERIA_SUGERIDA = [
+ {
+  "emoji": "🎁",
+  "titulo": "Servicios y negocios que no venden productos físicos",
+  "texto": "Aquí podemos promocionar tanto el servicio como elementos visuales que lo representen.",
+  "items": [
+   "Tarjetas de regalo",
+   "Certificados de regalo",
+   "Paquetes de servicios",
+   "Membresías",
+   "Suscripciones",
+   "Bonos de descuento",
+   "Kits de bienvenida",
+   "Tarjetas de presentación",
+   "Termos personalizados",
+   "Camisetas con logo",
+   "Uniformes",
+   "Agendas corporativas",
+   "Cajas de bienvenida",
+   "Cupones promocionales",
+   "Tarjetas de fidelidad"
+  ]
  }
 ];
 /* Catálogo de estilos de imagen (fotos en img/estilos) */
@@ -757,7 +788,7 @@ const CURSO = {
               nota: 'Úsalo después de aprobar la foto de catálogo.' }] },
           { titulo: 'Tu logo y tus colores a la mano', texto: 'Varios estilos te piden tu logo. Aquí lo tienes listo para descargar, te ayudo a quitarle el fondo y ves los colores de tu marca para que todo combine.', embed: 'marca' },
           { titulo: 'Elige un estilo y copia su prompt', texto: 'Te preparé estos estilos que me encantan para fotos de producto. Elige el que más vaya con tu marca, copia su prompt y pégalo en ChatGPT junto con la foto de tu producto. Si el estilo usa foto base, descárgala primero y súbela también.',
-            tamanos: TAMANOS_IMAGEN, estilos: ESTILOS_IMAGEN },
+            tamanos: TAMANOS_IMAGEN, estilos: ESTILOS_IMAGEN, galeria: GALERIA_SUGERIDA },
           { titulo: 'Superprompt para cualquier foto que te guste', texto: '¿Viste una foto que te encantó en Pinterest o Instagram? Úsala de referencia: sube esa foto y la de tu producto, pega este prompt y ChatGPT te va a hacer unas preguntas antes de crear tu imagen.',
             prompts: [{ nombre: 'Superprompt de imagen', texto: SUPERPROMPT_IMAGEN, nota: 'Sube 2 fotos: primero la que te gustó y después la de tu producto.' }] }
         ],
@@ -1072,6 +1103,7 @@ function viewClase(c) {
         ${e.embed ? `<iframe class="embed-taller" data-din="${esc(e.embed)}" src="taller-app/?embed=${encodeURIComponent(e.embed)}${MODO_PONENTE ? '&rol=ponente' : ''}" title="${esc(e.titulo)}" loading="lazy" allow="clipboard-write"></iframe>` : ''}
         ${e.tamanos ? `<div class="tam-box"><b>📐 ¿Ya tienes tu imagen? Cámbiala de tamaño</b><p>Cuando termines cualquier estilo, copia uno de estos mini prompts y pégalo en el mismo chat de ChatGPT.</p><div class="tam-grid">${e.tamanos.map(t => `<div class="prompt tam"><div class="prompt-head"><b>${esc(t.nombre)} <small>${esc(t.medida)}</small></b><button class="copy" data-copy><svg><use href="#i-copy"/></svg><span>Copiar prompt</span></button></div><pre data-raw="${esc(t.texto)}">${esc(t.texto)}</pre></div>`).join('')}</div></div>` : ''}
         ${e.estilos ? `<div class="estilos-grid">${e.estilos.map((x, j) => x.pendiente ? '' : `<div class="estilo-card"><button type="button" class="estilo-foto" data-estilo="${j}" aria-label="Ver el prompt de ${esc(x.nombre)}"><img src="${esc(x.img)}" alt="${esc(x.nombre)}" loading="lazy">${x.hover ? `${[].concat(x.hover).map((h, k, arr) => `<img class="estilo-hover${arr.length > 1 ? ' ciclo' : ''}" src="${esc(h)}" alt="" style="animation-delay:${(k * 2 - 1.8).toFixed(1)}s">`).join('')}<span class="estilo-tip">👆 Así se vería con otro producto</span>` : ''}<span class="estilo-num">ESTILO ${esc(x.n)}</span></button><div class="estilo-txt"><b>${esc(x.nombre)}</b><p>${esc(x.desc)}</p>${x.colores ? '<span class="estilo-fotos estilo-col">🎨 Se adapta a los colores de tu marca</span>' : ''}<span class="estilo-fotos">📷 ${x.fotosTxt ? esc(x.fotosTxt) : x.fotos === 3 ? 'Sube 3 fotos: tu producto + tu logo + la foto base' : x.fotos === 2 ? 'Sube 2 fotos: la foto base + tu producto' : 'Sube 1 foto: tu producto'}</span><div class="estilo-acc"><button type="button" class="btn" data-estilo="${j}">Ver y copiar prompt</button>${x.fotos >= 2 && !x.sinBase ? `<a class="chip-btn" href="${esc(x.img)}" download="estilo-${esc(x.n)}-foto-base${esc(x.img.slice(x.img.lastIndexOf('.')))}">⬇ Foto base</a>` : ''}</div></div></div>`).join('')}</div>` : ''}
+        ${e.galeria ? `<div class="gal-box"><h4>📸 Imágenes que debes tener en tu galería</h4>${e.galeria.map(g => `<div class="gal-grupo"><b>${esc(g.emoji)} ${esc(g.titulo)}</b><p>${esc(g.texto)}</p><ul>${g.items.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>`).join('')}</div>` : ''}
         ${e.checks ? `<div class="card etapa-checks">${e.checks.map((t, j) => `<label class="chk"><input type="checkbox" data-chk="${esc(c.id)}-${k}-${j}" ${chks[c.id + '-' + k + '-' + j] ? 'checked' : ''}><span>${esc(t)}</span></label>`).join('')}</div>` : ''}
         ${(e.prompts || []).map(p => `
           <div class="prompt">
