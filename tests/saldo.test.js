@@ -98,7 +98,8 @@ test('el mismo pago no se acredita dos veces', () => {
 // ---------- servicios de IA ----------
 
 const USO = { input_tokens: 1000, output_tokens: 100, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
-const LLENO = { cicloInicio: HOY, usadoCicloUSD: 15, paquetes: [], pagos: [] };
+// El ciclo tiene que ser el de AHORA: con una fecha fija el ciclo de 30 días ya se renovó y el tope deja de estar lleno.
+const LLENO = { cicloInicio: new Date().toISOString(), usadoCicloUSD: 15, paquetes: [], pagos: [] };
 
 // Un cuerpo mínimo para cada servicio de IA.
 const SERVICIOS = [
