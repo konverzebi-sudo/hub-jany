@@ -223,6 +223,7 @@
   .pp-btn.on { background: #BBF802; border-color: #9CCB00; }
   .pp-btn.cerrar { color: #3B1468; }
   .pp-btn.cerrar.on { background: #3B1468; color: #fff; border-color: #3B1468; }
+  .guia-plataforma { margin-top: 12px; padding: 14px 16px; border-radius: 14px; background: #fff; border: 1px solid var(--line, #E6DDF2); display: grid; gap: 8px; }
   .zoom-vivo { display: block; width: 100%; height: min(70vh, 620px); min-height: 420px; border: 0; border-radius: 16px; background: #0F0B16; }
   .panel-ponente { margin-top: 20px; display: grid; gap: 10px; border-left: 4px solid #BBF802; }
   .pp-h { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -778,9 +779,8 @@ const CURSO = {
         etapas: [
           { titulo: 'Llena el brief antes de la clase', texto: 'Cuéntame de tu negocio en este brief. No te preocupes si no lo terminas de una vez: se guarda solo y al regresar sigues donde te quedaste.', brief: 'prepara',
             },
-          { titulo: 'Ten el manual del Hubcito a la mano', texto: 'Este manual es esta misma página y va a ser tu guía durante toda la sesión. Guárdala en tus favoritos o en la pantalla de inicio de tu celular. Aquí respondes las dinámicas y encuentras los prompts de cada paso.',
-            copiar: 'https://jefeshub.com/guia-taller-ia.html',
-            links: [{ texto: '📘 Abrir el manual del Hubcito', url: 'https://jefeshub.com/guia-taller-ia.html#inicio' }] },
+          { titulo: 'Bienvenido a la plataforma', texto: 'Bienvenido a la plataforma que te va a ayudar a configurar tu primer jefe digital.',
+            copiar: 'https://jefeshub.com/guia-taller-ia.html', guia: true },
           { titulo: 'Ten a la mano ChatGPT', texto: 'Descárgalo en tu celular o computadora e inicia sesión con tu cuenta antes del taller.',
             app: { nombre: 'ChatGPT', logo: 'img/prompts/logo-chatgpt.svg', abrir: 'https://chatgpt.com/', descargas: [{ texto: 'Descargar ChatGPT', url: 'https://chatgpt.com/download/' }] } },
           { titulo: 'Ten a la mano Gemini', texto: 'Descárgalo en tu celular (o ábrelo en tu computadora) e inicia sesión con tu cuenta de Google antes del taller.',
@@ -1156,6 +1156,20 @@ document.addEventListener('click', e => {
   const f = b.parentElement.querySelector('.vivo-frame'), pedir = f && (f.requestFullscreen || f.webkitRequestFullscreen);
   if (pedir) pedir.call(f); else location.hash = '#en-vivo';
 });
+/* Etapa 2 de El Pre: explicación de la plataforma (se abre con el botón) */
+function bloqueGuiaPlataforma() {
+  return `<div class="etapa-links"><button type="button" class="btn" data-guia-toggle>Ver guía de la plataforma</button></div>
+    <div class="guia-plataforma" hidden>
+      <p>Mira la barra de la izquierda: ahí aparecen todos los puntos del taller. Cada clase se sigue punto a punto, en el orden en que van apareciendo.</p>
+      <p>Durante la clase en vivo, todo se verá aquí mismo, en <b>Clase en vivo</b>: la reunión, la presentación y las actividades.</p>
+      <p>En la plataforma también encuentras las instrucciones generales y el <b>soporte por chat</b>, por si algo no te funciona.</p>
+    </div>`;
+}
+document.addEventListener('click', e => {
+  const g = e.target.closest && e.target.closest('[data-guia-toggle]'); if (!g) return;
+  const caja = g.parentElement.nextElementSibling; if (caja) caja.hidden = !caja.hidden;
+  g.textContent = caja && caja.hidden ? 'Ver guía de la plataforma' : 'Ocultar guía';
+});
 /* El Pre: el brief se abre solo cuando la persona toca el botón; calendario y link del manual */
 const AGENDA = { titulo: 'Taller · Tu Primer Asistente con IA', ini: '20261203T170000Z', fin: '20261203T190000Z', detalle: 'Clase en vivo con Jany (Jefes Hub). Manual del Hubcito: https://jefeshub.com/guia-taller-ia.html' };
 function agendaGoogle() { return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent(AGENDA.titulo) + '&dates=' + AGENDA.ini + '/' + AGENDA.fin + '&details=' + encodeURIComponent(AGENDA.detalle) + '&ctz=America/Mexico_City'; }
@@ -1457,6 +1471,7 @@ function viewClase(c) {
         <p>${esc(e.texto)}</p>
         ${e.links ? `<div class="etapa-links">${e.links.map(l => /^https?:\/\//.test(l.url) ? `<a class="${l.primario ? 'btn' : 'chip-btn'}" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.texto)}${l.primario ? ' →' : ' ↗'}</a>` : `<span class="chip-btn">🔒 El link se compartirá antes del taller</span>`).join('')}</div>` : ''}
         ${e.brief ? `<div class="brief-caja"><button type="button" class="btn" data-brief="${esc(e.brief)}">HAZ CLICK AQUI Y LLENA TU BRIEF</button><div class="brief-hueco" hidden></div></div>` : ''}
+        ${e.guia ? bloqueGuiaPlataforma() : ''}
         ${e.copiar ? `<div class="etapa-links"><button type="button" class="chip-btn" data-copiar-link="${esc(e.copiar)}">🔗 Copiar el link del manual</button></div>` : ''}
         ${e.app ? `<div class="app-card"><img src="${esc(e.app.logo)}" alt="" width="44" height="44"><div class="app-txt"><b>${esc(e.app.nombre)}</b><div class="app-acc"><a class="btn" href="${esc(e.app.abrir)}" target="_blank" rel="noopener">Abrir ${esc(e.app.nombre)} ↗</a>${e.app.descargas.map(d => `<a class="chip-btn" href="${esc(d.url)}" target="_blank" rel="noopener"><svg class="ico-dl" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 21h16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>${esc(d.texto)}</a>`).join('')}</div></div></div>` : ''}
         ${e.agenda ? `<div class="etapa-links"><a class="btn" href="${agendaGoogle()}" target="_blank" rel="noopener">📅 Agregar a Google Calendar ↗</a><button type="button" class="chip-btn" data-ics>🗓️ Apple / Outlook (.ics)</button></div>` : ''}
