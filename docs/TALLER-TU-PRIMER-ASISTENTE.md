@@ -1,52 +1,87 @@
-# Taller "Tu Primer Asistente con IA" — estado y reglas (leer antes de tocar el taller)
+# Taller "Tu Primer Asistente con IA" — estado, decisiones y pendientes
 
-Taller: **3 de diciembre de 2026, 11:00**. Actualizado: 2026-11-17.
+Taller: **3 de diciembre de 2026, 11:00** (hora del centro de México). Actualizado: 2026-11-18.
 
-## Archivos y dónde viven
-- **Guía** (lo que ve el participante): `guia-taller-ia.html` → jefeshub.com/guia-taller-ia.html
-- **Plataforma** (brief/El Pre, presentación, resultados): `taller-app/index.html` → jefeshub.com/taller-app/
-- `brief.html`, favicon `img/favicon-j*.{svg,png}` (cuadro lima con "J" negra, ya enlazado en guía, plataforma y brief).
-- Fotos/prompts de estilos: `img/estilos/NN-nombre.(webp|jpg|txt)`. Videos: `img/videos/NN-nombre.(mp4|jpg|txt)` (+ `-previo.txt`).
-- Diapositivas: `taller-app/diapos/canva/<pageid>.jpg`; `CANVA_PAGINAS` (77 ids) en `taller-app/index.html`; diapositiva del reloj `DIAPO_RELOJ` = PBPmFClmWZjHyPtY (pág. 67).
-- Repo GitHub Pages: `konverzebi-sudo/hub-jany` (rama `main` publica).
+Este documento es el respaldo del trabajo hecho en el chat. Con esto se puede retomar en una conversación nueva sin perder nada.
 
-## Cómo se publica (taller)
-- Disco **C: está lleno**: trabajar el worktree en `D:/A_ CLAUDE CONTROL/_claude_tmp/wt` y temporales en `D:/A_ CLAUDE CONTROL/_claude_tmp/`.
-- `git fetch` → `git checkout -q -B <rama> origin/main` → copiar SOLO los archivos del cambio (revisar diff contra origin/main para no pisar a otra sesión) → commit → push (reintentar hasta 5 veces, la red falla con 408) → `gh pr create` → `gh pr merge --merge` → esperar con curl hasta que el cambio esté en línea.
-- Antes de publicar: extraer el `<script>` más grande y `node --check`.
-- Regla general del CLAUDE.md: mergear solo cuando Jany diga "mergea".
-- Vista local: `.claude/launch.json` → `py-static` (puerto 8935).
+## Dónde vive cada cosa
 
-## Reglas de Jany para el taller
-- Textos en **primera persona de Jany**, español sencillo. **Jefe**, nunca "agente". Cambios **aditivos** (no borrar contenido ni respuestas).
-- No inventar contenido, cifras ni clasificaciones. Preguntar antes de cambios grandes.
-- No publicar `referencias/`, MAPA-TALLER.md ni notas privadas (notas-canva.json, SQL 13). No modificar Canva.
-- Supabase: nunca la service_role key en código/chat (solo anon en config.js); permisos con RLS; no cambiar Site URL de Hub-cito; no meter correos reales en SQL.
-- El secreto de Zoom jamás en el frontend.
-- Avisar si una foto de ejemplo trae marcas reales o caras parecidas a famosos (no publicarlas).
+- **Guía del alumno y del ponente:** `guia-taller-ia.html` → `jefeshub.com/guia-taller-ia.html`
+  - Vista de ponente: `?vista=ponente` (panel del ponente, candados, cuadros de la clase en vivo).
+  - Pestaña "Clase en vivo": la reunión de Zoom y la presentación (o el ejercicio) en dos cuadros. Ocupa todo el ancho de la pantalla.
+  - Portada: el botón "¡IMPORTANTE LLENAR ANTES DEL TALLER!" y las tarjetas verdes llevan a El Pre, sección 1, etapa 1.
+- **Plataforma (brief, presentación, control, resultados):** `taller-app/index.html` → `jefeshub.com/taller-app/`
+  - Brief: `jefeshub.com/brief.html` (embebe `taller-app/?embed=prepara`). **No pide correo**: las respuestas se guardan en el navegador de cada persona.
+- **Zoom:** `taller-app/zoom.html` (cliente embebido). La firma sale del caso `zoom-firma` en `api/storage/[key].js`.
+- **Configuración pública:** `taller-app/config.js` (URL de Supabase, clave publicable, número y clave de la reunión). **Nunca** la secret key.
+- **SQL de Supabase:** `taller-app/supabase/01` a `21`. Están corridos en el proyecto `hub-enexpansion` (ref `wyiqigrzcipywvijtchg`), incluido el 21 (`estado_clase`).
 
-## Estructura actual de la guía
-Numeración: PRE, 01–10. Ocultas: Propósito, Tu negocio, Sácale provecho, Planea, Buen Fin.
-Módulos: Producto ganador · Mercado meta · CONTENIDO Y CAMPAÑAS (Contenido / Campañas) · DISEÑOS INTELIGENCIA ARTIFICIAL (Imágenes IA id '6' / Videos IA id '7').
-- Portada: botón "¡IMPORTANTE LLENAR ANTES DEL TALLER!" con latido (→ #clase-1); sin botón Buen Fin; tarjetas Brief previo y El Pre en lima con latido.
-- **Imágenes IA** (etapas): 1 Tu logo sin fondo (la plataforma lo quita sola y da PNG; el logo se sube SOLO en El Pre) · 2 Borra el fondo (antes/después) · 3 Diseños de referencia (`ESTILOS_IMAGEN`) · 4 Edita lo que quieras (fondos, colores, textos, caras, logo) · 5 Haz tu propio diseño + Pinterest · 6 Diseños que no pueden faltar (`GALERIA_SUGERIDA`, chips → búsqueda Pinterest) · 7 Cambia el tamaño (`TAMANOS_IMAGEN`).
-- **Videos IA**: "Videos de referencia" (`VIDEOS_IA`: 01 Explosión 3D con prompt previo de foto, 02 Lluvia de productos) + "Cómo hacer tu video en Gemini" (9 pasos).
+## Qué está hecho y en línea
 
-## Catálogo de estilos (cómo agregar uno)
-- Jany manda foto + prompt → guardar en `img/estilos/`, agregar entrada a `ESTILOS_IMAGEN` (campos: n, nombre, desc, img, hover (texto o lista que rota), fotos 1/2/3, fotosTxt, pasos, sinBase, pendiente, colores, completa, prompt) y publicar.
-- Publicados 01–27. **Ocultos esperando foto**: 09 matcha, 13 sérum, 22 escena (pedir personaje inventado). Falta foto morada de hover para 16.
-- Si la imagen pegada no llega como archivo: `pendiente:true` y pedirle que la arrastre.
+- **Portada:** cuenta regresiva; se quitó la tarjeta de progreso; las tres tarjetas verdes (botón de importante, "01 Brief previo" y "El Pre") llevan a El Pre etapa 1; la tarjeta de El Pre dice "Te toma 10 minutos".
+- **Módulos bloqueados** antes de la clase (solo PRE visible). Botón "Encender todos" en Control.
+- **El Pre:**
+  - Solo "⏱ Te toma 10 minutos" (se quitaron etapas y prompts). Título "Te dejo el paso a paso 👇".
+  - Etapa 1 "Llena el brief antes de la clase": un solo botón, **HAZ CLICK AQUI Y LLENA TU BRIEF**. Al abrirlo, el formulario queda a la vista y el botón se oculta.
+  - Etapa 2 "Bienvenido a la plataforma": botón "Ver guía de la plataforma" con la explicación (barra lateral, clases punto a punto, clase en vivo, soporte por chat).
+  - Pasos de ChatGPT y Gemini: "Activa tu cuenta de…". El de ChatGPT sugiere el plan básico si no deja crear imágenes.
+  - Etapa 6: "Guarda la guía en tu celular", con instrucciones para iPhone y Android.
+  - Lista "Ten esto a la mano": agua, brief al 100 %, acceso rápido a la página, ChatGPT y Gemini con plan básico, mentalidad, buen internet, logotipo en el brief, fotos del producto.
+  - Quitó la barra de progreso del brief: en la portada de El Pre sale el **% grande** (ahí irá el video de entrada).
+- **Brief:** Bloque A con una sola pregunta ("Haz una descripción breve de a qué te dedicas"); redes separadas (Facebook, Instagram, TikTok, WhatsApp); sin correo.
+- **Clase en vivo, vista de ponente:**
+  - Panel con los números PRE y 01–10 con candado. Cada número muestra sus actividades; solo las marcadas como actividad tienen botón **Abrir / Cerrar** (▶ / ❚❚). Los demás pasos solo aparecen con su nombre.
+  - Cerrar la clase: círculo gris con candado (abrir sigue en verde).
+  - Control de los dos cuadros con íconos (presentación, mi cara, ejercicio, nada).
+  - El texto de bienvenida: "Me encanta que estés aquí. Vamos a poner atención e intención…".
+  - La vista de ponente sin el formulario de correo.
+- **Alumno en la guía:** no muestra el panel del ponente, aunque el navegador tenga sesión de ponente.
+- **Estado compartido:** la tabla `estado_clase` existe en Supabase. Candados y cuadros se guardan en la nube y se actualizan en tiempo real. Solo escribe quien tenga sesión de ponente.
+- **Zoom:** la reunión y la clase en vivo funcionan; el ID personal y la clave están en `config.js`.
+- **Documento "Mejoras Taller IA":** casi todas las correcciones están en línea (ver lista de pendientes para las que faltan).
 
-## Colores y letra de la marca del participante
-- Tokens en los prompts: `[COLORES DE MI MARCA]` y `[LETRA DE MI MARCA]`; `conMarca()` los rellena desde localStorage (`KEY+'-marca'`, `KEY+'-letra'`).
-- La plataforma detecta colores del logo (aprobar/cambiar/quitar/agregar), elige 1 de 12 mezclas de letras (`TIPOS_MARCA`, sin mostrar nombres) y los manda a la guía con `postMessage {taller:'marca', colores, tipografia}`.
-- Al recibir un prompt nuevo de Jany: cambiar los colores fijos del **escenario** por el token (nunca los del producto) y decirle qué se cambió.
+## Zoom (reunión de prueba y clase)
 
-## Pendientes
-0. **Pago en GHL → acceso automático**: listo en código (`docs/TALLER-PAGO-GHL.md`). Falta: variables en Vercel, workflow en GHL, SMTP propio en Supabase y una compra de prueba.
-1. **Zoom**: opción 1 botón "Entrar al Zoom" (falta que Jany pase el link de la reunión); opción 2 Zoom dentro de la plataforma (Meeting SDK, junto con Supabase).
-2. **Conectar Supabase** (crítico: resultados de grupo y control de diapositivas solo de la ponente no funcionan en modo demo).
-3. Cambiar el texto "[LINK DE LA SESIÓN]".
-4. Probar "Crear vídeo" de Gemini con cuenta gratis.
-5. Preguntas abiertas: estilo 10 (ejemplo de mancuerna vs prompt de bote, letrero "PADEL BALLS"); frases contra copiar marcas en 07/08/09; detectar solo colores principales; foto del estilo 11 sin flechas de Instagram.
-6. Liberar espacio en C:.
+- App de Zoom: **General app 255**, con Meeting SDK activado. Está en modo *Development*.
+- Variables en Vercel (proyecto `hub-jany`): `ZOOM_SDK_KEY` y `ZOOM_SDK_SECRET`. Nunca en el código.
+- Reunión: **ID personal 621 533 1135**. No cambia nunca. La cuenta exige clave de acceso. El link de invitación ya trae la clave adentro.
+- Sala de espera: **apagada** para las pruebas. Para la clase del 3 de diciembre hay que decidir si se vuelve a activar.
+- Plan Básico: las reuniones con 3 o más personas se cortan a los **40 minutos**. Para la clase completa hace falta un plan de pago (Zoom Workplace Pro). Conviene contratarlo unos días antes del 3 de diciembre.
+- Participantes: no instalan nada, entran desde el navegador. Pueden hablar si el anfitrión no los silencia al entrar.
+
+## Supabase
+
+- Proyecto: `hub-enexpansion` (plan gratis). El plan gratis permite 2 proyectos activos en la organización. Optica One es de otro cliente y no se toca.
+- Los proyectos gratis se pausan después de una semana sin actividad. Revisar antes de la clase.
+- URL pública: `https://wyiqigrzcipywvijtchg.supabase.co` (está en `config.js`).
+- Verificar que la tabla existe: consulta `select count(*) from public.estado_clase;` en el SQL Editor.
+
+## Lo que falta
+
+1. **Entrar como ponente** en `jefeshub.com/taller-app/` con tu correo. Sin sesión de ponente, los candados y los cuadros no se guardan para los alumnos.
+2. **Lista de invitados** (tabla `invitados`): el correo del ponente con rol `ponente`, y los correos de quienes van a probar, con rol `alumno`. Hay que pasar los correos y se arma el SQL para que lo corra Jany en el SQL Editor.
+3. **Marcar qué pasos de las otras clases son actividades** (`actividad: true` en la guía), para que tengan el botón Abrir / Cerrar.
+4. **Unir cada etapa de la guía con su actividad real del Panel** (las dinámicas que se responden de verdad).
+5. **Ver los avances del brief en la nube:** hoy el brief se guarda en el navegador de cada persona, así que el ponente no ve inscritos ni completados.
+6. **Texto "Consigue tu equipo de 10 Jefes":** no encontrado. Falta saber en qué pantalla va.
+7. **Dudas de Jany:** landings con cuenta regresiva (12 h y 48 h), mapas de calor, sección por usuario.
+8. **Zoom:** que el anfitrión pueda iniciar la reunión desde la página (hoy se inicia desde la app de Zoom o zoom.us). Decidir si se vuelve a activar la sala de espera para la clase.
+9. **Pago del plan de Zoom** (40 minutos): decidir la fecha; no pagar antes de tiempo.
+10. **Video de entrada** en la portada de El Pre (el espacio ya está; falta grabarlo).
+11. **Liberar espacio en C:**: pendiente general.
+
+## Reglas de trabajo (de Jany)
+
+- Textos en primera persona de Jany, español sencillo. "Jefe", nunca "agente". Cambios aditivos.
+- No inventar contenido ni cifras (por ejemplo, qué plan de ChatGPT permite crear imágenes: las fuentes no coinciden; se dejó un texto neutral). Preguntar antes de cambios grandes.
+- Mergear **solo** cuando Jany diga "mergea". Antes de mergear, crear PR y esperar.
+- Nada de claves, tokens ni datos personales en el código, en URLs ni en mensajes. La secret key y las claves de Zoom solo en Vercel.
+- Trabajar en worktrees dentro de `_claude_tmp` (el disco C: está lleno).
+- Supabase: Jany corre el SQL en el SQL Editor. Nunca se corre desde aquí.
+
+## Cómo retomar en un chat nuevo
+
+1. Leer este documento y `CLAUDE.md`.
+2. Ver los PR abiertos: `gh pr list --repo konverzebi-sudo/hub-jany`.
+3. Cambios en la guía: `guia-taller-ia.html`. Cambios en la plataforma: `taller-app/index.html`. Verificar sintaxis y correr `npm test` antes de subir.
+4. Publicar en Pages tarda unos minutos: revisar `gh api repos/konverzebi-sudo/hub-jany/pages/builds/latest`.
