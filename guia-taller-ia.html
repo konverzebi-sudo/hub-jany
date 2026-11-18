@@ -555,6 +555,20 @@
     .complete-bar { flex-direction: column; align-items: stretch; text-align: center; }
   }
   @media (max-width: 520px) { .steps4, .pager { grid-template-columns: 1fr; } .pager .next { text-align: left; } }
+  /* Entrada con correo: cada alumno entra a SU guía (cuenta del taller) */
+  .entrada { position: fixed; inset: 0; z-index: 200; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 24px 16px; overflow-y: auto; }
+  .entrada-box { width: 100%; max-width: 440px; background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 32px 28px; text-align: center; }
+  .entrada-box .brand { display: inline-block; color: var(--lime); margin-bottom: 18px; }
+  .entrada-box h2 { font-size: 26px; margin-bottom: 10px; }
+  .entrada-box p { color: var(--muted); font-size: 15px; margin-bottom: 18px; }
+  .entrada-box input { width: 100%; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--card-2); color: var(--text); font: 16px 'Inter', sans-serif; margin-bottom: 12px; }
+  .entrada-box input:focus { outline: 2px solid var(--lime); outline-offset: 1px; }
+  .entrada-box .btn { width: 100%; }
+  .entrada-box .btn[disabled] { opacity: .6; cursor: wait; }
+  .entrada-box .entrada-msg { min-height: 22px; margin: 12px 0 0; font-size: 14px; color: var(--lime); }
+  .entrada-box .entrada-alt { margin-top: 16px; font-size: 13px; color: var(--dim); }
+  .entrada-box .entrada-alt a { color: var(--lime); text-decoration: underline; }
+  html.con-entrada, body.con-entrada { overflow: hidden; }
 </style>
 </head>
 <body>
@@ -1594,7 +1608,136 @@ qres.addEventListener('click', () => { q.value = ''; qres.classList.remove('on')
 document.addEventListener('keydown', e => { if (e.key === '/' && document.activeElement !== q) { e.preventDefault(); document.body.classList.add('menu-open'); q.focus(); } if (e.key === 'Escape') { q.blur(); qres.classList.remove('on'); } });
 
 $('#waHelp').href = 'https://wa.me/' + CURSO.whatsapp + '?text=' + encodeURIComponent('Hola Jany, tengo una duda sobre la guía del ' + CURSO.nombre);
+/* ====================== CADA ALUMNO, SU GUÍA ======================
+   Con Supabase conectado, la guía pide entrar con el correo con el que se pagó (enlace mágico, sin
+   contraseña; la misma sesión que taller-app). Solo entran los correos de la lista de invitados
+   (el pago en GHL los agrega solo). Lo que cada quien llena se guarda en SU fila de guia_alumno
+   (taller-app/supabase/22_guia_por_alumno.sql) y se le carga en cualquier dispositivo.
+   Sin Supabase la guía funciona como antes, solo en este navegador. */
+const CUENTA = { user: null, rol: null, listo: false };
+const SYNC_TS = 'guia-sync-local', SYNC_UID = 'guia-sync-uid';
+const NO_PERSONALES = ['-desbloq', '-desbloqe', '-vista', '-vivo-grande']; // del ponente o del aparato, no del alumno
+const esPersonal = k => typeof k === 'string' && (k === KEY || (k.indexOf(KEY + '-') === 0 && !NO_PERSONALES.includes(k.slice(KEY.length))));
+const LS_SET = Storage.prototype.setItem, LS_REM = Storage.prototype.removeItem;
+const lsSet = (k, v) => { try { LS_SET.call(localStorage, k, v); } catch (e) {} };
+const lsRem = k => { try { LS_REM.call(localStorage, k); } catch (e) {} };
+const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+function datosLocales() {
+  const d = {};
+  try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (esPersonal(k)) d[k] = localStorage.getItem(k); } } catch (e) {}
+  return d;
+}
+let subirT = null;
+function programarSubida() {
+  if (!SB_G || !CUENTA.listo) return;
+  clearTimeout(subirT);
+  subirT = setTimeout(subirDatos, 1200);
+}
+async function subirDatos() {
+  if (!SB_G || !CUENTA.user) return;
+  const { error } = await SB_G.from('guia_alumno').upsert({ user_id: CUENTA.user.id, datos: datosLocales(), actualizado: new Date().toISOString() });
+  if (error) toast('No se guardó en tu cuenta. Revisa tu internet.');
+}
+/* Todo lo que la guía guarda en este navegador también se manda a la cuenta del alumno. */
+if (!Storage.prototype.__guiaSync) {
+  Storage.prototype.setItem = function (k, v) { LS_SET.call(this, k, v); if (this === window.localStorage && esPersonal(k)) { LS_SET.call(this, SYNC_TS, String(Date.now())); programarSubida(); } };
+  Storage.prototype.removeItem = function (k) { LS_REM.call(this, k); if (this === window.localStorage && esPersonal(k)) { LS_SET.call(this, SYNC_TS, String(Date.now())); programarSubida(); } };
+  Storage.prototype.__guiaSync = true;
+}
+const linkAyuda = () => ($('#waHelp') && $('#waHelp').href) || '#';
+function pantallaEntrada(html) {
+  let el = document.getElementById('entrada');
+  if (!el) {
+    el = document.createElement('div'); el.id = 'entrada'; el.className = 'entrada';
+    el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-labelledby', 'entrada-t');
+    document.body.appendChild(el);
+  }
+  el.innerHTML = '<div class="entrada-box"><span class="brand">HUB DE JEFES</span>' + html + '</div>';
+  document.documentElement.classList.add('con-entrada'); document.body.classList.add('con-entrada');
+  return el;
+}
+function quitarEntrada() { const el = document.getElementById('entrada'); if (el) el.remove(); document.documentElement.classList.remove('con-entrada'); document.body.classList.remove('con-entrada'); }
+function pedirCorreo(msg) {
+  const el = pantallaEntrada(`<h2 id="entrada-t">Entra a tu guía</h2>
+    <p>Escribe el correo con el que te inscribiste al taller. Te llega un enlace para entrar, sin contraseña.</p>
+    <form id="entrada-f" novalidate><input type="email" id="entrada-email" autocomplete="email" inputmode="email" placeholder="tucorreo@ejemplo.com" aria-label="Tu correo" required>
+    <button type="submit" class="btn">Mándame mi enlace</button></form>
+    <p class="entrada-msg" id="entrada-msg" role="status">${msg ? esc(msg) : ''}</p>
+    <p class="entrada-alt">¿No te llega? Revisa tu carpeta de spam o <a href="${linkAyuda()}" target="_blank" rel="noopener">escríbeme por WhatsApp</a>.</p>`);
+  const f = el.querySelector('#entrada-f'), inp = el.querySelector('#entrada-email'), out = el.querySelector('#entrada-msg'), btn = f.querySelector('button');
+  setTimeout(() => inp.focus(), 50);
+  f.addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const email = inp.value.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { out.textContent = 'Revisa tu correo, parece que falta algo.'; inp.focus(); return; }
+    btn.disabled = true; out.textContent = 'Enviando…';
+    let error = null;
+    try { ({ error } = await SB_G.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname + location.search } })); } catch (e) { error = e; }
+    btn.disabled = false;
+    out.textContent = error ? 'No se pudo enviar. Espera un minuto y vuelve a intentar.' : '¡Listo! Abre tu correo y da clic en el enlace para entrar.';
+  });
+}
+function sinAcceso(email) {
+  const el = pantallaEntrada(`<h2 id="entrada-t">Tu correo no está inscrito</h2>
+    <p>Entraste con <b>${esc(email || '')}</b>, pero ese correo no aparece en la lista del taller. Usa el mismo correo con el que pagaste.</p>
+    <button type="button" class="btn" id="entrada-otro">Entrar con otro correo</button>
+    <p class="entrada-alt">¿Ya pagaste y no puedes entrar? <a href="${linkAyuda()}" target="_blank" rel="noopener">Escríbeme por WhatsApp</a>.</p>`);
+  el.querySelector('#entrada-otro').addEventListener('click', async () => { await SB_G.auth.signOut(); pedirCorreo(); });
+}
+/* Junta lo de la cuenta con lo de este navegador. Devuelve true si cambió algo y hay que volver a dibujar. */
+async function traerMisDatos() {
+  const uid = CUENTA.user.id;
+  const { data, error } = await SB_G.from('guia_alumno').select('datos,actualizado').eq('user_id', uid).maybeSingle();
+  if (error) return false;
+  const locales = datosLocales();
+  const duenio = lsGet(SYNC_UID);
+  if (duenio && duenio !== uid) { // lo que hay en este navegador es de otra persona: no se mezcla
+    Object.keys(locales).forEach(k => { lsRem(k); delete locales[k]; });
+    lsRem(SYNC_TS);
+  }
+  lsSet(SYNC_UID, uid);
+  const remotos = (data && data.datos && typeof data.datos === 'object') ? data.datos : null;
+  const tsLocal = Number(lsGet(SYNC_TS) || 0);
+  const tsRemoto = data ? (Date.parse(data.actualizado) || 0) : 0;
+  if (!remotos || (tsLocal > tsRemoto && Object.keys(locales).length)) { if (Object.keys(locales).length) await subirDatos(); return false; }
+  if (JSON.stringify(remotos) === JSON.stringify(locales)) return false;
+  // En la cuenta hay algo más nuevo (de otro aparato): se pone en este navegador.
+  Object.keys(locales).forEach(k => { if (!(k in remotos)) lsRem(k); });
+  Object.entries(remotos).forEach(([k, v]) => { if (esPersonal(k) && typeof v === 'string') lsSet(k, v); });
+  lsSet(SYNC_TS, String(tsRemoto));
+  return true;
+}
+async function revisarCuenta() {
+  const { data } = await SB_G.auth.getSession();
+  const user = data && data.session && data.session.user;
+  if (!user) { pedirCorreo(); return; }
+  CUENTA.user = user;
+  const { data: t } = await SB_G.from('talleres').select('id').eq('slug', CFG_T.taller).maybeSingle();
+  const { data: yo } = t ? await SB_G.from('miembros').select('rol').eq('taller_id', t.id).eq('user_id', user.id).maybeSingle() : { data: null };
+  if (!yo) { sinAcceso(user.email); return; }
+  CUENTA.rol = yo.rol;
+  if (MODO_PONENTE && yo.rol !== 'ponente') { location.replace(location.pathname + location.hash); return; } // la vista de ponente es solo de Jany
+  const cambio = await traerMisDatos();
+  CUENTA.listo = true;
+  let yaRecargo = false; try { yaRecargo = !!sessionStorage.getItem('guia-recargada'); } catch (e) {}
+  if (cambio && !yaRecargo) { try { sessionStorage.setItem('guia-recargada', '1'); } catch (e) {} location.reload(); return; }
+  try { sessionStorage.removeItem('guia-recargada'); } catch (e) {}
+  quitarEntrada();
+}
+function iniciarCuenta() {
+  if (!SB_G) return;
+  pantallaEntrada('<h2 id="entrada-t">Abriendo tu guía…</h2>');
+  let revisando = false;
+  const revisar = () => {
+    if (revisando || CUENTA.listo) return;
+    revisando = true;
+    revisarCuenta().catch(() => pedirCorreo('No pudimos revisar tu acceso. Revisa tu internet e intenta de nuevo.')).finally(() => { revisando = false; });
+  };
+  revisar();
+  SB_G.auth.onAuthStateChange(ev => { if (ev === 'SIGNED_IN') setTimeout(revisar, 0); });
+}
 window.addEventListener('hashchange', route);
+iniciarCuenta();
 iniciarRemoto();
 route();
 </script>
