@@ -1373,12 +1373,23 @@ function leerVista() {
   return { grande: v.grande || 'pres', chico: v.chico || 'cara', ej: v.ej || (CLASES[0] && CLASES[0].id) || '' };
 }
 function guardarVista(v) { guardarJSON(VISTA_KEY, v); guardarRemoto('vista', v); }
+/* La actividad que está en curso (activa y con dinámica), primera que encuentre */
+function actividadEnCurso() {
+  let found = null;
+  CLASES.forEach(c => (c.etapas || []).forEach((et, k) => { if (!found && et.embed && estadoAct(c, k) === 'activa') found = { c, et }; }));
+  return found;
+}
+/* Cuadro de ejercicio: la dinámica en curso, tal como la ve el alumno; si no hay ninguna, la clase elegida */
+function srcEjercicio(v) {
+  const a = actividadEnCurso();
+  return a ? `taller-app/?embed=${encodeURIComponent(a.et.embed)}` : `guia-taller-ia.html#clase-${v.ej}`;
+}
 function cajasVista(v) {
   return `<div class="vista-box">
     ${MODO_PONENTE ? `<button type="button" class="vista-full" data-vfull title="Ver a pantalla completa">⛶ Pantalla completa</button>` : ''}
     <div class="vi vi-cara"><iframe class="zoom-vivo" src="taller-app/zoom.html" title="Clase en vivo por Zoom" allow="camera; microphone; fullscreen; display-capture; autoplay"></iframe></div>
     <div class="vi vi-pres"><iframe src="taller-app/?embed=presentacion${MODO_PONENTE ? '&rol=ponente' : ''}" title="Presentación en vivo"></iframe></div>
-    <div class="vi vi-ej"><iframe src="guia-taller-ia.html#clase-${v.ej}" title="Ejercicio"></iframe></div>
+    <div class="vi vi-ej"><iframe src="${srcEjercicio(v)}" title="Ejercicio"></iframe></div>
   </div>`;
 }
 function bloqueVistaPonente() {
@@ -1391,7 +1402,7 @@ function bloqueVistaPonente() {
     <b>🎛️ Qué ve cada cuadro</b>
     ${fila('grande', 'Cuadro grande')}
     ${fila('chico', 'Cuadrito')}
-    <div class="ej-sel ${hayEj ? '' : 'oculto-ej'}"><small class="muted">Ejercicio que se muestra:</small><div class="ej-chips">${chips}</div></div>
+    <div class="ej-sel ${hayEj ? '' : 'oculto-ej'}"><small class="muted">Si no hay actividad en curso, se muestra esta clase:</small><div class="ej-chips">${chips}</div></div>
     <p class="small muted">Lo que eliges lo ven también tus alumnos, en tiempo real.</p>
   </div>`;
 }
@@ -1405,7 +1416,7 @@ function aplicarVistaDom(v) {
   document.querySelectorAll('.vs-btn[data-vs]').forEach(b => b.classList.toggle('on', v[b.dataset.vs] === b.dataset.val));
   document.querySelectorAll('[data-ejc]').forEach(b => b.classList.toggle('on', b.dataset.ejc === v.ej));
   const sel = document.querySelector('.ej-sel'); if (sel) sel.classList.toggle('oculto-ej', !(v.grande === 'ej' || v.chico === 'ej'));
-  const ifr = ej.querySelector('iframe'), src = `guia-taller-ia.html#clase-${v.ej}`; // lo mismo que ve el alumno
+  const ifr = ej.querySelector('iframe'), src = srcEjercicio(v);
   if (ifr && ifr.getAttribute('src') !== src) ifr.setAttribute('src', src);
 }
 
@@ -1425,7 +1436,7 @@ document.addEventListener('click', e => {
     const nuevo = pa.dataset.val; // 'activa' al dar play; 'fin' al terminar
     guardarRemoto('act:' + id + '|' + k, nuevo);
     guardarRemoto('etapa:' + id + '|' + k, nuevo === 'activa'); // los alumnos la ven mientras está activa
-    mostrarDetallePP(id); refrescarRespuestas(); return;
+    mostrarDetallePP(id); refrescarRespuestas(); aplicarVistaDom(leerVista()); return;
   }
   const vf = t.closest && t.closest('[data-vfull]'); if (vf) {
     const vb = document.querySelector('.vista-box'); const pedir = vb && (vb.requestFullscreen || vb.webkitRequestFullscreen);
