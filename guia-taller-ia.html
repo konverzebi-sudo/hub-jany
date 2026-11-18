@@ -1264,6 +1264,8 @@ function alCambiarRemoto() {
 function iniciarRemoto() {
   if (!SB_G) return;
   cargarRemoto().then(() => { alCambiarRemoto(); });
+  // El formulario de entrada solo aparece si no hay sesión de ponente (si ya entraste en la plataforma, no hace falta)
+  SB_G.auth.getSession().then(({ data }) => { const f = document.getElementById('ppLogin'); if (f && !(data && data.session)) f.hidden = false; });
   SB_G.channel('estado-clase').on('postgres_changes', { event: '*', schema: 'public', table: 'estado_clase' }, p => {
     const r = p.new || p.old; if (!r) return;
     if (p.eventType === 'DELETE') delete REMOTO[r.clave]; else REMOTO[r.clave] = r.valor;
@@ -1299,7 +1301,7 @@ function bloquePanelPonente() {
     <p class="small">Toca un número para ver sus actividades. 🔒 = cerrado para los alumnos · 🔓 = abierto. Pasa el mouse sobre el número para ver su nombre.</p>
     <div class="pp-nums">${CLASES.map(c => `<button type="button" class="pp-num" title="${esc(c.titulo)}" data-pp="${c.id}">${bloqueoDeClase(c, c.mod) ? '🔒' : '🔓'} ${esc(c.etiqueta || c.id)}</button>`).join('')}</div>
     <div class="pp-det" id="ppDetalle"></div>
-    ${SB_G ? `<form class="pp-login" id="ppLogin"><small class="muted">Para cambiar los candados y los cuadros, entra con tu correo de ponente:</small>
+    ${SB_G ? `<form class="pp-login" id="ppLogin" hidden><small class="muted">Para cambiar los candados y los cuadros, entra con tu correo de ponente:</small>
       <div class="pp-login-row"><input type="email" id="ppMail" placeholder="tu@correo.com" required><button type="submit" class="btn sm">Enviarme el enlace</button></div></form>` : ''}</div>`;
 }
 function mostrarDetallePP(id) {
