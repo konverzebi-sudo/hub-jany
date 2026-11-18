@@ -226,6 +226,7 @@
   .pp-btn.cerrar { color: #3B1468; }
   .pp-btn.cerrar.on { background: #3B1468; color: #fff; border-color: #3B1468; }
   .guia-plataforma { margin-top: 12px; padding: 14px 16px; border-radius: 14px; background: #fff; border: 1px solid var(--line, #E6DDF2); display: grid; gap: 8px; }
+  .pct-grande { font: 800 clamp(64px, 12vw, 96px) 'Sora', sans-serif; color: #BBF802; line-height: 1; }
   .zoom-vivo { display: block; width: 100%; height: min(70vh, 620px); min-height: 420px; border: 0; border-radius: 16px; background: #0F0B16; }
   .panel-ponente { margin-top: 20px; display: grid; gap: 10px; border-left: 4px solid #BBF802; }
   .pp-h { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -1102,6 +1103,7 @@ function pintarCuenta() {
 }
 setInterval(pintarCuenta, 1000);
 function pintarRecordatorios() {
+  document.querySelectorAll('[data-pct-grande]').forEach(el => { el.textContent = (BRIEF ? BRIEF.pct : 0) + '%'; });
   document.querySelectorAll('[data-recordatorios]').forEach(el => {
     const pct = BRIEF ? BRIEF.pct : 0, c = CLASES.find(x => x.recordatorios);
     const faltan = (c?.revisa || []).filter((r, j) => !chks[c.id + '-rev-' + j]).length;
@@ -1171,6 +1173,7 @@ document.addEventListener('click', e => {
   const caja = g.parentElement.nextElementSibling; if (caja) caja.hidden = !caja.hidden;
   g.textContent = caja && caja.hidden ? 'Ver guía de la plataforma' : 'Ocultar guía';
 });
+document.addEventListener('click', e => { const t = e.target.closest && e.target.closest('[data-ir]'); if (t) location.hash = t.dataset.ir; });
 /* El Pre: el brief se abre solo cuando la persona toca el botón; calendario y link del manual */
 const AGENDA = { titulo: 'Taller · Tu Primer Asistente con IA', ini: '20261203T170000Z', fin: '20261203T190000Z', detalle: 'Clase en vivo con Jany (Jefes Hub). Manual del Hubcito: https://jefeshub.com/guia-taller-ia.html' };
 function agendaGoogle() { return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent(AGENDA.titulo) + '&dates=' + AGENDA.ini + '/' + AGENDA.fin + '&details=' + encodeURIComponent(AGENDA.detalle) + '&ctz=America/Mexico_City'; }
@@ -1412,22 +1415,17 @@ function viewInicio() {
       </div>
       <div class="cuenta cuenta-hero" data-cuenta></div>
     </section>
-    <div class="card progress-card">
-      <div class="ring" style="--p:${pct}"><span>${pct}%</span></div>
-      <div class="txt"><b>${nDone()} de ${CLASES.length} clases completadas.</b><small>Siguiente: ${esc(s.titulo)}</small></div>
-      <a class="chip-btn" href="#clase-${s.id}">Continuar →</a>
-    </div>
     <div class="sec-title"><span class="ico">🧭</span><div><h2>Cómo avanzar en cada clase</h2><p>El mismo ciclo sirve para todo lo que hagas con IA.</p></div></div>
-    <div class="steps4">${CURSO.comoAvanzar.map((p, i) => `<div class="step4${i === 0 ? ' destacado' : ''}"><span class="num">0${i + 1}</span><div class="big">${p.emoji}</div><h3>${esc(p.titulo)}</h3><p>${esc(p.texto)}</p></div>`).join('')}</div>
+    <div class="steps4">${CURSO.comoAvanzar.map((p, i) => `<div class="step4${i === 0 ? ' destacado' : ''}" ${i === 0 ? 'data-ir="#clase-1/etapa-1" style="cursor:pointer"' : ''}><span class="num">0${i + 1}</span><div class="big">${p.emoji}</div><h3>${esc(p.titulo)}</h3><p>${esc(p.texto)}</p></div>`).join('')}</div>
     <div class="sec-title"><span class="ico">🗺️</span><div><h2>Tu camino en el taller</h2><p>${CLASES.length} clases en ${CURSO.modulos.length} módulos.</p></div></div>
     <div class="path">${CURSO.modulos.map((m, i) => `
       <div class="mod">
         <div class="mod-head"><span class="ico">${m.emoji}</span><div><small>Módulo ${i + 1}</small><h3>${esc(m.titulo)}</h3></div><span class="cnt">${m.clases.filter(c => done[c.id]).length}/${m.clases.length}</span></div>
         <div class="class-grid">${m.clases.map(c => `
-          <a class="class-card ${done[c.id] ? 'done' : ''} ${c.id === '1' ? 'destacado' : ''}" href="#clase-${c.id}">
+          <a class="class-card ${done[c.id] ? 'done' : ''} ${c.id === '1' ? 'destacado' : ''}" href="#clase-${c.id}${c.id === '1' ? '/etapa-1' : ''}">
             <div class="top"><span class="lab">${etiq(c)}</span><span class="badge">✓ Completada</span></div>
             <h4>${esc(c.titulo)}</h4><p>${esc(c.resumen)}</p>
-            <div class="meta">${c.etapas.length} etapas · ${c.etapas.reduce((n, e) => n + (e.prompts || []).length, 0)} prompts</div>
+            <div class="meta">${c.recordatorios ? '⏱ Te toma 10 minutos' : `${c.etapas.length} etapas · ${c.etapas.reduce((n, e) => n + (e.prompts || []).length, 0)} prompts`}</div>
           </a>`).join('')}</div>
       </div>`).join('')}</div>`;
 }
@@ -1443,7 +1441,6 @@ function viewClase(c) {
   const nP = c.etapas.reduce((n, e) => n + (e.prompts || []).length, 0);
   $('#crumbs').innerHTML = `Guía del taller › ${esc(c.mod.titulo)} › <b>${etiq(c)}</b>`;
   return `
-    ${c.recordatorios ? `<div class="recordatorios" data-recordatorios></div>` : ''}
     ${MODO_PONENTE && c.mod.seccion ? `<iframe class="embed-taller" data-din="seccion" src="taller-app/?embed=seccion&s=${encodeURIComponent(c.mod.seccion)}&rol=ponente" title="Control del módulo"></iframe>` : ''}
     <div class="tags"><span class="tag">${etiq(c)}</span><span class="tag soft">${c.mod.emoji} ${esc(c.mod.titulo)}</span></div>
     <div class="class-head ${enVivoClase(c) ? 'vivo' + (vivoGrande() ? ' grande' : '') : ''}">
@@ -1456,7 +1453,7 @@ function viewClase(c) {
           ${nP ? `<button class="chip-btn" data-copyall>⬇ Copiar todos los prompts</button>` : ''}
         </div>
       </div>
-      ${enVivoClase(c) ? `<div class="cover cover-vivo"><iframe class="vivo-frame" src="taller-app/?embed=presentacion&mini=1${MODO_PONENTE ? '&rol=ponente' : ''}" title="Presentación en vivo" allow="fullscreen"></iframe><button type="button" class="vivo-react" data-reaccion title="¡Estoy aquí! Manda una reacción" aria-label="Mandar reacción">🤑</button><div class="vivo-btns"><button type="button" data-vivo-teatro title="Más grande, puedes seguir bajando a las actividades">${vivoGrande() ? '▭ Más chica' : '▭ Más grande'}</button><button type="button" data-vivo-grande title="Pantalla completa">⛶ Pantalla completa</button></div></div>` : `<div class="cover"><span class="emoji">${c.mod.emoji}</span><small>${etiq(c)}</small><b>${esc(c.titulo)}</b></div>`}
+      ${enVivoClase(c) ? `<div class="cover cover-vivo"><iframe class="vivo-frame" src="taller-app/?embed=presentacion&mini=1${MODO_PONENTE ? '&rol=ponente' : ''}" title="Presentación en vivo" allow="fullscreen"></iframe><button type="button" class="vivo-react" data-reaccion title="¡Estoy aquí! Manda una reacción" aria-label="Mandar reacción">🤑</button><div class="vivo-btns"><button type="button" data-vivo-teatro title="Más grande, puedes seguir bajando a las actividades">${vivoGrande() ? '▭ Más chica' : '▭ Más grande'}</button><button type="button" data-vivo-grande title="Pantalla completa">⛶ Pantalla completa</button></div></div>` : `<div class="cover">${c.recordatorios ? `<div class="pct-grande" data-pct-grande>0%</div><small>${etiq(c)} · tu brief</small><b>${esc(c.titulo)}</b>` : `<span class="emoji">${c.mod.emoji}</span><small>${etiq(c)}</small><b>${esc(c.titulo)}</b>`}</div>`}
     </div>
     <div class="tip"><span>💡</span><div>${esc(c.tip)}</div></div>
     ${c.ideas ? bloqueIdeas() : ''}
