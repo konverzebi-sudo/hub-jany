@@ -208,6 +208,17 @@
   .ej-chips { display: flex; flex-wrap: wrap; gap: 6px; }
   .ej-chip { padding: 6px 12px; border-radius: 99px; border: 1px solid var(--line); background: #fff; cursor: pointer; font: 800 12px 'Sora', sans-serif; }
   .ej-chip.on { background: #BBF802; }
+  .pp-dos { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; align-items: start; margin-top: 20px; }
+  .pp-dos > .card { margin-top: 0; }
+  @media (max-width: 820px) { .pp-dos { grid-template-columns: 1fr; } }
+  .pp-play { width: 40px; height: 40px; border-radius: 50%; border: 0; flex: none; display: inline-flex; align-items: center; justify-content: center; font-size: 15px; cursor: pointer; }
+  .pp-play.lista { background: #FFD60A; color: #0F0B16; box-shadow: 0 0 0 4px rgba(255,214,10,.25); }
+  .pp-play.activa { background: #1FA34A; color: #fff; box-shadow: 0 0 0 4px rgba(31,163,74,.25); }
+  .pp-play.fin { background: #ECEAF0; color: #1FA34A; cursor: default; font-size: 18px; }
+  .pp-resp { margin-top: 16px; display: grid; gap: 14px; border-left: 4px solid #1FA34A; }
+  .pp-resp-item iframe { min-height: 420px; }
+  .vista-full { position: absolute; right: 12px; top: 12px; z-index: 5; padding: 6px 12px; border: 0; border-radius: 99px; background: rgba(15,11,22,.75); color: #fff; font: 700 12px 'Sora', sans-serif; cursor: pointer; }
+  .vista-box.ej-full { height: calc(100vh - 24px); min-height: 0; }
   .pp-cab { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
   .pp-acts li { margin: 6px 0; list-style: none; }
   .pp-ea { border: 0; background: none; font-size: 16px; cursor: pointer; padding: 0 4px; }
@@ -1269,6 +1280,7 @@ async function guardarRemoto(clave, valor) {
 }
 function alCambiarRemoto() {
   refrescarNumerosPP();
+  refrescarRespuestas();
   aplicarVistaDom(leerVista());
   if (location.hash.indexOf('en-vivo') === -1) route(); // en otras páginas, los candados se actualizan al volver a dibujarla
 }
@@ -1316,12 +1328,40 @@ function mostrarDetallePP(id) {
   const cerrada = bloqueoDeClase(c, c.mod);
   det.innerHTML = `<div class="pp-cab"><b>${esc(etiq(c))} · ${esc(c.titulo)}</b><small class="muted">${cerrada ? '🔒 Cerrada para alumnos' : '🔓 Abierta para alumnos'} · doble clic en el número para cambiarla</small></div>
     <p class="small">Actividades (ábrelas una por una):</p>
-    <ol class="pp-acts">${(c.etapas || []).map((et, k) => { if (!(et.actividad || et.brief)) return `<li class="pp-fila"><span class="pp-titulo">${esc(et.titulo)}</span></li>`; const abierta = etapaAbierta(c, k); return `<li class="pp-fila"><span class="pp-titulo">${esc(et.titulo)}</span><button type="button" class="pp-toggle ${abierta ? 'on' : ''}" data-ppe="${c.id}|${k}" data-val="${abierta ? 'cerrar' : 'abrir'}">${abierta ? '❚❚ Cerrar actividad' : '▶ Abrir actividad'}</button></li>`; }).join('')}</ol>`;
+    <ol class="pp-acts">${(c.etapas || []).map((et, k) => { if (!esAct(et)) return `<li class="pp-fila"><span class="pp-titulo">${esc(et.titulo)}</span></li>`; return `<li class="pp-fila"><span class="pp-titulo">${esc(et.titulo)}</span>${botonAct(c, k)}</li>`; }).join('')}</ol>`;
   document.querySelectorAll('.pp-num').forEach(x => x.classList.toggle('on', x.dataset.pp === id));
 }
 function refrescarNumerosPP() {
   document.querySelectorAll('.pp-num').forEach(b => { const c = CLASES.find(x => x.id === b.dataset.pp); if (c) b.textContent = `${bloqueoDeClase(c, c.mod) ? '🔒' : '🔓'} ${c.etiqueta || c.id}`; });
   const sel = document.querySelector('.pp-num.on'); if (sel) mostrarDetallePP(sel.dataset.pp);
+}
+
+/* ---- Estado de cada actividad: lista (▶ amarillo) → activa (❚❚ verde) → terminada (🙂 gris) ---- */
+const ACT_KEY = KEY + '-act';
+/* Una actividad es una etapa con dinámica (embed), con actividad o con brief */
+const esAct = et => !!(et.embed || et.actividad || et.brief);
+function estadoAct(c, k) {
+  const key = 'act:' + c.id + '|' + k;
+  if (key in REMOTO) return REMOTO[key];
+  return leerJSON(ACT_KEY)[c.id + '|' + k] || 'lista';
+}
+function botonAct(c, k) {
+  const est = estadoAct(c, k), id = c.id + '|' + k;
+  if (est === 'activa') return `<button type="button" class="pp-play activa" data-ppa="${id}" data-val="fin" title="Terminar esta actividad" aria-label="Terminar actividad">❚❚</button>`;
+  if (est === 'fin') return `<span class="pp-play fin" title="Actividad terminada" aria-label="Actividad terminada">🙂</span>`;
+  return `<button type="button" class="pp-play lista" data-ppa="${id}" data-val="activa" title="Iniciar esta actividad" aria-label="Iniciar actividad">▶</button>`;
+}
+/* Respuestas de las actividades que están activas: la misma dinámica que ven los alumnos, con el control del ponente */
+function refrescarRespuestas() {
+  const cont = document.getElementById('ppResp'); if (!cont || !MODO_PONENTE) return;
+  const activas = [];
+  CLASES.forEach(c => (c.etapas || []).forEach((et, k) => { if (esAct(et) && estadoAct(c, k) === 'activa') activas.push({ c, et }); }));
+  const sig = activas.map(a => a.c.id + '|' + a.et.titulo + '|' + (a.et.embed || '')).join(',');
+  if (cont.dataset.sig === sig) return; // no recargar las dinámicas si no cambió nada
+  cont.dataset.sig = sig;
+  cont.innerHTML = activas.length
+    ? `<div class="card pp-resp"><b>📥 Actividad${activas.length > 1 ? 'es' : ''} activa${activas.length > 1 ? 's' : ''}: respuestas de tus alumnos</b>${activas.map(a => `<div class="pp-resp-item"><div class="pp-resp-tit"><b>${esc(etiq(a.c))} · ${esc(a.et.titulo)}</b></div>${a.et.embed ? `<iframe class="embed-taller" src="taller-app/?embed=${encodeURIComponent(a.et.embed)}&rol=ponente" title="${esc(a.et.titulo)}" loading="lazy"></iframe>` : `<p class="small muted">Esta actividad no tiene panel de respuestas.</p>`}</div>`).join('')}</div>`
+    : '';
 }
 
 /* ---- Cuadros de la clase en vivo ---- */
@@ -1332,6 +1372,7 @@ function leerVista() {
 function guardarVista(v) { guardarJSON(VISTA_KEY, v); guardarRemoto('vista', v); }
 function cajasVista(v) {
   return `<div class="vista-box">
+    ${MODO_PONENTE ? `<button type="button" class="vista-full" data-vfull title="Ver a pantalla completa">⛶ Pantalla completa</button>` : ''}
     <div class="vi vi-cara"><iframe class="zoom-vivo" src="taller-app/zoom.html" title="Clase en vivo por Zoom" allow="camera; microphone; fullscreen; display-capture; autoplay"></iframe></div>
     <div class="vi vi-pres"><iframe src="taller-app/?embed=presentacion${MODO_PONENTE ? '&rol=ponente' : ''}" title="Presentación en vivo"></iframe></div>
     <div class="vi vi-ej"><iframe src="guia-taller-ia.html?vista=ponente#clase-${v.ej}" title="Ejercicio"></iframe></div>
@@ -1340,7 +1381,7 @@ function cajasVista(v) {
 function bloqueVistaPonente() {
   const v = leerVista();
   const boton = (slot, val, icono, texto) => `<button type="button" class="vs-btn ${v[slot] === val ? 'on' : ''}" data-vs="${slot}" data-val="${val}" aria-label="${texto}" title="${texto}"><span class="vs-ico">${icono}</span><span>${texto}</span></button>`;
-  const fila = (slot, titulo) => `<div class="vs-fila"><b class="small">${titulo}</b><div class="vs-botones">${boton(slot, 'pres', '🖥️', 'Presentación')}${boton(slot, 'cara', '🙂', 'Mi cara')}${boton(slot, 'ej', '🧩', 'Ejercicio')}${boton(slot, 'nada', '✖️', 'Nada')}</div></div>`;
+  const fila = (slot, titulo) => `<div class="vs-fila"><b class="small">${titulo}</b><div class="vs-botones">${boton(slot, 'pres', '🖥️', 'Presentación')}${boton(slot, 'cara', '🙂', 'Mi cara')}${boton(slot, 'ej', '🧩', 'Ejercicio')}${boton(slot, 'pant', '📺', 'Compartir pantalla')}${boton(slot, 'nada', '✖️', 'Nada')}</div></div>`;
   const chips = CLASES.map(c => `<button type="button" class="ej-chip ${c.id === v.ej ? 'on' : ''}" data-ejc="${c.id}">${esc(c.etiqueta || c.id)}</button>`).join('');
   const hayEj = v.grande === 'ej' || v.chico === 'ej';
   return `<div class="card vista-ctl">
@@ -1349,13 +1390,15 @@ function bloqueVistaPonente() {
     ${fila('chico', 'Cuadrito')}
     <div class="ej-sel ${hayEj ? '' : 'oculto-ej'}"><small class="muted">Ejercicio que se muestra:</small><div class="ej-chips">${chips}</div></div>
     <p class="small muted">Lo que eliges lo ven también tus alumnos, en tiempo real.</p>
-  </div>${cajasVista(v)}`;
+  </div>`;
 }
 function aplicarVistaDom(v) {
   const clase = k => v.grande === k ? 'grande' : v.chico === k ? 'chico' : 'oculto';
   const cara = document.querySelector('.vi-cara'), pres = document.querySelector('.vi-pres'), ej = document.querySelector('.vi-ej');
   if (!cara || !pres || !ej) return;
-  cara.className = `vi vi-cara ${clase('cara')}`; pres.className = `vi vi-pres ${clase('pres')}`; ej.className = `vi vi-ej ${clase('ej')}`;
+  const zoomClase = v.grande === 'cara' || v.grande === 'pant' ? 'grande' : (v.chico === 'cara' || v.chico === 'pant' ? 'chico' : 'oculto');
+  const vb = document.querySelector('.vista-box'); if (vb) vb.classList.toggle('ej-full', v.grande === 'ej');
+  cara.className = `vi vi-cara ${zoomClase}`; pres.className = `vi vi-pres ${clase('pres')}`; ej.className = `vi vi-ej ${clase('ej')}`;
   document.querySelectorAll('[data-vs]').forEach(b => b.classList.toggle('on', v[b.dataset.vs] === b.dataset.val));
   document.querySelectorAll('[data-ejc]').forEach(b => b.classList.toggle('on', b.dataset.ejc === v.ej));
   const sel = document.querySelector('.ej-sel'); if (sel) sel.classList.toggle('oculto-ej', !(v.grande === 'ej' || v.chico === 'ej'));
@@ -1374,10 +1417,16 @@ document.addEventListener('dblclick', e => {
 document.addEventListener('click', e => {
   const t = e.target;
   const pp = t.closest && t.closest('[data-pp]'); if (pp) { mostrarDetallePP(pp.dataset.pp); return; }
-  const pe = t.closest && t.closest('[data-ppe]'); if (pe) {
-    const [id, k] = pe.dataset.ppe.split('|'); const c = CLASES.find(x => x.id === id); if (!c) return;
-    guardarRemoto('etapa:' + id + '|' + k, pe.dataset.val === 'abrir'); // Abrir o Cerrar la actividad para los alumnos
-    mostrarDetallePP(id); return;
+  const pa = t.closest && t.closest('[data-ppa]'); if (pa) {
+    const [id, k] = pa.dataset.ppa.split('|'); const c = CLASES.find(x => x.id === id); if (!c) return;
+    const nuevo = pa.dataset.val; // 'activa' al dar play; 'fin' al terminar
+    guardarRemoto('act:' + id + '|' + k, nuevo);
+    guardarRemoto('etapa:' + id + '|' + k, nuevo === 'activa'); // los alumnos la ven mientras está activa
+    mostrarDetallePP(id); refrescarRespuestas(); return;
+  }
+  const vf = t.closest && t.closest('[data-vfull]'); if (vf) {
+    const vb = document.querySelector('.vista-box'); const pedir = vb && (vb.requestFullscreen || vb.webkitRequestFullscreen);
+    if (pedir) pedir.call(vb); return;
   }
   const vs = t.closest && t.closest('[data-vs]'); const ejc = t.closest && t.closest('[data-ejc]');
   if ((vs || ejc) && document.querySelector('.vista-box')) {
@@ -1400,7 +1449,7 @@ function viewEnVivo() {
     const cabeceraPonente = `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
       <div>${titulo}</div>
       <a class="btn sm" href="${ZOOM_INICIAR}" target="_blank" rel="noopener" style="margin-top:20px">▶ Iniciar la reunión de Zoom</a></div>`;
-    return cabeceraPonente + bloquePanelPonente() + bloqueVistaPonente();
+    return cabeceraPonente + `<div class="pp-dos">${bloquePanelPonente()}${bloqueVistaPonente()}</div><div id="ppResp"></div>` + cajasVista(leerVista());
   }
   const cabecera = titulo + `<p style="color:var(--muted)">Me encanta que estés aquí. Vamos a poner atención e intención para lograr una transformación de tu negocio con más libertad y más inteligencia. Yo estoy más que lista. ¿Tú?</p>`;
   return cabecera + cajasVista(leerVista());
@@ -1528,6 +1577,7 @@ function route() {
   if (window.GuiaMetricas) window.GuiaMetricas.montar();
   pintarCuenta(); pintarRecordatorios();
   renderNav(activo);
+  refrescarRespuestas();
   document.body.classList.remove('menu-open');
   const target = sub && document.getElementById(sub);
   if (target) target.scrollIntoView({ block: 'start' }); else window.scrollTo(0, 0);
