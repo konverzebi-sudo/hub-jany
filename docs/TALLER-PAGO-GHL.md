@@ -48,3 +48,20 @@ tabla `invitados`, debe aparecer el correo con rol `alumno` → entrar a taller-
 ## Respuestas del servidor (para revisar en el historial del workflow de GHL)
 - 200 `ok` · 401 clave equivocada · 400 sin correo válido o taller inexistente ·
   500 faltan las variables de Vercel · 502 Supabase no respondió (GHL reintenta).
+
+## La guía: cada quien entra con su correo (guia-taller-ia.html)
+- Con Supabase conectado, la guía pide **entrar con el correo con el que se pagó** (enlace mágico, misma
+  sesión que taller-app). Correo que no está en `invitados` → "Tu correo no está inscrito".
+- Lo que llena cada quien (avances, palomitas, colores y letra de su marca, campaña, ideas, "Listo en
+  ChatGPT") se guarda en **su fila** de `guia_alumno` y se le carga en cualquier aparato. La ponente
+  puede leer las de todos; nadie más.
+- `?vista=ponente` solo abre con un correo de rol `ponente`; cualquier otro regresa a la vista de alumno.
+- Si en un mismo navegador entra otra persona, lo del navegador anterior no se le mezcla.
+
+### Antes de publicarla (una sola vez)
+1. Supabase → SQL Editor → correr `taller-app/supabase/22_guia_por_alumno.sql` (después del 21 del PR 504).
+2. Supabase → Authentication → URL Configuration → **Redirect URLs** → agregar
+   `https://jefeshub.com/guia-taller-ia.html` (sin esto el enlace del correo lleva a taller-app; también
+   funciona, pero hay que volver a la guía).
+3. **Agregar a `invitados` a quien ya esté usando la guía** (al publicarla, todos tienen que entrar con
+   correo). Lo que ya habían llenado en su navegador se sube solo a su cuenta la primera vez que entran.

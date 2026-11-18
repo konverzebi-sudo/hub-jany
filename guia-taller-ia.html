@@ -211,6 +211,18 @@
   .pp-acts li { margin: 6px 0; list-style: none; }
   .pp-ea { border: 0; background: none; font-size: 16px; cursor: pointer; padding: 0 4px; }
   .pp-num.on { background: #BBF802; color: #0F0B16; }
+  .pp-login { margin-top: 12px; display: grid; gap: 6px; }
+  .pp-login-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pp-login-row input { flex: 1; min-width: 200px; }
+  .pp-fila { display: grid; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line, #E6DDF2); }
+  .pp-titulo { font: 700 15px 'Sora', sans-serif; }
+  .pp-est { justify-self: start; font: 700 11px 'JetBrains Mono', monospace; letter-spacing: .08em; padding: 4px 10px; border-radius: 99px; background: #EFEAF6; color: #6B5C84; }
+  .pp-est.live { background: #BBF802; color: #0F0B16; }
+  .pp-botones { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pp-btn { padding: 8px 14px; border-radius: 99px; border: 1px solid #C9BCE0; background: #fff; font: 800 13px 'Sora', sans-serif; cursor: pointer; }
+  .pp-btn.on { background: #BBF802; border-color: #9CCB00; }
+  .pp-btn.cerrar { color: #3B1468; }
+  .pp-btn.cerrar.on { background: #3B1468; color: #fff; border-color: #3B1468; }
   .zoom-vivo { display: block; width: 100%; height: min(70vh, 620px); min-height: 420px; border: 0; border-radius: 16px; background: #0F0B16; }
   .panel-ponente { margin-top: 20px; display: grid; gap: 10px; border-left: 4px solid #BBF802; }
   .pp-h { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -543,6 +555,20 @@
     .complete-bar { flex-direction: column; align-items: stretch; text-align: center; }
   }
   @media (max-width: 520px) { .steps4, .pager { grid-template-columns: 1fr; } .pager .next { text-align: left; } }
+  /* Entrada con correo: cada alumno entra a SU guía (cuenta del taller) */
+  .entrada { position: fixed; inset: 0; z-index: 200; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 24px 16px; overflow-y: auto; }
+  .entrada-box { width: 100%; max-width: 440px; background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 32px 28px; text-align: center; }
+  .entrada-box .brand { display: inline-block; color: var(--lime); margin-bottom: 18px; }
+  .entrada-box h2 { font-size: 26px; margin-bottom: 10px; }
+  .entrada-box p { color: var(--muted); font-size: 15px; margin-bottom: 18px; }
+  .entrada-box input { width: 100%; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--card-2); color: var(--text); font: 16px 'Inter', sans-serif; margin-bottom: 12px; }
+  .entrada-box input:focus { outline: 2px solid var(--lime); outline-offset: 1px; }
+  .entrada-box .btn { width: 100%; }
+  .entrada-box .btn[disabled] { opacity: .6; cursor: wait; }
+  .entrada-box .entrada-msg { min-height: 22px; margin: 12px 0 0; font-size: 14px; color: var(--lime); }
+  .entrada-box .entrada-alt { margin-top: 16px; font-size: 13px; color: var(--dim); }
+  .entrada-box .entrada-alt a { color: var(--lime); text-decoration: underline; }
+  html.con-entrada, body.con-entrada { overflow: hidden; }
 </style>
 </head>
 <body>
@@ -592,6 +618,8 @@
   <p>¿Algo no te funciona? Escríbele al equipo de soporte. No es El Hubcito: son personas que te ayudan sin detener la clase.</p><iframe id="ayudaFrame" title="Chat de soporte" class="embed-taller" data-din="ayuda"></iframe></div>
 
 <script src="js/guia-metricas.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="taller-app/config.js"></script>
 <script>
 /* =========================================================
    CONTENIDO DEL TALLER — edita solo esto
@@ -1204,14 +1232,49 @@ function renderNav(activo) {
   $('#continuarTop').href = '#clase-' + s.id;
 }
 
-/* Panel del ponente: TODAS las clases (PRE, 01…10) con candado. Al tocar un número salen sus actividades;
-   cada una se puede bloquear o desbloquear. Hasta conectar Supabase, los cambios solo se ven en tu pantalla. */
+/* Panel del ponente y cuadros de la clase en vivo. Los candados y la vista se guardan en Supabase (tabla estado_clase),
+   así los ven todos en tiempo real. Si Supabase no responde, se usa lo que quedó en este navegador. */
 const ZOOM_INICIAR = 'https://zoom.us/s/6215331135'; // ID personal: el anfitrión inicia sesión y la reunión arranca
-const DESB_KEY = KEY + '-desbloq', DESBE_KEY = KEY + '-desbloqe';
+const DESB_KEY = KEY + '-desbloq', DESBE_KEY = KEY + '-desbloqe', VISTA_KEY = KEY + '-vista';
 function leerJSON(k) { try { return JSON.parse(localStorage.getItem(k)) || {}; } catch (e) { return {}; } }
 function guardarJSON(k, o) { try { localStorage.setItem(k, JSON.stringify(o)); } catch (e) {} }
-/* true = la clase está cerrada para los alumnos. Manda lo que tocaste en el panel; si no tocaste nada, manda la plataforma. */
+
+/* ---- Conexión con Supabase (la misma que la plataforma del taller) ---- */
+const CFG_T = window.TALLER_CONFIG || {};
+const SB_G = (window.supabase && CFG_T.supabaseUrl && CFG_T.supabaseAnonKey) ? window.supabase.createClient(CFG_T.supabaseUrl, CFG_T.supabaseAnonKey) : null;
+let REMOTO = {};
+async function cargarRemoto() {
+  if (!SB_G) return;
+  const { data, error } = await SB_G.from('estado_clase').select('clave,valor');
+  if (!error && data) REMOTO = Object.fromEntries(data.map(r => [r.clave, r.valor]));
+}
+async function guardarRemoto(clave, valor) {
+  REMOTO[clave] = valor;
+  if (!SB_G) return true;
+  const { error } = await SB_G.from('estado_clase').upsert({ clave, valor, actualizado: new Date().toISOString() });
+  if (error) { toast('No se guardó. Entra como ponente con tu correo.'); return false; }
+  return true;
+}
+function alCambiarRemoto() {
+  refrescarNumerosPP();
+  aplicarVistaDom(leerVista());
+  if (location.hash.indexOf('en-vivo') === -1) route(); // en otras páginas, los candados se actualizan al volver a dibujarla
+}
+function iniciarRemoto() {
+  if (!SB_G) return;
+  cargarRemoto().then(() => { alCambiarRemoto(); });
+  SB_G.channel('estado-clase').on('postgres_changes', { event: '*', schema: 'public', table: 'estado_clase' }, p => {
+    const r = p.new || p.old; if (!r) return;
+    if (p.eventType === 'DELETE') delete REMOTO[r.clave]; else REMOTO[r.clave] = r.valor;
+    alCambiarRemoto();
+  }).subscribe();
+}
+
+/* ---- Candados ---- */
+/* true = la clase está cerrada para los alumnos. Manda lo guardado; si no hay nada, manda la plataforma. */
 function bloqueoDeClase(c, m) {
+  const k = 'clase:' + c.id;
+  if (k in REMOTO) return REMOTO[k] !== true;
   const d = leerJSON(DESB_KEY);
   if (d[c.id] === true) return false;
   if (d[c.id] === false) return true;
@@ -1220,34 +1283,50 @@ function bloqueoDeClase(c, m) {
   return est === 'bloqueada';
 }
 function claseBloqueada(c, m) { return !MODO_PONENTE && bloqueoDeClase(c, m); }
-function etapaBloqueada(c, k) { return !MODO_PONENTE && leerJSON(DESBE_KEY)[c.id + '|' + k] === false; }
+/* true = la actividad está abierta. Por defecto, abierta. */
+function etapaAbierta(c, k) {
+  const key = 'etapa:' + c.id + '|' + k;
+  if (key in REMOTO) return REMOTO[key] !== false;
+  return leerJSON(DESBE_KEY)[c.id + '|' + k] !== false;
+}
+function etapaBloqueada(c, k) { return !MODO_PONENTE && !etapaAbierta(c, k); }
+
+/* ---- Panel del ponente ---- */
 function bloquePanelPonente() {
   return `<div class="card panel-ponente">
     <div class="pp-h"><b>🎤 Panel del ponente</b><a class="btn sm" href="${ZOOM_INICIAR}" target="_blank" rel="noopener">▶ Iniciar la reunión de Zoom</a></div>
     <p class="small">Toca un número para ver sus actividades. 🔒 = cerrado para los alumnos · 🔓 = abierto. Pasa el mouse sobre el número para ver su nombre.</p>
     <div class="pp-nums">${CLASES.map(c => `<button type="button" class="pp-num" title="${esc(c.titulo)}" data-pp="${c.id}">${bloqueoDeClase(c, c.mod) ? '🔒' : '🔓'} ${esc(c.etiqueta || c.id)}</button>`).join('')}</div>
-    <div class="pp-det" id="ppDetalle"></div></div>`;
+    <div class="pp-det" id="ppDetalle"></div>
+    ${SB_G ? `<form class="pp-login" id="ppLogin"><small class="muted">Para cambiar los candados y los cuadros, entra con tu correo de ponente:</small>
+      <div class="pp-login-row"><input type="email" id="ppMail" placeholder="tu@correo.com" required><button type="submit" class="btn sm">Enviarme el enlace</button></div></form>` : ''}</div>`;
 }
 function mostrarDetallePP(id) {
   const c = CLASES.find(x => x.id === id); const det = document.getElementById('ppDetalle'); if (!c || !det) return;
-  const dE = leerJSON(DESBE_KEY), cerrada = bloqueoDeClase(c, c.mod);
+  const cerrada = bloqueoDeClase(c, c.mod);
   det.innerHTML = `<div class="pp-cab"><b>${esc(etiq(c))} · ${esc(c.titulo)}</b><button type="button" class="btn sm" data-ppl="${c.id}">${cerrada ? '🔓 Abrir esta clase' : '🔒 Cerrar esta clase'}</button></div>
     <p class="small">Actividades (ábrelas una por una):</p>
-    <ol class="pp-acts">${(c.etapas || []).map((et, k) => { const cer = dE[c.id + '|' + k] === false; return `<li><button type="button" class="pp-ea" data-ppe="${c.id}|${k}" aria-label="${cer ? 'Abrir' : 'Cerrar'} actividad">${cer ? '🔒' : '🔓'}</button> ${esc(et.titulo)}</li>`; }).join('')}</ol>`;
+    <ol class="pp-acts">${(c.etapas || []).map((et, k) => { const abierta = etapaAbierta(c, k); return `<li class="pp-fila"><span class="pp-titulo">${esc(et.titulo)}</span><span class="pp-est ${abierta ? 'live' : 'off'}">${abierta ? '● EN VIVO' : 'CERRADA'}</span><span class="pp-botones"><button type="button" class="pp-btn ${abierta ? 'on' : ''}" data-ppe="${c.id}|${k}" data-val="abrir">▶ Abrir actividad</button><button type="button" class="pp-btn cerrar ${abierta ? '' : 'on'}" data-ppe="${c.id}|${k}" data-val="cerrar">■ Cerrar actividad</button></span></li>`; }).join('')}</ol>`;
   document.querySelectorAll('.pp-num').forEach(x => x.classList.toggle('on', x.dataset.pp === id));
 }
 function refrescarNumerosPP() {
   document.querySelectorAll('.pp-num').forEach(b => { const c = CLASES.find(x => x.id === b.dataset.pp); if (c) b.textContent = `${bloqueoDeClase(c, c.mod) ? '🔒' : '🔓'} ${c.etiqueta || c.id}`; });
+  const sel = document.querySelector('.pp-num.on'); if (sel) mostrarDetallePP(sel.dataset.pp);
 }
 
-/* Clase en vivo, vista del ponente: dos cuadros. Tú decides qué ve cada uno: presentación, tu cara, un ejercicio o nada.
-   Cambian de lugar sin recargar, así la reunión de Zoom no se corta. Por ahora la elección es solo para tu pantalla. */
-const VISTA_KEY = KEY + '-vista';
+/* ---- Cuadros de la clase en vivo ---- */
 function leerVista() {
-  const v = leerJSON(VISTA_KEY);
+  const v = REMOTO.vista || leerJSON(VISTA_KEY);
   return { grande: v.grande || 'pres', chico: v.chico || 'cara', ej: v.ej || (CLASES[0] && CLASES[0].id) || '' };
 }
-function guardarVista(v) { guardarJSON(VISTA_KEY, v); }
+function guardarVista(v) { guardarJSON(VISTA_KEY, v); guardarRemoto('vista', v); }
+function cajasVista(v) {
+  return `<div class="vista-box">
+    <div class="vi vi-cara"><iframe class="zoom-vivo" src="taller-app/zoom.html" title="Clase en vivo por Zoom" allow="camera; microphone; fullscreen; display-capture; autoplay"></iframe></div>
+    <div class="vi vi-pres"><iframe src="taller-app/?embed=presentacion${MODO_PONENTE ? '&rol=ponente' : ''}" title="Presentación en vivo"></iframe></div>
+    <div class="vi vi-ej"><iframe src="guia-taller-ia.html?vista=ponente#clase-${v.ej}" title="Ejercicio"></iframe></div>
+  </div>`;
+}
 function bloqueVistaPonente() {
   const v = leerVista();
   const boton = (slot, val, icono, texto) => `<button type="button" class="vs-btn ${v[slot] === val ? 'on' : ''}" data-vs="${slot}" data-val="${val}" aria-label="${texto}" title="${texto}"><span class="vs-ico">${icono}</span><span>${texto}</span></button>`;
@@ -1259,13 +1338,8 @@ function bloqueVistaPonente() {
     ${fila('grande', 'Cuadro grande')}
     ${fila('chico', 'Cuadrito')}
     <div class="ej-sel ${hayEj ? '' : 'oculto-ej'}"><small class="muted">Ejercicio que se muestra:</small><div class="ej-chips">${chips}</div></div>
-    <p class="small muted">Solo lo ves tú. Para que los alumnos vean tu elección hace falta conectar Supabase.</p>
-  </div>
-  <div class="vista-box">
-    <div class="vi vi-cara"><iframe class="zoom-vivo" src="taller-app/zoom.html" title="Clase en vivo por Zoom" allow="camera; microphone; fullscreen; display-capture; autoplay"></iframe></div>
-    <div class="vi vi-pres"><iframe src="taller-app/?embed=presentacion&rol=ponente" title="Presentación en vivo"></iframe></div>
-    <div class="vi vi-ej"><iframe src="guia-taller-ia.html?vista=ponente#clase-${v.ej}" title="Ejercicio"></iframe></div>
-  </div>`;
+    <p class="small muted">Lo que eliges lo ven también tus alumnos, en tiempo real.</p>
+  </div>${cajasVista(v)}`;
 }
 function aplicarVistaDom(v) {
   const clase = k => v.grande === k ? 'grande' : v.chico === k ? 'chico' : 'oculto';
@@ -1278,17 +1352,20 @@ function aplicarVistaDom(v) {
   const ifr = ej.querySelector('iframe'), src = `guia-taller-ia.html?vista=ponente#clase-${v.ej}`;
   if (ifr && ifr.getAttribute('src') !== src) ifr.setAttribute('src', src);
 }
+
+/* ---- Eventos del ponente ---- */
 document.addEventListener('click', e => {
   const t = e.target;
   const pp = t.closest && t.closest('[data-pp]'); if (pp) { mostrarDetallePP(pp.dataset.pp); return; }
   const pl = t.closest && t.closest('[data-ppl]'); if (pl) {
     const c = CLASES.find(x => x.id === pl.dataset.ppl); if (!c) return;
-    const d = leerJSON(DESB_KEY); d[c.id] = !bloqueoDeClase(c, c.mod); guardarJSON(DESB_KEY, d);
-    refrescarNumerosPP(); mostrarDetallePP(c.id); return;
+    guardarRemoto('clase:' + c.id, bloqueoDeClase(c, c.mod)); // si estaba cerrada, la abre; si estaba abierta, la cierra
+    refrescarNumerosPP(); return;
   }
   const pe = t.closest && t.closest('[data-ppe]'); if (pe) {
-    const d = leerJSON(DESBE_KEY), k = pe.dataset.ppe; d[k] = d[k] === false ? true : false; guardarJSON(DESBE_KEY, d);
-    mostrarDetallePP(k.split('|')[0]); return;
+    const [id, k] = pe.dataset.ppe.split('|'); const c = CLASES.find(x => x.id === id); if (!c) return;
+    guardarRemoto('etapa:' + id + '|' + k, pe.dataset.val === 'abrir'); // Abrir o Cerrar la actividad para los alumnos
+    mostrarDetallePP(id); return;
   }
   const vs = t.closest && t.closest('[data-vs]'); const ejc = t.closest && t.closest('[data-ejc]');
   if ((vs || ejc) && document.querySelector('.vista-box')) {
@@ -1299,16 +1376,23 @@ document.addEventListener('click', e => {
       if (val !== 'nada' && v[otro] === val) v[otro] = v[slot]; // si ya estaba en el otro cuadro, se intercambian
       v[slot] = val;
     }
-    guardarVista(v); aplicarVistaDom(v);
+    guardarVista(v); aplicarVistaDom(v); return;
   }
 });
+document.addEventListener('submit', async e => {
+  if (e.target.id !== 'ppLogin' || !SB_G) return;
+  e.preventDefault();
+  const email = document.getElementById('ppMail').value.trim();
+  const { error } = await SB_G.auth.signInWithOtp({ email, options: { emailRedirectTo: location.href } });
+  toast(error ? 'No se pudo enviar el enlace: ' + error.message : 'Revisa tu correo: te llegó el enlace para entrar.');
+});
+
 function viewEnVivo() {
   $('#crumbs').innerHTML = `Guía del taller › <b>Clase en vivo</b>`;
   const cabecera = `<span class="eyebrow">En vivo</span><h1 style="font-size:clamp(30px,4.4vw,46px);margin:16px 0 8px">Clase en vivo</h1>
     <p style="color:var(--muted)">Aquí me ves en vivo y ves la presentación al mismo tiempo que yo la voy dando. Cuando aparezca una actividad, respóndela justo debajo de la presentación.</p>`;
   if (MODO_PONENTE) return cabecera + bloquePanelPonente() + bloqueVistaPonente();
-  return cabecera + `<div class="zoom-wrap"><iframe class="zoom-vivo" src="taller-app/zoom.html" title="Clase en vivo por Zoom" allow="camera; microphone; fullscreen; display-capture; autoplay" style="margin-top:20px"></iframe></div>
-    <div class="pres-wrap"><iframe class="embed-taller" data-din="presentacion" src="taller-app/?embed=presentacion" title="Presentación en vivo" style="margin-top:20px"></iframe></div>`;
+  return cabecera + cajasVista(leerVista());
 }
 
 function viewInicio() {
@@ -1524,7 +1608,137 @@ qres.addEventListener('click', () => { q.value = ''; qres.classList.remove('on')
 document.addEventListener('keydown', e => { if (e.key === '/' && document.activeElement !== q) { e.preventDefault(); document.body.classList.add('menu-open'); q.focus(); } if (e.key === 'Escape') { q.blur(); qres.classList.remove('on'); } });
 
 $('#waHelp').href = 'https://wa.me/' + CURSO.whatsapp + '?text=' + encodeURIComponent('Hola Jany, tengo una duda sobre la guía del ' + CURSO.nombre);
+/* ====================== CADA ALUMNO, SU GUÍA ======================
+   Con Supabase conectado, la guía pide entrar con el correo con el que se pagó (enlace mágico, sin
+   contraseña; la misma sesión que taller-app). Solo entran los correos de la lista de invitados
+   (el pago en GHL los agrega solo). Lo que cada quien llena se guarda en SU fila de guia_alumno
+   (taller-app/supabase/22_guia_por_alumno.sql) y se le carga en cualquier dispositivo.
+   Sin Supabase la guía funciona como antes, solo en este navegador. */
+const CUENTA = { user: null, rol: null, listo: false };
+const SYNC_TS = 'guia-sync-local', SYNC_UID = 'guia-sync-uid';
+const NO_PERSONALES = ['-desbloq', '-desbloqe', '-vista', '-vivo-grande']; // del ponente o del aparato, no del alumno
+const esPersonal = k => typeof k === 'string' && (k === KEY || (k.indexOf(KEY + '-') === 0 && !NO_PERSONALES.includes(k.slice(KEY.length))));
+const LS_SET = Storage.prototype.setItem, LS_REM = Storage.prototype.removeItem;
+const lsSet = (k, v) => { try { LS_SET.call(localStorage, k, v); } catch (e) {} };
+const lsRem = k => { try { LS_REM.call(localStorage, k); } catch (e) {} };
+const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+function datosLocales() {
+  const d = {};
+  try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (esPersonal(k)) d[k] = localStorage.getItem(k); } } catch (e) {}
+  return d;
+}
+let subirT = null;
+function programarSubida() {
+  if (!SB_G || !CUENTA.listo) return;
+  clearTimeout(subirT);
+  subirT = setTimeout(subirDatos, 1200);
+}
+async function subirDatos() {
+  if (!SB_G || !CUENTA.user) return;
+  const { error } = await SB_G.from('guia_alumno').upsert({ user_id: CUENTA.user.id, datos: datosLocales(), actualizado: new Date().toISOString() });
+  if (error) toast('No se guardó en tu cuenta. Revisa tu internet.');
+}
+/* Todo lo que la guía guarda en este navegador también se manda a la cuenta del alumno. */
+if (!Storage.prototype.__guiaSync) {
+  Storage.prototype.setItem = function (k, v) { LS_SET.call(this, k, v); if (this === window.localStorage && esPersonal(k)) { LS_SET.call(this, SYNC_TS, String(Date.now())); programarSubida(); } };
+  Storage.prototype.removeItem = function (k) { LS_REM.call(this, k); if (this === window.localStorage && esPersonal(k)) { LS_SET.call(this, SYNC_TS, String(Date.now())); programarSubida(); } };
+  Storage.prototype.__guiaSync = true;
+}
+const linkAyuda = () => ($('#waHelp') && $('#waHelp').href) || '#';
+function pantallaEntrada(html) {
+  let el = document.getElementById('entrada');
+  if (!el) {
+    el = document.createElement('div'); el.id = 'entrada'; el.className = 'entrada';
+    el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-labelledby', 'entrada-t');
+    document.body.appendChild(el);
+  }
+  el.innerHTML = '<div class="entrada-box"><span class="brand">HUB DE JEFES</span>' + html + '</div>';
+  document.documentElement.classList.add('con-entrada'); document.body.classList.add('con-entrada');
+  return el;
+}
+function quitarEntrada() { const el = document.getElementById('entrada'); if (el) el.remove(); document.documentElement.classList.remove('con-entrada'); document.body.classList.remove('con-entrada'); }
+function pedirCorreo(msg) {
+  const el = pantallaEntrada(`<h2 id="entrada-t">Entra a tu guía</h2>
+    <p>Escribe el correo con el que te inscribiste al taller. Te llega un enlace para entrar, sin contraseña.</p>
+    <form id="entrada-f" novalidate><input type="email" id="entrada-email" autocomplete="email" inputmode="email" placeholder="tucorreo@ejemplo.com" aria-label="Tu correo" required>
+    <button type="submit" class="btn">Mándame mi enlace</button></form>
+    <p class="entrada-msg" id="entrada-msg" role="status">${msg ? esc(msg) : ''}</p>
+    <p class="entrada-alt">¿No te llega? Revisa tu carpeta de spam o <a href="${linkAyuda()}" target="_blank" rel="noopener">escríbeme por WhatsApp</a>.</p>`);
+  const f = el.querySelector('#entrada-f'), inp = el.querySelector('#entrada-email'), out = el.querySelector('#entrada-msg'), btn = f.querySelector('button');
+  setTimeout(() => inp.focus(), 50);
+  f.addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const email = inp.value.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { out.textContent = 'Revisa tu correo, parece que falta algo.'; inp.focus(); return; }
+    btn.disabled = true; out.textContent = 'Enviando…';
+    let error = null;
+    try { ({ error } = await SB_G.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname + location.search } })); } catch (e) { error = e; }
+    btn.disabled = false;
+    out.textContent = error ? 'No se pudo enviar. Espera un minuto y vuelve a intentar.' : '¡Listo! Abre tu correo y da clic en el enlace para entrar.';
+  });
+}
+function sinAcceso(email) {
+  const el = pantallaEntrada(`<h2 id="entrada-t">Tu correo no está inscrito</h2>
+    <p>Entraste con <b>${esc(email || '')}</b>, pero ese correo no aparece en la lista del taller. Usa el mismo correo con el que pagaste.</p>
+    <button type="button" class="btn" id="entrada-otro">Entrar con otro correo</button>
+    <p class="entrada-alt">¿Ya pagaste y no puedes entrar? <a href="${linkAyuda()}" target="_blank" rel="noopener">Escríbeme por WhatsApp</a>.</p>`);
+  el.querySelector('#entrada-otro').addEventListener('click', async () => { await SB_G.auth.signOut(); pedirCorreo(); });
+}
+/* Junta lo de la cuenta con lo de este navegador. Devuelve true si cambió algo y hay que volver a dibujar. */
+async function traerMisDatos() {
+  const uid = CUENTA.user.id;
+  const { data, error } = await SB_G.from('guia_alumno').select('datos,actualizado').eq('user_id', uid).maybeSingle();
+  if (error) return false;
+  const locales = datosLocales();
+  const duenio = lsGet(SYNC_UID);
+  if (duenio && duenio !== uid) { // lo que hay en este navegador es de otra persona: no se mezcla
+    Object.keys(locales).forEach(k => { lsRem(k); delete locales[k]; });
+    lsRem(SYNC_TS);
+  }
+  lsSet(SYNC_UID, uid);
+  const remotos = (data && data.datos && typeof data.datos === 'object') ? data.datos : null;
+  const tsLocal = Number(lsGet(SYNC_TS) || 0);
+  const tsRemoto = data ? (Date.parse(data.actualizado) || 0) : 0;
+  if (!remotos || (tsLocal > tsRemoto && Object.keys(locales).length)) { if (Object.keys(locales).length) await subirDatos(); return false; }
+  if (JSON.stringify(remotos) === JSON.stringify(locales)) return false;
+  // En la cuenta hay algo más nuevo (de otro aparato): se pone en este navegador.
+  Object.keys(locales).forEach(k => { if (!(k in remotos)) lsRem(k); });
+  Object.entries(remotos).forEach(([k, v]) => { if (esPersonal(k) && typeof v === 'string') lsSet(k, v); });
+  lsSet(SYNC_TS, String(tsRemoto));
+  return true;
+}
+async function revisarCuenta() {
+  const { data } = await SB_G.auth.getSession();
+  const user = data && data.session && data.session.user;
+  if (!user) { pedirCorreo(); return; }
+  CUENTA.user = user;
+  const { data: t } = await SB_G.from('talleres').select('id').eq('slug', CFG_T.taller).maybeSingle();
+  const { data: yo } = t ? await SB_G.from('miembros').select('rol').eq('taller_id', t.id).eq('user_id', user.id).maybeSingle() : { data: null };
+  if (!yo) { sinAcceso(user.email); return; }
+  CUENTA.rol = yo.rol;
+  if (MODO_PONENTE && yo.rol !== 'ponente') { location.replace(location.pathname + location.hash); return; } // la vista de ponente es solo de Jany
+  const cambio = await traerMisDatos();
+  CUENTA.listo = true;
+  let yaRecargo = false; try { yaRecargo = !!sessionStorage.getItem('guia-recargada'); } catch (e) {}
+  if (cambio && !yaRecargo) { try { sessionStorage.setItem('guia-recargada', '1'); } catch (e) {} location.reload(); return; }
+  try { sessionStorage.removeItem('guia-recargada'); } catch (e) {}
+  quitarEntrada();
+}
+function iniciarCuenta() {
+  if (!SB_G) return;
+  pantallaEntrada('<h2 id="entrada-t">Abriendo tu guía…</h2>');
+  let revisando = false;
+  const revisar = () => {
+    if (revisando || CUENTA.listo) return;
+    revisando = true;
+    revisarCuenta().catch(() => pedirCorreo('No pudimos revisar tu acceso. Revisa tu internet e intenta de nuevo.')).finally(() => { revisando = false; });
+  };
+  revisar();
+  SB_G.auth.onAuthStateChange(ev => { if (ev === 'SIGNED_IN') setTimeout(revisar, 0); });
+}
 window.addEventListener('hashchange', route);
+iniciarCuenta();
+iniciarRemoto();
 route();
 </script>
 </body>
