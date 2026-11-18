@@ -222,7 +222,9 @@
   .pp-cab { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
   .pp-acts li { margin: 6px 0; list-style: none; }
   .pp-ea { border: 0; background: none; font-size: 16px; cursor: pointer; padding: 0 4px; }
-  .pp-num.on { background: #BBF802; color: #0F0B16; }
+  .pp-num.abierta { background: #BBF802; color: #0F0B16; border-color: #9CCB00; }
+  .pp-num.cerrada { background: #E4E1EA; color: #6B6878; border-color: #C9C4D6; }
+  .pp-num.on { outline: 3px solid #3B1468; outline-offset: 2px; }
   .pp-login { margin-top: 12px; display: grid; gap: 6px; }
   .pp-login-row { display: flex; gap: 8px; flex-wrap: wrap; }
   .pp-login-row input { flex: 1; min-width: 200px; }
@@ -249,7 +251,9 @@
   .pp-h { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
   .pp-nums { display: flex; flex-wrap: wrap; gap: 8px; }
   .pp-num { min-width: 42px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card-2, #FAF8FD); font: 800 14px 'Sora', sans-serif; cursor: pointer; }
-  .pp-num.on { background: #BBF802; color: #0F0B16; }
+  .pp-num.abierta { background: #BBF802; color: #0F0B16; border-color: #9CCB00; }
+  .pp-num.cerrada { background: #E4E1EA; color: #6B6878; border-color: #C9C4D6; }
+  .pp-num.on { outline: 3px solid #3B1468; outline-offset: 2px; }
   .pp-det ol { margin: 8px 0 0 18px; }
   .circ-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 16px; }
   .zoom-wrap.circulo { width: 300px; height: 300px; margin: 20px auto 0; border-radius: 50%; overflow: hidden; }
@@ -1319,20 +1323,19 @@ function etapaBloqueada(c, k) { return !MODO_PONENTE && !etapaAbierta(c, k); }
 function bloquePanelPonente() {
   return `<div class="card panel-ponente">
     <div class="pp-h"><b>🎤 Panel del ponente</b></div>
-    <p class="small">Toca un número para ver sus actividades. Doble clic en el número para abrir o cerrar la clase a los alumnos (🔒 cerrada · 🔓 abierta).</p>
-    <div class="pp-nums">${CLASES.map(c => `<button type="button" class="pp-num" title="${esc(c.titulo)}" data-pp="${c.id}">${bloqueoDeClase(c, c.mod) ? '🔒' : '🔓'} ${esc(c.etiqueta || c.id)}</button>`).join('')}</div>
+    <div class="pp-nums">${CLASES.map(c => `<button type="button" class="pp-num ${bloqueoDeClase(c, c.mod) ? 'cerrada' : 'abierta'}" title="${esc(c.titulo)}" data-pp="${c.id}">${esc(c.etiqueta || c.id)}</button>`).join('')}</div>
     <div class="pp-det" id="ppDetalle"></div></div>`;
 }
 function mostrarDetallePP(id) {
   const c = CLASES.find(x => x.id === id); const det = document.getElementById('ppDetalle'); if (!c || !det) return;
   const cerrada = bloqueoDeClase(c, c.mod);
-  det.innerHTML = `<div class="pp-cab"><b>${esc(etiq(c))} · ${esc(c.titulo)}</b><small class="muted">${cerrada ? '🔒 Cerrada para alumnos' : '🔓 Abierta para alumnos'} · doble clic en el número para cambiarla</small></div>
+  det.innerHTML = `<div class="pp-cab"><b>${esc(etiq(c))} · ${esc(c.titulo)}</b><small class="muted">${cerrada ? 'Cerrada para alumnos' : 'Abierta para alumnos'}</small></div>
     <p class="small">Actividades (ábrelas una por una):</p>
     <ol class="pp-acts">${(c.etapas || []).map((et, k) => { if (!esAct(et)) return `<li class="pp-fila"><span class="pp-titulo">${esc(et.titulo)}</span></li>`; return `<li class="pp-fila"><span class="pp-titulo">${esc(et.titulo)}</span>${botonAct(c, k)}</li>`; }).join('')}</ol>`;
   document.querySelectorAll('.pp-num').forEach(x => x.classList.toggle('on', x.dataset.pp === id));
 }
 function refrescarNumerosPP() {
-  document.querySelectorAll('.pp-num').forEach(b => { const c = CLASES.find(x => x.id === b.dataset.pp); if (c) b.textContent = `${bloqueoDeClase(c, c.mod) ? '🔒' : '🔓'} ${c.etiqueta || c.id}`; });
+  document.querySelectorAll('.pp-num').forEach(b => { const c = CLASES.find(x => x.id === b.dataset.pp); if (c) b.classList.toggle('cerrada', bloqueoDeClase(c, c.mod)), b.classList.toggle('abierta', !bloqueoDeClase(c, c.mod)); });
   const sel = document.querySelector('.pp-num.on'); if (sel) mostrarDetallePP(sel.dataset.pp);
 }
 
