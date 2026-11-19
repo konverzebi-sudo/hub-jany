@@ -266,6 +266,7 @@
   .pthumb-play.sin{padding-left:0;font-size:24px;}
   .pthumb-red{position:absolute;right:8px;bottom:8px;z-index:2;background:#1A1A1A;color:#fff;font:800 10.5px 'Barlow',sans-serif;letter-spacing:.04em;text-transform:uppercase;padding:5px 10px;border-radius:100px;max-width:calc(100% - 16px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .pthumb-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+  .pthumb-frame{border:0;pointer-events:none;background:#000;}
   .pthumb .pchip,.pthumb .pthumb-etapa{z-index:1;}
   .pchip{position:absolute;top:10px;left:10px;background:#fff;border-radius:100px;padding:3px 11px;font-size:12.5px;font-weight:700;color:#1A1A1A;text-transform:capitalize;}
   .pthumb-etapa{position:absolute;top:8px;right:8px;z-index:2;font-size:11.5px;padding:3px 9px;}
@@ -3403,14 +3404,18 @@ function buildPostCard(item, conFecha, n){
   const [ca, cb] = parMarca((n || 1) - 1, ESTADO_GRAD[est]);
   const redes = redesDe(item).map(k=>(REDES.find(r=>r[0]===k)||[])[1]).filter(Boolean);
   const th = linkMiniatura(item);
+  const mp = linkPrevia(item);
+  const frameSrc = mp && mp.tipo==='embed' ? mp.src : '';
   const esVideo = !item.formato || item.formato === 'reel';
   const play = `<span class="pthumb-play${esVideo ? '' : ' sin'}" aria-hidden="true">${esVideo ? '▶' : (FORMATO_ICO[item.formato]||'🖼️')}</span>`;
   const red = redes.length ? `<span class="pthumb-red">${escHtml(redes[0])}${redes.length > 1 ? ' +'+(redes.length-1) : ''}</span>` : '';
   return `<article class="pcard" tabindex="0" role="button" data-id="${escHtml(item.id)}" aria-label="${escHtml(item.titulo||'Campaña')}">
     <div class="pthumb" style="--a:${ca};--b:${cb};">
-      ${th ? `<img class="pthumb-img" src="${th}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}
+      ${th ? `<img class="pthumb-img" src="${th}"${frameSrc ? ` data-frame="${frameSrc}"` : ''} alt="" loading="lazy" referrerpolicy="no-referrer">`
+        : (frameSrc ? `<iframe class="pthumb-img pthumb-frame" src="${frameSrc}" loading="lazy" tabindex="-1" scrolling="no" aria-hidden="true" allow="autoplay" referrerpolicy="no-referrer"></iframe>`
+        : (mp && mp.tipo==='video' ? `<video class="pthumb-img" src="${mp.src}#t=0.5" muted playsinline preload="metadata" tabindex="-1"></video>` : ''))}
       ${n ? `<span class="pthumb-num">${n}</span>` : ''}
-      ${th && !esVideo ? '' : play}
+      ${(th && !esVideo) || (!th && frameSrc) ? '' : play}
       <span class="badge badge-${item.etapa} pthumb-etapa">${ETAPA_LABEL[item.etapa]||item.etapa}</span>
       ${red}
     </div>
@@ -3452,6 +3457,26 @@ function linkMiniatura(item){
   for(const l of linksConUrl(item)){ const m = infoMaterial(l.url); if(m && m.thumb) return m.thumb; }
   return '';
 }
+// Vista de la tarjeta: la misma que se ve dentro del anuncio. Primero la miniatura (imagen) de un link; si no hay o no carga
+// (por ejemplo un video de Drive que no es público), se muestra el reproductor del link, sin poder tocarlo, para que la tarjeta no quede vacía.
+function linkPrevia(item){
+  const ms = linksConUrl(item).map(l=>infoMaterial(l.url)).filter(m=>m && m.tipo!=='link');
+  return ms.find(m=>m.thumb) || ms[0] || null;
+}
+function marcoPrevia(src){
+  const f = document.createElement('iframe');
+  f.className = 'pthumb-img pthumb-frame'; f.src = src; f.loading = 'lazy'; f.tabIndex = -1; f.setAttribute('scrolling','no');
+  f.setAttribute('aria-hidden','true'); f.setAttribute('allow','autoplay'); f.referrerPolicy = 'no-referrer';
+  return f;
+}
+// Una miniatura que no carga se cambia por el reproductor del link (si lo hay) o se quita; los errores de <img> no burbujean, por eso se escucha en captura.
+document.addEventListener('error',(e)=>{
+  const im = e.target;
+  if(!im || im.tagName!=='IMG' || !im.classList.contains('pthumb-img')) return;
+  const box = im.parentElement, src = im.dataset.frame;
+  if(src && box){ const pl = box.querySelector('.pthumb-play'); if(pl) pl.remove(); im.replaceWith(marcoPrevia(src)); }
+  else im.remove();
+}, true);
 
 // Qué se puede mostrar a partir del "Link del anuncio final": imagen o video directo, YouTube, Google Drive,
 // Instagram y TikTok se ven dentro del celular; cualquier otro link queda como botón "Abrir".
