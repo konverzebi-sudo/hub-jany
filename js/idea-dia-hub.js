@@ -73,7 +73,6 @@
     if (!clienteId || document.getElementById('idhCaja')) return;
     rutas = rutas || {};
     var rutaFaro = rutas.faro || '/jefe-radar';
-    var rutaContenido = rutas.contenido || '/jefe-contenido';
     var llaveCerrada = 'idh-cerrada:' + clienteId;
 
     var st = document.createElement('style');
@@ -129,20 +128,9 @@
         (i.por_que_te_sirve ? '<div class="idh-b"><span>Por qué le sirve a tu negocio</span>' + esc(i.por_que_te_sirve) + '</div>' : '') +
         (t.que ? '<div class="idh-b"><span>De dónde salió</span>' + esc(t.que) + (fuente ? '<br>Fuente: ' + fuente : '') + '</div>' : '') +
         (t.que && !t.verificada ? '<div class="idh-aviso">El Faro no pudo verificar esta tendencia. Revísala antes de apoyarte en ella.</div>' : '') +
-        '<div class="idh-acc"><button type="button" class="idh-btn principal" data-c>Hacerla con el Jefe de Contenido</button>' +
-        '<a class="idh-btn" href="' + esc(rutaFaro) + '">Ver completa en el Faro</a></div>'
+        // No va directo a Contenido: en el Faro se revisa, se corrige o se pide otra, y desde ahí se confirma.
+        '<div class="idh-acc"><a class="idh-btn principal" href="' + esc(rutaFaro) + '">Revisarla en el Faro →</a></div>'
       );
-      caja.querySelector('[data-c]').addEventListener('click', function (ev) {
-        var btn = ev.currentTarget;
-        var ir = function () { location.href = rutaContenido; };
-        var txt = textoParaContenido(e);
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(txt).then(function () {
-            btn.textContent = 'Copiada · pégala en Contenido';
-            setTimeout(ir, 900);
-          }, ir);
-        } else { ir(); }
-      });
     }
 
     function post(body) {
