@@ -1122,6 +1122,12 @@ function dashboardHTML(pagosF,totIns,totArb,pend){
           const lista=jd.filter(m=>m.field===c).sort((x,y)=>String(y.creado||'').localeCompare(String(x.creado||'')));
           return `<tr class="cancha-sep"><td colspan="7"><b>Cancha ${c}</b></td></tr>`+lista.map(m=>`<tr class="sep"><td colspan="7"><span class="vs">vs</span> <b style="color:var(--yellow)">${m.numero?'Juego '+m.numero+' · ':''}${esc(new Date(m.creado||0).toLocaleTimeString('es-MX',{hour:'numeric',minute:'2-digit'}))}</b></td></tr>${fila(m,m.a)}${fila(m,m.b)}`).join('');
         }).join('')}
+        ${(()=>{ // Totales: cada equipo se cuenta una sola vez aunque haya jugado varios partidos
+          const eqs=[...new Set(jd.flatMap(m=>[m.a,m.b]))];
+          const pagado=pagosF.filter(p=>p.tipo==='arbitraje'&&eqs.includes(p.teamId)).reduce((s,p)=>s+(Number(p.monto)||0),0);
+          const saldo=eqs.reduce((s,tid)=>{const b=balance(tid);return s+b.insPend+b.arbPend;},0);
+          return `<tr class="sep"><td colspan="4"><b>Totales</b></td><td><b>${money(pagado)}</b></td><td></td><td><b class="${saldo?'pend':'ok'}">${saldo?money(saldo):'✔ Al corriente'}</b></td></tr>`;
+        })()}
       </table></div>`
     :'<p class="muted">No hay juegos en este periodo.</p>';
   return `
