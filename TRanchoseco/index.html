@@ -71,6 +71,20 @@ input[type=file]{padding:6px;width:auto}
 .tile.on{background:var(--yellow);border-color:#d4b800}
 .tile:disabled{opacity:.6;cursor:default}
 .juegoq{color:#fff;font-size:12px;opacity:.9}
+.modal .montoGrande{font-size:28px;font-weight:700;text-align:center;padding:14px}
+.modal .resumen{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:4px 0 14px}
+.modal .resumen div{background:#f3f4f6;border-radius:10px;padding:10px;text-align:center}
+.modal .resumen b{display:block;font-size:18px;margin-top:4px}
+.cuadros{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+.sq{aspect-ratio:1/1;background:#f3f4f6;color:#111;border:1px solid #cfd3dc;border-radius:10px;font:inherit;font-weight:700;font-size:13px;cursor:pointer;padding:4px}
+.sq.on{background:var(--yellow);border-color:#d4b800}
+.switchrow{display:flex;align-items:center;gap:12px;margin-bottom:14px;color:#111}
+.switch{position:relative;display:inline-block;width:52px;height:28px;margin:0}
+.switch input{opacity:0;width:0;height:0;margin:0}
+.slider{position:absolute;inset:0;background:#cfd3dc;border-radius:999px;cursor:pointer;transition:.2s}
+.slider::before{content:"";position:absolute;width:22px;height:22px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+.switch input:checked + .slider{background:var(--yellow)}
+.switch input:checked + .slider::before{transform:translateX(24px)}
 .addrow{display:flex;gap:8px;align-items:center;margin-bottom:10px}
 .addrow input{margin:0;flex:1}
 .rowbtns{display:flex;gap:6px;flex-shrink:0}
@@ -370,18 +384,14 @@ function openPay(teamId,matchId){
   const b=balance(teamId);
   const pays=db.payments.filter(p=>p.teamId===teamId).sort((x,y)=>String(y.fecha).localeCompare(String(x.fecha)));
   const ins=Number(db.config.inscripcion)||0;
+  const adeudo=b.insPend+b.arbPend;
   openModal(`<form id="pay-form">
     <h3>Pago · ${esc(t.name)}</h3>
     <p class="muted">${m?`Cancha ${m.field}`:'Sin partido asignado (se guarda sin cancha)'}</p>
-    <div class="bal">
-      <div><small>Inscripción</small><b>${money(b.insP)} de ${money(b.insDue)}</b><small>Falta ${money(b.insPend)}</small></div>
-      <div><small>Arbitraje (${b.ms} juego${b.ms===1?'':'s'})</small><b>${money(b.arbP)} de ${money(b.arbDue)}</b><small>Falta ${money(b.arbPend)}</small></div>
-    </div>
-    <div class="card" style="padding:10px;margin-bottom:12px">
-      <label class="chk"><input type="checkbox" name="insPrevia" ${t.inscripcionPrevia?'checked':''}> Ya pagó el 100% de la inscripción</label>
-      ${t.registroDesde
-        ?`<p class="muted" style="margin:0 0 6px">Va en el juego <b>${t.juegoActual}</b> de ${db.config.totalJuegos}</p>`
-        :`<label>¿En qué juego va el equipo? (solo se pone la primera vez)<input name="desde" type="number" min="1" max="${db.config.totalJuegos}" required></label>`}
+    <label>¿Cuánto está pagando?<input class="montoGrande" name="monto" id="p-monto" type="number" min="1" step="1" required value="${ins}"></label>
+    <div class="resumen" id="p-res">
+      <div><small>Adeudo total</small><b>${money(adeudo)}</b></div>
+      <div><small>Número de juego</small><b>${t.registroDesde?t.juegoActual:'—'}</b></div>
     </div>
     <label>Tipo de pago
       <select name="tipo" id="p-tipo">
@@ -389,19 +399,19 @@ function openPay(teamId,matchId){
         <option value="arbitraje">Arbitraje</option>
       </select>
     </label>
-    <label>Monto<input name="monto" id="p-monto" type="number" min="1" step="1" required value="${ins}"></label>
-    <label>Quién lo recibió
-      <select name="recibio" required>
-        ${db.config.recibieron.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('')}
-      </select>
-    </label>
-    <label>Método
-      <select name="metodo" required>
-        <option value="efectivo">Efectivo</option>
-        <option value="transferencia">Transferencia</option>
-      </select>
-    </label>
-    <label>Cuenta donde se pagó (si fue transferencia)<input name="cuenta" list="dl-cta" autocomplete="off"></label>
+    <div class="lbl">Quién lo recibió</div>
+    <div class="cuadros" id="p-recibe">
+      ${db.config.recibieron.map(n=>`<button type="button" class="sq" data-n="${esc(n)}">${esc(n)}</button>`).join('')}
+    </div>
+    <input type="hidden" name="recibio" id="p-recibio" value="">
+    <div class="lbl">Método</div>
+    <div class="switchrow">
+      <span>Efectivo</span>
+      <label class="switch"><input type="checkbox" id="p-met"><span class="slider"></span></label>
+      <span>Transferencia</span>
+    </div>
+    <input type="hidden" name="metodo" id="p-metodo" value="efectivo">
+    <label id="p-cuenta-l" style="display:none">Cuenta donde se pagó<input name="cuenta" list="dl-cta" autocomplete="off"></label>
     <label>Fecha<input name="fecha" type="date" required value="${today()}"></label>
     <label>Nota (opcional)<input name="nota" autocomplete="off"></label>
     <datalist id="dl-cta">${optionsList(cuentasList())}</datalist>
@@ -417,12 +427,24 @@ function openPay(teamId,matchId){
     </li>`).join('')}</ul>`:'<p class="muted">Aún no hay pagos.</p>'}
   </form>`);
   $('#p-tipo').onchange=e=>{$('#p-monto').value=e.target.value==='inscripcion'?(Number(db.config.inscripcion)||0):(Number(db.config.arbitraje)||0);};
+  // Quién recibe: cuadros (uno solo seleccionado)
+  $('#p-recibe').onclick=e=>{
+    const b=e.target.closest('[data-n]'); if(!b) return;
+    $('#p-recibio').value=b.dataset.n;
+    document.querySelectorAll('#p-recibe .sq').forEach(x=>x.classList.toggle('on',x===b));
+  };
+  // Método: interruptor efectivo / transferencia
+  $('#p-met').onchange=e=>{
+    const tr=e.target.checked;
+    $('#p-metodo').value=tr?'transferencia':'efectivo';
+    $('#p-cuenta-l').style.display=tr?'block':'none';
+  };
   $('#pay-form').onsubmit=e=>{
     e.preventDefault();
     const fd=new FormData(e.target);
     const monto=Number(fd.get('monto'));
     if(!(monto>0)){alert('El monto debe ser mayor a 0');return;}
-    t.inscripcionPrevia=!!fd.get('insPrevia');
+    if(!fd.get('recibio')){alert('Elige quién lo recibió');return;}
     if(!t.registroDesde){
       // Primera vez: se guarda en qué juego va el equipo y desde cuándo cuenta el arbitraje
       const desde=Number(fd.get('desde'));
