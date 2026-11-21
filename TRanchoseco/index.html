@@ -857,15 +857,23 @@ function openPay(teamId,matchId,editId=null){
 const SILBATO='<img src="silbato.png" alt="" class="silb">';
 // Registro de arbitraje por juego: cuánto debía y cuánto pagó en cada juego
 function juegosTablaHTML(tid){
-  const ms=matchesOf(tid);
+  const t=teamById(tid); if(!t) return '';
   const pago=Number(db.config.arbitraje)||0;
-  const pagadoEn=(mid)=>sum(db.payments.filter(p=>p.teamId===tid&&p.tipo==='arbitraje'&&p.matchId===mid));
-  const sinJuego=sum(db.payments.filter(p=>p.teamId===tid&&p.tipo==='arbitraje'&&!p.matchId));
-  if(!ms.length&&!sinJuego) return '';
-  return `<h4>Arbitraje por juego</h4><div class="scroll"><table class="jtabla">
-    <tr><th>Juego</th><th>Debe</th><th>Pagado</th><th>Estado</th></tr>
-    ${ms.map(m=>{const pag=pagadoEn(m.id);const falta=Math.max(0,pago-pag);return `<tr><td>${m.numero?'Juego '+m.numero:'Cancha '+m.field}</td><td>${money(pago)}</td><td>${money(pag)}</td><td>${falta?`<span class="pend">Falta ${money(falta)}</span>`:'<span class="ok">✔</span>'}</td></tr>`;}).join('')}
-    ${sinJuego?`<tr><td>Sin juego asignado</td><td>—</td><td>${money(sinJuego)}</td><td>—</td></tr>`:''}
+  const desde=t.registroDesde||'';
+  // Juegos que se cobran: los creados desde que el equipo se registró
+  const ms=matchesOf(tid).filter(m=>!desde||String(m.creado||'')>=desde);
+  const arbPagos=db.payments.filter(p=>p.teamId===tid&&p.tipo==='arbitraje');
+  const pagadoEn=(mid)=>sum(arbPagos.filter(p=>p.matchId===mid));
+  const otros=arbPagos.filter(p=>!ms.some(m=>m.id===p.matchId));
+  const pagadoOtros=sum(otros);
+  const pagadoTotal=sum(arbPagos);
+  const debeTotal=Math.max(0,pago*ms.length-pagadoTotal);
+  if(!ms.length&&!pagadoOtros) return '';
+  return `<h4>Historial de juegos</h4><div class="scroll"><table class="jtabla">
+    <tr><th>Juego</th><th>Fecha</th><th>Pagó</th><th>Debe</th></tr>
+    ${ms.map(m=>{const pag=pagadoEn(m.id);const falta=Math.max(0,pago-pag);return `<tr><td>${m.numero?'Juego '+m.numero:'Cancha '+m.field}</td><td>${esc(diaLocal(m.creado))}</td><td style="color:#4ade80">${pag?'+'+money(pag):'—'}</td><td>${falta?`<span class="pend">${money(falta)}</span>`:'<span class="ok">✔ Pagado</span>'}</td></tr>`;}).join('')}
+    ${pagadoOtros?`<tr><td>Abonos sin juego</td><td>—</td><td style="color:#4ade80">+${money(pagadoOtros)}</td><td>—</td></tr>`:''}
+    <tr><th>Total</th><th></th><th style="color:#4ade80">${pagadoTotal?'+'+money(pagadoTotal):money(0)}</th><th><span class="${debeTotal?'pend':'ok'}">${debeTotal?money(debeTotal):'✔ Al corriente'}</span></th></tr>
   </table></div>`;
 }
 // Registrar un pago sin partido: buscar equipo o jugador
