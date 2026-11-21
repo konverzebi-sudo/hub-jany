@@ -655,6 +655,7 @@ function unassign(f){
 function openPay(teamId,matchId,editId=null){
   const t=teamById(teamId); if(!t) return;
   const ed=editId?db.payments.find(x=>x.id===editId):null;
+  const dos=b.insPend>0||(ed&&ed.tipo==='inscripcion');
   const m=matchById(matchId);
   const b=balance(teamId);
   const pays=db.payments.filter(p=>p.teamId===teamId).sort((x,y)=>String(y.fecha).localeCompare(String(x.fecha)));
@@ -662,7 +663,7 @@ function openPay(teamId,matchId,editId=null){
   const adeudo=b.insPend+b.arbPend;
   openModal(`<form id="pay-form">
     <h3>Pago · ${esc(t.name)}${m?` · <span class="cchip">Cancha ${m.field}</span>`:''}</h3>
-    ${b.insPend>0
+    ${dos
       ?`<div class="dosc">
         <label>Inscripción<input class="montoGrande" name="monto_ins" type="number" min="0" step="1" placeholder="$0"></label>
         <label>Arbitraje<input class="montoGrande" name="monto_arb" type="number" min="0" step="1" placeholder="$0"></label>
@@ -745,11 +746,12 @@ function openPay(teamId,matchId,editId=null){
   };
   // Inscripción pagada: decidir a quién se le pagó
   if(ed){ // editar un pago del día
-    document.querySelector(`[name="${ed.tipo==='inscripcion'?'monto_ins':'monto_arb'}"]`).value=ed.monto;
+    const campo=document.querySelector(`[name="${ed.tipo==='inscripcion'?'monto_ins':'monto_arb'}"]`);
+    if(campo) campo.value=ed.monto;
     document.querySelector(`#p-recibe [data-n="${ed.recibio}"]`)?.click();
     document.querySelector(`#p-metodos [data-m="${ed.metodo}"]`)?.click();
-    document.querySelector('#pay-form [name="nota"]').value=ed.nota||'';
-    document.querySelector('#pay-form [name="cuenta"]').value=ed.cuenta||'';
+    const nota=document.querySelector('#pay-form [name="nota"]'); if(nota) nota.value=ed.nota||'';
+    const cta=document.querySelector('#pay-form [name="cuenta"]'); if(cta) cta.value=ed.cuenta||'';
   }
   $('#p-total')?.addEventListener('click',()=>{
     const ta=document.querySelector('[name="monto_arb"]'); if(ta) ta.value=b.arbPend||'';
@@ -797,6 +799,7 @@ function openPay(teamId,matchId,editId=null){
     };
     if(editId){
       const ex=db.payments.find(x=>x.id===editId);
+      if(!ex||ex.fecha!==jornadaHoy()){pErr('⚠️ Solo se pueden modificar pagos de esta jornada.',null);return;}
       if(ex){const {id,...resto}=base; Object.assign(ex,resto,{tipo:mIns>0?'inscripcion':'arbitraje',monto:mIns>0?mIns:mArb});}
     }else{
       if(mIns>0) db.payments.push({...base,id:uid(),tipo:'inscripcion',monto:mIns});
