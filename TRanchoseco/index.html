@@ -74,6 +74,9 @@ input[type=file]{padding:6px;width:auto}
 .tile.on{background:var(--yellow);border-color:#d4b800}
 .tile:disabled{opacity:.6;cursor:default}
 .juegoq{color:#fff;font-size:12px;opacity:.9}
+.cchip{background:var(--yellow);color:#111;border-radius:6px;padding:2px 8px;font-size:15px;font-weight:700;white-space:nowrap}
+.modal .rojo{color:#dc2626}
+.modal .verde{color:#16a34a;font-size:20px}
 .modal .montoGrande{font-size:28px;font-weight:700;text-align:center;padding:14px}
 .modal .resumen{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:4px 0 14px}
 .modal .resumen div{background:#f3f4f6;border-radius:10px;padding:10px;text-align:center}
@@ -374,13 +377,17 @@ function openPay(teamId,matchId){
   const ins=Number(db.config.inscripcion)||0;
   const adeudo=b.insPend+b.arbPend;
   openModal(`<form id="pay-form">
-    <h3>Pago · ${esc(t.name)}</h3>
-    <p class="muted">${m?`Cancha ${m.field}`:'Sin partido asignado (se guarda sin cancha)'}</p>
+    <h3>Pago · ${esc(t.name)}${m?` · <span class="cchip">Cancha ${m.field}</span>`:''}</h3>
     <label>¿Cuánto está pagando?<input class="montoGrande" name="monto" id="p-monto" type="number" min="1" step="1" required value="${ins}"></label>
     <div class="resumen" id="p-res">
-      <div><small>Adeudo total</small><b>${money(adeudo)}</b></div>
-      <div><small>Número de juego</small><b>${t.registroDesde?t.juegoActual:'—'}</b></div>
+      <div><small>Estado del equipo</small>${adeudo>0?`<b class="rojo">Adeudo ${money(adeudo)}</b>`:'<b class="verde">✔ Al corriente</b>'}</div>
+      <div><small>Número de juego</small><b id="p-num">${t.registroDesde?t.juegoActual:'—'}</b></div>
     </div>
+    ${t.registroDesde?'':`<div class="lbl">¿En qué juego va el equipo? (solo la primera vez)</div>
+    <div class="tiles" id="p-juegos">
+      ${Array.from({length:db.config.totalJuegos},(_,i)=>i+1).map(n=>`<button type="button" class="tile" data-j="${n}">${n}</button>`).join('')}
+    </div>
+    <input type="hidden" name="desde" id="p-desde" value="">`}
     <label>Tipo de pago
       <select name="tipo" id="p-tipo">
         <option value="inscripcion">Inscripción</option>
@@ -402,15 +409,7 @@ function openPay(teamId,matchId){
     <label id="p-cuenta-l" style="display:none">Cuenta donde se pagó<input name="cuenta" list="dl-cta" autocomplete="off"></label>
     <div class="card" style="padding:10px;margin-bottom:12px">
       <label class="chk"><input type="checkbox" name="insPrevia" ${t.inscripcionPrevia?'checked':''}> Ya pagó el 100% de la inscripción</label>
-      ${t.registroDesde
-        ?`<p class="muted" style="margin:0 0 6px">Va en el juego <b>${t.juegoActual}</b> de ${db.config.totalJuegos}</p>`
-        :`<div class="lbl">¿En qué juego va el equipo? (solo la primera vez)</div>
-          <div class="tiles" id="p-juegos">
-            ${Array.from({length:db.config.totalJuegos},(_,i)=>i+1).map(n=>`<button type="button" class="tile" data-j="${n}">${n}</button>`).join('')}
-          </div>
-          <input type="hidden" name="desde" id="p-desde" value="">`}
     </div>
-    <label>Fecha<input name="fecha" type="date" required value="${today()}"></label>
     <label>Nota (opcional)<input name="nota" autocomplete="off"></label>
     <datalist id="dl-cta">${optionsList(cuentasList())}</datalist>
     <div class="actions">
@@ -436,6 +435,7 @@ function openPay(teamId,matchId){
   if(jg) jg.onclick=e=>{
     const b=e.target.closest('[data-j]'); if(!b) return;
     $('#p-desde').value=b.dataset.j;
+    $('#p-num').textContent=b.dataset.j;
     jg.querySelectorAll('.tile').forEach(x=>x.classList.toggle('on',x===b));
   };
   // Método: interruptor efectivo / transferencia
@@ -465,7 +465,7 @@ function openPay(teamId,matchId){
       recibio:String(fd.get('recibio')).trim(),
       metodo:String(fd.get('metodo')),
       cuenta:String(fd.get('cuenta')||'').trim(),
-      fecha:fd.get('fecha'),
+      fecha:today(),
       nota:String(fd.get('nota')||'').trim(),
       creado:new Date().toISOString()
     });
