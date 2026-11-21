@@ -366,6 +366,31 @@ function activarBuscador(s){
 }
 let asignandoField=null; // cancha que se está asignando
 let alVolver=null; // datos de Asignar partido mientras se agrega un equipo nuevo desde la búsqueda
+// Al agregar desde el buscador: ¿el nombre es un jugador o un equipo?
+function abrirChooser(nombre){
+  const n=cap(nombre.trim());
+  openModal(`<div>
+    <h3>${esc(n)}</h3>
+    <p class="muted">¿Qué es este nombre?</p>
+    <div class="cuadros" style="grid-template-columns:1fr 1fr">
+      <button type="button" class="sq" data-act="esjugador" data-n="${esc(n)}">Es un jugador</button>
+      <button type="button" class="sq" data-act="esequipo" data-n="${esc(n)}">Es un equipo</button>
+    </div>
+    <div id="ch-body"></div>
+    <div class="actions"><button type="button" class="btn ghost" data-act="close">Cancelar</button></div>
+  </div>`);
+}
+function chooserEquipo(n){
+  const toks=norm(n).split(/\s+/).filter(Boolean);
+  const hits=db.teams.filter(t=>toks.every(k=>norm(t.name).includes(k)));
+  $('#ch-body').innerHTML=`<p class="muted">Equipos registrados que coinciden:</p>
+    ${hits.map(t=>`<button type="button" class="sug" data-act="pickteam" data-team="${t.id}">${esc(t.name)}</button>`).join('')||'<p class="muted">Ninguno.</p>'}
+    <button type="button" class="sug nuevo" data-act="equiponuevo" data-n="${esc(n)}">+ Registrar como equipo nuevo</button>`;
+}
+function chooserJugador(n){
+  $('#ch-body').innerHTML=`<p class="muted">${esc(n)} será el líder del equipo que vas a registrar.</p>
+    <button type="button" class="sug nuevo" data-act="registrarjugador" data-n="${esc(n)}">Registrar su equipo</button>`;
+}
 function abrirNuevoDesdeBusqueda(s,nombre){
   alVolver={f:asignandoField,a:$('#as-a-val').value,b:$('#as-b-val').value,side:s};
   openTeam(null,nombre,true);
@@ -741,10 +766,11 @@ function renderPagos(){
 }
 
 /* ---------- Equipos ---------- */
+const cap=s=>s?s.charAt(0).toUpperCase()+s.slice(1):s; // primera letra en mayúscula
 let draft=null; // equipo en edición: {id,name,players:[],lider}
-function openTeam(id,presetName='',desdeBusqueda=false){
+function openTeam(id,presetName='',desdeBusqueda=false,jugador=null){
   const t=id?teamById(id):null;
-  draft={id:t?t.id:null,name:t?t.name:presetName,players:t?[...t.players]:[],lider:t?t.lider:null,desdeBusqueda,tel:{...(t?.telefonos||{})}};
+  draft={id:t?t.id:null,name:t?t.name:cap(presetName),players:t?[...t.players]:(jugador?[cap(jugador)]:[]),lider:t?t.lider:(jugador?cap(jugador):null),desdeBusqueda,tel:{...(t?.telefonos||{})}};
   openModal(`<form id="tm-form" onsubmit="return false">
     <h3>${t?'Editar equipo':'Nuevo equipo'}</h3>
     ${desdeBusqueda?'<p class="muted">Antes de agregarlo, revisa la lista de equipos. Si ya existe, cancela y úsalo.</p>':''}
@@ -756,7 +782,7 @@ function openTeam(id,presetName='',desdeBusqueda=false){
       <input id="tm-pl" autocomplete="off" placeholder="Nombre del jugador">
     </div>
     <div class="addrow">
-      <input id="tm-tel" type="tel" inputmode="tel" autocomplete="off" placeholder="Teléfono (10 dígitos)">
+      <input id="tm-tel" type="tel" inputmode="tel" autocomplete="off" placeholder="Teléfono (opcional, 10 dígitos)">
       <button type="button" class="btn primary sm" data-act="addplayer">Agregar</button>
     </div>
     <ul class="plist" id="tm-list"></ul>
@@ -784,11 +810,11 @@ function renderDraft(){
 }
 function addPlayerDraft(){
   const inp=$('#tm-pl');
-  const name=inp.value.trim();
+  const name=cap(inp.value.trim());
   if(!name) return;
   if(draft.players.some(p=>norm(p)===norm(name))){$('#tm-err').textContent='Ese jugador ya está en la lista.';return;}
   const tel=($('#tm-tel').value||'').replace(/\D/g,'');
-  if(!/^\d{10}$/.test(tel)){$('#tm-err').textContent='Escribe el teléfono del jugador (10 dígitos).';return;}
+  if(tel&&!/^\d{10}$/.test(tel)){$('#tm-err').textContent='El teléfono debe tener 10 dígitos (o déjalo vacío).';return;}
   draft.tel[name]=tel;
   draft.players.push(name);
   if(!draft.lider) draft.lider=name;
@@ -796,7 +822,7 @@ function addPlayerDraft(){
   renderDraft(); inp.focus();
 }
 function saveDraft(){
-  const name=$('#tm-name').value.trim();
+  const name=cap($('#tm-name').value.trim());
   if(!name){$('#tm-err').textContent='Escribe el nombre del equipo.';return;}
   if(db.teams.some(t=>t.id!==draft.id&&norm(t.name)===norm(name))){
     $('#tm-err').textContent='Ya existe un equipo con ese nombre. Búscalo y úsalo; no lo registres otra vez.';
@@ -804,8 +830,7 @@ function saveDraft(){
   }
   if(draft.desdeBusqueda&&!$('#tm-noexiste')?.checked){$('#tm-err').textContent='Marca la casilla: confirma que revisaste la lista y ningún equipo es este.';return;}
   if(!draft.players.length){$('#tm-err').textContent='Agrega al menos un jugador (el líder).';return;}
-  const sinTel=draft.players.find(p=>!/^\d{10}$/.test(draft.tel[p]||''));
-  if(sinTel){$('#tm-err').textContent=`Falta el teléfono de ${sinTel}.`;return;}
+  if(!draft.players.some(p=>/^\d{10}$/.test(draft.tel[p]||''))){$('#tm-err').textContent='Agrega el teléfono de al menos una persona del equipo.';return;}
   const sim=similares(name);
   if(sim.length&&!$('#tm-otro')?.checked){
     $('#tm-err').textContent=`Se parece a: ${sim.map(x=>x.name).join(', ')}. Si es el mismo, cancela y úsalo. Si es otro equipo, marca "Confirmo que es otro equipo" y guarda.`;
@@ -1004,7 +1029,12 @@ document.addEventListener('click',e=>{
     case 'quitarj': {const r=draft.players.splice(+d.i,1)[0]; if(draft.lider===r) draft.lider=draft.players[0]||null; renderDraft(); break;}
     case 'saveteam': saveDraft(); break;
     case 'pickresult': pickResult(d.team); break;
-    case 'addteam': q.value=''; $('#results').classList.remove('show'); openTeam(null,d.name,true); break;
+    case 'addteam': q.value=''; $('#results').classList.remove('show'); abrirChooser(d.name); break;
+    case 'esjugador': chooserJugador(d.n); break;
+    case 'esequipo': chooserEquipo(d.n); break;
+    case 'pickteam': closeModal(); pickResult(d.team); break;
+    case 'equiponuevo': openTeam(null,d.n,true); break;
+    case 'registrarjugador': openTeam(null,'',true,d.n); break;
     case 'export': exportDb(); break;
     case 'ajedit': ajEdit=d.k; renderAjustes(); break;
     case 'ajcancel': ajEdit=null; renderAjustes(); break;
