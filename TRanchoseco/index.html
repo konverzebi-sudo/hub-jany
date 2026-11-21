@@ -61,6 +61,15 @@ input[type=file]{padding:6px;width:auto}
 .whistle:hover{background:var(--yellow)}
 .marcador{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#11131a;color:#fff;border-radius:10px;padding:12px;margin-bottom:12px;font-size:15px}
 .marcador span{font-size:22px;font-weight:700}
+.sugs{display:flex;flex-direction:column;gap:4px;margin:-6px 0 12px;max-height:180px;overflow:auto}
+.sug{background:#f3f4f6;color:#111;border:1px solid #e5e7eb;border-radius:8px;padding:9px 12px;text-align:left;cursor:pointer;font:inherit}
+.sug:hover{background:#fff8c2}
+.lbl{color:#444;font-size:14px;margin:0 0 6px}
+.modal .lbl{color:#444}
+.tiles{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-bottom:14px}
+.tile{background:#f3f4f6;color:#111;border:1px solid #cfd3dc;border-radius:8px;padding:10px 0;font:inherit;font-weight:700;cursor:pointer}
+.tile.on{background:var(--yellow);border-color:#d4b800}
+.tile:disabled{opacity:.6;cursor:default}
 .addrow{display:flex;gap:8px;align-items:center;margin-bottom:10px}
 .addrow input{margin:0;flex:1}
 .rowbtns{display:flex;gap:6px;flex-shrink:0}
@@ -291,6 +300,29 @@ function changeScore(mid,side,d){
   m[k]=Math.max(0,(m[k]||0)+d);
   save(); renderFields();
 }
+// Campo para escribir el equipo: al escribir, salen abajo los equipos que coinciden
+function buscadorEquipo(s,titulo,teamId){
+  const t=teamById(teamId);
+  return `<label>${titulo}<input id="as-${s}-txt" autocomplete="off" placeholder="Escribe para buscar" value="${esc(t?t.name:'')}"></label>
+    <div class="sugs" id="as-${s}-sug"></div>
+    <input type="hidden" name="${s}" id="as-${s}-val" value="${esc(teamId||'')}">`;
+}
+function activarBuscador(s){
+  const txt=$(`#as-${s}-txt`), sug=$(`#as-${s}-sug`), val=$(`#as-${s}-val`);
+  const pintar=()=>{
+    const term=norm(txt.value.trim());
+    const hits=db.teams.filter(t=>!term||norm(t.name).includes(term)).slice(0,8);
+    sug.innerHTML=hits.map(t=>`<button type="button" class="sug" data-pick="${t.id}" data-side="${s}">${esc(t.name)}</button>`).join('')||'<div class="muted">Ningún equipo con ese nombre</div>';
+  };
+  txt.addEventListener('input',()=>{val.value='';pintar();});
+  txt.addEventListener('focus',pintar);
+  sug.addEventListener('click',e=>{
+    const b=e.target.closest('[data-pick]'); if(!b) return;
+    val.value=b.dataset.pick;
+    txt.value=teamName(b.dataset.pick);
+    sug.innerHTML='';
+  });
+}
 function openAssign(f){
   if(db.teams.length<2){
     openTeam(null);
@@ -301,12 +333,19 @@ function openAssign(f){
     return;
   }
   const cur=activeMatch(f);
-  const opts=sel=>db.teams.map(t=>`<option value="${t.id}"${t.id===sel?' selected':''}>${esc(t.name)}</option>`).join('');
+  // Si no hay partido en la cancha, el número sugerido es el siguiente juego del torneo
+  const ultimo=Math.max(0,...db.matches.map(m=>Number(m.numero)||0));
+  const sugerido=cur?.numero||Math.min(db.config.totalJuegos,ultimo+1);
   openModal(`<form id="as-form">
     <h3>Cancha ${f}</h3>
-    <label>Equipo de la izquierda<select name="a">${opts(cur?cur.a:db.teams[0].id)}</select></label>
-    <label>Equipo de la derecha<select name="b">${opts(cur?cur.b:db.teams[1].id)}</select></label>
-    <label>Número de juego (1 a ${db.config.totalJuegos})<input name="numero" type="number" min="1" max="${db.config.totalJuegos}" required value="${cur?.numero||''}"></label>
+    ${buscadorEquipo('a','Equipo de la izquierda',cur?cur.a:'')}
+    ${buscadorEquipo('b','Equipo de la derecha',cur?cur.b:'')}
+    <div class="lbl">Número de juego</div>
+    <div class="tiles" id="as-tiles">
+      <button type="button" class="tile" disabled>I</button>
+      ${Array.from({length:db.config.totalJuegos},(_,i)=>i+1).map(n=>`<button type="button" class="tile${n===sugerido?' on':''}" data-tile="${n}">${n}</button>`).join('')}
+    </div>
+    <input type="hidden" name="numero" id="as-num" value="${sugerido}">
     <p id="as-err" class="pend"></p>
     <div class="actions">
       ${cur?`<button type="button" class="btn danger" data-act="unassign" data-field="${f}">Quitar partido</button>`:''}
@@ -314,10 +353,17 @@ function openAssign(f){
       <button class="btn primary">Guardar</button>
     </div>
   </form>`);
+  ['a','b'].forEach(s=>activarBuscador(s));
+  $('#as-tiles').onclick=e=>{
+    const b=e.target.closest('[data-tile]'); if(!b) return;
+    $('#as-num').value=b.dataset.tile;
+    document.querySelectorAll('#as-tiles .tile').forEach(x=>x.classList.toggle('on',x===b));
+  };
   $('#as-form').onsubmit=e=>{
     e.preventDefault();
     const fd=new FormData(e.target);
     const a=fd.get('a'), b=fd.get('b');
+    if(!a||!b){$('#as-err').textContent='Elige los dos equipos de la lista.';return;}
     if(a===b){$('#as-err').textContent='Elige dos equipos distintos.';return;}
     const numero=Number(fd.get('numero'));
     if(!(numero>=1&&numero<=db.config.totalJuegos)){$('#as-err').textContent=`El número de juego debe estar entre 1 y ${db.config.totalJuegos}.`;return;}
