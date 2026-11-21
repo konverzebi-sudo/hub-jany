@@ -95,6 +95,9 @@ input[type=file]{padding:6px;width:auto}
 .ppanel .frango input{background:#fff;color:#111;border:1px solid #d1d5db}
 .plbl{color:#6b7280;font-size:13px;font-weight:600;margin:14px 0 8px}
 .yel{color:var(--yellow)}
+.jtabla .cins{width:1%;white-space:nowrap;padding-right:2px}
+.jtabla tr.cancha-sep td{background:#11131a;color:var(--yellow);font-weight:800;text-align:left;font-size:15px}
+.vs{display:inline-block;background:var(--yellow);color:#111;border-radius:999px;padding:0 7px;font-size:11px;font-weight:800;margin:0 4px}
 .wa{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.35)}
 .wa:hover{transform:scale(1.06)}
 .deudaq{display:inline-block;border:1px solid #fca5a5;border-radius:999px;padding:2px 10px;font-size:12px;color:#fca5a5;white-space:nowrap;margin-top:2px}
@@ -999,7 +1002,7 @@ function dashboardHTML(pagosF,totIns,totArb,pend){
   const fila=(m,tid)=>{
     const t=teamById(tid), bal=balance(tid);
     return `<tr>
-      <td>${celda(bal.insPend)}</td>
+      <td class="cins">${celda(bal.insPend)}</td>
       <td>${esc(t?t.name:'—')}</td>
       <td style="color:var(--yellow);font-weight:700">${t?.juegoActual||'—'}</td>
       <td>${celda(bal.arbPend)}</td>
@@ -1007,10 +1010,15 @@ function dashboardHTML(pagosF,totIns,totArb,pend){
       <td class="${bal.insPend+bal.arbPend?'pend':'ok'}">${money(bal.insPend+bal.arbPend)}</td>
     </tr>`;
   };
+  // Por cancha (1 a 4); dentro de cada cancha, los más recientes arriba
+  const porCancha=[...new Set(jd.map(m=>m.field))].sort((a,b)=>a-b);
   const jdHTML=jd.length
     ?`<div class="scroll"><table class="jtabla">
-        <tr><th>Inscripción</th><th>Equipo</th><th>Juego</th><th>Arbitraje</th><th>Pagado total</th><th>Saldo</th></tr>
-        ${jd.map(m=>`<tr class="sep"><td colspan="6" class="muted">Cancha ${m.field} · <b style="color:${m.terminado?'#9aa1b2':'#4ade80'}">${m.terminado?'Terminado':'Activo'}</b> · Juego ${m.numero||'—'}</td></tr>${fila(m,m.a)}${fila(m,m.b)}`).join('')}
+        <tr><th class="cins">Inscripción</th><th>Equipo</th><th>Juego</th><th>Arbitraje</th><th>Pagado total</th><th>Saldo</th></tr>
+        ${porCancha.map(c=>{
+          const lista=jd.filter(m=>m.field===c).sort((x,y)=>String(y.creado||'').localeCompare(String(x.creado||'')));
+          return `<tr class="cancha-sep"><td colspan="6"><b>Cancha ${c}</b></td></tr>`+lista.map(m=>`<tr class="sep"><td colspan="6" class="muted"><b>${esc(teamName(m.a))}</b> <span class="vs">vs</span> <b>${esc(teamName(m.b))}</b> · Juego ${m.numero||'—'} · <b style="color:${m.terminado?'#9aa1b2':'#4ade80'}">${m.terminado?'Terminado':'Activo'}</b></td></tr>${fila(m,m.a)}${fila(m,m.b)}`).join('');
+        }).join('')}
       </table></div>`
     :'<p class="muted">No hay juegos en este periodo.</p>';
   return `
