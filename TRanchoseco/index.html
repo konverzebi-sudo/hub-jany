@@ -571,6 +571,11 @@ function openTeam(id,presetName=''){
       <button type="button" class="btn primary" data-act="saveteam">Guardar equipo</button>
     </div>
   </form>`);
+  $('#tm-name').addEventListener('input',()=>{
+    const term=norm($('#tm-name').value.trim());
+    const hits=term?db.teams.filter(t=>t.id!==draft.id&&norm(t.name).includes(term)).map(t=>t.name):[];
+    $('#tm-err').textContent=hits.length?`Ya existe: ${hits.join(', ')}. Usa ese equipo.`:'';
+  });
   renderDraft();
   $('#tm-pl').focus();
 }
@@ -596,6 +601,10 @@ function addPlayerDraft(){
 function saveDraft(){
   const name=$('#tm-name').value.trim();
   if(!name){$('#tm-err').textContent='Escribe el nombre del equipo.';return;}
+  if(db.teams.some(t=>t.id!==draft.id&&norm(t.name)===norm(name))){
+    $('#tm-err').textContent='Ya existe un equipo con ese nombre. Búscalo y úsalo; no lo registres otra vez.';
+    return;
+  }
   if(!draft.players.length){$('#tm-err').textContent='Agrega al menos un jugador (el líder).';return;}
   const data={name,players:[...draft.players],lider:draft.lider||draft.players[0]};
   const t=draft.id?teamById(draft.id):null;
