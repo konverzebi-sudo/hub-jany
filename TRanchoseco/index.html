@@ -18,6 +18,7 @@ header{position:sticky;top:0;z-index:5;background:var(--bg);padding:12px 12px 6p
 .results button:hover{background:#fff8c2}
 .results small{color:#666}
 .empty-res{padding:12px 16px;color:#666}
+.results .addteam{background:var(--yellow);color:#111;font-weight:700;text-align:center;border-bottom:0;border-radius:0 0 12px 12px}
 .tabs{display:flex;gap:6px;justify-content:center;margin-top:10px;flex-wrap:wrap}
 .tab{background:#2a2f3f;color:var(--muted);border:0;border-radius:999px;padding:7px 14px;cursor:pointer;font:inherit}
 .tab.on{background:var(--yellow);color:#111;font-weight:600}
@@ -358,11 +359,11 @@ function renderPagos(){
 }
 
 /* ---------- Equipos ---------- */
-function openTeam(id){
+function openTeam(id,presetName=''){
   const t=id?teamById(id):null;
   openModal(`<form id="tm-form">
     <h3>${t?'Editar equipo':'Nuevo equipo'}</h3>
-    <label>Nombre del equipo<input name="name" required autocomplete="off" value="${esc(t?t.name:'')}"></label>
+    <label>Nombre del equipo<input name="name" required autocomplete="off" value="${esc(t?t.name:presetName)}"></label>
     <label>Jugadores (uno por línea)<textarea name="players" rows="8">${esc(t?t.players.join('\n'):'')}</textarea></label>    <div class="actions">
       <button type="button" class="btn ghost" data-act="close">Cancelar</button>
       <button class="btn primary">Guardar</button>
@@ -462,7 +463,8 @@ function renderResults(){
   box.innerHTML=hits.length?hits.slice(0,30).map(({t,player})=>{
     const am=teamActiveMatch(t.id);
     return `<button data-act="pickresult" data-team="${t.id}"><b>${esc(t.name)}</b>${player?` · ${esc(player)}`:''}<br><small>${am?`Cancha ${am.field}`:'Sin partido asignado'}</small></button>`;
-  }).join(''):'<div class="empty-res">Sin coincidencias</div>';
+  }).join(''):`<div class="empty-res">No hay equipos ni jugadores con ese nombre.</div>
+    <button class="addteam" data-act="addteam" data-name="${esc(q.value.trim())}">+ AGREGAR EQUIPO</button>`;
   box.classList.add('show');
 }
 function pickResult(tid){
@@ -493,6 +495,7 @@ document.addEventListener('click',e=>{
     case 'delpay': deletePayment(d.id,d.team,d.match||null); break;
     case 'close': closeModal(); break;
     case 'pickresult': pickResult(d.team); break;
+    case 'addteam': q.value=''; $('#results').classList.remove('show'); openTeam(null,d.name); break;
     case 'export': exportDb(); break;
   }
 });
