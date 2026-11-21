@@ -57,6 +57,10 @@ main{max-width:600px;margin:0 auto;padding:8px 12px 40px}
 label{display:block;margin-bottom:12px;color:var(--muted);font-size:14px}
 input,select,textarea{display:block;width:100%;margin-top:5px;padding:10px;border-radius:8px;border:1px solid #3d4459;background:#11131a;color:var(--text);font:inherit}
 input[type=file]{padding:6px;width:auto}
+.addrow{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+.addrow input{margin:0;flex:1}
+.rowbtns{display:flex;gap:6px;flex-shrink:0}
+.plist li{align-items:center}
 .chk{display:flex;gap:8px;align-items:center;color:var(--text)}
 .chk input{width:auto;margin:0}
 h3{margin:6px 0 10px}
@@ -368,25 +372,55 @@ function renderPagos(){
 }
 
 /* ---------- Equipos ---------- */
+let draft=null; // equipo en edición: {id,name,players:[],lider}
 function openTeam(id,presetName=''){
   const t=id?teamById(id):null;
-  openModal(`<form id="tm-form">
+  draft={id:t?t.id:null,name:t?t.name:presetName,players:t?[...t.players]:[],lider:t?t.lider:null};
+  openModal(`<form id="tm-form" onsubmit="return false">
     <h3>${t?'Editar equipo':'Nuevo equipo'}</h3>
-    <label>Nombre del equipo<input name="name" required autocomplete="off" value="${esc(t?t.name:presetName)}"></label>
-    <label>Jugadores (uno por línea)<textarea name="players" rows="8">${esc(t?t.players.join('\n'):'')}</textarea></label>    <div class="actions">
+    <label>Nombre del equipo<input id="tm-name" autocomplete="off" value="${esc(draft.name)}"></label>
+    <label>Jugadores (el primero es el líder, quien paga)</label>
+    <div class="addrow">
+      <input id="tm-pl" autocomplete="off" placeholder="Nombre del jugador">
+      <button type="button" class="btn primary sm" data-act="addplayer">Agregar</button>
+    </div>
+    <ul class="plist" id="tm-list"></ul>
+    <p id="tm-err" class="pend"></p>
+    <div class="actions">
       <button type="button" class="btn ghost" data-act="close">Cancelar</button>
-      <button class="btn primary">Guardar</button>
+      <button type="button" class="btn primary" data-act="saveteam">Guardar equipo</button>
     </div>
   </form>`);
-  $('#tm-form').onsubmit=e=>{
-    e.preventDefault();
-    const fd=new FormData(e.target);
-    const name=String(fd.get('name')).trim();
-    const players=String(fd.get('players')).split('\n').map(s=>s.trim()).filter(Boolean);
-    if(t){t.name=name;t.players=players;}
-    else db.teams.push({id:uid(),name,players});
-    save(); closeModal(); renderAll();
-  };
+  renderDraft();
+  $('#tm-pl').focus();
+}
+function renderDraft(){
+  const list=$('#tm-list'); if(!list) return;
+  list.innerHTML=draft.players.length?draft.players.map((p,i)=>`<li>
+    <span>${esc(p)}${p===draft.lider?' <b>· LÍDER (paga)</b>':''}</span>
+    <span class="rowbtns">
+      ${p===draft.lider?'':`<button type="button" class="btn ghost sm" data-act="lider" data-i="${i}">Hacer líder</button>`}
+      <button type="button" class="btn danger sm" data-act="quitarj" data-i="${i}">Quitar</button>
+    </span></li>`).join(''):'<li class="muted">Aún no hay jugadores.</li>';
+}
+function addPlayerDraft(){
+  const inp=$('#tm-pl');
+  const name=inp.value.trim();
+  if(!name) return;
+  if(draft.players.some(p=>norm(p)===norm(name))){$('#tm-err').textContent='Ese jugador ya está en la lista.';return;}
+  draft.players.push(name);
+  if(!draft.lider) draft.lider=name;
+  inp.value=''; $('#tm-err').textContent='';
+  renderDraft(); inp.focus();
+}
+function saveDraft(){
+  const name=$('#tm-name').value.trim();
+  if(!name){$('#tm-err').textContent='Escribe el nombre del equipo.';return;}
+  if(!draft.players.length){$('#tm-err').textContent='Agrega al menos un jugador (el líder).';return;}
+  const data={name,players:[...draft.players],lider:draft.lider||draft.players[0]};
+  const t=draft.id?teamById(draft.id):null;
+  if(t) Object.assign(t,data); else db.teams.push({id:uid(),...data});
+  draft=null; save(); closeModal(); renderAll();
 }
 function deleteTeam(id){
   const t=teamById(id); if(!t) return;
@@ -399,7 +433,7 @@ function deleteTeam(id){
 }
 function renderTeams(){
   $('#teams-list').innerHTML=db.teams.length?db.teams.map(t=>`<div class="card team">
-    <div><b>${esc(t.name)}</b><br><small class="muted">${t.players.length} jugador${t.players.length===1?'':'es'}${t.players.length?': '+esc(t.players.join(', ')):''}</small></div>
+    <div><b>${esc(t.name)}</b><br><small class="muted">Líder (paga): ${esc(t.lider||'—')}</small><br><small class="muted">${t.players.length} jugador${t.players.length===1?'':'es'}${t.players.length?': '+esc(t.players.join(', ')):''}</small></div>
     <div class="actions" style="margin-top:0">
       <button class="btn ghost sm" data-act="editteam" data-id="${t.id}">Editar</button>
       <button class="btn danger sm" data-act="delteam" data-id="${t.id}">Borrar</button>
@@ -503,12 +537,19 @@ document.addEventListener('click',e=>{
     case 'delteam': deleteTeam(d.id); break;
     case 'delpay': deletePayment(d.id,d.team,d.match||null); break;
     case 'close': closeModal(); break;
+    case 'addplayer': addPlayerDraft(); break;
+    case 'lider': draft.lider=draft.players[+d.i]; renderDraft(); break;
+    case 'quitarj': {const r=draft.players.splice(+d.i,1)[0]; if(draft.lider===r) draft.lider=draft.players[0]||null; renderDraft(); break;}
+    case 'saveteam': saveDraft(); break;
     case 'pickresult': pickResult(d.team); break;
     case 'addteam': q.value=''; $('#results').classList.remove('show'); openTeam(null,d.name); break;
     case 'export': exportDb(); break;
   }
 });
-document.addEventListener('keydown',e=>{if(e.key==='Escape') closeModal();});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape') closeModal();
+  if(e.key==='Enter'&&e.target.id==='tm-pl'){e.preventDefault();addPlayerDraft();}
+});
 
 renderAll();
 showTab('canchas');
