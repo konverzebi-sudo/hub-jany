@@ -76,6 +76,8 @@ input[type=file]{padding:6px;width:auto}
 .juegoq{color:#fff;font-size:12px;opacity:.9}
 .cchip{background:var(--yellow);color:#111;border-radius:6px;padding:2px 8px;font-size:15px;font-weight:700;white-space:nowrap}
 .modal .rojo{color:#dc2626}
+.modal .dosc{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px}
+.modal .dosc .montoGrande{font-size:22px;padding:10px}
 .modal .verde{color:#16a34a;font-size:20px}
 .modal .montoGrande{font-size:28px;font-weight:700;text-align:center;padding:14px}
 .modal .resumen{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:4px 0 14px}
@@ -378,7 +380,13 @@ function openPay(teamId,matchId){
   const adeudo=b.insPend+b.arbPend;
   openModal(`<form id="pay-form">
     <h3>Pago · ${esc(t.name)}${m?` · <span class="cchip">Cancha ${m.field}</span>`:''}</h3>
-    <label>¿Cuánto está pagando?<input class="montoGrande" name="monto" id="p-monto" type="number" min="1" step="1" required value="${ins}"></label>
+    ${b.insPend>0
+      ?`<div class="dosc">
+        <label>Inscripción<input class="montoGrande" name="monto_ins" type="number" min="0" step="1" value="0"></label>
+        <label>Arbitraje<input class="montoGrande" name="monto_arb" type="number" min="0" step="1" value="0"></label>
+      </div>
+      <p class="rojo" style="margin:0 0 12px">Adeudo de inscripción: ${money(b.insPend)}</p>`
+      :`<label>¿Cuánto está pagando? (arbitraje)<input class="montoGrande" name="monto_arb" type="number" min="0" step="1" value="0"></label>`}
     <div class="resumen" id="p-res">
       <div><small>Estado del equipo</small>${adeudo>0?`<b class="rojo">Adeudo ${money(adeudo)}</b>`:'<b class="verde">✔ Al corriente</b>'}</div>
       <div><small>Número de juego</small><b id="p-num">${t.registroDesde?t.juegoActual:'—'}</b></div>
@@ -388,12 +396,6 @@ function openPay(teamId,matchId){
       ${Array.from({length:db.config.totalJuegos},(_,i)=>i+1).map(n=>`<button type="button" class="tile" data-j="${n}">${n}</button>`).join('')}
     </div>
     <input type="hidden" name="desde" id="p-desde" value="">`}
-    <label>Tipo de pago
-      <select name="tipo" id="p-tipo">
-        <option value="inscripcion">Inscripción</option>
-        <option value="arbitraje">Arbitraje</option>
-      </select>
-    </label>
     <div class="lbl">Quién lo recibió</div>
     <div class="cuadros" id="p-recibe">
       ${db.config.recibieron.map(n=>`<button type="button" class="sq" data-n="${esc(n)}">${esc(n)}</button>`).join('')}
@@ -423,7 +425,6 @@ function openPay(teamId,matchId){
       <button type="button" class="btn danger sm" data-act="delpay" data-id="${p.id}" data-team="${teamId}" data-match="${matchId||''}">Borrar</button>
     </li>`).join('')}</ul>`:'<p class="muted">Aún no hay pagos.</p>'}
   </form>`);
-  $('#p-tipo').onchange=e=>{$('#p-monto').value=e.target.value==='inscripcion'?(Number(db.config.inscripcion)||0):(Number(db.config.arbitraje)||0);};
   // Quién recibe: cuadros (uno solo seleccionado)
   $('#p-recibe').onclick=e=>{
     const b=e.target.closest('[data-n]'); if(!b) return;
@@ -447,8 +448,8 @@ function openPay(teamId,matchId){
   $('#pay-form').onsubmit=e=>{
     e.preventDefault();
     const fd=new FormData(e.target);
-    const monto=Number(fd.get('monto'));
-    if(!(monto>0)){alert('El monto debe ser mayor a 0');return;}
+    const mIns=Number(fd.get('monto_ins')||0), mArb=Number(fd.get('monto_arb')||0);
+    if(!(mIns>0||mArb>0)){alert('Escribe cuánto está pagando');return;}
     if(!fd.get('recibio')){alert('Elige quién lo recibió');return;}
     t.inscripcionPrevia=!!fd.get('insPrevia');
     if(!t.registroDesde){
@@ -459,16 +460,18 @@ function openPay(teamId,matchId){
       t.juegoActual=desde;
       t.registroDesde=new Date().toISOString();
     }
-    db.payments.push({
+    // Cada abono se guarda como su propio pago (inscripción y/o arbitraje)
+    const base={
       id:uid(),teamId,matchId:matchId||null,
-      tipo:fd.get('tipo'),monto,
       recibio:String(fd.get('recibio')).trim(),
       metodo:String(fd.get('metodo')),
       cuenta:String(fd.get('cuenta')||'').trim(),
       fecha:today(),
       nota:String(fd.get('nota')||'').trim(),
       creado:new Date().toISOString()
-    });
+    };
+    if(mIns>0) db.payments.push({...base,id:uid(),tipo:'inscripcion',monto:mIns});
+    if(mArb>0) db.payments.push({...base,id:uid(),tipo:'arbitraje',monto:mArb});
     save(); closeModal(); renderAll();
   };
 }
