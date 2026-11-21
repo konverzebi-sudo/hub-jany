@@ -98,6 +98,10 @@ input[type=file]{padding:6px;width:auto}
 .jtabla .cins{width:1%;white-space:nowrap;padding-right:2px}
 .jtabla tr.cancha-sep td{background:#11131a;color:var(--yellow);font-weight:800;text-align:left;font-size:15px}
 .vs{display:inline-block;background:var(--yellow);color:#111;border-radius:999px;padding:0 7px;font-size:11px;font-weight:800;margin:0 4px}
+.res-card{padding:12px}
+.res-h{color:var(--yellow);font-weight:700;margin-bottom:8px}
+.res-m{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:16px;margin-bottom:6px}
+.res-s{font-size:22px;font-weight:800}
 .wa{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.35)}
 .wa:hover{transform:scale(1.06)}
 .deudaq{display:inline-block;border:1px solid #fca5a5;border-radius:999px;padding:2px 10px;font-size:12px;color:#fca5a5;white-space:nowrap;margin-top:2px}
@@ -263,6 +267,7 @@ th{color:var(--muted);font-weight:600}
   </div>
   <nav class="tabs">
     <button class="tab on" data-act="tab" data-tab="canchas">Canchas</button>
+    <button class="tab" data-act="tab" data-tab="resultados">Resultados</button>
     <button class="tab" data-act="tab" data-tab="equipos">Equipos</button>
     <button class="tab" data-act="tab" data-tab="pagos">Pagos</button>
     <button class="addpago" data-act="pagonuevo" title="Registrar pago" aria-label="Registrar pago">+</button>
@@ -270,6 +275,7 @@ th{color:var(--muted);font-weight:600}
 </header>
 
 <main>
+  <section id="tab-resultados" class="view"><div id="resultados-list"></div></section>
   <section id="tab-canchas" class="view on"><div id="fields"></div><div class="ajfoot"><button class="ajbtn" data-act="tab" data-tab="ajustes" title="Ajustes" aria-label="Ajustes">⚙️</button></div></section>
   <section id="tab-equipos" class="view">
     <div class="toolbar"><button class="btn primary" data-act="newteam">+ Nuevo equipo</button></div>
@@ -389,8 +395,22 @@ function showTab(name){
   const buscadorTop=document.querySelector('.search');
   if(buscadorTop){buscadorTop.style.display=name==='pagos'?'none':'';}
   if(name==='pagos'){const r=$('#results'); if(r) r.classList.remove('show');}
+  if(name==='resultados') renderResultados();
   // La altura de la barra de arriba cambia al ocultar su buscador: se recalcula para que el filtro quede pegado
   document.documentElement.style.setProperty('--hh',document.querySelector('header').offsetHeight+'px');
+}
+// Resultados de los partidos terminados: el más reciente arriba
+function renderResultados(){
+  const ts=db.matches.filter(m=>m.terminado).sort((a,b)=>String(b.terminadoEn||'').localeCompare(String(a.terminadoEn||'')));
+  $('#resultados-list').innerHTML=ts.length?ts.map(m=>{
+    const r=m.resultado||{a:0,b:0};
+    const ga=r.a>r.b, gb=r.b>r.a;
+    return `<div class="card res-card">
+      <div class="res-h">Cancha ${m.field} · Juego ${m.numero||'—'} <small class="muted">${esc(diaLocal(m.terminadoEn))}</small></div>
+      <div class="res-m"><b class="${ga?'ganador':''}">${esc(teamName(m.a))}</b><span class="res-s">${r.a} – ${r.b}</span><b class="${gb?'ganador':''}">${esc(teamName(m.b))}</b></div>
+      <small class="muted">Árbitro: ${esc(m.arbitro||'—')}</small>
+    </div>`;
+  }).join(''):'<p class="muted">Aún no hay partidos terminados.</p>';
 }
 function renderAll(){renderFields();renderTeams();renderPagos();}
 
