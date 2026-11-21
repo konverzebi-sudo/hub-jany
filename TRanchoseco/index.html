@@ -94,6 +94,11 @@ input[type=file]{padding:6px;width:auto}
 .ppanel .frango input{background:#fff;color:#111;border:1px solid #d1d5db}
 .plbl{color:#6b7280;font-size:13px;font-weight:600;margin:14px 0 8px}
 .yel{color:var(--yellow)}
+.barras{display:flex;align-items:flex-end;gap:12px;overflow-x:auto;padding:8px 4px 4px}
+.barcol{display:flex;flex-direction:column;align-items:center;min-width:72px}
+.barcol small{font-size:12px;color:var(--text)}
+.bar{width:44px;background:var(--yellow);border-radius:8px 8px 0 0;margin:6px 0}
+.barcol b{font-size:13px}
 h3.yel{margin-top:28px}
 .pq{width:100%;padding:12px 16px;border-radius:999px;border:0;font-size:15px;background:#fff;color:#111;margin:4px 0 10px;box-sizing:border-box}
 .bres{background:var(--panel);border-radius:12px;padding:12px;margin-bottom:10px}
@@ -925,8 +930,11 @@ function dashboardHTML(pagosF,totIns,totArb,pend){
   const arbs={};
   terminados.forEach(m=>{arbs[m.arbitro]=(arbs[m.arbitro]||0)+1;});
   const pagoA=Number(db.config.pagoArbitro)||0;
-  const arbHTML=Object.keys(arbs).length
-    ?Object.entries(arbs).sort((a,b)=>b[1]-a[1]).map(([n,c])=>`<div class="rowj"><b>${esc(n)}</b><span>${c} juego${c===1?'':'s'}</span><span>${money(c*pagoA)} por pagar</span></div>`).join('')
+  // Gráfica de barras: arriba lo que va generando cada árbitro, abajo su nombre
+  const arbEntries=Object.entries(arbs).sort((a,b)=>b[1]-a[1]);
+  const maxA=Math.max(1,...arbEntries.map(([n,c])=>c*pagoA));
+  const arbHTML=arbEntries.length
+    ?`<div class="barras">${arbEntries.map(([n,c])=>{const v=c*pagoA;const h=Math.max(8,Math.round(v/maxA*140));return `<div class="barcol"><small>${money(v)}</small><div class="bar" style="height:${h}px"></div><b>${esc(n)}</b><small class="muted">${c} juego${c===1?'':'s'}</small></div>`;}).join('')}</div>`
     :'<p class="muted">Aún no hay juegos arbitrados.</p>';
   const hoy=jornadaHoy();
   const jd=db.matches.filter(m=>diaLocal(m.creado)===hoy);
