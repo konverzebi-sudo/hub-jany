@@ -16,3 +16,11 @@ create policy "canchas actualizar" on canchas.estado for update to authenticated
 
 grant usage on schema canchas to authenticated;
 grant select, insert, update on canchas.estado to authenticated;
+
+-- TEMPORAL (sin accesos por ahora): deja leer y guardar sin entrar.
+-- Cuando se configuren los accesos, borrar estas líneas y dejar solo las de "authenticated".
+create policy "canchas leer anon" on canchas.estado for select to anon using (true);
+create policy "canchas crear anon" on canchas.estado for insert to anon with check (true);
+create policy "canchas actualizar anon" on canchas.estado for update to anon using (true) with check (true);
+grant usage on schema canchas to anon;
+grant select, insert, update on canchas.estado to anon;
