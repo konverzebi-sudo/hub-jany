@@ -697,7 +697,6 @@ function openPay(teamId,matchId,editId=null){
       </div>
       `:`<label>¿Cuánto está pagando? (arbitraje)<input class="montoGrande" name="monto_arb" type="number" min="0" step="1" placeholder="$0"></label>`}
     ${b.arbPend>0?`<button type="button" class="totbtn" id="p-total">Pagar arbitraje pendiente: ${money(b.arbPend)}</button>`:''}
-    ${b.arbPend>Number(db.config.arbitraje)?`<p class="retraso">⚠️ Retraso: debe ${money(b.arbPend)} de arbitraje de juegos anteriores. Revisa el historial abajo.</p>`:''}
     <div class="insrow" style="${b.insPend>0?'':'display:none'}">
       ${b.insPend>0?`<p class="rojo" id="p-adeudo" style="margin:0;${t.inscripcionPrevia?'display:none':''}">Adeudo de inscripción: ${money(b.insPend)}</p>`:''}
       <label class="chk"><input type="checkbox" id="p-insprev" name="insPrevia" ${t.inscripcionPrevia||b.insPend<=0?'checked':''}> Ya pagó el 100% de la inscripción</label>
@@ -747,6 +746,7 @@ function openPay(teamId,matchId,editId=null){
         ?`<button type="button" class="btn ghost sm" data-act="editpay" data-id="${p.id}" data-team="${teamId}" data-match="${matchId||''}">Editar</button>`
         :'<small class="muted">Solo lectura</small>'}
     </li>`).join('')}</ul>`:'<p class="muted">Aún no hay pagos.</p>'}
+    ${juegosTablaHTML(teamId)}
   </form>`);
   // Quién recibe: cuadros (uno solo seleccionado)
   $('#p-recibe').onclick=e=>{
@@ -803,7 +803,7 @@ function openPay(teamId,matchId,editId=null){
     if(!fd.get('recibio')){pErr('⚠️ Elige quién lo recibió.',$('#p-recibe'));return;}
     t.inscripcionPrevia=!!fd.get('insPrevia');
     if(t.inscripcionPrevia){
-      if(!fd.get('recibioIns')&&!t.inscripcionRecibio){pErr('⚠️ Elige a quién se le pagó la inscripción.',$('#p-insq'));return;}
+      if(b.insPend>0&&!fd.get('recibioIns')&&!t.inscripcionRecibio){pErr('⚠️ Elige a quién se le pagó la inscripción.',$('#p-insq'));return;}
       if(fd.get('recibioIns')) t.inscripcionRecibio=String(fd.get('recibioIns'));
     }
     if(!t.registroDesde){
@@ -836,6 +836,19 @@ function openPay(teamId,matchId,editId=null){
   };
 }
 const SILBATO='<img src="silbato.png" alt="" class="silb">';
+// Registro de arbitraje por juego: cuánto debía y cuánto pagó en cada juego
+function juegosTablaHTML(tid){
+  const ms=matchesOf(tid);
+  const pago=Number(db.config.arbitraje)||0;
+  const pagadoEn=(mid)=>sum(db.payments.filter(p=>p.teamId===tid&&p.tipo==='arbitraje'&&p.matchId===mid));
+  const sinJuego=sum(db.payments.filter(p=>p.teamId===tid&&p.tipo==='arbitraje'&&!p.matchId));
+  if(!ms.length&&!sinJuego) return '';
+  return `<h4>Arbitraje por juego</h4><div class="scroll"><table class="jtabla">
+    <tr><th>Juego</th><th>Debe</th><th>Pagado</th><th>Estado</th></tr>
+    ${ms.map(m=>{const pag=pagadoEn(m.id);const falta=Math.max(0,pago-pag);return `<tr><td>${m.numero?'Juego '+m.numero:'Cancha '+m.field}</td><td>${money(pago)}</td><td>${money(pag)}</td><td>${falta?`<span class="pend">Falta ${money(falta)}</span>`:'<span class="ok">✔</span>'}</td></tr>`;}).join('')}
+    ${sinJuego?`<tr><td>Sin juego asignado</td><td>—</td><td>${money(sinJuego)}</td><td>—</td></tr>`:''}
+  </table></div>`;
+}
 // Registrar un pago sin partido: buscar equipo o jugador
 function openBuscarPago(){
   openModal(`<div>
