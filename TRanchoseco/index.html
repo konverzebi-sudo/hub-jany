@@ -61,6 +61,9 @@ input[type=file]{padding:6px;width:auto}
 .whistle:hover{background:var(--yellow)}
 .marcador{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#11131a;color:#fff;border-radius:10px;padding:12px;margin-bottom:12px;font-size:15px}
 .marcador span{font-size:22px;font-weight:700}
+.sugs{display:flex;flex-direction:column;gap:4px;margin:-6px 0 12px;max-height:180px;overflow:auto}
+.sug{background:#f3f4f6;color:#111;border:1px solid #e5e7eb;border-radius:8px;padding:9px 12px;text-align:left;cursor:pointer;font:inherit}
+.sug:hover{background:#fff8c2}
 .addrow{display:flex;gap:8px;align-items:center;margin-bottom:10px}
 .addrow input{margin:0;flex:1}
 .rowbtns{display:flex;gap:6px;flex-shrink:0}
@@ -291,6 +294,29 @@ function changeScore(mid,side,d){
   m[k]=Math.max(0,(m[k]||0)+d);
   save(); renderFields();
 }
+// Campo para escribir el equipo: al escribir, salen abajo los equipos que coinciden
+function buscadorEquipo(s,titulo,teamId){
+  const t=teamById(teamId);
+  return `<label>${titulo}<input id="as-${s}-txt" autocomplete="off" placeholder="Escribe para buscar" value="${esc(t?t.name:'')}"></label>
+    <div class="sugs" id="as-${s}-sug"></div>
+    <input type="hidden" name="${s}" id="as-${s}-val" value="${esc(teamId||'')}">`;
+}
+function activarBuscador(s){
+  const txt=$(`#as-${s}-txt`), sug=$(`#as-${s}-sug`), val=$(`#as-${s}-val`);
+  const pintar=()=>{
+    const term=norm(txt.value.trim());
+    const hits=db.teams.filter(t=>!term||norm(t.name).includes(term)).slice(0,8);
+    sug.innerHTML=hits.map(t=>`<button type="button" class="sug" data-pick="${t.id}" data-side="${s}">${esc(t.name)}</button>`).join('')||'<div class="muted">Ningún equipo con ese nombre</div>';
+  };
+  txt.addEventListener('input',()=>{val.value='';pintar();});
+  txt.addEventListener('focus',pintar);
+  sug.addEventListener('click',e=>{
+    const b=e.target.closest('[data-pick]'); if(!b) return;
+    val.value=b.dataset.pick;
+    txt.value=teamName(b.dataset.pick);
+    sug.innerHTML='';
+  });
+}
 function openAssign(f){
   if(db.teams.length<2){
     openTeam(null);
@@ -301,11 +327,10 @@ function openAssign(f){
     return;
   }
   const cur=activeMatch(f);
-  const opts=sel=>db.teams.map(t=>`<option value="${t.id}"${t.id===sel?' selected':''}>${esc(t.name)}</option>`).join('');
   openModal(`<form id="as-form">
     <h3>Cancha ${f}</h3>
-    <label>Equipo de la izquierda<select name="a">${opts(cur?cur.a:db.teams[0].id)}</select></label>
-    <label>Equipo de la derecha<select name="b">${opts(cur?cur.b:db.teams[1].id)}</select></label>
+    ${buscadorEquipo('a','Equipo de la izquierda',cur?cur.a:'')}
+    ${buscadorEquipo('b','Equipo de la derecha',cur?cur.b:'')}
     <label>Número de juego (1 a ${db.config.totalJuegos})<input name="numero" type="number" min="1" max="${db.config.totalJuegos}" required value="${cur?.numero||''}"></label>
     <p id="as-err" class="pend"></p>
     <div class="actions">
@@ -314,10 +339,12 @@ function openAssign(f){
       <button class="btn primary">Guardar</button>
     </div>
   </form>`);
+  ['a','b'].forEach(s=>activarBuscador(s));
   $('#as-form').onsubmit=e=>{
     e.preventDefault();
     const fd=new FormData(e.target);
     const a=fd.get('a'), b=fd.get('b');
+    if(!a||!b){$('#as-err').textContent='Elige los dos equipos de la lista.';return;}
     if(a===b){$('#as-err').textContent='Elige dos equipos distintos.';return;}
     const numero=Number(fd.get('numero'));
     if(!(numero>=1&&numero<=db.config.totalJuegos)){$('#as-err').textContent=`El número de juego debe estar entre 1 y ${db.config.totalJuegos}.`;return;}
