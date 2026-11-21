@@ -932,6 +932,12 @@ function abrirFicha(tid){
   const ms=matchesOf(tid).filter(m=>!t.registroDesde||String(m.creado||'')>=t.registroDesde).sort((x,y)=>String(y.creado||'').localeCompare(String(x.creado||'')));
   const arbPagos=db.payments.filter(p=>p.teamId===tid&&p.tipo==='arbitraje');
   const pagos=db.payments.filter(p=>p.teamId===tid).sort((x,y)=>String(y.fecha).localeCompare(String(x.fecha)));
+  // Los abonos de arbitraje se reparten desde el juego más antiguo hasta el más nuevo
+  const asig={};
+  let pool=sum(arbPagos);
+  [...ms].sort((x,y)=>String(x.creado||'').localeCompare(String(y.creado||''))).forEach(m=>{const ap=Math.min(pool,pago);asig[m.id]=ap;pool-=ap;});
+  const pagadoJuegos=sum(Object.values(asig));
+  const debeJuegos=Math.max(0,ms.length*pago-pagadoJuegos);
   openModal(`<div>
     <h3>${esc(t.name)}</h3>
     <p class="muted" style="margin:0 0 8px">Líder: <b style="color:#111">${esc(t.lider||'—')}</b></p>
@@ -943,7 +949,9 @@ function abrirFicha(tid){
     ${b.insPend?`<p class="pend" style="margin:0 0 10px">Inscripción pendiente: ${money(b.insPend)}</p>`:''}
     <h4>Juegos</h4>
     ${ms.length?`<div class="scroll"><table class="jtabla"><tr><th>Juego</th><th>Partido</th><th>Resultado</th><th>Pagó</th><th>Debe</th></tr>
-      ${ms.map(m=>{const pag=sum(arbPagos.filter(p=>p.matchId===m.id));const falta=Math.max(0,pago-pag);const r=m.terminado?(m.resultado||{a:0,b:0}):{a:m.sa||0,b:m.sb||0};const mio=m.a===tid?r.a:r.b, otro=m.a===tid?r.b:r.a;return `<tr><td>${m.numero?'Juego '+m.numero:'Cancha '+m.field}</td><td>${esc(teamName(m.a))} vs ${esc(teamName(m.b))}</td><td class="res-y">${mio} – ${otro}</td><td style="color:#4ade80">${pag?'+'+money(pag):'—'}</td><td>${falta?`<span class="pend">${money(falta)}</span>`:'✔'}</td></tr>`;}).join('')}
+      ${ms.map(m=>{const pag=asig[m.id]||0;const falta=Math.max(0,pago-pag);const r=m.terminado?(m.resultado||{a:0,b:0}):{a:m.sa||0,b:m.sb||0};const mio=m.a===tid?r.a:r.b, otro=m.a===tid?r.b:r.a;return `<tr><td>${m.numero?'Juego '+m.numero:'Cancha '+m.field}</td><td>${esc(teamName(m.a))} vs ${esc(teamName(m.b))}</td><td class="res-y">${mio} – ${otro}</td><td style="color:#4ade80">${pag?'+'+money(pag):'—'}</td><td>${falta?`<span class="pend">${money(falta)}</span>`:'✔'}</td></tr>`;}).join('')}
+      <tr><th>Total</th><th></th><th></th><th style="color:#4ade80">+${money(pagadoJuegos)}</th><th><span class="${debeJuegos?'pend':'ok'}">${debeJuegos?money(debeJuegos):'✔'}</span></th></tr>
+      ${pool>0?`<tr><td>Abono de más</td><td>—</td><td>—</td><td style="color:#4ade80">+${money(pool)}</td><td>—</td></tr>`:''}
     </table></div>`:'<p class="muted">Sin juegos.</p>'}
     <h4>Abonos</h4>
     ${pagos.length?`<ul class="plist">${pagos.map(p=>`<li><span>${esc(p.fecha)} · ${p.tipo==='inscripcion'?'Inscripción':'Arbitraje'} · <b style="color:#16a34a">+${money(p.monto)}</b><br><small>${esc(p.recibio)} · ${p.metodo==='transferencia'?'Transferencia':'Efectivo'}</small></span></li>`).join('')}</ul>`:'<p class="muted">Sin abonos.</p>'}
