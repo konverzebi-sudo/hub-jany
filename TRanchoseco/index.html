@@ -992,8 +992,8 @@ function dashboardHTML(pagosF,totIns,totArb,pend){
   const arbHTML=arbEntries.length
     ?`<div class="barras">${arbEntries.map(([n,c])=>{const v=c*pagoA;const h=Math.max(8,Math.round(v/maxA*140));return `<div class="barcol"><small>${money(v)}</small><div class="bar" style="height:${h}px"></div><b>${esc(n)}</b><small class="muted">${c} juego${c===1?'':'s'}</small></div>`;}).join('')}</div>`
     :'<p class="muted">Aún no hay juegos arbitrados.</p>';
-  const hoy=jornadaHoy();
-  const jd=db.matches.filter(m=>diaLocal(m.creado)===hoy);
+  // Juegos del periodo elegido (Hoy, Ayer, etc.)
+  const jd=db.matches.filter(m=>enRango(diaLocal(m.creado)));
   // Una fila por equipo: equipo, juego, inscripción, arbitraje, pagado total y saldo
   const celda=(pend)=>pend>0?`<span class="pend">−${money(pend)}</span>`:'<span class="ok">✔</span>';
   const fila=(m,tid)=>{
@@ -1003,7 +1003,7 @@ function dashboardHTML(pagosF,totIns,totArb,pend){
       <td>${esc(t?t.name:'—')}</td>
       <td style="color:var(--yellow);font-weight:700">${t?.juegoActual||'—'}</td>
       <td>${celda(bal.arbPend)}</td>
-      <td>${money(bal.insP+bal.arbP)}</td>
+      <td>${money(sum(pagosF.filter(p=>p.teamId===tid)))}</td>
       <td class="${bal.insPend+bal.arbPend?'pend':'ok'}">${money(bal.insPend+bal.arbPend)}</td>
     </tr>`;
   };
@@ -1012,7 +1012,7 @@ function dashboardHTML(pagosF,totIns,totArb,pend){
         <tr><th>Inscripción</th><th>Equipo</th><th>Juego</th><th>Arbitraje</th><th>Pagado total</th><th>Saldo</th></tr>
         ${jd.map(m=>`<tr class="sep"><td colspan="6" class="muted">Cancha ${m.field} · <b style="color:${m.terminado?'#9aa1b2':'#4ade80'}">${m.terminado?'Terminado':'Activo'}</b> · Juego ${m.numero||'—'}</td></tr>${fila(m,m.a)}${fila(m,m.b)}`).join('')}
       </table></div>`
-    :'<p class="muted">No hay juegos hoy.</p>';
+    :'<p class="muted">No hay juegos en este periodo.</p>';
   return `
     <div class="kpis">
       <div><small>Inscripciones</small><b>${money(totIns)}</b></div>
@@ -1022,7 +1022,7 @@ function dashboardHTML(pagosF,totIns,totArb,pend){
     <h3 class="yel">Cobradores</h3><div class="dgrid cuatro">${cobra}</div>
     <h3 class="yel">Canchas</h3><div class="dgrid cuatro">${canchas}</div>
     <h3 class="yel">Pagos por árbitro</h3><div class="dlist">${arbHTML}</div>
-    <h3 class="yel">Juegos de hoy</h3>${jdHTML}`;
+    <h3 class="yel">Juegos del periodo</h3>${jdHTML}`;
 }
 // Filtro de fechas en Pagos (hoy, semana, mes, rango o todo)
 let filtroPagos={modo:'hoy',desde:'',hasta:'',abierto:false};
