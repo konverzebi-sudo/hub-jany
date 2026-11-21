@@ -91,6 +91,12 @@ input[type=file]{padding:6px;width:auto}
 .rowj span.pend{color:#f87171;font-weight:700}
 .frango{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
 .frango input{width:auto;margin:0;padding:8px 10px;background:#11131a;color:var(--text);border:1px solid #3d4459;border-radius:10px}
+.mrow{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:6px}
+.mcard{background:#11131a;border-radius:12px;padding:10px 4px;text-align:center}
+.mcard b{display:block;font-size:17px;color:var(--text)}
+.mcard small{display:block;color:var(--muted);font-size:12px;margin:4px 0 6px;line-height:1.2}
+.mcard input{padding:6px 4px;text-align:center;font-size:14px}
+.mcard .btn{padding:4px 8px;font-size:12px}
 .cchip{background:var(--yellow);color:#111;border-radius:6px;padding:2px 8px;font-size:15px;font-weight:700;white-space:nowrap}
 .modal .rojo{color:#dc2626}
 .modal .dosc{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px}
@@ -192,12 +198,16 @@ th{color:var(--muted);font-weight:600}
 
 <script>
 const KEY='canchas-futbol-v1';
-const DEF={teams:[],matches:[],payments:[],config:{inscripcion:1500,arbitraje:500,totalJuegos:15,recibieron:['Junior','Charro','Victor','Rony'],arbitros:[],pagoArbitro:0,cuentas:[]}};
+const DEF={teams:[],matches:[],payments:[],config:{inscripcion:1500,arbitraje:500,totalJuegos:15,recibieron:['Junior','Charro','Victor','Rony','Marco'],roles:{Junior:'Director general',Charro:'Director administrativo',Victor:'Director administrativo',Rony:'Roles y logística',Marco:''},arbitros:[],pagoArbitro:0,cuentas:[]}};
 const clone=o=>JSON.parse(JSON.stringify(o));
 // Completa los datos que vengan de la nube o del celular sin estas listas
 function completar(d){
   const cfg={...clone(DEF.config),...(d.config||{})};
-  if(!cfg.recibieron||!cfg.recibieron.length) cfg.recibieron=[...DEF.config.recibieron];
+  if(!cfg.v2){ // lista nueva de personas con rol (incluye a Marco)
+    cfg.recibieron=[...DEF.config.recibieron];
+    cfg.roles={...DEF.config.roles};
+    cfg.v2=true;
+  }
   if(!cfg.arbitros) cfg.arbitros=[];
   return {...clone(DEF),...d,config:cfg};
 }
@@ -811,20 +821,68 @@ function renderTeams(){
 }
 
 /* ---------- Ajustes ---------- */
+let ajEdit=null; // monto que se está editando en Ajustes
+function tarjetaMonto(k,titulo,val,fmt){
+  if(ajEdit===k) return `<div class="mcard"><small>${titulo}</small>
+    <input id="ed-${k}" type="number" min="0" value="${val}">
+    <div class="actions" style="justify-content:center;margin-top:6px"><button class="btn ghost sm" data-act="ajcancel">Cancelar</button><button class="btn primary sm" data-act="ajsave" data-k="${k}">Guardar</button></div></div>`;
+  return `<div class="mcard"><b>${fmt(val)}</b><small>${titulo}</small><button class="btn ghost sm" data-act="ajedit" data-k="${k}">Editar</button></div>`;
+}
+function ajSave(k){
+  const v=Math.max(k==='totalJuegos'?1:0,Number($('#ed-'+k).value)||0);
+  db.config[k]=v; ajEdit=null;
+  save(); renderAll(); renderAjustes();
+}
+function addPersona(){
+  const n=$('#np-n').value.trim(), r=$('#np-r').value.trim();
+  if(!n) return alert('Escribe el nombre');
+  if(db.config.recibieron.some(x=>norm(x)===norm(n))) return alert('Esa persona ya está en la lista');
+  db.config.recibieron.push(n);
+  db.config.roles={...(db.config.roles||{}),[n]:r};
+  save(); renderAll(); renderAjustes();
+}
+function quitarPersona(n){
+  if(!confirm(`¿Quitar a ${n} de la lista?`)) return;
+  db.config.recibieron=db.config.recibieron.filter(x=>x!==n);
+  delete (db.config.roles||{})[n];
+  save(); renderAll(); renderAjustes();
+}
+function addArbitro(){
+  const n=$('#na-n').value.trim();
+  if(!n) return alert('Escribe el nombre del árbitro');
+  if((db.config.arbitros||[]).some(x=>norm(x)===norm(n))) return alert('Ese árbitro ya está en la lista');
+  db.config.arbitros=[...(db.config.arbitros||[]),n];
+  save(); renderAjustes();
+}
+function quitarArbitro(n){
+  if(!confirm(`¿Quitar a ${n} de la lista?`)) return;
+  db.config.arbitros=db.config.arbitros.filter(x=>x!==n);
+  save(); renderAjustes();
+}
 function renderAjustes(){
+  const roles=db.config.roles||{};
   $('#ajustes').innerHTML=`
-    <form id="aj-form" class="card">
+    <div class="card">
       <h3>Montos</h3>
-      <label>Inscripción (por equipo)<input name="inscripcion" type="number" min="0" value="${Number(db.config.inscripcion)||0}"></label>
-      <label>Arbitraje (por equipo y por juego)<input name="arbitraje" type="number" min="0" value="${Number(db.config.arbitraje)||0}"></label>
-      <label>Total de juegos del torneo<input name="totalJuegos" type="number" min="1" value="${Number(db.config.totalJuegos)||15}"></label>
-      <h3>Sugerencias al registrar pagos</h3>
-      <label>Personas que reciben (separadas por coma)<input name="recibieron" autocomplete="off" value="${esc(db.config.recibieron.join(', '))}"></label>
-      <label>Pago por juego a cada árbitro<input name="pagoArbitro" type="number" min="0" value="${Number(db.config.pagoArbitro)||0}"></label>
-      <label>Árbitros (separados por coma)<input name="arbitros" autocomplete="off" value="${esc(db.config.arbitros.join(', '))}"></label>
-      <label>Cuentas (separadas por coma)<input name="cuentas" autocomplete="off" value="${esc(db.config.cuentas.join(', '))}"></label>
-      <div class="actions"><button class="btn primary">Guardar ajustes</button></div>
-    </form>
+      <div class="mrow">
+        ${tarjetaMonto('inscripcion','Inscripción',Number(db.config.inscripcion)||0,money)}
+        ${tarjetaMonto('arbitraje','Arbitraje por equipo y juego',Number(db.config.arbitraje)||0,money)}
+        ${tarjetaMonto('totalJuegos','Juegos del torneo',Number(db.config.totalJuegos)||15,v=>v)}
+        ${tarjetaMonto('pagoArbitro','Pago por juego al árbitro',Number(db.config.pagoArbitro)||0,money)}
+      </div>
+    </div>
+    <div class="card">
+      <h3>Equipo</h3>
+      <ul class="plist">${db.config.recibieron.map(n=>`<li><span><b>${esc(n)}</b><br><small class="muted">${esc(roles[n]||'Sin rol')}</small></span><button class="btn danger sm" data-act="quitarp" data-n="${esc(n)}">Quitar</button></li>`).join('')||'<li class="muted">Sin personas.</li>'}</ul>
+      <div class="addrow"><input id="np-n" autocomplete="off" placeholder="Nombre"><input id="np-r" autocomplete="off" placeholder="Rol (ej. Director general)"></div>
+      <div class="actions" style="justify-content:flex-start;margin-top:0"><button class="btn primary sm" data-act="addp">+ Agregar a la lista</button></div>
+    </div>
+    <div class="card">
+      <h3>Árbitros</h3>
+      <ul class="plist">${(db.config.arbitros||[]).map(a=>`<li><span><b>${esc(a)}</b></span><button class="btn danger sm" data-act="quitarb" data-n="${esc(a)}">Quitar</button></li>`).join('')||'<li class="muted">Aún no hay árbitros.</li>'}</ul>
+      <div class="addrow"><input id="na-n" autocomplete="off" placeholder="Nombre del árbitro"></div>
+      <div class="actions" style="justify-content:flex-start;margin-top:0"><button class="btn primary sm" data-act="addarb">+ Agregar árbitro</button></div>
+    </div>
     <div class="card">
       <h3>Respaldo</h3>
       <p class="muted">Los datos se guardan en este navegador. Exporta un respaldo para no perderlos o llevarlos a otra computadora.</p>
@@ -833,19 +891,6 @@ function renderAjustes(){
         <input type="file" id="imp" accept="application/json,.json">
       </div>
     </div>`;
-  $('#aj-form').onsubmit=e=>{
-    e.preventDefault();
-    const fd=new FormData(e.target);
-    const list=s=>String(s||'').split(',').map(x=>x.trim()).filter(Boolean);
-    db.config.inscripcion=Math.max(0,Number(fd.get('inscripcion'))||0);
-    db.config.arbitraje=Math.max(0,Number(fd.get('arbitraje'))||0);
-    db.config.totalJuegos=Math.max(1,Number(fd.get('totalJuegos'))||15);
-    db.config.recibieron=list(fd.get('recibieron'));
-    db.config.arbitros=list(fd.get('arbitros'));
-    db.config.pagoArbitro=Math.max(0,Number(fd.get('pagoArbitro'))||0);
-    db.config.cuentas=list(fd.get('cuentas'));
-    save(); renderAll(); alert('Ajustes guardados');
-  };
   $('#imp').onchange=e=>{
     const file=e.target.files[0]; if(!file) return;
     if(!confirm('Esto reemplaza los datos actuales de este navegador. ¿Continuar?')){e.target.value='';return;}
@@ -919,6 +964,13 @@ document.addEventListener('click',e=>{
     case 'pickresult': pickResult(d.team); break;
     case 'addteam': q.value=''; $('#results').classList.remove('show'); openTeam(null,d.name); break;
     case 'export': exportDb(); break;
+    case 'ajedit': ajEdit=d.k; renderAjustes(); break;
+    case 'ajcancel': ajEdit=null; renderAjustes(); break;
+    case 'ajsave': ajSave(d.k); break;
+    case 'addp': addPersona(); break;
+    case 'quitarp': quitarPersona(d.n); break;
+    case 'addarb': addArbitro(); break;
+    case 'quitarb': quitarArbitro(d.n); break;
     case 'filtro': filtroPagos={...filtroPagos,modo:d.modo}; renderPagos(); break;
   }
 });
