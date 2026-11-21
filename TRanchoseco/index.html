@@ -666,6 +666,10 @@ function openAssign(f,pre){
     const a=fd.get('a'), b=fd.get('b');
     if(!a||!b){$('#as-err').textContent='Elige los dos equipos de la lista.';return;}
     if(a===b){$('#as-err').textContent='Elige dos equipos distintos.';return;}
+    // Un equipo no puede jugar en dos canchas al mismo tiempo
+    const enOtraCancha=(tid)=>{const mm=db.matches.find(x=>x.activo&&x.field!==f&&(x.a===tid||x.b===tid));return mm?mm.field:null;};
+    const ca=enOtraCancha(a), cb=enOtraCancha(b);
+    if(ca||cb){$('#as-err').textContent=`${teamName(ca?a:b)} ya está jugando en la cancha ${ca||cb}. Primero quítalo de esa cancha.`;return;}
     db.matches.forEach(m=>{if(m.field===f&&m.activo)m.activo=false;});
     const arb=(String(fd.get('arbitro')||'')||($('#ar-q')?.value||'')).trim();
     if(arb&&!(db.config.arbitros||[]).some(x=>norm(x)===norm(arb))) db.config.arbitros.push(arb);
