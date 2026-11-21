@@ -93,6 +93,8 @@
     '#tablero .wrap{max-width:1240px;margin:0 auto;padding:28px 24px 90px;}' +
     '#tablero header{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:22px;}' +
     '#tablero .marca{font-family:"Bebas Neue",sans-serif;font-size:38px;letter-spacing:.04em;line-height:1;}' +
+    // Nombre del negocio (del ADN) junto a HUB DE JEFES, misma letra, en verde oliva (el lima no se lee sobre fondo claro).
+    '#tablero .marca-cliente{color:var(--oliva);margin-left:.15em;}#tablero .marca-cliente:empty{display:none;}' +
     '#tablero h1{font-family:"Inter Tight",sans-serif;font-weight:900;font-size:clamp(28px,4vw,44px);letter-spacing:-.035em;margin:6px 0 0;line-height:1.05;}' +
     '#tablero .resalta{background:var(--lima);padding:0 .18em;border-radius:4px;}' +
     '#tablero .fecha{font-size:14px;color:var(--gris-texto);font-weight:600;margin-top:10px;}' +
@@ -192,7 +194,7 @@
     var raiz = document.createElement('main');
     raiz.id = 'tablero';
     raiz.innerHTML = '<div class="wrap">' +
-      '<header><div><div class="marca">HUB DE JEFES</div><h1>Tu equipo, <span class="resalta">listo para hoy</span></h1>' +
+      '<header><div><div class="marca">HUB DE JEFES <span class="marca-cliente" id="tbMarca"></span></div><h1>Tu equipo, <span class="resalta">listo para hoy</span></h1>' +
       '<div class="fecha" id="tbFecha"></div></div>' +
       '<button type="button" class="mapa-mini" id="tbMapaMini" aria-label="Ver el mapa con todos tus Jefes"><span>Ver todos tus Jefes ›</span></button></header>' +
       '<div class="grid">' +
@@ -363,6 +365,7 @@
     Promise.all(ADN_SECCIONES.map(function (s) { return leer('brand-book.' + s[0]); })).then(function (vals) {
       var secc = {}; ADN_SECCIONES.forEach(function (s, i) { secc[s[0]] = vals[i]; });
       var a = avanceADN(secc), nombre = vals[0] && vals[0].nombre ? vals[0].nombre : 'Tu negocio';
+      if (vals[0] && vals[0].nombre) document.getElementById('tbMarca').textContent = vals[0].nombre;
       document.getElementById('tbADN').innerHTML =
         '<div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start"><div><div class="etiqueta">ADN del negocio</div><div class="neg-nombre">' + esc(nombre) + '</div></div><span class="chip">' + a.pct + '%</span></div>' +
         '<div class="w-que">Lo que tus Jefes saben de ti</div><div class="barra"><i style="width:' + a.pct + '%"></i></div>' +
