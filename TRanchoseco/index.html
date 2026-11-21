@@ -481,7 +481,7 @@ function renderFields(){
   for(let f=4;f>=1;f--){
     const m=activeMatch(f);
     h+=`<section class="fwrap">
-      <div class="fhead"><span>Cancha ${f}</span>${m?`<div class="fcenter"><button class="arbchip" data-act="assign" data-field="${f}" title="Cambiar árbitro o partido">${m.arbitro?arbHTML(m.arbitro):'Sin árbitro'}</button><button class="whistle" data-act="terminar" data-match="${m.id}" title="Terminar partido" aria-label="Terminar partido">${SILBATO}</button></div><span></span>`:`<span></span><span></span>`}</div>
+      <div class="fhead"><span>Cancha ${f}</span>${m?`<div class="fcenter"><button class="arbchip" data-act="assign" data-field="${f}" title="Cambiar árbitro o partido">${m.arbitro?arbNombreHTML(m.arbitro):'Sin árbitro'}</button><button class="whistle" data-act="terminar" data-match="${m.id}" title="Terminar partido" aria-label="Terminar partido">${SILBATO}</button></div><span></span>`:`<span></span><span></span>`}</div>
       <div class="field"><span class="circle"></span>`;
     if(m){
       h+=`<div class="row">
@@ -704,8 +704,8 @@ function activarArbitro(){
     // Árbitros que ya están pitando otra cancha: salen en verde y no se pueden elegir
     const pitando=(a)=>db.matches.find(x=>x.activo&&x.field!==asignandoField&&x.arbitro===a);
     list.innerHTML=(hits.length?`<div class="reslist">${hits.map(a=>{const pc=pitando(a);return pc
-      ?`<button type="button" class="arbocup" disabled><b>${arbHTML(a)}</b><br><small>Ya está pitando la cancha ${pc.field}</small></button>`
-      :`<button type="button" data-act="ar-pick" data-n="${esc(a)}"><b>${arbHTML(a)}</b></button>`;}).join('')}</div>`:'')
+      ?`<button type="button" class="arbocup" disabled><b>${arbNombreHTML(a)}</b><br><small>Ya está pitando la cancha ${pc.field}</small></button>`
+      :`<button type="button" data-act="ar-pick" data-n="${esc(a)}"><b>${arbNombreHTML(a)}</b></button>`;}).join('')}</div>`:'')
       +(toks.length&&!hits.length?`<div class="reslist"><button type="button" class="addteam" data-act="ar-nuevo" data-n="${esc(q.value.trim())}">+ Agregar árbitro</button></div>`:'');
   };
   q.addEventListener('input',()=>{val.value='';pintar();});
@@ -727,7 +727,7 @@ function openAssign(f,pre){
     ${buscadorEquipo('a','Equipo 1',pre?pre.a:(cur?cur.a:''))}
     <div class="vs-grande">VS</div>
     ${buscadorEquipo('b','Equipo 2',pre?pre.b:(cur?cur.b:''))}
-    ${cur?.arbitro?`<p class="muted" style="margin:0 0 10px">Lo pita: <b style="color:#111">${arbHTML(cur.arbitro)}</b></p><input type="hidden" name="arbitro" id="ar-val" value="${esc(cur.arbitro)}">`:buscadorArbitro('')}
+    ${cur?.arbitro?`<p class="muted" style="margin:0 0 10px">Lo pita: <b style="color:#111">${arbNombreHTML(cur.arbitro)}</b></p><input type="hidden" name="arbitro" id="ar-val" value="${esc(cur.arbitro)}">`:buscadorArbitro('')}
     <p id="as-err" class="pend"></p>
     <div class="actions">
       ${cur?`<button type="button" class="btn danger" data-act="unassign" data-field="${f}">Quitar partido</button>`:''}
@@ -1036,7 +1036,7 @@ function openTerminar(mid){
     <div class="marcador"><b class="${(m.sa||0)>(m.sb||0)?'ganador':''}">${teamLink(m.a)}</b><span>${m.sa||0} – ${m.sb||0}</span><b class="${(m.sb||0)>(m.sa||0)?'ganador':''}">${teamLink(m.b)}</b></div>
     <div class="adeudos">${adeudoHTML(m.a)}${adeudoHTML(m.b)}</div>
     ${yaArb
-      ?`<p class="muted" style="margin:0 0 10px">Lo pita: <b style="color:#111">${arbHTML(m.arbitro)}</b></p><input type="hidden" name="arbitro" id="tp-val" value="${esc(m.arbitro)}">`
+      ?`<p class="muted" style="margin:0 0 10px">Lo pita: <b style="color:#111">${arbNombreHTML(m.arbitro)}</b></p><input type="hidden" name="arbitro" id="tp-val" value="${esc(m.arbitro)}">`
       :`<label>Árbitro<input id="tp-q" autocomplete="off" placeholder="Escribe el nombre del árbitro"></label>
         <div class="sugs" id="tp-list"></div>
         <input type="hidden" name="arbitro" id="tp-val" value="">`}
@@ -1052,7 +1052,7 @@ function openTerminar(mid){
       const toks=norm(q.value.trim()).split(/\s+/).filter(Boolean);
       // Solo aparecen los árbitros que coinciden con lo que se escribe: se elige uno
       const hits=toks.length?(db.config.arbitros||[]).filter(a=>toks.every(k=>norm(a+' '+arbNom(a)).includes(k))):[];
-      list.innerHTML=hits.map(a=>`<button type="button" class="sug" data-act="tp-pick" data-n="${esc(a)}">${arbHTML(a)}</button>`).join('')
+      list.innerHTML=hits.map(a=>`<button type="button" class="sug" data-act="tp-pick" data-n="${esc(a)}">${arbNombreHTML(a)}</button>`).join('')
         +(toks.length&&!hits.length?`<button type="button" class="sug nuevo" data-act="tp-nuevo" data-n="${esc(q.value.trim())}">+ Agregar árbitro</button>`:'');
     };
     q.addEventListener('input',()=>{val.value='';pintar();});
@@ -1081,7 +1081,7 @@ function partidosTerminadosHTML(){
     ${ts.length?ts.map(m=>`<tr><td>${m.field}</td>
       <td>${teamLink(m.a)} vs ${teamLink(m.b)}</td>
       <td>${m.resultado?m.resultado.a:0} – ${m.resultado?m.resultado.b:0}</td>
-      <td>${m.arbitro?arbHTML(m.arbitro):'—'}</td></tr>`).join(''):'<tr><td colspan="5" class="muted">Aún no hay partidos terminados</td></tr>'}
+      <td>${m.arbitro?arbNombreHTML(m.arbitro):'—'}</td></tr>`).join(''):'<tr><td colspan="5" class="muted">Aún no hay partidos terminados</td></tr>'}
   </table></div>`;
 }
 function deletePayment(id,teamId,matchId){
@@ -1118,7 +1118,7 @@ function dashboardHTML(pagosF,totIns,totArb,pend){
   const arbEntries=Object.entries(arbs).sort((a,b)=>b[1]-a[1]);
   const maxA=Math.max(1,...arbEntries.map(([n,c])=>c*pagoA));
   const arbHTML=arbEntries.length
-    ?`<div class="barras">${arbEntries.map(([n,c])=>{const v=c*pagoA;const h=Math.max(8,Math.round(v/maxA*140));return `<div class="barcol"><small>${money(v)}</small><div class="bar" style="height:${h}px"></div><b>${arbHTML(n)}</b><small class="muted">${c} juego${c===1?'':'s'}</small></div>`;}).join('')}</div>`
+    ?`<div class="barras">${arbEntries.map(([n,c])=>{const v=c*pagoA;const h=Math.max(8,Math.round(v/maxA*140));return `<div class="barcol"><small>${money(v)}</small><div class="bar" style="height:${h}px"></div><b>${arbNombreHTML(n)}</b><small class="muted">${c} juego${c===1?'':'s'}</small></div>`;}).join('')}</div>`
     :'<p class="muted">Aún no hay juegos arbitrados.</p>';
   // Juegos del periodo elegido (Hoy, Ayer, etc.)
   const jd=db.matches.filter(m=>enRango(diaLocal(m.creado)));
@@ -1253,7 +1253,7 @@ function resultadoBusqueda(){
   });
   (db.config.arbitros||[]).filter(a=>hit(a)||hit(arbNom(a))).forEach(a=>{
     const ms=db.matches.filter(m=>m.terminado&&m.arbitro===a);
-    h+=`<div class="bres"><h4>${arbHTML(a)} · árbitro</h4><p>Juegos arbitrados: <b>${ms.length}</b></p><p>Le deben: <b>${money(ms.length*(Number(db.config.pagoArbitro)||0))}</b></p></div>`;
+    h+=`<div class="bres"><h4>${arbNombreHTML(a)} · árbitro</h4><p>Juegos arbitrados: <b>${ms.length}</b></p><p>Le deben: <b>${money(ms.length*(Number(db.config.pagoArbitro)||0))}</b></p></div>`;
   });
   db.teams.filter(t=>hit(t.name)).forEach(t=>{
     const b=balance(t.id); const d=b.insPend+b.arbPend;
@@ -1505,7 +1505,7 @@ function quitarPersona(n){
 // Nombre que se muestra del árbitro: su apodo si tiene, si no el nombre completo
 function arbNom(a){return ((db&&db.config&&db.config.apodos)||{})[a]||a;}
 // Nombre completo y, al lado, su apodo entre paréntesis si lo tiene
-function arbHTML(a){const ap=((db&&db.config&&db.config.apodos)||{})[a];return esc(a)+(ap?` <small class="muted">(${esc(ap)})</small>`:'');}
+function arbNombreHTML(a){const ap=((db&&db.config&&db.config.apodos)||{})[a];return esc(a)+(ap?` <small class="muted">(${esc(ap)})</small>`:'');}
 function editApodo(n){
   openModal(`<form id="ap-form"><h3>Apodo de ${esc(n)}</h3><label>Apodo<input id="ap-v" autocomplete="off" value="${esc((db.config.apodos||{})[n]||'')}" placeholder="Ej. OSO"></label><div class="actions"><button type="button" class="btn ghost" data-act="close">Cancelar</button><button class="btn primary">Guardar</button></div></form>`);
   $('#ap-form').onsubmit=e=>{
@@ -1548,7 +1548,7 @@ function renderAjustes(){
     </div>
     <div class="card">
       <h3>Árbitros</h3>
-      <ul class="plist">${(db.config.arbitros||[]).map(a=>`<li><span><b>${arbHTML(a)}</b></span><span><button class="btn ghost sm" data-act="editapodo" data-n="${esc(a)}">Apodo</button> <button class="btn danger sm" data-act="quitarb" data-n="${esc(a)}">Quitar</button></span></li>`).join('')||'<li class="muted">Aún no hay árbitros.</li>'}</ul>
+      <ul class="plist">${(db.config.arbitros||[]).map(a=>`<li><span><b>${arbNombreHTML(a)}</b></span><span><button class="btn ghost sm" data-act="editapodo" data-n="${esc(a)}">Apodo</button> <button class="btn danger sm" data-act="quitarb" data-n="${esc(a)}">Quitar</button></span></li>`).join('')||'<li class="muted">Aún no hay árbitros.</li>'}</ul>
       <div class="addrow"><input id="na-n" autocomplete="off" placeholder="Nombre del árbitro"></div>
       <div class="actions" style="justify-content:flex-start;margin-top:0"><button class="btn primary sm" data-act="addarb">+ Agregar árbitro</button></div>
     </div>
