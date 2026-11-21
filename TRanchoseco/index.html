@@ -431,7 +431,7 @@ function renderResultados(){
     const saldo=(tid)=>{const b=balance(tid);const d=b.insPend+b.arbPend;return d?`<span class="pend">Debe ${money(d)}</span>`:'<span class="ok">Al corriente</span>';};
     return `<div class="res-row"><div class="cnum-circ">${m.field}</div><div class="card res-card">
       <div class="res-m"><b class="${ga?'ganador':''}">${teamLink(m.a)}</b><span class="res-s">${r.a} – ${r.b}</span><b class="${gb?'ganador':''}">${teamLink(m.b)}</b></div>
-      <div class="res-sal"><small>${teamLink(m.a)}: ${saldo(m.a)}</small><small>${teamLink(m.b)}: ${saldo(m.b)}</small></div>
+      <div class="res-sal"><small>${saldo(m.a)}</small><small>${saldo(m.b)}</small></div>
     </div></div>`;
   };
   $('#resultados-list').innerHTML=claves.map(k=>{
@@ -1447,15 +1447,15 @@ function deleteTeam(id){
   db.teams=db.teams.filter(x=>x.id!==id);
   save(); renderAll();
 }
-function renderTeams(){
-  // Orden alfabético por nombre del equipo
-  const ordenados=[...db.teams].sort((a,b)=>a.name.localeCompare(b.name,'es',{sensitivity:'base'}));
-  $('#teams-list').innerHTML=db.teams.length?ordenados.map(t=>`<div class="card team">
+function renderTeams(filtro=''){
+  // Orden alfabético por nombre; con búsqueda solo salen los que coinciden
+  const term=norm(String(filtro).trim());
+  const ordenados=[...db.teams]
+    .filter(t=>!term||norm(t.name).includes(term)||t.players.some(p=>norm(p).includes(term)))
+    .sort((a,b)=>a.name.localeCompare(b.name,'es',{sensitivity:'base'}));
+  $('#teams-list').innerHTML=ordenados.length?ordenados.map(t=>`<div class="card team" data-act="editteam" data-id="${t.id}" style="cursor:pointer">
     <div><b>${teamLink(t.id)}</b><br><small class="muted">Líder (paga): ${esc(t.lider||'—')}</small><br><small class="muted">${t.players.length} jugador${t.players.length===1?'':'es'}${t.players.length?': '+esc(t.players.join(', ')):''}</small></div>
-    <div class="actions" style="margin-top:0">
-      <button class="btn ghost sm" data-act="editteam" data-id="${t.id}">Editar</button>
-      <button class="btn danger sm" data-act="delteam" data-id="${t.id}">Borrar</button>
-    </div></div>`).join(''):'<p class="muted">Aún no hay equipos. Agrega el primero.</p>';
+    </div>`).join(''):(db.teams.length?'<p class="muted">Ningún equipo coincide con la búsqueda.</p>':'<p class="muted">Aún no hay equipos. Agrega el primero.</p>');
 }
 
 /* ---------- Ajustes ---------- */
@@ -1552,6 +1552,7 @@ function exportDb(){
 const q=$('#q');
 function renderResults(){
   const box=$('#results');
+  if(document.querySelector('.tab.on')?.dataset.tab==='equipos'){box.classList.remove('show');box.innerHTML='';renderTeams(q.value);return;}
   const term=norm(q.value.trim());
   if(!term){box.classList.remove('show');box.innerHTML='';return;}
   const hits=[];
