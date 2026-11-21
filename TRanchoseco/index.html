@@ -985,7 +985,6 @@ function openTeam(id,presetName='',desdeBusqueda=false,jugador=null){
   draft={id:t?t.id:null,name:t?t.name:cap(presetName),players:t?[...t.players]:(jugador?[cap(jugador)]:[]),lider:t?t.lider:(jugador?cap(jugador):null),desdeBusqueda,tel:{...(t?.telefonos||{})}};
   openModal(`<form id="tm-form" onsubmit="return false">
     <h3>${t?'Editar equipo':'Nuevo equipo'}</h3>
-    ${desdeBusqueda?'<p class="muted">Antes de agregarlo, revisa la lista de equipos. Si ya existe, cancela y úsalo.</p>':''}
     <label>Nombre del equipo<input id="tm-name" autocomplete="off" value="${esc(draft.name)}"></label>
     ${desdeBusqueda?'<label class="chk"><input type="checkbox" id="tm-noexiste"> Confirmo que revisé la lista y ningún equipo es este</label>':''}
     <label class="chk" id="tm-otro-l" style="display:none"><input type="checkbox" id="tm-otro"> Confirmo que es otro equipo, distinto a los parecidos</label>
@@ -1004,6 +1003,11 @@ function openTeam(id,presetName='',desdeBusqueda=false,jugador=null){
       <button type="button" class="btn primary" data-act="saveteam">Guardar equipo</button>
     </div>
   </form>`);
+  // Teléfono: 10 dígitos con formato 3-3-4 (844 525 6354)
+  $('#tm-tel').addEventListener('input',e=>{
+    const d=e.target.value.replace(/\D/g,'').slice(0,10);
+    e.target.value=[d.slice(0,3),d.slice(3,6),d.slice(6)].filter(Boolean).join(' ');
+  });
   $('#tm-name').addEventListener('input',()=>{
     const sim=similares($('#tm-name').value.trim());
     $('#tm-err').textContent=sim.length?`Ya existe o se parece a: ${sim.map(x=>x.name).join(', ')}. Búscalo antes de registrarlo.`:'';
@@ -1026,7 +1030,7 @@ function addPlayerDraft(){
   if(!name) return;
   if(draft.players.some(p=>norm(p)===norm(name))){$('#tm-err').textContent='Ese jugador ya está en la lista.';return;}
   const tel=($('#tm-tel').value||'').replace(/\D/g,'');
-  if(tel&&!/^\d{10}$/.test(tel)){$('#tm-err').textContent='El teléfono debe tener 10 dígitos (o déjalo vacío).';return;}
+  if(tel&&!/^\d{10}$/.test(tel)){$('#tm-err').textContent='El teléfono debe tener 10 números.';return;}
   draft.tel[name]=tel;
   draft.players.push(name);
   if(!draft.lider) draft.lider=name;
@@ -1041,7 +1045,12 @@ function saveDraft(){
     return;
   }
   if(draft.desdeBusqueda&&!$('#tm-noexiste')?.checked){$('#tm-err').textContent='Marca la casilla: confirma que revisaste la lista y ningún equipo es este.';return;}
-  if(!draft.players.length){$('#tm-err').textContent='Agrega al menos un jugador (el líder).';return;}
+  // Si ya escribieron nombre y teléfono del líder, se agrega solo
+  if(!draft.players.length){
+    if(!$('#tm-pl').value.trim()){$('#tm-err').textContent='Escribe el nombre y el teléfono del líder.';return;}
+    addPlayerDraft();
+    if(!draft.players.length) return;
+  }
   if(!draft.players.some(p=>/^\d{10}$/.test(draft.tel[p]||''))){$('#tm-err').textContent='Agrega el teléfono de al menos una persona del equipo.';return;}
   const sim=similares(name);
   if(sim.length&&!$('#tm-otro')?.checked){
