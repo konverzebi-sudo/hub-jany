@@ -697,7 +697,9 @@ function openPay(teamId,matchId){
     ${pays.length?`<ul class="plist">${pays.map(p=>`<li>
       <span>${esc(p.fecha)} · ${p.tipo==='inscripcion'?'Inscripción':'Arbitraje'} · <b>${money(p.monto)}</b><br>
       <small>${esc(p.recibio)} · ${p.metodo==='transferencia'?'Transferencia':'Efectivo'}${p.cuenta?' · '+esc(p.cuenta):''}${p.nota?' · '+esc(p.nota):''}</small></span>
-      <button type="button" class="btn danger sm" data-act="delpay" data-id="${p.id}" data-team="${teamId}" data-match="${matchId||''}">Borrar</button>
+      ${p.fecha===today()
+        ?`<button type="button" class="btn danger sm" data-act="delpay" data-id="${p.id}" data-team="${teamId}" data-match="${matchId||''}">Borrar</button>`
+        :'<small class="muted">Solo se puede borrar el mismo día</small>'}
     </li>`).join('')}</ul>`:'<p class="muted">Aún no hay pagos.</p>'}
   </form>`);
   // Quién recibe: cuadros (uno solo seleccionado)
@@ -821,6 +823,8 @@ function partidosTerminadosHTML(){
   </table></div>`;
 }
 function deletePayment(id,teamId,matchId){
+  const pg=db.payments.find(x=>x.id===id);
+  if(!pg||pg.fecha!==today()){alert('Solo se pueden borrar pagos del mismo día.');return;}
   if(!confirm('¿Borrar este pago?')) return;
   db.payments=db.payments.filter(p=>p.id!==id);
   save(); renderAll();
