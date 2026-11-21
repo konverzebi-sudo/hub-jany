@@ -686,35 +686,32 @@ function openPay(teamId,matchId){
 const SILBATO='<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2 9h12l5-4v14l-5-4H2z"/><circle cx="19" cy="12" r="1.8"/></svg>';
 function openTerminar(mid){
   const m=matchById(mid); if(!m) return;
-  const arbs=db.config.arbitros||[];
   openModal(`<form id="tp-form">
     <h3>Terminar partido · Cancha ${m.field}</h3>
     <div class="marcador"><b>${esc(teamName(m.a))}</b><span>${m.sa||0} – ${m.sb||0}</span><b>${esc(teamName(m.b))}</b></div>
-    <label>Árbitro
-      <select name="arbitro" id="tp-arb">
-        ${arbs.map(a=>`<option value="${esc(a)}">${esc(a)}</option>`).join('')}
-        <option value="__nuevo__">+ Agregar árbitro nuevo</option>
-      </select>
-    </label>
-    <label id="tp-nuevo-l" style="display:none">Nombre del árbitro nuevo<input name="nuevo" autocomplete="off"></label>
+    <label>Árbitro<input id="tp-q" autocomplete="off" placeholder="Escribe el nombre del árbitro" value="${esc(m.arbitro||'')}"></label>
+    <div class="sugs" id="tp-list"></div>
+    <input type="hidden" name="arbitro" id="tp-val" value="${esc(m.arbitro||'')}">
     <p id="tp-err" class="pend"></p>
     <div class="actions">
       <button type="button" class="btn ghost" data-act="close">Cancelar</button>
       <button class="btn primary">Terminar partido</button>
     </div>
   </form>`);
-  const sel=$('#tp-arb'), nl=$('#tp-nuevo-l');
-  const toggle=()=>{nl.style.display=sel.value==='__nuevo__'?'block':'none';};
-  sel.onchange=toggle;
-  if(m.arbitro&&arbs.includes(m.arbitro)) sel.value=m.arbitro;
-  if(!arbs.length) sel.value='__nuevo__';
-  toggle();
+  const q=$('#tp-q'), list=$('#tp-list'), val=$('#tp-val');
+  const pintar=()=>{
+    const toks=norm(q.value.trim()).split(/\s+/).filter(Boolean);
+    const hits=(db.config.arbitros||[]).filter(a=>toks.every(k=>norm(a).includes(k)));
+    list.innerHTML=hits.map(a=>`<button type="button" class="sug" data-act="tp-pick" data-n="${esc(a)}">${esc(a)}</button>`).join('')
+      +(toks.length&&!hits.length?`<button type="button" class="sug nuevo" data-act="tp-nuevo" data-n="${esc(q.value.trim())}">+ Agregar árbitro</button>`:'');
+  };
+  q.addEventListener('input',()=>{val.value='';pintar();});
+  pintar();
   $('#tp-form').onsubmit=e=>{
     e.preventDefault();
     const fd=new FormData(e.target);
-    let arb=String(fd.get('arbitro')||'');
-    if(arb==='__nuevo__') arb=String(fd.get('nuevo')||'').trim();
-    if(!arb){$('#tp-err').textContent='Elige o escribe el árbitro.';return;}
+    const arb=String(fd.get('arbitro')||'').trim();
+    if(!arb){$('#tp-err').textContent='Elige o agrega el árbitro de la lista.';return;}
     if(!db.config.arbitros.some(a=>norm(a)===norm(arb))) db.config.arbitros.push(arb);
     m.terminado=true;
     // Cada equipo avanza al siguiente juego al terminar su partido
@@ -1156,6 +1153,8 @@ document.addEventListener('click',e=>{
     case 'delteam': deleteTeam(d.id); break;
     case 'delpay': deletePayment(d.id,d.team,d.match||null); break;
     case 'close': closeModal(); break;
+    case 'tp-pick': $('#tp-val').value=d.n; $('#tp-q').value=d.n; $('#tp-list').innerHTML=''; break;
+    case 'tp-nuevo': $('#tp-val').value=cap(d.n.trim()); $('#tp-q').value=cap(d.n.trim()); $('#tp-list').innerHTML=''; break;
     case 'terminar': openTerminar(d.match); break;
     case 'addplayer': addPlayerDraft(); break;
     case 'lider': draft.lider=draft.players[+d.i]; renderDraft(); break;
