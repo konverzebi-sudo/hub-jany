@@ -1541,14 +1541,19 @@ function pintarDinamica(a, num, cont) {
     const campo = a.config.corta
       ? `<input type="text" maxlength="${a.config.max || 280}" placeholder="${esc(a.config.placeholder || 'Escribe tu respuesta')}" value="${esc(r?.datos?.texto || '')}" ${bloqueada ? 'disabled' : ''}>`
       : `<textarea maxlength="${a.config.max || 1500}" placeholder="${esc(a.config.placeholder || 'Escribe tu respuesta')}" ${bloqueada ? 'disabled' : ''}>${esc(r?.datos?.texto || '')}</textarea>`;
+    const conNegocio = !!(r?.datos?.usuario);
     const extraMural = a.config.mural ? `<div class="mural-form">
-        <p class="small mural-prev">Así aparecerá en el mural: <b data-prev-t>${esc(r?.datos?.texto || 'tu negocio')}</b> <span data-prev-u>${esc(arroba(S.perfil?.nombre))}</span></p></div>` : '';
+        <p class="small mural-prev">Así aparecerá en el mural: <b data-prev-t>${esc(r?.datos?.texto || 'tu negocio')}</b> <span data-prev-u>${esc(arroba(S.perfil?.nombre, conNegocio ? r.datos.usuario : ''))}</span></p>
+        <div class="mural-quien"><span class="small">Postear con:</span>
+          <label class="small"><input type="radio" name="quien-${a.id}" value="nombre" ${conNegocio ? '' : 'checked'}> Mi nombre</label>
+          <label class="small"><input type="radio" name="quien-${a.id}" value="negocio" ${conNegocio ? 'checked' : ''}> El @ de mi negocio</label>
+          <input type="text" name="usuario" maxlength="30" placeholder="@mi_negocio" value="${esc(r?.datos?.usuario || '')}" style="${conNegocio ? '' : 'display:none'}"></div></div>` : '';
     const mult = multiDe(a), mias = textosDe(r?.datos);
     if (mult) cuerpo = `<div class="card"><p class="muted" style="margin-bottom:12px">${esc(a.config.instruccion || '')}</p>
       ${mias.length ? `<div class="mis-tareas"><b class="small">Tus tareas (${mias.length} de ${mult})</b>${mias.map((t, i) => `<div class="mi-tarea"><span>${esc(t)}</span><button type="button" data-quitar-tarea="${i}" title="Quitar">✕</button></div>`).join('')}</div>` : ''}
       ${mias.length < mult ? `<form><textarea maxlength="${a.config.max || 1500}" placeholder="${esc(mias.length ? 'Escribe otra tarea que delegarías' : (a.config.placeholder || 'Escribe tu respuesta'))}"></textarea><div class="din-enviar"><button class="btn">${mias.length ? '➕ AGREGAR OTRA TAREA' : esc(a.config.boton || 'ENVIAR')}</button></div></form>` : `<div class="ok-msg" style="margin-top:12px">Ya agregaste ${mult} tareas. Puedes quitar alguna para cambiarla.</div>`}
       ${mias.length ? `<div class="ok-msg" style="margin-top:14px">✅ Cada tarea aparece en la pantalla del grupo, sin tu nombre.</div>` : ''}<div data-extra></div></div>`;
-    else cuerpo = `<div class="card"><p class="muted" style="margin-bottom:12px">${esc(a.config.instruccion || '')}</p>
+    else cuerpo = `<div class="card">${a.config.mural ? '' : `<p class="muted" style="margin-bottom:12px">${esc(a.config.instruccion || '')}</p>`}
       <form>${a.config.mural ? '<label class="small mural-lbl">Tu respuesta: ¿a qué se dedica tu negocio?</label>' : ''}${campo}${extraMural}<div class="din-enviar"><button class="btn">${esc(r ? 'GUARDAR CAMBIOS' : (a.config.boton || 'ENVIAR'))}</button></div></form>
       ${r ? `<div class="ok-msg" style="margin-top:14px">✅ Respuesta recibida. Puedes editarla mientras la actividad esté abierta.${a.config.publico === 'chat' ? ' Aparece en el chat del grupo con tu nombre.' : a.config.publico ? ' Aparece en la pantalla del grupo, sin tu nombre.' : a.config.compartir ? ' Solo yo la veo, a menos que decida compartirla (sin tu nombre).' : ''}</div>` : ''}<div data-extra></div></div>`;
   }
@@ -1557,8 +1562,10 @@ function pintarDinamica(a, num, cont) {
   cont.appendChild(li);
   if (a.config.mural) {
     const pt = li.querySelector('[data-prev-t]'), pu = li.querySelector('[data-prev-u]'), tx = li.querySelector('form input[type=text], form textarea'), us = li.querySelector('[name=usuario]');
-    const prev = () => { if (pt) pt.textContent = tx?.value.trim() || 'tu negocio'; if (pu) pu.textContent = arroba(S.perfil?.nombre, us?.value); };
+    const usaNeg = () => li.querySelector('input[name="quien-' + a.id + '"]:checked')?.value === 'negocio';
+    const prev = () => { if (pt) pt.textContent = tx?.value.trim() || 'tu negocio'; if (pu) pu.textContent = arroba(S.perfil?.nombre, usaNeg() ? us?.value : ''); };
     tx && tx.addEventListener('input', prev); us && us.addEventListener('input', prev);
+    li.querySelectorAll('input[name="quien-' + a.id + '"]').forEach(rd => rd.addEventListener('change', () => { if (us) us.style.display = usaNeg() ? '' : 'none'; prev(); }));
   }
   if (modoCat(a)) {
     li.querySelectorAll('[data-cat]').forEach(b => b.onclick = async () => {
@@ -1625,7 +1632,10 @@ function pintarDinamica(a, num, cont) {
         datos = { texto };
         if (multiDe(a)) { const textos = [...textosDe(r?.datos), texto].slice(0, multiDe(a)); datos = { textos, texto: textos.join(' · ') }; }
         if (a.config.mural) {
-          datos.usuario = ''; /* el @ sale del registro del participante (arroba del nombre), no se pide aquí */
+          const neg = li.querySelector('input[name="quien-' + a.id + '"]:checked')?.value === 'negocio';
+          const arr = (li.querySelector('[name=usuario]')?.value || '').trim();
+          if (neg && !arr) { const u = li.querySelector('[name=usuario]'); if (u) { u.style.display = ''; u.focus(); } return toast('Escribe el @ de tu negocio o elige Mi nombre'); }
+          datos.usuario = neg ? arr : '';
         }
       }
       const b = form.querySelector('button'); b.disabled = true;
