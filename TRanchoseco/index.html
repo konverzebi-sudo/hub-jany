@@ -114,6 +114,7 @@ input[type=file]{padding:6px;width:auto}
 .mcard small{display:block;color:var(--muted);font-size:12px;margin:4px 0 6px;line-height:1.2}
 .mcard input{padding:6px 4px;text-align:center;font-size:14px}
 .mcard .btn{padding:4px 8px;font-size:12px}
+.nomclick{cursor:pointer;border-bottom:1px dashed #9aa1b2;display:inline-block}
 .cchip{background:#fff;color:var(--yellow);-webkit-text-stroke:.4px #b89b00;border-radius:6px;padding:2px 8px;font-size:15px;font-weight:700;white-space:nowrap}
 .modal .rojo{color:#dc2626}
 .modal .dosc{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px}
@@ -413,8 +414,8 @@ function renderCoinc(n){
 function abrirChooser(nombre){
   chooserModo=null;
   openModal(`<div>
-    <h3>Nuevo registro</h3>
-    <label>Nombre (puedes corregirlo antes de registrarlo)<input id="ch-nombre" autocomplete="off" value="${esc(cap(nombre.trim()))}"></label>
+    <h3 id="ch-titulo" class="nomclick" data-act="editnombre" title="Toca para editar">${esc(cap(nombre.trim()))}</h3>
+    <input id="ch-nombre" autocomplete="off" style="display:none" value="${esc(cap(nombre.trim()))}">
     <div id="ch-coinc"></div>
     <p class="muted">¿Qué es este nombre?</p>
     <div class="cuadros" style="grid-template-columns:1fr 1fr">
@@ -431,6 +432,13 @@ function abrirChooser(nombre){
     renderCoinc(v);
     if(chooserModo==='jugador') chooserJugador(v);
     else if(chooserModo==='equipo') chooserEquipo(v);
+  });
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter') inp.blur();});
+  inp.addEventListener('blur',()=>{
+    inp.style.display='none';
+    const h=$('#ch-titulo');
+    h.textContent=nombreChooser()||'Nuevo registro';
+    h.style.display='';
   });
 }
 function nombreChooser(){return cap(($('#ch-nombre')?.value||'').trim());}
@@ -1079,6 +1087,7 @@ document.addEventListener('click',e=>{
     case 'saveteam': saveDraft(); break;
     case 'pickresult': pickResult(d.team); break;
     case 'addteam': q.value=''; $('#results').classList.remove('show'); abrirChooser(d.name); break;
+    case 'editnombre': $('#ch-titulo').style.display='none'; $('#ch-nombre').style.display='block'; $('#ch-nombre').focus(); break;
     case 'esjugador': chooserJugador(nombreChooser()); break;
     case 'esequipo': chooserEquipo(nombreChooser()); break;
     case 'pickteam': closeModal(); pickResult(d.team); break;
