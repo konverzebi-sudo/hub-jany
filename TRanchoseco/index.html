@@ -333,6 +333,9 @@ function openAssign(f){
     return;
   }
   const cur=activeMatch(f);
+  // Si no hay partido en la cancha, el número sugerido es el siguiente juego del torneo
+  const ultimo=Math.max(0,...db.matches.map(m=>Number(m.numero)||0));
+  const sugerido=cur?.numero||Math.min(db.config.totalJuegos,ultimo+1);
   openModal(`<form id="as-form">
     <h3>Cancha ${f}</h3>
     ${buscadorEquipo('a','Equipo de la izquierda',cur?cur.a:'')}
@@ -340,9 +343,9 @@ function openAssign(f){
     <div class="lbl">Número de juego</div>
     <div class="tiles" id="as-tiles">
       <button type="button" class="tile" disabled>I</button>
-      ${Array.from({length:db.config.totalJuegos},(_,i)=>i+1).map(n=>`<button type="button" class="tile${cur?.numero===n?' on':''}" data-tile="${n}">${n}</button>`).join('')}
+      ${Array.from({length:db.config.totalJuegos},(_,i)=>i+1).map(n=>`<button type="button" class="tile${n===sugerido?' on':''}" data-tile="${n}">${n}</button>`).join('')}
     </div>
-    <input type="hidden" name="numero" id="as-num" value="${cur?.numero||''}">
+    <input type="hidden" name="numero" id="as-num" value="${sugerido}">
     <p id="as-err" class="pend"></p>
     <div class="actions">
       ${cur?`<button type="button" class="btn danger" data-act="unassign" data-field="${f}">Quitar partido</button>`:''}
