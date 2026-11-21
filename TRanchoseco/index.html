@@ -452,12 +452,53 @@ function chooserEquipo(n){
 }
 function chooserJugador(n){
   chooserModo='jugador';
-  const {equipos,jugadores}=coincidencias(n);
-  const hay=equipos.length||jugadores.length;
-  $('#ch-body').innerHTML=hay
-    ?'<p class="muted">Ya existe con ese nombre. Si es el mismo jugador, búscalo. Si es otra persona, cambia el nombre.</p>'
-    :`<p class="muted">${esc(n)} será el líder del equipo que vas a registrar.</p>
-      <button type="button" class="sug nuevo" data-act="registrarjugador" data-n="${esc(n)}">Registrar su equipo</button>`;
+  draft=null;
+  $('#ch-body').innerHTML=`
+    <label>Busca su equipo<input id="cj-q" autocomplete="off" placeholder="Escribe el nombre del equipo"></label>
+    <div class="sugs" id="cj-list"></div>
+    <div id="cj-nuevo"></div>`;
+  const q=$('#cj-q');
+  const pintar=()=>{
+    const toks=norm(q.value.trim()).split(/\s+/).filter(Boolean);
+    const hits=toks.length?db.teams.filter(t=>toks.every(k=>norm(t.name).includes(k))):db.teams;
+    $('#cj-list').innerHTML=hits.map(t=>`<button type="button" class="sug" data-act="cj-pick" data-team="${t.id}">${esc(t.name)}</button>`).join('')
+      +(toks.length&&!hits.length?'<button type="button" class="sug nuevo" data-act="cj-nuevo">+ Agregar equipo</button>':'');
+  };
+  q.addEventListener('input',()=>{$('#cj-nuevo').innerHTML='';pintar();});
+  pintar();
+  q.focus();
+}
+// Equipo encontrado: el jugador se suma a ese equipo (sin pedir teléfono)
+function cjPick(tid){
+  const t=teamById(tid); if(!t) return;
+  const pl=nombreChooser();
+  if(!t.players.some(p=>norm(p)===norm(pl))){
+    t.players.push(pl);
+    if(!t.lider) t.lider=pl;
+  }
+  save(); closeModal(); renderAll();
+}
+// Equipo no encontrado: se registra aquí mismo y se pide el teléfono del responsable
+function cjNuevo(){
+  $('#cj-list').innerHTML='';
+  $('#cj-nuevo').innerHTML=`
+    <label>Nombre del equipo<input id="cj-tn" autocomplete="off" value="${esc(cap($('#cj-q').value.trim()))}"></label>
+    <label>Teléfono de ${esc(nombreChooser())} (responsable)<input id="cj-tel" type="tel" inputmode="tel" autocomplete="off" placeholder="10 dígitos"></label>
+    <p id="cj-err" class="pend"></p>
+    <div class="actions"><button type="button" class="btn primary" data-act="cj-guardar">Registrar equipo</button></div>`;
+  $('#cj-tn').focus();
+}
+function cjGuardar(){
+  const name=cap(($('#cj-tn').value||'').trim());
+  const tel=($('#cj-tel').value||'').replace(/\D/g,'');
+  const err=m=>{$('#cj-err').textContent=m;};
+  if(!name) return err('Escribe el nombre del equipo.');
+  if(db.teams.some(t=>norm(t.name)===norm(name))) return err('Ese equipo ya existe. Búscalo arriba.');
+  if(similares(name).length) return err('Se parece a un equipo que ya existe. Búscalo arriba.');
+  if(!/^\d{10}$/.test(tel)) return err('Escribe el teléfono del responsable (10 dígitos).');
+  const pl=nombreChooser();
+  db.teams.push({id:uid(),name,players:[pl],lider:pl,telefonos:{[pl]:tel}});
+  save(); closeModal(); renderAll();
 }
 function abrirNuevoDesdeBusqueda(s,nombre){
   alVolver={f:asignandoField,a:$('#as-a-val').value,b:$('#as-b-val').value,side:s};
@@ -1089,6 +1130,9 @@ document.addEventListener('click',e=>{
     case 'addteam': q.value=''; $('#results').classList.remove('show'); abrirChooser(d.name); break;
     case 'editnombre': $('#ch-titulo').style.display='none'; $('#ch-nombre').style.display='block'; $('#ch-nombre').focus(); break;
     case 'esjugador': chooserJugador(nombreChooser()); break;
+    case 'cj-pick': cjPick(d.team); break;
+    case 'cj-nuevo': cjNuevo(); break;
+    case 'cj-guardar': cjGuardar(); break;
     case 'esequipo': chooserEquipo(nombreChooser()); break;
     case 'pickteam': closeModal(); pickResult(d.team); break;
     case 'equiponuevo': openTeam(null,d.n,true); break;
