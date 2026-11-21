@@ -74,6 +74,7 @@ input[type=file]{padding:6px;width:auto}
 .tile.on{background:var(--yellow);border-color:#d4b800}
 .tile:disabled{opacity:.6;cursor:default}
 .juegoq{color:#fff;font-size:12px;opacity:.9}
+.arbchip{background:#fff;color:#111;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600;margin-right:8px;vertical-align:middle;white-space:nowrap}
 .fbox{background:#1c2030;border:1px solid #2c3247;border-radius:18px;padding:10px;margin-bottom:14px}
 .fchips{display:flex;gap:6px;flex-wrap:wrap}
 .fchip{background:#2a2f3f;color:var(--muted);border:0;border-radius:999px;padding:7px 14px;font:inherit;font-size:13px;cursor:pointer;transition:.15s}
@@ -296,7 +297,7 @@ function renderFields(){
   for(let f=1;f<=4;f++){
     const m=activeMatch(f);
     h+=`<section class="fwrap">
-      <div class="fhead"><span>Cancha ${f}</span>${m?`<button class="whistle" data-act="terminar" data-match="${m.id}" title="Terminar partido" aria-label="Terminar partido">${SILBATO}</button>`:''}<button class="link" data-act="assign" data-field="${f}">${m?'Cambiar partido':'Asignar partido'}</button></div>
+      <div class="fhead"><span>Cancha ${f}</span>${m?`<span class="arbchip">${esc(m.arbitro||'Sin árbitro')}</span><button class="whistle" data-act="terminar" data-match="${m.id}" title="Terminar partido" aria-label="Terminar partido">${SILBATO}</button>`:''}<button class="link" data-act="assign" data-field="${f}">${m?'Cambiar partido':'Asignar partido'}</button></div>
       <div class="field"><span class="circle"></span>`;
     if(m){
       h+=`<div class="row">
@@ -367,6 +368,8 @@ function openAssign(f,pre){
     <h3>Cancha ${f}</h3>
     ${buscadorEquipo('a','Equipo 1',pre?pre.a:(cur?cur.a:''))}
     ${buscadorEquipo('b','Equipo 2',pre?pre.b:(cur?cur.b:''))}
+    <label>Árbitro<input name="arbitro" list="dl-arb" autocomplete="off" value="${esc(cur?.arbitro||'')}" placeholder="Nombre del árbitro"></label>
+    <datalist id="dl-arb">${optionsList(db.config.arbitros||[])}</datalist>
     <p id="as-err" class="pend"></p>
     <div class="actions">
       ${cur?`<button type="button" class="btn danger" data-act="unassign" data-field="${f}">Quitar partido</button>`:''}
@@ -382,7 +385,9 @@ function openAssign(f,pre){
     if(!a||!b){$('#as-err').textContent='Elige los dos equipos de la lista.';return;}
     if(a===b){$('#as-err').textContent='Elige dos equipos distintos.';return;}
     db.matches.forEach(m=>{if(m.field===f&&m.activo)m.activo=false;});
-    db.matches.push({id:uid(),field:f,a,b,sa:0,sb:0,activo:true,creado:new Date().toISOString()});
+    const arb=String(fd.get('arbitro')||'').trim();
+    if(arb&&!(db.config.arbitros||[]).some(x=>norm(x)===norm(arb))) db.config.arbitros.push(arb);
+    db.matches.push({id:uid(),field:f,a,b,arbitro:arb,sa:0,sb:0,activo:true,creado:new Date().toISOString()});
     save(); closeModal(); renderAll();
   };
 }
@@ -538,6 +543,7 @@ function openTerminar(mid){
   const sel=$('#tp-arb'), nl=$('#tp-nuevo-l');
   const toggle=()=>{nl.style.display=sel.value==='__nuevo__'?'block':'none';};
   sel.onchange=toggle;
+  if(m.arbitro&&arbs.includes(m.arbitro)) sel.value=m.arbitro;
   if(!arbs.length) sel.value='__nuevo__';
   toggle();
   $('#tp-form').onsubmit=e=>{
