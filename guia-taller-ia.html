@@ -1281,9 +1281,53 @@ const totalPrompts = CLASES.reduce((n, c) => n + c.etapas.reduce((m, e) => m + (
 
 function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), 1600); }
 
+/* Clase en vivo: se prende desde la vista de ponente (?vista=ponente). Mientras esté prendida,
+   "Clase en vivo" va primero en el menú y la guía abre ahí. Se guarda en el servidor para que
+   lo vean los alumnos desde sus dispositivos. */
+let ENVIVO = false;
+const VIVO_KV = 'https://agentes.jefeshub.com/api/storage/' + encodeURIComponent('jefeshub:taller-en-vivo');
+async function leerEnVivo() {
+  try { const r = await fetch(VIVO_KV, { cache: 'no-store' }); const j = await r.json(); return !!(j && j.value && j.value.on); }
+  catch (e) { return ENVIVO; }
+}
+async function escribirEnVivo(on) {
+  let t = ''; try { t = (localStorage.getItem('jefeshub_storage_token') || '').trim(); } catch (e) {}
+  if (!t) { t = (window.prompt('Token de acceso para guardar cambios:') || '').trim(); if (!t) return false; try { localStorage.setItem('jefeshub_storage_token', t); } catch (e) {} }
+  try {
+    const r = await fetch(VIVO_KV, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Storage-Token': t }, body: JSON.stringify({ value: { on: on, t: new Date().toISOString() } }) });
+    if (r.status === 401) { try { localStorage.removeItem('jefeshub_storage_token'); } catch (e) {} return false; }
+    return r.ok;
+  } catch (e) { return false; }
+}
+function avisoPonente() {
+  return `<div class="aviso-ponente" id="avisoPonente">🎤 <b>Vista de ponente.</b> Ves exactamente lo mismo que tus alumnos; los <span>cuadros verdes</span> son las decisiones que solo tú puedes tomar.
+    <div style="margin-top:10px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><button type="button" class="btn" data-vivo-toggle>${ENVIVO ? '■ Terminé la clase en vivo' : '● Estoy en vivo'}</button><small>${ENVIVO ? 'Clase en vivo va primero para tus alumnos.' : 'Préndelo al empezar la clase: Clase en vivo irá primero para tus alumnos.'}</small></div></div>`;
+}
+function paginaActual() {
+  const page = (decodeURIComponent(location.hash.slice(1)) || 'inicio').split('/')[0];
+  return page.startsWith('clase-') ? page.slice(6) : page;
+}
+function pintarVivo() {
+  const av = document.getElementById('avisoPonente'); if (av) av.outerHTML = avisoPonente();
+  renderNav(paginaActual());
+}
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-vivo-toggle]'); if (!b) return;
+  const nuevo = !ENVIVO; b.disabled = true;
+  const ok = await escribirEnVivo(nuevo);
+  b.disabled = false;
+  if (!ok) { toast('No se pudo guardar. Revisa tu token e inténtalo otra vez.'); return; }
+  ENVIVO = nuevo; pintarVivo();
+  toast(nuevo ? 'En vivo: Clase en vivo va primero para tus alumnos' : 'Clase terminada: vuelve Empieza por aquí arriba');
+});
+setInterval(async () => { const v = await leerEnVivo(); if (v !== ENVIVO) { ENVIVO = v; pintarVivo(); } }, 60000);
+
+
+
 function renderNav(activo) {
-  let h = `<a href="#inicio" class="nav-home ${activo === 'inicio' ? 'on' : ''}"><span class="ico">⌂</span>Empieza por aquí</a>`
-    + `<a href="#en-vivo" class="nav-home nav-vivo ${activo === 'en-vivo' ? 'on' : ''}"><span class="ico">●</span>Clase en vivo</a>`;
+  const inicioLink = `<a href="#inicio" class="nav-home ${activo === 'inicio' ? 'on' : ''}"><span class="ico">⌂</span>Empieza por aquí</a>`;
+  const vivoLink = `<a href="#en-vivo" class="nav-home nav-vivo ${activo === 'en-vivo' ? 'on' : ''}"><span class="ico">●</span>Clase en vivo</a>`;
+  let h = ENVIVO ? vivoLink + inicioLink : inicioLink + vivoLink;
   CURSO.modulos.forEach(m => {
     h += `<div class="nav-mod">${m.emoji} ${esc(m.titulo)}</div>`;
     m.clases.forEach(c => {
@@ -1625,7 +1669,7 @@ function route() {
   } else if (page === 'recursos') html = viewRecursos();
   else if (page === 'en-vivo') html = viewEnVivo();
   if (!html) { html = viewInicio(); activo = 'inicio'; }
-  $('#view').innerHTML = (MODO_PONENTE ? '<div class="aviso-ponente">🎤 <b>Vista de ponente.</b> Ves exactamente lo mismo que tus alumnos; los <span>cuadros verdes</span> son las decisiones que solo tú puedes tomar.</div>' : '') + html;
+  $('#view').innerHTML = (MODO_PONENTE ? avisoPonente() : '') + html;
   if (window.GuiaMetricas) window.GuiaMetricas.montar();
   pintarCuenta(); pintarRecordatorios();
   renderNav(activo);
@@ -1719,6 +1763,8 @@ $('#waHelp').href = 'https://wa.me/' + CURSO.whatsapp + '?text=' + encodeURIComp
 window.addEventListener('hashchange', route);
 iniciarRemoto();
 route();
+/* Si la clase en vivo está prendida y la persona llega sin link específico, abre ahí */
+leerEnVivo().then(v => { ENVIVO = v; if (ENVIVO && !location.hash) location.hash = '#en-vivo'; else pintarVivo(); });
 </script>
 </body>
 </html>
