@@ -94,6 +94,12 @@ input[type=file]{padding:6px;width:auto}
 .ppanel .frango input{background:#fff;color:#111;border:1px solid #d1d5db}
 .plbl{color:#6b7280;font-size:13px;font-weight:600;margin:14px 0 8px}
 .yel{color:var(--yellow)}
+.addpago{width:38px;height:38px;border-radius:50%;border:0;background:var(--yellow);color:#111;font-size:24px;font-weight:700;cursor:pointer;line-height:1;margin-left:4px}
+.adeudos{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 12px}
+.adeu{background:#f3f4f6;color:#111;border-radius:10px;padding:8px;text-align:center;font-size:13px}
+.adeu b{display:block;margin-bottom:2px}
+.totbtn{background:var(--yellow);color:#111;border:0;border-radius:10px;padding:8px 14px;font-weight:700;cursor:pointer;margin:0 0 10px}
+.retraso{color:#dc2626;font-weight:700;margin:0 0 10px}
 .jtabla th,.jtabla td{text-align:center}
 .fbox{position:sticky;top:var(--hh,160px);z-index:4;background:var(--bg);padding:4px 0 8px}
 .insdone{font-size:13px;color:#111;margin:0 0 10px}
@@ -241,6 +247,7 @@ th{color:var(--muted);font-weight:600}
     <button class="tab on" data-act="tab" data-tab="canchas">Canchas</button>
     <button class="tab" data-act="tab" data-tab="equipos">Equipos</button>
     <button class="tab" data-act="tab" data-tab="pagos">Pagos</button>
+    <button class="addpago" data-act="pagonuevo" title="Registrar pago" aria-label="Registrar pago">+</button>
   </nav>
 </header>
 
@@ -633,7 +640,7 @@ function openAssign(f,pre){
     if(!a||!b){$('#as-err').textContent='Elige los dos equipos de la lista.';return;}
     if(a===b){$('#as-err').textContent='Elige dos equipos distintos.';return;}
     db.matches.forEach(m=>{if(m.field===f&&m.activo)m.activo=false;});
-    const arb=String(fd.get('arbitro')||'').trim();
+    const arb=(String(fd.get('arbitro')||'')||($('#ar-q')?.value||'')).trim();
     if(arb&&!(db.config.arbitros||[]).some(x=>norm(x)===norm(arb))) db.config.arbitros.push(arb);
     db.matches.push({id:uid(),field:f,a,b,arbitro:arb,sa:0,sb:0,activo:true,creado:new Date().toISOString()});
     save(); closeModal(); renderAll();
@@ -661,6 +668,8 @@ function openPay(teamId,matchId,editId=null){
         <label>Arbitraje<input class="montoGrande" name="monto_arb" type="number" min="0" step="1" placeholder="$0"></label>
       </div>
       `:`<label>¿Cuánto está pagando? (arbitraje)<input class="montoGrande" name="monto_arb" type="number" min="0" step="1" placeholder="$0"></label>`}
+    ${(b.insPend>0||b.arbPend>0)?`<button type="button" class="totbtn" id="p-total">✓ Total</button>`:''}
+    ${b.arbPend>Number(db.config.arbitraje)?`<p class="retraso">⚠️ Retraso: debe ${money(b.arbPend)} de arbitraje de juegos anteriores. Revisa el historial abajo.</p>`:''}
     <div class="insrow" style="${b.insPend>0?'':'display:none'}">
       ${b.insPend>0?`<p class="rojo" id="p-adeudo" style="margin:0;${t.inscripcionPrevia?'display:none':''}">Adeudo de inscripción: ${money(b.insPend)}</p>`:''}
       <label class="chk"><input type="checkbox" id="p-insprev" name="insPrevia" ${t.inscripcionPrevia||b.insPend<=0?'checked':''}> Ya pagó el 100% de la inscripción</label>
@@ -742,6 +751,10 @@ function openPay(teamId,matchId,editId=null){
     document.querySelector('#pay-form [name="nota"]').value=ed.nota||'';
     document.querySelector('#pay-form [name="cuenta"]').value=ed.cuenta||'';
   }
+  $('#p-total')?.addEventListener('click',()=>{
+    const ti=document.querySelector('[name="monto_ins"]'); if(ti) ti.value=b.insPend||'';
+    const ta=document.querySelector('[name="monto_arb"]'); if(ta) ta.value=b.arbPend||'';
+  });
   $('#p-insprev').onchange=e=>{
     $('#p-insq').style.display=e.target.checked?'block':'none';
     const ad=$('#p-adeudo'); if(ad) ad.style.display=e.target.checked?'none':'';
@@ -794,29 +807,56 @@ function openPay(teamId,matchId,editId=null){
   };
 }
 const SILBATO='<img src="silbato.png" alt="" class="silb">';
+// Registrar un pago sin partido: buscar equipo o jugador
+function openBuscarPago(){
+  openModal(`<div>
+    <h3>Registrar pago</h3>
+    <label>Busca el equipo o el jugador<input id="bp-q" autocomplete="off" placeholder="Escribe el nombre"></label>
+    <div id="bp-list"></div>
+    <div class="actions"><button type="button" class="btn ghost" data-act="close">Cancelar</button></div>
+  </div>`);
+  const q=$('#bp-q');
+  const pintar=()=>{
+    const toks=norm(q.value.trim()).split(/\s+/).filter(Boolean);
+    if(!toks.length){$('#bp-list').innerHTML='';return;}
+    const hits=db.teams.filter(t=>toks.every(k=>norm(t.name).includes(k)||t.players.some(x=>norm(x).includes(k))));
+    $('#bp-list').innerHTML=hits.length
+      ?`<div class="reslist">${hits.slice(0,30).map(t=>{const b=balance(t.id);const d=b.insPend+b.arbPend;return `<button type="button" data-act="pagopick" data-team="${t.id}"><b>${esc(t.name)}</b><br><small class="${d?'pend':'ok'}">${d?'Debe '+money(d):'Al corriente'}</small></button>`;}).join('')}</div>`
+      :'<div class="reslist"><div class="empty-res">No hay coincidencias.</div></div>';
+  };
+  q.addEventListener('input',pintar);
+  q.focus();
+}
 function openTerminar(mid){
   const m=matchById(mid); if(!m) return;
+  const adeudoHTML=(tid)=>{const b=balance(tid);const d=b.insPend+b.arbPend;return `<div class="adeu"><b>${esc(teamName(tid))}</b>${d?`<span class="pend">Debe ${money(d)}${b.insPend?` · inscripción ${money(b.insPend)}`:''}</span>`:'<span class="ok">✔ Al corriente</span>'}</div>`;};
+  const yaArb=!!m.arbitro;
   openModal(`<form id="tp-form">
     <h3>Terminar partido · Cancha ${m.field}</h3>
     <div class="marcador"><b class="${(m.sa||0)>(m.sb||0)?'ganador':''}">${esc(teamName(m.a))}</b><span>${m.sa||0} – ${m.sb||0}</span><b class="${(m.sb||0)>(m.sa||0)?'ganador':''}">${esc(teamName(m.b))}</b></div>
-    <label>Árbitro<input id="tp-q" autocomplete="off" placeholder="Escribe el nombre del árbitro" value="${esc(m.arbitro||'')}"></label>
-    <div class="sugs" id="tp-list"></div>
-    <input type="hidden" name="arbitro" id="tp-val" value="${esc(m.arbitro||'')}">
+    <div class="adeudos">${adeudoHTML(m.a)}${adeudoHTML(m.b)}</div>
+    ${yaArb
+      ?`<p class="muted" style="margin:0 0 10px">Lo pita: <b style="color:#111">${esc(m.arbitro)}</b></p><input type="hidden" name="arbitro" id="tp-val" value="${esc(m.arbitro)}">`
+      :`<label>Árbitro<input id="tp-q" autocomplete="off" placeholder="Escribe el nombre del árbitro"></label>
+        <div class="sugs" id="tp-list"></div>
+        <input type="hidden" name="arbitro" id="tp-val" value="">`}
     <p id="tp-err" class="pend"></p>
     <div class="actions">
       <button type="button" class="btn ghost" data-act="close">Cancelar</button>
       <button class="btn primary">Terminar partido</button>
     </div>
   </form>`);
-  const q=$('#tp-q'), list=$('#tp-list'), val=$('#tp-val');
-  const pintar=()=>{
-    const toks=norm(q.value.trim()).split(/\s+/).filter(Boolean);
-    const hits=(db.config.arbitros||[]).filter(a=>toks.every(k=>norm(a).includes(k)));
-    list.innerHTML=hits.map(a=>`<button type="button" class="sug" data-act="tp-pick" data-n="${esc(a)}">${esc(a)}</button>`).join('')
-      +(toks.length&&!hits.length?`<button type="button" class="sug nuevo" data-act="tp-nuevo" data-n="${esc(q.value.trim())}">+ Agregar árbitro</button>`:'');
-  };
-  q.addEventListener('input',()=>{val.value='';pintar();});
-  pintar();
+  if(!yaArb){
+    const q=$('#tp-q'), list=$('#tp-list'), val=$('#tp-val');
+    const pintar=()=>{
+      const toks=norm(q.value.trim()).split(/\s+/).filter(Boolean);
+      const hits=(db.config.arbitros||[]).filter(a=>toks.every(k=>norm(a).includes(k)));
+      list.innerHTML=hits.map(a=>`<button type="button" class="sug" data-act="tp-pick" data-n="${esc(a)}">${esc(a)}</button>`).join('')
+        +(toks.length&&!hits.length?`<button type="button" class="sug nuevo" data-act="tp-nuevo" data-n="${esc(q.value.trim())}">+ Agregar árbitro</button>`:'');
+    };
+    q.addEventListener('input',()=>{val.value='';pintar();});
+    pintar();
+  }
   $('#tp-form').onsubmit=e=>{
     e.preventDefault();
     const fd=new FormData(e.target);
@@ -1272,6 +1312,8 @@ document.addEventListener('click',e=>{
     case 'delteam': deleteTeam(d.id); break;
     case 'delpay': deletePayment(d.id,d.team,d.match||null); break;
     case 'editpay': openPay(d.team,d.match||null,d.id); break;
+    case 'pagonuevo': openBuscarPago(); break;
+    case 'pagopick': openPay(d.team,null); break;
     case 'close': closeModal(); break;
     case 'tp-pick': $('#tp-val').value=d.n; $('#tp-q').value=d.n; $('#tp-list').innerHTML=''; break;
     case 'tp-nuevo': $('#tp-val').value=cap(d.n.trim()); $('#tp-q').value=cap(d.n.trim()); $('#tp-list').innerHTML=''; break;
