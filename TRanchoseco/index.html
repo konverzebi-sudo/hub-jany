@@ -99,7 +99,8 @@ input[type=file]{padding:6px;width:auto}
 .jtabla tr.cancha-sep td{background:#11131a;color:var(--yellow);font-weight:800;text-align:left;font-size:15px}
 .vs{display:inline-block;background:var(--yellow);color:#111;border-radius:999px;padding:0 7px;font-size:11px;font-weight:800;margin:0 4px}
 .res-card{padding:12px}
-.res-h{color:var(--yellow);font-weight:700;margin-bottom:8px}
+.res-c{color:var(--yellow);font-weight:700;margin-bottom:8px}
+.res-sal{display:flex;justify-content:space-between;gap:8px;margin-top:8px;flex-wrap:wrap}
 .res-m{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:16px;margin-bottom:6px}
 .res-s{font-size:22px;font-weight:800}
 .wa{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.35)}
@@ -403,16 +404,26 @@ function showTab(name){
 }
 // Resultados de los partidos terminados: el más reciente arriba
 function renderResultados(){
-  const ts=db.matches.filter(m=>m.terminado).sort((a,b)=>String(b.terminadoEn||'').localeCompare(String(a.terminadoEn||'')));
-  $('#resultados-list').innerHTML=ts.length?ts.map(m=>{
+  const ts=db.matches.filter(m=>m.terminado);
+  if(!ts.length){$('#resultados-list').innerHTML='<p class="muted">Aún no hay partidos terminados.</p>';return;}
+  // Agrupar por horario (día y hora en que terminaron); dentro de cada horario, cancha 1 a 4
+  const grupos={};
+  ts.forEach(m=>{const d=new Date(m.terminadoEn||m.creado||0);const k=`${diaLocal(d.toISOString())} ${String(d.getHours()).padStart(2,'0')}:00`;(grupos[k]=grupos[k]||[]).push(m);});
+  const claves=Object.keys(grupos).sort((a,b)=>b.localeCompare(a));
+  const fila=(m)=>{
     const r=m.resultado||{a:0,b:0};
     const ga=r.a>r.b, gb=r.b>r.a;
+    const saldo=(tid)=>{const b=balance(tid);const d=b.insPend+b.arbPend;return d?`<span class="pend">Debe ${money(d)}</span>`:'<span class="ok">Al corriente</span>';};
     return `<div class="card res-card">
-      <div class="res-h">Cancha ${m.field} · Juego ${m.numero||'—'} <small class="muted">${esc(diaLocal(m.terminadoEn))}</small></div>
+      <div class="res-c">Cancha ${m.field}</div>
       <div class="res-m"><b class="${ga?'ganador':''}">${esc(teamName(m.a))}</b><span class="res-s">${r.a} – ${r.b}</span><b class="${gb?'ganador':''}">${esc(teamName(m.b))}</b></div>
-      <small class="muted">Árbitro: ${esc(m.arbitro||'—')}</small>
+      <div class="res-sal"><small>${esc(teamName(m.a))}: ${saldo(m.a)}</small><small>${esc(teamName(m.b))}: ${saldo(m.b)}</small></div>
     </div>`;
-  }).join(''):'<p class="muted">Aún no hay partidos terminados.</p>';
+  };
+  $('#resultados-list').innerHTML=claves.map(k=>{
+    const lista=grupos[k].sort((x,y)=>x.field-y.field);
+    return `<h3 class="yel">${k}</h3>${lista.map(fila).join('')}`;
+  }).join('');
 }
 function renderAll(){renderFields();renderTeams();renderPagos();}
 
