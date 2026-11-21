@@ -706,7 +706,6 @@ function openPay(teamId,matchId,editId=null){
         <label>Arbitraje<input class="montoGrande" name="monto_arb" type="number" min="0" step="1" placeholder="$0"></label>
       </div>
       `:`<label>¿Cuánto está pagando? (arbitraje)<input class="montoGrande" name="monto_arb" type="number" min="0" step="1" placeholder="$0"></label>`}
-    ${b.arbPend>0?`<button type="button" class="totbtn" id="p-total">Pagar arbitraje pendiente: ${money(b.arbPend)}</button>`:''}
     <div class="insrow" style="${b.insPend>0?'':'display:none'}">
       ${b.insPend>0?`<p class="rojo" id="p-adeudo" style="margin:0;${t.inscripcionPrevia?'display:none':''}">Adeudo de inscripción: ${money(b.insPend)}</p>`:''}
       <label class="chk"><input type="checkbox" id="p-insprev" name="insPrevia" ${t.inscripcionPrevia||b.insPend<=0?'checked':''}> Ya pagó el 100% de la inscripción</label>
@@ -790,9 +789,11 @@ function openPay(teamId,matchId,editId=null){
     const nota=document.querySelector('#pay-form [name="nota"]'); if(nota) nota.value=ed.nota||'';
     const cta=document.querySelector('#pay-form [name="cuenta"]'); if(cta) cta.value=ed.cuenta||'';
   }
-  $('#p-total')?.addEventListener('click',()=>{
-    const ta=document.querySelector('[name="monto_arb"]'); if(ta) ta.value=b.arbPend||'';
-  });
+  // Al tocar un monto vacío se pone lo que se debe; si quieren otro, lo borran y escriben el suyo
+  const ta=document.querySelector('[name="monto_arb"]');
+  if(ta&&b.arbPend>0) ta.addEventListener('focus',()=>{ if(!ta.value) ta.value=b.arbPend; });
+  const ti=document.querySelector('[name="monto_ins"]');
+  if(ti&&b.insPend>0) ti.addEventListener('focus',()=>{ if(!ti.value) ti.value=b.insPend; });
   $('#p-insprev').onchange=e=>{
     $('#p-insq').style.display=e.target.checked?'block':'none';
     const ad=$('#p-adeudo'); if(ad) ad.style.display=e.target.checked?'none':'';
