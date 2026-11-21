@@ -679,6 +679,12 @@ function unassign(f){
 }
 
 /* ---------- Pagos ---------- */
+// Quién cobró la inscripción: el que se eligió, o el que aparece en su pago de inscripción
+function responsableInscripcion(t){
+  if(t.inscripcionRecibio) return t.inscripcionRecibio;
+  const p=db.payments.find(x=>x.teamId===t.id&&x.tipo==='inscripcion');
+  return p?p.recibio:'';
+}
 function openPay(teamId,matchId,editId=null){
   const t=teamById(teamId); if(!t) return;
   const ed=editId?db.payments.find(x=>x.id===editId):null;
@@ -701,7 +707,7 @@ function openPay(teamId,matchId,editId=null){
       ${b.insPend>0?`<p class="rojo" id="p-adeudo" style="margin:0;${t.inscripcionPrevia?'display:none':''}">Adeudo de inscripción: ${money(b.insPend)}</p>`:''}
       <label class="chk"><input type="checkbox" id="p-insprev" name="insPrevia" ${t.inscripcionPrevia||b.insPend<=0?'checked':''}> Ya pagó el 100% de la inscripción</label>
     </div>
-    ${b.insPend<=0&&t.inscripcionRecibio?`<p class="insdone">Registro por: <b>${esc(t.inscripcionRecibio)}</b></p>`:''}
+    ${b.insPend<=0&&responsableInscripcion(t)?`<p class="insdone">Registro por: <b>${esc(responsableInscripcion(t))}</b></p>`:''}
     <div id="p-insq" style="display:${b.insPend>0&&t.inscripcionPrevia?'block':'none'};margin-bottom:12px">
       <div class="lbl">¿A quién se le pagó la inscripción?</div>
       <div class="cuadros mini" id="p-insrecibe" style="${t.inscripcionRecibio?'display:none':''}">
@@ -803,7 +809,7 @@ function openPay(teamId,matchId,editId=null){
     if(!fd.get('recibio')){pErr('⚠️ Elige quién lo recibió.',$('#p-recibe'));return;}
     t.inscripcionPrevia=!!fd.get('insPrevia');
     if(t.inscripcionPrevia){
-      if(b.insPend>0&&!fd.get('recibioIns')&&!t.inscripcionRecibio){pErr('⚠️ Elige a quién se le pagó la inscripción.',$('#p-insq'));return;}
+      if(b.insPend>0&&!fd.get('recibioIns')&&!responsableInscripcion(t)){pErr('⚠️ Elige a quién se le pagó la inscripción.',$('#p-insq'));return;}
       if(fd.get('recibioIns')) t.inscripcionRecibio=String(fd.get('recibioIns'));
     }
     if(!t.registroDesde){
