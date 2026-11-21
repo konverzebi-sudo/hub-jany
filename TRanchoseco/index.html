@@ -146,10 +146,59 @@ function load(){
   }catch(e){return clone(DEF);}
 }
 let db=load();
+
+/* ---------- Nube compartida (todos los celulares ven lo mismo) ---------- */
+const API='https://agentes.jefeshub.com/api/storage/';
+const REMOTE_KEY='rancho-seco:canchas-futbol-802c57d7818d81b0';
+const ACC='canchas-acceso';
+// El código de acceso del hub llega una vez en el link (?k=...) y se guarda en este celular
+(function capturarAcceso(){
+  try{
+    const u=new URL(location.href);
+    const k=(u.searchParams.get('k')||'').trim();
+    if(k){
+      localStorage.setItem(ACC,k);
+      u.searchParams.delete('k');
+      history.replaceState(history.state,'',u.pathname+u.search+u.hash);
+    }
+  }catch(e){}
+})();
 function save(){
   try{localStorage.setItem(KEY,JSON.stringify(db));}
-  catch(e){alert('No se pudo guardar en este navegador. Exporta un respaldo desde Ajustes.');}
+  catch(e){alert('No se pudo guardar en este navegador.');}
+  subirNube();
 }
+async function subirNube(){
+  let c=(localStorage.getItem(ACC)||'').trim();
+  if(!c){
+    c=(window.prompt('Código de acceso del hub Rancho Seco (solo se pide una vez):')||'').trim();
+    if(!c) return;
+    localStorage.setItem(ACC,c);
+  }
+  try{
+    const r=await fetch(API+encodeURIComponent(REMOTE_KEY),{
+      method:'POST',headers:{'Content-Type':'application/json','X-Hub-Codigo':c},
+      body:JSON.stringify({value:db})
+    });
+    if(r.status===401){localStorage.removeItem(ACC);alert('El código de acceso no sirve. Vuelve a abrir tu link de acceso.');}
+    else if(!r.ok) alert('No se pudo guardar en la nube. Se guardó solo en este celular.');
+  }catch(e){alert('Sin conexión: se guardó solo en este celular.');}
+}
+async function cargarNube(){
+  try{
+    const r=await fetch(API+encodeURIComponent(REMOTE_KEY),{cache:'no-store'});
+    if(!r.ok) return;
+    const j=await r.json();
+    if(j&&j.value){
+      db={...clone(DEF),...j.value,config:{...DEF.config,...(j.value.config||{})}};
+      localStorage.setItem(KEY,JSON.stringify(db));
+      renderAll();
+    }else if(db.teams.length||db.payments.length){
+      subirNube(); // la nube está vacía: sube lo que ya hay en este celular
+    }
+  }catch(e){}
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden) cargarNube();});
 
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const $=s=>document.querySelector(s);
@@ -565,6 +614,7 @@ document.addEventListener('keydown',e=>{
 
 renderAll();
 showTab('canchas');
+cargarNube();
 </script>
 </body>
 </html>
