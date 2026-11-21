@@ -94,6 +94,9 @@ input[type=file]{padding:6px;width:auto}
 .ppanel .frango input{background:#fff;color:#111;border:1px solid #d1d5db}
 .plbl{color:#6b7280;font-size:13px;font-weight:600;margin:14px 0 8px}
 .yel{color:var(--yellow)}
+.ganador{color:var(--yellow)}
+.insrow{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px}
+.insrow .chk{margin:0}
 .silb{width:22px;height:22px;vertical-align:middle;display:block;margin:auto}
 .silb-big{width:56px;height:56px;display:block;margin:auto}
 .cancha-card{text-align:center}
@@ -639,8 +642,18 @@ function openPay(teamId,matchId){
         <label>Inscripción<input class="montoGrande" name="monto_ins" type="number" min="0" step="1" placeholder="$0"></label>
         <label>Arbitraje<input class="montoGrande" name="monto_arb" type="number" min="0" step="1" placeholder="$0"></label>
       </div>
-      <p class="rojo" style="margin:0 0 12px">Adeudo de inscripción: ${money(b.insPend)}</p>`
-      :`<label>¿Cuánto está pagando? (arbitraje)<input class="montoGrande" name="monto_arb" type="number" min="0" step="1" placeholder="$0"></label>`}
+      `:`<label>¿Cuánto está pagando? (arbitraje)<input class="montoGrande" name="monto_arb" type="number" min="0" step="1" placeholder="$0"></label>`}
+    <div class="insrow">
+      ${b.insPend>0?`<p class="rojo" id="p-adeudo" style="margin:0;${t.inscripcionPrevia?'display:none':''}">Adeudo de inscripción: ${money(b.insPend)}</p>`:''}
+      <label class="chk"><input type="checkbox" id="p-insprev" name="insPrevia" ${t.inscripcionPrevia?'checked':''}> Ya pagó el 100% de la inscripción</label>
+    </div>
+    <div id="p-insq" style="display:${t.inscripcionPrevia?'block':'none'};margin-bottom:12px">
+      <div class="lbl">¿A quién se le pagó la inscripción?</div>
+      <div class="cuadros" id="p-insrecibe">
+        ${cobradores().map(n=>`<button type="button" class="sq${t.inscripcionRecibio===n?' on':''}" data-ins="${esc(n)}">${esc(n)}</button>`).join('')}
+      </div>
+      <input type="hidden" name="recibioIns" id="p-recibioIns" value="${esc(t.inscripcionRecibio||'')}">
+    </div>
     <div class="resumen" id="p-res">
       <div><small>Estado del equipo</small>${adeudo>0?`<b class="rojo">Adeudo ${money(adeudo)}</b>`:'<b class="verde">✔ Al corriente</b>'}</div>
       <div><small>Número de juego</small><b id="p-num">${t.registroDesde?t.juegoActual:'—'}</b></div>
@@ -662,16 +675,6 @@ function openPay(teamId,matchId){
     </div>
     <input type="hidden" name="metodo" id="p-metodo" value="efectivo">
     <label id="p-cuenta-l" style="display:none">Cuenta donde se pagó<input name="cuenta" list="dl-cta" autocomplete="off"></label>
-    <div class="card" style="padding:10px;margin-bottom:12px">
-      <label class="chk"><input type="checkbox" id="p-insprev" name="insPrevia" ${t.inscripcionPrevia?'checked':''}> Ya pagó el 100% de la inscripción</label>
-      <div id="p-insq" style="display:${t.inscripcionPrevia?'block':'none'};margin-top:10px">
-        <div class="lbl">¿A quién se le pagó la inscripción?</div>
-        <div class="cuadros" id="p-insrecibe">
-          ${cobradores().map(n=>`<button type="button" class="sq${t.inscripcionRecibio===n?' on':''}" data-ins="${esc(n)}">${esc(n)}</button>`).join('')}
-        </div>
-        <input type="hidden" name="recibioIns" id="p-recibioIns" value="${esc(t.inscripcionRecibio||'')}">
-      </div>
-    </div>
     <label>Nota (opcional)<input name="nota" autocomplete="off"></label>
     <datalist id="dl-cta">${optionsList(cuentasList())}</datalist>
     <div class="actions">
@@ -708,7 +711,10 @@ function openPay(teamId,matchId){
     $('#p-cuenta-l').style.display=tr?'block':'none';
   };
   // Inscripción pagada: decidir a quién se le pagó
-  $('#p-insprev').onchange=e=>{$('#p-insq').style.display=e.target.checked?'block':'none';};
+  $('#p-insprev').onchange=e=>{
+    $('#p-insq').style.display=e.target.checked?'block':'none';
+    const ad=$('#p-adeudo'); if(ad) ad.style.display=e.target.checked?'none':'';
+  };
   $('#p-insrecibe').onclick=e=>{
     const b=e.target.closest('[data-ins]'); if(!b) return;
     $('#p-recibioIns').value=b.dataset.ins;
@@ -753,7 +759,7 @@ function openTerminar(mid){
   const m=matchById(mid); if(!m) return;
   openModal(`<form id="tp-form">
     <h3>Terminar partido · Cancha ${m.field}</h3>
-    <div class="marcador"><b>${esc(teamName(m.a))}</b><span>${m.sa||0} – ${m.sb||0}</span><b>${esc(teamName(m.b))}</b></div>
+    <div class="marcador"><b class="${(m.sa||0)>(m.sb||0)?'ganador':''}">${esc(teamName(m.a))}</b><span>${m.sa||0} – ${m.sb||0}</span><b class="${(m.sb||0)>(m.sa||0)?'ganador':''}">${esc(teamName(m.b))}</b></div>
     <label>Árbitro<input id="tp-q" autocomplete="off" placeholder="Escribe el nombre del árbitro" value="${esc(m.arbitro||'')}"></label>
     <div class="sugs" id="tp-list"></div>
     <input type="hidden" name="arbitro" id="tp-val" value="${esc(m.arbitro||'')}">
@@ -776,7 +782,7 @@ function openTerminar(mid){
     e.preventDefault();
     const fd=new FormData(e.target);
     const arb=String(fd.get('arbitro')||'').trim();
-    if(!arb){$('#tp-err').textContent='Elige o agrega el árbitro de la lista.';return;}
+    if(!arb){$('#tp-err').textContent='Para terminar el partido, elige o agrega quién lo pitó.';return;}
     if(!db.config.arbitros.some(a=>norm(a)===norm(arb))) db.config.arbitros.push(arb);
     m.terminado=true;
     // Cada equipo avanza al siguiente juego al terminar su partido
