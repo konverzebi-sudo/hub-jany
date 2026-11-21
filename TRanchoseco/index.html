@@ -66,6 +66,7 @@ input[type=file]{padding:6px;width:auto}
 .sugs{display:flex;flex-direction:column;gap:4px;margin:-6px 0 12px;max-height:180px;overflow:auto}
 .sug{background:#f3f4f6;color:#111;border:1px solid #e5e7eb;border-radius:8px;padding:9px 12px;text-align:left;cursor:pointer;font:inherit}
 .sug:hover{background:#fff8c2}
+.sug.nuevo{background:var(--yellow);font-weight:700;border-color:#d4b800}
 .lbl{color:#444;font-size:14px;margin:0 0 6px}
 .modal .lbl{color:#444}
 .tiles{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-bottom:14px}
@@ -301,20 +302,32 @@ function buscadorEquipo(s,titulo,teamId){
 function activarBuscador(s){
   const txt=$(`#as-${s}-txt`), sug=$(`#as-${s}-sug`), val=$(`#as-${s}-val`);
   const pintar=()=>{
-    const term=norm(txt.value.trim());
-    const hits=db.teams.filter(t=>!term||norm(t.name).includes(term)).slice(0,8);
-    sug.innerHTML=hits.map(t=>`<button type="button" class="sug" data-pick="${t.id}" data-side="${s}">${esc(t.name)}</button>`).join('')||'<div class="muted">Ningún equipo con ese nombre</div>';
+    // Cada palabra que escriben tiene que estar en el nombre del equipo
+    const toks=norm(txt.value.trim()).split(/\s+/).filter(Boolean);
+    const hits=db.teams.filter(t=>toks.every(k=>norm(t.name).includes(k)));
+    sug.innerHTML=hits.map(t=>`<button type="button" class="sug" data-pick="${t.id}" data-side="${s}">${esc(t.name)}</button>`).join('')
+      +(hits.length?'':'<div class="muted">Ningún equipo tiene ese nombre. Revisa otra vez antes de agregar uno nuevo.</div>')
+      +(toks.length&&!hits.length?`<button type="button" class="sug nuevo" data-nuevo="${s}">+ Agregar nuevo equipo</button>`:'');
   };
   txt.addEventListener('input',()=>{val.value='';pintar();});
   txt.addEventListener('focus',pintar);
   sug.addEventListener('click',e=>{
+    const nu=e.target.closest('[data-nuevo]');
+    if(nu){abrirNuevoDesdeBusqueda(s,txt.value.trim());return;}
     const b=e.target.closest('[data-pick]'); if(!b) return;
     val.value=b.dataset.pick;
     txt.value=teamName(b.dataset.pick);
     sug.innerHTML='';
   });
 }
-function openAssign(f){
+let asignandoField=null; // cancha que se está asignando
+let alVolver=null; // datos de Asignar partido mientras se agrega un equipo nuevo desde la búsqueda
+function abrirNuevoDesdeBusqueda(s,nombre){
+  alVolver={f:asignandoField,a:$('#as-a-val').value,b:$('#as-b-val').value,side:s};
+  openTeam(null,nombre,true);
+}
+function openAssign(f,pre){
+  asignandoField=f;
   if(db.teams.length<2){
     openTeam(null);
     const note=document.createElement('p');
@@ -326,8 +339,8 @@ function openAssign(f){
   const cur=activeMatch(f);
   openModal(`<form id="as-form">
     <h3>Cancha ${f}</h3>
-    ${buscadorEquipo('a','Equipo 1',cur?cur.a:'')}
-    ${buscadorEquipo('b','Equipo 2',cur?cur.b:'')}
+    ${buscadorEquipo('a','Equipo 1',pre?pre.a:(cur?cur.a:''))}
+    ${buscadorEquipo('b','Equipo 2',pre?pre.b:(cur?cur.b:''))}
     <p id="as-err" class="pend"></p>
     <div class="actions">
       ${cur?`<button type="button" class="btn danger" data-act="unassign" data-field="${f}">Quitar partido</button>`:''}
@@ -563,12 +576,15 @@ function renderPagos(){
 
 /* ---------- Equipos ---------- */
 let draft=null; // equipo en edición: {id,name,players:[],lider}
-function openTeam(id,presetName=''){
+function openTeam(id,presetName='',desdeBusqueda=false){
   const t=id?teamById(id):null;
-  draft={id:t?t.id:null,name:t?t.name:presetName,players:t?[...t.players]:[],lider:t?t.lider:null};
+  draft={id:t?t.id:null,name:t?t.name:presetName,players:t?[...t.players]:[],lider:t?t.lider:null,desdeBusqueda};
   openModal(`<form id="tm-form" onsubmit="return false">
     <h3>${t?'Editar equipo':'Nuevo equipo'}</h3>
+    ${desdeBusqueda?'<p class="muted">Antes de agregarlo, revisa la lista de equipos. Si ya existe, cancela y úsalo.</p>':''}
     <label>Nombre del equipo<input id="tm-name" autocomplete="off" value="${esc(draft.name)}"></label>
+    ${desdeBusqueda?'<label class="chk"><input type="checkbox" id="tm-noexiste"> Confirmo que revisé la lista y ningún equipo es este</label>':''}
+    <label class="chk" id="tm-otro-l" style="display:none"><input type="checkbox" id="tm-otro"> Confirmo que es otro equipo, distinto a los parecidos</label>
     <label>Jugadores (el primero es el líder, quien paga)</label>
     <div class="addrow">
       <input id="tm-pl" autocomplete="off" placeholder="Nombre del jugador">
@@ -582,9 +598,8 @@ function openTeam(id,presetName=''){
     </div>
   </form>`);
   $('#tm-name').addEventListener('input',()=>{
-    const term=norm($('#tm-name').value.trim());
-    const hits=term?db.teams.filter(t=>t.id!==draft.id&&norm(t.name).includes(term)).map(t=>t.name):[];
-    $('#tm-err').textContent=hits.length?`Ya existe: ${hits.join(', ')}. Usa ese equipo.`:'';
+    const sim=similares($('#tm-name').value.trim());
+    $('#tm-err').textContent=sim.length?`Ya existe o se parece a: ${sim.map(x=>x.name).join(', ')}. Búscalo antes de registrarlo.`:'';
   });
   renderDraft();
   $('#tm-pl').focus();
@@ -615,11 +630,43 @@ function saveDraft(){
     $('#tm-err').textContent='Ya existe un equipo con ese nombre. Búscalo y úsalo; no lo registres otra vez.';
     return;
   }
+  if(draft.desdeBusqueda&&!$('#tm-noexiste')?.checked){$('#tm-err').textContent='Marca la casilla: confirma que revisaste la lista y ningún equipo es este.';return;}
   if(!draft.players.length){$('#tm-err').textContent='Agrega al menos un jugador (el líder).';return;}
+  const sim=similares(name);
+  if(sim.length&&!$('#tm-otro')?.checked){
+    $('#tm-err').textContent=`Se parece a: ${sim.map(x=>x.name).join(', ')}. Si es el mismo, cancela y úsalo. Si es otro equipo, marca "Confirmo que es otro equipo" y guarda.`;
+    $('#tm-otro-l').style.display='block';
+    return;
+  }
   const data={name,players:[...draft.players],lider:draft.lider||draft.players[0]};
   const t=draft.id?teamById(draft.id):null;
-  if(t) Object.assign(t,data); else db.teams.push({id:uid(),...data});
+  let id;
+  if(t){Object.assign(t,data);id=t.id;}
+  else{id=uid();db.teams.push({id,...data});}
+  const vuelta=alVolver; alVolver=null;
   draft=null; save(); closeModal(); renderAll();
+  if(vuelta){vuelta[vuelta.side]=id; openAssign(vuelta.f,vuelta);}
+}
+// Equipos que se parecen: contienen el nombre, o difieren en muy poco (números distintos = equipos distintos)
+function lev(a,b){
+  let p=Array.from({length:b.length+1},(_,j)=>j);
+  for(let i=1;i<=a.length;i++){
+    const c=[i];
+    for(let j=1;j<=b.length;j++) c[j]=Math.min(p[j]+1,c[j-1]+1,p[j-1]+(a[i-1]===b[j-1]?0:1));
+    p=c;
+  }
+  return p[b.length];
+}
+function similares(name){
+  const n=norm(name).replace(/\s+/g,' ').trim();
+  if(!n) return [];
+  return db.teams.filter(t=>{
+    if(draft&&t.id===draft.id) return false;
+    const m=norm(t.name).replace(/\s+/g,' ').trim();
+    if(m===n) return true;
+    if(/\d/.test(m+n)&&m.replace(/\d/g,'').trim()===n.replace(/\d/g,'').trim()) return false;
+    return m.includes(n)||n.includes(m)||lev(m,n)<=2;
+  });
 }
 function deleteTeam(id){
   const t=teamById(id); if(!t) return;
