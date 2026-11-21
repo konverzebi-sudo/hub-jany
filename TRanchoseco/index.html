@@ -761,7 +761,7 @@ function openPay(teamId,matchId,editId=null){
     <h3>Pago · ${esc(t.name)}${m?` · <span class="cchip">Cancha ${m.field}</span>`:''}</h3>
     ${dos
       ?`<div class="dosc">
-        <label>Inscripción<input class="montoGrande" name="monto_ins" type="number" min="0" step="1" placeholder="$0"></label>
+        <label id="p-ins-campo" style="${t.inscripcionPrevia?'display:none':''}">Inscripción<input class="montoGrande" name="monto_ins" type="number" min="0" step="1" placeholder="$0"></label>
         <label>Arbitraje<input class="montoGrande" name="monto_arb" type="number" min="0" step="1" placeholder="$0"></label>
       </div>
       `:`<label>¿Cuánto está pagando? (arbitraje)<input class="montoGrande" name="monto_arb" type="number" min="0" step="1" placeholder="$0"></label>`}
@@ -855,6 +855,8 @@ function openPay(teamId,matchId,editId=null){
   if(ti&&b.insPend>0) ti.addEventListener('focus',()=>{ if(!ti.value) ti.value=b.insPend; });
   $('#p-insprev').onchange=e=>{
     $('#p-insq').style.display=e.target.checked?'block':'none';
+    // Si ya pagó la inscripción antes de la plataforma, no se pide el monto de inscripción aquí
+    const ic=$('#p-ins-campo'); if(ic) ic.style.display=e.target.checked?'none':'';
     const ad=$('#p-adeudo'); if(ad) ad.style.display=e.target.checked?'none':'';
   };
   $('#p-insrecibe').onclick=e=>{
@@ -867,7 +869,7 @@ function openPay(teamId,matchId,editId=null){
   $('#pay-form').onsubmit=e=>{
     e.preventDefault();
     const fd=new FormData(e.target);
-    const mIns=Number(fd.get('monto_ins')||0), mArb=Number(fd.get('monto_arb')||0);
+    const mIns=fd.get('insPrevia')?0:Number(fd.get('monto_ins')||0), mArb=Number(fd.get('monto_arb')||0);
     const pErr=(msg,el)=>{$('#p-err').textContent=msg;document.querySelectorAll('.faltante').forEach(x=>x.classList.remove('faltante'));if(el){el.classList.add('faltante');el.scrollIntoView({behavior:'smooth',block:'center'});}};
     if(!(mIns>0||mArb>0)){pErr('⚠️ Escribe cuánto está pagando.',document.querySelector('.montoGrande'));return;}
     if(!fd.get('recibio')){pErr('⚠️ Elige quién lo recibió.',$('#p-recibe'));return;}
