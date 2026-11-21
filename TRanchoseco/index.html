@@ -680,6 +680,9 @@ function openAssign(f,pre){
     if(ca||cb){$('#as-err').textContent=`${teamName(ca?a:b)} ya está jugando en la cancha ${ca||cb}. Primero quítalo de esa cancha.`;return;}
     db.matches.forEach(m=>{if(m.field===f&&m.activo)m.activo=false;});
     const arb=(String(fd.get('arbitro')||'')||($('#ar-q')?.value||'')).trim();
+    // Un árbitro solo puede pitar un juego a la vez
+    const pitandoEn=arb&&db.matches.find(x=>x.activo&&x.field!==f&&x.arbitro===arb);
+    if(pitandoEn){$('#as-err').textContent=`${arb} ya está pitando en la cancha ${pitandoEn.field}. Elige otro árbitro.`;return;}
     if(arb&&!(db.config.arbitros||[]).some(x=>norm(x)===norm(arb))) db.config.arbitros.push(arb);
     db.matches.push({id:uid(),field:f,a,b,arbitro:arb,sa:0,sb:0,activo:true,creado:new Date().toISOString()});
     save(); closeModal(); renderAll();
