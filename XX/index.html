@@ -61,6 +61,27 @@
   .jd-inputbar{background:#F8F6FF;border:1px solid #DDD7F0;border-radius:16px;padding:6px 8px;gap:6px;}
   .jd-circbtn{background:#fff;border:1px solid #DDD7F0;color:#5B5784;border-radius:50%;width:34px;height:34px;font-size:15px;cursor:pointer;flex:none;padding:0;}
   .jd-off{display:none!important;}
+  .jd-coach-bot{width:36px;height:36px;border-radius:50%;border:none;background:linear-gradient(135deg,#8B6CF6,#5B8DEF);font-size:18px;line-height:1;cursor:pointer;box-shadow:0 4px 12px rgba(124,92,242,.35);flex:none;}
+  .jd-wk-ov{position:fixed;inset:0;background:rgba(31,27,61,.45);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;}
+  .jd-wk-box{background:#fff;border-radius:22px;box-shadow:0 20px 60px rgba(60,40,140,.35);width:100%;max-width:440px;max-height:90vh;overflow-y:auto;padding:20px;animation:jdWkIn .18s ease-out;}
+  @keyframes jdWkIn{from{transform:translateY(14px) scale(.98);opacity:0}to{transform:none;opacity:1}}
+  .jd-wk-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:14px;}
+  .jd-wk-day{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:18px;color:#1F1B3D;}
+  .jd-wk-x{width:32px;height:32px;border-radius:50%;border:none;background:#F1EEFB;color:#5B5784;cursor:pointer;font-size:14px;flex:none;}
+  .jd-wk-input{width:100%;box-sizing:border-box;border:1.5px solid #E1DAF8;border-radius:14px;padding:13px 14px;font:inherit;font-size:15px;background:#F8F6FF;color:#1F1B3D;outline:none;}
+  .jd-wk-input:focus{border-color:#7C5CF2;background:#fff;}
+  .jd-wk-lab{font-size:10.5px;font-weight:700;letter-spacing:.06em;color:#8A86A8;text-transform:uppercase;margin:16px 0 7px;}
+  .jd-wk-chips{display:flex;flex-wrap:wrap;gap:6px;}
+  .jd-wk-chip{border:1.5px solid #E6E1F5;background:#fff;border-radius:999px;padding:7px 12px;font:inherit;font-size:12.5px;font-weight:600;color:#5B5784;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+  .jd-wk-chip i{width:9px;height:9px;border-radius:50%;display:inline-block;}
+  .jd-wk-chip.on{background:#7C5CF2;border-color:#7C5CF2;color:#fff;}
+  .jd-wk-ent{display:flex;align-items:center;gap:8px;padding:8px 10px;background:#F8F6FF;border-radius:12px;margin-bottom:6px;font-size:12.5px;color:#2F2A55;}
+  .jd-wk-ent i{width:9px;height:9px;border-radius:50%;flex:none;}
+  .jd-wk-acts{display:flex;gap:8px;margin-top:20px;}
+  .jd-wk-acts button{flex:1;border:none;border-radius:14px;padding:13px;font:inherit;font-size:14px;font-weight:700;cursor:pointer;}
+  .jd-wk-go{background:#7C5CF2;color:#fff;box-shadow:0 8px 18px rgba(124,92,242,.35);}
+  .jd-wk-no{background:#EFEAFF;color:#5B5784;}
+  @media(max-width:560px){.jd-wk-ov{align-items:flex-end;padding:0;}.jd-wk-box{border-radius:22px 22px 0 0;max-width:none;}}
   .jd-hero-moved{display:none!important;}
   .jd-tabs{align-items:center;flex-wrap:nowrap;}
   .jd-tabs>button{flex:none;}
@@ -245,23 +266,6 @@
     </div>
   </div>
 
-  <div data-pane="dia" id="jd-coach" class="jd-full" style="padding:0 14px 14px;">
-    <div class="jd-card">
-      <div class="jd-row" style="justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap;">
-        <div class="jd-row" style="gap:10px;">
-          <div class="jd-ico">🧭</div>
-          <div><div class="jd-h" style="margin:0;">Tu coach</div><div class="jd-sub">Organiza tu día según tus metas</div></div>
-        </div>
-        <div class="jd-row" style="gap:6px;flex-wrap:wrap;">
-          <button class="jd-btn jd-btn-lima" data-coach="plan">☀️ Armar mi día</button>
-          <button class="jd-btn" data-coach="cierre">🌙 Cerrar mi día</button>
-          <button class="jd-btn" data-coach="semana">📈 Mi semana</button>
-        </div>
-      </div>
-      <div id="jd-coach-out"></div>
-    </div>
-  </div>
-
   <div data-pane="dia" class="jd-full" style="padding:0 14px 14px;">
     <div class="jd-row" style="justify-content:space-between;align-items:center;margin-bottom:6px;">
       <div><div class="jd-h" style="margin:0;">Mapa semanal (por hora)</div><div class="jd-sub">Toca una hora para anotar qué estás haciendo</div></div>
@@ -273,11 +277,18 @@
     </div>
     <div class="jd-card">
       <div id="jd-week-grid" style="display:grid;gap:2px;width:100%;"></div>
+      <div id="jd-week-bar" style="display:none;"></div>
       <div id="jd-week-day-detail" style="display:none;"></div>
     </div>
   </div>
 
   <div data-pane="dia" id="jd-sec-hoy" style="padding:14px;">
+    <div id="jd-coach" class="jd-row" style="gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+      <button type="button" class="jd-coach-bot" data-coach="ultimo" title="Tu coach" aria-label="Tu coach">🤖</button>
+      <button type="button" class="jd-btn jd-btn-lima" data-coach="plan">☀️ Armar mi día</button>
+      <button type="button" class="jd-btn" data-coach="cierre">🌙 Cerrar mi día</button>
+      <button type="button" class="jd-btn" data-coach="semana">📈 Mi semana</button>
+    </div>
     <div class="jd-row" style="justify-content:space-between;">
       <div class="jd-h" style="margin:0;">Checklist mañanero</div>
       <div class="jd-row" style="gap:12px;">
@@ -2408,6 +2419,79 @@
   }
 
   var weekSel = null;
+  var weekSelSet = new Set(), weekSelWeek = '', wkDrag = null, lastPtr = '', cellEls = {};
+
+  function paintCell(cell, on){
+    cell.style.cssText = cell._css + (on ? 'outline:2px solid #1F1B3D;outline-offset:-1px;' : (cell._now ? 'box-shadow:inset 0 0 0 1.5px #7C5CF2;' : ''));
+  }
+  function recomputeDrag(){
+    if(!wkDrag) return;
+    var d0 = Math.min(wkDrag.anchor.d, wkDrag.cur.d), d1 = Math.max(wkDrag.anchor.d, wkDrag.cur.d);
+    var h0 = Math.min(wkDrag.anchor.h, wkDrag.cur.h), h1 = Math.max(wkDrag.anchor.h, wkDrag.cur.h);
+    var next = new Set(wkDrag.base);
+    for(var dd = d0; dd <= d1; dd++) for(var hh = h0; hh <= h1; hh++) next.add(dd + '-' + hh);
+    weekSelSet = next;
+    Object.keys(cellEls).forEach(function(k){ paintCell(cellEls[k], weekSelSet.has(k)); });
+  }
+  function selectionCells(){
+    var ws = mondayOf(weekViewDate);
+    return Array.from(weekSelSet).map(function(k){
+      var p = k.split('-'), d = new Date(ws); d.setDate(d.getDate() + parseInt(p[0], 10));
+      return {iso: localISO(d), hour: parseInt(p[1], 10)};
+    }).sort(function(a, b){ return a.iso === b.iso ? a.hour - b.hour : (a.iso < b.iso ? -1 : 1); });
+  }
+  function openFromSet(){
+    if(weekSelSet.size) openWeekModal(selectionCells());
+  }
+  function renderWeekBar(){
+    var bar = document.getElementById('jd-week-bar');
+    if(!bar) return;
+    if(!weekSelSet.size){ bar.style.display = 'none'; bar.innerHTML = ''; return; }
+    var n = weekSelSet.size;
+    bar.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap;';
+    bar.innerHTML = '<span class="jd-sub" style="flex:1;min-width:140px;">' + n + ' horario' + (n === 1 ? '' : 's') + ' seleccionado' + (n === 1 ? '' : 's') + ' · arrastra o toca para sumar más</span>' +
+      '<button type="button" class="jd-btn" id="jd-week-clear">Limpiar</button><button type="button" class="jd-btn jd-btn-lima" id="jd-week-go">Anotar</button>';
+    document.getElementById('jd-week-clear').addEventListener('click', function(){ weekSelSet = new Set(); Object.keys(cellEls).forEach(function(k){ paintCell(cellEls[k], false); }); renderWeekBar(); });
+    document.getElementById('jd-week-go').addEventListener('click', openFromSet);
+  }
+
+  // menu con clic derecho
+  function hideWeekMenu(){ var m = document.getElementById('jd-wk-menu'); if(m) m.remove(); }
+  function showWeekMenu(x, y){
+    hideWeekMenu();
+    var m = document.createElement('div');
+    m.id = 'jd-wk-menu';
+    m.style.cssText = 'position:fixed;z-index:1100;background:#fff;border:1px solid #E6E1F5;border-radius:14px;box-shadow:0 12px 32px rgba(60,40,140,.25);padding:6px;min-width:190px;font-family:inherit;';
+    var n = weekSelSet.size;
+    function item(label, fn){
+      var b = document.createElement('button');
+      b.type = 'button'; b.textContent = label;
+      b.style.cssText = 'display:block;width:100%;text-align:left;background:transparent;border:none;border-radius:9px;padding:9px 12px;font:inherit;font-size:13px;font-weight:600;color:#2F2A55;cursor:pointer;';
+      b.addEventListener('mouseenter', function(){ b.style.background = '#F1EEFB'; });
+      b.addEventListener('mouseleave', function(){ b.style.background = 'transparent'; });
+      b.addEventListener('click', function(){ hideWeekMenu(); fn(); });
+      m.appendChild(b);
+    }
+    item('✏️ ' + (n > 1 ? 'Anotar en los ' + n + ' horarios' : 'Anotar / editar'), openFromSet);
+    item('✕ Limpiar selección', function(){ weekSelSet = new Set(); Object.keys(cellEls).forEach(function(k){ paintCell(cellEls[k], false); }); renderWeekBar(); });
+    document.body.appendChild(m);
+    var r = m.getBoundingClientRect();
+    m.style.left = Math.max(8, Math.min(x, innerWidth - r.width - 8)) + 'px';
+    m.style.top = Math.max(8, Math.min(y, innerHeight - r.height - 8)) + 'px';
+  }
+  document.addEventListener('click', function(e){ if(!e.target.closest || !e.target.closest('#jd-wk-menu')) hideWeekMenu(); });
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') hideWeekMenu(); });
+  window.addEventListener('pointerup', function(){
+    if(!wkDrag) return;
+    var d = wkDrag; wkDrag = null;
+    if(!d.moved){
+      var next = new Set(d.base);
+      if(next.has(d.key)) next.delete(d.key); else next.add(d.key);
+      weekSelSet = next;
+      if(cellEls[d.key]) paintCell(cellEls[d.key], weekSelSet.has(d.key));
+    }
+    renderWeekBar();
+  });
   var weekMQ = window.matchMedia('(max-width:560px)');
 
   function renderWeekGrid(){
@@ -2420,6 +2504,10 @@
 
     var byCell = buildWeekMap(weekStart);
     var vertical = weekMQ.matches;
+    var wkIso = localISO(weekStart);
+    if(weekSelWeek !== wkIso){ weekSelSet = new Set(); weekSelWeek = wkIso; }
+    cellEls = {};
+    grid.style.userSelect = 'none'; grid.style.webkitUserSelect = 'none';
     grid.style.gridTemplateColumns = vertical ? '34px repeat(7,minmax(0,1fr))' : '28px repeat(24,minmax(0,1fr))';
     grid.innerHTML = '';
     var dayLabels = ['L','M','M','J','V','S','D'];
@@ -2441,16 +2529,40 @@
       } else if(info && info.entries.length){
         bg = hexToRgba(projectColor(info.entries[0].project), 0.4);
       }
-      var sel = weekSel && weekSel.iso === iso && weekSel.hour === hour;
+      var key = dayIdx + '-' + hour;
       var isNow = iso === nowISO && hour === nowHour;
       var cell = document.createElement('div');
       cell.title = dayLabels[dayIdx] + ' ' + String(hour).padStart(2,'0') + ':00';
-      cell.style.cssText = 'height:' + (vertical ? 22 : 26) + 'px;border-radius:4px;background:' + bg + ';cursor:pointer;' +
-        (sel ? 'outline:2px solid #1F1B3D;outline-offset:-1px;' : (isNow ? 'box-shadow:inset 0 0 0 1.5px #7C5CF2;' : ''));
+      cell._css = 'height:' + (vertical ? 22 : 26) + 'px;border-radius:4px;background:' + bg + ';cursor:pointer;';
+      cell._now = isNow;
+      cellEls[key] = cell;
+      paintCell(cell, weekSelSet.has(key));
+      cell.addEventListener('pointerdown', function(ev){
+        lastPtr = ev.pointerType;
+        if((ev.pointerType !== 'mouse' && ev.pointerType !== 'pen') || ev.button !== 0) return;
+        ev.preventDefault();
+        hideWeekMenu();
+        // arrastrar SUMA a lo que ya estaba seleccionado; un clic suelto marca o desmarca ese cuadro
+        wkDrag = {base: new Set(weekSelSet), anchor: {d: dayIdx, h: hour}, cur: {d: dayIdx, h: hour}, moved: false, key: key};
+      });
+      cell.addEventListener('pointerenter', function(){
+        if(!wkDrag) return;
+        if(wkDrag.cur.d !== dayIdx || wkDrag.cur.h !== hour){ wkDrag.cur = {d: dayIdx, h: hour}; wkDrag.moved = true; recomputeDrag(); }
+      });
       cell.addEventListener('click', function(){
-        weekSel = {iso: iso, hour: hour};
-        renderWeekGrid();
-        renderWeekCellDetail(iso, hour);
+        if(lastPtr === 'mouse' || lastPtr === 'pen') return;
+        if(weekSelSet.has(key)) weekSelSet.delete(key); else weekSelSet.add(key);
+        paintCell(cell, weekSelSet.has(key)); renderWeekBar();
+      });
+      cell.addEventListener('dblclick', function(ev){
+        ev.preventDefault();
+        weekSelSet = new Set([key]);
+        openFromSet();
+      });
+      cell.addEventListener('contextmenu', function(ev){
+        ev.preventDefault();
+        if(!weekSelSet.has(key)){ weekSelSet = new Set([key]); Object.keys(cellEls).forEach(function(k){ paintCell(cellEls[k], weekSelSet.has(k)); }); renderWeekBar(); }
+        showWeekMenu(ev.clientX, ev.clientY);
       });
       return cell;
     }
@@ -2474,60 +2586,124 @@
   }
   if(weekMQ.addEventListener) weekMQ.addEventListener('change', function(){ renderWeekGrid(); }); else weekMQ.addListener(function(){ renderWeekGrid(); });
 
-  function renderWeekCellDetail(iso, hour){
-    var panel = document.getElementById('jd-week-day-detail');
-    if(!panel) return;
-    panel.style.display = 'block';
-    panel.innerHTML = '';
-    var d = new Date(iso + 'T00:00:00');
-    var dayIdx = (d.getDay() + 6) % 7;
-    var info = buildWeekMap(mondayOf(d))[dayIdx + '-' + hour];
-    var wrap = document.createElement('div');
-    wrap.style.cssText = 'border-top:1px solid #ECE8F8;margin-top:10px;padding-top:10px;';
-    var title = document.createElement('div');
-    title.style.cssText = 'font-size:13px;font-weight:600;color:#1F1B3D;margin-bottom:6px;';
-    var dayTxt = d.toLocaleDateString('es-MX', {weekday:'long', day:'numeric', month:'short'});
-    title.textContent = dayTxt.charAt(0).toUpperCase() + dayTxt.slice(1) + ' · ' + String(hour).padStart(2,'0') + ':00';
-    wrap.appendChild(title);
-    ((info && info.entries) || []).forEach(function(en){
-      var row = document.createElement('div');
-      row.className = 'jd-row';
-      row.style.cssText = 'gap:6px;padding:4px 0;border-bottom:1px solid #ECE8F8;font-size:12px;color:#6B6790;align-items:center;';
-      row.innerHTML = '<span class="jd-chip" style="background:#F1EEFB;color:#5B5784;">' + String(en.project).replace(/</g,'&lt;') + '</span><span style="flex:1;">' + String(en.text).replace(/</g,'&lt;') + (en.minutes ? ' · ' + en.minutes + ' min' : '') + '</span>';
-      var x = document.createElement('button');
-      x.className = 'jd-btn'; x.textContent = '×'; x.style.padding = '0 7px'; x.title = 'Quitar';
-      x.addEventListener('click', function(){
-        data.history = data.history.filter(function(hh){ return hh.id !== en.id; });
-        save(); renderHistory(); renderCalendar(); renderWeekGrid(); renderWeekCellDetail(iso, hour);
-      });
-      row.appendChild(x);
-      wrap.appendChild(row);
+  function weekModalKey(e){ if(e.key === 'Escape') closeWeekModal(); }
+
+  function closeWeekModal(){
+    var m = document.getElementById('jd-wk-modal');
+    if(m) m.remove();
+    document.removeEventListener('keydown', weekModalKey);
+    weekSelSet = new Set();
+    renderWeekGrid(); renderWeekBar();
+  }
+
+  function describeCells(cells){
+    var byDay = {};
+    cells.forEach(function(c){ (byDay[c.iso] = byDay[c.iso] || []).push(c.hour); });
+    var parts = Object.keys(byDay).sort().map(function(iso){
+      var hrs = byDay[iso].sort(function(x, y){ return x - y; }), ranges = [], start = hrs[0], prev = hrs[0];
+      for(var i = 1; i <= hrs.length; i++){
+        if(hrs[i] === prev + 1){ prev = hrs[i]; continue; }
+        ranges.push(String(start).padStart(2,'0') + ':00–' + String(prev + 1).padStart(2,'0') + ':00');
+        start = hrs[i]; prev = hrs[i];
+      }
+      var d = new Date(iso + 'T00:00:00');
+      return d.toLocaleDateString('es-MX', {weekday:'short', day:'numeric'}) + ' ' + ranges.join(', ');
     });
-    var form = document.createElement('div');
-    form.style.cssText = 'margin-top:8px;';
-    var projOptions = data.products.map(function(p){ return '<option value="' + p.name.replace(/"/g,'&quot;') + '">' + p.name + '</option>'; }).join('');
-    form.innerHTML = '<input class="jd-input" id="jd-wk-text" placeholder="¿Qué estás haciendo a esta hora?" style="margin-bottom:6px;">' +
-      '<div class="jd-row" style="gap:6px;flex-wrap:wrap;">' +
-      '<select class="jd-input" id="jd-wk-proj" style="flex:2;min-width:120px;"><option value="General">Sin proyecto</option>' + projOptions + '</select>' +
-      '<select class="jd-input" id="jd-wk-min" style="flex:1;min-width:84px;"><option value="15">15 min</option><option value="30">30 min</option><option value="45">45 min</option><option value="60" selected>1 hora</option></select>' +
-      '<button class="jd-btn jd-btn-lima" id="jd-wk-add">Agregar</button></div>';
-    wrap.appendChild(form);
-    panel.appendChild(wrap);
-    var inT = form.querySelector('#jd-wk-text'), selP = form.querySelector('#jd-wk-proj'), touched = false;
-    selP.addEventListener('change', function(){ touched = true; });
-    inT.addEventListener('input', function(){ if(!touched) selP.value = matchProject(inT.value) || 'General'; });
+    return parts.length > 3 ? parts.slice(0, 3).join(' · ') + ' …' : parts.join(' · ');
+  }
+
+  function openWeekModal(cells){
+    var old = document.getElementById('jd-wk-modal');
+    if(old) old.remove();
+    var multi = cells.length > 1;
+    function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+    var title, subtitle, entries = [];
+    if(!multi){
+      var iso0 = cells[0].iso, hour0 = cells[0].hour;
+      var d0 = new Date(iso0 + 'T00:00:00');
+      var info = buildWeekMap(mondayOf(d0))[((d0.getDay() + 6) % 7) + '-' + hour0];
+      entries = (info && info.entries) || [];
+      var dayTxt = d0.toLocaleDateString('es-MX', {weekday:'long', day:'numeric', month:'short'});
+      title = dayTxt.charAt(0).toUpperCase() + dayTxt.slice(1) + ' · ' + String(hour0).padStart(2,'0') + ':00';
+      subtitle = '¿Qué estás haciendo a esta hora?';
+    } else {
+      title = cells.length + ' horarios';
+      subtitle = describeCells(cells);
+    }
+
+    var ov = document.createElement('div');
+    ov.id = 'jd-wk-modal'; ov.className = 'jd-wk-ov';
+    var box = document.createElement('div');
+    box.className = 'jd-wk-box';
+    ov.appendChild(box);
+
+    var html = '<div class="jd-wk-head"><div><div class="jd-wk-day">' + esc(title) + '</div><div class="jd-sub">' + esc(subtitle) + '</div></div><button type="button" class="jd-wk-x" id="jd-wk-close" aria-label="Cerrar">✕</button></div>';
+    if(entries.length){
+      html += '<div class="jd-wk-lab" style="margin-top:0;">Ya anotado</div>';
+      entries.forEach(function(en){
+        html += '<div class="jd-wk-ent"><i style="background:' + projectColor(en.project) + '"></i><span style="flex:1;">' + esc(en.text) + ' <span class="jd-sub">· ' + esc(en.project) + (en.minutes ? ' · ' + en.minutes + ' min' : '') + '</span></span><button type="button" class="jd-wk-x" style="width:26px;height:26px;" data-del="' + esc(en.id) + '" aria-label="Quitar">×</button></div>';
+      });
+    }
+    html += '<div class="jd-wk-lab"' + (entries.length ? '' : ' style="margin-top:0;"') + '>Tarea</div><input class="jd-wk-input" id="jd-wk-text" placeholder="Ej. Diseñando el banner" autocomplete="off">';
+    html += '<div class="jd-wk-lab">Proyecto</div><div class="jd-wk-chips" id="jd-wk-projs"></div>';
+    html += '<div class="jd-wk-lab">' + (multi ? 'Duración en cada horario' : 'Duración') + '</div><div class="jd-wk-chips" id="jd-wk-durs"></div>';
+    html += '<div class="jd-wk-acts"><button type="button" class="jd-wk-no" id="jd-wk-cancel">Cancelar</button><button type="button" class="jd-wk-go" id="jd-wk-add">' + (multi ? 'Agregar a los ' + cells.length : 'Agregar') + '</button></div>';
+    box.innerHTML = html;
+    document.body.appendChild(ov);
+
+    var proj = 'General', mins = 60, touched = false;
+    var projBox = box.querySelector('#jd-wk-projs'), durBox = box.querySelector('#jd-wk-durs');
+    function paintChips(){
+      projBox.innerHTML = '';
+      [{name:'General', label:'Sin proyecto', color:'#B7B2D6'}].concat(data.products.map(function(p){ return {name:p.name, label:p.name, color:projectColor(p.name)}; })).forEach(function(p){
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'jd-wk-chip' + (proj === p.name ? ' on' : '');
+        b.innerHTML = '<i style="background:' + p.color + '"></i>' + esc(p.label);
+        b.addEventListener('click', function(){ proj = p.name; touched = true; paintChips(); });
+        projBox.appendChild(b);
+      });
+      durBox.innerHTML = '';
+      [[15,'15 min'],[30,'30 min'],[45,'45 min'],[60,'1 h'],[90,'1.5 h'],[120,'2 h']].forEach(function(o){
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'jd-wk-chip' + (mins === o[0] ? ' on' : '');
+        b.textContent = o[1];
+        b.addEventListener('click', function(){ mins = o[0]; paintChips(); });
+        durBox.appendChild(b);
+      });
+    }
+    paintChips();
+
+    var inT = box.querySelector('#jd-wk-text');
+    inT.addEventListener('input', function(){ if(!touched){ var mp = matchProject(inT.value) || 'General'; if(mp !== proj){ proj = mp; paintChips(); } } });
     function add(){
       var t = inT.value.trim();
       if(!t){ inT.focus(); return; }
-      var entry = {id: uid('hist'), project: selP.value, text: t, minutes: parseInt(form.querySelector('#jd-wk-min').value, 10) || 60,
-        date: d.toLocaleDateString('es-MX', {day:'numeric', month:'short'}), dateISO: iso, time: String(hour).padStart(2,'0') + ':00'};
-      data.history.unshift(entry);
+      cells.slice().reverse().forEach(function(c){
+        var d = new Date(c.iso + 'T00:00:00');
+        data.history.unshift({id: uid('hist'), project: proj, text: t, minutes: mins,
+          date: d.toLocaleDateString('es-MX', {day:'numeric', month:'short'}), dateISO: c.iso, time: String(c.hour).padStart(2,'0') + ':00'});
+      });
       if(data.history.length > 500) data.history.length = 500;
       bumpAreaTotal(t); bumpAreaDone(t);
-      save(); renderHistory(); renderCalendar(); renderWeekGrid(); renderBalance(); renderWeekCellDetail(iso, hour);
+      save(); renderHistory(); renderCalendar(); renderBalance();
+      closeWeekModal();
     }
-    form.querySelector('#jd-wk-add').addEventListener('click', add);
-    inT.addEventListener('keydown', function(ev){ if(ev.key === 'Enter'){ ev.preventDefault(); add(); } });
+    box.querySelector('#jd-wk-add').addEventListener('click', add);
+    box.querySelector('#jd-wk-cancel').addEventListener('click', closeWeekModal);
+    box.querySelector('#jd-wk-close').addEventListener('click', closeWeekModal);
+    ov.addEventListener('click', function(e){ if(e.target === ov) closeWeekModal(); });
+    inT.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); add(); } });
+    box.querySelectorAll('[data-del]').forEach(function(x){
+      x.addEventListener('click', function(){
+        data.history = data.history.filter(function(hh){ return hh.id !== x.getAttribute('data-del'); });
+        save(); renderHistory(); renderCalendar();
+        weekSelSet = new Set(cells.map(function(c){ var dd = (new Date(c.iso + 'T00:00:00').getDay() + 6) % 7; return dd + '-' + c.hour; }));
+        openWeekModal(cells);
+        renderWeekGrid();
+      });
+    });
+    document.addEventListener('keydown', weekModalKey);
+    setTimeout(function(){ inT.focus(); }, 60);
   }
 
   function isAgendaDay(iso){
@@ -3822,51 +3998,70 @@
       'MODO REVISION SEMANAL: usa el ANALISIS DE HABITOS, las METAS y el avance de areas y proyectos: (1) como va cada area, (2) el habito que mejor va y el que mas se descuida, con numeros y su dia flojo, (3) maximo 3 ajustes concretos para la proxima semana, (4) una pregunta corta de reflexion. Maximo 14 lineas.'}
   };
 
+  function coachModalKey(e){ if(e.key === 'Escape') closeCoachModal(); }
+  function closeCoachModal(){
+    var m = document.getElementById('jd-coach-modal');
+    if(m) m.remove();
+    document.removeEventListener('keydown', coachModalKey);
+  }
+  function showCoachModal(title, text){
+    closeCoachModal();
+    var ov = document.createElement('div');
+    ov.id = 'jd-coach-modal'; ov.className = 'jd-wk-ov';
+    var box = document.createElement('div');
+    box.className = 'jd-wk-box';
+    box.innerHTML = '<div class="jd-wk-head"><div class="jd-wk-day" id="jd-coach-title"></div><button type="button" class="jd-wk-x" id="jd-coach-close" aria-label="Cerrar">✕</button></div>' +
+      '<div id="jd-coach-text" style="white-space:pre-wrap;font-size:14px;line-height:1.55;color:#1F1B3D;"></div>' +
+      '<div class="jd-wk-acts"><button type="button" class="jd-wk-go" id="jd-coach-ok">Listo</button></div>';
+    ov.appendChild(box);
+    document.body.appendChild(ov);
+    box.querySelector('#jd-coach-title').textContent = '🤖 ' + title;
+    box.querySelector('#jd-coach-text').textContent = text;
+    box.querySelector('#jd-coach-close').addEventListener('click', closeCoachModal);
+    box.querySelector('#jd-coach-ok').addEventListener('click', closeCoachModal);
+    ov.addEventListener('click', function(e){ if(e.target === ov) closeCoachModal(); });
+    document.addEventListener('keydown', coachModalKey);
+  }
+  function setCoachModal(title, text){
+    var t = document.getElementById('jd-coach-title'), x = document.getElementById('jd-coach-text');
+    if(t) t.textContent = '🤖 ' + title;
+    if(x) x.textContent = text;
+  }
+
   function renderCoach(){
-    var out = document.getElementById('jd-coach-out');
-    if(!out) return;
+    var b = document.querySelector('#jd-coach button[data-coach="ultimo"]');
+    if(!b) return;
     var last = data.coach && data.coach.last;
-    var plan = data.coach && data.coach.plan;
-    if(!last){
-      out.innerHTML = '<span class="jd-sub">Tu coach arma tu día con tus metas, tu agenda y tus hábitos. Toca ☀️ para empezar.</span>';
-      return;
-    }
-    var when = last.date === todayKey ? 'hoy ' + last.time : last.date;
-    out.innerHTML = '';
-    var h = document.createElement('div');
-    h.className = 'jd-sub'; h.style.cssText = 'font-weight:600;color:#5B5784;margin-bottom:4px;';
-    h.textContent = COACH_MODES[last.mode].label + ' · ' + when;
-    var t = document.createElement('div');
-    t.style.cssText = 'white-space:pre-wrap;font-size:13px;line-height:1.5;color:#1F1B3D;';
-    t.textContent = last.text;
-    out.appendChild(h); out.appendChild(t);
-    if(plan && plan.date !== todayKey && last.mode !== 'plan'){
-      var n = document.createElement('div');
-      n.className = 'jd-sub'; n.style.marginTop = '6px'; n.textContent = 'Aún no armas tu plan de hoy.';
-      out.appendChild(n);
-    }
+    b.title = last ? 'Ver lo último que te dije (' + COACH_MODES[last.mode].label + ')' : 'Tu coach';
   }
 
   async function runCoach(mode){
-    var cfg = COACH_MODES[mode], out = document.getElementById('jd-coach-out');
+    if(mode === 'ultimo'){
+      var l = data.coach && data.coach.last;
+      if(!l){ showCoachModal('Tu coach', 'Soy tu coach. Toca ☀️ Armar mi día para que arme tu día con tus metas, tu agenda y tus hábitos; 🌙 Cerrar mi día para revisar cómo te fue; o 📈 Mi semana para ver cómo van tus hábitos.'); return; }
+      showCoachModal(COACH_MODES[l.mode].label + ' · ' + (l.date === todayKey ? 'hoy ' + l.time : l.date), l.text);
+      return;
+    }
+    var cfg = COACH_MODES[mode];
     var btns = document.querySelectorAll('#jd-coach button[data-coach]');
     btns.forEach(function(b){ b.disabled = true; });
-    out.innerHTML = '<span class="jd-sub">Pensando tu ' + cfg.label.toLowerCase() + '…</span>';
+    showCoachModal(cfg.label, 'Pensando tu ' + cfg.label.toLowerCase() + '…');
     var result = await askAssistant([{role:'user', text:cfg.user}], {advisor:true, extraSystem:'\n\n=== MODO ===\n' + cfg.extra + '\n'});
     btns.forEach(function(b){ b.disabled = false; });
     if(!result){
-      out.innerHTML = '<span class="jd-sub">No pude conectarme' + (lastAssistantError ? ' (' + lastAssistantError + ')' : '') + '. Intenta de nuevo en un momento.</span>';
+      setCoachModal(cfg.label, 'No pude conectarme' + (lastAssistantError ? ' (' + lastAssistantError + ')' : '') + '. Intenta de nuevo en un momento.');
       return;
     }
     if(result.remember) addMemoryNotes(result.remember);
     if(result.meta) addMetas(result.meta);
     var text = result.reply || result.question || '';
-    if(!text){ out.innerHTML = '<span class="jd-sub">No pude armar eso ahora. Intenta de nuevo.</span>'; return; }
+    if(!text){ setCoachModal(cfg.label, 'No pude armar eso ahora. Intenta de nuevo.'); return; }
     if(!data.coach) data.coach = {};
     data.coach.last = {mode:mode, date:todayKey, time:time24(), text:text};
     if(mode === 'plan') data.coach.plan = {date:todayKey, text:text};
     rememberTurn('assistant', cfg.label + ': ' + text);
     save(); renderCoach();
+    setCoachModal(cfg.label + ' · hoy ' + time24(), text);
   }
 
   document.querySelectorAll('#jd-coach button[data-coach]').forEach(function(b){
