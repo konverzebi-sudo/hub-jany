@@ -95,6 +95,11 @@ input[type=file]{padding:6px;width:auto}
 .ppanel .frango input{background:#fff;color:#111;border:1px solid #d1d5db}
 .plbl{color:#6b7280;font-size:13px;font-weight:600;margin:14px 0 8px}
 .yel{color:var(--yellow)}
+.jtabla td.nm,.jtabla th.nm{text-align:left;padding-left:4px}
+.jtabla .res-y{color:var(--yellow);font-weight:800}
+.eqlink{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
+.eqlink.pend{color:#f87171}
+.eqlink.ok{color:#4ade80}
 .jtabla .cins{width:1%;white-space:nowrap;padding-right:2px}
 .jtabla tr.cancha-sep td{background:#11131a;color:var(--yellow);font-weight:800;text-align:left;font-size:15px}
 .vs{display:inline-block;background:var(--yellow);color:#111;border-radius:999px;padding:0 7px;font-size:11px;font-weight:800;margin:0 4px}
@@ -919,6 +924,32 @@ function juegosTablaHTML(tid){
     <tr><th>Total</th><th></th><th style="color:#4ade80">${pagadoTotal?'+'+money(pagadoTotal):money(0)}</th><th><span class="${debeTotal?'pend':'ok'}">${debeTotal?money(debeTotal):'✔ Al corriente'}</span></th></tr>
   </table></div>`;
 }
+// Ficha del equipo: juegos, resultados, abonos y por qué debe
+function abrirFicha(tid){
+  const t=teamById(tid); if(!t) return;
+  const b=balance(tid); const d=b.insPend+b.arbPend;
+  const pago=Number(db.config.arbitraje)||0;
+  const ms=matchesOf(tid).filter(m=>!t.registroDesde||String(m.creado||'')>=t.registroDesde).sort((x,y)=>String(y.creado||'').localeCompare(String(x.creado||'')));
+  const arbPagos=db.payments.filter(p=>p.teamId===tid&&p.tipo==='arbitraje');
+  const pagos=db.payments.filter(p=>p.teamId===tid).sort((x,y)=>String(y.fecha).localeCompare(String(x.fecha)));
+  openModal(`<div>
+    <h3>${esc(t.name)}</h3>
+    <p class="muted" style="margin:0 0 8px">Líder: <b style="color:#111">${esc(t.lider||'—')}</b></p>
+    <p class="muted" style="margin:0 0 10px">Integrantes: <b style="color:#111">${t.players.map(x=>esc(x)).join(', ')||'—'}</b></p>
+    <div class="adeudos">
+      <div class="adeu"><b>Estado</b>${d?`<span class="pend">Debe ${money(d)}</span>`:'<span class="ok">✔ Al corriente</span>'}</div>
+      <div class="adeu"><b>Abonado en total</b>${money(sum(pagos))}</div>
+    </div>
+    ${b.insPend?`<p class="pend" style="margin:0 0 10px">Inscripción pendiente: ${money(b.insPend)}</p>`:''}
+    <h4>Juegos</h4>
+    ${ms.length?`<div class="scroll"><table class="jtabla"><tr><th>Juego</th><th>Partido</th><th>Resultado</th><th>Pagó</th><th>Debe</th></tr>
+      ${ms.map(m=>{const pag=sum(arbPagos.filter(p=>p.matchId===m.id));const falta=Math.max(0,pago-pag);const r=m.terminado?(m.resultado||{a:0,b:0}):{a:m.sa||0,b:m.sb||0};const mio=m.a===tid?r.a:r.b, otro=m.a===tid?r.b:r.a;return `<tr><td>${m.numero?'Juego '+m.numero:'Cancha '+m.field}</td><td>${esc(teamName(m.a))} vs ${esc(teamName(m.b))}</td><td class="res-y">${mio} – ${otro}</td><td style="color:#4ade80">${pag?'+'+money(pag):'—'}</td><td>${falta?`<span class="pend">${money(falta)}</span>`:'✔'}</td></tr>`;}).join('')}
+    </table></div>`:'<p class="muted">Sin juegos.</p>'}
+    <h4>Abonos</h4>
+    ${pagos.length?`<ul class="plist">${pagos.map(p=>`<li><span>${esc(p.fecha)} · ${p.tipo==='inscripcion'?'Inscripción':'Arbitraje'} · <b style="color:#16a34a">+${money(p.monto)}</b><br><small>${esc(p.recibio)} · ${p.metodo==='transferencia'?'Transferencia':'Efectivo'}</small></span></li>`).join('')}</ul>`:'<p class="muted">Sin abonos.</p>'}
+    <div class="actions"><button type="button" class="btn ghost" data-act="close">Cerrar</button></div>
+  </div>`);
+}
 // Registrar un pago sin partido: buscar equipo o jugador
 function openBuscarPago(){
   openModal(`<div>
@@ -1038,20 +1069,24 @@ function dashboardHTML(pagosF,totIns,totArb,pend){
   const celda=(pend)=>pend>0?`<span class="pend">−${money(pend)}</span>`:'<span class="ok">✔</span>';
   const fila=(m,tid)=>{
     const t=teamById(tid), bal=balance(tid);
+    const r=m.terminado?(m.resultado||{a:0,b:0}):{a:m.sa||0,b:m.sb||0};
+    const mio=m.a===tid?r.a:r.b, otro=m.a===tid?r.b:r.a;
+    const d=bal.insPend+bal.arbPend;
     return `<tr>
       <td class="cins">${celda(bal.insPend)}</td>
-      <td>${esc(t?t.name:'—')}</td>
-      <td style="color:var(--yellow);font-weight:700">${t?.juegoActual||'—'}</td>
+      <td class="nm"><button type="button" class="eqlink" data-act="ficha" data-team="${tid}">${esc(t?t.name:'—')}</button></td>
+      <td style="color:#4ade80;font-weight:700">${t?.juegoActual||'—'}</td>
+      <td class="res-y">${mio} – ${otro}</td>
       <td>${celda(bal.arbPend)}</td>
       <td>${money(sum(pagosF.filter(p=>p.teamId===tid)))}</td>
-      <td class="${bal.insPend+bal.arbPend?'pend':'ok'}">${money(bal.insPend+bal.arbPend)}</td>
+      <td><button type="button" class="eqlink ${d?'pend':'ok'}" data-act="ficha" data-team="${tid}">${money(d)}</button></td>
     </tr>`;
   };
   // Por cancha (1 a 4); dentro de cada cancha, los más recientes arriba
   const porCancha=[...new Set(jd.map(m=>m.field))].sort((a,b)=>a-b);
   const jdHTML=jd.length
     ?`<div class="scroll"><table class="jtabla">
-        <tr><th class="cins">Inscripción</th><th>Equipo</th><th>Juego</th><th>Arbitraje</th><th>Pagado total</th><th>Saldo</th></tr>
+        <tr><th class="cins">Inscripción</th><th class="nm">Equipo</th><th>Juego</th><th>Resultado</th><th>Arbitraje</th><th>Abonó</th><th>Saldo</th></tr>
         ${porCancha.map(c=>{
           const lista=jd.filter(m=>m.field===c).sort((x,y)=>String(y.creado||'').localeCompare(String(x.creado||'')));
           return `<tr class="cancha-sep"><td colspan="6"><b>Cancha ${c}</b></td></tr>`+lista.map(m=>`<tr class="sep"><td colspan="6" class="muted"><b>${esc(teamName(m.a))}</b> <span class="vs">vs</span> <b>${esc(teamName(m.b))}</b> · Juego ${m.numero||'—'} · <b style="color:${m.terminado?'#9aa1b2':'#4ade80'}">${m.terminado?'Terminado':'Activo'}</b></td></tr>${fila(m,m.a)}${fila(m,m.b)}`).join('');
@@ -1503,6 +1538,7 @@ document.addEventListener('click',e=>{
     case 'editpay': openPay(d.team,d.match||null,d.id); break;
     case 'pagonuevo': openBuscarPago(); break;
     case 'pagopick': openPay(d.team,null); break;
+    case 'ficha': abrirFicha(d.team); break;
     case 'close': closeModal(); break;
     case 'tp-pick': $('#tp-val').value=d.n; $('#tp-q').value=d.n; $('#tp-list').innerHTML=''; break;
     case 'tp-nuevo': $('#tp-val').value=cap(d.n.trim()); $('#tp-q').value=cap(d.n.trim()); $('#tp-list').innerHTML=''; break;
