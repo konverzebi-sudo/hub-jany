@@ -79,6 +79,16 @@ input[type=file]{padding:6px;width:auto}
 .fchip{background:#2a2f3f;color:var(--muted);border:0;border-radius:999px;padding:7px 14px;font:inherit;font-size:13px;cursor:pointer;transition:.15s}
 .fchip:hover{color:#fff}
 .fchip.on{background:linear-gradient(135deg,#ffe600,#ffd000);color:#111;font-weight:700;box-shadow:0 4px 12px rgba(255,230,0,.25)}
+.dgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:6px}
+.dcard{background:#232735;border:1px solid #2c3247;border-radius:16px;padding:12px}
+.dcard summary{cursor:pointer;list-style:none}
+.dcard small{display:block;color:var(--muted)}
+.dcard b{font-size:16px}
+.dcard .muted{margin-top:4px;font-size:13px}
+.dlist{display:grid;gap:8px;margin-bottom:6px}
+.rowj{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;background:#232735;border:1px solid #2c3247;border-radius:14px;padding:10px 12px;font-size:14px}
+.rowj span.ok{color:#4ade80;font-weight:700}
+.rowj span.pend{color:#f87171;font-weight:700}
 .frango{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
 .frango input{width:auto;margin:0;padding:8px 10px;background:#11131a;color:var(--text);border:1px solid #3d4459;border-radius:10px}
 .cchip{background:var(--yellow);color:#111;border-radius:6px;padding:2px 8px;font-size:15px;font-weight:700;white-space:nowrap}
@@ -182,7 +192,7 @@ th{color:var(--muted);font-weight:600}
 
 <script>
 const KEY='canchas-futbol-v1';
-const DEF={teams:[],matches:[],payments:[],config:{inscripcion:1500,arbitraje:500,totalJuegos:15,recibieron:['Junior','Charro','Victor','Rony'],arbitros:[],cuentas:[]}};
+const DEF={teams:[],matches:[],payments:[],config:{inscripcion:1500,arbitraje:500,totalJuegos:15,recibieron:['Junior','Charro','Victor','Rony'],arbitros:[],pagoArbitro:0,cuentas:[]}};
 const clone=o=>JSON.parse(JSON.stringify(o));
 // Completa los datos que vengan de la nube o del celular sin estas listas
 function completar(d){
@@ -563,6 +573,50 @@ function deletePayment(id,teamId,matchId){
   save(); renderAll();
   openPay(teamId,matchId);
 }
+// Resumen de Pagos: totales, cobradores, canchas, árbitros y juegos de hoy
+function diaLocal(iso){return iso?ymd(new Date(iso)):'';}
+function dashboardHTML(pagosF,totIns,totArb,pend){
+  const cobra=db.config.recibieron.map(n=>{
+    const ps=pagosF.filter(p=>p.recibio===n);
+    const ef=sum(ps.filter(p=>p.metodo!=='transferencia'));
+    const tr=sum(ps.filter(p=>p.metodo==='transferencia'));
+    return `<details class="dcard"><summary><b>${esc(n)}</b> · ${money(ef+tr)}</summary>
+      <div class="muted">Efectivo ${money(ef)} · Transferencia ${money(tr)}</div></details>`;
+  }).join('');
+  const terminados=db.matches.filter(m=>m.terminado&&enRango(diaLocal(m.terminadoEn)));
+  const canchas=[1,2,3,4].map(f=>{
+    const ms=terminados.filter(m=>m.field===f);
+    const ids=new Set(ms.map(m=>m.id));
+    const dinero=sum(pagosF.filter(p=>ids.has(p.matchId)));
+    return `<div class="dcard"><small>Cancha ${f}</small><b>${ms.length} juego${ms.length===1?'':'s'}</b><div class="muted">${money(dinero)} generados</div></div>`;
+  }).join('');
+  const arbs={};
+  terminados.forEach(m=>{arbs[m.arbitro]=(arbs[m.arbitro]||0)+1;});
+  const pagoA=Number(db.config.pagoArbitro)||0;
+  const arbHTML=Object.keys(arbs).length
+    ?Object.entries(arbs).sort((a,b)=>b[1]-a[1]).map(([n,c])=>`<div class="rowj"><b>${esc(n)}</b><span>${c} juego${c===1?'':'s'}</span><span>${money(c*pagoA)} por pagar</span></div>`).join('')
+    :'<p class="muted">Aún no hay juegos arbitrados.</p>';
+  const hoy=today();
+  const jd=db.matches.filter(m=>diaLocal(m.creado)===hoy);
+  const estado=(t,bal)=>`<div class="rowj"><b>${esc(t.name)}</b>
+      ${bal.insPend>0?`<span class="pend">Inscripción −${money(bal.insPend)}</span>`:'<span class="ok">Inscripción ✔</span>'}
+      ${bal.arbPend>0?`<span class="pend">Arbitraje −${money(bal.arbPend)}</span>`:'<span class="ok">Arbitraje ✔</span>'}
+      <span class="muted">Saldo ${money(bal.insPend+bal.arbPend)}</span></div>`;
+  const jdHTML=jd.length
+    ?jd.map(m=>`<div class="dcard"><small>Cancha ${m.field}${m.terminado?' · terminado':''}</small>
+        ${estado(teamById(m.a),balance(m.a))}${estado(teamById(m.b),balance(m.b))}</div>`).join('')
+    :'<p class="muted">No hay juegos hoy.</p>';
+  return `
+    <div class="kpis">
+      <div><small>Inscripciones</small><b>${money(totIns)}</b></div>
+      <div><small>Arbitrajes</small><b>${money(totArb)}</b></div>
+      <div><small>Pendiente de cobrar</small><b class="${pend?'pend':'ok'}">${money(pend)}</b></div>
+    </div>
+    <h3>Cobradores</h3><div class="dgrid">${cobra}</div>
+    <h3>Canchas</h3><div class="dgrid">${canchas}</div>
+    <h3>Pagos por árbitro</h3><div class="dlist">${arbHTML}</div>
+    <h3>Juegos de hoy</h3><div class="dlist">${jdHTML}</div>`;
+}
 // Filtro de fechas en Pagos (hoy, semana, mes, rango o todo)
 let filtroPagos={modo:'todo',desde:'',hasta:''};
 function ymd(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
@@ -598,11 +652,7 @@ function renderPagos(){
   const hist=[...pagosF].sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
   $('#pagos').innerHTML=`
     ${filtroHTML()}
-    <div class="kpis">
-      <div><small>Inscripciones</small><b>${money(totIns)}</b></div>
-      <div><small>Arbitrajes</small><b>${money(totArb)}</b></div>
-      <div><small>Pendiente total</small><b class="${pend?'pend':'ok'}">${money(pend)}</b></div>
-    </div>
+    ${dashboardHTML(pagosF,totIns,totArb,pend)}
     <h3>Saldo por equipo</h3>
     <div class="scroll"><table>
       <tr><th>Equipo</th><th>Inscripción</th><th>Arbitraje</th><th>Pendiente</th></tr>
@@ -759,6 +809,7 @@ function renderAjustes(){
       <label>Total de juegos del torneo<input name="totalJuegos" type="number" min="1" value="${Number(db.config.totalJuegos)||15}"></label>
       <h3>Sugerencias al registrar pagos</h3>
       <label>Personas que reciben (separadas por coma)<input name="recibieron" autocomplete="off" value="${esc(db.config.recibieron.join(', '))}"></label>
+      <label>Pago por juego a cada árbitro<input name="pagoArbitro" type="number" min="0" value="${Number(db.config.pagoArbitro)||0}"></label>
       <label>Árbitros (separados por coma)<input name="arbitros" autocomplete="off" value="${esc(db.config.arbitros.join(', '))}"></label>
       <label>Cuentas (separadas por coma)<input name="cuentas" autocomplete="off" value="${esc(db.config.cuentas.join(', '))}"></label>
       <div class="actions"><button class="btn primary">Guardar ajustes</button></div>
@@ -780,6 +831,7 @@ function renderAjustes(){
     db.config.totalJuegos=Math.max(1,Number(fd.get('totalJuegos'))||15);
     db.config.recibieron=list(fd.get('recibieron'));
     db.config.arbitros=list(fd.get('arbitros'));
+    db.config.pagoArbitro=Math.max(0,Number(fd.get('pagoArbitro'))||0);
     db.config.cuentas=list(fd.get('cuentas'));
     save(); renderAll(); alert('Ajustes guardados');
   };
