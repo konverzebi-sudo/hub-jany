@@ -905,6 +905,50 @@ function openPay(teamId,matchId,editId=null){
     save(); closeModal(); renderAll();
   };
 }
+// Ficha del equipo: integrantes, representante, estadísticas, partidos y pagos
+function abrirFicha(tid){
+  const t=teamById(tid); if(!t) return;
+  const b=balance(tid);
+  const d=b.insPend+b.arbPend;
+  const ms=matchesOf(tid).sort((x,y)=>String(y.creado||'').localeCompare(String(x.creado||'')));
+  let gf=0,gc=0,pg=0,pp=0,pe=0;
+  ms.filter(m=>m.terminado).forEach(m=>{
+    const r=m.resultado||{a:0,b:0};
+    const mio=m.a===tid?r.a:r.b, otro=m.a===tid?r.b:r.a;
+    gf+=mio; gc+=otro;
+    if(mio>otro) pg++; else if(mio<otro) pp++; else pe++;
+  });
+  const pays=db.payments.filter(p=>p.teamId===tid).sort((x,y)=>String(y.fecha).localeCompare(String(x.fecha)));
+  const rep=Object.entries(t.telefonos||{}).find(([n,tel])=>tel);
+  const actual=teamActiveMatch(tid);
+  openModal(`<div>
+    <h3>${esc(t.name)}</h3>
+    <div class="adeudos">
+      <div class="adeu"><b>Estado</b>${d?`<span class="pend">Debe ${money(d)}</span>`:'<span class="ok">✔ Al corriente</span>'}</div>
+      <div class="adeu"><b>Partido actual</b>${actual?`Cancha ${actual.field}`:'Sin partido'}</div>
+    </div>
+    <p><b>Representante:</b> ${rep?`${esc(rep[0])} · ${esc(rep[1])}`:'—'}${t.lider?` · <b>Líder:</b> ${esc(t.lider)}`:''}</p>
+    <div class="resumen">
+      <div><small>Partidos</small><b>${ms.filter(m=>m.terminado).length}</b></div>
+      <div><small>Ganados</small><b class="verde">${pg}</b></div>
+      <div><small>Perdidos</small><b class="rojo">${pp}</b></div>
+      <div><small>Empates</small><b>${pe}</b></div>
+      <div><small>Goles a favor</small><b>${gf}</b></div>
+      <div><small>Goles en contra</small><b>${gc}</b></div>
+    </div>
+    <h4>Integrantes (${t.players.length})</h4>
+    <ul class="plist">${t.players.map(x=>`<li><span>${esc(x)}${t.lider===x?' · <b>líder</b>':''}</span></li>`).join('')||'<li><span class="muted">Sin integrantes</span></li>'}</ul>
+    <h4>Historial de partidos</h4>
+    ${ms.length?`<div class="scroll"><table class="jtabla">
+      <tr><th>Fecha</th><th>Juego</th><th>Rival</th><th>Resultado</th></tr>
+      ${ms.map(m=>{const r=m.resultado||{a:0,b:0};const mio=m.a===tid?r.a:r.b, otro=m.a===tid?r.b:r.a;const rival=m.a===tid?m.b:m.a;const res=!m.terminado?'<span class="muted">En curso</span>':mio>otro?'<span class="ok">Ganó</span>':mio<otro?'<span class="pend">Perdió</span>':'Empate';return `<tr><td>${esc(fechaCorta(diaLocal(m.creado)))}</td><td>${m.numero?'Juego '+m.numero:'Cancha '+m.field}</td><td>${esc(teamName(rival))}</td><td>${m.terminado?`${mio} – ${otro} ${res}`:res}</td></tr>`;}).join('')}
+    </table></div>`:'<p class="muted">Aún no ha jugado.</p>'}
+    <h4>Pagos (${pays.length})</h4>
+    ${pays.length?`<ul class="plist">${pays.map(p=>`<li><span>${esc(p.fecha)} · ${p.tipo==='inscripcion'?'Inscripción':'Arbitraje'} · <b>${money(p.monto)}</b><br><small>${esc(p.recibio)} · ${p.metodo==='transferencia'?'Transferencia':'Efectivo'}${p.cuenta?' · '+esc(p.cuenta):''}${p.nota?' · '+esc(p.nota):''}</small></span></li>`).join('')}</ul>`:'<p class="muted">Aún no hay pagos.</p>'}
+    ${juegosTablaHTML(tid)}
+    <div class="actions"><button type="button" class="btn ghost" data-act="close">Cerrar</button></div>
+  </div>`);
+}
 const SILBATO='<img src="silbato.png" alt="" class="silb">';
 // Registro de arbitraje por juego: cuánto debía y cuánto pagó en cada juego
 function juegosTablaHTML(tid){
@@ -1048,15 +1092,16 @@ function dashboardHTML(pagosF,totIns,totArb,pend){
   const fila=(m,tid)=>{
     const t=teamById(tid), bal=balance(tid);
     const r=m.terminado?(m.resultado||{a:0,b:0}):{a:m.sa||0,b:m.sb||0};
-    const mio=m.a===tid?r.a:r.b, otro=m.a===tid?r.b:r.a;
+    const mio=m.a===tid?r.a:r.b;
     const d=bal.insPend+bal.arbPend;
+    const arbP=sum(pagosF.filter(p=>p.teamId===tid&&p.tipo==='arbitraje'));
     return `<tr>
       <td class="cins">${celda(bal.insPend)}</td>
+      <td style="color:#4ade80;font-weight:700">${m.numero||'—'}</td>
       <td class="nm"><button type="button" class="eqlink" data-act="ficha" data-team="${tid}">${esc(t?t.name:'—')}</button></td>
-      <td style="color:#4ade80;font-weight:700">${t?.juegoActual||'—'}</td>
-      <td class="res-y">${mio} – ${otro}</td>
+      <td class="res-y">${mio}</td>
+      <td>${money(arbP)}</td>
       <td>${celda(bal.arbPend)}</td>
-      <td>${money(sum(pagosF.filter(p=>p.teamId===tid)))}</td>
       <td><button type="button" class="eqlink ${d?'pend':'ok'}" data-act="ficha" data-team="${tid}">${money(d)}</button></td>
     </tr>`;
   };
@@ -1064,10 +1109,10 @@ function dashboardHTML(pagosF,totIns,totArb,pend){
   const porCancha=[...new Set(jd.map(m=>m.field))].sort((a,b)=>a-b);
   const jdHTML=jd.length
     ?`<div class="scroll"><table class="jtabla">
-        <tr><th class="cins">Inscripción</th><th class="nm">Equipo</th><th>Juego</th><th>Resultado</th><th>Arbitraje</th><th>Abonó</th><th>Saldo</th></tr>
+        <tr><th class="cins">Inscripción</th><th>Juego</th><th class="nm">Equipo</th><th>Goles</th><th>Arbitraje</th><th>Saldo pendiente</th><th>Saldo final</th></tr>
         ${porCancha.map(c=>{
           const lista=jd.filter(m=>m.field===c).sort((x,y)=>String(y.creado||'').localeCompare(String(x.creado||'')));
-          return `<tr class="cancha-sep"><td colspan="6"><b>Cancha ${c}</b></td></tr>`+lista.map(m=>`<tr class="sep"><td colspan="6" class="muted"><b>${esc(teamName(m.a))}</b> <span class="vs">vs</span> <b>${esc(teamName(m.b))}</b> · Juego ${m.numero||'—'} · <b style="color:${m.terminado?'#9aa1b2':'#4ade80'}">${m.terminado?'Terminado':'Activo'}</b></td></tr>${fila(m,m.a)}${fila(m,m.b)}`).join('');
+          return `<tr class="cancha-sep"><td colspan="7"><b>Cancha ${c}</b></td></tr>`+lista.map(m=>`<tr class="sep"><td colspan="7"><span class="vs">vs</span> <b style="color:var(--yellow)">${esc(new Date(m.creado||0).toLocaleTimeString('es-MX',{hour:'numeric',minute:'2-digit'}))}</b></td></tr>${fila(m,m.a)}${fila(m,m.b)}`).join('');
         }).join('')}
       </table></div>`
     :'<p class="muted">No hay juegos en este periodo.</p>';
