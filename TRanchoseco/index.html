@@ -94,6 +94,8 @@ input[type=file]{padding:6px;width:auto}
 .ppanel .frango input{background:#fff;color:#111;border:1px solid #d1d5db}
 .plbl{color:#6b7280;font-size:13px;font-weight:600;margin:14px 0 8px}
 .yel{color:var(--yellow)}
+.wa{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.35)}
+.wa:hover{transform:scale(1.06)}
 .deudaq{display:inline-block;border:1px solid #fca5a5;border-radius:999px;padding:2px 10px;font-size:12px;color:#fca5a5;white-space:nowrap;margin-top:2px}
 .barras{display:flex;align-items:flex-end;gap:12px;overflow-x:auto;padding:8px 4px 4px}
 .barcol{display:flex;flex-direction:column;align-items:center;min-width:72px}
@@ -1103,6 +1105,14 @@ function enFoco(p,f){
   if(f.tipo==='arbitro'){const ids=new Set(db.matches.filter(m=>m.arbitro===f.nombre).map(m=>m.id)); return ids.has(p.matchId);}
   return true;
 }
+// Enlace de WhatsApp al responsable (líder) del equipo con el saldo pendiente
+function waLink(t,d){
+  const lider=t.lider||t.players[0]||'';
+  const tel=(t.telefonos&&(t.telefonos[lider]||Object.values(t.telefonos).find(Boolean)))||'';
+  if(!tel) return '<small class="muted">Sin teléfono</small>';
+  const msg=`Hola ${lider}, le escribimos de Rancho Seco: el saldo pendiente de ${t.name} es de ${money(d)}. Le pedimos pasar a pagarlo antes de su próximo juego. ¡Gracias!`;
+  return `<a class="wa" href="https://wa.me/52${tel}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener" title="Enviar saldo por WhatsApp" aria-label="Enviar saldo por WhatsApp"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="#25D366" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2z"/><path fill="#fff" d="M9 8c.3-.6.6-.6 1-.6h.5c.2 0 .4 0 .5.4l.7 1.6c.1.2 0 .4-.1.6l-.5.6c.6 1.2 1.6 2.2 2.8 2.8l.6-.5c.2-.1.4-.2.6-.1l1.6.7c.4.2.4.3.4.5v.5c0 .4 0 .7-.6 1-.6.3-1.5.6-2.8 0-2-1-3.4-2.4-4.3-4.3-.6-1.3-.3-2.2 0-2.8z"/></svg></a>`;
+}
 function renderPagos(){
   const foco=pqFoco();
   const rows=db.teams.filter(t=>!foco||foco.tipo!=='equipo'||t.id===foco.id).map(t=>({t,b:balance(t.id)}));
@@ -1126,10 +1136,11 @@ function renderPagos(){
     ${dashboardHTML(pagosF,totIns,totArb,pend)}
     <h3 class="yel">Saldo por equipo</h3>
     <div class="scroll"><table class="jtabla">
-      <tr><th>Equipo</th><th>Debe</th></tr>
+      <tr><th>Equipo</th><th>Debe</th><th></th></tr>
       ${rows.length?rows.map(({t,b})=>`<tr>
         <td>${esc(t.name)}</td>
         <td class="${b.insPend+b.arbPend?'pend':'ok'}">${b.insPend+b.arbPend?money(b.insPend+b.arbPend):'Al corriente'}</td>
+        <td>${b.insPend+b.arbPend?waLink(t,b.insPend+b.arbPend):''}</td>
       </tr>`).join(''):'<tr><td colspan="2" class="muted">Sin equipos</td></tr>'}
     </table></div>
     `;
