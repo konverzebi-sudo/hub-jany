@@ -1286,21 +1286,38 @@ function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add
    lo vean los alumnos desde sus dispositivos. */
 let ENVIVO = false;
 const VIVO_KV = 'https://agentes.jefeshub.com/api/storage/' + encodeURIComponent('jefeshub:taller-en-vivo');
-async function leerEnVivo() {
-  try { const r = await fetch(VIVO_KV, { cache: 'no-store' }); const j = await r.json(); return !!(j && j.value && j.value.on); }
-  catch (e) { return ENVIVO; }
+async function leerValor() {
+  try { const r = await fetch(VIVO_KV, { cache: 'no-store' }); const j = await r.json(); return (j && j.value) || null; }
+  catch (e) { return null; }
 }
-async function escribirEnVivo(on) {
+let ULT_IR; // undefined = aún no leída; luego guarda la marca de la última orden de mover
+async function revisarEstado() {
+  const v = await leerValor(); if (!v && v !== null) return;
+  const on = !!(v && v.on);
+  if (on !== ENVIVO) { ENVIVO = on; pintarVivo(); }
+  const ir = v && v.ir;
+  if (ULT_IR === undefined) { ULT_IR = ir && ir.t ? ir.t : null; return; }
+  if (ir && ir.t && ir.t !== ULT_IR) {
+    ULT_IR = ir.t;
+    if (ir.hash && location.hash !== ir.hash) location.hash = ir.hash;
+  }
+}
+async function escribirEnVivo(on, ir) {
   let t = ''; try { t = (localStorage.getItem('jefeshub_storage_token') || '').trim(); } catch (e) {}
   if (!t) { t = (window.prompt('Token de acceso para guardar cambios:') || '').trim(); if (!t) return false; try { localStorage.setItem('jefeshub_storage_token', t); } catch (e) {} }
+  const value = { on: on, t: new Date().toISOString() };
+  if (ir) value.ir = ir;
   try {
-    const r = await fetch(VIVO_KV, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Storage-Token': t }, body: JSON.stringify({ value: { on: on, t: new Date().toISOString() } }) });
+    const r = await fetch(VIVO_KV, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Storage-Token': t }, body: JSON.stringify({ value: value }) });
     if (r.status === 401) { try { localStorage.removeItem('jefeshub_storage_token'); } catch (e) {} return false; }
     return r.ok;
   } catch (e) { return false; }
 }
 function avisoPonente() {
-  return `<div id="avisoPonente" style="margin-bottom:18px"><button type="button" class="btn" data-vivo-toggle>${ENVIVO ? '■ Terminé la clase en vivo' : '● Estoy en vivo'}</button></div>`;
+  const btns = [['inicio', 'Empieza por aquí'], ['en-vivo', 'Clase en vivo'], ['clase-2', 'Romper el hielo']]
+    .map(([h, t]) => '<button type="button" class="chip-btn" data-ir="#' + h + '">' + t + '</button>').join('');
+  return '<div id="avisoPonente" style="margin-bottom:18px"><button type="button" class="btn" data-vivo-toggle>' + (ENVIVO ? '■ Terminé la clase en vivo' : '● Estoy en vivo') + '</button>'
+    + '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><small>Mandar a todos a:</small>' + btns + '</div></div>';
 }
 function paginaActual() {
   const page = (decodeURIComponent(location.hash.slice(1)) || 'inicio').split('/')[0];
@@ -1319,7 +1336,14 @@ document.addEventListener('click', async e => {
   ENVIVO = nuevo; pintarVivo();
   toast(nuevo ? 'En vivo: Clase en vivo va primero para tus alumnos' : 'Clase terminada: vuelve Empieza por aquí arriba');
 });
-setInterval(async () => { const v = await leerEnVivo(); if (v !== ENVIVO) { ENVIVO = v; pintarVivo(); } }, 60000);
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-ir]'); if (!b) return;
+  b.disabled = true;
+  const ok = await escribirEnVivo(ENVIVO, { hash: b.dataset.ir, t: new Date().toISOString() });
+  b.disabled = false;
+  toast(ok ? 'Listo: todos van a esa pantalla en unos segundos' : 'No se pudo mandar. Revisa tu token.');
+});
+setInterval(revisarEstado, 15000);
 
 
 
@@ -1763,7 +1787,7 @@ window.addEventListener('hashchange', route);
 iniciarRemoto();
 route();
 /* Si la clase en vivo está prendida y la persona llega sin link específico, abre ahí */
-leerEnVivo().then(v => { ENVIVO = v; if (ENVIVO && !location.hash) location.hash = '#en-vivo'; else pintarVivo(); });
+revisarEstado().then(() => { if (ENVIVO && !location.hash) location.hash = '#en-vivo'; });
 </script>
 </body>
 </html>
