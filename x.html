@@ -319,6 +319,19 @@ button.sec-add .sec-plus { width: 22px; height: 22px; border-radius: 7px; backgr
 #sec-modal button.sec { background: #EFEAFF; color: #5B5784; font-weight: 600; }
 #sec-msg { min-height: 14px; font-size: 11.5px; color: #D4463B; margin-bottom: 8px; }
 #sec-toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: #1F1B3D; color: #fff; padding: 9px 16px; border-radius: 999px; font-size: 12px; z-index: 950; display: none; }
+/* ── BLOQUES (cuadritos) QUE SE ORDENAN ── */
+.x-mod { background: #fff; border: 1px solid #ECE8F8; border-radius: 20px; padding: 18px 18px 12px; margin-bottom: 16px; box-shadow: 0 4px 16px rgba(95,70,190,.07); }
+.x-mod .section-header { margin-top: 0; }
+.x-grip { cursor: grab; color: #B7B2D6; font-size: 18px; line-height: 1; padding: 3px 5px; border-radius: 6px; user-select: none; -webkit-user-select: none; touch-action: none; flex: none; }
+.x-grip:hover { background: #F1EEFB; color: #7C5CF2; }
+body.x-dragging, body.x-dragging * { cursor: grabbing !important; user-select: none !important; -webkit-user-select: none !important; }
+.x-ghost { position: fixed; z-index: 1200; pointer-events: none; opacity: .93; box-shadow: 0 14px 30px rgba(60,40,140,.3); margin: 0 !important; }
+.x-ghost.pill { background: #7C5CF2; color: #fff; padding: 8px 16px; font-weight: 700; font-size: 13px; border-radius: 999px; }
+.x-picked { opacity: .3; }
+.tl-x, .tl-e { position: absolute; top: -7px; width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--gris2); background: var(--negro2); color: var(--gris); font-size: 11px; line-height: 18px; padding: 0; cursor: pointer; }
+.tl-x { right: -7px; } .tl-e { right: 17px; }
+.tl-x:hover { background: #e5484d; border-color: #e5484d; color: #fff; }
+.tl-e:hover { background: var(--verde); border-color: var(--verde); color: #fff; }
 </style>
 <style id="tema-lavanda">
   /* Tema claro lavanda (mismo estilo que el dashboard de productividad) */
@@ -805,6 +818,79 @@ button.sec-add .sec-plus { width: 22px; height: 22px; border-radius: 7px; backgr
 </script>
 
 <script>
+// Arrastrar para reordenar: con mouse se arrastra directo; en el celular, mantén presionado un momento (o usa el asa ⠿ de cada bloque).
+window.xSortable = function (container, o) {
+  var skip = '.sec-x,.sec-e,.tl-x,.tl-e,.pc-del,.pc-mini,input,select,textarea';
+  var st = null, suppress = false, scrollTimer = null, last = {x: 0, y: 0};
+  container.addEventListener('dragstart', function (e) { e.preventDefault(); });
+  container.addEventListener('click', function (e) { if (suppress) { e.preventDefault(); e.stopPropagation(); suppress = false; } }, true);
+  function targetItem(el) { var t = el && el.closest ? el.closest(o.item) : null; return t && t.parentNode === container ? t : null; }
+  function block(e) { if (st && st.active) e.preventDefault(); }
+  function stop() {
+    if (st && st.timer) clearTimeout(st.timer);
+    clearInterval(scrollTimer); scrollTimer = null;
+    window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up);
+    window.removeEventListener('touchmove', block);
+  }
+  function begin(x, y) {
+    st.active = true; suppress = true;
+    var r = st.item.getBoundingClientRect(), g;
+    if (o.label) { g = document.createElement('div'); g.className = 'x-ghost pill'; g.textContent = o.label(st.item); st.offX = 24; st.offY = 14; }
+    else { g = st.item.cloneNode(true); g.className += ' x-ghost'; g.style.width = r.width + 'px'; g.style.height = r.height + 'px'; st.offX = x - r.left; st.offY = y - r.top; }
+    document.body.appendChild(g);
+    st.ghost = g; st.item.classList.add('x-picked'); document.body.classList.add('x-dragging');
+    place(x, y);
+    scrollTimer = setInterval(function () {
+      var top = last.y, vh = window.innerHeight, dy = 0, host = window, off = 0;
+      try { if (window.frameElement && window.parent !== window) { host = window.parent; off = window.frameElement.getBoundingClientRect().top; vh = host.innerHeight; } } catch (e) {}
+      var py = top + off;
+      if (py < 70) dy = -14; else if (py > vh - 70) dy = 14;
+      if (dy) { try { host.scrollBy(0, dy); } catch (e) {} }
+    }, 30);
+  }
+  function place(x, y) { st.ghost.style.left = (x - st.offX) + 'px'; st.ghost.style.top = (y - st.offY) + 'px'; }
+  function move(e) {
+    if (!st) return;
+    last = {x: e.clientX, y: e.clientY};
+    if (!st.active) {
+      var far = Math.hypot(e.clientX - st.x, e.clientY - st.y);
+      if (st.type === 'mouse' || o.handle) { if (far > 5) begin(e.clientX, e.clientY); else return; }
+      else { if (far > 9) { stop(); st = null; } return; }
+    }
+    place(e.clientX, e.clientY);
+    var t = targetItem(document.elementFromPoint(e.clientX, e.clientY));
+    if (!t || t === st.item) return;
+    var r = t.getBoundingClientRect(), after;
+    if (o.axis === 'y') after = e.clientY > r.top + r.height / 2;
+    else after = (e.clientY >= r.top && e.clientY <= r.bottom) ? e.clientX > r.left + r.width / 2 : e.clientY > r.top + r.height / 2;
+    var ref = after ? t.nextSibling : t;
+    if (ref !== st.item) container.insertBefore(st.item, ref);
+  }
+  function up() {
+    var s = st; stop(); st = null;
+    if (s && s.active) {
+      if (s.ghost) s.ghost.remove();
+      s.item.classList.remove('x-picked'); document.body.classList.remove('x-dragging');
+      setTimeout(function () { suppress = false; }, 60);
+      if (o.onDrop) o.onDrop(container);
+    }
+  }
+  container.addEventListener('pointerdown', function (e) {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (e.target.closest(skip)) return;
+    if (o.handle && !e.target.closest(o.handle)) return;
+    var item = targetItem(e.target);
+    if (!item) return;
+    last = {x: e.clientX, y: e.clientY};
+    st = {item: item, x: e.clientX, y: e.clientY, type: e.pointerType, active: false, ghost: null, timer: null};
+    if (!o.handle && e.pointerType !== 'mouse') st.timer = setTimeout(function () { if (st && !st.active) begin(last.x, last.y); }, 380);
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+    window.addEventListener('touchmove', block, {passive: false});
+  });
+};
+</script>
+
+<script>
 // Páginas en mi control: accesos directos con el icono de cada página. Se agregan a mano y se guardan
 // en este dispositivo y (si hay token) en el servidor, para verlos igual desde cualquier dispositivo.
 (function () {
@@ -907,6 +993,8 @@ button.sec-add .sec-plus { width: 22px; height: 22px; border-radius: 7px; backgr
     } catch (e) { aviso('Guardado solo en este dispositivo'); }
   }
   function cambio() { guardarLocal(); pintar(); guardarServidor(); }
+  // orden nuevo (indices de los accesos tal como quedaron en pantalla)
+  window.__pcReorder = function (idx) { items = idx.map(function (i) { return items[i]; }).filter(Boolean); cambio(); };
 
   function abrirForm() { form.classList.add('on'); document.getElementById('pc-url').focus(); }
   function cerrarForm() { form.classList.remove('on'); document.getElementById('pc-nombre').value = ''; document.getElementById('pc-url').value = ''; document.getElementById('pc-icono').value = ''; }
@@ -946,7 +1034,7 @@ button.sec-add .sec-plus { width: 22px; height: 22px; border-radius: 7px; backgr
   var API = location.hostname === 'agentes.jefeshub.com' ? '' : 'https://agentes.jefeshub.com';
   var KEY = 'x:secciones', LS = 'x_secciones', TK = 'jefeshub_storage_token';
   var BASE_SLUGS = ['jefeshub', 'rancho-seco', 'rim', 'optica-one'];
-  var NOMBRES = { cc: 'Business Manager Admin', hubs: 'Mis hubs', vivo: 'Páginas en vivo', jefes: 'Los Jefes', clientes: 'Sitios de clientes y proyectos', analisis: 'Análisis y métricas', infra: 'Infraestructura', herr: 'Herramientas de creación', docs: 'Documentos de trabajo', material: 'Material fotográfico', links: 'Links rápidos' };
+  var NOMBRES = { tools: 'Mis accesos rápidos', cc: 'Business Manager Admin', hubs: 'Mis hubs', vivo: 'Páginas en vivo', jefes: 'Los Jefes', clientes: 'Sitios de clientes y proyectos', analisis: 'Análisis y métricas', infra: 'Infraestructura', herr: 'Herramientas de creación', docs: 'Documentos de trabajo', material: 'Material fotográfico', links: 'Links rápidos' };
   // Lo que trae Business Manager Admin la primera vez; después es tuyo (se edita, se quita o se agrega).
   var DEFAULT_BM = [
     { nombre: 'Hub de Jefes', url: 'https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=249570119&business_id=866362100434617' },
@@ -980,10 +1068,118 @@ button.sec-add .sec-plus { width: 22px; height: 22px; border-radius: 7px; backgr
   function cambio() { guardarLocal(); pintar(); guardarServidor(); }
 
   // La lista de una sección; Business Manager Admin arranca con los tres de arriba hasta que se cambie algo.
-  function lista(key) { return key === 'cc' && !Array.isArray(data.cc) ? DEFAULT_BM : (data[key] || []); }
+  function lista(key) {
+    if (key === 'tools') { var tl = toolsGet(); return tl ? tl.map(function (t) { return { nombre: t.name, url: t.url }; }) : []; }
+    return key === 'cc' && !Array.isArray(data.cc) ? DEFAULT_BM : (data[key] || []);
+  }
   function editable(key) {
     if (key === 'cc' && !Array.isArray(data.cc)) data.cc = DEFAULT_BM.map(function (b) { return { nombre: b.nombre, url: b.url }; });
     return (data[key] = data[key] || []);
+  }
+
+  // ---- orden: bloques (cuadritos) y botones dentro de cada bloque ----
+  function bridge() { try { return window.parent !== window && window.parent.jdTools ? window.parent.jdTools : null; } catch (e) { return null; } }
+  function toolsGet() { var b = bridge(); return b ? b.get() : null; }
+  function tagItems() {
+    document.querySelectorAll('[data-sec]').forEach(function (box) {
+      Array.prototype.forEach.call(box.children, function (el) {
+        if (el.classList.contains('sec-add') || el.tagName !== 'A') return;
+        el.dataset.ok = (el.classList.contains('sec-gen') ? 'c:' : 's:') + (el.getAttribute('href') || el.textContent.trim());
+      });
+    });
+  }
+  function applyOrders() {
+    var ord = data._orden || {};
+    document.querySelectorAll('[data-sec]').forEach(function (box) {
+      var keys = ord[box.dataset.sec]; if (!keys || !keys.length) return;
+      var kids = Array.prototype.filter.call(box.children, function (el) { return el.dataset.ok; });
+      var pos = {}; keys.forEach(function (k, i) { if (pos[k] === undefined) pos[k] = i; });
+      var sorted = kids.map(function (el, i) { return {el: el, i: i, p: pos[el.dataset.ok] === undefined ? 1e6 + i : pos[el.dataset.ok]}; }).sort(function (a, b) { return a.p - b.p; });
+      var add = box.querySelector(':scope > .sec-add');
+      sorted.forEach(function (s) { box.insertBefore(s.el, add); });
+    });
+  }
+  function modKey(mod) {
+    if (mod.dataset.mod) return mod.dataset.mod;
+    var c = mod.querySelector('[data-sec]'); if (c) return c.dataset.sec;
+    if (mod.querySelector('#pc-grid')) return 'control';
+    return null;
+  }
+  function wrapModules() {
+    var main = document.querySelector('.main');
+    if (!main || main.querySelector('.x-mod')) return;
+    var cur = null;
+    Array.prototype.slice.call(main.children).forEach(function (el) {
+      if (el.classList.contains('section-header')) {
+        cur = document.createElement('section'); cur.className = 'x-mod';
+        main.insertBefore(cur, el); cur.appendChild(el);
+        var grip = document.createElement('span'); grip.className = 'x-grip'; grip.textContent = '⠿'; grip.title = 'Arrastra para mover este bloque';
+        el.insertBefore(grip, el.firstChild);
+      } else if (cur) cur.appendChild(el);
+    });
+    Array.prototype.forEach.call(main.querySelectorAll(':scope > .x-mod'), function (m) { m.dataset.mod = modKey(m) || ''; });
+  }
+  function applyBloques() {
+    var main = document.querySelector('.main'); if (!main) return;
+    var order = data._bloques || [];
+    var mods = Array.prototype.slice.call(main.querySelectorAll(':scope > .x-mod'));
+    if (!order.length) return;
+    var pos = {}; order.forEach(function (k, i) { pos[k] = i; });
+    mods.map(function (m, i) { return {m: m, p: pos[m.dataset.mod] === undefined ? 1e6 + i : pos[m.dataset.mod]}; })
+      .sort(function (a, b) { return a.p - b.p; })
+      .forEach(function (s) { main.appendChild(s.m); });
+  }
+  function guardarOrden() { guardarLocal(); guardarServidor(); }
+  function attachSortables() {
+    var main = document.querySelector('.main');
+    window.xSortable(main, {item: '.x-mod', handle: '.x-grip', axis: 'y',
+      label: function (m) { var t = m.querySelector('.section-title'); return t ? t.textContent : 'Bloque'; },
+      onDrop: function () { data._bloques = Array.prototype.map.call(main.querySelectorAll(':scope > .x-mod'), function (m) { return m.dataset.mod; }); guardarOrden(); }});
+    document.querySelectorAll('[data-sec]').forEach(function (box) {
+      window.xSortable(box, {item: 'a', onDrop: function () {
+        (data._orden = data._orden || {})[box.dataset.sec] = Array.prototype.filter.call(box.children, function (c) { return c.dataset.ok; }).map(function (c) { return c.dataset.ok; });
+        guardarOrden();
+      }});
+    });
+    var pc = document.getElementById('pc-grid');
+    if (pc) window.xSortable(pc, {item: '.pc-tile[data-i]', onDrop: function () {
+      window.__pcReorder(Array.prototype.map.call(pc.querySelectorAll('.pc-tile[data-i]'), function (a) { return +a.dataset.i; }));
+    }});
+  }
+
+  // ---- bloque "Mis accesos rápidos" (viene del dashboard cuando esta pagina va dentro de Mi dia) ----
+  var toolsBox = null;
+  function ensureToolsModule() {
+    var main = document.querySelector('.main');
+    if (!main || document.getElementById('x-mod-tools')) return;
+    var mod = document.createElement('section');
+    mod.className = 'x-mod'; mod.id = 'x-mod-tools'; mod.dataset.mod = 'tools'; mod.style.display = 'none';
+    mod.innerHTML = '<div class="section-header"><span class="x-grip" title="Arrastra para mover este bloque">⠿</span><span class="section-icon">🧩</span><span class="section-title">Mis accesos rápidos</span><div class="section-line"></div></div><div class="pc-grid" id="x-tools"></div>';
+    main.insertBefore(mod, main.firstChild);
+    toolsBox = mod.querySelector('#x-tools');
+    window.xSortable(toolsBox, {item: '.pc-tile[data-t]', onDrop: function () {
+      var b = bridge(); if (!b) return;
+      var cur = b.get() || [], idx = Array.prototype.map.call(toolsBox.querySelectorAll('.pc-tile[data-t]'), function (a) { return +a.dataset.t; });
+      b.set(idx.map(function (i) { return cur[i]; }).filter(Boolean));
+      renderToolsModule();
+    }});
+  }
+  function renderToolsModule() {
+    var mod = document.getElementById('x-mod-tools'); if (!mod) return;
+    var b = bridge(), list = b ? b.get() : null;
+    if (!list) { mod.style.display = 'none'; return; }
+    mod.style.display = '';
+    try { b.moved(true); } catch (e) {}
+    toolsBox.innerHTML = list.map(function (t, i) {
+      var ext = /^https?:/i.test(t.url), ini = esc(t.icon || (t.name || '?').charAt(0).toUpperCase());
+      var ico = (t.icon && (t.featured || t.iconPinned)) ? ini : '<img src="' + esc(favicon(t.url)) + '" alt="" data-ini="' + ini + '">';
+      return '<a class="pc-tile" data-t="' + i + '" href="' + esc(t.url) + '"' + (ext ? ' target="_blank" rel="noopener"' : '') + ' title="' + esc(t.name) + '"><span class="pc-ico">' + ico + '</span><span class="pc-name">' + esc(t.name) + '</span>' +
+        '<button type="button" class="tl-e" data-ti="' + i + '" aria-label="Editar ' + esc(t.name) + '">✎</button><button type="button" class="tl-x" data-ti="' + i + '" aria-label="Quitar ' + esc(t.name) + '">✕</button></a>';
+    }).join('') + '<button type="button" class="pc-tile pc-add" id="x-tools-add"><span class="pc-ico">+</span><span class="pc-name">Agregar</span></button>';
+    toolsBox.querySelectorAll('img[data-ini]').forEach(function (img) { img.onerror = function () { img.parentNode.textContent = img.dataset.ini; }; });
+    toolsBox.querySelectorAll('.tl-e').forEach(function (bt) { bt.onclick = function (e) { e.preventDefault(); e.stopPropagation(); abrir('tools', +bt.dataset.ti); }; });
+    toolsBox.querySelectorAll('.tl-x').forEach(function (bt) { bt.onclick = function (e) { e.preventDefault(); e.stopPropagation(); var cur = b.get() || []; cur.splice(+bt.dataset.ti, 1); b.set(cur); renderToolsModule(); }; });
+    document.getElementById('x-tools-add').onclick = function () { abrir('tools', -1); };
   }
 
   function favicon(url) { return 'https://www.google.com/s2/favicons?domain=' + encodeURIComponent(hostDe(url)) + '&sz=64'; }
@@ -1022,6 +1218,7 @@ button.sec-add .sec-plus { width: 22px; height: 22px; border-radius: 7px; backgr
       b.onclick = function (e) { e.preventDefault(); e.stopPropagation(); abrir(b.dataset.key, +b.dataset.i); };
     });
     document.querySelectorAll('[data-add]').forEach(function (b) { b.onclick = function () { abrir(b.dataset.add, -1); }; });
+    tagItems(); applyOrders(); applyBloques();
   }
 
   var velo = document.getElementById('sec-velo'), inN = document.getElementById('sec-nombre'), inU = document.getElementById('sec-url'), msg = document.getElementById('sec-msg'), btnOk = document.getElementById('sec-ok');
@@ -1038,7 +1235,14 @@ button.sec-add .sec-plus { width: 22px; height: 22px; border-radius: 7px; backgr
   function agregar() {
     var url = normalizar(inU.value);
     if (!url) { msg.textContent = 'Escribe una dirección válida, ej. mi-sitio.com'; return; }
-    var nombre = (inN.value.trim() || hostDe(url)).slice(0, 40), arr = editable(destino);
+    var nombre = (inN.value.trim() || hostDe(url)).slice(0, 40);
+    if (destino === 'tools') {
+      var b = bridge(); if (!b) { cerrar(); return; }
+      var cur = b.get() || [];
+      if (editando >= 0 && cur[editando]) { cur[editando].name = nombre; cur[editando].url = url; } else cur.push({ name: nombre, url: url });
+      b.set(cur); cerrar(); renderToolsModule(); return;
+    }
+    var arr = editable(destino);
     if (editando >= 0 && arr[editando]) { arr[editando].nombre = nombre; arr[editando].url = url; }
     else arr.push({ nombre: nombre, url: url });
     cerrar(); cambio();
@@ -1054,7 +1258,8 @@ button.sec-add .sec-plus { width: 22px; height: 22px; border-radius: 7px; backgr
     var j = await r.json(), v = j && j.value; if (typeof v === 'string') v = JSON.parse(v); return v;
   }
   async function cargar() {
-    data = leerLocal(); pintar();
+    data = leerLocal(); wrapModules(); ensureToolsModule(); attachSortables(); pintar(); renderToolsModule();
+    var tries = 0; (function tick() { renderToolsModule(); var b = bridge(); if ((!b || !b.get()) && ++tries < 14) setTimeout(tick, 500); })();
     try {
       var v = await leerServidor(KEY);
       if (v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length) { data = v; guardarLocal(); pintar(); }
