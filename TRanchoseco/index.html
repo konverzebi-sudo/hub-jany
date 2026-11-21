@@ -461,11 +461,42 @@ function abrirChooser(nombre){
 function nombreChooser(){return cap(($('#ch-nombre')?.value||'').trim());}
 function chooserEquipo(n){
   chooserModo='equipo';
-  const {equipos,jugadores}=coincidencias(n);
-  const hay=equipos.length||jugadores.length;
-  $('#ch-body').innerHTML=`${equipos.map(t=>`<button type="button" class="sug" data-act="pickteam" data-team="${t.id}">${esc(t.name)}</button>`).join('')}
-    ${hay?'<p class="muted">Ya existe un equipo o jugador con ese nombre. Si es el mismo, úsalo. Si es otro, cambia el nombre.</p>'
-      :`<button type="button" class="sug nuevo" data-act="equiponuevo" data-n="${esc(n)}">+ Registrar como equipo nuevo</button>`}`;
+  draft=null;
+  const {equipos}=coincidencias(n);
+  $('#ch-body').innerHTML=`
+    ${equipos.length?`<div class="reslist">${equipos.map(t=>`<button type="button" data-act="pickteam" data-team="${t.id}"><b>${esc(t.name)}</b><br><small>Ya registrado</small></button>`).join('')}</div>`:''}
+    <label>Nombre del equipo<input id="ce-nombre" autocomplete="off" value="${esc(cap(n))}"></label>
+    <label>Jugador<input id="ce-jug" autocomplete="off" placeholder="Busca o escribe el nombre"></label>
+    <div id="ce-jlist"></div>
+    <label>Teléfono<input id="ce-tel" type="tel" inputmode="tel" autocomplete="off" placeholder="10 dígitos"></label>
+    <p id="ce-err" class="pend"></p>
+    <div class="actions"><button type="button" class="btn primary" data-act="ce-guardar">Registrar equipo</button></div>`;
+  const j=$('#ce-jug');
+  const pintarJug=()=>{
+    // Busca entre los jugadores que ya están registrados (pueden jugar en dos equipos)
+    const toks=norm(j.value.trim()).split(/\s+/).filter(Boolean);
+    const todos=[...new Set(db.teams.flatMap(t=>t.players))];
+    const hits=toks.length?todos.filter(x=>toks.every(k=>norm(x).includes(k))):[];
+    $('#ce-jlist').innerHTML=hits.length?`<div class="reslist">${hits.slice(0,20).map(x=>`<button type="button" data-act="ce-jpick" data-n="${esc(x)}"><b>${esc(x)}</b></button>`).join('')}</div>`:'';
+  };
+  j.addEventListener('input',pintarJug);
+}
+function cePick(nombre){
+  $('#ce-jug').value=nombre;
+  $('#ce-jlist').innerHTML='';
+}
+function ceGuardar(){
+  const name=cap(($('#ce-nombre').value||'').trim());
+  const jug=cap(($('#ce-jug').value||'').trim());
+  const tel=($('#ce-tel').value||'').replace(/\D/g,'');
+  const err=m=>{$('#ce-err').textContent=m;};
+  if(!name) return err('Escribe el nombre del equipo.');
+  if(!jug) return err('Escribe el nombre del jugador.');
+  if(db.teams.some(t=>norm(t.name)===norm(name))) return err('Ese equipo ya existe. Búscalo arriba.');
+  if(similares(name).length) return err('Se parece a un equipo que ya existe. Búscalo arriba.');
+  if(!/^\d{10}$/.test(tel)) return err('Escribe el teléfono (10 dígitos).');
+  db.teams.push({id:uid(),name,players:[jug],lider:jug,telefonos:{[jug]:tel}});
+  save(); closeModal(); renderAll();
 }
 function chooserJugador(n){
   chooserModo='jugador';
@@ -1175,6 +1206,8 @@ document.addEventListener('click',e=>{
     case 'cj-guardar': cjGuardar(); break;
     case 'esequipo': chooserEquipo(nombreChooser()); break;
     case 'pickteam': closeModal(); pickResult(d.team); break;
+    case 'ce-jpick': cePick(d.n); break;
+    case 'ce-guardar': ceGuardar(); break;
     case 'equiponuevo': openTeam(null,d.n,true); break;
     case 'registrarjugador': openTeam(null,'',true,d.n); break;
     case 'export': exportDb(); break;
