@@ -87,6 +87,10 @@ input[type=file]{padding:6px;width:auto}
 .sq{aspect-ratio:1/1;background:#f3f4f6;color:#111;border:1px solid #cfd3dc;border-radius:10px;font:inherit;font-weight:700;font-size:13px;cursor:pointer;padding:4px}
 .sq.on{background:var(--yellow);border-color:#d4b800}
 .switchrow{display:flex;align-items:center;gap:12px;margin-bottom:14px;color:#111}
+.metodos{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+.met{background:#f3f4f6;color:#111;border:1px solid #cfd3dc;border-radius:12px;padding:12px 6px;font:inherit;font-weight:700;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px}
+.met .ico{font-size:26px;line-height:1}
+.met.on{background:var(--yellow);border-color:#d4b800}
 .switch{position:relative;display:inline-block;width:52px;height:28px;margin:0}
 .switch input{opacity:0;width:0;height:0;margin:0}
 .slider{position:absolute;inset:0;background:#cfd3dc;border-radius:999px;cursor:pointer;transition:.2s}
@@ -382,11 +386,11 @@ function openPay(teamId,matchId){
     <h3>Pago · ${esc(t.name)}${m?` · <span class="cchip">Cancha ${m.field}</span>`:''}</h3>
     ${b.insPend>0
       ?`<div class="dosc">
-        <label>Inscripción<input class="montoGrande" name="monto_ins" type="number" min="0" step="1" value="0"></label>
-        <label>Arbitraje<input class="montoGrande" name="monto_arb" type="number" min="0" step="1" value="0"></label>
+        <label>Inscripción<input class="montoGrande" name="monto_ins" type="number" min="0" step="1" placeholder="$0"></label>
+        <label>Arbitraje<input class="montoGrande" name="monto_arb" type="number" min="0" step="1" placeholder="$0"></label>
       </div>
       <p class="rojo" style="margin:0 0 12px">Adeudo de inscripción: ${money(b.insPend)}</p>`
-      :`<label>¿Cuánto está pagando? (arbitraje)<input class="montoGrande" name="monto_arb" type="number" min="0" step="1" value="0"></label>`}
+      :`<label>¿Cuánto está pagando? (arbitraje)<input class="montoGrande" name="monto_arb" type="number" min="0" step="1" placeholder="$0"></label>`}
     <div class="resumen" id="p-res">
       <div><small>Estado del equipo</small>${adeudo>0?`<b class="rojo">Adeudo ${money(adeudo)}</b>`:'<b class="verde">✔ Al corriente</b>'}</div>
       <div><small>Número de juego</small><b id="p-num">${t.registroDesde?t.juegoActual:'—'}</b></div>
@@ -402,15 +406,21 @@ function openPay(teamId,matchId){
     </div>
     <input type="hidden" name="recibio" id="p-recibio" value="">
     <div class="lbl">Método</div>
-    <div class="switchrow">
-      <span>Efectivo</span>
-      <label class="switch"><input type="checkbox" id="p-met"><span class="slider"></span></label>
-      <span>Transferencia</span>
+    <div class="metodos" id="p-metodos">
+      <button type="button" class="met on" data-m="efectivo"><span class="ico">💵</span>Efectivo</button>
+      <button type="button" class="met" data-m="transferencia"><span class="ico">🏦</span>Transferencia</button>
     </div>
     <input type="hidden" name="metodo" id="p-metodo" value="efectivo">
     <label id="p-cuenta-l" style="display:none">Cuenta donde se pagó<input name="cuenta" list="dl-cta" autocomplete="off"></label>
     <div class="card" style="padding:10px;margin-bottom:12px">
-      <label class="chk"><input type="checkbox" name="insPrevia" ${t.inscripcionPrevia?'checked':''}> Ya pagó el 100% de la inscripción</label>
+      <label class="chk"><input type="checkbox" id="p-insprev" name="insPrevia" ${t.inscripcionPrevia?'checked':''}> Ya pagó el 100% de la inscripción</label>
+      <div id="p-insq" style="display:${t.inscripcionPrevia?'block':'none'};margin-top:10px">
+        <div class="lbl">¿A quién se le pagó la inscripción?</div>
+        <div class="cuadros" id="p-insrecibe">
+          ${db.config.recibieron.map(n=>`<button type="button" class="sq${t.inscripcionRecibio===n?' on':''}" data-ins="${esc(n)}">${esc(n)}</button>`).join('')}
+        </div>
+        <input type="hidden" name="recibioIns" id="p-recibioIns" value="${esc(t.inscripcionRecibio||'')}">
+      </div>
     </div>
     <label>Nota (opcional)<input name="nota" autocomplete="off"></label>
     <datalist id="dl-cta">${optionsList(cuentasList())}</datalist>
@@ -439,11 +449,20 @@ function openPay(teamId,matchId){
     $('#p-num').textContent=b.dataset.j;
     jg.querySelectorAll('.tile').forEach(x=>x.classList.toggle('on',x===b));
   };
-  // Método: interruptor efectivo / transferencia
-  $('#p-met').onchange=e=>{
-    const tr=e.target.checked;
-    $('#p-metodo').value=tr?'transferencia':'efectivo';
+  // Método: iconos efectivo / transferencia
+  $('#p-metodos').onclick=e=>{
+    const b=e.target.closest('[data-m]'); if(!b) return;
+    const tr=b.dataset.m==='transferencia';
+    $('#p-metodo').value=b.dataset.m;
+    document.querySelectorAll('#p-metodos .met').forEach(x=>x.classList.toggle('on',x===b));
     $('#p-cuenta-l').style.display=tr?'block':'none';
+  };
+  // Inscripción pagada: decidir a quién se le pagó
+  $('#p-insprev').onchange=e=>{$('#p-insq').style.display=e.target.checked?'block':'none';};
+  $('#p-insrecibe').onclick=e=>{
+    const b=e.target.closest('[data-ins]'); if(!b) return;
+    $('#p-recibioIns').value=b.dataset.ins;
+    document.querySelectorAll('#p-insrecibe .sq').forEach(x=>x.classList.toggle('on',x===b));
   };
   $('#pay-form').onsubmit=e=>{
     e.preventDefault();
@@ -452,6 +471,10 @@ function openPay(teamId,matchId){
     if(!(mIns>0||mArb>0)){alert('Escribe cuánto está pagando');return;}
     if(!fd.get('recibio')){alert('Elige quién lo recibió');return;}
     t.inscripcionPrevia=!!fd.get('insPrevia');
+    if(t.inscripcionPrevia){
+      if(!fd.get('recibioIns')){alert('Elige a quién se le pagó la inscripción');return;}
+      t.inscripcionRecibio=String(fd.get('recibioIns'));
+    }
     if(!t.registroDesde){
       // Primera vez: se guarda en qué juego va el equipo y desde cuándo cuenta el arbitraje
       const desde=Number(fd.get('desde'));
