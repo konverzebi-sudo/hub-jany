@@ -75,7 +75,15 @@ input[type=file]{padding:6px;width:auto}
 .tile:disabled{opacity:.6;cursor:default}
 .juegoq{color:#fff;font-size:12px;opacity:.9}
 .arbchip{background:#fff;color:#111;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600;margin-right:8px;vertical-align:middle;white-space:nowrap}
-.fbox{background:#1c2030;border:1px solid #2c3247;border-radius:18px;padding:10px;margin-bottom:14px}
+.fbox{margin-bottom:14px;position:relative}
+.pbtn{width:100%;display:flex;justify-content:space-between;align-items:center;background:#fff;color:#111;border:1px solid #d1d5db;border-radius:14px;padding:12px 16px;font:inherit;font-weight:600;cursor:pointer;text-align:left}
+.pbtn .flecha{color:#6b7280}
+.ppanel{background:#fff;color:#111;border-radius:18px;padding:14px;margin-top:10px;box-shadow:0 12px 32px rgba(0,0,0,.35)}
+.ppanel .fchip{background:#f3f4f6;color:#111;border:1px solid #e5e7eb}
+.ppanel .fchip:hover{color:#111;border-color:#9ca3af}
+.ppanel .fchip.on{background:#14532d;color:#fff;border-color:#14532d;box-shadow:none;font-weight:600}
+.ppanel .frango input{background:#fff;color:#111;border:1px solid #d1d5db}
+.plbl{color:#6b7280;font-size:13px;font-weight:600;margin:14px 0 8px}
 .fchips{display:flex;gap:6px;flex-wrap:wrap}
 .fchip{background:#2a2f3f;color:var(--muted);border:0;border-radius:999px;padding:7px 14px;font:inherit;font-size:13px;cursor:pointer;transition:.15s}
 .fchip:hover{color:#fff}
@@ -644,21 +652,47 @@ function dashboardHTML(pagosF,totIns,totArb,pend){
     <h3>Juegos de hoy</h3>${jdHTML}`;
 }
 // Filtro de fechas en Pagos (hoy, semana, mes, rango o todo)
-let filtroPagos={modo:'todo',desde:'',hasta:''};
+let filtroPagos={modo:'todo',desde:'',hasta:'',abierto:false};
+const PERIODOS=[['hoy','Hoy'],['ayer','Ayer'],['semana','Esta semana'],['semana_pas','Semana pasada'],['mes','Este mes'],['mes_pas','Mes pasado'],['d30','Últimos 30 días'],['anio','Este año'],['todo','Total']];
 function ymd(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+// Fechas (desde, hasta) de cada periodo; vacío = sin límite
+function rangoDe(modo){
+  const hoy=new Date(), h=ymd(hoy);
+  const dias=n=>{const x=new Date(hoy);x.setDate(x.getDate()+n);return ymd(x);};
+  const lunes=(semanas)=>{const x=new Date(hoy);x.setDate(x.getDate()-((x.getDay()+6)%7)-semanas*7);return x;};
+  if(modo==='hoy') return [h,h];
+  if(modo==='ayer') return [dias(-1),dias(-1)];
+  if(modo==='semana') return [ymd(lunes(0)),h];
+  if(modo==='semana_pas'){const a=lunes(1);const b=new Date(a);b.setDate(b.getDate()+6);return [ymd(a),ymd(b)];}
+  if(modo==='mes') return [h.slice(0,8)+'01',h];
+  if(modo==='mes_pas'){return [ymd(new Date(hoy.getFullYear(),hoy.getMonth()-1,1)),ymd(new Date(hoy.getFullYear(),hoy.getMonth(),0))];}
+  if(modo==='d30') return [dias(-29),h];
+  if(modo==='anio') return [h.slice(0,4)+'-01-01',h];
+  if(modo==='rango') return [filtroPagos.desde,filtroPagos.hasta];
+  return ['',''];
+}
 function enRango(f){
-  const s=String(f||''), hoy=today();
-  if(filtroPagos.modo==='hoy') return s===hoy;
-  if(filtroPagos.modo==='semana'){const d=new Date();d.setDate(d.getDate()-6);return s>=ymd(d)&&s<=hoy;}
-  if(filtroPagos.modo==='mes') return s>=hoy.slice(0,8)+'01'&&s<=hoy;
-  if(filtroPagos.modo==='rango') return (!filtroPagos.desde||s>=filtroPagos.desde)&&(!filtroPagos.hasta||s<=filtroPagos.hasta);
-  return true;
+  const s=String(f||''), [a,b]=rangoDe(filtroPagos.modo);
+  return (!a||s>=a)&&(!b||s<=b);
+}
+function etiquetaPeriodo(){
+  const p=PERIODOS.find(x=>x[0]===filtroPagos.modo);
+  if(p) return p[1];
+  const [a,b]=rangoDe('rango');
+  const fmt=s=>s?`${s.slice(8,10)}/${s.slice(5,7)}/${s.slice(0,4)}`:'…';
+  return `${fmt(a)} → ${fmt(b)}`;
 }
 function filtroHTML(){
-  const modos=[['hoy','Hoy'],['semana','Esta semana'],['mes','Este mes'],['rango','Rango'],['todo','Todo']];
+  const chips=PERIODOS.map(([k,l])=>`<button type="button" class="fchip${filtroPagos.modo===k?' on':''}" data-act="filtro" data-modo="${k}">${l}</button>`).join('');
   return `<div class="fbox">
-    <div class="fchips">${modos.map(([k,l])=>`<button type="button" class="fchip${filtroPagos.modo===k?' on':''}" data-act="filtro" data-modo="${k}">${l}</button>`).join('')}</div>
-    ${filtroPagos.modo==='rango'?`<div class="frango"><input type="date" id="f-desde" value="${filtroPagos.desde}"><span class="muted">a</span><input type="date" id="f-hasta" value="${filtroPagos.hasta}"></div>`:''}
+    <button type="button" class="pbtn" data-act="periodo">
+      <span>📅 ${esc(etiquetaPeriodo())}</span><span class="flecha">${filtroPagos.abierto?'▴':'▾'}</span>
+    </button>
+    ${filtroPagos.abierto?`<div class="ppanel">
+      <div class="fchips">${chips}</div>
+      <div class="plbl">Rango personalizado</div>
+      <div class="frango"><input type="date" id="f-desde" value="${filtroPagos.desde}"><span class="muted">→</span><input type="date" id="f-hasta" value="${filtroPagos.hasta}"></div>
+    </div>`:''}
   </div>`;
 }
 function renderPagos(){
@@ -976,12 +1010,13 @@ document.addEventListener('click',e=>{
     case 'quitarp': quitarPersona(d.n); break;
     case 'addarb': addArbitro(); break;
     case 'quitarb': quitarArbitro(d.n); break;
-    case 'filtro': filtroPagos={...filtroPagos,modo:d.modo}; renderPagos(); break;
+    case 'filtro': filtroPagos={...filtroPagos,modo:d.modo,abierto:false}; renderPagos(); break;
+    case 'periodo': filtroPagos={...filtroPagos,abierto:!filtroPagos.abierto}; renderPagos(); break;
   }
 });
 document.addEventListener('change',e=>{
   if(e.target.id==='f-desde'||e.target.id==='f-hasta'){
-    filtroPagos={modo:'rango',desde:$('#f-desde')?.value||'',hasta:$('#f-hasta')?.value||''};
+    filtroPagos={...filtroPagos,modo:'rango',desde:$('#f-desde')?.value||'',hasta:$('#f-hasta')?.value||''};
     renderPagos();
   }
 });
