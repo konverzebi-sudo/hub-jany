@@ -57,6 +57,10 @@ main{max-width:600px;margin:0 auto;padding:8px 12px 40px}
 label{display:block;margin-bottom:12px;color:var(--muted);font-size:14px}
 input,select,textarea{display:block;width:100%;margin-top:5px;padding:10px;border-radius:8px;border:1px solid #3d4459;background:#11131a;color:var(--text);font:inherit}
 input[type=file]{padding:6px;width:auto}
+.whistle{background:#fff;color:#111;border:0;border-radius:999px;width:36px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;margin-right:8px;vertical-align:middle}
+.whistle:hover{background:var(--yellow)}
+.marcador{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#11131a;color:#fff;border-radius:10px;padding:12px;margin-bottom:12px;font-size:15px}
+.marcador span{font-size:22px;font-weight:700}
 .addrow{display:flex;gap:8px;align-items:center;margin-bottom:10px}
 .addrow input{margin:0;flex:1}
 .rowbtns{display:flex;gap:6px;flex-shrink:0}
@@ -135,14 +139,21 @@ th{color:var(--muted);font-weight:600}
 
 <script>
 const KEY='canchas-futbol-v1';
-const DEF={teams:[],matches:[],payments:[],config:{inscripcion:1500,arbitraje:500,totalJuegos:15,recibieron:[],cuentas:[]}};
+const DEF={teams:[],matches:[],payments:[],config:{inscripcion:1500,arbitraje:500,totalJuegos:15,recibieron:['Junior','Charro','Victor','Rony'],arbitros:[],cuentas:[]}};
 const clone=o=>JSON.parse(JSON.stringify(o));
+// Completa los datos que vengan de la nube o del celular sin estas listas
+function completar(d){
+  const cfg={...clone(DEF.config),...(d.config||{})};
+  if(!cfg.recibieron||!cfg.recibieron.length) cfg.recibieron=[...DEF.config.recibieron];
+  if(!cfg.arbitros) cfg.arbitros=[];
+  return {...clone(DEF),...d,config:cfg};
+}
 
 function load(){
   try{
     const s=JSON.parse(localStorage.getItem(KEY));
     if(!s) return clone(DEF);
-    return {...clone(DEF),...s,config:{...DEF.config,...(s.config||{})}};
+    return completar(s);
   }catch(e){return clone(DEF);}
 }
 let db=load();
@@ -191,7 +202,7 @@ async function cargarNube(){
     if(!r.ok) return;
     const j=await r.json();
     if(j&&j.value){
-      db={...clone(DEF),...j.value,config:{...DEF.config,...(j.value.config||{})}};
+      db=completar(j.value);
       localStorage.setItem(KEY,JSON.stringify(db));
       renderAll();
     }else if(db.teams.length||db.payments.length){
@@ -258,7 +269,7 @@ function renderFields(){
   for(let f=1;f<=4;f++){
     const m=activeMatch(f);
     h+=`<section class="fwrap">
-      <div class="fhead"><span>Cancha ${f}${m&&m.numero?` · Juego ${m.numero} de ${db.config.totalJuegos}`:''}</span><button class="link" data-act="assign" data-field="${f}">${m?'Cambiar partido':'Asignar partido'}</button></div>
+      <div class="fhead"><span>Cancha ${f}${m&&m.numero?` · Juego ${m.numero} de ${db.config.totalJuegos}`:''}</span>${m?`<button class="whistle" data-act="terminar" data-match="${m.id}" title="Terminar partido" aria-label="Terminar partido">${SILBATO}</button>`:''}<button class="link" data-act="assign" data-field="${f}">${m?'Cambiar partido':'Asignar partido'}</button></div>
       <div class="field"><span class="circle"></span>`;
     if(m){
       h+=`<div class="row">
@@ -345,11 +356,20 @@ function openPay(teamId,matchId){
       </select>
     </label>
     <label>Monto<input name="monto" id="p-monto" type="number" min="1" step="1" required value="${ins}"></label>
-    <label>Quién lo recibió<input name="recibio" list="dl-rec" required autocomplete="off"></label>
-    <label>Cuenta donde se pagó<input name="cuenta" list="dl-cta" required autocomplete="off"></label>
+    <label>Quién lo recibió
+      <select name="recibio" required>
+        ${db.config.recibieron.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('')}
+      </select>
+    </label>
+    <label>Método
+      <select name="metodo" required>
+        <option value="efectivo">Efectivo</option>
+        <option value="transferencia">Transferencia</option>
+      </select>
+    </label>
+    <label>Cuenta donde se pagó (si fue transferencia)<input name="cuenta" list="dl-cta" autocomplete="off"></label>
     <label>Fecha<input name="fecha" type="date" required value="${today()}"></label>
     <label>Nota (opcional)<input name="nota" autocomplete="off"></label>
-    <datalist id="dl-rec">${optionsList(recibieronList())}</datalist>
     <datalist id="dl-cta">${optionsList(cuentasList())}</datalist>
     <div class="actions">
       <button type="button" class="btn ghost" data-act="close">Cancelar</button>
@@ -358,7 +378,7 @@ function openPay(teamId,matchId){
     <h4>Pagos de este equipo</h4>
     ${pays.length?`<ul class="plist">${pays.map(p=>`<li>
       <span>${esc(p.fecha)} · ${p.tipo==='inscripcion'?'Inscripción':'Arbitraje'} · <b>${money(p.monto)}</b><br>
-      <small>${esc(p.recibio)} · ${esc(p.cuenta)}${p.nota?' · '+esc(p.nota):''}</small></span>
+      <small>${esc(p.recibio)} · ${p.metodo==='transferencia'?'Transferencia':'Efectivo'}${p.cuenta?' · '+esc(p.cuenta):''}${p.nota?' · '+esc(p.nota):''}</small></span>
       <button type="button" class="btn danger sm" data-act="delpay" data-id="${p.id}" data-team="${teamId}" data-match="${matchId||''}">Borrar</button>
     </li>`).join('')}</ul>`:'<p class="muted">Aún no hay pagos.</p>'}
   </form>`);
@@ -376,13 +396,64 @@ function openPay(teamId,matchId){
       id:uid(),teamId,matchId:matchId||null,
       tipo:fd.get('tipo'),monto,
       recibio:String(fd.get('recibio')).trim(),
-      cuenta:String(fd.get('cuenta')).trim(),
+      metodo:String(fd.get('metodo')),
+      cuenta:String(fd.get('cuenta')||'').trim(),
       fecha:fd.get('fecha'),
       nota:String(fd.get('nota')||'').trim(),
       creado:new Date().toISOString()
     });
     save(); closeModal(); renderAll();
   };
+}
+const SILBATO='<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2 9h12l5-4v14l-5-4H2z"/><circle cx="19" cy="12" r="1.8"/></svg>';
+function openTerminar(mid){
+  const m=matchById(mid); if(!m) return;
+  const arbs=db.config.arbitros||[];
+  openModal(`<form id="tp-form">
+    <h3>Terminar partido · Cancha ${m.field}</h3>
+    <div class="marcador"><b>${esc(teamName(m.a))}</b><span>${m.sa||0} – ${m.sb||0}</span><b>${esc(teamName(m.b))}</b></div>
+    <label>Árbitro
+      <select name="arbitro" id="tp-arb">
+        ${arbs.map(a=>`<option value="${esc(a)}">${esc(a)}</option>`).join('')}
+        <option value="__nuevo__">+ Agregar árbitro nuevo</option>
+      </select>
+    </label>
+    <label id="tp-nuevo-l" style="display:none">Nombre del árbitro nuevo<input name="nuevo" autocomplete="off"></label>
+    <p id="tp-err" class="pend"></p>
+    <div class="actions">
+      <button type="button" class="btn ghost" data-act="close">Cancelar</button>
+      <button class="btn primary">Terminar partido</button>
+    </div>
+  </form>`);
+  const sel=$('#tp-arb'), nl=$('#tp-nuevo-l');
+  const toggle=()=>{nl.style.display=sel.value==='__nuevo__'?'block':'none';};
+  sel.onchange=toggle;
+  if(!arbs.length) sel.value='__nuevo__';
+  toggle();
+  $('#tp-form').onsubmit=e=>{
+    e.preventDefault();
+    const fd=new FormData(e.target);
+    let arb=String(fd.get('arbitro')||'');
+    if(arb==='__nuevo__') arb=String(fd.get('nuevo')||'').trim();
+    if(!arb){$('#tp-err').textContent='Elige o escribe el árbitro.';return;}
+    if(!db.config.arbitros.some(a=>norm(a)===norm(arb))) db.config.arbitros.push(arb);
+    m.terminado=true;
+    m.activo=false;
+    m.resultado={a:m.sa||0,b:m.sb||0};
+    m.arbitro=arb;
+    m.terminadoEn=new Date().toISOString();
+    save(); closeModal(); renderAll();
+  };
+}
+function partidosTerminadosHTML(){
+  const ts=db.matches.filter(m=>m.terminado).sort((a,b)=>String(b.terminadoEn).localeCompare(String(a.terminadoEn)));
+  return `<h3>Partidos terminados</h3><div class="scroll"><table>
+    <tr><th>Cancha</th><th>Juego</th><th>Equipos</th><th>Marcador</th><th>Árbitro</th></tr>
+    ${ts.length?ts.map(m=>`<tr><td>${m.field}</td><td>${m.numero||'—'}</td>
+      <td>${esc(teamName(m.a))} vs ${esc(teamName(m.b))}</td>
+      <td>${m.resultado?m.resultado.a:0} – ${m.resultado?m.resultado.b:0}</td>
+      <td>${esc(m.arbitro||'—')}</td></tr>`).join(''):'<tr><td colspan="5" class="muted">Aún no hay partidos terminados</td></tr>'}
+  </table></div>`;
 }
 function deletePayment(id,teamId,matchId){
   if(!confirm('¿Borrar este pago?')) return;
@@ -420,6 +491,7 @@ function renderPagos(){
         <td class="${b.insPend+b.arbPend?'pend':'ok'}">${money(b.insPend+b.arbPend)}</td>
       </tr>`).join(''):'<tr><td colspan="4" class="muted">Sin equipos</td></tr>'}
     </table></div>
+    ${partidosTerminadosHTML()}
     <h3>Historial de pagos</h3>
     <div class="scroll"><table>
       <tr><th>Fecha</th><th>Equipo</th><th>Tipo</th><th>Cancha</th><th>Monto</th><th>Recibió</th><th>Cuenta</th></tr>
@@ -512,6 +584,7 @@ function renderAjustes(){
       <label>Total de juegos del torneo<input name="totalJuegos" type="number" min="1" value="${Number(db.config.totalJuegos)||15}"></label>
       <h3>Sugerencias al registrar pagos</h3>
       <label>Personas que reciben (separadas por coma)<input name="recibieron" autocomplete="off" value="${esc(db.config.recibieron.join(', '))}"></label>
+      <label>Árbitros (separados por coma)<input name="arbitros" autocomplete="off" value="${esc(db.config.arbitros.join(', '))}"></label>
       <label>Cuentas (separadas por coma)<input name="cuentas" autocomplete="off" value="${esc(db.config.cuentas.join(', '))}"></label>
       <div class="actions"><button class="btn primary">Guardar ajustes</button></div>
     </form>
@@ -531,6 +604,7 @@ function renderAjustes(){
     db.config.arbitraje=Math.max(0,Number(fd.get('arbitraje'))||0);
     db.config.totalJuegos=Math.max(1,Number(fd.get('totalJuegos'))||15);
     db.config.recibieron=list(fd.get('recibieron'));
+    db.config.arbitros=list(fd.get('arbitros'));
     db.config.cuentas=list(fd.get('cuentas'));
     save(); renderAll(); alert('Ajustes guardados');
   };
@@ -599,6 +673,7 @@ document.addEventListener('click',e=>{
     case 'delteam': deleteTeam(d.id); break;
     case 'delpay': deletePayment(d.id,d.team,d.match||null); break;
     case 'close': closeModal(); break;
+    case 'terminar': openTerminar(d.match); break;
     case 'addplayer': addPlayerDraft(); break;
     case 'lider': draft.lider=draft.players[+d.i]; renderDraft(); break;
     case 'quitarj': {const r=draft.players.splice(+d.i,1)[0]; if(draft.lider===r) draft.lider=draft.players[0]||null; renderDraft(); break;}
