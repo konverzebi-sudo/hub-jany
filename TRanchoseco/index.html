@@ -74,6 +74,13 @@ input[type=file]{padding:6px;width:auto}
 .tile.on{background:var(--yellow);border-color:#d4b800}
 .tile:disabled{opacity:.6;cursor:default}
 .juegoq{color:#fff;font-size:12px;opacity:.9}
+.fbox{background:#1c2030;border:1px solid #2c3247;border-radius:18px;padding:10px;margin-bottom:14px}
+.fchips{display:flex;gap:6px;flex-wrap:wrap}
+.fchip{background:#2a2f3f;color:var(--muted);border:0;border-radius:999px;padding:7px 14px;font:inherit;font-size:13px;cursor:pointer;transition:.15s}
+.fchip:hover{color:#fff}
+.fchip.on{background:linear-gradient(135deg,#ffe600,#ffd000);color:#111;font-weight:700;box-shadow:0 4px 12px rgba(255,230,0,.25)}
+.frango{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.frango input{width:auto;margin:0;padding:8px 10px;background:#11131a;color:var(--text);border:1px solid #3d4459;border-radius:10px}
 .cchip{background:var(--yellow);color:#111;border-radius:6px;padding:2px 8px;font-size:15px;font-weight:700;white-space:nowrap}
 .modal .rojo{color:#dc2626}
 .modal .dosc{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px}
@@ -556,21 +563,41 @@ function deletePayment(id,teamId,matchId){
   save(); renderAll();
   openPay(teamId,matchId);
 }
+// Filtro de fechas en Pagos (hoy, semana, mes, rango o todo)
+let filtroPagos={modo:'todo',desde:'',hasta:''};
+function ymd(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+function enRango(f){
+  const s=String(f||''), hoy=today();
+  if(filtroPagos.modo==='hoy') return s===hoy;
+  if(filtroPagos.modo==='semana'){const d=new Date();d.setDate(d.getDate()-6);return s>=ymd(d)&&s<=hoy;}
+  if(filtroPagos.modo==='mes') return s>=hoy.slice(0,8)+'01'&&s<=hoy;
+  if(filtroPagos.modo==='rango') return (!filtroPagos.desde||s>=filtroPagos.desde)&&(!filtroPagos.hasta||s<=filtroPagos.hasta);
+  return true;
+}
+function filtroHTML(){
+  const modos=[['hoy','Hoy'],['semana','Esta semana'],['mes','Este mes'],['rango','Rango'],['todo','Todo']];
+  return `<div class="fbox">
+    <div class="fchips">${modos.map(([k,l])=>`<button type="button" class="fchip${filtroPagos.modo===k?' on':''}" data-act="filtro" data-modo="${k}">${l}</button>`).join('')}</div>
+    ${filtroPagos.modo==='rango'?`<div class="frango"><input type="date" id="f-desde" value="${filtroPagos.desde}"><span class="muted">a</span><input type="date" id="f-hasta" value="${filtroPagos.hasta}"></div>`:''}
+  </div>`;
+}
 function renderPagos(){
   const rows=db.teams.map(t=>({t,b:balance(t.id)}));
-  const totIns=sum(db.payments.filter(p=>p.tipo==='inscripcion'));
-  const totArb=sum(db.payments.filter(p=>p.tipo==='arbitraje'));
+  const pagosF=db.payments.filter(p=>enRango(p.fecha));
+  const totIns=sum(pagosF.filter(p=>p.tipo==='inscripcion'));
+  const totArb=sum(pagosF.filter(p=>p.tipo==='arbitraje'));
   const pend=rows.reduce((s,r)=>s+r.b.insPend+r.b.arbPend,0);
   const byKey=k=>{
     const o={};
-    db.payments.forEach(p=>{const kk=p[k]||'—';o[kk]=(o[kk]||0)+Number(p.monto||0);});
+    pagosF.forEach(p=>{const kk=p[k]||'—';o[kk]=(o[kk]||0)+Number(p.monto||0);});
     return Object.entries(o).sort((a,b)=>b[1]-a[1]);
   };
   const mini=(title,list)=>`<h4>${title}</h4><div class="scroll"><table>${
     list.length?list.map(([k,v])=>`<tr><td>${esc(k)}</td><td style="text-align:right">${money(v)}</td></tr>`).join(''):'<tr><td class="muted">Sin pagos</td></tr>'
   }</table></div>`;
-  const hist=[...db.payments].sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
+  const hist=[...pagosF].sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
   $('#pagos').innerHTML=`
+    ${filtroHTML()}
     <div class="kpis">
       <div><small>Inscripciones</small><b>${money(totIns)}</b></div>
       <div><small>Arbitrajes</small><b>${money(totArb)}</b></div>
@@ -819,6 +846,13 @@ document.addEventListener('click',e=>{
     case 'pickresult': pickResult(d.team); break;
     case 'addteam': q.value=''; $('#results').classList.remove('show'); openTeam(null,d.name); break;
     case 'export': exportDb(); break;
+    case 'filtro': filtroPagos={...filtroPagos,modo:d.modo}; renderPagos(); break;
+  }
+});
+document.addEventListener('change',e=>{
+  if(e.target.id==='f-desde'||e.target.id==='f-hasta'){
+    filtroPagos={modo:'rango',desde:$('#f-desde')?.value||'',hasta:$('#f-hasta')?.value||''};
+    renderPagos();
   }
 });
 document.addEventListener('keydown',e=>{
