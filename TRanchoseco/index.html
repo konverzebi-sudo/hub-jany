@@ -64,6 +64,12 @@ input[type=file]{padding:6px;width:auto}
 .sugs{display:flex;flex-direction:column;gap:4px;margin:-6px 0 12px;max-height:180px;overflow:auto}
 .sug{background:#f3f4f6;color:#111;border:1px solid #e5e7eb;border-radius:8px;padding:9px 12px;text-align:left;cursor:pointer;font:inherit}
 .sug:hover{background:#fff8c2}
+.lbl{color:#444;font-size:14px;margin:0 0 6px}
+.modal .lbl{color:#444}
+.tiles{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-bottom:14px}
+.tile{background:#f3f4f6;color:#111;border:1px solid #cfd3dc;border-radius:8px;padding:10px 0;font:inherit;font-weight:700;cursor:pointer}
+.tile.on{background:var(--yellow);border-color:#d4b800}
+.tile:disabled{opacity:.6;cursor:default}
 .addrow{display:flex;gap:8px;align-items:center;margin-bottom:10px}
 .addrow input{margin:0;flex:1}
 .rowbtns{display:flex;gap:6px;flex-shrink:0}
@@ -331,7 +337,12 @@ function openAssign(f){
     <h3>Cancha ${f}</h3>
     ${buscadorEquipo('a','Equipo de la izquierda',cur?cur.a:'')}
     ${buscadorEquipo('b','Equipo de la derecha',cur?cur.b:'')}
-    <label>Número de juego (1 a ${db.config.totalJuegos})<input name="numero" type="number" min="1" max="${db.config.totalJuegos}" required value="${cur?.numero||''}"></label>
+    <div class="lbl">Número de juego</div>
+    <div class="tiles" id="as-tiles">
+      <button type="button" class="tile" disabled>I</button>
+      ${Array.from({length:db.config.totalJuegos},(_,i)=>i+1).map(n=>`<button type="button" class="tile${cur?.numero===n?' on':''}" data-tile="${n}">${n}</button>`).join('')}
+    </div>
+    <input type="hidden" name="numero" id="as-num" value="${cur?.numero||''}">
     <p id="as-err" class="pend"></p>
     <div class="actions">
       ${cur?`<button type="button" class="btn danger" data-act="unassign" data-field="${f}">Quitar partido</button>`:''}
@@ -340,6 +351,11 @@ function openAssign(f){
     </div>
   </form>`);
   ['a','b'].forEach(s=>activarBuscador(s));
+  $('#as-tiles').onclick=e=>{
+    const b=e.target.closest('[data-tile]'); if(!b) return;
+    $('#as-num').value=b.dataset.tile;
+    document.querySelectorAll('#as-tiles .tile').forEach(x=>x.classList.toggle('on',x===b));
+  };
   $('#as-form').onsubmit=e=>{
     e.preventDefault();
     const fd=new FormData(e.target);
