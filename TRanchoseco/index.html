@@ -604,7 +604,7 @@ function renderPagos(){
 let draft=null; // equipo en edición: {id,name,players:[],lider}
 function openTeam(id,presetName='',desdeBusqueda=false){
   const t=id?teamById(id):null;
-  draft={id:t?t.id:null,name:t?t.name:presetName,players:t?[...t.players]:[],lider:t?t.lider:null,desdeBusqueda};
+  draft={id:t?t.id:null,name:t?t.name:presetName,players:t?[...t.players]:[],lider:t?t.lider:null,desdeBusqueda,tel:{...(t?.telefonos||{})}};
   openModal(`<form id="tm-form" onsubmit="return false">
     <h3>${t?'Editar equipo':'Nuevo equipo'}</h3>
     ${desdeBusqueda?'<p class="muted">Antes de agregarlo, revisa la lista de equipos. Si ya existe, cancela y úsalo.</p>':''}
@@ -614,6 +614,9 @@ function openTeam(id,presetName='',desdeBusqueda=false){
     <label>Jugadores (el primero es el líder, quien paga)</label>
     <div class="addrow">
       <input id="tm-pl" autocomplete="off" placeholder="Nombre del jugador">
+    </div>
+    <div class="addrow">
+      <input id="tm-tel" type="tel" inputmode="tel" autocomplete="off" placeholder="Teléfono (10 dígitos)">
       <button type="button" class="btn primary sm" data-act="addplayer">Agregar</button>
     </div>
     <ul class="plist" id="tm-list"></ul>
@@ -633,7 +636,7 @@ function openTeam(id,presetName='',desdeBusqueda=false){
 function renderDraft(){
   const list=$('#tm-list'); if(!list) return;
   list.innerHTML=draft.players.length?draft.players.map((p,i)=>`<li>
-    <span>${esc(p)}${p===draft.lider?' <b>· LÍDER (paga)</b>':''}</span>
+    <span>${esc(p)} <small class="muted">${esc(draft.tel[p]||'sin teléfono')}</small>${p===draft.lider?' <b>· LÍDER (paga)</b>':''}</span>
     <span class="rowbtns">
       ${p===draft.lider?'':`<button type="button" class="btn ghost sm" data-act="lider" data-i="${i}">Hacer líder</button>`}
       <button type="button" class="btn danger sm" data-act="quitarj" data-i="${i}">Quitar</button>
@@ -644,6 +647,9 @@ function addPlayerDraft(){
   const name=inp.value.trim();
   if(!name) return;
   if(draft.players.some(p=>norm(p)===norm(name))){$('#tm-err').textContent='Ese jugador ya está en la lista.';return;}
+  const tel=($('#tm-tel').value||'').replace(/\D/g,'');
+  if(!/^\d{10}$/.test(tel)){$('#tm-err').textContent='Escribe el teléfono del jugador (10 dígitos).';return;}
+  draft.tel[name]=tel;
   draft.players.push(name);
   if(!draft.lider) draft.lider=name;
   inp.value=''; $('#tm-err').textContent='';
@@ -658,13 +664,17 @@ function saveDraft(){
   }
   if(draft.desdeBusqueda&&!$('#tm-noexiste')?.checked){$('#tm-err').textContent='Marca la casilla: confirma que revisaste la lista y ningún equipo es este.';return;}
   if(!draft.players.length){$('#tm-err').textContent='Agrega al menos un jugador (el líder).';return;}
+  const sinTel=draft.players.find(p=>!/^\d{10}$/.test(draft.tel[p]||''));
+  if(sinTel){$('#tm-err').textContent=`Falta el teléfono de ${sinTel}.`;return;}
   const sim=similares(name);
   if(sim.length&&!$('#tm-otro')?.checked){
     $('#tm-err').textContent=`Se parece a: ${sim.map(x=>x.name).join(', ')}. Si es el mismo, cancela y úsalo. Si es otro equipo, marca "Confirmo que es otro equipo" y guarda.`;
     $('#tm-otro-l').style.display='block';
     return;
   }
-  const data={name,players:[...draft.players],lider:draft.lider||draft.players[0]};
+  const telefonos={};
+  draft.players.forEach(p=>{telefonos[p]=draft.tel[p];});
+  const data={name,players:[...draft.players],lider:draft.lider||draft.players[0],telefonos};
   const t=draft.id?teamById(draft.id):null;
   let id;
   if(t){Object.assign(t,data);id=t.id;}
