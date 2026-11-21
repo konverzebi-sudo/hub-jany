@@ -755,6 +755,8 @@ function openPay(teamId,matchId,editId=null){
   const b=balance(teamId);
   const dos=b.insPend>0||(ed&&ed.tipo==='inscripcion');
   const pays=db.payments.filter(p=>p.teamId===teamId).sort((x,y)=>String(y.fecha).localeCompare(String(x.fecha)));
+  // La inscripción va primero, después los arbitrajes del más reciente al más antiguo
+  const pagosOrdenados=[...pays.filter(p=>p.tipo==='inscripcion'),...pays.filter(p=>p.tipo!=='inscripcion')];
   const ins=Number(db.config.inscripcion)||0;
   const adeudo=b.insPend+b.arbPend;
   openModal(`<form id="pay-form">
@@ -807,13 +809,13 @@ function openPay(teamId,matchId,editId=null){
       <button class="btn primary">Guardar pago</button>
     </div>
     <h4>Pagos de este equipo</h4>
-    ${pays.length?`<ul class="plist">${pays.map(p=>`<li>
+    ${`<ul class="plist">${filaInscripcionHTML(t)}${pagosOrdenados.map(p=>`<li>
       <span>${esc(p.fecha)} · ${p.tipo==='inscripcion'?'Inscripción':'Arbitraje'} · <b>${money(p.monto)}</b><br>
       <small>${esc(p.recibio)} · ${p.metodo==='transferencia'?'Transferencia':'Efectivo'}${p.cuenta?' · '+esc(p.cuenta):''}${p.nota?' · '+esc(p.nota):''}</small></span>
       ${p.fecha===jornadaHoy()
         ?`<button type="button" class="btn ghost sm" data-act="editpay" data-id="${p.id}" data-team="${teamId}" data-match="${matchId||''}">Editar</button>`
         :'<small class="muted">Solo lectura</small>'}
-    </li>`).join('')}</ul>`:'<p class="muted">Aún no hay pagos.</p>'}
+    </li>`).join('')}</ul>`}
     ${juegosTablaHTML(teamId)}
   </form>`);
   // Quién recibe: cuadros (uno solo seleccionado)
@@ -927,6 +929,13 @@ function juegosTablaHTML(tid){
     ${pool>0?`<tr><td>Abono de más</td><td>—</td><td style="color:#4ade80">+${money(pool)}</td><td>—</td></tr>`:''}
     <tr><th>Total</th><th></th><th style="color:#4ade80">+${money(pagadoJuegos)}</th><th><span class="${debeJuegos?'pend':'ok'}">${debeJuegos?money(debeJuegos):'✔ Al corriente'}</span></th></tr>
   </table></div>`;
+}
+// Primera fila de pagos: la inscripción (1,500 si se registró en la plataforma, 0 si fue antes)
+function filaInscripcionHTML(t){
+  if(db.payments.some(p=>p.teamId===t.id&&p.tipo==='inscripcion')) return '';
+  const resp=responsableInscripcion(t);
+  if(t.inscripcionPrevia||resp) return `<li><span><b>Inscripción</b> · <b>$0</b> · Pagada antes de la plataforma<br><small>${esc(resp||'—')}</small></span></li>`;
+  return `<li><span><b>Inscripción</b> · <span class="pend">pendiente</span></span></li>`;
 }
 // Registrar un pago sin partido: buscar equipo o jugador
 function openBuscarPago(){
