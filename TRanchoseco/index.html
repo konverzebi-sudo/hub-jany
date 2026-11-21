@@ -416,7 +416,11 @@ function openPay(teamId,matchId){
       <label class="chk"><input type="checkbox" name="insPrevia" ${t.inscripcionPrevia?'checked':''}> Ya pagó el 100% de la inscripción</label>
       ${t.registroDesde
         ?`<p class="muted" style="margin:0 0 6px">Va en el juego <b>${t.juegoActual}</b> de ${db.config.totalJuegos}</p>`
-        :`<label>¿En qué juego va el equipo? (solo se pone la primera vez)<input name="desde" type="number" min="1" max="${db.config.totalJuegos}" required></label>`}
+        :`<div class="lbl">¿En qué juego va el equipo? (solo la primera vez)</div>
+          <div class="tiles" id="p-juegos">
+            ${Array.from({length:db.config.totalJuegos},(_,i)=>i+1).map(n=>`<button type="button" class="tile" data-j="${n}">${n}</button>`).join('')}
+          </div>
+          <input type="hidden" name="desde" id="p-desde" value="">`}
     </div>
     <label>Fecha<input name="fecha" type="date" required value="${today()}"></label>
     <label>Nota (opcional)<input name="nota" autocomplete="off"></label>
@@ -438,6 +442,13 @@ function openPay(teamId,matchId){
     const b=e.target.closest('[data-n]'); if(!b) return;
     $('#p-recibio').value=b.dataset.n;
     document.querySelectorAll('#p-recibe .sq').forEach(x=>x.classList.toggle('on',x===b));
+  };
+  // Juego en el que va el equipo (solo la primera vez): botones 1 a 15
+  const jg=$('#p-juegos');
+  if(jg) jg.onclick=e=>{
+    const b=e.target.closest('[data-j]'); if(!b) return;
+    $('#p-desde').value=b.dataset.j;
+    jg.querySelectorAll('.tile').forEach(x=>x.classList.toggle('on',x===b));
   };
   // Método: interruptor efectivo / transferencia
   $('#p-met').onchange=e=>{
