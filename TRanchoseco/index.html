@@ -94,6 +94,7 @@ input[type=file]{padding:6px;width:auto}
 .ppanel .frango input{background:#fff;color:#111;border:1px solid #d1d5db}
 .plbl{color:#6b7280;font-size:13px;font-weight:600;margin:14px 0 8px}
 .yel{color:var(--yellow)}
+.faltante{outline:3px solid #dc2626;outline-offset:4px;border-radius:12px}
 .ganador{color:var(--yellow)}
 .insrow{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px}
 .insrow .chk{margin:0}
@@ -676,6 +677,7 @@ function openPay(teamId,matchId){
     <input type="hidden" name="metodo" id="p-metodo" value="efectivo">
     <label id="p-cuenta-l" style="display:none">Cuenta donde se pagó<input name="cuenta" list="dl-cta" autocomplete="off"></label>
     <label>Nota (opcional)<input name="nota" autocomplete="off"></label>
+    <p id="p-err" class="pend" style="margin:6px 0 10px"></p>
     <datalist id="dl-cta">${optionsList(cuentasList())}</datalist>
     <div class="actions">
       <button type="button" class="btn ghost" data-act="close">Cancelar</button>
@@ -699,6 +701,7 @@ function openPay(teamId,matchId){
   if(jg) jg.onclick=e=>{
     const b=e.target.closest('[data-j]'); if(!b) return;
     $('#p-desde').value=b.dataset.j;
+    $('#p-err').textContent=''; document.querySelectorAll('.faltante').forEach(x=>x.classList.remove('faltante'));
     $('#p-num').textContent=b.dataset.j;
     jg.querySelectorAll('.tile').forEach(x=>x.classList.toggle('on',x===b));
   };
@@ -724,17 +727,18 @@ function openPay(teamId,matchId){
     e.preventDefault();
     const fd=new FormData(e.target);
     const mIns=Number(fd.get('monto_ins')||0), mArb=Number(fd.get('monto_arb')||0);
-    if(!(mIns>0||mArb>0)){alert('Escribe cuánto está pagando');return;}
-    if(!fd.get('recibio')){alert('Elige quién lo recibió');return;}
+    const pErr=(msg,el)=>{$('#p-err').textContent=msg;document.querySelectorAll('.faltante').forEach(x=>x.classList.remove('faltante'));if(el){el.classList.add('faltante');el.scrollIntoView({behavior:'smooth',block:'center'});}};
+    if(!(mIns>0||mArb>0)){pErr('⚠️ Escribe cuánto está pagando.',document.querySelector('.montoGrande'));return;}
+    if(!fd.get('recibio')){pErr('⚠️ Elige quién lo recibió.',$('#p-recibe'));return;}
     t.inscripcionPrevia=!!fd.get('insPrevia');
     if(t.inscripcionPrevia){
-      if(!fd.get('recibioIns')){alert('Elige a quién se le pagó la inscripción');return;}
+      if(!fd.get('recibioIns')){pErr('⚠️ Elige a quién se le pagó la inscripción.',$('#p-insq'));return;}
       t.inscripcionRecibio=String(fd.get('recibioIns'));
     }
     if(!t.registroDesde){
       // Primera vez: se guarda en qué juego va el equipo y desde cuándo cuenta el arbitraje
       const desde=Number(fd.get('desde'));
-      if(!(desde>=1&&desde<=db.config.totalJuegos)){alert(`El juego en el que va el equipo debe estar entre 1 y ${db.config.totalJuegos}`);return;}
+      if(!(desde>=1&&desde<=db.config.totalJuegos)){pErr('⚠️ Selecciona en qué JUEGO va el equipo para poder guardar.',$('#p-juegos'));return;}
       t.desdeJuego=desde;
       t.juegoActual=desde;
       t.registroDesde=new Date().toISOString();
