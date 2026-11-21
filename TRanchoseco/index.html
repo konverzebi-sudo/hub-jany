@@ -93,6 +93,12 @@ input[type=file]{padding:6px;width:auto}
 .ppanel .fchip.on{background:#14532d;color:#fff;border-color:#14532d;box-shadow:none;font-weight:600}
 .ppanel .frango input{background:#fff;color:#111;border:1px solid #d1d5db}
 .plbl{color:#6b7280;font-size:13px;font-weight:600;margin:14px 0 8px}
+.yel{color:var(--yellow)}
+.ajfoot{display:flex;justify-content:flex-end;margin:4px 0 16px}
+.vs{text-align:center;font-weight:800;color:#111;margin:-4px 0 8px;letter-spacing:.5px}
+.asignar{width:84px;height:84px;border-radius:50%;border:0;background:#fff;font-size:40px;cursor:pointer;box-shadow:0 3px 8px rgba(0,0,0,.35);line-height:1}
+.asignar:hover{transform:scale(1.05)}
+.ajbtn{background:#2a2f3f;color:#9aa1b2;border:0;border-radius:999px;width:36px;height:36px;font-size:16px;cursor:pointer}
 .ppanel .fchip.on{background:var(--yellow);color:#111;border-color:#d4b800;box-shadow:none;font-weight:700}
 .cal{margin-top:4px}
 .calhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;color:#111;text-transform:capitalize}
@@ -218,12 +224,11 @@ th{color:var(--muted);font-weight:600}
     <button class="tab on" data-act="tab" data-tab="canchas">Canchas</button>
     <button class="tab" data-act="tab" data-tab="equipos">Equipos</button>
     <button class="tab" data-act="tab" data-tab="pagos">Pagos</button>
-    <button class="tab" data-act="tab" data-tab="ajustes">Ajustes</button>
   </nav>
 </header>
 
 <main>
-  <section id="tab-canchas" class="view on"><div id="fields"></div></section>
+  <section id="tab-canchas" class="view on"><div id="fields"></div><div class="ajfoot"><button class="ajbtn" data-act="tab" data-tab="ajustes" title="Ajustes" aria-label="Ajustes">⚙️</button></div></section>
   <section id="tab-equipos" class="view">
     <div class="toolbar"><button class="btn primary" data-act="newteam">+ Nuevo equipo</button></div>
     <div id="teams-list"></div>
@@ -349,10 +354,10 @@ function side(m,s){
 }
 function renderFields(){
   let h='';
-  for(let f=1;f<=4;f++){
+  for(let f=4;f>=1;f--){
     const m=activeMatch(f);
     h+=`<section class="fwrap">
-      <div class="fhead"><span>Cancha ${f}</span>${m?`<div class="fcenter"><button class="arbchip" data-act="assign" data-field="${f}" title="Cambiar árbitro o partido">${esc(m.arbitro||'Sin árbitro')}</button><button class="whistle" data-act="terminar" data-match="${m.id}" title="Terminar partido" aria-label="Terminar partido">${SILBATO}</button></div><span></span>`:`<span></span><span></span>`}${m?'':`<button class="link" data-act="assign" data-field="${f}">Asignar partido</button>`}</div>
+      <div class="fhead"><span>Cancha ${f}</span>${m?`<div class="fcenter"><button class="arbchip" data-act="assign" data-field="${f}" title="Cambiar árbitro o partido">${esc(m.arbitro||'Sin árbitro')}</button><button class="whistle" data-act="terminar" data-match="${m.id}" title="Terminar partido" aria-label="Terminar partido">${SILBATO}</button></div><span></span>`:`<span></span><span></span>`}</div>
       <div class="field"><span class="circle"></span>`;
     if(m){
       h+=`<div class="row">
@@ -362,7 +367,7 @@ function renderFields(){
         <button class="dollar" data-act="pay" data-team="${m.b}" data-match="${m.id}" title="Pagos de ${esc(teamName(m.b))}">$</button>
       </div>`;
     }else{
-      h+=`<div class="nomatch">Sin partido asignado</div>`;
+      h+=`<div class="nomatch"><button class="asignar" data-act="assign" data-field="${f}" title="Asignar partido" aria-label="Asignar partido">📣</button></div>`;
     }
     h+=`</div></section>`;
   }
@@ -553,6 +558,22 @@ function abrirNuevoDesdeBusqueda(s,nombre){
   alVolver={f:asignandoField,a:$('#as-a-val').value,b:$('#as-b-val').value,side:s};
   openTeam(null,nombre,true);
 }
+// Árbitro con buscador (igual que el buscador principal)
+function buscadorArbitro(v){
+  return `<label>Árbitro<input id="ar-q" autocomplete="off" placeholder="Escribe el nombre del árbitro" value="${esc(v)}"></label>
+    <div id="ar-list"></div>
+    <input type="hidden" name="arbitro" id="ar-val" value="${esc(v)}">`;
+}
+function activarArbitro(){
+  const q=$('#ar-q'), list=$('#ar-list'), val=$('#ar-val');
+  const pintar=()=>{
+    const toks=norm(q.value.trim()).split(/\s+/).filter(Boolean);
+    const hits=toks.length?(db.config.arbitros||[]).filter(a=>toks.every(k=>norm(a).includes(k))):[];
+    list.innerHTML=(hits.length?`<div class="reslist">${hits.map(a=>`<button type="button" data-act="ar-pick" data-n="${esc(a)}"><b>${esc(a)}</b></button>`).join('')}</div>`:'')
+      +(toks.length&&!hits.length?`<div class="reslist"><button type="button" class="addteam" data-act="ar-nuevo" data-n="${esc(q.value.trim())}">+ Agregar árbitro</button></div>`:'');
+  };
+  q.addEventListener('input',()=>{val.value='';pintar();});
+}
 function openAssign(f,pre){
   asignandoField=f;
   if(db.teams.length<2){
@@ -567,16 +588,17 @@ function openAssign(f,pre){
   openModal(`<form id="as-form">
     <h3>Cancha ${f}</h3>
     ${buscadorEquipo('a','Equipo 1',pre?pre.a:(cur?cur.a:''))}
+    <div class="vs">VS</div>
     ${buscadorEquipo('b','Equipo 2',pre?pre.b:(cur?cur.b:''))}
-    <label>Árbitro<input name="arbitro" list="dl-arb" autocomplete="off" value="${esc(cur?.arbitro||'')}" placeholder="Nombre del árbitro"></label>
-    <datalist id="dl-arb">${optionsList(db.config.arbitros||[])}</datalist>
+    ${buscadorArbitro(cur?.arbitro||'')}
     <p id="as-err" class="pend"></p>
     <div class="actions">
       ${cur?`<button type="button" class="btn danger" data-act="unassign" data-field="${f}">Quitar partido</button>`:''}
       <button type="button" class="btn ghost" data-act="close">Cancelar</button>
-      <button class="btn primary">Guardar</button>
+      <button class="btn primary">Iniciar juego</button>
     </div>
   </form>`);
+  activarArbitro();
   ['a','b'].forEach(s=>activarBuscador(s));
   $('#as-form').onsubmit=e=>{
     e.preventDefault();
@@ -720,7 +742,7 @@ function openPay(teamId,matchId){
     save(); closeModal(); renderAll();
   };
 }
-const SILBATO='<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2 9h12l5-4v14l-5-4H2z"/><circle cx="19" cy="12" r="1.8"/></svg>';
+const SILBATO='📣';
 function openTerminar(mid){
   const m=matchById(mid); if(!m) return;
   openModal(`<form id="tp-form">
@@ -828,10 +850,10 @@ function dashboardHTML(pagosF,totIns,totArb,pend){
       <div><small>Arbitrajes</small><b>${money(totArb)}</b></div>
       <div><small>Pendiente de cobrar</small><b class="${pend?'pend':'ok'}">${money(pend)}</b></div>
     </div>
-    <h3>Cobradores</h3><div class="dgrid cuatro">${cobra}</div>
-    <h3>Canchas</h3><div class="dgrid cuatro">${canchas}</div>
-    <h3>Pagos por árbitro</h3><div class="dlist">${arbHTML}</div>
-    <h3>Juegos de hoy</h3>${jdHTML}`;
+    <h3 class="yel">Cobradores</h3><div class="dgrid cuatro">${cobra}</div>
+    <h3 class="yel">Canchas</h3><div class="dgrid cuatro">${canchas}</div>
+    <h3 class="yel">Pagos por árbitro</h3><div class="dlist">${arbHTML}</div>
+    <h3 class="yel">Juegos de hoy</h3>${jdHTML}`;
 }
 // Filtro de fechas en Pagos (hoy, semana, mes, rango o todo)
 let filtroPagos={modo:'hoy',desde:'',hasta:'',abierto:false};
@@ -919,7 +941,7 @@ function renderPagos(){
   $('#pagos').innerHTML=`
     ${filtroHTML()}
     ${dashboardHTML(pagosF,totIns,totArb,pend)}
-    <h3>Saldo por equipo</h3>
+    <h3 class="yel">Saldo por equipo</h3>
     <div class="scroll"><table>
       <tr><th>Equipo</th><th>Inscripción</th><th>Arbitraje</th><th>Pendiente</th></tr>
       ${rows.length?rows.map(({t,b})=>`<tr>
@@ -1192,6 +1214,8 @@ document.addEventListener('click',e=>{
     case 'close': closeModal(); break;
     case 'tp-pick': $('#tp-val').value=d.n; $('#tp-q').value=d.n; $('#tp-list').innerHTML=''; break;
     case 'tp-nuevo': $('#tp-val').value=cap(d.n.trim()); $('#tp-q').value=cap(d.n.trim()); $('#tp-list').innerHTML=''; break;
+    case 'ar-pick': $('#ar-val').value=d.n; $('#ar-q').value=d.n; $('#ar-list').innerHTML=''; break;
+    case 'ar-nuevo': $('#ar-val').value=cap(d.n.trim()); $('#ar-q').value=cap(d.n.trim()); $('#ar-list').innerHTML=''; break;
     case 'terminar': openTerminar(d.match); break;
     case 'addplayer': addPlayerDraft(); break;
     case 'lider': draft.lider=draft.players[+d.i]; renderDraft(); break;
