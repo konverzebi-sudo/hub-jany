@@ -89,6 +89,10 @@ input[type=file]{padding:6px;width:auto}
 .fchip:hover{color:#fff}
 .fchip.on{background:linear-gradient(135deg,#ffe600,#ffd000);color:#111;font-weight:700;box-shadow:0 4px 12px rgba(255,230,0,.25)}
 .dgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:6px}
+.dgrid.cuatro{grid-template-columns:repeat(4,1fr);gap:8px}
+.dsq{aspect-ratio:1/1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:8px;overflow:hidden}
+.dsq summary{font-size:14px}
+.dsq .muted{font-size:11px}
 .dcard{background:#232735;border:1px solid #2c3247;border-radius:16px;padding:12px}
 .dcard summary{cursor:pointer;list-style:none}
 .dcard small{display:block;color:var(--muted)}
@@ -218,7 +222,15 @@ function completar(d){
     cfg.v2=true;
   }
   if(!cfg.arbitros) cfg.arbitros=[];
+  // Marco es inversionista: no recibe pagos (si no tiene rol, se pone este)
+  cfg.roles={...(cfg.roles||{})};
+  if(!cfg.roles.Marco) cfg.roles.Marco='Inversionista';
   return {...clone(DEF),...d,config:cfg};
+}
+// Personas que reciben pagos (quitando a los inversionistas)
+function cobradores(){
+  const r=db.config.roles||{};
+  return db.config.recibieron.filter(n=>!/inversion/i.test(r[n]||''));
 }
 
 function load(){
@@ -467,7 +479,7 @@ function openPay(teamId,matchId){
     <input type="hidden" name="desde" id="p-desde" value="">`}
     <div class="lbl">Quién lo recibió</div>
     <div class="cuadros" id="p-recibe">
-      ${db.config.recibieron.map(n=>`<button type="button" class="sq" data-n="${esc(n)}">${esc(n)}</button>`).join('')}
+      ${cobradores().map(n=>`<button type="button" class="sq" data-n="${esc(n)}">${esc(n)}</button>`).join('')}
     </div>
     <input type="hidden" name="recibio" id="p-recibio" value="">
     <div class="lbl">Método</div>
@@ -482,7 +494,7 @@ function openPay(teamId,matchId){
       <div id="p-insq" style="display:${t.inscripcionPrevia?'block':'none'};margin-top:10px">
         <div class="lbl">¿A quién se le pagó la inscripción?</div>
         <div class="cuadros" id="p-insrecibe">
-          ${db.config.recibieron.map(n=>`<button type="button" class="sq${t.inscripcionRecibio===n?' on':''}" data-ins="${esc(n)}">${esc(n)}</button>`).join('')}
+          ${cobradores().map(n=>`<button type="button" class="sq${t.inscripcionRecibio===n?' on':''}" data-ins="${esc(n)}">${esc(n)}</button>`).join('')}
         </div>
         <input type="hidden" name="recibioIns" id="p-recibioIns" value="${esc(t.inscripcionRecibio||'')}">
       </div>
@@ -627,11 +639,11 @@ function deletePayment(id,teamId,matchId){
 function diaLocal(iso){const d=iso?new Date(iso):new Date();d.setHours(d.getHours()-5);return ymd(d);}
 function jornadaHoy(){return diaLocal();}
 function dashboardHTML(pagosF,totIns,totArb,pend){
-  const cobra=db.config.recibieron.map(n=>{
+  const cobra=cobradores().map(n=>{
     const ps=pagosF.filter(p=>p.recibio===n);
     const ef=sum(ps.filter(p=>p.metodo!=='transferencia'));
     const tr=sum(ps.filter(p=>p.metodo==='transferencia'));
-    return `<details class="dcard"><summary><b>${esc(n)}</b> · ${money(ef+tr)}</summary>
+    return `<details class="dcard dsq"><summary><b>${esc(n)}</b><br>${money(ef+tr)}</summary>
       <div class="muted">Efectivo ${money(ef)} · Transferencia ${money(tr)}</div></details>`;
   }).join('');
   const terminados=db.matches.filter(m=>m.terminado&&enRango(diaLocal(m.terminadoEn)));
@@ -639,7 +651,7 @@ function dashboardHTML(pagosF,totIns,totArb,pend){
     const ms=terminados.filter(m=>m.field===f);
     const ids=new Set(ms.map(m=>m.id));
     const dinero=sum(pagosF.filter(p=>ids.has(p.matchId)));
-    return `<div class="dcard"><small>Cancha ${f}</small><b>${ms.length} juego${ms.length===1?'':'s'}</b><div class="muted">${money(dinero)} generados</div></div>`;
+    return `<div class="dcard dsq"><small>Cancha ${f}</small><b>${ms.length} juego${ms.length===1?'':'s'}</b><div class="muted">${money(dinero)} generados</div></div>`;
   }).join('');
   const arbs={};
   terminados.forEach(m=>{arbs[m.arbitro]=(arbs[m.arbitro]||0)+1;});
@@ -674,8 +686,8 @@ function dashboardHTML(pagosF,totIns,totArb,pend){
       <div><small>Arbitrajes</small><b>${money(totArb)}</b></div>
       <div><small>Pendiente de cobrar</small><b class="${pend?'pend':'ok'}">${money(pend)}</b></div>
     </div>
-    <h3>Cobradores</h3><div class="dgrid">${cobra}</div>
-    <h3>Canchas</h3><div class="dgrid">${canchas}</div>
+    <h3>Cobradores</h3><div class="dgrid cuatro">${cobra}</div>
+    <h3>Canchas</h3><div class="dgrid cuatro">${canchas}</div>
     <h3>Pagos por árbitro</h3><div class="dlist">${arbHTML}</div>
     <h3>Juegos de hoy</h3>${jdHTML}`;
 }
