@@ -94,6 +94,11 @@ input[type=file]{padding:6px;width:auto}
 .ppanel .frango input{background:#fff;color:#111;border:1px solid #d1d5db}
 .plbl{color:#6b7280;font-size:13px;font-weight:600;margin:14px 0 8px}
 .yel{color:var(--yellow)}
+.pq{width:100%;padding:12px 16px;border-radius:999px;border:0;font-size:15px;background:#fff;color:#111;margin:4px 0 10px;box-sizing:border-box}
+.bres{background:var(--panel);border-radius:12px;padding:12px;margin-bottom:10px}
+.bres h4{margin:0 0 6px;color:var(--yellow)}
+.bres table{font-size:13px;width:100%}
+.bres p{margin:4px 0}
 .addpago{width:38px;height:38px;border-radius:50%;border:0;background:var(--yellow);color:#111;font-size:24px;font-weight:700;cursor:pointer;line-height:1;margin-left:4px}
 .adeudos{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 12px}
 .adeu{background:#f3f4f6;color:#111;border-radius:10px;padding:8px;text-align:center;font-size:13px}
@@ -627,7 +632,7 @@ function openAssign(f,pre){
     ${buscadorEquipo('a','Equipo 1',pre?pre.a:(cur?cur.a:''))}
     <div class="vs">VS</div>
     ${buscadorEquipo('b','Equipo 2',pre?pre.b:(cur?cur.b:''))}
-    ${buscadorArbitro(cur?.arbitro||'')}
+    ${cur?.arbitro?`<p class="muted" style="margin:0 0 10px">Lo pita: <b style="color:#111">${esc(cur.arbitro)}</b></p><input type="hidden" name="arbitro" id="ar-val" value="${esc(cur.arbitro)}">`:buscadorArbitro('')}
     <p id="as-err" class="pend"></p>
     <div class="actions">
       ${cur?`<button type="button" class="btn danger" data-act="unassign" data-field="${f}">Quitar partido</button>`:''}
@@ -635,7 +640,7 @@ function openAssign(f,pre){
       <button class="btn primary">Iniciar juego</button>
     </div>
   </form>`);
-  activarArbitro();
+  if($('#ar-q')) activarArbitro();
   ['a','b'].forEach(s=>activarBuscador(s));
   $('#as-form').onsubmit=e=>{
     e.preventDefault();
@@ -679,7 +684,7 @@ function openPay(teamId,matchId,editId=null){
       ${b.insPend>0?`<p class="rojo" id="p-adeudo" style="margin:0;${t.inscripcionPrevia?'display:none':''}">Adeudo de inscripción: ${money(b.insPend)}</p>`:''}
       <label class="chk"><input type="checkbox" id="p-insprev" name="insPrevia" ${t.inscripcionPrevia||b.insPend<=0?'checked':''}> Ya pagó el 100% de la inscripción</label>
     </div>
-    ${b.insPend<=0&&t.inscripcionRecibio?`<p class="insdone">Inscripción pagada a: <b>${esc(t.inscripcionRecibio)}</b></p>`:''}
+    ${b.insPend<=0&&t.inscripcionRecibio?`<p class="insdone">Registro por: <b>${esc(t.inscripcionRecibio)}</b></p>`:''}
     <div id="p-insq" style="display:${b.insPend>0&&t.inscripcionPrevia?'block':'none'};margin-bottom:12px">
       <div class="lbl">¿A quién se le pagó la inscripción?</div>
       <div class="cuadros mini" id="p-insrecibe" style="${t.inscripcionRecibio?'display:none':''}">
@@ -1022,6 +1027,40 @@ function calHTML(){
     <p class="calhint">${pista}</p>
   </div>`;
 }
+// Buscador de Pagos: cobrador (movimientos de hoy), árbitro (cuánto le deben), equipo (juegos y adeudo), jugador (estado)
+let pqTerm='';
+function resultadoBusqueda(){
+  const toks=norm(pqTerm.trim()).split(/\s+/).filter(Boolean);
+  if(!toks.length) return '';
+  const hit=(txt)=>toks.every(k=>norm(txt).includes(k));
+  let h='';
+  cobradores().filter(n=>hit(n)).forEach(n=>{
+    const movs=db.payments.filter(p=>p.recibio===n&&p.fecha===jornadaHoy());
+    h+=`<div class="bres"><h4>${esc(n)} · cobró hoy</h4>${movs.length?`<table>${movs.map(p=>`<tr><td>${esc(teamName(p.teamId))}</td><td>${p.tipo==='inscripcion'?'Inscripción':'Arbitraje'}</td><td>${p.metodo==='transferencia'?'Transferencia':'Efectivo'}</td><td style="text-align:right">${money(p.monto)}</td></tr>`).join('')}<tr><th colspan="3">Total de hoy</th><th style="text-align:right">${money(sum(movs))}</th></tr></table>`:'<p class="muted">Sin movimientos hoy.</p>'}</div>`;
+  });
+  (db.config.arbitros||[]).filter(a=>hit(a)).forEach(a=>{
+    const ms=db.matches.filter(m=>m.terminado&&m.arbitro===a);
+    h+=`<div class="bres"><h4>${esc(a)} · árbitro</h4><p>Juegos arbitrados: <b>${ms.length}</b></p><p>Le deben: <b>${money(ms.length*(Number(db.config.pagoArbitro)||0))}</b></p></div>`;
+  });
+  db.teams.filter(t=>hit(t.name)).forEach(t=>{
+    const b=balance(t.id); const d=b.insPend+b.arbPend;
+    const ms=matchesOf(t.id);
+    h+=`<div class="bres"><h4>${esc(t.name)} · equipo</h4><p>${d?`Debe <b class="pend">${money(d)}</b>`:'<b class="ok">✔ Al corriente</b>'}</p>${ms.length?`<table>${ms.map(m=>`<tr><td>Cancha ${m.field}</td><td>Juego ${m.numero||'—'}</td><td>${m.terminado?'Terminado':'En curso'}</td><td style="text-align:right">${m.resultado?`${m.resultado.a} – ${m.resultado.b}`:''}</td></tr>`).join('')}</table>`:'<p class="muted">Sin juegos.</p>'}</div>`;
+  });
+  db.teams.forEach(t=>{
+    t.players.filter(x=>hit(x)&&!hit(t.name)).forEach(x=>{
+      const b=balance(t.id); const d=b.insPend+b.arbPend;
+      h+=`<div class="bres"><h4>${esc(x)} · jugador</h4><p>Equipo: <b>${esc(t.name)}</b></p><p>${d?`Estado: <b class="pend">Debe ${money(d)}</b>`:'Estado: <b class="ok">✔ Al corriente</b>'}</p></div>`;
+    });
+  });
+  return h||'<p class="muted">No hay coincidencias.</p>';
+}
+document.addEventListener('input',e=>{
+  if(e.target.id!=='pq') return;
+  pqTerm=e.target.value;
+  renderPagos();
+  const pq=$('#pq'); if(pq){pq.focus(); pq.setSelectionRange(pqTerm.length,pqTerm.length);}
+});
 function renderPagos(){
   const rows=db.teams.map(t=>({t,b:balance(t.id)}));
   const pagosF=db.payments.filter(p=>enRango(p.fecha));
@@ -1038,6 +1077,8 @@ function renderPagos(){
   }</table></div>`;
   const hist=[...pagosF].sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
   $('#pagos').innerHTML=`
+    <input id="pq" class="pq" autocomplete="off" placeholder="Busca cobrador, equipo, jugador o árbitro" value="${esc(pqTerm)}">
+    <div id="pqres">${resultadoBusqueda()}</div>
     ${filtroHTML()}
     ${dashboardHTML(pagosF,totIns,totArb,pend)}
     <h3 class="yel">Saldo por equipo</h3>
