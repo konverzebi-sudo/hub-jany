@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Canchas de Fútbol · Pagos y Marcadores</title>
+<style>
+:root{--bg:#171a22;--panel:#232735;--text:#f3f4f6;--muted:#9aa1b2;--yellow:#ffe600;--grass:#1d5a25;--line:rgba(255,255,255,.6);--danger:#dc2626;--ok:#16a34a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,"Segoe UI",Roboto,Arial,sans-serif;font-size:15px}
+header{position:sticky;top:0;z-index:5;background:var(--bg);padding:12px 12px 6px}
+.search{position:relative;max-width:560px;margin:0 auto}
+.search input{width:100%;padding:13px 16px 13px 46px;border:0;border-radius:999px;font-size:16px;box-shadow:0 4px 12px rgba(0,0,0,.45);outline:none;background:#fff;color:#111}
+.search svg{position:absolute;left:15px;top:50%;transform:translateY(-50%);width:20px;height:20px;color:#666}
+.results{position:absolute;top:56px;left:0;right:0;background:#fff;color:#111;border-radius:12px;box-shadow:0 10px 28px rgba(0,0,0,.5);max-height:60vh;overflow:auto;display:none;z-index:9}
+.results.show{display:block}
+.results button{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid #eee;padding:11px 16px;cursor:pointer;font:inherit}
+.results button:hover{background:#fff8c2}
+.results small{color:#666}
+.empty-res{padding:12px 16px;color:#666}
+.tabs{display:flex;gap:6px;justify-content:center;margin-top:10px;flex-wrap:wrap}
+.tab{background:#2a2f3f;color:var(--muted);border:0;border-radius:999px;padding:7px 14px;cursor:pointer;font:inherit}
+.tab.on{background:var(--yellow);color:#111;font-weight:600}
+main{max-width:600px;margin:0 auto;padding:8px 12px 40px}
+.view{display:none}
+.view.on{display:block}
+.fwrap{margin:14px 0}
+.fhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;padding:0 4px;font-weight:600}
+.link{background:none;border:0;color:#7dd3fc;cursor:pointer;font:inherit;font-size:13px}
+.field{position:relative;background:var(--grass);background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 45px,transparent 45px 90px);border:4px solid #0f3d17;border-radius:6px;padding:20px 6px 16px;min-height:170px;overflow:hidden}
+.field::before{content:"";position:absolute;inset:12px;border:2px solid var(--line);border-radius:3px;pointer-events:none}
+.field::after{content:"";position:absolute;left:50%;top:12px;bottom:12px;width:2px;background:var(--line);pointer-events:none}
+.circle{position:absolute;left:50%;top:50%;width:90px;height:90px;margin:-45px 0 0 -45px;border:2px solid var(--line);border-radius:50%;pointer-events:none}
+.row{position:relative;z-index:1;display:grid;grid-template-columns:52px 1fr 1fr 52px;align-items:center}
+.dollar{justify-self:center;width:52px;height:52px;border-radius:50%;border:0;background:#fff;color:#222;font-size:24px;font-weight:600;cursor:pointer;box-shadow:0 3px 8px rgba(0,0,0,.35)}
+.dollar:hover{transform:scale(1.06)}
+.tcol{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
+.pw{position:relative}
+.plus{width:68px;height:68px;border-radius:50%;border:0;background:var(--yellow);color:#111;font-size:34px;cursor:pointer;box-shadow:0 3px 8px rgba(0,0,0,.35);line-height:1}
+.plus:hover{transform:scale(1.05)}
+.badge{position:absolute;top:-6px;right:-6px;min-width:26px;height:26px;padding:0 6px;border-radius:999px;background:#111;color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid #fff}
+.tname{background:#fff;color:#222;border-radius:999px;padding:3px 10px;font-size:12px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.minus{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.6);border-radius:999px;width:26px;height:22px;font-size:14px;cursor:pointer;line-height:1}
+.nomatch{position:relative;z-index:1;text-align:center;color:#fff;padding:50px 0;opacity:.9}
+.btn{border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font:inherit;font-weight:600}
+.btn.primary{background:var(--yellow);color:#111}
+.btn.ghost{background:#333a4d;color:var(--text)}
+.btn.danger{background:var(--danger);color:#fff}
+.btn.sm{padding:6px 10px;font-size:13px}
+.toolbar{margin-bottom:12px}
+.card{background:var(--panel);border-radius:12px;padding:14px;margin-bottom:12px}
+.team{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:14px}
+.muted{color:var(--muted)}
+label{display:block;margin-bottom:12px;color:var(--muted);font-size:14px}
+input,select,textarea{display:block;width:100%;margin-top:5px;padding:10px;border-radius:8px;border:1px solid #3d4459;background:#11131a;color:var(--text);font:inherit}
+input[type=file]{padding:6px;width:auto}
+.chk{display:flex;gap:8px;align-items:center;color:var(--text)}
+.chk input{width:auto;margin:0}
+h3{margin:6px 0 10px}
+h4{margin:18px 0 8px}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;align-items:flex-start;justify-content:center;padding:24px 12px;overflow:auto;z-index:20}
+.modal-bg.show{display:flex}
+.modal{background:var(--panel);border-radius:14px;width:100%;max-width:520px;padding:20px;box-shadow:0 20px 50px rgba(0,0,0,.5)}
+.modal form{margin:0}
+.bal{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0 16px}
+.bal div{background:#11131a;border-radius:10px;padding:10px}
+.bal b{display:block;font-size:15px;margin:3px 0}
+.bal small{color:var(--muted)}
+.plist{list-style:none;padding:0;margin:0}
+.plist li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #2f3445}
+.plist small{color:var(--muted)}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+.kpis div{background:var(--panel);border-radius:12px;padding:12px}
+.kpis b{display:block;font-size:18px;margin-top:4px}
+.kpis small{color:var(--muted)}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px;margin-bottom:8px}
+th,td{padding:8px 6px;border-bottom:1px solid #2f3445;text-align:left;white-space:nowrap}
+th{color:var(--muted);font-weight:600}
+.pend{color:#f87171;font-weight:600}
+.ok{color:#4ade80;font-weight:600}
+@media (max-width:420px){
+  .plus{width:58px;height:58px;font-size:30px}
+  .dollar{width:44px;height:44px;font-size:21px}
+  .row{grid-template-columns:44px 1fr 1fr 44px}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input id="q" type="search" placeholder="Buscar equipo o jugador…" autocomplete="off">
+    <div id="results" class="results"></div>
+  </div>
+  <nav class="tabs">
+    <button class="tab on" data-act="tab" data-tab="canchas">Canchas</button>
+    <button class="tab" data-act="tab" data-tab="equipos">Equipos</button>
+    <button class="tab" data-act="tab" data-tab="pagos">Pagos</button>
+    <button class="tab" data-act="tab" data-tab="ajustes">Ajustes</button>
+  </nav>
+</header>
+
+<main>
+  <section id="tab-canchas" class="view on"><div id="fields"></div></section>
+  <section id="tab-equipos" class="view">
+    <div class="toolbar"><button class="btn primary" data-act="newteam">+ Nuevo equipo</button></div>
+    <div id="teams-list"></div>
+  </section>
+  <section id="tab-pagos" class="view"><div id="pagos"></div></section>
+  <section id="tab-ajustes" class="view"><div id="ajustes"></div></section>
+</main>
+
+<div id="modal-bg" class="modal-bg"><div id="modal" class="modal"></div></div>
+
+<script>
+const KEY='canchas-futbol-v1';
+const DEF={teams:[],matches:[],payments:[],config:{inscripcion:1500,arbitraje:500,totalJuegos:15,recibieron:[],cuentas:[]}};
+const clone=o=>JSON.parse(JSON.stringify(o));
+
+function load(){
+  try{
+    const s=JSON.parse(localStorage.getItem(KEY));
+    if(!s) return clone(DEF);
+    return {...clone(DEF),...s,config:{...DEF.config,...(s.config||{})}};
+  }catch(e){return clone(DEF);}
+}
+let db=load();
+function save(){
+  try{localStorage.setItem(KEY,JSON.stringify(db));}
+  catch(e){alert('No se pudo guardar en este navegador. Exporta un respaldo desde Ajustes.');}
+}
+
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=n=>'$'+Number(n||0).toLocaleString('es-MX');
+const sum=arr=>arr.reduce((s,p)=>s+Number(p.monto||0),0);
+const norm=s=>String(s).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+function today(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);}
+const teamById=id=>db.teams.find(t=>t.id===id);
+const teamName=id=>teamById(id)?.name||'—';
+const activeMatch=f=>db.matches.find(m=>m.field===f&&m.activo);
+const matchById=id=>db.matches.find(m=>m.id===id);
+const matchesOf=tid=>db.matches.filter(m=>m.a===tid||m.b===tid);
+const teamActiveMatch=tid=>db.matches.find(m=>m.activo&&(m.a===tid||m.b===tid));
+const optionsList=arr=>arr.map(x=>`<option value="${esc(x)}">`).join('');
+function recibieronList(){return [...new Set([...db.config.recibieron,...db.payments.map(p=>p.recibio)].filter(Boolean))];}
+function cuentasList(){return [...new Set([...db.config.cuentas,...db.payments.map(p=>p.cuenta)].filter(Boolean))];}
+
+// Arbitraje: solo cuentan los juegos desde el juego que el equipo marcó en su primer registro
+function balance(tid){
+  const t=teamById(tid);
+  const ds=t?.desdeJuego||null;
+  const ms=ds?matchesOf(tid).filter(m=>(Number(m.numero)||0)>=ds).length:0;
+  const pays=db.payments.filter(p=>p.teamId===tid);
+  const insDue=Number(db.config.inscripcion)||0;
+  const insP=Math.max(sum(pays.filter(p=>p.tipo==='inscripcion')),t?.inscripcionPrevia?insDue:0);
+  const arbP=sum(pays.filter(p=>p.tipo==='arbitraje'));
+  const arbDue=(Number(db.config.arbitraje)||0)*ms;
+  return {ms,insDue,insP,insPend:Math.max(0,insDue-insP),arbDue,arbP,arbPend:Math.max(0,arbDue-arbP)};
+}
+
+/* ---------- Modal ---------- */
+function openModal(html){$('#modal').innerHTML=html;$('#modal-bg').classList.add('show');}
+function closeModal(){$('#modal-bg').classList.remove('show');$('#modal').innerHTML='';}
+
+/* ---------- Tabs ---------- */
+function showTab(name){
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===name));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id==='tab-'+name));
+  if(name==='ajustes') renderAjustes();
+}
+function renderAll(){renderFields();renderTeams();renderPagos();}
+
+/* ---------- Canchas ---------- */
+function side(m,s){
+  const tid=s==='A'?m.a:m.b;
+  const sc=s==='A'?m.sa:m.sb;
+  return `<div class="tcol">
+    <div class="pw"><button class="plus" data-act="score" data-match="${m.id}" data-side="${s}" aria-label="Sumar gol">+</button><span class="badge">${sc||0}</span></div>
+    <span class="tname">${esc(teamName(tid))}</span>
+    <button class="minus" data-act="unscore" data-match="${m.id}" data-side="${s}" aria-label="Restar gol">−</button>
+  </div>`;
+}
+function renderFields(){
+  let h='';
+  for(let f=1;f<=4;f++){
+    const m=activeMatch(f);
+    h+=`<section class="fwrap">
+      <div class="fhead"><span>Cancha ${f}${m&&m.numero?` · Juego ${m.numero} de ${db.config.totalJuegos}`:''}</span><button class="link" data-act="assign" data-field="${f}">${m?'Cambiar partido':'Asignar partido'}</button></div>
+      <div class="field"><span class="circle"></span>`;
+    if(m){
+      h+=`<div class="row">
+        <button class="dollar" data-act="pay" data-team="${m.a}" data-match="${m.id}" title="Pagos de ${esc(teamName(m.a))}">$</button>
+        ${side(m,'A')}
+        ${side(m,'B')}
+        <button class="dollar" data-act="pay" data-team="${m.b}" data-match="${m.id}" title="Pagos de ${esc(teamName(m.b))}">$</button>
+      </div>`;
+    }else{
+      h+=`<div class="nomatch">Sin partido asignado</div>`;
+    }
+    h+=`</div></section>`;
+  }
+  $('#fields').innerHTML=h;
+}
+function changeScore(mid,side,d){
+  const m=matchById(mid); if(!m) return;
+  const k=side==='A'?'sa':'sb';
+  m[k]=Math.max(0,(m[k]||0)+d);
+  save(); renderFields();
+}
+function openAssign(f){
+  if(db.teams.length<2){alert('Primero registra al menos 2 equipos en la pestaña Equipos.');return;}
+  const cur=activeMatch(f);
+  const opts=sel=>db.teams.map(t=>`<option value="${t.id}"${t.id===sel?' selected':''}>${esc(t.name)}</option>`).join('');
+  openModal(`<form id="as-form">
+    <h3>Cancha ${f}</h3>
+    <label>Equipo de la izquierda<select name="a">${opts(cur?cur.a:db.teams[0].id)}</select></label>
+    <label>Equipo de la derecha<select name="b">${opts(cur?cur.b:db.teams[1].id)}</select></label>
+    <label>Número de juego (1 a ${db.config.totalJuegos})<input name="numero" type="number" min="1" max="${db.config.totalJuegos}" required value="${cur?.numero||''}"></label>
+    <p id="as-err" class="pend"></p>
+    <div class="actions">
+      ${cur?`<button type="button" class="btn danger" data-act="unassign" data-field="${f}">Quitar partido</button>`:''}
+      <button type="button" class="btn ghost" data-act="close">Cancelar</button>
+      <button class="btn primary">Guardar</button>
+    </div>
+  </form>`);
+  $('#as-form').onsubmit=e=>{
+    e.preventDefault();
+    const fd=new FormData(e.target);
+    const a=fd.get('a'), b=fd.get('b');
+    if(a===b){$('#as-err').textContent='Elige dos equipos distintos.';return;}
+    const numero=Number(fd.get('numero'));
+    if(!(numero>=1&&numero<=db.config.totalJuegos)){$('#as-err').textContent=`El número de juego debe estar entre 1 y ${db.config.totalJuegos}.`;return;}
+    db.matches.forEach(m=>{if(m.field===f&&m.activo)m.activo=false;});
+    db.matches.push({id:uid(),field:f,a,b,numero,sa:0,sb:0,activo:true,creado:new Date().toISOString()});
+    save(); closeModal(); renderAll();
+  };
+}
+function unassign(f){
+  db.matches.forEach(m=>{if(m.field===f&&m.activo)m.activo=false;});
+  save(); closeModal(); renderAll();
+}
+
+/* ---------- Pagos ---------- */
+function openPay(teamId,matchId){
+  const t=teamById(teamId); if(!t) return;
+  const m=matchById(matchId);
+  const b=balance(teamId);
+  const pays=db.payments.filter(p=>p.teamId===teamId).sort((x,y)=>String(y.fecha).localeCompare(String(x.fecha)));
+  const ins=Number(db.config.inscripcion)||0;
+  openModal(`<form id="pay-form">
+    <h3>Pago · ${esc(t.name)}</h3>
+    <p class="muted">${m?`Cancha ${m.field}`:'Sin partido asignado (se guarda sin cancha)'}</p>
+    <div class="bal">
+      <div><small>Inscripción</small><b>${money(b.insP)} de ${money(b.insDue)}</b><small>Falta ${money(b.insPend)}</small></div>
+      <div><small>Arbitraje (${b.ms} juego${b.ms===1?'':'s'})</small><b>${money(b.arbP)} de ${money(b.arbDue)}</b><small>Falta ${money(b.arbPend)}</small></div>
+    </div>
+    <div class="card" style="padding:10px;margin-bottom:12px">
+      <label class="chk"><input type="checkbox" name="insPrevia" ${t.inscripcionPrevia?'checked':''}> Ya pagó el 100% de la inscripción</label>
+      <label>Arbitraje cobra desde el juego número<input name="desde" type="number" min="1" max="${db.config.totalJuegos}" required value="${t.desdeJuego||m?.numero||''}"></label>
+    </div>
+    <label>Tipo de pago
+      <select name="tipo" id="p-tipo">
+        <option value="inscripcion">Inscripción</option>
+        <option value="arbitraje">Arbitraje</option>
+      </select>
+    </label>
+    <label>Monto<input name="monto" id="p-monto" type="number" min="1" step="1" required value="${ins}"></label>
+    <label>Quién lo recibió<input name="recibio" list="dl-rec" required autocomplete="off"></label>
+    <label>Cuenta donde se pagó<input name="cuenta" list="dl-cta" required autocomplete="off"></label>
+    <label>Fecha<input name="fecha" type="date" required value="${today()}"></label>
+    <label>Nota (opcional)<input name="nota" autocomplete="off"></label>
+    <datalist id="dl-rec">${optionsList(recibieronList())}</datalist>
+    <datalist id="dl-cta">${optionsList(cuentasList())}</datalist>
+    <div class="actions">
+      <button type="button" class="btn ghost" data-act="close">Cancelar</button>
+      <button class="btn primary">Guardar pago</button>
+    </div>
+    <h4>Pagos de este equipo</h4>
+    ${pays.length?`<ul class="plist">${pays.map(p=>`<li>
+      <span>${esc(p.fecha)} · ${p.tipo==='inscripcion'?'Inscripción':'Arbitraje'} · <b>${money(p.monto)}</b><br>
+      <small>${esc(p.recibio)} · ${esc(p.cuenta)}${p.nota?' · '+esc(p.nota):''}</small></span>
+      <button type="button" class="btn danger sm" data-act="delpay" data-id="${p.id}" data-team="${teamId}" data-match="${matchId||''}">Borrar</button>
+    </li>`).join('')}</ul>`:'<p class="muted">Aún no hay pagos.</p>'}
+  </form>`);
+  $('#p-tipo').onchange=e=>{$('#p-monto').value=e.target.value==='inscripcion'?(Number(db.config.inscripcion)||0):(Number(db.config.arbitraje)||0);};
+  $('#pay-form').onsubmit=e=>{
+    e.preventDefault();
+    const fd=new FormData(e.target);
+    const monto=Number(fd.get('monto'));
+    if(!(monto>0)){alert('El monto debe ser mayor a 0');return;}
+    const desde=Number(fd.get('desde'));
+    if(!(desde>=1&&desde<=db.config.totalJuegos)){alert(`El juego desde el que cobra arbitraje debe estar entre 1 y ${db.config.totalJuegos}`);return;}
+    t.inscripcionPrevia=!!fd.get('insPrevia');
+    t.desdeJuego=desde;
+    db.payments.push({
+      id:uid(),teamId,matchId:matchId||null,
+      tipo:fd.get('tipo'),monto,
+      recibio:String(fd.get('recibio')).trim(),
+      cuenta:String(fd.get('cuenta')).trim(),
+      fecha:fd.get('fecha'),
+      nota:String(fd.get('nota')||'').trim(),
+      creado:new Date().toISOString()
+    });
+    save(); closeModal(); renderAll();
+  };
+}
+function deletePayment(id,teamId,matchId){
+  if(!confirm('¿Borrar este pago?')) return;
+  db.payments=db.payments.filter(p=>p.id!==id);
+  save(); renderAll();
+  openPay(teamId,matchId);
+}
+function renderPagos(){
+  const rows=db.teams.map(t=>({t,b:balance(t.id)}));
+  const totIns=sum(db.payments.filter(p=>p.tipo==='inscripcion'));
+  const totArb=sum(db.payments.filter(p=>p.tipo==='arbitraje'));
+  const pend=rows.reduce((s,r)=>s+r.b.insPend+r.b.arbPend,0);
+  const byKey=k=>{
+    const o={};
+    db.payments.forEach(p=>{const kk=p[k]||'—';o[kk]=(o[kk]||0)+Number(p.monto||0);});
+    return Object.entries(o).sort((a,b)=>b[1]-a[1]);
+  };
+  const mini=(title,list)=>`<h4>${title}</h4><div class="scroll"><table>${
+    list.length?list.map(([k,v])=>`<tr><td>${esc(k)}</td><td style="text-align:right">${money(v)}</td></tr>`).join(''):'<tr><td class="muted">Sin pagos</td></tr>'
+  }</table></div>`;
+  const hist=[...db.payments].sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
+  $('#pagos').innerHTML=`
+    <div class="kpis">
+      <div><small>Inscripciones</small><b>${money(totIns)}</b></div>
+      <div><small>Arbitrajes</small><b>${money(totArb)}</b></div>
+      <div><small>Pendiente total</small><b class="${pend?'pend':'ok'}">${money(pend)}</b></div>
+    </div>
+    <h3>Saldo por equipo</h3>
+    <div class="scroll"><table>
+      <tr><th>Equipo</th><th>Inscripción</th><th>Arbitraje</th><th>Pendiente</th></tr>
+      ${rows.length?rows.map(({t,b})=>`<tr>
+        <td>${esc(t.name)}</td>
+        <td>${money(b.insP)} / ${money(b.insDue)}</td>
+        <td>${money(b.arbP)} / ${money(b.arbDue)} <small class="muted">(${b.ms} juego${b.ms===1?'':'s'})</small></td>
+        <td class="${b.insPend+b.arbPend?'pend':'ok'}">${money(b.insPend+b.arbPend)}</td>
+      </tr>`).join(''):'<tr><td colspan="4" class="muted">Sin equipos</td></tr>'}
+    </table></div>
+    <h3>Historial de pagos</h3>
+    <div class="scroll"><table>
+      <tr><th>Fecha</th><th>Equipo</th><th>Tipo</th><th>Cancha</th><th>Monto</th><th>Recibió</th><th>Cuenta</th></tr>
+      ${hist.length?hist.map(p=>{const m=matchById(p.matchId);return `<tr>
+        <td>${esc(p.fecha)}</td><td>${esc(teamName(p.teamId))}</td>
+        <td>${p.tipo==='inscripcion'?'Inscripción':'Arbitraje'}</td>
+        <td>${m?m.field:'—'}</td><td>${money(p.monto)}</td>
+        <td>${esc(p.recibio)}</td><td>${esc(p.cuenta)}</td></tr>`;}).join(''):'<tr><td colspan="7" class="muted">Sin pagos registrados</td></tr>'}
+    </table></div>
+    ${mini('Recibido por persona',byKey('recibio'))}
+    ${mini('Recibido por cuenta',byKey('cuenta'))}`;
+}
+
+/* ---------- Equipos ---------- */
+function openTeam(id){
+  const t=id?teamById(id):null;
+  openModal(`<form id="tm-form">
+    <h3>${t?'Editar equipo':'Nuevo equipo'}</h3>
+    <label>Nombre del equipo<input name="name" required autocomplete="off" value="${esc(t?t.name:'')}"></label>
+    <label>Jugadores (uno por línea)<textarea name="players" rows="8">${esc(t?t.players.join('\n'):'')}</textarea></label>    <div class="actions">
+      <button type="button" class="btn ghost" data-act="close">Cancelar</button>
+      <button class="btn primary">Guardar</button>
+    </div>
+  </form>`);
+  $('#tm-form').onsubmit=e=>{
+    e.preventDefault();
+    const fd=new FormData(e.target);
+    const name=String(fd.get('name')).trim();
+    const players=String(fd.get('players')).split('\n').map(s=>s.trim()).filter(Boolean);
+    if(t){t.name=name;t.players=players;}
+    else db.teams.push({id:uid(),name,players});
+    save(); closeModal(); renderAll();
+  };
+}
+function deleteTeam(id){
+  const t=teamById(id); if(!t) return;
+  if(matchesOf(id).length||db.payments.some(p=>p.teamId===id)){
+    alert(`${t.name} tiene partidos o pagos registrados, no se puede borrar.`);return;
+  }
+  if(!confirm(`¿Borrar el equipo ${t.name}?`)) return;
+  db.teams=db.teams.filter(x=>x.id!==id);
+  save(); renderAll();
+}
+function renderTeams(){
+  $('#teams-list').innerHTML=db.teams.length?db.teams.map(t=>`<div class="card team">
+    <div><b>${esc(t.name)}</b><br><small class="muted">${t.players.length} jugador${t.players.length===1?'':'es'}${t.players.length?': '+esc(t.players.join(', ')):''}</small></div>
+    <div class="actions" style="margin-top:0">
+      <button class="btn ghost sm" data-act="editteam" data-id="${t.id}">Editar</button>
+      <button class="btn danger sm" data-act="delteam" data-id="${t.id}">Borrar</button>
+    </div></div>`).join(''):'<p class="muted">Aún no hay equipos. Agrega el primero.</p>';
+}
+
+/* ---------- Ajustes ---------- */
+function renderAjustes(){
+  $('#ajustes').innerHTML=`
+    <form id="aj-form" class="card">
+      <h3>Montos</h3>
+      <label>Inscripción (por equipo)<input name="inscripcion" type="number" min="0" value="${Number(db.config.inscripcion)||0}"></label>
+      <label>Arbitraje (por equipo y por juego)<input name="arbitraje" type="number" min="0" value="${Number(db.config.arbitraje)||0}"></label>
+      <label>Total de juegos del torneo<input name="totalJuegos" type="number" min="1" value="${Number(db.config.totalJuegos)||15}"></label>
+      <h3>Sugerencias al registrar pagos</h3>
+      <label>Personas que reciben (separadas por coma)<input name="recibieron" autocomplete="off" value="${esc(db.config.recibieron.join(', '))}"></label>
+      <label>Cuentas (separadas por coma)<input name="cuentas" autocomplete="off" value="${esc(db.config.cuentas.join(', '))}"></label>
+      <div class="actions"><button class="btn primary">Guardar ajustes</button></div>
+    </form>
+    <div class="card">
+      <h3>Respaldo</h3>
+      <p class="muted">Los datos se guardan en este navegador. Exporta un respaldo para no perderlos o llevarlos a otra computadora.</p>
+      <div class="actions" style="justify-content:flex-start">
+        <button class="btn ghost" data-act="export">Exportar respaldo</button>
+        <input type="file" id="imp" accept="application/json,.json">
+      </div>
+    </div>`;
+  $('#aj-form').onsubmit=e=>{
+    e.preventDefault();
+    const fd=new FormData(e.target);
+    const list=s=>String(s||'').split(',').map(x=>x.trim()).filter(Boolean);
+    db.config.inscripcion=Math.max(0,Number(fd.get('inscripcion'))||0);
+    db.config.arbitraje=Math.max(0,Number(fd.get('arbitraje'))||0);
+    db.config.totalJuegos=Math.max(1,Number(fd.get('totalJuegos'))||15);
+    db.config.recibieron=list(fd.get('recibieron'));
+    db.config.cuentas=list(fd.get('cuentas'));
+    save(); renderAll(); alert('Ajustes guardados');
+  };
+  $('#imp').onchange=e=>{
+    const file=e.target.files[0]; if(!file) return;
+    if(!confirm('Esto reemplaza los datos actuales de este navegador. ¿Continuar?')){e.target.value='';return;}
+    file.text().then(txt=>{
+      const d=JSON.parse(txt);
+      if(!Array.isArray(d.teams)||!Array.isArray(d.matches)||!Array.isArray(d.payments)) throw new Error('formato');
+      db={...clone(DEF),...d,config:{...DEF.config,...(d.config||{})}};
+      save(); renderAll(); renderAjustes(); alert('Respaldo importado');
+    }).catch(()=>alert('El archivo no es un respaldo válido.'));
+  };
+}
+function exportDb(){
+  const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=`canchas-respaldo-${today()}.json`; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+/* ---------- Buscador ---------- */
+const q=$('#q');
+function renderResults(){
+  const box=$('#results');
+  const term=norm(q.value.trim());
+  if(!term){box.classList.remove('show');box.innerHTML='';return;}
+  const hits=[];
+  db.teams.forEach(t=>{
+    const teamHit=norm(t.name).includes(term);
+    const ph=t.players.find(p=>norm(p).includes(term));
+    if(teamHit||ph) hits.push({t,player:teamHit?null:ph});
+  });
+  box.innerHTML=hits.length?hits.slice(0,30).map(({t,player})=>{
+    const am=teamActiveMatch(t.id);
+    return `<button data-act="pickresult" data-team="${t.id}"><b>${esc(t.name)}</b>${player?` · ${esc(player)}`:''}<br><small>${am?`Cancha ${am.field}`:'Sin partido asignado'}</small></button>`;
+  }).join(''):'<div class="empty-res">Sin coincidencias</div>';
+  box.classList.add('show');
+}
+function pickResult(tid){
+  q.value='';
+  $('#results').classList.remove('show');
+  openPay(tid,teamActiveMatch(tid)?.id||null);
+}
+q.addEventListener('input',renderResults);
+q.addEventListener('focus',renderResults);
+
+/* ---------- Eventos ---------- */
+document.addEventListener('click',e=>{
+  if(e.target.id==='modal-bg'){closeModal();return;}
+  if(!e.target.closest('.search')) $('#results').classList.remove('show');
+  const el=e.target.closest('[data-act]');
+  if(!el) return;
+  const d=el.dataset;
+  switch(d.act){
+    case 'tab': showTab(d.tab); break;
+    case 'pay': openPay(d.team,d.match||null); break;
+    case 'score': changeScore(d.match,d.side,1); break;
+    case 'unscore': changeScore(d.match,d.side,-1); break;
+    case 'assign': openAssign(Number(d.field)); break;
+    case 'unassign': unassign(Number(d.field)); break;
+    case 'newteam': openTeam(null); break;
+    case 'editteam': openTeam(d.id); break;
+    case 'delteam': deleteTeam(d.id); break;
+    case 'delpay': deletePayment(d.id,d.team,d.match||null); break;
+    case 'close': closeModal(); break;
+    case 'pickresult': pickResult(d.team); break;
+    case 'export': exportDb(); break;
+  }
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape') closeModal();});
+
+renderAll();
+showTab('canchas');
+</script>
+</body>
+</html>
