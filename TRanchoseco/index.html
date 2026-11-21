@@ -88,6 +88,18 @@ input[type=file]{padding:6px;width:auto}
 .ppanel .fchip.on{background:#14532d;color:#fff;border-color:#14532d;box-shadow:none;font-weight:600}
 .ppanel .frango input{background:#fff;color:#111;border:1px solid #d1d5db}
 .plbl{color:#6b7280;font-size:13px;font-weight:600;margin:14px 0 8px}
+.ppanel .fchip.on{background:var(--yellow);color:#111;border-color:#d4b800;box-shadow:none;font-weight:700}
+.cal{margin-top:4px}
+.calhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;color:#111;text-transform:capitalize}
+.calhead b{font-size:15px}
+.calnav{background:#f3f4f6;border:1px solid #e5e7eb;border-radius:10px;width:34px;height:34px;font-size:18px;cursor:pointer;color:#111}
+.calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center}
+.calsem span{font-size:12px;color:#6b7280;font-weight:600;padding-bottom:4px}
+.cal .cd{background:none;border:0;border-radius:10px;height:38px;font:inherit;font-size:15px;color:#111;cursor:pointer;padding:0}
+.cal .cd:hover{background:#f3f4f6}
+.cal .cd.medio{background:#fef9c3;border-radius:0}
+.cal .cd.fin{background:var(--yellow);color:#111;font-weight:800}
+.calhint{color:#6b7280;font-size:13px;text-align:center;margin:10px 0 0;min-height:18px}
 .fchips{display:flex;gap:6px;flex-wrap:wrap}
 .fchip{background:#2a2f3f;color:var(--muted);border:0;border-radius:999px;padding:7px 14px;font:inherit;font-size:13px;cursor:pointer;transition:.15s}
 .fchip:hover{color:#fff}
@@ -788,7 +800,7 @@ function dashboardHTML(pagosF,totIns,totArb,pend){
     <h3>Juegos de hoy</h3>${jdHTML}`;
 }
 // Filtro de fechas en Pagos (hoy, semana, mes, rango o todo)
-let filtroPagos={modo:'todo',desde:'',hasta:'',abierto:false};
+let filtroPagos={modo:'hoy',desde:'',hasta:'',abierto:false};
 const PERIODOS=[['hoy','Hoy'],['ayer','Ayer'],['semana','Esta semana'],['semana_pas','Semana pasada'],['mes','Este mes'],['mes_pas','Mes pasado'],['d30','Últimos 30 días'],['anio','Este año'],['todo','Total']];
 function ymd(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
 // Fechas (desde, hasta) de cada periodo; vacío = sin límite
@@ -828,8 +840,31 @@ function filtroHTML(){
     ${filtroPagos.abierto?`<div class="ppanel">
       <div class="fchips">${chips}</div>
       <div class="plbl">Rango personalizado</div>
-      <div class="frango"><input type="date" id="f-desde" value="${filtroPagos.desde}"><span class="muted">→</span><input type="date" id="f-hasta" value="${filtroPagos.hasta}"></div>
+      ${calHTML()}
     </div>`:''}
+  </div>`;
+}
+// Calendario para elegir un rango: toca el primer día y luego el último
+function calHTML(){
+  const hoy=new Date();
+  const y=filtroPagos.calY??hoy.getFullYear(), m=filtroPagos.calM??hoy.getMonth();
+  const primero=new Date(y,m,1);
+  const dias=new Date(y,m+1,0).getDate();
+  const {desde,hasta}=filtroPagos;
+  let celdas='';
+  for(let i=0;i<primero.getDay();i++) celdas+='<span></span>';
+  for(let d=1;d<=dias;d++){
+    const s=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const cls=['cd',(s===desde||s===hasta)?'fin':'',(desde&&hasta&&s>desde&&s<hasta)?'medio':''].join(' ').trim();
+    celdas+=`<button type="button" class="${cls}" data-act="caldia" data-d="${s}">${d}</button>`;
+  }
+  const nombre=primero.toLocaleDateString('es-MX',{month:'long',year:'numeric'});
+  const pista=!desde?'Toca el primer día':(!hasta?'Ahora toca el último día':'');
+  return `<div class="cal">
+    <div class="calhead"><button type="button" class="calnav" data-act="calprev" aria-label="Mes anterior">‹</button><b>${esc(nombre)}</b><button type="button" class="calnav" data-act="calnext" aria-label="Mes siguiente">›</button></div>
+    <div class="calgrid calsem">${['do','lu','ma','mi','ju','vi','sá'].map(x=>`<span>${x}</span>`).join('')}</div>
+    <div class="calgrid">${celdas}</div>
+    <p class="calhint">${pista}</p>
   </div>`;
 }
 function renderPagos(){
@@ -1147,12 +1182,19 @@ document.addEventListener('click',e=>{
     case 'quitarb': quitarArbitro(d.n); break;
     case 'filtro': filtroPagos={...filtroPagos,modo:d.modo,abierto:false}; renderPagos(); break;
     case 'periodo': filtroPagos={...filtroPagos,abierto:!filtroPagos.abierto}; renderPagos(); break;
-  }
-});
-document.addEventListener('change',e=>{
-  if(e.target.id==='f-desde'||e.target.id==='f-hasta'){
-    filtroPagos={...filtroPagos,modo:'rango',desde:$('#f-desde')?.value||'',hasta:$('#f-hasta')?.value||''};
-    renderPagos();
+    case 'calprev':
+    case 'calnext': {
+      const base=new Date(filtroPagos.calY??new Date().getFullYear(),filtroPagos.calM??new Date().getMonth(),1);
+      base.setMonth(base.getMonth()+(d.act==='calnext'?1:-1));
+      filtroPagos={...filtroPagos,calY:base.getFullYear(),calM:base.getMonth()}; renderPagos(); break;
+    }
+    case 'caldia': {
+      const {desde,hasta}=filtroPagos, s=d.d;
+      let nd=s, nh='';
+      if(desde&&!hasta&&s>=desde){nd=desde;nh=s;}
+      filtroPagos={...filtroPagos,modo:'rango',desde:nd,hasta:nh,abierto:!nh};
+      renderPagos(); break;
+    }
   }
 });
 document.addEventListener('keydown',e=>{
