@@ -17,6 +17,10 @@ header{position:sticky;top:0;z-index:5;background:var(--bg);padding:12px 12px 6p
 .search svg{position:absolute;left:15px;top:50%;transform:translateY(-50%);width:20px;height:20px;color:#666}
 .results{position:absolute;top:56px;left:0;right:0;background:#fff;color:#111;border-radius:12px;box-shadow:0 10px 28px rgba(0,0,0,.5);max-height:60vh;overflow:auto;display:none;z-index:9}
 .results.show{display:block}
+.reslist{background:#fff;color:#111;border-radius:12px;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,.25);margin:6px 0 0}
+.reslist button{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid #eee;padding:11px 16px;cursor:pointer;font:inherit;color:#111}
+.reslist button:hover{background:#fff8c2}
+.reslist small{color:#666}
 .results button{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid #eee;padding:11px 16px;cursor:pointer;font:inherit}
 .results button:hover{background:#fff8c2}
 .results small{color:#666}
@@ -472,9 +476,11 @@ function chooserJugador(n){
   const q=$('#cj-q');
   const pintar=()=>{
     const toks=norm(q.value.trim()).split(/\s+/).filter(Boolean);
-    const hits=toks.length?db.teams.filter(t=>toks.every(k=>norm(t.name).includes(k))):db.teams;
-    $('#cj-list').innerHTML=hits.map(t=>`<button type="button" class="sug" data-act="cj-pick" data-team="${t.id}">${esc(t.name)}</button>`).join('')
-      +(toks.length&&!hits.length?'<button type="button" class="sug nuevo" data-act="cj-nuevo">+ Agregar equipo</button>':'');
+    // Igual que el buscador principal: nada hasta escribir; luego filtra por cada palabra
+    const hits=toks.length?db.teams.filter(t=>toks.every(k=>norm(t.name).includes(k))):[];
+    $('#cj-list').innerHTML=(hits.length?`<div class="reslist">${hits.slice(0,30).map(t=>{const am=teamActiveMatch(t.id);return `<button type="button" data-act="cj-pick" data-team="${t.id}"><b>${esc(t.name)}</b><br><small>${am?`Cancha ${am.field}`:'Sin partido asignado'}</small></button>`;}).join('')}</div>`:'')
+      +(toks.length&&!hits.length?'<div class="reslist"><div class="empty-res">No hay equipos con ese nombre.</div></div>':'')
+      +(toks.length?'<button type="button" class="addteam" data-act="cj-nuevo">+ Agregar equipo</button>':'');
   };
   q.addEventListener('input',()=>{$('#cj-nuevo').innerHTML='';pintar();});
   pintar();
