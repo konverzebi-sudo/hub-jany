@@ -106,6 +106,9 @@ input[type=file]{padding:6px;width:auto}
 .vs{display:inline-block;background:var(--yellow);color:#111;border-radius:999px;padding:0 7px;font-size:11px;font-weight:800;margin:0 4px}
 .res-card{padding:12px}
 .res-c{color:var(--yellow);font-weight:700;margin-bottom:8px}
+.res-row{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.res-row .res-card{flex:1;min-width:0;margin:0}
+.cnum-circ{flex:0 0 auto;width:56px;height:56px;border-radius:50%;background:var(--yellow);color:#111;font-size:28px;font-weight:800;display:flex;align-items:center;justify-content:center}
 .res-sal{display:flex;justify-content:space-between;gap:8px;margin-top:8px;flex-wrap:wrap}
 .res-m{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:16px;margin-bottom:6px}
 .res-s{font-size:22px;font-weight:800}
@@ -422,11 +425,10 @@ function renderResultados(){
     const r=m.resultado||{a:0,b:0};
     const ga=r.a>r.b, gb=r.b>r.a;
     const saldo=(tid)=>{const b=balance(tid);const d=b.insPend+b.arbPend;return d?`<span class="pend">Debe ${money(d)}</span>`:'<span class="ok">Al corriente</span>';};
-    return `<div class="card res-card">
-      <div class="res-c">Cancha ${m.field}</div>
+    return `<div class="res-row"><div class="cnum-circ">${m.field}</div><div class="card res-card">
       <div class="res-m"><b class="${ga?'ganador':''}">${teamLink(m.a)}</b><span class="res-s">${r.a} – ${r.b}</span><b class="${gb?'ganador':''}">${teamLink(m.b)}</b></div>
       <div class="res-sal"><small>${teamLink(m.a)}: ${saldo(m.a)}</small><small>${teamLink(m.b)}: ${saldo(m.b)}</small></div>
-    </div>`;
+    </div></div>`;
   };
   $('#resultados-list').innerHTML=claves.map(k=>{
     const lista=grupos[k].sort((x,y)=>x.field-y.field);
@@ -763,7 +765,7 @@ function openPay(teamId,matchId,editId=null){
   openModal(`<form id="pay-form">
     <h3>Pago · ${teamLink(t.id)}${m?` · <span class="cchip">Cancha ${m.field}</span>`:''}</h3>
     ${dos
-      ?`<div class="dosc">
+      ?`<div class="dosc" style="${t.inscripcionPrevia?'grid-template-columns:1fr':''}">
         <label id="p-ins-campo" style="${t.inscripcionPrevia?'display:none':''}">Inscripción<input class="montoGrande" name="monto_ins" type="number" min="0" step="1" placeholder="$0"></label>
         <label>Arbitraje<input class="montoGrande" name="monto_arb" type="number" min="0" step="1" placeholder="$0"></label>
       </div>
@@ -782,7 +784,7 @@ function openPay(teamId,matchId,editId=null){
       <input type="hidden" name="recibioIns" id="p-recibioIns" value="${esc(t.inscripcionRecibio||'')}">
     </div>
     <div class="resumen" id="p-res">
-      <div><small>Estado del equipo</small>${adeudo>0?`<b class="rojo">Adeudo ${money(adeudo)}</b>`:'<b class="verde">✔ Al corriente</b>'}</div>
+      <div><small>Estado del equipo</small><span id="p-estado">${adeudo>0?`<b class="rojo">Adeudo ${money(adeudo)}</b>`:'<b class="verde">✔ Al corriente</b>'}</span></div>
       <div><small>Número de juego</small><b id="p-num">${t.registroDesde?t.juegoActual:'—'}</b></div>
     </div>
     ${t.registroDesde?'':`<div class="lbl">¿En qué juego va el equipo? (solo la primera vez)</div>
@@ -860,6 +862,9 @@ function openPay(teamId,matchId,editId=null){
     $('#p-insq').style.display=e.target.checked?'block':'none';
     // Si ya pagó la inscripción antes de la plataforma, no se pide el monto de inscripción aquí
     const ic=$('#p-ins-campo'); if(ic) ic.style.display=e.target.checked?'none':'';
+    const dg=document.querySelector('.dosc'); if(dg) dg.style.gridTemplateColumns=e.target.checked?'1fr':'';
+    const rest=b.arbPend+(e.target.checked?0:b.insPend); const pe=$('#p-estado');
+    if(pe) pe.innerHTML=rest>0?`<b class="rojo">Adeudo ${money(rest)}</b>`:'<b class="verde">✔ Al corriente</b>';
     const ad=$('#p-adeudo'); if(ad) ad.style.display=e.target.checked?'none':'';
   };
   $('#p-insrecibe').onclick=e=>{
