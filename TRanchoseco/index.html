@@ -138,7 +138,9 @@ h3.yel{margin-top:28px}
 .cancha-card{text-align:center}
 .cnum{font-size:34px;font-weight:800;color:var(--yellow);line-height:1;margin:4px 0 8px}
 .ajfoot{display:flex;justify-content:flex-end;margin:4px 0 16px}
-.vs{text-align:center;font-weight:800;color:#111;margin:-4px 0 8px;letter-spacing:.5px}
+.vs-grande{text-align:center;font-weight:900;font-size:34px;line-height:1.1;color:var(--yellow);-webkit-text-stroke:1px #b89b00;margin:-2px 0 6px;letter-spacing:2px}
+.reslist button.arbocup{color:#16a34a;cursor:not-allowed;opacity:.9}
+.reslist button.arbocup small{color:#16a34a}
 .asignar{background:none;border:0;padding:0;cursor:pointer;box-shadow:none;line-height:0}
 .asignar img{width:104px;height:104px;display:block;margin:auto;filter:drop-shadow(0 6px 8px rgba(0,0,0,.45));animation:silbar 2.4s ease-in-out infinite;transform-origin:50% 60%}
 .asignar:hover img{animation-duration:.8s}
@@ -659,7 +661,11 @@ function activarArbitro(){
     const toks=norm(q.value.trim()).split(/\s+/).filter(Boolean);
     // Al tocar la casilla salen todos los árbitros; al escribir se filtran
     const hits=(db.config.arbitros||[]).filter(a=>toks.every(k=>norm(a).includes(k)));
-    list.innerHTML=(hits.length?`<div class="reslist">${hits.map(a=>`<button type="button" data-act="ar-pick" data-n="${esc(a)}"><b>${esc(a)}</b></button>`).join('')}</div>`:'')
+    // Árbitros que ya están pitando otra cancha: salen en verde y no se pueden elegir
+    const pitando=(a)=>db.matches.find(x=>x.activo&&x.field!==asignandoField&&x.arbitro===a);
+    list.innerHTML=(hits.length?`<div class="reslist">${hits.map(a=>{const pc=pitando(a);return pc
+      ?`<button type="button" class="arbocup" disabled><b>${esc(a)}</b><br><small>Ya está pitando la cancha ${pc.field}</small></button>`
+      :`<button type="button" data-act="ar-pick" data-n="${esc(a)}"><b>${esc(a)}</b></button>`;}).join('')}</div>`:'')
       +(toks.length&&!hits.length?`<div class="reslist"><button type="button" class="addteam" data-act="ar-nuevo" data-n="${esc(q.value.trim())}">+ Agregar árbitro</button></div>`:'');
   };
   q.addEventListener('input',()=>{val.value='';pintar();});
@@ -679,7 +685,7 @@ function openAssign(f,pre){
   openModal(`<form id="as-form">
     <h3>Cancha ${f}</h3>
     ${buscadorEquipo('a','Equipo 1',pre?pre.a:(cur?cur.a:''))}
-    <div class="vs">VS</div>
+    <div class="vs-grande">VS</div>
     ${buscadorEquipo('b','Equipo 2',pre?pre.b:(cur?cur.b:''))}
     ${cur?.arbitro?`<p class="muted" style="margin:0 0 10px">Lo pita: <b style="color:#111">${esc(cur.arbitro)}</b></p><input type="hidden" name="arbitro" id="ar-val" value="${esc(cur.arbitro)}">`:buscadorArbitro('')}
     <p id="as-err" class="pend"></p>
