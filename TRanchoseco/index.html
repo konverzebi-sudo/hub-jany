@@ -95,6 +95,8 @@ input[type=file]{padding:6px;width:auto}
 .ppanel .frango input{background:#fff;color:#111;border:1px solid #d1d5db}
 .plbl{color:#6b7280;font-size:13px;font-weight:600;margin:14px 0 8px}
 .yel{color:var(--yellow)}
+.reslist button.on{background:#fff8c2}
+.pqban{background:var(--panel);color:var(--text);border-radius:12px;padding:10px 14px;margin:8px 0;display:flex;justify-content:space-between;align-items:center;gap:8px}
 .wa{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.35)}
 .wa:hover{transform:scale(1.06)}
 .deudaq{display:inline-block;border:1px solid #fca5a5;border-radius:999px;padding:2px 10px;font-size:12px;color:#fca5a5;white-space:nowrap;margin-top:2px}
@@ -1091,52 +1093,36 @@ function calHTML(){
 }
 // Buscador de Pagos: cobrador (movimientos de hoy), árbitro (cuánto le deben), equipo (juegos y adeudo), jugador (estado)
 let pqTerm='';
+let pqSel=null; // lo que se seleccionó de la lista: {tipo, val}
+// Lista de opciones: cobrador, árbitro, equipo o jugador (se elige una)
 function resultadoBusqueda(){
-  const toks=norm(pqTerm.trim()).split(/\s+/).filter(Boolean);
-  if(!toks.length) return '';
-  const hit=(txt)=>toks.every(k=>norm(txt).includes(k));
-  let h='';
-  cobradores().filter(n=>hit(n)).forEach(n=>{
-    const movs=db.payments.filter(p=>p.recibio===n&&p.fecha===jornadaHoy());
-    h+=`<div class="bres"><h4>${esc(n)} · cobró hoy</h4>${movs.length?`<table>${movs.map(p=>`<tr><td>${esc(teamName(p.teamId))}</td><td>${p.tipo==='inscripcion'?'Inscripción':'Arbitraje'}</td><td>${p.metodo==='transferencia'?'Transferencia':'Efectivo'}</td><td style="text-align:right">${money(p.monto)}</td></tr>`).join('')}<tr><th colspan="3">Total de hoy</th><th style="text-align:right">${money(sum(movs))}</th></tr></table>`:'<p class="muted">Sin movimientos hoy.</p>'}</div>`;
-  });
-  (db.config.arbitros||[]).filter(a=>hit(a)).forEach(a=>{
-    const ms=db.matches.filter(m=>m.terminado&&m.arbitro===a);
-    h+=`<div class="bres"><h4>${esc(a)} · árbitro</h4><p>Juegos arbitrados: <b>${ms.length}</b></p><p>Le deben: <b>${money(ms.length*(Number(db.config.pagoArbitro)||0))}</b></p></div>`;
-  });
-  db.teams.filter(t=>hit(t.name)).forEach(t=>{
-    const b=balance(t.id); const d=b.insPend+b.arbPend;
-    const ms=matchesOf(t.id);
-    h+=`<div class="bres"><h4>${esc(t.name)} · equipo</h4><p>${d?`Debe <b class="pend">${money(d)}</b>`:'<b class="ok">✔ Al corriente</b>'}</p>${ms.length?`<table>${ms.map(m=>`<tr><td>Cancha ${m.field}</td><td>Juego ${m.numero||'—'}</td><td>${m.terminado?'Terminado':'En curso'}</td><td style="text-align:right">${m.resultado?`${m.resultado.a} – ${m.resultado.b}`:''}</td></tr>`).join('')}</table>`:'<p class="muted">Sin juegos.</p>'}</div>`;
-  });
-  db.teams.forEach(t=>{
-    t.players.filter(x=>hit(x)&&!hit(t.name)).forEach(x=>{
-      const b=balance(t.id); const d=b.insPend+b.arbPend;
-      h+=`<div class="bres"><h4>${esc(x)} · jugador</h4><p>Equipo: <b>${esc(t.name)}</b></p><p>${d?`Estado: <b class="pend">Debe ${money(d)}</b>`:'Estado: <b class="ok">✔ Al corriente</b>'}</p></div>`;
-    });
-  });
-  return h||'<p class="muted">No hay coincidencias.</p>';
+  const term=norm(pqTerm.trim()); if(!term) return '';
+  const toks=term.split(/\s+/).filter(Boolean);
+  const hit=(x)=>toks.every(k=>norm(x).includes(k));
+  const opts=[];
+  cobradores().filter(hit).forEach(n=>opts.push({tipo:'cobrador',val:n,txt:n,sub:'Cobrador'}));
+  (db.config.arbitros||[]).filter(hit).forEach(a=>opts.push({tipo:'arbitro',val:a,txt:a,sub:'Árbitro'}));
+  db.teams.filter(t=>hit(t.name)).forEach(t=>opts.push({tipo:'equipo',val:t.id,txt:t.name,sub:'Equipo'}));
+  db.teams.forEach(t=>t.players.filter(x=>hit(x)&&!hit(t.name)).forEach(x=>opts.push({tipo:'equipo',val:t.id,txt:x,sub:'Jugador de '+t.name})));
+  if(!opts.length) return '<div class="reslist"><div class="empty-res">No hay coincidencias.</div></div>';
+  return `<div class="reslist">${opts.slice(0,30).map(o=>`<button type="button" class="${pqSel&&pqSel.tipo===o.tipo&&String(pqSel.val)===String(o.val)?'on':''}" data-act="pqsel" data-tipo="${o.tipo}" data-val="${esc(String(o.val))}"><b>${esc(o.txt)}</b><br><small>${o.sub}</small></button>`).join('')}</div>`;
+}
+function etiquetaSeleccion(){
+  if(!pqSel) return '';
+  if(pqSel.tipo==='equipo') return teamName(pqSel.val);
+  return pqSel.val;
 }
 document.addEventListener('input',e=>{
   if(e.target.id!=='pq') return;
-  pqTerm=e.target.value;
+  pqTerm=e.target.value; pqSel=null;
   renderPagos();
   const pq=$('#pq'); if(pq){pq.focus(); pq.setSelectionRange(pqTerm.length,pqTerm.length);}
 });
-// Foco del reporte: lo que se busca arriba (cobrador, árbitro o equipo/jugador)
+// El reporte sigue la selección de la lista (no lo que se escriba)
 function pqFoco(){
-  const term=norm(pqTerm.trim()); if(!term) return null;
-  const toks=term.split(/\s+/).filter(Boolean);
-  const hit=(x)=>toks.every(k=>norm(x).includes(k));
-  const cob=cobradores().filter(n=>hit(n));
-  if(cob.length===1) return {tipo:'cobrador',nombre:cob[0]};
-  const arb=(db.config.arbitros||[]).filter(a=>hit(a));
-  if(arb.length===1) return {tipo:'arbitro',nombre:arb[0]};
-  const eq=db.teams.filter(t=>hit(t.name));
-  if(eq.length===1) return {tipo:'equipo',id:eq[0].id};
-  const jug=db.teams.filter(t=>t.players.some(x=>hit(x)));
-  if(jug.length===1) return {tipo:'equipo',id:jug[0].id};
-  return null;
+  if(!pqSel) return null;
+  if(pqSel.tipo==='equipo') return {tipo:'equipo',id:pqSel.val};
+  return {tipo:pqSel.tipo,nombre:pqSel.val};
 }
 function enFoco(p,f){
   if(!f) return true;
@@ -1171,7 +1157,7 @@ function renderPagos(){
   const hist=[...pagosF].sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
   $('#pagos').innerHTML=`
     <input id="pq" class="pq" autocomplete="off" placeholder="Busca cobrador, equipo, jugador o árbitro" value="${esc(pqTerm)}">
-    <div id="pqres">${resultadoBusqueda()}</div>
+    <div id="pqres">${resultadoBusqueda()}${pqSel?`<div class="pqban">Mostrando: <b>${esc(etiquetaSeleccion())}</b> <button type="button" class="link" data-act="pqclear">Quitar</button></div>`:''}</div>
     ${filtroHTML()}
     ${dashboardHTML(pagosF,totIns,totArb,pend)}
     <h3 class="yel">Saldo por equipo</h3>
@@ -1454,6 +1440,8 @@ document.addEventListener('click',e=>{
     case 'delpay': deletePayment(d.id,d.team,d.match||null); break;
     case 'editpay': openPay(d.team,d.match||null,d.id); break;
     case 'pagonuevo': openBuscarPago(); break;
+    case 'pqsel': pqSel={tipo:d.tipo,val:d.tipo==='equipo'?d.val:d.val}; renderPagos(); break;
+    case 'pqclear': pqSel=null; renderPagos(); break;
     case 'pagopick': openPay(d.team,null); break;
     case 'close': closeModal(); break;
     case 'tp-pick': $('#tp-val').value=d.n; $('#tp-q').value=d.n; $('#tp-list').innerHTML=''; break;
