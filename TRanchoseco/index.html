@@ -125,6 +125,9 @@ input[type=file]{padding:6px;width:auto}
 .modal .resumen b{display:block;font-size:18px;margin-top:4px}
 .cuadros{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
 .sq{aspect-ratio:1/1;background:#f3f4f6;color:#111;border:1px solid #cfd3dc;border-radius:10px;font:inherit;font-weight:700;font-size:13px;cursor:pointer;padding:4px}
+.modal .sq svg{margin-bottom:6px;color:#14532d}
+.coinc{display:flex;align-items:center;gap:10px;background:#f3f4f6;border-radius:12px;padding:8px 10px;margin-bottom:6px;color:#111}
+.coinc svg{flex-shrink:0;color:#14532d}
 .sq.on{background:var(--yellow);border-color:#d4b800}
 .switchrow{display:flex;align-items:center;gap:12px;margin-bottom:14px;color:#111}
 .metodos{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
@@ -384,29 +387,69 @@ function activarBuscador(s){
 let asignandoField=null; // cancha que se está asignando
 let alVolver=null; // datos de Asignar partido mientras se agrega un equipo nuevo desde la búsqueda
 // Al agregar desde el buscador: ¿el nombre es un jugador o un equipo?
+const ICO_JUGADOR='<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="7" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7z"/></svg>';
+const ICO_EQUIPO='<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z"/></svg>';
+let chooserModo=null; // 'jugador' | 'equipo'
+// Lo que ya existe con ese nombre: equipos y jugadores (sin importar mayúsculas ni acentos)
+function coincidencias(n){
+  const toks=norm(n).split(/\s+/).filter(Boolean);
+  if(!toks.length) return {equipos:[],jugadores:[]};
+  const equipos=db.teams.filter(t=>toks.every(k=>norm(t.name).includes(k)));
+  const jugadores=[];
+  db.teams.forEach(t=>t.players.forEach(p=>{if(toks.every(k=>norm(p).includes(k))) jugadores.push({p,t});}));
+  return {equipos,jugadores};
+}
+function renderCoinc(n){
+  const {equipos,jugadores}=coincidencias(n);
+  const lista=[
+    ...equipos.map(t=>`<div class="coinc">${ICO_EQUIPO}<span><b>${esc(t.name)}</b> · equipo registrado</span></div>`),
+    ...jugadores.map(x=>`<div class="coinc">${ICO_JUGADOR}<span><b>${esc(x.p)}</b> · jugador de ${esc(x.t.name)}</span></div>`)
+  ];
+  $('#ch-coinc').innerHTML=lista.length
+    ?`<p class="pend" style="margin:6px 0">Ya existe. Elige una de estas opciones o cambia el nombre.</p>${lista.join('')}`
+    :'<p class="ok" style="margin:6px 0">No existe en la lista.</p>';
+  return lista.length>0;
+}
 function abrirChooser(nombre){
-  const n=cap(nombre.trim());
+  chooserModo=null;
   openModal(`<div>
-    <h3>${esc(n)}</h3>
+    <h3>Nuevo registro</h3>
+    <label>Nombre (puedes corregirlo antes de registrarlo)<input id="ch-nombre" autocomplete="off" value="${esc(cap(nombre.trim()))}"></label>
+    <div id="ch-coinc"></div>
     <p class="muted">¿Qué es este nombre?</p>
     <div class="cuadros" style="grid-template-columns:1fr 1fr">
-      <button type="button" class="sq" data-act="esjugador" data-n="${esc(n)}">Es un jugador</button>
-      <button type="button" class="sq" data-act="esequipo" data-n="${esc(n)}">Es un equipo</button>
+      <button type="button" class="sq" data-act="esjugador">${ICO_JUGADOR}<br>Es un jugador</button>
+      <button type="button" class="sq" data-act="esequipo">${ICO_EQUIPO}<br>Es un equipo</button>
     </div>
     <div id="ch-body"></div>
     <div class="actions"><button type="button" class="btn ghost" data-act="close">Cancelar</button></div>
   </div>`);
+  const inp=$('#ch-nombre');
+  renderCoinc(inp.value);
+  inp.addEventListener('input',()=>{
+    const v=inp.value;
+    renderCoinc(v);
+    if(chooserModo==='jugador') chooserJugador(v);
+    else if(chooserModo==='equipo') chooserEquipo(v);
+  });
 }
+function nombreChooser(){return cap(($('#ch-nombre')?.value||'').trim());}
 function chooserEquipo(n){
-  const toks=norm(n).split(/\s+/).filter(Boolean);
-  const hits=db.teams.filter(t=>toks.every(k=>norm(t.name).includes(k)));
-  $('#ch-body').innerHTML=`<p class="muted">Equipos registrados que coinciden:</p>
-    ${hits.map(t=>`<button type="button" class="sug" data-act="pickteam" data-team="${t.id}">${esc(t.name)}</button>`).join('')||'<p class="muted">Ninguno.</p>'}
-    <button type="button" class="sug nuevo" data-act="equiponuevo" data-n="${esc(n)}">+ Registrar como equipo nuevo</button>`;
+  chooserModo='equipo';
+  const {equipos,jugadores}=coincidencias(n);
+  const hay=equipos.length||jugadores.length;
+  $('#ch-body').innerHTML=`${equipos.map(t=>`<button type="button" class="sug" data-act="pickteam" data-team="${t.id}">${esc(t.name)}</button>`).join('')}
+    ${hay?'<p class="muted">Ya existe un equipo o jugador con ese nombre. Si es el mismo, úsalo. Si es otro, cambia el nombre.</p>'
+      :`<button type="button" class="sug nuevo" data-act="equiponuevo" data-n="${esc(n)}">+ Registrar como equipo nuevo</button>`}`;
 }
 function chooserJugador(n){
-  $('#ch-body').innerHTML=`<p class="muted">${esc(n)} será el líder del equipo que vas a registrar.</p>
-    <button type="button" class="sug nuevo" data-act="registrarjugador" data-n="${esc(n)}">Registrar su equipo</button>`;
+  chooserModo='jugador';
+  const {equipos,jugadores}=coincidencias(n);
+  const hay=equipos.length||jugadores.length;
+  $('#ch-body').innerHTML=hay
+    ?'<p class="muted">Ya existe con ese nombre. Si es el mismo jugador, búscalo. Si es otra persona, cambia el nombre.</p>'
+    :`<p class="muted">${esc(n)} será el líder del equipo que vas a registrar.</p>
+      <button type="button" class="sug nuevo" data-act="registrarjugador" data-n="${esc(n)}">Registrar su equipo</button>`;
 }
 function abrirNuevoDesdeBusqueda(s,nombre){
   alVolver={f:asignandoField,a:$('#as-a-val').value,b:$('#as-b-val').value,side:s};
@@ -1036,8 +1079,8 @@ document.addEventListener('click',e=>{
     case 'saveteam': saveDraft(); break;
     case 'pickresult': pickResult(d.team); break;
     case 'addteam': q.value=''; $('#results').classList.remove('show'); abrirChooser(d.name); break;
-    case 'esjugador': chooserJugador(d.n); break;
-    case 'esequipo': chooserEquipo(d.n); break;
+    case 'esjugador': chooserJugador(nombreChooser()); break;
+    case 'esequipo': chooserEquipo(nombreChooser()); break;
     case 'pickteam': closeModal(); pickResult(d.team); break;
     case 'equiponuevo': openTeam(null,d.n,true); break;
     case 'registrarjugador': openTeam(null,'',true,d.n); break;
