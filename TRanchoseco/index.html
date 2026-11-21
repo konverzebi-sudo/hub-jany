@@ -1447,6 +1447,11 @@ function deleteTeam(id){
   db.teams=db.teams.filter(x=>x.id!==id);
   save(); renderAll();
 }
+// Día completo de un partido, por ejemplo "sábado 21 de noviembre"
+function diaCompleto(iso){
+  const [y,m,d]=String(diaLocal(iso)).split('-').map(Number);
+  return new Date(y,m-1,d).toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'});
+}
 function renderTeams(filtro=''){
   // Orden alfabético por nombre; con búsqueda solo salen los que coinciden
   const term=norm(String(filtro).trim());
@@ -1454,7 +1459,7 @@ function renderTeams(filtro=''){
     .filter(t=>!term||norm(t.name).includes(term)||t.players.some(p=>norm(p).includes(term)))
     .sort((a,b)=>a.name.localeCompare(b.name,'es',{sensitivity:'base'}));
   $('#teams-list').innerHTML=ordenados.length?ordenados.map(t=>`<div class="card team" data-act="editteam" data-id="${t.id}" style="cursor:pointer">
-    <div><b>${teamLink(t.id)}</b><br><small class="muted">Líder (paga): ${esc(t.lider||'—')}</small><br><small class="muted">${t.players.length} jugador${t.players.length===1?'':'es'}${t.players.length?': '+esc(t.players.join(', ')):''}</small></div>
+    <div><b>${teamLink(t.id)}</b><br><small class="muted">Líder (paga): ${esc(t.lider||'—')}</small><br><small class="muted">Último juego: ${(()=>{const ult=matchesOf(t.id).sort((x,y)=>String(y.creado||'').localeCompare(String(x.creado||'')))[0];return ult?esc(diaCompleto(ult.creado)):'aún no ha jugado';})()}</small><br><small class="muted">${t.players.length} jugador${t.players.length===1?'':'es'}${t.players.length?': '+esc(t.players.join(', ')):''}</small></div>
     </div>`).join(''):(db.teams.length?'<p class="muted">Ningún equipo coincide con la búsqueda.</p>':'<p class="muted">Aún no hay equipos. Agrega el primero.</p>');
 }
 
