@@ -113,7 +113,7 @@ h3.yel{margin-top:28px}
 .totbtn{background:var(--yellow);color:#111;border:0;border-radius:10px;padding:8px 14px;font-weight:700;cursor:pointer;margin:0 0 10px}
 .retraso{color:#dc2626;font-weight:700;margin:0 0 10px}
 .jtabla th,.jtabla td{text-align:center}
-.fbox{position:sticky;top:var(--hh,160px);z-index:4;background:var(--bg);padding:4px 0 8px}
+.fbox{position:sticky;top:var(--hh,160px);z-index:6;background:var(--bg);padding:4px 0 8px;box-shadow:0 10px 10px -4px var(--bg)}
 .insdone{font-size:13px;color:#111;margin:0 0 10px}
 .cuadros.mini .sq{aspect-ratio:auto;height:44px;font-size:13px;padding:4px}
 .insdone{font-size:13px;color:#111;margin:4px 0 0}
@@ -1081,9 +1081,32 @@ document.addEventListener('input',e=>{
   renderPagos();
   const pq=$('#pq'); if(pq){pq.focus(); pq.setSelectionRange(pqTerm.length,pqTerm.length);}
 });
+// Foco del reporte: lo que se busca arriba (cobrador, árbitro o equipo/jugador)
+function pqFoco(){
+  const term=norm(pqTerm.trim()); if(!term) return null;
+  const toks=term.split(/\s+/).filter(Boolean);
+  const hit=(x)=>toks.every(k=>norm(x).includes(k));
+  const cob=cobradores().filter(n=>hit(n));
+  if(cob.length===1) return {tipo:'cobrador',nombre:cob[0]};
+  const arb=(db.config.arbitros||[]).filter(a=>hit(a));
+  if(arb.length===1) return {tipo:'arbitro',nombre:arb[0]};
+  const eq=db.teams.filter(t=>hit(t.name));
+  if(eq.length===1) return {tipo:'equipo',id:eq[0].id};
+  const jug=db.teams.filter(t=>t.players.some(x=>hit(x)));
+  if(jug.length===1) return {tipo:'equipo',id:jug[0].id};
+  return null;
+}
+function enFoco(p,f){
+  if(!f) return true;
+  if(f.tipo==='cobrador') return p.recibio===f.nombre;
+  if(f.tipo==='equipo') return p.teamId===f.id;
+  if(f.tipo==='arbitro'){const ids=new Set(db.matches.filter(m=>m.arbitro===f.nombre).map(m=>m.id)); return ids.has(p.matchId);}
+  return true;
+}
 function renderPagos(){
-  const rows=db.teams.map(t=>({t,b:balance(t.id)}));
-  const pagosF=db.payments.filter(p=>enRango(p.fecha));
+  const foco=pqFoco();
+  const rows=db.teams.filter(t=>!foco||foco.tipo!=='equipo'||t.id===foco.id).map(t=>({t,b:balance(t.id)}));
+  const pagosF=db.payments.filter(p=>enRango(p.fecha)&&enFoco(p,foco));
   const totIns=sum(pagosF.filter(p=>p.tipo==='inscripcion'));
   const totArb=sum(pagosF.filter(p=>p.tipo==='arbitraje'));
   const pend=rows.reduce((s,r)=>s+r.b.insPend+r.b.arbPend,0);
