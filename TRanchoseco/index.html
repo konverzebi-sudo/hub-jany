@@ -412,8 +412,8 @@ function renderResultados(){
   const ts=db.matches.filter(m=>m.terminado);
   if(!ts.length){$('#resultados-list').innerHTML='<p class="muted">Aún no hay partidos terminados.</p>';return;}
   // Agrupar por horario (día y hora en que terminaron); dentro de cada horario, cancha 1 a 4
-  const grupos={};
-  ts.forEach(m=>{const d=new Date(m.terminadoEn||m.creado||0);const k=`${diaLocal(d.toISOString())} ${String(d.getHours()).padStart(2,'0')}:00`;(grupos[k]=grupos[k]||[]).push(m);});
+  const grupos={}, etiq={};
+  ts.forEach(m=>{const d=new Date(m.terminadoEn||m.creado||0);const k=`${diaLocal(d.toISOString())} ${String(d.getHours()).padStart(2,'0')}:00`;(grupos[k]=grupos[k]||[]).push(m);etiq[k]=d;});
   const claves=Object.keys(grupos).sort((a,b)=>b.localeCompare(a));
   const fila=(m)=>{
     const r=m.resultado||{a:0,b:0};
@@ -427,7 +427,10 @@ function renderResultados(){
   };
   $('#resultados-list').innerHTML=claves.map(k=>{
     const lista=grupos[k].sort((x,y)=>x.field-y.field);
-    return `<h3 class="yel">${k}</h3>${lista.map(fila).join('')}`;
+    const d=etiq[k];
+    const fecha=d.toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'short'}).replace(',','');
+    const hora=String(d.getHours()).padStart(2,'0')+':00';
+    return `<h3 class="yel">${fecha} · ${hora}</h3>${lista.map(fila).join('')}`;
   }).join('');
 }
 function renderAll(){renderFields();renderTeams();renderPagos();}
