@@ -304,7 +304,11 @@ async function cargarNube(){
   const {data,error}=await sb.from('estado').select('data').eq('id',ESTADO_ID).maybeSingle();
   if(error) return;
   if(data&&data.data){
+    // Se combinan los árbitros de este celular con los de la nube, para no perder los que se agregaron sin guardar
+    const locales=(db.config&&db.config.arbitros)||[];
     db=completar(data.data);
+    const todos=[...db.config.arbitros,...locales];
+    db.config.arbitros=[...new Map(todos.map(a=>[norm(a),a])).values()];
     localStorage.setItem(KEY,JSON.stringify(db));
     renderAll();
   }else if(db.teams.length||db.payments.length){
