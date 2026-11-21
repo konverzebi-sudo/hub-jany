@@ -73,6 +73,7 @@ input[type=file]{padding:6px;width:auto}
 .sugs{display:flex;flex-direction:column;gap:4px;margin:-6px 0 12px;max-height:180px;overflow:auto}
 .sug{background:#f3f4f6;color:#111;border:1px solid #e5e7eb;border-radius:8px;padding:9px 12px;text-align:left;cursor:pointer;font:inherit}
 .sug:hover{background:#fff8c2}
+.sug.enjuego{background:#dcfce7;color:#166534;border-color:#86efac;font-weight:700}
 .sug.nuevo{background:var(--yellow);font-weight:700;border-color:#d4b800}
 .lbl{color:#444;font-size:14px;margin:0 0 6px}
 .modal .lbl{color:#444}
@@ -450,7 +451,10 @@ function activarBuscador(s){
     // Cada palabra que escriben tiene que estar en el nombre del equipo
     const toks=norm(txt.value.trim()).split(/\s+/).filter(Boolean);
     const hits=db.teams.filter(t=>toks.every(k=>norm(t.name).includes(k)));
-    sug.innerHTML=hits.map(t=>`<button type="button" class="sug" data-pick="${t.id}" data-side="${s}">${esc(t.name)}</button>`).join('')
+    // Equipos que ya están jugando en otra cancha salen en verde, con la cancha donde están
+    sug.innerHTML=hits.map(t=>{const oc=db.matches.find(m=>m.activo&&m.field!==asignandoField&&(m.a===t.id||m.b===t.id));return oc
+      ?`<button type="button" class="sug enjuego" data-pick="${t.id}" data-side="${s}">${esc(t.name)} · ya está en la cancha ${oc.field}</button>`
+      :`<button type="button" class="sug" data-pick="${t.id}" data-side="${s}">${esc(t.name)}</button>`;}).join('')
       +(hits.length?'':'<div class="muted">Ningún equipo tiene ese nombre. Revisa otra vez antes de agregar uno nuevo.</div>')
       +(toks.length&&!hits.length?`<button type="button" class="sug nuevo" data-nuevo="${s}">+ Agregar nuevo equipo</button>`:'');
   };
