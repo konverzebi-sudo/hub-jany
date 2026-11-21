@@ -70,6 +70,7 @@ input[type=file]{padding:6px;width:auto}
 .tile{background:#f3f4f6;color:#111;border:1px solid #cfd3dc;border-radius:8px;padding:10px 0;font:inherit;font-weight:700;cursor:pointer}
 .tile.on{background:var(--yellow);border-color:#d4b800}
 .tile:disabled{opacity:.6;cursor:default}
+.juegoq{color:#fff;font-size:12px;opacity:.9}
 .addrow{display:flex;gap:8px;align-items:center;margin-bottom:10px}
 .addrow input{margin:0;flex:1}
 .rowbtns{display:flex;gap:6px;flex-shrink:0}
@@ -241,8 +242,8 @@ function cuentasList(){return [...new Set([...db.config.cuentas,...db.payments.m
 // Arbitraje: solo cuentan los juegos desde el juego que el equipo marcó en su primer registro
 function balance(tid){
   const t=teamById(tid);
-  const ds=t?.desdeJuego||null;
-  const ms=ds?matchesOf(tid).filter(m=>(Number(m.numero)||0)>=ds).length:0;
+  // Arbitraje: solo cuentan los partidos creados desde que el equipo se registró
+  const ms=t?.registroDesde?matchesOf(tid).filter(m=>String(m.creado||'')>=t.registroDesde).length:0;
   const pays=db.payments.filter(p=>p.teamId===tid);
   const insDue=Number(db.config.inscripcion)||0;
   const insP=Math.max(sum(pays.filter(p=>p.tipo==='inscripcion')),t?.inscripcionPrevia?insDue:0);
@@ -270,6 +271,7 @@ function side(m,s){
   return `<div class="tcol">
     <div class="pw"><button class="plus" data-act="score" data-match="${m.id}" data-side="${s}" aria-label="Sumar gol">+</button><span class="badge">${sc||0}</span></div>
     <span class="tname">${esc(teamName(tid))}</span>
+    <small class="juegoq">${teamById(tid)?.juegoActual?`Juego ${teamById(tid).juegoActual}`:'Sin juego'}</small>
     <button class="minus" data-act="unscore" data-match="${m.id}" data-side="${s}" aria-label="Restar gol">−</button>
   </div>`;
 }
@@ -278,7 +280,7 @@ function renderFields(){
   for(let f=1;f<=4;f++){
     const m=activeMatch(f);
     h+=`<section class="fwrap">
-      <div class="fhead"><span>Cancha ${f}${m&&m.numero?` · Juego ${m.numero} de ${db.config.totalJuegos}`:''}</span>${m?`<button class="whistle" data-act="terminar" data-match="${m.id}" title="Terminar partido" aria-label="Terminar partido">${SILBATO}</button>`:''}<button class="link" data-act="assign" data-field="${f}">${m?'Cambiar partido':'Asignar partido'}</button></div>
+      <div class="fhead"><span>Cancha ${f}</span>${m?`<button class="whistle" data-act="terminar" data-match="${m.id}" title="Terminar partido" aria-label="Terminar partido">${SILBATO}</button>`:''}<button class="link" data-act="assign" data-field="${f}">${m?'Cambiar partido':'Asignar partido'}</button></div>
       <div class="field"><span class="circle"></span>`;
     if(m){
       h+=`<div class="row">
@@ -333,19 +335,10 @@ function openAssign(f){
     return;
   }
   const cur=activeMatch(f);
-  // Si no hay partido en la cancha, el número sugerido es el siguiente juego del torneo
-  const ultimo=Math.max(0,...db.matches.map(m=>Number(m.numero)||0));
-  const sugerido=cur?.numero||Math.min(db.config.totalJuegos,ultimo+1);
   openModal(`<form id="as-form">
     <h3>Cancha ${f}</h3>
-    ${buscadorEquipo('a','Equipo de la izquierda',cur?cur.a:'')}
-    ${buscadorEquipo('b','Equipo de la derecha',cur?cur.b:'')}
-    <div class="lbl">Número de juego</div>
-    <div class="tiles" id="as-tiles">
-      <button type="button" class="tile" disabled>I</button>
-      ${Array.from({length:db.config.totalJuegos},(_,i)=>i+1).map(n=>`<button type="button" class="tile${n===sugerido?' on':''}" data-tile="${n}">${n}</button>`).join('')}
-    </div>
-    <input type="hidden" name="numero" id="as-num" value="${sugerido}">
+    ${buscadorEquipo('a','Equipo 1',cur?cur.a:'')}
+    ${buscadorEquipo('b','Equipo 2',cur?cur.b:'')}
     <p id="as-err" class="pend"></p>
     <div class="actions">
       ${cur?`<button type="button" class="btn danger" data-act="unassign" data-field="${f}">Quitar partido</button>`:''}
@@ -354,21 +347,14 @@ function openAssign(f){
     </div>
   </form>`);
   ['a','b'].forEach(s=>activarBuscador(s));
-  $('#as-tiles').onclick=e=>{
-    const b=e.target.closest('[data-tile]'); if(!b) return;
-    $('#as-num').value=b.dataset.tile;
-    document.querySelectorAll('#as-tiles .tile').forEach(x=>x.classList.toggle('on',x===b));
-  };
   $('#as-form').onsubmit=e=>{
     e.preventDefault();
     const fd=new FormData(e.target);
     const a=fd.get('a'), b=fd.get('b');
     if(!a||!b){$('#as-err').textContent='Elige los dos equipos de la lista.';return;}
     if(a===b){$('#as-err').textContent='Elige dos equipos distintos.';return;}
-    const numero=Number(fd.get('numero'));
-    if(!(numero>=1&&numero<=db.config.totalJuegos)){$('#as-err').textContent=`El número de juego debe estar entre 1 y ${db.config.totalJuegos}.`;return;}
     db.matches.forEach(m=>{if(m.field===f&&m.activo)m.activo=false;});
-    db.matches.push({id:uid(),field:f,a,b,numero,sa:0,sb:0,activo:true,creado:new Date().toISOString()});
+    db.matches.push({id:uid(),field:f,a,b,sa:0,sb:0,activo:true,creado:new Date().toISOString()});
     save(); closeModal(); renderAll();
   };
 }
@@ -393,7 +379,9 @@ function openPay(teamId,matchId){
     </div>
     <div class="card" style="padding:10px;margin-bottom:12px">
       <label class="chk"><input type="checkbox" name="insPrevia" ${t.inscripcionPrevia?'checked':''}> Ya pagó el 100% de la inscripción</label>
-      <label>Arbitraje cobra desde el juego número<input name="desde" type="number" min="1" max="${db.config.totalJuegos}" required value="${t.desdeJuego||m?.numero||''}"></label>
+      ${t.registroDesde
+        ?`<p class="muted" style="margin:0 0 6px">Va en el juego <b>${t.juegoActual}</b> de ${db.config.totalJuegos}</p>`
+        :`<label>¿En qué juego va el equipo? (solo se pone la primera vez)<input name="desde" type="number" min="1" max="${db.config.totalJuegos}" required></label>`}
     </div>
     <label>Tipo de pago
       <select name="tipo" id="p-tipo">
@@ -434,10 +422,15 @@ function openPay(teamId,matchId){
     const fd=new FormData(e.target);
     const monto=Number(fd.get('monto'));
     if(!(monto>0)){alert('El monto debe ser mayor a 0');return;}
-    const desde=Number(fd.get('desde'));
-    if(!(desde>=1&&desde<=db.config.totalJuegos)){alert(`El juego desde el que cobra arbitraje debe estar entre 1 y ${db.config.totalJuegos}`);return;}
     t.inscripcionPrevia=!!fd.get('insPrevia');
-    t.desdeJuego=desde;
+    if(!t.registroDesde){
+      // Primera vez: se guarda en qué juego va el equipo y desde cuándo cuenta el arbitraje
+      const desde=Number(fd.get('desde'));
+      if(!(desde>=1&&desde<=db.config.totalJuegos)){alert(`El juego en el que va el equipo debe estar entre 1 y ${db.config.totalJuegos}`);return;}
+      t.desdeJuego=desde;
+      t.juegoActual=desde;
+      t.registroDesde=new Date().toISOString();
+    }
     db.payments.push({
       id:uid(),teamId,matchId:matchId||null,
       tipo:fd.get('tipo'),monto,
@@ -484,6 +477,8 @@ function openTerminar(mid){
     if(!arb){$('#tp-err').textContent='Elige o escribe el árbitro.';return;}
     if(!db.config.arbitros.some(a=>norm(a)===norm(arb))) db.config.arbitros.push(arb);
     m.terminado=true;
+    // Cada equipo avanza al siguiente juego al terminar su partido
+    [teamById(m.a),teamById(m.b)].forEach(t=>{if(t?.juegoActual) t.juegoActual=Math.min(db.config.totalJuegos,t.juegoActual+1);});
     m.activo=false;
     m.resultado={a:m.sa||0,b:m.sb||0};
     m.arbitro=arb;
@@ -494,8 +489,8 @@ function openTerminar(mid){
 function partidosTerminadosHTML(){
   const ts=db.matches.filter(m=>m.terminado).sort((a,b)=>String(b.terminadoEn).localeCompare(String(a.terminadoEn)));
   return `<h3>Partidos terminados</h3><div class="scroll"><table>
-    <tr><th>Cancha</th><th>Juego</th><th>Equipos</th><th>Marcador</th><th>Árbitro</th></tr>
-    ${ts.length?ts.map(m=>`<tr><td>${m.field}</td><td>${m.numero||'—'}</td>
+    <tr><th>Cancha</th><th>Equipos</th><th>Marcador</th><th>Árbitro</th></tr>
+    ${ts.length?ts.map(m=>`<tr><td>${m.field}</td>
       <td>${esc(teamName(m.a))} vs ${esc(teamName(m.b))}</td>
       <td>${m.resultado?m.resultado.a:0} – ${m.resultado?m.resultado.b:0}</td>
       <td>${esc(m.arbitro||'—')}</td></tr>`).join(''):'<tr><td colspan="5" class="muted">Aún no hay partidos terminados</td></tr>'}
