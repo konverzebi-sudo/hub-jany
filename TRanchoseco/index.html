@@ -528,7 +528,7 @@ function openPay(teamId,matchId){
       recibio:String(fd.get('recibio')).trim(),
       metodo:String(fd.get('metodo')),
       cuenta:String(fd.get('cuenta')||'').trim(),
-      fecha:today(),
+      fecha:jornadaHoy(),
       nota:String(fd.get('nota')||'').trim(),
       creado:new Date().toISOString()
     };
@@ -597,7 +597,9 @@ function deletePayment(id,teamId,matchId){
   openPay(teamId,matchId);
 }
 // Resumen de Pagos: totales, cobradores, canchas, árbitros y juegos de hoy
-function diaLocal(iso){return iso?ymd(new Date(iso)):'';}
+// La jornada va de 5 a.m. a 5 a.m.: lo registrado antes de las 5 a.m. cuenta para el día anterior
+function diaLocal(iso){const d=iso?new Date(iso):new Date();d.setHours(d.getHours()-5);return ymd(d);}
+function jornadaHoy(){return diaLocal();}
 function dashboardHTML(pagosF,totIns,totArb,pend){
   const cobra=db.config.recibieron.map(n=>{
     const ps=pagosF.filter(p=>p.recibio===n);
@@ -619,7 +621,7 @@ function dashboardHTML(pagosF,totIns,totArb,pend){
   const arbHTML=Object.keys(arbs).length
     ?Object.entries(arbs).sort((a,b)=>b[1]-a[1]).map(([n,c])=>`<div class="rowj"><b>${esc(n)}</b><span>${c} juego${c===1?'':'s'}</span><span>${money(c*pagoA)} por pagar</span></div>`).join('')
     :'<p class="muted">Aún no hay juegos arbitrados.</p>';
-  const hoy=today();
+  const hoy=jornadaHoy();
   const jd=db.matches.filter(m=>diaLocal(m.creado)===hoy);
   // Una fila por equipo: equipo, juego, inscripción, arbitraje, pagado total y saldo
   const celda=(pend)=>pend>0?`<span class="pend">−${money(pend)}</span>`:'<span class="ok">✔</span>';
@@ -657,7 +659,8 @@ const PERIODOS=[['hoy','Hoy'],['ayer','Ayer'],['semana','Esta semana'],['semana_
 function ymd(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
 // Fechas (desde, hasta) de cada periodo; vacío = sin límite
 function rangoDe(modo){
-  const hoy=new Date(), h=ymd(hoy);
+  const hoy=new Date(); hoy.setHours(hoy.getHours()-5);
+  const h=ymd(hoy);
   const dias=n=>{const x=new Date(hoy);x.setDate(x.getDate()+n);return ymd(x);};
   const lunes=(semanas)=>{const x=new Date(hoy);x.setDate(x.getDate()-((x.getDay()+6)%7)-semanas*7);return x;};
   if(modo==='hoy') return [h,h];
