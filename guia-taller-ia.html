@@ -1593,7 +1593,7 @@ document.addEventListener('click', e => {
     guardarRemoto('etapa:' + id + '|' + k, nuevo !== 'lista');
     // Al activar, todos los alumnos pasan a esa clase y a su etapa
     if (nuevo === 'activa') escribirEnVivo(ENVIVO, { hash: 'clase-' + id.split('|')[0] + '/etapa-' + (Number(k) + 1), t: new Date().toISOString() });
-    mostrarDetallePP(id); refrescarRespuestas(); refrescarLinea(); aplicarVistaDom(leerVista()); return;
+    mostrarDetallePP(id); refrescarRespuestas(); refrescarLinea(nuevo === 'activa' ? id + '|' + k : null); aplicarVistaDom(leerVista()); return;
   }
   const vf = t.closest && t.closest('[data-vfull]'); if (vf) {
     const vb = document.querySelector('.vista-box'); const pedir = vb && (vb.requestFullscreen || vb.webkitRequestFullscreen);
@@ -1663,7 +1663,16 @@ function lineaTiempoHtml() {
       <p class="lt-txt">${esc(x.dias)}</p>
       ${botonesDinLinea(x)}</div>`).join('')}</div>`;
 }
-function refrescarLinea() { const el = document.getElementById('lineaTiempo'); if (el) { el.outerHTML = lineaTiempoHtml(); ajustarPanelesLinea(); } }
+function refrescarLinea(bajarA) {
+  const el = document.getElementById('lineaTiempo'); if (!el) return;
+  const y = window.scrollY;
+  el.outerHTML = lineaTiempoHtml(); ajustarPanelesLinea();
+  if (bajarA) { // al iniciar, la dinámica queda a la vista (no se tiene que buscar)
+    const it = document.querySelector('[data-ppa="' + bajarA + '"]'); const item = it && it.closest('.lt-item');
+    if (item) { item.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
+  }
+  window.scrollTo(0, y);
+}
 /* El panel se ajusta solo a su contenido (la plataforma avisa su altura real a la guía) */
 function ajustarPanelesLinea() { document.querySelectorAll('.lt-panel').forEach(p => { p.style.height = ''; }); }
 /* Línea del tiempo del taller (solo ponente): módulo → clase → diapositivas → dinámicas, en el orden en que pasan en vivo.
