@@ -2878,7 +2878,17 @@ if (EMBED && 'ResizeObserver' in window) new ResizeObserver(() => avisarAltura()
 
 async function recargar() {
   if (Date.now() < (UI.pausaRender || 0)) { clearTimeout(UI.rt); UI.rt = setTimeout(recargar, UI.pausaRender - Date.now() + 60); return; }
-  const d = await api.cargar(); if (!d.sinAcceso) S = d; render();
+  const d = await api.cargar(); if (!d.sinAcceso) S = d;
+  // Alumno: cuando el ponente abre una dinámica, lo llevamos a su módulo (una vez por dinámica)
+  if (S.rol === 'alumno') {
+    const viva = (S.actividades || []).find(a => a.estado === 'abierta' && S.secciones.some(s => s.id === a.seccion_id && s.estado !== 'bloqueada'));
+    if (viva && UI.llevadoA !== viva.id) {
+      UI.llevadoA = viva.id;
+      const sc = S.secciones.find(s => s.id === viva.seccion_id);
+      if (location.hash !== '#' + sc.clave) { location.hash = sc.clave; return; }
+    }
+  }
+  render();
 }
 function render() {
   UI.ruta = decodeURIComponent(location.hash.slice(1));
