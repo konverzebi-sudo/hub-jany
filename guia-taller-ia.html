@@ -221,8 +221,8 @@
   .lt-tit { font: 800 26px/1.1 'Sora', sans-serif; margin: 6px 0 8px; color: #111; }
   .lt-txt { color: #4a4560; margin: 0 0 8px; }
   .lt-din { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
-  .lt-panel { margin-top: 12px; border: 1px solid #d9d2e8; border-radius: 14px; overflow: hidden; background: #fff; }
-  .lt-panel .embed-taller { margin-top: 0; min-height: 420px; }
+  .lt-panel { margin-top: 12px; border: 1px solid #d9d2e8; border-radius: 14px; overflow: hidden; background: #fff; resize: vertical; height: 560px; min-height: 240px; max-height: 1400px; }
+  .lt-panel .embed-taller { margin-top: 0; height: 100%; min-height: 0; }
   .lt-chip { display: inline-block; margin: 0; padding: 6px 12px; border-radius: 999px; border: 1px solid #d9d2e8; background: #fff; font-size: 13px; }
   @media (max-width: 820px) { .pp-dos { grid-template-columns: 1fr; } }
   .pp-play { width: 40px; height: 40px; border-radius: 50%; border: 0; flex: none; display: inline-flex; align-items: center; justify-content: center; font-size: 15px; cursor: pointer; }
@@ -1319,7 +1319,7 @@ async function revisarEstado() {
   if (ULT_IR === undefined) { ULT_IR = ir && ir.t ? ir.t : null; return; }
   if (ir && ir.t && ir.t !== ULT_IR) {
     ULT_IR = ir.t;
-    if (ir.hash && location.hash !== ir.hash) location.hash = ir.hash;
+    if (ir.hash && location.hash !== ir.hash && !MODO_PONENTE) location.hash = ir.hash; // solo los alumnos se mueven; el ponente sigue donde esté
   }
 }
 async function escribirEnVivo(on, ir) {
@@ -1612,7 +1612,7 @@ function botonesDinLinea(x) {
         const oculto = LT_OCULTOS.has(embed);
         accion = `<button type="button" class="btn sm" data-ppa="${id}" data-val="fin">❚❚ Terminar</button>`
           + `<button type="button" class="btn ghost sm" data-lt-ocultar="${esc(embed)}">${oculto ? '👁 Ver panel' : '🙈 Ocultar panel'}</button>`;
-        if (!oculto) panel = `<div class="lt-panel"><iframe class="embed-taller" src="taller-app/?embed=${encodeURIComponent(embed)}&rol=ponente" title="${esc(n)}" loading="lazy"></iframe></div>`;
+        if (!oculto) panel = `<div class="lt-panel" data-alto-embed="${esc(embed)}"><iframe class="embed-taller" src="taller-app/?embed=${encodeURIComponent(embed)}&rol=ponente" title="${esc(n)}" loading="lazy"></iframe></div>`;
       } else if (est === 'fin') {
         accion = '<span class="small muted">🙂 Terminada</span>';
       } else {
@@ -1630,7 +1630,17 @@ function lineaTiempoHtml() {
       <p class="lt-txt">${esc(x.dias)}</p>
       ${botonesDinLinea(x)}</div>`).join('')}</div>`;
 }
-function refrescarLinea() { const el = document.getElementById('lineaTiempo'); if (el) el.outerHTML = lineaTiempoHtml(); }
+function refrescarLinea() { const el = document.getElementById('lineaTiempo'); if (el) { el.outerHTML = lineaTiempoHtml(); ajustarPanelesLinea(); } }
+/* Cada panel de la línea de tiempo se puede estirar a la altura que quieras; el alto queda guardado para esa dinámica */
+function ajustarPanelesLinea() {
+  document.querySelectorAll('.lt-panel[data-alto-embed]').forEach(p => {
+    const k = 'lt-alto-' + p.dataset.altoEmbed;
+    const guardado = Number(localStorage.getItem(k));
+    if (guardado) p.style.height = guardado + 'px';
+    if (p._observado) return; p._observado = true;
+    new ResizeObserver(() => { const h = Math.round(p.getBoundingClientRect().height); if (h > 0) try { localStorage.setItem(k, String(h)); } catch (e) {} }).observe(p);
+  });
+}
 function viewEnVivo() {
   $('#crumbs').innerHTML = `Guía del taller › <b>Clase en vivo</b>`;
   const titulo = `<span class="eyebrow">En vivo</span><h1 style="font-size:clamp(30px,4.4vw,46px);margin:16px 0 8px">Clase en vivo</h1>`;
@@ -1764,6 +1774,7 @@ function route() {
   else if (page === 'en-vivo') html = viewEnVivo();
   if (!html) { html = viewInicio(); activo = 'inicio'; }
   $('#view').innerHTML = (MODO_PONENTE ? avisoPonente() : '') + html;
+  ajustarPanelesLinea();
   if (window.GuiaMetricas) window.GuiaMetricas.montar();
   pintarCuenta(); pintarRecordatorios();
   renderNav(activo);
