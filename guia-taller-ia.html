@@ -194,6 +194,8 @@
   .vc-row select { width: auto; }
   body:has(.vista-box) .view { max-width: none; padding: 24px 28px 60px; }
   .vista-box { position: relative; height: min(calc(100vh - 170px), 560px); min-height: 420px; background: #0F0B16; border-radius: 16px; overflow: hidden; margin-top: 16px; }
+  /* En la vista del ponente, la presentación se queda pegada debajo de la barra fija mientras se baja la página */
+  .vista-box.pegado { position: sticky; top: calc(var(--topH, 76px) + var(--avisoH, 70px) + 12px); z-index: 10; height: min(calc(100vh - var(--topH, 76px) - var(--avisoH, 70px) - 28px), 560px); min-height: 300px; box-shadow: 0 8px 24px rgba(15,11,22,.25); }
   .vi { position: absolute; inset: 0; transition: opacity .2s; }
   .vi iframe { width: 100%; height: 100%; border: 0; display: block; background: #0F0B16; }
   .vi.grande { z-index: 1; }
@@ -1377,6 +1379,7 @@ function bannerVivo() { return ENVIVO && !MODO_PONENTE ? '<div id="bannerVivo" c
 /* Mide la barra superior de la guía para que la barra del ponente quede justo debajo, también al cambiar el tamaño */
 function medirTopbar() {
   const t = document.querySelector('.topbar'); if (t) document.documentElement.style.setProperty('--topH', t.offsetHeight + 'px');
+  const a = document.getElementById('avisoPonente'); if (a) document.documentElement.style.setProperty('--avisoH', a.offsetHeight + 'px');
 }
 window.addEventListener('resize', medirTopbar);
 function paginaActual() {
@@ -1558,7 +1561,7 @@ function cajasVista(v) {
   // Cada cuadro arranca con su lugar correcto (grande, chico u oculto), igual que aplicarVistaDom; si no, el ejercicio tapa la presentación
   const clase = k => v.grande === k ? 'grande' : v.chico === k ? 'chico' : 'oculto';
   const zoomClase = v.grande === 'cara' || v.grande === 'pant' ? 'grande' : (v.chico === 'cara' || v.chico === 'pant' ? 'chico' : 'oculto');
-  return `<div class="vista-box">
+  return `<div class="vista-box${MODO_PONENTE ? ' pegado' : ''}">
     ${MODO_PONENTE ? `<button type="button" class="vista-full" data-vfull title="Ver a pantalla completa">⛶ Pantalla completa</button>` : ''}
     <div class="vi vi-cara ${zoomClase}">${MODO_PONENTE ? `<iframe class="zoom-vivo" src="taller-app/zoom.html" title="Clase en vivo por Zoom" allow="camera; microphone; fullscreen; display-capture; autoplay"></iframe>` : `<div class="zoom-espera" aria-label="Clase en vivo por Zoom">🎥 Clase en vivo por Zoom</div>`}</div>
     <div class="vi vi-pres ${clase('pres')}"><iframe src="taller-app/?embed=presentacion${MODO_PONENTE ? '&rol=ponente' : ''}" title="Presentación en vivo"></iframe></div>
