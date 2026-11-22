@@ -196,6 +196,10 @@
   .vista-box { position: relative; height: min(calc(100vh - 170px), 560px); min-height: 420px; background: #0F0B16; border-radius: 16px; overflow: hidden; margin-top: 16px; }
   /* En la vista del ponente, la presentación se queda pegada debajo de la barra fija mientras se baja la página */
   .vista-box.pegado { position: sticky; top: calc(var(--topH, 76px) + var(--avisoH, 70px) + 12px); z-index: 10; height: min(calc(100vh - var(--topH, 76px) - var(--avisoH, 70px) - 28px), 560px); min-height: 300px; box-shadow: 0 8px 24px rgba(15,11,22,.25); }
+  .vista-box.tam-mini { height: 260px !important; min-height: 0 !important; }
+  .tam-grupo { position: absolute; right: 12px; top: 12px; z-index: 6; display: inline-flex; gap: 4px; padding: 4px; border-radius: 99px; background: rgba(15,11,22,.75); }
+  .tam-grupo button { border: 0; background: transparent; color: #fff; font: 700 12px 'Sora', sans-serif; padding: 6px 10px; border-radius: 99px; cursor: pointer; }
+  .tam-grupo button.on { background: #BBF802; color: #0F0B16; }
   .vi { position: absolute; inset: 0; transition: opacity .2s; }
   .vi iframe { width: 100%; height: 100%; border: 0; display: block; background: #0F0B16; }
   .vi.grande { z-index: 1; }
@@ -1557,12 +1561,15 @@ function srcEjercicio(v) {
   const a = actividadEnCurso();
   return a ? `taller-app/?embed=${encodeURIComponent(a.et.embed)}&llena=1` : `guia-taller-ia.html#clase-${v.ej}`;
 }
+/* Tamaño de la caja de la presentación en la vista del ponente: 'mini', 'real' (normal) o 'completa' (pantalla completa) */
+let TAM_CAJA = 'real';
 function cajasVista(v) {
   // Cada cuadro arranca con su lugar correcto (grande, chico u oculto), igual que aplicarVistaDom; si no, el ejercicio tapa la presentación
   const clase = k => v.grande === k ? 'grande' : v.chico === k ? 'chico' : 'oculto';
   const zoomClase = v.grande === 'cara' || v.grande === 'pant' ? 'grande' : (v.chico === 'cara' || v.chico === 'pant' ? 'chico' : 'oculto');
-  return `<div class="vista-box${MODO_PONENTE && !hayActividadActiva() ? ' pegado' : ''}">
-    ${MODO_PONENTE ? `<button type="button" class="vista-full" data-vfull title="Ver a pantalla completa">⛶ Pantalla completa</button>` : ''}
+  const tam = b => `<button type="button" class="${TAM_CAJA === b ? 'on' : ''}" data-tam="${b}">${b === 'mini' ? '▭ Mini' : '▭ Real'}</button>`;
+  return `<div class="vista-box${MODO_PONENTE && !hayActividadActiva() ? ' pegado' : ''}${MODO_PONENTE && TAM_CAJA === 'mini' ? ' tam-mini' : ''}">
+    ${MODO_PONENTE ? `<div class="tam-grupo">${tam('mini')}${tam('real')}<button type="button" data-vfull title="Ver a pantalla completa">⛶ Completa</button></div>` : ''}
     <div class="vi vi-cara ${zoomClase}">${MODO_PONENTE ? `<iframe class="zoom-vivo" src="taller-app/zoom.html" title="Clase en vivo por Zoom" allow="camera; microphone; fullscreen; display-capture; autoplay"></iframe>` : `<div class="zoom-espera" aria-label="Clase en vivo por Zoom">🎥 Clase en vivo por Zoom</div>`}</div>
     <div class="vi vi-pres ${clase('pres')}"><iframe src="taller-app/?embed=presentacion${MODO_PONENTE ? '&rol=ponente' : ''}" title="Presentación en vivo"></iframe></div>
     <div class="vi vi-ej ${clase('ej')}"><iframe src="${srcEjercicio(v)}" title="Ejercicio"></iframe></div>
@@ -1717,6 +1724,13 @@ function aplicarPegado() {
   const caja = document.querySelector('.vista-box'); if (!caja || !MODO_PONENTE) return;
   caja.classList.toggle('pegado', !hayActividadActiva());
 }
+/* Botones Mini / Real: cambian el tamaño de la presentación al instante (Completa usa pantalla completa) */
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-tam]'); if (!b) return;
+  TAM_CAJA = b.dataset.tam;
+  const caja = document.querySelector('.vista-box'); if (caja) caja.classList.toggle('tam-mini', TAM_CAJA === 'mini');
+  document.querySelectorAll('[data-tam]').forEach(x => x.classList.toggle('on', x.dataset.tam === TAM_CAJA));
+});
 /* El panel se ajusta solo a su contenido (la plataforma avisa su altura real a la guía) */
 function ajustarPanelesLinea() { document.querySelectorAll('.lt-panel').forEach(p => { p.style.height = ''; }); }
 function viewEnVivo() {
