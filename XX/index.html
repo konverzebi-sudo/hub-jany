@@ -94,6 +94,15 @@
   .jd-wd-links{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
   .jd-wd-link{display:inline-flex;align-items:center;gap:5px;background:#fff;border:1px solid #D9D0F7;color:#6C4BE0;border-radius:999px;padding:5px 11px;font-size:12px;font-weight:600;text-decoration:none;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .jd-wd-empty{font-size:12.5px;color:#8A86A8;padding:2px 0 4px;}
+  .jd-wd-dots{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:8px;}
+  .jd-wd-pt{width:24px;height:24px;border-radius:50%;border:2px solid #CFC6F2;background:#fff;color:#8A86A8;font:700 9.5px 'Inter',sans-serif;padding:0;cursor:pointer;display:grid;place-items:center;transition:box-shadow .15s;}
+  .jd-wd-pt.has{background:#1F1B3D;border-color:#1F1B3D;color:#fff;}
+  .jd-wd-pt.on{box-shadow:0 0 0 3px rgba(124,92,242,.3);}
+  .jd-wd-hint{margin-left:4px;font-size:11.5px;}
+  .jd-wd-ed{display:grid;grid-template-rows:0fr;transition:grid-template-rows .22s ease;}
+  .jd-wd-ed.open{grid-template-rows:1fr;}
+  .jd-wd-ed-in{overflow:hidden;min-height:0;}
+  .jd-wd-hr{font-size:11px;font-weight:700;color:#8A86A8;letter-spacing:.06em;margin-top:8px;}
   .jd-wk-dot{position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:50%;background:#1F1B3D;opacity:.55;pointer-events:none;}
   @media(max-width:560px){.jd-wk-ov{align-items:flex-end;padding:0;}.jd-wk-box{border-radius:22px 22px 0 0;max-width:none;}}
   .jd-hero-moved{display:none!important;}
@@ -2494,31 +2503,73 @@
     if(!weekSelSet.size){ box.style.display = 'none'; box.innerHTML = ''; return; }
     function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
     var cells = selectionCells(), byCell = buildWeekMap(mondayOf(weekViewDate));
-    var shown = cells.slice(0, 12), html = '<div class="jd-wd">', migrated = false;
-    shown.forEach(function(c){
-      var d = new Date(c.iso + 'T00:00:00');
-      var info = byCell[((d.getDay() + 6) % 7) + '-' + c.hour], ents = (info && info.entries) || [];
-      var dayTxt = d.toLocaleDateString('es-MX', {weekday:'long', day:'numeric', month:'short'});
-      html += '<div class="jd-wd-when">' + esc(dayTxt.charAt(0).toUpperCase() + dayTxt.slice(1)) + ' · ' + String(c.hour).padStart(2,'0') + ':00–' + String(c.hour + 1).padStart(2,'0') + ':00</div>';
-      if(!ents.length){ html += '<div class="jd-wd-empty">Nada anotado todavía en este horario. Pulsa <b>Anotar</b> para registrar qué hacías y agregar notas o links.</div>'; return; }
-      ents.forEach(function(en){
-        if(!en.id) en.id = uid('hist');
-        if(migrateLinks(en)) migrated = true;
-        html += '<div class="jd-wd-card"><div class="jd-wd-top"><i style="background:' + projectColor(en.project) + '"></i><span>' + esc(en.text) + '</span><span class="jd-sub" style="font-weight:500;">· ' + esc(en.project || 'General') + (en.minutes ? ' · ' + en.minutes + ' min' : '') + '</span>' +
-          '<button type="button" class="jd-wd-x" data-wd-del="' + esc(en.id) + '" aria-label="Quitar">×</button></div>' +
-          '<textarea class="jd-wd-note" data-wd-note="' + esc(en.id) + '" placeholder="Notas, links, pendientes de este horario…">' + esc(en.note || '') + '</textarea>' +
-          '<div class="jd-wd-links" data-wd-links="' + esc(en.id) + '"></div></div>';
-      });
+    var pad2 = function(n){ return String(n).padStart(2, '0'); };
+    // horarios seguidos del mismo dia se juntan en un solo bloque (00:00–02:00)
+    var runs = [];
+    cells.forEach(function(c){
+      var last = runs[runs.length - 1];
+      if(last && last.iso === c.iso && c.hour === last.hours[last.hours.length - 1] + 1) last.hours.push(c.hour);
+      else runs.push({iso: c.iso, hours: [c.hour]});
     });
-    if(cells.length > shown.length) html += '<div class="jd-wd-empty">…y ' + (cells.length - shown.length) + ' horarios más seleccionados.</div>';
+    var shownRuns = runs.slice(0, 8), html = '<div class="jd-wd">', migrated = false;
+    shownRuns.forEach(function(run){
+      var d = new Date(run.iso + 'T00:00:00'), dIdx = (d.getDay() + 6) % 7;
+      var dayTxt = d.toLocaleDateString('es-MX', {weekday:'long', day:'numeric', month:'short'});
+      var h0 = run.hours[0], h1 = run.hours[run.hours.length - 1] + 1;
+      html += '<div class="jd-wd-when">' + esc(dayTxt.charAt(0).toUpperCase() + dayTxt.slice(1)) + ' · ' + pad2(h0) + ':00–' + pad2(h1) + ':00</div>';
+      // mismas tareas en horas seguidas = una sola tarjeta, con un puntito por cada hora
+      var cards = [], vacias = [];
+      run.hours.forEach(function(hr){
+        var info = byCell[dIdx + '-' + hr], ents = (info && info.entries) || [];
+        if(!ents.length){ vacias.push(hr); return; }
+        ents.forEach(function(en){
+          if(!en.id) en.id = uid('hist');
+          if(migrateLinks(en)) migrated = true;
+          var k = (en.text || '') + '|' + (en.project || ''), card = cards.find(function(x){ return x.k === k; });
+          if(!card) cards.push(card = {k: k, text: en.text, project: en.project, items: []});
+          card.items.push({hr: hr, en: en});
+        });
+      });
+      if(!cards.length){ html += '<div class="jd-wd-empty">Nada anotado todavía en este horario. Pulsa <b>Anotar</b> para registrar qué hacías y agregar notas o links.</div>'; return; }
+      cards.forEach(function(card){
+        var mins = card.items.reduce(function(s, it){ return s + (it.en.minutes || 0); }, 0);
+        var ids = card.items.map(function(it){ return it.en.id; }).join(',');
+        var tieneAlgo = function(en){ return !!(en.note || (en.links && en.links.length)); };
+        html += '<div class="jd-wd-card"><div class="jd-wd-top"><i style="background:' + projectColor(card.project) + '"></i><span>' + esc(card.text) + '</span><span class="jd-sub" style="font-weight:500;">· ' + esc(card.project || 'General') + (mins ? ' · ' + mins + ' min' : '') + '</span>' +
+          '<button type="button" class="jd-wd-x" data-wd-del="' + esc(ids) + '" data-wd-nom="' + esc(card.text) + '" aria-label="Quitar">×</button></div>' +
+          '<div class="jd-wd-dots">' + card.items.map(function(it){
+            return '<button type="button" class="jd-wd-pt' + (tieneAlgo(it.en) ? ' has on' : '') + '" data-wd-open="' + esc(it.en.id) + '" title="' + pad2(it.hr) + ':00 · toca para ver o agregar notas"><span>' + pad2(it.hr) + '</span></button>';
+          }).join('') + '<span class="jd-sub jd-wd-hint">toca un punto para ver detalles o agregar notas</span></div>' +
+          card.items.map(function(it){
+            return '<div class="jd-wd-ed' + (tieneAlgo(it.en) ? ' open' : '') + '" data-wd-ed="' + esc(it.en.id) + '"><div class="jd-wd-ed-in">' +
+              (card.items.length > 1 ? '<div class="jd-wd-hr">' + pad2(it.hr) + ':00–' + pad2(it.hr + 1) + ':00</div>' : '') +
+              '<textarea class="jd-wd-note" data-wd-note="' + esc(it.en.id) + '" placeholder="Notas, links, pendientes de este horario…">' + esc(it.en.note || '') + '</textarea>' +
+              '<div class="jd-wd-links" data-wd-links="' + esc(it.en.id) + '"></div></div></div>';
+          }).join('') + '</div>';
+      });
+      if(vacias.length) html += '<div class="jd-wd-empty">Sin anotar: ' + vacias.map(function(x){ return pad2(x) + ':00'; }).join(', ') + '</div>';
+    });
+    if(runs.length > shownRuns.length) html += '<div class="jd-wd-empty">…y ' + (runs.length - shownRuns.length) + ' bloques más seleccionados.</div>';
     html += '</div>';
     if(migrated) save();
     box.style.display = 'block';
     box.innerHTML = html;
+    // los puntitos despliegan / pliegan las notas de esa hora
+    box.querySelectorAll('[data-wd-open]').forEach(function(pt){
+      pt.addEventListener('click', function(){
+        var id = pt.getAttribute('data-wd-open'), ed = box.querySelector('[data-wd-ed="' + id + '"]');
+        if(!ed) return;
+        var open = ed.classList.toggle('open');
+        pt.classList.toggle('on', open);
+        if(open){ var ta = ed.querySelector('textarea'); if(ta) setTimeout(function(){ ta.focus(); }, 180); }
+      });
+    });
     function entryById(id){ return data.history.find(function(x){ return x.id === id; }); }
+    function updDot(id){ var en = entryById(id), pt = box.querySelector('[data-wd-open="' + id + '"]'); if(en && pt) pt.classList.toggle('has', !!(en.note || (en.links && en.links.length))); }
     function paintLinks(id){
       var el = box.querySelector('[data-wd-links="' + id + '"]'), en = entryById(id);
       if(!el || !en) return;
+      updDot(id);
       el.innerHTML = '';
       (en.links || []).forEach(function(u, i){
         var a = document.createElement('a');
@@ -2560,7 +2611,7 @@
           var sp = splitLinks(ta.value);
           if(sp.links.length){ addLinks(en, sp.links); ta.value = sp.note; paintLinks(id); }
         }
-        en.note = ta.value;
+        en.note = ta.value; updDot(id);
       }
       ta.addEventListener('input', function(){ pull(false); clearTimeout(timer); timer = setTimeout(function(){ save(); }, 600); });
       ta.addEventListener('paste', function(){ setTimeout(function(){ pull(true); save(); }, 0); });
@@ -2569,8 +2620,9 @@
     });
     box.querySelectorAll('[data-wd-del]').forEach(function(b){
       b.addEventListener('click', function(){
-        var id = b.getAttribute('data-wd-del');
-        data.history = data.history.filter(function(x){ return x.id !== id; });
+        var ids = b.getAttribute('data-wd-del').split(',');
+        if(ids.length > 1 && !window.confirm('¿Quitar "' + (b.getAttribute('data-wd-nom') || 'esta actividad') + '" de ' + ids.length + ' horarios?')) return;
+        data.history = data.history.filter(function(x){ return ids.indexOf(x.id) < 0; });
         save(); renderHistory(); renderCalendar(); renderWeekGrid(); renderWeekBar();
       });
     });
