@@ -230,6 +230,8 @@
   .lt-panel .embed-taller { margin-top: 0; height: 160px; min-height: 0; }
   #avisoPonente { position: sticky; top: 0; z-index: 30; background: var(--bg); padding: 10px 0 12px; margin-bottom: 8px; }
   #avisoPonente .btn.vivo-on { background: #D62828; color: #fff; }
+  .aviso-fila { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .aviso-fila > small { margin-right: 2px; }
   .banner-vivo { background: #D62828; color: #fff; font: 800 18px 'Sora', sans-serif; text-align: center; padding: 14px 18px; border-radius: 14px; margin-bottom: 16px; letter-spacing: .02em; }
   .lt-din .btn.ghost { color: #1B1530; background: #fff; border: 1px solid #c9bfe0; }
   .lt-acts { margin: 10px 0 0; padding-left: 20px; color: #4a4560; font-size: 14px; line-height: 1.7; }
@@ -1351,11 +1353,14 @@ async function escribirEnVivo(on, ir) {
   } catch (e) { return false; }
 }
 function avisoPonente() {
-  const btns = [['inicio', 'Empieza por aquí'], ['en-vivo', 'Clase en vivo'], ['clase-2', 'Romper el hielo']]
+  // Destinos sin repetir: si un mismo destino aparece dos veces, se muestra una sola vez
+  const destinos = [['inicio', 'Empieza por aquí'], ['en-vivo', 'Clase en vivo'], ['clase-2', 'Romper el hielo']];
+  const vistos = new Set();
+  const btns = destinos.filter(([h]) => !vistos.has(h) && vistos.add(h))
     .map(([h, t]) => '<button type="button" class="chip-btn" data-ir="#' + h + '">' + t + '</button>').join('');
-  // La barra se queda fija al bajar; en vivo el botón se pone rojo
-  return '<div id="avisoPonente"><button type="button" class="btn' + (ENVIVO ? ' vivo-on' : '') + '" data-vivo-toggle>' + (ENVIVO ? '■ Terminé la clase en vivo' : '● Estoy en vivo') + '</button>'
-    + '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><small>Mandar a todos a:</small>' + btns + '</div></div>';
+  // La barra se queda fija al bajar; el botón y los destinos van en una misma fila; en vivo el botón se pone rojo
+  return '<div id="avisoPonente"><div class="aviso-fila"><button type="button" class="btn' + (ENVIVO ? ' vivo-on' : '') + '" data-vivo-toggle>' + (ENVIVO ? '■ Terminé la clase en vivo' : '● Estoy en vivo') + '</button>'
+    + '<small>Mandar a todos a:</small>' + btns + '</div></div>';
 }
 /* Aviso para todos los perfiles mientras la clase está en vivo */
 function bannerVivo() { return ENVIVO && !MODO_PONENTE ? '<div id="bannerVivo" class="banner-vivo">● ¡Estamos en VIVO!</div>' : ''; }
