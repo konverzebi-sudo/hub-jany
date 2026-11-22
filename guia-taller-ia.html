@@ -1326,7 +1326,9 @@ async function escribirEnVivo(on, ir) {
   let t = ''; try { t = (localStorage.getItem('jefeshub_storage_token') || '').trim(); } catch (e) {}
   if (!t) { t = (window.prompt('Token de acceso para guardar cambios:') || '').trim(); if (!t) return false; try { localStorage.setItem('jefeshub_storage_token', t); } catch (e) {} }
   const value = { on: on, t: new Date().toISOString() };
+  // Si no hay orden nueva, conservamos la última: si no, prender/apagar la clase borra la orden que los alumnos aún no reciben
   if (ir) value.ir = ir;
+  else { const prev = await leerValor(); if (prev && prev.ir) value.ir = prev.ir; }
   try {
     const r = await fetch(VIVO_KV, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Storage-Token': t }, body: JSON.stringify({ value: value }) });
     if (r.status === 401) { try { localStorage.removeItem('jefeshub_storage_token'); } catch (e) {} return false; }
