@@ -2435,7 +2435,7 @@
   var weekSelSet = new Set(), weekSelWeek = '', wkDrag = null, lastPtr = '', cellEls = {};
 
   function paintCell(cell, on){
-    cell.style.cssText = cell._css + (on ? 'outline:2px solid #1F1B3D;outline-offset:-1px;' : (cell._now ? 'box-shadow:inset 0 0 0 1.5px #7C5CF2;' : ''));
+    cell.style.cssText = cell._css + (on ? 'outline:2px solid #1F1B3D;outline-offset:-1px;' + (cell._has ? 'cursor:grab;' : '') : (cell._now ? 'box-shadow:inset 0 0 0 1.5px #7C5CF2;' : ''));
   }
   function recomputeDrag(){
     if(!wkDrag) return;
@@ -2570,17 +2570,78 @@
       });
     });
   }
+  var weekClip = null, weekMsg = '', weekMsgTimer = null;
+  function weekNote(msg){
+    weekMsg = msg; clearTimeout(weekMsgTimer);
+    weekMsgTimer = setTimeout(function(){ weekMsg = ''; renderWeekBar(); }, 3500);
+    renderWeekBar();
+  }
+  function cellEntries(key){ var info = buildWeekMap(mondayOf(weekViewDate))[key]; return (info && info.entries) || []; }
+  function keyToCell(k){
+    var p = k.split('-'), d = new Date(mondayOf(weekViewDate)); d.setDate(d.getDate() + parseInt(p[0], 10));
+    return {iso: localISO(d), hour: parseInt(p[1], 10)};
+  }
+  // copia las actividades de un horario a otros (no repite las que ya estan)
+  function pasteEntries(entries, keys){
+    var added = 0;
+    keys.forEach(function(k){
+      var c = keyToCell(k), d = new Date(c.iso + 'T00:00:00'), existing = cellEntries(k);
+      entries.forEach(function(en){
+        if(existing.some(function(x){ return x.text === en.text && x.project === en.project; })) return;
+        data.history.unshift({id: uid('hist'), project: en.project, text: en.text, minutes: en.minutes, note: en.note || undefined,
+          links: en.links && en.links.length ? en.links.slice() : undefined,
+          date: d.toLocaleDateString('es-MX', {day:'numeric', month:'short'}), dateISO: c.iso, time: String(c.hour).padStart(2,'0') + ':00'});
+        added++;
+      });
+    });
+    if(data.history.length > 500) data.history.length = 500;
+    if(added){
+      entries.forEach(function(en){ bumpAreaTotal(en.text); bumpAreaDone(en.text); });
+      save(); renderHistory(); renderCalendar(); renderBalance();
+    }
+    renderWeekGrid();
+    return added;
+  }
+  function copyWeekSel(){
+    if(weekSelSet.size !== 1) return false;
+    var ents = cellEntries(Array.from(weekSelSet)[0]);
+    if(!ents.length) return false;
+    weekClip = ents.map(function(en){ return {project: en.project, text: en.text, minutes: en.minutes, note: en.note, links: en.links ? en.links.slice() : undefined}; });
+    weekNote('Copiado · selecciona otros horarios y pulsa Pegar (o Ctrl+V)');
+    return true;
+  }
+  function pasteWeekSel(){
+    if(!weekClip || !weekSelSet.size) return false;
+    var keys = Array.from(weekSelSet), nAdd = pasteEntries(weekClip, keys);
+    weekNote(nAdd ? 'Pegado en ' + keys.length + ' horario' + (keys.length === 1 ? '' : 's') : 'Esos horarios ya tenían esa info');
+    return true;
+  }
+  document.addEventListener('keydown', function(e){
+    if(!(e.ctrlKey || e.metaKey) || e.altKey || !weekSelSet.size) return;
+    var t = e.target, tag = t && t.tagName;
+    if(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable) || document.getElementById('jd-wk-modal')) return;
+    if(window.getSelection && String(window.getSelection())) return;
+    var k = (e.key || '').toLowerCase();
+    if(k === 'c' && copyWeekSel()) e.preventDefault();
+    else if(k === 'v' && pasteWeekSel()) e.preventDefault();
+  });
   function renderWeekBar(){
     var bar = document.getElementById('jd-week-bar');
     if(!bar) return;
     renderWeekDetail();
     if(!weekSelSet.size){ bar.style.display = 'none'; bar.innerHTML = ''; return; }
     var n = weekSelSet.size;
+    var canCopy = n === 1 && cellEntries(Array.from(weekSelSet)[0]).length > 0;
+    var hint = weekMsg || (canCopy ? '1 horario seleccionado · arrastra este cuadro sobre otros para copiarles su info' : n + ' horario' + (n === 1 ? '' : 's') + ' seleccionado' + (n === 1 ? '' : 's') + ' · arrastra o toca para sumar más');
     bar.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap;';
-    bar.innerHTML = '<span class="jd-sub" style="flex:1;min-width:140px;">' + n + ' horario' + (n === 1 ? '' : 's') + ' seleccionado' + (n === 1 ? '' : 's') + ' · arrastra o toca para sumar más</span>' +
+    bar.innerHTML = '<span class="jd-sub" style="flex:1;min-width:140px;">' + hint + '</span>' +
+      (canCopy ? '<button type="button" class="jd-btn" id="jd-week-copy">Copiar</button>' : '') +
+      (weekClip ? '<button type="button" class="jd-btn" id="jd-week-paste">Pegar' + (n > 1 ? ' en ' + n : '') + '</button>' : '') +
       '<button type="button" class="jd-btn" id="jd-week-clear">Limpiar</button><button type="button" class="jd-btn jd-btn-lima" id="jd-week-go">Anotar</button>';
     document.getElementById('jd-week-clear').addEventListener('click', function(){ weekSelSet = new Set(); Object.keys(cellEls).forEach(function(k){ paintCell(cellEls[k], false); }); renderWeekBar(); });
     document.getElementById('jd-week-go').addEventListener('click', openFromSet);
+    var bc = document.getElementById('jd-week-copy'); if(bc) bc.addEventListener('click', copyWeekSel);
+    var bp = document.getElementById('jd-week-paste'); if(bp) bp.addEventListener('click', pasteWeekSel);
   }
 
   // menu con clic derecho
@@ -2602,6 +2663,8 @@
     }
     if(custom){ custom.forEach(function(o){ item(o.label, o.fn); }); } else {
     item('✏️ ' + (n > 1 ? 'Anotar en los ' + n + ' horarios' : 'Anotar / editar'), openFromSet);
+    if(n === 1 && cellEntries(Array.from(weekSelSet)[0]).length) item('📋 Copiar info', copyWeekSel);
+    if(weekClip) item('📥 Pegar' + (n > 1 ? ' en los ' + n + ' horarios' : ' aquí'), pasteWeekSel);
     item('✕ Limpiar selección', function(){ weekSelSet = new Set(); Object.keys(cellEls).forEach(function(k){ paintCell(cellEls[k], false); }); renderWeekBar(); });
     }
     document.body.appendChild(m);
@@ -2619,6 +2682,12 @@
       if(next.has(d.key)) next.delete(d.key); else next.add(d.key);
       weekSelSet = next;
       if(cellEls[d.key]) paintCell(cellEls[d.key], weekSelSet.has(d.key));
+    }
+    if(d.fill && d.moved){
+      var targets = Array.from(weekSelSet).filter(function(k){ return k !== d.key; });
+      var nAdd = pasteEntries(cellEntries(d.key), targets);
+      weekNote(nAdd ? 'Info copiada a ' + targets.length + ' horario' + (targets.length === 1 ? '' : 's') : 'Esos horarios ya tenían esa info');
+      return;
     }
     renderWeekBar();
   });
@@ -2665,6 +2734,7 @@
       cell.title = dayLabels[dayIdx] + ' ' + String(hour).padStart(2,'0') + ':00';
       cell._css = 'position:relative;height:' + (vertical ? 22 : 26) + 'px;border-radius:4px;background:' + bg + ';cursor:pointer;';
       cell._now = isNow;
+      cell._has = !!(info && info.entries.length);
       cellEls[key] = cell;
       paintCell(cell, weekSelSet.has(key));
       if(info && info.entries.some(function(en){ return en.note || (en.links && en.links.length); })){ var dot = document.createElement('span'); dot.className = 'jd-wk-dot'; cell.appendChild(dot); }
@@ -2674,7 +2744,7 @@
         ev.preventDefault();
         hideWeekMenu();
         // arrastrar SUMA a lo que ya estaba seleccionado; un clic suelto marca o desmarca ese cuadro
-        wkDrag = {base: new Set(weekSelSet), anchor: {d: dayIdx, h: hour}, cur: {d: dayIdx, h: hour}, moved: false, key: key};
+        wkDrag = {base: new Set(weekSelSet), anchor: {d: dayIdx, h: hour}, cur: {d: dayIdx, h: hour}, moved: false, key: key, fill: weekSelSet.size === 1 && weekSelSet.has(key) && cellEntries(key).length > 0};
       });
       cell.addEventListener('pointerenter', function(){
         if(!wkDrag) return;
