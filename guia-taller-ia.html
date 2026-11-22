@@ -149,7 +149,7 @@
   .tag { font: 600 12px 'JetBrains Mono', monospace; padding: 5px 12px; border-radius: 999px; background: var(--lime); color: var(--ink); }
   .tag.soft { background: rgba(255,255,255,.05); color: var(--pink); border: 1px solid var(--line); }
   .class-head.vivo { position: sticky; top: 70px; z-index: 15; background: #FAF8FD; padding: 12px 0 14px; margin-top: 4px; border-bottom: 1px solid #E6DDF2; grid-template-columns: 1fr minmax(300px, 46%); gap: 22px; }
-  .class-head.vivo h1 { font-size: clamp(26px, 3.4vw, 40px); margin-bottom: 6px; } .class-head.vivo .sub { font-size: 15px; }
+  .class-head.vivo h1 { font-size: 40px; margin-bottom: 6px; } .class-head.vivo .sub { font-size: 15px; }
   .cover-vivo { aspect-ratio: 16 / 9; padding: 0; background: #0F0B16; }
   .cover-vivo { position: relative; }
   /* Reacciones tipo historias: un solo botón y lluvia de emojis de dinero */
@@ -168,7 +168,7 @@
   .class-head.vivo.grande .cover-vivo { width: 100%; max-width: calc(50vh * 16 / 9); margin: 0 auto; }
   .vivo-frame { display: block; width: 100%; height: 100%; border: 0; }
   .class-head { display: grid; grid-template-columns: 1fr 300px; gap: 30px; align-items: center; margin-top: 16px; }
-  .class-head h1 { font-size: clamp(30px, 4.4vw, 46px); margin-bottom: 10px; }
+  .class-head h1 { font-size: 40px; margin-bottom: 10px; }
   .class-head .sub { color: var(--muted); font-size: 17px; }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
   .camp-arbol { display: flex; flex-wrap: wrap; gap: 14px; align-items: stretch; }
@@ -228,6 +228,12 @@
   .lt-flecha { font-size: 16px; color: #6B6480; }
   .lt-panel { margin-top: 12px; border: 1px solid #d9d2e8; border-radius: 14px; overflow: hidden; background: #fff; }
   .lt-panel .embed-taller { margin-top: 0; height: 160px; min-height: 0; }
+  #avisoPonente { position: sticky; top: 0; z-index: 30; background: var(--bg); padding: 10px 0 12px; margin-bottom: 8px; }
+  #avisoPonente .btn.vivo-on { background: #D62828; color: #fff; }
+  .aviso-fila { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .aviso-fila > small { margin-right: 2px; }
+  .zoom-ico { margin-left: auto; width: 42px; height: 42px; border-radius: 50%; background: #2D8CFF; display: inline-flex; align-items: center; justify-content: center; font-size: 20px; text-decoration: none; }
+  .banner-vivo { background: #D62828; color: #fff; font: 800 18px 'Sora', sans-serif; text-align: center; padding: 14px 18px; border-radius: 14px; margin-bottom: 16px; letter-spacing: .02em; }
   .lt-din .btn.ghost { color: #1B1530; background: #fff; border: 1px solid #c9bfe0; }
   .lt-acts { margin: 10px 0 0; padding-left: 20px; color: #4a4560; font-size: 14px; line-height: 1.7; }
   .lt-chip { display: inline-block; margin: 0; padding: 6px 12px; border-radius: 999px; border: 1px solid #d9d2e8; background: #fff; font-size: 13px; }
@@ -1324,6 +1330,7 @@ async function leerValor() {
 }
 let ULT_IR; // undefined = aún no leída; luego guarda la marca de la última orden de mover
 async function revisarEstado() {
+  if (pruebaLocalSinClave()) return; // en la prueba local, el estado lo manda el botón y no el servidor
   const v = await leerValor(); if (!v && v !== null) return;
   const on = !!(v && v.on);
   if (on !== ENVIVO) { ENVIVO = on; pintarVivo(); }
@@ -1334,7 +1341,13 @@ async function revisarEstado() {
     if (ir.hash && location.hash !== ir.hash && !MODO_PONENTE) location.hash = ir.hash; // solo los alumnos se mueven; el ponente sigue donde esté
   }
 }
+/* Solo para pruebas en la computadora (localhost): no pide la clave, no guarda en el servidor y no lee el estado del servidor.
+   Así la clase en vivo real no se mueve por pruebas. Se quita al terminar el sitio, junto con los accesos y el pago. */
+function pruebaLocalSinClave() {
+  return /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+}
 async function escribirEnVivo(on, ir) {
+  if (pruebaLocalSinClave()) return true;
   let t = ''; try { t = (localStorage.getItem('jefeshub_storage_token') || '').trim(); } catch (e) {}
   if (!t) { t = (window.prompt('Token de acceso para guardar cambios:') || '').trim(); if (!t) return false; try { localStorage.setItem('jefeshub_storage_token', t); } catch (e) {} }
   const value = { on: on, t: new Date().toISOString() };
@@ -1348,17 +1361,27 @@ async function escribirEnVivo(on, ir) {
   } catch (e) { return false; }
 }
 function avisoPonente() {
-  const btns = [['inicio', 'Empieza por aquí'], ['en-vivo', 'Clase en vivo'], ['clase-2', 'Romper el hielo']]
+  // Destinos sin repetir: si un mismo destino aparece dos veces, se muestra una sola vez
+  const destinos = [['inicio', 'Empieza por aquí'], ['en-vivo', 'Clase en vivo'], ['clase-2', 'Romper el hielo']];
+  const vistos = new Set();
+  const btns = destinos.filter(([h]) => !vistos.has(h) && vistos.add(h))
     .map(([h, t]) => '<button type="button" class="chip-btn" data-ir="#' + h + '">' + t + '</button>').join('');
-  return '<div id="avisoPonente" style="margin-bottom:18px"><button type="button" class="btn" data-vivo-toggle>' + (ENVIVO ? '■ Terminé la clase en vivo' : '● Estoy en vivo') + '</button>'
-    + '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><small>Mandar a todos a:</small>' + btns + '</div></div>';
+  // La barra se queda fija al bajar; el botón y los destinos van en una misma fila; en vivo el botón se pone rojo
+  return '<div id="avisoPonente"><div class="aviso-fila"><button type="button" class="btn' + (ENVIVO ? ' vivo-on' : '') + '" data-vivo-toggle>' + (ENVIVO ? '• ¡Estamos en VIVO!' : '• Inicia el Taller') + '</button>'
+    + '<small>Mandar a todos a:</small>' + btns
+    + '<a class="zoom-ico" href="' + ZOOM_INICIAR + '" target="_blank" rel="noopener" title="Iniciar la reunión de Zoom" aria-label="Iniciar la reunión de Zoom">🎥</a></div></div>';
 }
+/* Aviso para todos los perfiles mientras la clase está en vivo */
+function bannerVivo() { return ENVIVO && !MODO_PONENTE ? '<div id="bannerVivo" class="banner-vivo">● ¡Estamos en VIVO!</div>' : ''; }
 function paginaActual() {
   const page = (decodeURIComponent(location.hash.slice(1)) || 'inicio').split('/')[0];
   return page.startsWith('clase-') ? page.slice(6) : page;
 }
 function pintarVivo() {
   const av = document.getElementById('avisoPonente'); if (av) av.outerHTML = avisoPonente();
+  const bv = document.getElementById('bannerVivo'), falta = !!ENVIVO && !MODO_PONENTE;
+  if (bv && !falta) bv.remove();
+  else if (!bv && falta) { const vista = document.getElementById('view'); if (vista) vista.insertAdjacentHTML('afterbegin', bannerVivo()); }
   renderNav(paginaActual());
 }
 document.addEventListener('click', async e => {
@@ -1526,11 +1549,14 @@ function srcEjercicio(v) {
   return a ? `taller-app/?embed=${encodeURIComponent(a.et.embed)}&llena=1` : `guia-taller-ia.html#clase-${v.ej}`;
 }
 function cajasVista(v) {
+  // Cada cuadro arranca con su lugar correcto (grande, chico u oculto), igual que aplicarVistaDom; si no, el ejercicio tapa la presentación
+  const clase = k => v.grande === k ? 'grande' : v.chico === k ? 'chico' : 'oculto';
+  const zoomClase = v.grande === 'cara' || v.grande === 'pant' ? 'grande' : (v.chico === 'cara' || v.chico === 'pant' ? 'chico' : 'oculto');
   return `<div class="vista-box">
     ${MODO_PONENTE ? `<button type="button" class="vista-full" data-vfull title="Ver a pantalla completa">⛶ Pantalla completa</button>` : ''}
-    <div class="vi vi-cara">${MODO_PONENTE ? `<iframe class="zoom-vivo" src="taller-app/zoom.html" title="Clase en vivo por Zoom" allow="camera; microphone; fullscreen; display-capture; autoplay"></iframe>` : `<div class="zoom-espera" aria-label="Clase en vivo por Zoom">🎥 Clase en vivo por Zoom</div>`}</div>
-    <div class="vi vi-pres"><iframe src="taller-app/?embed=presentacion${MODO_PONENTE ? '&rol=ponente' : ''}" title="Presentación en vivo"></iframe></div>
-    <div class="vi vi-ej"><iframe src="${srcEjercicio(v)}" title="Ejercicio"></iframe></div>
+    <div class="vi vi-cara ${zoomClase}">${MODO_PONENTE ? `<iframe class="zoom-vivo" src="taller-app/zoom.html" title="Clase en vivo por Zoom" allow="camera; microphone; fullscreen; display-capture; autoplay"></iframe>` : `<div class="zoom-espera" aria-label="Clase en vivo por Zoom">🎥 Clase en vivo por Zoom</div>`}</div>
+    <div class="vi vi-pres ${clase('pres')}"><iframe src="taller-app/?embed=presentacion${MODO_PONENTE ? '&rol=ponente' : ''}" title="Presentación en vivo"></iframe></div>
+    <div class="vi vi-ej ${clase('ej')}"><iframe src="${srcEjercicio(v)}" title="Ejercicio"></iframe></div>
   </div>`;
 }
 function bloqueVistaPonente() {
@@ -1678,13 +1704,12 @@ function refrescarLinea() { const el = document.getElementById('lineaTiempo'); i
 function ajustarPanelesLinea() { document.querySelectorAll('.lt-panel').forEach(p => { p.style.height = ''; }); }
 function viewEnVivo() {
   $('#crumbs').innerHTML = `Guía del taller › <b>Clase en vivo</b>`;
-  const titulo = `<span class="eyebrow">En vivo</span><h1 style="font-size:clamp(30px,4.4vw,46px);margin:16px 0 8px">Clase en vivo</h1>`;
+  const titulo = `<h1 style="font-size:40px;margin:16px 0 8px">Clase en vivo</h1>`;
   if (MODO_PONENTE) {
-    // Ponente: el botón de Zoom va arriba a la derecha, junto al título; sin el texto de bienvenida (ese lo dice la ponente)
-    const cabeceraPonente = `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
-      <div>${titulo}</div>
-      <a class="btn sm" href="${ZOOM_INICIAR}" target="_blank" rel="noopener" style="margin-top:20px">▶ Iniciar la reunión de Zoom</a></div>`;
-    return cabeceraPonente + `<div class="pp-dos">${bloquePanelPonente()}</div>${lineaTiempoHtml()}<div id="ppResp"></div>` + cajasVista(leerVista()) + bloqueVistaPonente();
+    // Ponente: el botón de Zoom está en la fila de arriba (con "Inicia el Taller" y "Mandar a todos a"); sin el texto de bienvenida (ese lo dice la ponente)
+    const cabeceraPonente = `<div>${titulo}</div>`;
+    // Orden: presentación (arriba, con sus notas y botones) → qué ve cada cuadro → mapa de la clase. El panel del ponente ya no se muestra.
+    return cabeceraPonente + cajasVista(leerVista()) + bloqueVistaPonente() + `${lineaTiempoHtml()}<div id="ppResp"></div>`;
   }
   const cabecera = titulo + `<p style="color:var(--muted)">Me encanta que estés aquí. Vamos a poner atención e intención para lograr una transformación de tu negocio con más libertad y más inteligencia. Yo estoy más que lista. ¿Tú?</p>`;
   return cabecera + cajasVista(leerVista());
@@ -1808,7 +1833,7 @@ function route() {
   } else if (page === 'recursos') html = viewRecursos();
   else if (page === 'en-vivo') html = viewEnVivo();
   if (!html) { html = viewInicio(); activo = 'inicio'; }
-  $('#view').innerHTML = (MODO_PONENTE ? avisoPonente() : '') + html;
+  $('#view').innerHTML = (MODO_PONENTE ? avisoPonente() : bannerVivo()) + html;
   ajustarPanelesLinea();
   if (window.GuiaMetricas) window.GuiaMetricas.montar();
   pintarCuenta(); pintarRecordatorios();
