@@ -1330,6 +1330,7 @@ async function leerValor() {
 }
 let ULT_IR; // undefined = aún no leída; luego guarda la marca de la última orden de mover
 async function revisarEstado() {
+  if (pruebaLocalSinClave()) return; // en la prueba local, el estado lo manda el botón y no el servidor
   const v = await leerValor(); if (!v && v !== null) return;
   const on = !!(v && v.on);
   if (on !== ENVIVO) { ENVIVO = on; pintarVivo(); }
@@ -1340,7 +1341,14 @@ async function revisarEstado() {
     if (ir.hash && location.hash !== ir.hash && !MODO_PONENTE) location.hash = ir.hash; // solo los alumnos se mueven; el ponente sigue donde esté
   }
 }
+/* Solo para pruebas en la computadora (localhost) y sin clave guardada: no se pide la clave ni se guarda en el servidor.
+   Se quita al terminar el sitio, junto con los accesos y el pago. */
+function pruebaLocalSinClave() {
+  let t = ''; try { t = (localStorage.getItem('jefeshub_storage_token') || '').trim(); } catch (e) {}
+  return !t && /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+}
 async function escribirEnVivo(on, ir) {
+  if (pruebaLocalSinClave()) return true;
   let t = ''; try { t = (localStorage.getItem('jefeshub_storage_token') || '').trim(); } catch (e) {}
   if (!t) { t = (window.prompt('Token de acceso para guardar cambios:') || '').trim(); if (!t) return false; try { localStorage.setItem('jefeshub_storage_token', t); } catch (e) {} }
   const value = { on: on, t: new Date().toISOString() };
