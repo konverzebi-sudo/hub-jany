@@ -82,6 +82,19 @@
   .jd-wk-acts button{flex:1;border:none;border-radius:14px;padding:13px;font:inherit;font-size:14px;font-weight:700;cursor:pointer;}
   .jd-wk-go{background:#7C5CF2;color:#fff;box-shadow:0 8px 18px rgba(124,92,242,.35);}
   .jd-wk-no{background:#EFEAFF;color:#5B5784;}
+  .jd-wd{margin-top:12px;border-top:1px solid #ECE8F8;padding-top:12px;}
+  .jd-wd-when{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:13.5px;color:#1F1B3D;margin:12px 0 6px;}
+  .jd-wd-when:first-child{margin-top:0;}
+  .jd-wd-card{background:#F8F6FF;border:1px solid #ECE8F8;border-radius:14px;padding:10px 12px;margin-bottom:8px;}
+  .jd-wd-top{display:flex;align-items:center;gap:8px;font-size:13px;color:#2F2A55;font-weight:600;}
+  .jd-wd-top i{width:10px;height:10px;border-radius:50%;flex:none;}
+  .jd-wd-x{margin-left:auto;width:24px;height:24px;border-radius:50%;border:none;background:#EFEAFF;color:#5B5784;cursor:pointer;font-size:13px;flex:none;}
+  .jd-wd-note{width:100%;box-sizing:border-box;margin-top:8px;border:1.5px solid #E1DAF8;border-radius:11px;padding:9px 11px;font:inherit;font-size:13px;background:#fff;color:#1F1B3D;outline:none;resize:vertical;min-height:54px;}
+  .jd-wd-note:focus{border-color:#7C5CF2;}
+  .jd-wd-links{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
+  .jd-wd-link{display:inline-flex;align-items:center;gap:5px;background:#fff;border:1px solid #D9D0F7;color:#6C4BE0;border-radius:999px;padding:5px 11px;font-size:12px;font-weight:600;text-decoration:none;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .jd-wd-empty{font-size:12.5px;color:#8A86A8;padding:2px 0 4px;}
+  .jd-wk-dot{position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:50%;background:#1F1B3D;opacity:.55;pointer-events:none;}
   @media(max-width:560px){.jd-wk-ov{align-items:flex-end;padding:0;}.jd-wk-box{border-radius:22px 22px 0 0;max-width:none;}}
   .jd-hero-moved{display:none!important;}
   .jd-tabs{align-items:center;flex-wrap:nowrap;}
@@ -279,6 +292,7 @@
     <div class="jd-card">
       <div id="jd-week-grid" style="display:grid;gap:2px;width:100%;"></div>
       <div id="jd-week-bar" style="display:none;"></div>
+      <div id="jd-week-detail" style="display:none;"></div>
       <div id="jd-week-day-detail" style="display:none;"></div>
     </div>
   </div>
@@ -2442,9 +2456,72 @@
   function openFromSet(){
     if(weekSelSet.size) openWeekModal(selectionCells());
   }
+  function linksOf(text){
+    var out = [], seen = {};
+    (String(text || '').match(/(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi) || []).forEach(function(u){
+      u = u.replace(/[.,;:!?)\]]+$/, '');
+      var href = /^https?:/i.test(u) ? u : 'https://' + u;
+      if(seen[href]) return; seen[href] = 1;
+      var label = href.replace(/^https?:\/\/(www\.)?/i, '');
+      if(label.length > 34) label = label.slice(0, 33) + '…';
+      out.push({href: href, label: label});
+    });
+    return out;
+  }
+  function renderWeekDetail(){
+    var box = document.getElementById('jd-week-detail');
+    if(!box) return;
+    if(!weekSelSet.size){ box.style.display = 'none'; box.innerHTML = ''; return; }
+    function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    var cells = selectionCells(), byCell = buildWeekMap(mondayOf(weekViewDate));
+    var shown = cells.slice(0, 12), html = '<div class="jd-wd">';
+    shown.forEach(function(c){
+      var d = new Date(c.iso + 'T00:00:00');
+      var info = byCell[((d.getDay() + 6) % 7) + '-' + c.hour], ents = (info && info.entries) || [];
+      var dayTxt = d.toLocaleDateString('es-MX', {weekday:'long', day:'numeric', month:'short'});
+      html += '<div class="jd-wd-when">' + esc(dayTxt.charAt(0).toUpperCase() + dayTxt.slice(1)) + ' · ' + String(c.hour).padStart(2,'0') + ':00–' + String(c.hour + 1).padStart(2,'0') + ':00</div>';
+      if(!ents.length){ html += '<div class="jd-wd-empty">Nada anotado todavía en este horario. Pulsa <b>Anotar</b> para registrar qué hacías y agregar notas o links.</div>'; return; }
+      ents.forEach(function(en){
+        if(!en.id) en.id = uid('hist');
+        html += '<div class="jd-wd-card"><div class="jd-wd-top"><i style="background:' + projectColor(en.project) + '"></i><span>' + esc(en.text) + '</span><span class="jd-sub" style="font-weight:500;">· ' + esc(en.project || 'General') + (en.minutes ? ' · ' + en.minutes + ' min' : '') + '</span>' +
+          '<button type="button" class="jd-wd-x" data-wd-del="' + esc(en.id) + '" aria-label="Quitar">×</button></div>' +
+          '<textarea class="jd-wd-note" data-wd-note="' + esc(en.id) + '" placeholder="Notas, links, pendientes de este horario…">' + esc(en.note || '') + '</textarea>' +
+          '<div class="jd-wd-links" data-wd-links="' + esc(en.id) + '"></div></div>';
+      });
+    });
+    if(cells.length > shown.length) html += '<div class="jd-wd-empty">…y ' + (cells.length - shown.length) + ' horarios más seleccionados.</div>';
+    html += '</div>';
+    box.style.display = 'block';
+    box.innerHTML = html;
+    function entryById(id){ return data.history.find(function(x){ return x.id === id; }); }
+    function paintLinks(id){
+      var el = box.querySelector('[data-wd-links="' + id + '"]'), en = entryById(id);
+      if(!el || !en) return;
+      el.innerHTML = linksOf(en.note).map(function(l){ return '<a class="jd-wd-link" href="' + esc(l.href) + '" target="_blank" rel="noopener">🔗 ' + esc(l.label) + '</a>'; }).join('');
+    }
+    box.querySelectorAll('[data-wd-note]').forEach(function(ta){
+      var id = ta.getAttribute('data-wd-note'), timer = null;
+      paintLinks(id);
+      ta.addEventListener('input', function(){
+        var en = entryById(id); if(!en) return;
+        en.note = ta.value; paintLinks(id);
+        clearTimeout(timer); timer = setTimeout(function(){ save(); }, 600);
+      });
+      ta.addEventListener('blur', function(){ clearTimeout(timer); var en = entryById(id); if(en){ en.note = ta.value; if(!en.note) delete en.note; save(); renderWeekGrid(); } });
+      ['pointerdown','click','dblclick','keydown'].forEach(function(t){ ta.addEventListener(t, function(e){ e.stopPropagation(); }); });
+    });
+    box.querySelectorAll('[data-wd-del]').forEach(function(b){
+      b.addEventListener('click', function(){
+        var id = b.getAttribute('data-wd-del');
+        data.history = data.history.filter(function(x){ return x.id !== id; });
+        save(); renderHistory(); renderCalendar(); renderWeekGrid(); renderWeekBar();
+      });
+    });
+  }
   function renderWeekBar(){
     var bar = document.getElementById('jd-week-bar');
     if(!bar) return;
+    renderWeekDetail();
     if(!weekSelSet.size){ bar.style.display = 'none'; bar.innerHTML = ''; return; }
     var n = weekSelSet.size;
     bar.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap;';
@@ -2532,10 +2609,11 @@
       var isNow = iso === nowISO && hour === nowHour;
       var cell = document.createElement('div');
       cell.title = dayLabels[dayIdx] + ' ' + String(hour).padStart(2,'0') + ':00';
-      cell._css = 'height:' + (vertical ? 22 : 26) + 'px;border-radius:4px;background:' + bg + ';cursor:pointer;';
+      cell._css = 'position:relative;height:' + (vertical ? 22 : 26) + 'px;border-radius:4px;background:' + bg + ';cursor:pointer;';
       cell._now = isNow;
       cellEls[key] = cell;
       paintCell(cell, weekSelSet.has(key));
+      if(info && info.entries.some(function(en){ return en.note; })){ var dot = document.createElement('span'); dot.className = 'jd-wk-dot'; cell.appendChild(dot); }
       cell.addEventListener('pointerdown', function(ev){
         lastPtr = ev.pointerType;
         if((ev.pointerType !== 'mouse' && ev.pointerType !== 'pen') || ev.button !== 0) return;
@@ -2646,6 +2724,7 @@
     html += '<div class="jd-wk-lab"' + (entries.length ? '' : ' style="margin-top:0;"') + '>Tarea</div><input class="jd-wk-input" id="jd-wk-text" placeholder="Ej. Diseñando el banner" autocomplete="off">';
     html += '<div class="jd-wk-lab">Proyecto</div><div class="jd-wk-chips" id="jd-wk-projs"></div>';
     html += '<div class="jd-wk-lab">' + (multi ? 'Duración en cada horario' : 'Duración') + '</div><div class="jd-wk-chips" id="jd-wk-durs"></div>';
+    html += '<div class="jd-wk-lab">Notas o links (opcional)</div><textarea class="jd-wk-input" id="jd-wk-note" rows="2" placeholder="Pega aquí un link o escribe una nota" style="resize:vertical;"></textarea>';
     html += '<div class="jd-wk-acts"><button type="button" class="jd-wk-no" id="jd-wk-cancel">Cancelar</button><button type="button" class="jd-wk-go" id="jd-wk-add">' + (multi ? 'Agregar a los ' + cells.length : 'Agregar') + '</button></div>';
     box.innerHTML = html;
     document.body.appendChild(ov);
@@ -2677,9 +2756,10 @@
     function add(){
       var t = inT.value.trim();
       if(!t){ inT.focus(); return; }
+      var noteTxt = (box.querySelector('#jd-wk-note').value || '').trim();
       cells.slice().reverse().forEach(function(c){
         var d = new Date(c.iso + 'T00:00:00');
-        data.history.unshift({id: uid('hist'), project: proj, text: t, minutes: mins,
+        data.history.unshift({id: uid('hist'), project: proj, text: t, minutes: mins, note: noteTxt || undefined,
           date: d.toLocaleDateString('es-MX', {day:'numeric', month:'short'}), dateISO: c.iso, time: String(c.hour).padStart(2,'0') + ':00'});
       });
       if(data.history.length > 500) data.history.length = 500;
