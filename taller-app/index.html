@@ -934,6 +934,7 @@ const CLAVES_DINAMICAS = ['dedicas', 'delegarias', 'marketing', 'historia'];
 const CLAVES_ANTERIORES = ['improvisas', 'metas', 'situacion', 'diagnostico'];
 const nombreAct = a => a.config?.nombre || a.titulo;
 /* Dinámicas con varias respuestas por persona (¿Qué delegarías?): se guardan en datos.textos; datos.texto queda como resumen */
+const abrirAct = async a => { const sc = S.secciones.find(x => x.id === a.seccion_id); if (sc && sc.estado === 'bloqueada') await api.setSeccion(sc.id, 'disponible'); await api.setActividad(a.id, 'abierta'); };
 const multiDe = a => a?.config?.multiples || (['delegarias', 'dedicas'].includes(a?.clave) ? 5 : 0);
 const textosDe = d => Array.isArray(d?.textos) ? d.textos.filter(Boolean) : d?.texto ? [d.texto] : [];
 /* Estado que ve el alumno: Pendiente (Jany no la abre) · Abierta · Respondida · Cerrada */
@@ -2128,7 +2129,7 @@ async function vistaPonente() {
       <div class="stack" style="margin-top:16px">${lista.map((a, k) => tarjeta(a, k + 1)).join('')}</div>
       ${anteriores.length ? `<div class="sec-h"><span class="n">+</span><h2>Dinámicas anteriores (se conservan)</h2></div><div class="stack">${anteriores.map((a, k) => tarjeta(a, 'E' + (k + 1))).join('')}</div>` : ''}`;
     const accion = async (fn, msg) => { try { await fn(); toast(msg); await recargar(); } catch (err) { toast(err.message); } };
-    pv.querySelectorAll('[data-abrir]').forEach(b => b.onclick = () => accion(() => api.setActividad(b.dataset.abrir, 'abierta'), 'Dinámica abierta: el grupo ya puede responder'));
+    pv.querySelectorAll('[data-abrir]').forEach(b => b.onclick = () => accion(() => abrirAct(S.actividades.find(x => x.id === b.dataset.abrir)), 'Dinámica abierta: el grupo ya puede responder'));
     pv.querySelectorAll('[data-cerrar]').forEach(b => b.onclick = () => accion(() => api.setActividad(b.dataset.cerrar, 'finalizada'), 'Dinámica cerrada'));
     const mover = (id, d) => { const a = S.actividades.find(x => x.id === id); const v = Math.max(0, Math.min(a.config.preguntas.length, (a.config.visibles || 0) + d)); accion(() => api.setConfig(id, { ...a.config, visibles: v }), v ? `Pregunta ${v} visible para el grupo` : 'Preguntas ocultas'); };
     pv.querySelectorAll('[data-qmas]').forEach(b => b.onclick = () => mover(b.dataset.qmas, 1));
@@ -2366,7 +2367,7 @@ async function vistaPresentacion() {
         <button class="btn sm" data-d="abierta" ${din.estado === 'abierta' ? 'disabled' : ''}>▶ ABRIR</button><button class="btn dark sm" data-d="finalizada" ${din.estado !== 'abierta' ? 'disabled' : ''}>■ CERRAR</button>
         ${din.config.quiz ? `<button class="btn sm" data-q="1" ${(din.config.visibles || 0) >= din.config.preguntas.length ? 'disabled' : ''}>➕ PREGUNTA ${Math.min((din.config.visibles || 0) + 1, din.config.preguntas.length)}</button>` : ''}
         <a class="btn ghost sm" href="./?${api.demo ? 'rol=ponente&' : ''}#proyectar-${esc(din.clave)}" target="_blank" rel="noopener">📺 RESULTADOS</a></div></div>`;
-      $('#pCtrl').querySelectorAll('[data-d]').forEach(b => b.onclick = async () => { try { await api.setActividad(din.id, b.dataset.d); await recargar(); } catch (e) { toast(e.message); } });
+      $('#pCtrl').querySelectorAll('[data-d]').forEach(b => b.onclick = async () => { try { await (b.dataset.d === 'abierta' ? abrirAct(din) : api.setActividad(din.id, b.dataset.d)); await recargar(); } catch (e) { toast(e.message); } });
       $('#pCtrl').querySelectorAll('[data-q]').forEach(b => b.onclick = async () => { try { await api.setConfig(din.id, { ...din.config, visibles: Math.min(din.config.preguntas.length, (din.config.visibles || 0) + 1) }); await recargar(); } catch (e) { toast(e.message); } });
     }
   }
@@ -2432,7 +2433,7 @@ async function vistaTeleprompter() {
         <button class="btn sm" data-d="abierta" ${din.estado === 'abierta' ? 'disabled' : ''}>▶ ABRIR</button><button class="btn dark sm" data-d="finalizada" ${din.estado !== 'abierta' ? 'disabled' : ''}>■ CERRAR</button>
         <a class="btn ghost sm" href="./?${api.demo ? 'rol=ponente&' : ''}#proyectar-${esc(din.clave)}" target="_blank" rel="noopener">📺 PROYECTAR</a></div></div>`;
     }
-    caja.querySelectorAll('[data-d]').forEach(b => b.onclick = async () => { try { await api.setActividad(din.id, b.dataset.d); await recargar(); } catch (e) { toast(e.message); } });
+    caja.querySelectorAll('[data-d]').forEach(b => b.onclick = async () => { try { await (b.dataset.d === 'abierta' ? abrirAct(din) : api.setActividad(din.id, b.dataset.d)); await recargar(); } catch (e) { toast(e.message); } });
     const ir = async k => { try { await api.setDiapo(Math.min(total, Math.max(1, k))); await recargar(); } catch (e) { toast(e.message); } };
     $('#pPrev').onclick = () => ir(n - 1); $('#pNext').onclick = () => ir(n + 1);
     const pi = $('#pIni'); if (pi) pi.onclick = () => ir(1);
@@ -2824,7 +2825,7 @@ async function vistaEmbedPonente() {
   root.querySelector('details.cv-det').ontoggle = e => { UI.cvAbierto = e.target.open; avisarAltura(); };
   root.querySelectorAll('[data-ac]').forEach(b => b.onclick = () => {
     const k = b.dataset.ac;
-    if (k === 'abrir') accion(() => api.setActividad(a.id, 'abierta'), 'Abierta: el grupo ya puede responder');
+    if (k === 'abrir') accion(() => abrirAct(a), 'Abierta: el grupo ya puede responder');
     if (k === 'cerrar') accion(() => api.setActividad(a.id, 'finalizada'), 'Actividad cerrada');
     if (k === 'qmas' || k === 'qmenos') { const v = Math.max(0, Math.min(a.config.preguntas.length, (a.config.visibles || 0) + (k === 'qmas' ? 1 : -1))); accion(() => api.setConfig(a.id, { ...a.config, visibles: v }), v ? `Pregunta ${v} visible` : 'Preguntas ocultas'); }
     if (k === 'reiniciar' && confirm(`¿Borrar TODAS las respuestas de "${nombreAct(a)}"? No se puede deshacer.`)) accion(() => api.reiniciar(a.id), 'Resultados reiniciados');
