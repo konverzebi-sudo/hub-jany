@@ -336,6 +336,12 @@ function completar(d){
     cfg.historial=[{fecha:new Date().toISOString(),texto:'Partidos con árbitro "o" pasados a Luis Arturo Jiménez Vázquez'},...cfg.historial];
     cfg.v4=true;
   }
+  if(!cfg.v5){ // partidos que quedaron sin terminar al asignar otro en la cancha: se cierran con su marcador
+    let n=0;
+    matchesMig=matchesMig.map(m=>{if(m.terminado||m.activo) return m; n++; return {...m,terminado:true,resultado:{a:m.sa||0,b:m.sb||0},terminadoEn:m.creado||new Date().toISOString()};});
+    if(n) cfg.historial=[{fecha:new Date().toISOString(),texto:`${n} partido(s) sin terminar se cerraron con su marcador`},...cfg.historial];
+    cfg.v5=true;
+  }
   // Marco es inversionista: no recibe pagos (si no tiene rol, se pone este)
   cfg.roles={...(cfg.roles||{})};
   if(!cfg.roles.Marco) cfg.roles.Marco='Inversionista';
@@ -755,7 +761,7 @@ function openAssign(f,pre){
     const enOtraCancha=(tid)=>{const mm=db.matches.find(x=>x.activo&&x.field!==f&&(x.a===tid||x.b===tid));return mm?mm.field:null;};
     const ca=enOtraCancha(a), cb=enOtraCancha(b);
     if(ca||cb){$('#as-err').textContent=`${teamName(ca?a:b)} ya está jugando en la cancha ${ca||cb}. Primero quítalo de esa cancha.`;return;}
-    db.matches.forEach(m=>{if(m.field===f&&m.activo)m.activo=false;});
+    db.matches.forEach(m=>{if(m.field===f&&m.activo)cerrarPartido(m);});
     const arb=(String(fd.get('arbitro')||'')||($('#ar-q')?.value||'')).trim();
     // Un árbitro solo puede pitar un juego a la vez
     const pitandoEn=arb&&db.matches.find(x=>x.activo&&x.field!==f&&x.arbitro===arb);
@@ -766,7 +772,7 @@ function openAssign(f,pre){
   };
 }
 function unassign(f){
-  db.matches.forEach(m=>{if(m.field===f&&m.activo)m.activo=false;});
+  db.matches.forEach(m=>{if(m.field===f&&m.activo)cerrarPartido(m);});
   save(); closeModal(); renderAll();
 }
 
@@ -1511,6 +1517,12 @@ function arbNom(a){return ((db&&db.config&&db.config.apodos)||{})[a]||a;}
 // Nombre completo y, al lado, su apodo entre paréntesis si lo tiene
 function arbNombreHTML(a){const ap=((db&&db.config&&db.config.apodos)||{})[a];return esc(a)+(ap?` <small class="muted">(${esc(ap)})</small>`:'');}
 // Registro de cambios (se muestra en Ajustes)
+// Cierra un partido con su marcador actual (así nunca queda sin terminar)
+function cerrarPartido(m){
+  m.activo=false; m.terminado=true;
+  m.resultado={a:m.sa||0,b:m.sb||0};
+  m.terminadoEn=new Date().toISOString();
+}
 function registrar(texto){
   db.config.historial=[{fecha:new Date().toISOString(),texto},...(db.config.historial||[])].slice(0,200);
 }
