@@ -2311,7 +2311,32 @@ const CANVA_PAGINAS = ['PBTl0njVZ3m36KZY', 'PBRQ9KJltSBTlY5h', 'PBc4x2xgy26Tf0TK
 // Imágenes exportadas (borrador) por identificador de Canva
 const DIAPO_IMG = { PBRQ9KJltSBTlY5h: '01', PBc4x2xgy26Tf0TK: '02', PBp0tRZqg0mPbPN6: '04', PBWLgbtFnnvhzBNH: '05', PBrSlBWbtLNZHWrk: '06', PBL8JRx14QK8QbCY: '07', PBvMq3yTcXlykvDL: '08', PBnDBGTBnmFWpMfN: '09', PBwTfyGqwHYzXSFM: '10', PByzMJGbrw50JXGk: '11', PB6zXBmdRWz2WGSX: '12', PBV2MmzZvTyRkZx7: '13', PB8s5507KVsWzCPm: '14' };
 // Dinámica de cada diapositiva (por identificador)
-const DIAPO_DIN_ID = { PBWLgbtFnnvhzBNH: 'dedicas', PBrSlBWbtLNZHWrk: 'delegarias', PBL8JRx14QK8QbCY: 'marketing', PBvMq3yTcXlykvDL: 'marketing', PB5fHFylSM3bjhlg: 'marketing', PBgGphWbgzQLZPMX: 'marketing', PBtBfYW5qp5wXLFc: 'marketing' };
+const DIAPO_DINS = { 4: ['delegarias'], 9: ['dedicas'], 15: ['marketing'], 16: ['marketing', 'historia'], 17: ['marketing', 'historia'], 18: ['marketing'] };
+const DIAPO_SUPER = [27, 28];   // Dinámica 5 · Superprompt (se hace en la presentación, no en la plataforma)
+const UBIC_RANGOS = [
+  [1, 5, 'Empieza por aquí', 'Empieza por aquí'],
+  [6, 12, 'Rompehielo', '01 · Rompehielo'],
+  [13, 20, 'Rompehielo', '02 · Calienta motores'],
+  [21, 32, 'Hubcito en marcha', '03 · Tu SUPERPROMPT'],
+  [33, 33, 'Hubcito en marcha', '04 · Producto ganador'],
+  [34, 36, 'Hubcito en marcha', '05 · Mercado meta'],
+  [37, 39, 'Contenido y campañas', '06 · Contenido'],
+  [40, 41, 'Contenido y campañas', '07 · Campañas'],
+  [42, 44, 'Diseños inteligencia artificial', '08 · Imágenes IA'],
+  [45, 50, 'Diseños inteligencia artificial', '09 · Videos IA'],
+  [51, 51, 'Diseños inteligencia artificial', '08 · Imágenes IA'],
+  [52, 55, 'Diseños inteligencia artificial', '09 · Videos IA'],
+  [56, 59, 'Hub de Jefes', '10 · Hub de Jefes'],
+  [61, 61, 'Hub de Jefes', '10 · Hub de Jefes'],
+  [72, 73, 'Hub de Jefes', '10 · Hub de Jefes']
+];
+function ubicHtml(n) {
+  const r = UBIC_RANGOS.find(([a, b]) => n >= a && n <= b);
+  const dins = (DIAPO_DINS[n] || []).map(k => ({ k, a: act(k) })).filter(x => x.a);
+  const btns = dins.map(x => `<button class="btn ghost sm" data-abrir-din="${esc(x.k)}" ${x.a.estado === 'abierta' ? 'disabled' : ''}>${x.a.estado === 'abierta' ? '● Abierta: ' : '▶ Abrir: '}${esc(nombreAct(x.a))}</button>`).join(' ');
+  const sup = DIAPO_SUPER.includes(n) ? '<span class="small">🧠 Dinámica 5 · Superprompt (se hace en la presentación)</span>' : '';
+  return `<div class="ubic-bar"><div><small class="muted">MÓDULO</small> <b>${esc(r ? r[2] : 'Sin módulo')}</b> · ${esc(r ? r[3] : 'sin clase')}</div><div class="row" style="gap:8px;flex-wrap:wrap">${btns}${sup}</div></div>`;
+}
 const DIAPO_RESULTADOS = new Set(['PB5fHFylSM3bjhlg', 'PBgGphWbgzQLZPMX', 'PBtBfYW5qp5wXLFc']);
 // Diapositivas donde, en lugar de la imagen, corre en vivo el reloj regresivo (diapositiva 62 de Canva)
 const DIAPO_RELOJ = new Set(['PBPmFClmWZjHyPtY']);
@@ -2389,7 +2414,7 @@ async function vistaTeleprompter() {
   const root = $('#root'), ponente = S.rol === 'ponente', total = CANVA_PAGINAS.length;
   const n = Math.min(total, Math.max(1, Number(S.estado?.diapositiva) || 1)), empezo = !!S.estado?.diapositiva, pid = CANVA_PAGINAS[n - 1];
   const img = CANVA_IMG.has(pid) ? `diapos/canva/${pid}.jpg` : DIAPO_IMG[pid] ? `diapos/${DIAPO_IMG[pid]}.jpg` : null;
-  const din = DIAPO_DIN_ID[pid] && act(DIAPO_DIN_ID[pid]);
+  const din = (DIAPO_DINS[n] || []).map(act).filter(Boolean)[0];
   if (MINI) {
     document.body.classList.add('mini');
     root.innerHTML = `<div class="mini-pres">${DIAPO_RELOJ.has(pid) ? `<iframe src="${RELOJ_URL}" title="Reloj regresivo"></iframe>` : img ? `<img src="${img}" alt="Diapositiva ${n}">` : `<div class="pres-sin"><b>Diapositiva ${n}</b></div>`}<span class="mini-pill ${empezo ? 'live' : ''}">${empezo ? '● EN VIVO' : 'POR EMPEZAR'} · ${n}</span></div>`;
@@ -2406,13 +2431,14 @@ async function vistaTeleprompter() {
     const texto = pag?.nota ? NC.notas[pag.nota] : null;
     const titulo = (texto && (texto.match(/^(?:#\s*)?(Diapositiva[^\n]*|NOTAS[^\n]*)/m) || [])[1]) || '';
     root.innerHTML = `<div class="tp">
-      <div class="tp-col"><div class="pres-top"><span class="pill ${empezo ? 'live' : 'off'}">${empezo ? '● EN VIVO' : 'POR EMPEZAR'}</span><b>Diapositiva ${n} de ${total}</b></div>${diapo}
+      <div class="tp-col">${ubicHtml(n)}<div class="pres-top"><span class="pill ${empezo ? 'live' : 'off'}">${empezo ? '● EN VIVO' : 'POR EMPEZAR'}</span><b>Diapositiva ${n} de ${total}</b></div>${diapo}
         <div class="row dbtns" style="margin-top:10px"><button class="btn ghost sm" id="pPrev" ${n <= 1 ? 'disabled' : ''}>◀ ANTERIOR</button><button class="btn sm" id="pNext" ${n >= total ? 'disabled' : ''}>SIGUIENTE ▶</button>${!empezo ? '<button class="btn dark sm" id="pIni">● EMPEZAR EN VIVO</button>' : ''}
           <label class="small tp-ir">Ir a <input type="number" min="1" max="${total}" value="${n}" id="pIr"></label></div>
         ${reloj ? `<div class="ctrl-verde" style="margin-top:10px"><div class="cv-h"><b>⏱ Reloj regresivo en vivo</b><span class="pill live">TODOS LO VEN</span></div><p class="small" style="margin:6px 0">En esta diapositiva el grupo ve el reloj corriendo (cuenta hasta las 12:00 de la noche).</p><div class="row dbtns"><a class="btn sm" href="${RELOJ_URL}" target="_blank" rel="noopener">⛶ ABRIR EL RELOJ EN PANTALLA COMPLETA</a></div></div>` : ''}
         <div id="tpDin"></div></div>
       <div class="tp-notas"><div class="tp-h"><small>NOTAS DE CANVA · SOLO TÚ LAS VES</small>${titulo ? `<b>${esc(titulo.replace(/^#\s*/, ''))}</b>` : ''}<span class="tp-zoom"><button type="button" data-tpz="-1">A−</button><button type="button" data-tpz="1">A+</button></span></div>
         <div class="tp-texto" id="tpTexto" style="font-size:${UI.tpFont || 22}px">${texto ? esc(texto).replace(/\n/g, '<br>') : NC ? '<p class="muted">Esta diapositiva no tiene notas en Canva.</p>' : '<p class="muted">Las notas de Canva todavía no están cargadas para esta versión.</p>'}</div></div></div>`;
+    root.querySelectorAll('[data-abrir-din]').forEach(b => b.onclick = async () => { try { await abrirAct(act(b.dataset.abrirDin)); toast('Dinámica abierta'); await recargar(); } catch (e) { toast(e.message); } });
     const caja = $('#tpDin');
     if (din && modoCat(din)) {
       const rs = await api.respuestasDe(din.id);
