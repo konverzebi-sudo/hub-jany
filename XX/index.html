@@ -2456,17 +2456,32 @@
   function openFromSet(){
     if(weekSelSet.size) openWeekModal(selectionCells());
   }
-  function linksOf(text){
-    var out = [], seen = {};
-    (String(text || '').match(/(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi) || []).forEach(function(u){
-      u = u.replace(/[.,;:!?)\]]+$/, '');
-      var href = /^https?:/i.test(u) ? u : 'https://' + u;
-      if(seen[href]) return; seen[href] = 1;
-      var label = href.replace(/^https?:\/\/(www\.)?/i, '');
-      if(label.length > 34) label = label.slice(0, 33) + '…';
-      out.push({href: href, label: label});
+  var URL_RE = /(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi;
+  function splitLinks(text){
+    var links = [];
+    var note = String(text || '').replace(URL_RE, function(u){
+      var clean = u.replace(/[.,;:!?)\]]+$/, ''), tail = u.slice(clean.length);
+      links.push(/^https?:/i.test(clean) ? clean : 'https://' + clean);
+      return tail;
     });
-    return out;
+    if(links.length) note = note.replace(/[ \t]{2,}/g, ' ').replace(/^[ \t]+/gm, '').replace(/\n{3,}/g, '\n\n').replace(/^\s+/, '');
+    return {note: links.length ? note : String(text || ''), links: links};
+  }
+  function addLinks(en, links){
+    if(!en.links) en.links = [];
+    links.forEach(function(u){ if(en.links.indexOf(u) < 0) en.links.push(u); });
+  }
+  function migrateLinks(en){
+    if(!en.note || !URL_RE.test(en.note)){ URL_RE.lastIndex = 0; return false; }
+    URL_RE.lastIndex = 0;
+    var sp = splitLinks(en.note);
+    if(!sp.links.length) return false;
+    addLinks(en, sp.links); en.note = sp.note; if(!en.note) delete en.note;
+    return true;
+  }
+  function linkLabel(u){
+    var l = u.replace(/^https?:\/\/(www\.)?/i, '');
+    return l.length > 34 ? l.slice(0, 33) + '…' : l;
   }
   function renderWeekDetail(){
     var box = document.getElementById('jd-week-detail');
@@ -2474,7 +2489,7 @@
     if(!weekSelSet.size){ box.style.display = 'none'; box.innerHTML = ''; return; }
     function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
     var cells = selectionCells(), byCell = buildWeekMap(mondayOf(weekViewDate));
-    var shown = cells.slice(0, 12), html = '<div class="jd-wd">';
+    var shown = cells.slice(0, 12), html = '<div class="jd-wd">', migrated = false;
     shown.forEach(function(c){
       var d = new Date(c.iso + 'T00:00:00');
       var info = byCell[((d.getDay() + 6) % 7) + '-' + c.hour], ents = (info && info.entries) || [];
@@ -2483,6 +2498,7 @@
       if(!ents.length){ html += '<div class="jd-wd-empty">Nada anotado todavía en este horario. Pulsa <b>Anotar</b> para registrar qué hacías y agregar notas o links.</div>'; return; }
       ents.forEach(function(en){
         if(!en.id) en.id = uid('hist');
+        if(migrateLinks(en)) migrated = true;
         html += '<div class="jd-wd-card"><div class="jd-wd-top"><i style="background:' + projectColor(en.project) + '"></i><span>' + esc(en.text) + '</span><span class="jd-sub" style="font-weight:500;">· ' + esc(en.project || 'General') + (en.minutes ? ' · ' + en.minutes + ' min' : '') + '</span>' +
           '<button type="button" class="jd-wd-x" data-wd-del="' + esc(en.id) + '" aria-label="Quitar">×</button></div>' +
           '<textarea class="jd-wd-note" data-wd-note="' + esc(en.id) + '" placeholder="Notas, links, pendientes de este horario…">' + esc(en.note || '') + '</textarea>' +
@@ -2491,23 +2507,59 @@
     });
     if(cells.length > shown.length) html += '<div class="jd-wd-empty">…y ' + (cells.length - shown.length) + ' horarios más seleccionados.</div>';
     html += '</div>';
+    if(migrated) save();
     box.style.display = 'block';
     box.innerHTML = html;
     function entryById(id){ return data.history.find(function(x){ return x.id === id; }); }
     function paintLinks(id){
       var el = box.querySelector('[data-wd-links="' + id + '"]'), en = entryById(id);
       if(!el || !en) return;
-      el.innerHTML = linksOf(en.note).map(function(l){ return '<a class="jd-wd-link" href="' + esc(l.href) + '" target="_blank" rel="noopener">🔗 ' + esc(l.label) + '</a>'; }).join('');
+      el.innerHTML = '';
+      (en.links || []).forEach(function(u, i){
+        var a = document.createElement('a');
+        a.className = 'jd-wd-link'; a.href = u; a.target = '_blank'; a.rel = 'noopener'; a.title = u + '  ·  clic derecho o mantén presionado: editar / quitar';
+        a.textContent = '🔗 ' + linkLabel(u);
+        function menu(x, y){
+          showWeekMenu(x, y, [
+            {label: '✏️ Editar link', fn: function(){
+              var nu = window.prompt('Editar link (déjalo vacío para quitarlo):', u);
+              if(nu === null) return;
+              nu = nu.trim();
+              if(!nu) en.links.splice(i, 1); else en.links[i] = /^https?:/i.test(nu) ? nu : 'https://' + nu;
+              if(!en.links.length) delete en.links;
+              save(); paintLinks(id); renderWeekGrid();
+            }},
+            {label: '🗑 Quitar link', fn: function(){ en.links.splice(i, 1); if(!en.links.length) delete en.links; save(); paintLinks(id); renderWeekGrid(); }}
+          ]);
+        }
+        a.addEventListener('contextmenu', function(e){ e.preventDefault(); menu(e.clientX, e.clientY); });
+        var hold = null, held = false;
+        a.addEventListener('pointerdown', function(e){
+          held = false;
+          if(e.pointerType === 'mouse') return;
+          var x = e.clientX, y = e.clientY;
+          hold = setTimeout(function(){ held = true; menu(x, y); }, 550);
+        });
+        ['pointerup','pointercancel','pointermove'].forEach(function(t){ a.addEventListener(t, function(){ clearTimeout(hold); }); });
+        a.addEventListener('click', function(e){ if(held){ e.preventDefault(); e.stopPropagation(); held = false; } });
+        el.appendChild(a);
+      });
     }
     box.querySelectorAll('[data-wd-note]').forEach(function(ta){
       var id = ta.getAttribute('data-wd-note'), timer = null;
       paintLinks(id);
-      ta.addEventListener('input', function(){
+      // al detectar un link, se guarda abajo y se quita de la caja para dejar espacio a las notas
+      function pull(force){
         var en = entryById(id); if(!en) return;
-        en.note = ta.value; paintLinks(id);
-        clearTimeout(timer); timer = setTimeout(function(){ save(); }, 600);
-      });
-      ta.addEventListener('blur', function(){ clearTimeout(timer); var en = entryById(id); if(en){ en.note = ta.value; if(!en.note) delete en.note; save(); renderWeekGrid(); } });
+        if(force || /(https?:\/\/|www\.)\S+\s/i.test(ta.value)){
+          var sp = splitLinks(ta.value);
+          if(sp.links.length){ addLinks(en, sp.links); ta.value = sp.note; paintLinks(id); }
+        }
+        en.note = ta.value;
+      }
+      ta.addEventListener('input', function(){ pull(false); clearTimeout(timer); timer = setTimeout(function(){ save(); }, 600); });
+      ta.addEventListener('paste', function(){ setTimeout(function(){ pull(true); save(); }, 0); });
+      ta.addEventListener('blur', function(){ clearTimeout(timer); pull(true); var en = entryById(id); if(en){ if(!en.note) delete en.note; save(); renderWeekGrid(); } });
       ['pointerdown','click','dblclick','keydown'].forEach(function(t){ ta.addEventListener(t, function(e){ e.stopPropagation(); }); });
     });
     box.querySelectorAll('[data-wd-del]').forEach(function(b){
@@ -2533,7 +2585,7 @@
 
   // menu con clic derecho
   function hideWeekMenu(){ var m = document.getElementById('jd-wk-menu'); if(m) m.remove(); }
-  function showWeekMenu(x, y){
+  function showWeekMenu(x, y, custom){
     hideWeekMenu();
     var m = document.createElement('div');
     m.id = 'jd-wk-menu';
@@ -2548,8 +2600,10 @@
       b.addEventListener('click', function(){ hideWeekMenu(); fn(); });
       m.appendChild(b);
     }
+    if(custom){ custom.forEach(function(o){ item(o.label, o.fn); }); } else {
     item('✏️ ' + (n > 1 ? 'Anotar en los ' + n + ' horarios' : 'Anotar / editar'), openFromSet);
     item('✕ Limpiar selección', function(){ weekSelSet = new Set(); Object.keys(cellEls).forEach(function(k){ paintCell(cellEls[k], false); }); renderWeekBar(); });
+    }
     document.body.appendChild(m);
     var r = m.getBoundingClientRect();
     m.style.left = Math.max(8, Math.min(x, innerWidth - r.width - 8)) + 'px';
@@ -2613,7 +2667,7 @@
       cell._now = isNow;
       cellEls[key] = cell;
       paintCell(cell, weekSelSet.has(key));
-      if(info && info.entries.some(function(en){ return en.note; })){ var dot = document.createElement('span'); dot.className = 'jd-wk-dot'; cell.appendChild(dot); }
+      if(info && info.entries.some(function(en){ return en.note || (en.links && en.links.length); })){ var dot = document.createElement('span'); dot.className = 'jd-wk-dot'; cell.appendChild(dot); }
       cell.addEventListener('pointerdown', function(ev){
         lastPtr = ev.pointerType;
         if((ev.pointerType !== 'mouse' && ev.pointerType !== 'pen') || ev.button !== 0) return;
@@ -2756,10 +2810,10 @@
     function add(){
       var t = inT.value.trim();
       if(!t){ inT.focus(); return; }
-      var noteTxt = (box.querySelector('#jd-wk-note').value || '').trim();
+      var sp0 = splitLinks((box.querySelector('#jd-wk-note').value || '').trim()), noteTxt = sp0.note.trim();
       cells.slice().reverse().forEach(function(c){
         var d = new Date(c.iso + 'T00:00:00');
-        data.history.unshift({id: uid('hist'), project: proj, text: t, minutes: mins, note: noteTxt || undefined,
+        data.history.unshift({id: uid('hist'), project: proj, text: t, minutes: mins, note: noteTxt || undefined, links: sp0.links.length ? sp0.links.slice() : undefined,
           date: d.toLocaleDateString('es-MX', {day:'numeric', month:'short'}), dateISO: c.iso, time: String(c.hour).padStart(2,'0') + ':00'});
       });
       if(data.history.length > 500) data.history.length = 500;
