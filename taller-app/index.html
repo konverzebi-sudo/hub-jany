@@ -1744,6 +1744,14 @@ function montarPrepara() {
   if (window.parent !== window) window.parent.postMessage({ taller: 'brief', pct }, '*');
   const st = $('#steps'); if (st && !$('#briefPct')) st.insertAdjacentHTML('beforebegin', `<div id="briefPct" class="brief-pct"><span>Avance de tu brief</span><div class="rec-barra"><i style="width:${pct}%"></i></div><b>${pct}%</b>${pct >= 100 ? '<em>✅ Completo</em>' : ''}</div>`);
   const soloLectura = a.estado !== 'abierta';
+  // Que el brief se quede donde se quedó: borrador de lo escrito y último bloque (aunque se recargue o la guía lo vuelva a cargar)
+  const BORR = 'taller-prepara-borrador-' + a.id, PASO = 'taller-prepara-paso';
+  if (!soloLectura) { try { Object.assign(D, JSON.parse(localStorage.getItem(BORR) || 'null') || {}); } catch (e) {} }
+  if (UI.pasoRestaurado !== a.id) {
+    UI.pasoRestaurado = a.id;
+    try { const p = Number(localStorage.getItem(PASO)); if (Number.isInteger(p) && p >= 0 && p <= 6) UI.paso = p; } catch (e) {}
+  }
+  try { localStorage.setItem(PASO, String(UI.paso)); } catch (e) {}
   const pintarPasos = () => $('#steps').innerHTML = BLOQUES.map((b, i) => `<button class="step ${UI.paso === i ? 'on' : ''} ${D._ok[b.k] ? 'done' : ''}" data-p="${i}">${D._ok[b.k] ? '✓ ' : ''}${b.k} · ${esc(b.t)}</button>`).join('')
     + `<button class="step ${UI.paso === 6 ? 'on' : ''}" data-p="6">Resumen</button>`;
   const guardar = async (k, avanzar) => {
@@ -1751,12 +1759,13 @@ function montarPrepara() {
     leerBloque(k, D);
     D._ok[k] = true;
     const completo = 'ABCDEF'.split('').every(x => D._ok[x]);
-    try { await api.responder(a.id, D, completo); toast('Guardado ✓'); S.misRespuestas = S.misRespuestas.filter(x => x.actividad_id !== a.id).concat([{ actividad_id: a.id, datos: D, completada: completo }]); if (avanzar) UI.paso = Math.min(UI.paso + 1, 6); render(); }
+    try { await api.responder(a.id, D, completo); try { localStorage.removeItem(BORR); } catch (e) {} toast('Guardado ✓'); S.misRespuestas = S.misRespuestas.filter(x => x.actividad_id !== a.id).concat([{ actividad_id: a.id, datos: D, completada: completo }]); if (avanzar) UI.paso = Math.min(UI.paso + 1, 6); render(); }
     catch (err) { toast('No se pudo guardar: ' + err.message); }
   };
   pintarPasos();
   $('#steps').onclick = e => { const b = e.target.closest('[data-p]'); if (b) { if (!soloLectura && UI.paso < 6) leerBloque(BLOQUES[UI.paso].k, D); UI.paso = +b.dataset.p; render(); } };
   const box = $('#bloque');
+  if (box && !soloLectura) box.oninput = () => { if (UI.paso < 6) { leerBloque(BLOQUES[UI.paso].k, D); try { localStorage.setItem(BORR, JSON.stringify(Object.assign({}, D, { _ok: undefined }))); } catch (e) {} } };
   if (UI.paso === 6) { box.innerHTML = resumenPrework(D); return; }
   const b = BLOQUES[UI.paso];
   const dis = soloLectura ? 'disabled' : '';
