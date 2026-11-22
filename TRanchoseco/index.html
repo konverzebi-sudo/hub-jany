@@ -330,6 +330,12 @@ function completar(d){
     matchesMig=matchesMig.map(m=>ren[m.arbitro]?{...m,arbitro:ren[m.arbitro]}:m);
     cfg.v3=true;
   }
+  if(!cfg.historial) cfg.historial=[];
+  if(!cfg.v4){ // partidos de prueba con el árbitro "o" pasan a otro árbitro (una sola vez)
+    matchesMig=matchesMig.map(m=>m.arbitro==='o'?{...m,arbitro:'Luis Arturo Jiménez Vázquez'}:m);
+    cfg.historial=[{fecha:new Date().toISOString(),texto:'Partidos con árbitro "o" pasados a Luis Arturo Jiménez Vázquez'},...cfg.historial];
+    cfg.v4=true;
+  }
   // Marco es inversionista: no recibe pagos (si no tiene rol, se pone este)
   cfg.roles={...(cfg.roles||{})};
   if(!cfg.roles.Marco) cfg.roles.Marco='Inversionista';
@@ -984,7 +990,7 @@ function abrirFicha(tid){
     <h4>Pagos (${pays.length})</h4>
     ${pays.length?`<ul class="plist">${pays.map(p=>`<li><span>${esc(p.fecha)} · ${p.tipo==='inscripcion'?'Inscripción':'Arbitraje'} · <b>${money(p.monto)}</b><br><small>${esc(p.recibio)} · ${p.metodo==='transferencia'?'Transferencia':'Efectivo'}${p.cuenta?' · '+esc(p.cuenta):''}${p.nota?' · '+esc(p.nota):''}</small></span></li>`).join('')}</ul>`:'<p class="muted">Aún no hay pagos.</p>'}
     ${juegosTablaHTML(tid)}
-    <div class="actions"><button type="button" class="btn ghost" data-act="close">Cerrar</button></div>
+    <div class="actions"><button type="button" class="btn danger" data-act="delteam" data-id="${esc(tid)}">Borrar equipo</button><button type="button" class="btn ghost" data-act="close">Cerrar</button></div>
   </div>`);
 }
 const SILBATO='<img src="silbato.png" alt="" class="silb">';
@@ -1447,12 +1453,15 @@ function similares(name){
 }
 function deleteTeam(id){
   const t=teamById(id); if(!t) return;
-  if(matchesOf(id).length||db.payments.some(p=>p.teamId===id)){
-    alert(`${t.name} tiene partidos o pagos registrados, no se puede borrar.`);return;
-  }
-  if(!confirm(`¿Borrar el equipo ${t.name}?`)) return;
+  const ms=matchesOf(id), pays=db.payments.filter(p=>p.teamId===id);
+  const aviso=(ms.length||pays.length)?`\n\nTambién se borrarán ${ms.length} partido(s) y ${pays.length} pago(s) de este equipo.`:'';
+  if(!confirm(`¿Borrar el equipo ${t.name}?${aviso}`)) return;
+  const idsM=new Set(ms.map(m=>m.id));
+  db.matches=db.matches.filter(m=>!idsM.has(m.id));
+  db.payments=db.payments.filter(p=>p.teamId!==id);
   db.teams=db.teams.filter(x=>x.id!==id);
-  save(); renderAll();
+  registrar(`Equipo borrado: ${t.name} (${ms.length} partido(s), ${pays.length} pago(s))`);
+  save(); closeModal(); renderAll();
 }
 // Día completo de un partido, por ejemplo "sábado 21 de noviembre"
 function diaCompleto(iso){
@@ -1501,13 +1510,33 @@ function quitarPersona(n){
 function arbNom(a){return ((db&&db.config&&db.config.apodos)||{})[a]||a;}
 // Nombre completo y, al lado, su apodo entre paréntesis si lo tiene
 function arbNombreHTML(a){const ap=((db&&db.config&&db.config.apodos)||{})[a];return esc(a)+(ap?` <small class="muted">(${esc(ap)})</small>`:'');}
-function editApodo(n){
-  openModal(`<form id="ap-form"><h3>Apodo de ${esc(n)}</h3><label>Apodo<input id="ap-v" autocomplete="off" value="${esc((db.config.apodos||{})[n]||'')}" placeholder="Ej. OSO"></label><div class="actions"><button type="button" class="btn ghost" data-act="close">Cancelar</button><button class="btn primary">Guardar</button></div></form>`);
+// Registro de cambios (se muestra en Ajustes)
+function registrar(texto){
+  db.config.historial=[{fecha:new Date().toISOString(),texto},...(db.config.historial||[])].slice(0,200);
+}
+// Editar nombre completo y apodo de un árbitro
+function editArbitro(n){
+  const ap0=(db.config.apodos||{})[n]||'';
+  openModal(`<form id="ap-form"><h3>Editar árbitro</h3><label>Nombre completo<input id="ar-n" autocomplete="off" value="${esc(n)}"></label><label>Apodo<input id="ap-v" autocomplete="off" value="${esc(ap0)}" placeholder="Ej. OSO (opcional)"></label><div class="actions"><button type="button" class="btn ghost" data-act="close">Cancelar</button><button class="btn primary">Guardar</button></div></form>`);
   $('#ap-form').onsubmit=e=>{
     e.preventDefault();
+    const nn=$('#ar-n').value.trim();
     const v=$('#ap-v').value.trim();
-    db.config.apodos={...(db.config.apodos||{})};
-    if(v) db.config.apodos[n]=v; else delete db.config.apodos[n];
+    if(!nn) return alert('Escribe el nombre');
+    const lista=db.config.arbitros||[];
+    if(nn!==n && lista.some(x=>norm(x)===norm(nn))) return alert('Ya hay un árbitro con ese nombre');
+    const cambios=[];
+    if(nn!==n){
+      db.config.arbitros=lista.map(x=>x===n?nn:x);
+      db.matches=db.matches.map(m=>m.arbitro===n?{...m,arbitro:nn}:m);
+      cambios.push(`nombre "${n}" → "${nn}"`);
+    }
+    const apodos={...(db.config.apodos||{})};
+    delete apodos[n];
+    if(v) apodos[nn]=v;
+    db.config.apodos=apodos;
+    if(v!==ap0) cambios.push(v?`apodo "${v}"`:'apodo quitado');
+    if(cambios.length) registrar(`Árbitro ${nn}: ${cambios.join(', ')}`);
     save(); closeModal(); renderAjustes();
   };
 }
@@ -1516,11 +1545,13 @@ function addArbitro(){
   if(!n) return alert('Escribe el nombre del árbitro');
   if((db.config.arbitros||[]).some(x=>norm(x)===norm(n))) return alert('Ese árbitro ya está en la lista');
   db.config.arbitros=[...(db.config.arbitros||[]),n];
+  registrar(`Árbitro agregado: ${n}`);
   save(); renderAjustes();
 }
 function quitarArbitro(n){
   if(!confirm(`¿Quitar a ${n} de la lista?`)) return;
   db.config.arbitros=db.config.arbitros.filter(x=>x!==n);
+  registrar(`Árbitro quitado: ${n}`);
   save(); renderAjustes();
 }
 function renderAjustes(){
@@ -1543,9 +1574,13 @@ function renderAjustes(){
     </div>
     <div class="card">
       <h3>Árbitros</h3>
-      <ul class="plist">${(db.config.arbitros||[]).map(a=>`<li><span><b>${arbNombreHTML(a)}</b></span><span><button class="btn ghost sm" data-act="editapodo" data-n="${esc(a)}">Apodo</button> <button class="btn danger sm" data-act="quitarb" data-n="${esc(a)}">Quitar</button></span></li>`).join('')||'<li class="muted">Aún no hay árbitros.</li>'}</ul>
+      <ul class="plist">${(db.config.arbitros||[]).map(a=>`<li><span><b>${arbNombreHTML(a)}</b></span><span><button class="btn ghost sm" data-act="editapodo" data-n="${esc(a)}">Editar</button> <button class="btn danger sm" data-act="quitarb" data-n="${esc(a)}">Quitar</button></span></li>`).join('')||'<li class="muted">Aún no hay árbitros.</li>'}</ul>
       <div class="addrow"><input id="na-n" autocomplete="off" placeholder="Nombre del árbitro"></div>
       <div class="actions" style="justify-content:flex-start;margin-top:0"><button class="btn primary sm" data-act="addarb">+ Agregar árbitro</button></div>
+    </div>
+    <div class="card">
+      <h3>Historial de cambios</h3>
+      <ul class="plist">${(db.config.historial||[]).map(h=>`<li><span><small class="muted">${esc(new Date(h.fecha).toLocaleString('es-MX',{dateStyle:'medium',timeStyle:'short'}))}</small><br>${esc(h.texto)}</span></li>`).join('')||'<li class="muted">Aún no hay cambios.</li>'}</ul>
     </div>
     <div class="card">
       <h3>Respaldo</h3>
@@ -1657,7 +1692,7 @@ document.addEventListener('click',e=>{
     case 'quitarp': quitarPersona(d.n); break;
     case 'addarb': addArbitro(); break;
     case 'quitarb': quitarArbitro(d.n); break;
-    case 'editapodo': editApodo(d.n); break;
+    case 'editapodo': editArbitro(d.n); break;
     case 'filtro': filtroPagos={...filtroPagos,modo:d.modo,abierto:false}; renderPagos(); break;
     case 'periodo': filtroPagos={...filtroPagos,abierto:!filtroPagos.abierto}; renderPagos(); break;
     case 'calprev':
