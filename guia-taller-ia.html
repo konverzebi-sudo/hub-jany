@@ -1563,13 +1563,14 @@ function srcEjercicio(v) {
 }
 /* Tamaño de la caja de la presentación en la vista del ponente: 'mini', 'real' (normal) o 'completa' (pantalla completa) */
 let TAM_CAJA = 'real';
+let FIJAR_CAJA = true;   // 📌: si está encendido, la presentación se queda pegada debajo de la barra (salvo mientras hay una dinámica activa)
 function cajasVista(v) {
   // Cada cuadro arranca con su lugar correcto (grande, chico u oculto), igual que aplicarVistaDom; si no, el ejercicio tapa la presentación
   const clase = k => v.grande === k ? 'grande' : v.chico === k ? 'chico' : 'oculto';
   const zoomClase = v.grande === 'cara' || v.grande === 'pant' ? 'grande' : (v.chico === 'cara' || v.chico === 'pant' ? 'chico' : 'oculto');
   const tam = b => `<button type="button" class="${TAM_CAJA === b ? 'on' : ''}" data-tam="${b}">${b === 'mini' ? '▭ Mini' : '▭ Real'}</button>`;
-  return `<div class="vista-box${MODO_PONENTE && !hayActividadActiva() ? ' pegado' : ''}${MODO_PONENTE && TAM_CAJA === 'mini' ? ' tam-mini' : ''}">
-    ${MODO_PONENTE ? `<div class="tam-grupo">${tam('mini')}${tam('real')}<button type="button" data-vfull title="Ver a pantalla completa">⛶ Completa</button></div>` : ''}
+  return `<div class="vista-box${MODO_PONENTE && FIJAR_CAJA && !hayActividadActiva() ? ' pegado' : ''}${MODO_PONENTE && TAM_CAJA === 'mini' ? ' tam-mini' : ''}">
+    ${MODO_PONENTE ? `<div class="tam-grupo"><button type="button" class="${FIJAR_CAJA ? 'on' : ''}" data-fijar title="${FIJAR_CAJA ? 'Quitar la fijación' : 'Fijar la presentación'}" aria-label="${FIJAR_CAJA ? 'Quitar la fijación' : 'Fijar la presentación'}">📌</button>${tam('mini')}${tam('real')}<button type="button" data-vfull title="Ver a pantalla completa">⛶ Completa</button></div>` : ''}
     <div class="vi vi-cara ${zoomClase}">${MODO_PONENTE ? `<iframe class="zoom-vivo" src="taller-app/zoom.html" title="Clase en vivo por Zoom" allow="camera; microphone; fullscreen; display-capture; autoplay"></iframe>` : `<div class="zoom-espera" aria-label="Clase en vivo por Zoom">🎥 Clase en vivo por Zoom</div>`}</div>
     <div class="vi vi-pres ${clase('pres')}"><iframe src="taller-app/?embed=presentacion${MODO_PONENTE ? '&rol=ponente' : ''}" title="Presentación en vivo"></iframe></div>
     <div class="vi vi-ej ${clase('ej')}"><iframe src="${srcEjercicio(v)}" title="Ejercicio"></iframe></div>
@@ -1722,8 +1723,16 @@ function hayActividadActiva() {
 }
 function aplicarPegado() {
   const caja = document.querySelector('.vista-box'); if (!caja || !MODO_PONENTE) return;
-  caja.classList.toggle('pegado', !hayActividadActiva());
+  caja.classList.toggle('pegado', FIJAR_CAJA && !hayActividadActiva());
 }
+/* 📌 Fija o suelta la presentación */
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-fijar]'); if (!b) return;
+  FIJAR_CAJA = !FIJAR_CAJA;
+  b.classList.toggle('on', FIJAR_CAJA);
+  b.title = FIJAR_CAJA ? 'Quitar la fijación' : 'Fijar la presentación'; b.setAttribute('aria-label', b.title);
+  aplicarPegado();
+});
 /* Botones Mini / Real: cambian el tamaño de la presentación al instante (Completa usa pantalla completa) */
 document.addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('[data-tam]'); if (!b) return;
