@@ -194,6 +194,12 @@
   .vc-row select { width: auto; }
   body:has(.vista-box) .view { max-width: none; padding: 24px 28px 60px; }
   .vista-box { position: relative; height: min(calc(100vh - 170px), 560px); min-height: 420px; background: #0F0B16; border-radius: 16px; overflow: hidden; margin-top: 16px; }
+  /* En la vista del ponente, la presentación se queda pegada debajo de la barra fija mientras se baja la página */
+  .vista-box.pegado { position: sticky; top: calc(var(--topH, 76px) + var(--avisoH, 70px) + 12px); z-index: 10; height: min(calc(100vh - var(--topH, 76px) - var(--avisoH, 70px) - 28px), 560px); min-height: 300px; box-shadow: 0 8px 24px rgba(15,11,22,.25); }
+  .vista-box.tam-mini { height: 260px !important; min-height: 0 !important; }
+  .tam-grupo { position: absolute; right: 12px; top: 12px; z-index: 6; display: inline-flex; gap: 4px; padding: 4px; border-radius: 99px; background: rgba(15,11,22,.75); }
+  .tam-grupo button { border: 0; background: transparent; color: #fff; font: 700 12px 'Sora', sans-serif; padding: 6px 10px; border-radius: 99px; cursor: pointer; }
+  .tam-grupo button.on { background: #BBF802; color: #0F0B16; }
   .vi { position: absolute; inset: 0; transition: opacity .2s; }
   .vi iframe { width: 100%; height: 100%; border: 0; display: block; background: #0F0B16; }
   .vi.grande { z-index: 1; }
@@ -228,7 +234,8 @@
   .lt-flecha { font-size: 16px; color: #6B6480; }
   .lt-panel { margin-top: 12px; border: 1px solid #d9d2e8; border-radius: 14px; overflow: hidden; background: #fff; }
   .lt-panel .embed-taller { margin-top: 0; height: 160px; min-height: 0; }
-  #avisoPonente { position: sticky; top: 0; z-index: 30; background: var(--bg); padding: 10px 0 12px; margin-bottom: 8px; }
+  /* La barra del ponente queda justo debajo de la barra superior de la guía, aunque la página baje */
+  #avisoPonente { position: sticky; top: var(--topH, 76px); z-index: 30; background: var(--bg); padding: 10px 0 12px; margin-bottom: 8px; }
   #avisoPonente .btn.vivo-on { background: #D62828; color: #fff; }
   .aviso-fila { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
   .aviso-fila > small { margin-right: 2px; }
@@ -1373,6 +1380,12 @@ function avisoPonente() {
 }
 /* Aviso para todos los perfiles mientras la clase está en vivo */
 function bannerVivo() { return ENVIVO && !MODO_PONENTE ? '<div id="bannerVivo" class="banner-vivo">● ¡Estamos en VIVO!</div>' : ''; }
+/* Mide la barra superior de la guía para que la barra del ponente quede justo debajo, también al cambiar el tamaño */
+function medirTopbar() {
+  const t = document.querySelector('.topbar'); if (t) document.documentElement.style.setProperty('--topH', t.offsetHeight + 'px');
+  const a = document.getElementById('avisoPonente'); if (a) document.documentElement.style.setProperty('--avisoH', a.offsetHeight + 'px');
+}
+window.addEventListener('resize', medirTopbar);
 function paginaActual() {
   const page = (decodeURIComponent(location.hash.slice(1)) || 'inicio').split('/')[0];
   return page.startsWith('clase-') ? page.slice(6) : page;
@@ -1548,12 +1561,16 @@ function srcEjercicio(v) {
   const a = actividadEnCurso();
   return a ? `taller-app/?embed=${encodeURIComponent(a.et.embed)}&llena=1` : `guia-taller-ia.html#clase-${v.ej}`;
 }
+/* Tamaño de la caja de la presentación en la vista del ponente: 'mini', 'real' (normal) o 'completa' (pantalla completa) */
+let TAM_CAJA = 'real';
+let FIJAR_CAJA = true;   // 📌: si está encendido, la presentación se queda pegada debajo de la barra (salvo mientras hay una dinámica activa)
 function cajasVista(v) {
   // Cada cuadro arranca con su lugar correcto (grande, chico u oculto), igual que aplicarVistaDom; si no, el ejercicio tapa la presentación
   const clase = k => v.grande === k ? 'grande' : v.chico === k ? 'chico' : 'oculto';
   const zoomClase = v.grande === 'cara' || v.grande === 'pant' ? 'grande' : (v.chico === 'cara' || v.chico === 'pant' ? 'chico' : 'oculto');
-  return `<div class="vista-box">
-    ${MODO_PONENTE ? `<button type="button" class="vista-full" data-vfull title="Ver a pantalla completa">⛶ Pantalla completa</button>` : ''}
+  const tam = b => `<button type="button" class="${TAM_CAJA === b ? 'on' : ''}" data-tam="${b}">${b === 'mini' ? '▭ Mini' : '▭ Real'}</button>`;
+  return `<div class="vista-box${MODO_PONENTE && FIJAR_CAJA && !hayActividadActiva() ? ' pegado' : ''}${MODO_PONENTE && TAM_CAJA === 'mini' ? ' tam-mini' : ''}">
+    ${MODO_PONENTE ? `<div class="tam-grupo"><button type="button" class="${FIJAR_CAJA ? 'on' : ''}" data-fijar title="${FIJAR_CAJA ? 'Quitar la fijación' : 'Fijar la presentación'}" aria-label="${FIJAR_CAJA ? 'Quitar la fijación' : 'Fijar la presentación'}">📌</button>${tam('mini')}${tam('real')}<button type="button" data-vfull title="Ver a pantalla completa">⛶ Completa</button></div>` : ''}
     <div class="vi vi-cara ${zoomClase}">${MODO_PONENTE ? `<iframe class="zoom-vivo" src="taller-app/zoom.html" title="Clase en vivo por Zoom" allow="camera; microphone; fullscreen; display-capture; autoplay"></iframe>` : `<div class="zoom-espera" aria-label="Clase en vivo por Zoom">🎥 Clase en vivo por Zoom</div>`}</div>
     <div class="vi vi-pres ${clase('pres')}"><iframe src="taller-app/?embed=presentacion${MODO_PONENTE ? '&rol=ponente' : ''}" title="Presentación en vivo"></iframe></div>
     <div class="vi vi-ej ${clase('ej')}"><iframe src="${srcEjercicio(v)}" title="Ejercicio"></iframe></div>
@@ -1699,7 +1716,30 @@ function nodoLinea(x) {
   const dato = MODO_PONENTE ? ` data-lock="${esc(c.id)}" title="${cerrada ? 'Cerrada para alumnos: toca para abrirla' : 'Abierta para alumnos: toca para cerrarla'}"` : '';
   return `<span class="lt-nodo ${cerrada ? 'cerrada' : ''}"${dato}>${cerrada ? '🔒' : ''}</span>`;
 }
-function refrescarLinea() { const el = document.getElementById('lineaTiempo'); if (el) { el.outerHTML = lineaTiempoHtml(); ajustarPanelesLinea(); } }
+function refrescarLinea() { const el = document.getElementById('lineaTiempo'); if (el) { el.outerHTML = lineaTiempoHtml(); ajustarPanelesLinea(); } aplicarPegado(); }
+/* Mientras hay una dinámica activa, la presentación deja de estar pegada para que se pueda trabajar con la dinámica */
+function hayActividadActiva() {
+  return CLASES.some(c => (c.etapas || []).some((et, k) => esAct(et) && estadoAct(c, k) === 'activa'));
+}
+function aplicarPegado() {
+  const caja = document.querySelector('.vista-box'); if (!caja || !MODO_PONENTE) return;
+  caja.classList.toggle('pegado', FIJAR_CAJA && !hayActividadActiva());
+}
+/* 📌 Fija o suelta la presentación */
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-fijar]'); if (!b) return;
+  FIJAR_CAJA = !FIJAR_CAJA;
+  b.classList.toggle('on', FIJAR_CAJA);
+  b.title = FIJAR_CAJA ? 'Quitar la fijación' : 'Fijar la presentación'; b.setAttribute('aria-label', b.title);
+  aplicarPegado();
+});
+/* Botones Mini / Real: cambian el tamaño de la presentación al instante (Completa usa pantalla completa) */
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-tam]'); if (!b) return;
+  TAM_CAJA = b.dataset.tam;
+  const caja = document.querySelector('.vista-box'); if (caja) caja.classList.toggle('tam-mini', TAM_CAJA === 'mini');
+  document.querySelectorAll('[data-tam]').forEach(x => x.classList.toggle('on', x.dataset.tam === TAM_CAJA));
+});
 /* El panel se ajusta solo a su contenido (la plataforma avisa su altura real a la guía) */
 function ajustarPanelesLinea() { document.querySelectorAll('.lt-panel').forEach(p => { p.style.height = ''; }); }
 function viewEnVivo() {
@@ -1834,6 +1874,7 @@ function route() {
   else if (page === 'en-vivo') html = viewEnVivo();
   if (!html) { html = viewInicio(); activo = 'inicio'; }
   $('#view').innerHTML = (MODO_PONENTE ? avisoPonente() : bannerVivo()) + html;
+  medirTopbar();
   ajustarPanelesLinea();
   if (window.GuiaMetricas) window.GuiaMetricas.montar();
   pintarCuenta(); pintarRecordatorios();
