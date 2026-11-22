@@ -228,7 +228,8 @@
   .lt-flecha { font-size: 16px; color: #6B6480; }
   .lt-panel { margin-top: 12px; border: 1px solid #d9d2e8; border-radius: 14px; overflow: hidden; background: #fff; }
   .lt-panel .embed-taller { margin-top: 0; height: 160px; min-height: 0; }
-  #avisoPonente { position: sticky; top: 0; z-index: 30; background: var(--bg); padding: 10px 0 12px; margin-bottom: 8px; }
+  /* La barra del ponente queda justo debajo de la barra superior de la guía, aunque la página baje */
+  #avisoPonente { position: sticky; top: var(--topH, 76px); z-index: 30; background: var(--bg); padding: 10px 0 12px; margin-bottom: 8px; }
   #avisoPonente .btn.vivo-on { background: #D62828; color: #fff; }
   .aviso-fila { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
   .aviso-fila > small { margin-right: 2px; }
@@ -1373,6 +1374,11 @@ function avisoPonente() {
 }
 /* Aviso para todos los perfiles mientras la clase está en vivo */
 function bannerVivo() { return ENVIVO && !MODO_PONENTE ? '<div id="bannerVivo" class="banner-vivo">● ¡Estamos en VIVO!</div>' : ''; }
+/* Mide la barra superior de la guía para que la barra del ponente quede justo debajo, también al cambiar el tamaño */
+function medirTopbar() {
+  const t = document.querySelector('.topbar'); if (t) document.documentElement.style.setProperty('--topH', t.offsetHeight + 'px');
+}
+window.addEventListener('resize', medirTopbar);
 function paginaActual() {
   const page = (decodeURIComponent(location.hash.slice(1)) || 'inicio').split('/')[0];
   return page.startsWith('clase-') ? page.slice(6) : page;
@@ -1834,6 +1840,7 @@ function route() {
   else if (page === 'en-vivo') html = viewEnVivo();
   if (!html) { html = viewInicio(); activo = 'inicio'; }
   $('#view').innerHTML = (MODO_PONENTE ? avisoPonente() : bannerVivo()) + html;
+  medirTopbar();
   ajustarPanelesLinea();
   if (window.GuiaMetricas) window.GuiaMetricas.montar();
   pintarCuenta(); pintarRecordatorios();
