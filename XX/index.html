@@ -2439,10 +2439,15 @@
   }
   function recomputeDrag(){
     if(!wkDrag) return;
-    var d0 = Math.min(wkDrag.anchor.d, wkDrag.cur.d), d1 = Math.max(wkDrag.anchor.d, wkDrag.cur.d);
-    var h0 = Math.min(wkDrag.anchor.h, wkDrag.cur.h), h1 = Math.max(wkDrag.anchor.h, wkDrag.cur.h);
     var next = new Set(wkDrag.base);
-    for(var dd = d0; dd <= d1; dd++) for(var hh = h0; hh <= h1; hh++) next.add(dd + '-' + hh);
+    if(wkDrag.rect){
+      var d0 = Math.min(wkDrag.anchor.d, wkDrag.cur.d), d1 = Math.max(wkDrag.anchor.d, wkDrag.cur.d);
+      var h0 = Math.min(wkDrag.anchor.h, wkDrag.cur.h), h1 = Math.max(wkDrag.anchor.h, wkDrag.cur.h);
+      for(var dd = d0; dd <= d1; dd++) for(var hh = h0; hh <= h1; hh++) next.add(dd + '-' + hh);
+    } else {
+      var t0 = wkDrag.anchor.d * 24 + wkDrag.anchor.h, t1 = wkDrag.cur.d * 24 + wkDrag.cur.h;
+      for(var t = Math.min(t0, t1); t <= Math.max(t0, t1); t++) next.add(Math.floor(t / 24) + '-' + (t % 24));
+    }
     weekSelSet = next;
     Object.keys(cellEls).forEach(function(k){ paintCell(cellEls[k], weekSelSet.has(k)); });
   }
@@ -2632,7 +2637,7 @@
     if(!weekSelSet.size){ bar.style.display = 'none'; bar.innerHTML = ''; return; }
     var n = weekSelSet.size;
     var canCopy = n === 1 && cellEntries(Array.from(weekSelSet)[0]).length > 0;
-    var hint = weekMsg || (canCopy ? '1 horario seleccionado · arrastra este cuadro sobre otros para copiarles su info' : n + ' horario' + (n === 1 ? '' : 's') + ' seleccionado' + (n === 1 ? '' : 's') + ' · arrastra o toca para sumar más');
+    var hint = weekMsg || (canCopy ? '1 horario seleccionado · arrastra este cuadro sobre otros para copiarles su info' : n + ' horario' + (n === 1 ? '' : 's') + ' seleccionado' + (n === 1 ? '' : 's') + ' · arrastra para sumar más (pasa solo al día siguiente; con Shift eliges el mismo horario en varios días)');
     bar.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap;';
     bar.innerHTML = '<span class="jd-sub" style="flex:1;min-width:140px;">' + hint + '</span>' +
       (canCopy ? '<button type="button" class="jd-btn" id="jd-week-copy">Copiar</button>' : '') +
@@ -2744,7 +2749,7 @@
         ev.preventDefault();
         hideWeekMenu();
         // arrastrar SUMA a lo que ya estaba seleccionado; un clic suelto marca o desmarca ese cuadro
-        wkDrag = {base: new Set(weekSelSet), anchor: {d: dayIdx, h: hour}, cur: {d: dayIdx, h: hour}, moved: false, key: key, fill: weekSelSet.size === 1 && weekSelSet.has(key) && cellEntries(key).length > 0};
+        wkDrag = {base: new Set(weekSelSet), anchor: {d: dayIdx, h: hour}, cur: {d: dayIdx, h: hour}, moved: false, key: key, rect: !!ev.shiftKey, fill: weekSelSet.size === 1 && weekSelSet.has(key) && cellEntries(key).length > 0};
       });
       cell.addEventListener('pointerenter', function(){
         if(!wkDrag) return;
