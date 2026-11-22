@@ -223,6 +223,9 @@
   .lt-tit { font: 800 26px/1.1 'Sora', sans-serif; margin: 6px 0 8px; color: #111; }
   .lt-txt { color: #4a4560; margin: 0 0 8px; }
   .lt-din { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+  .lt-tog { display: inline-flex; align-items: center; gap: 10px; background: none; border: 0; padding: 0; cursor: pointer; color: #111; text-align: left; }
+  .lt-tog:focus-visible { outline: 3px solid #BBF802; outline-offset: 4px; border-radius: 6px; }
+  .lt-flecha { font-size: 16px; color: #6B6480; }
   .lt-panel { margin-top: 12px; border: 1px solid #d9d2e8; border-radius: 14px; overflow: hidden; background: #fff; }
   .lt-panel .embed-taller { margin-top: 0; height: 160px; min-height: 0; }
   .lt-din .btn.ghost { color: #1B1530; background: #fff; border: 1px solid #c9bfe0; }
@@ -1203,6 +1206,7 @@ window.addEventListener('message', ev => {
 });
 document.addEventListener('click', e => { if (e.target.closest('[data-abrir-ayuda]')) document.getElementById('ayudaFab')?.click(); });
 document.addEventListener('click', e => { const o = e.target.closest && e.target.closest('[data-lt-ocultar]'); if (!o) return; const k = o.dataset.ltOcultar; LT_OCULTOS.has(k) ? LT_OCULTOS.delete(k) : LT_OCULTOS.add(k); refrescarLinea(); });
+document.addEventListener('click', e => { const t = e.target.closest && e.target.closest('[data-lt-desp]'); if (!t) return; const i = Number(t.dataset.ltDesp); LT_ABIERTOS.has(i) ? LT_ABIERTOS.delete(i) : LT_ABIERTOS.add(i); refrescarLinea(); });
 document.addEventListener('click', e => { const lk = e.target.closest && e.target.closest('[data-lock]'); if (!lk) return; const c = CLASES.find(x => x.id === lk.dataset.lock); if (!c) return; guardarRemoto('clase:' + c.id, bloqueoDeClase(c, c.mod)); refrescarNumerosPP(); setTimeout(refrescarLinea, 400); });
 document.addEventListener('click', e => { const en = e.target.closest && e.target.closest('[data-enviar]'); if (!en) return; const [cid, kk] = en.dataset.enviar.split('|'); escribirEnVivo(ENVIVO, { hash: 'clase-' + cid + '/etapa-' + (Number(kk) + 1), t: new Date().toISOString() }); });
 document.addEventListener('click', e => { const rs = e.target.closest && e.target.closest('[data-resultados]'); if (!rs) return; const f = [...document.querySelectorAll('#lineaTiempo iframe.embed-taller')].find(x => x.dataset.din === rs.dataset.resultados); if (f && f.contentWindow) f.contentWindow.postMessage({ taller: 'resultados' }, '*'); });
@@ -1614,6 +1618,7 @@ function hallarEtapa(embed) {
   return null;
 }
 const LT_OCULTOS = new Set();   // paneles de la línea de tiempo que el ponente ocultó (solo en su pantalla)
+const LT_ABIERTOS = new Set();  // pasos de la línea de tiempo con su desglose desplegado (índice del paso)
 function botonesDinLinea(x) {
   return x.din.map(([n, d, embed]) => {
     const h = embed && MODO_PONENTE ? hallarEtapa(embed) : null;
@@ -1643,9 +1648,14 @@ function lineaTiempoHtml() {
   return `<div class="card lt" id="lineaTiempo" style="margin-top:26px"><span class="eyebrow">Mapa de la clase</span>
     ${LINEA_TIEMPO.map((x, i) => `<div class="lt-item">${nodoLinea(x)}
       <div class="lt-eb">Paso ${i + 1} · ${esc(x.mod)}</div>
-      <h3 class="lt-tit">${esc(x.clase)}</h3>
+      ${x.din.length ? ltTituloDesplegable(i, x) : `<h3 class="lt-tit">${esc(x.clase)}</h3>`}
       <p class="lt-txt">${esc(x.dias)}</p>
-      ${botonesDinLinea(x)}</div>`).join('')}</div>`;
+      ${LT_ABIERTOS.has(i) ? botonesDinLinea(x) : ''}</div>`).join('')}</div>`;
+}
+/* Al tocar el nombre del paso se despliega (o se esconde) el desglose de sus dinámicas */
+function ltTituloDesplegable(i, x) {
+  const abierto = LT_ABIERTOS.has(i);
+  return `<h3 class="lt-tit"><button type="button" class="lt-tog" data-lt-desp="${i}" aria-expanded="${abierto}" title="${abierto ? 'Ocultar dinámicas' : 'Ver dinámicas de este módulo'}"><span>${esc(x.clase)}</span><span class="lt-flecha" aria-hidden="true">${abierto ? '▲' : '▼'}</span></button></h3>`;
 }
 /* Punto de la línea de tiempo: abierto = verde con contorno negro; cerrado = negro con contorno verde y candado. Un toque lo cambia. */
 function nodoLinea(x) {
