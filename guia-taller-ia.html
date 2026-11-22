@@ -1201,6 +1201,8 @@ window.addEventListener('message', ev => {
 });
 document.addEventListener('click', e => { if (e.target.closest('[data-abrir-ayuda]')) document.getElementById('ayudaFab')?.click(); });
 document.addEventListener('click', e => { const o = e.target.closest && e.target.closest('[data-lt-ocultar]'); if (!o) return; const k = o.dataset.ltOcultar; LT_OCULTOS.has(k) ? LT_OCULTOS.delete(k) : LT_OCULTOS.add(k); refrescarLinea(); });
+document.addEventListener('click', e => { const en = e.target.closest && e.target.closest('[data-enviar]'); if (!en) return; const [cid, kk] = en.dataset.enviar.split('|'); escribirEnVivo(ENVIVO, { hash: 'clase-' + cid + '/etapa-' + (Number(kk) + 1), t: new Date().toISOString() }); });
+document.addEventListener('click', e => { const rs = e.target.closest && e.target.closest('[data-resultados]'); if (!rs) return; const f = [...document.querySelectorAll('#lineaTiempo iframe.embed-taller')].find(x => x.dataset.din === rs.dataset.resultados); if (f && f.contentWindow) f.contentWindow.postMessage({ taller: 'resultados' }, '*'); });
 /* Reacciones: un toque = lluvia de emojis de dinero sobre la ventanita (por ahora solo en tu pantalla;
    al conectar usuarios se mandarán en vivo a todos por el canal de la sesión) */
 const EMOJIS_DINERO = ['💰', '💸', '🤑', '💵', '💲', '🪙', '💶', '💷', '💴', '🏦', '💳', '🫰'];
@@ -1565,8 +1567,11 @@ document.addEventListener('click', e => {
   const pa = t.closest && t.closest('[data-ppa]'); if (pa) {
     const [id, k] = pa.dataset.ppa.split('|'); const c = CLASES.find(x => x.id === id); if (!c) return;
     const nuevo = pa.dataset.val; // 'activa' al dar play; 'fin' al terminar
+    // Solo una dinámica activa a la vez: al activar esta, las demás activas pasan a pausa
+    if (nuevo === 'activa') CLASES.forEach(cc => (cc.etapas || []).forEach((et, kk) => { if (esAct(et) && (cc.id + '|' + kk) !== id && estadoAct(cc, kk) === 'activa') guardarRemoto('act:' + cc.id + '|' + kk, 'pausa'); }));
     guardarRemoto('act:' + id + '|' + k, nuevo);
-    guardarRemoto('etapa:' + id + '|' + k, nuevo === 'activa'); // los alumnos la ven mientras está activa
+    // Los alumnos siguen viendo la dinámica (y sus resultados) mientras no se reinicie; solo se oculta al reiniciar
+    guardarRemoto('etapa:' + id + '|' + k, nuevo !== 'lista');
     // Al activar, todos los alumnos pasan a esa clase y a su etapa
     if (nuevo === 'activa') escribirEnVivo(ENVIVO, { hash: 'clase-' + id.split('|')[0] + '/etapa-' + (Number(k) + 1), t: new Date().toISOString() });
     mostrarDetallePP(id); refrescarRespuestas(); refrescarLinea(); aplicarVistaDom(leerVista()); return;
@@ -1615,7 +1620,9 @@ function botonesDinLinea(x) {
       if (est === 'activa') {
         const oculto = LT_OCULTOS.has(embed);
         accion = `<button type="button" class="btn sm" data-ppa="${id}" data-val="pausa">❚❚ Pausar</button>`
-          + `<button type="button" class="btn ghost sm" data-lt-ocultar="${esc(embed)}">${oculto ? '👁 Ver panel' : '🙈 Ocultar panel'}</button>`;
+          + `<button type="button" class="btn ghost sm" data-lt-ocultar="${esc(embed)}" title="${oculto ? 'Mostrar panel' : 'Ocultar panel'}" aria-label="${oculto ? 'Mostrar panel' : 'Ocultar panel'}">${oculto ? '🖥️' : '🙈'}</button>`
+          + `<button type="button" class="btn ghost sm" data-enviar="${id}" title="Enviar a todos al ejercicio" aria-label="Enviar a todos al ejercicio">👁</button>`
+          + `<button type="button" class="btn ghost sm" data-resultados="${esc(embed)}" title="Ver respuestas" aria-label="Ver respuestas">📊</button>`;
         if (!oculto) panel = `<div class="lt-panel"><iframe class="embed-taller" data-din="${esc(embed)}" src="taller-app/?embed=${encodeURIComponent(embed)}&rol=ponente&solo=control" title="${esc(n)}" loading="lazy"></iframe></div>`;
       } else if (est === 'pausa') {
         accion = `<span class="small muted">⏸ En pausa</span>`
