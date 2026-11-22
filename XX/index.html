@@ -103,6 +103,12 @@
   .jd-wd-ed.open{grid-template-rows:1fr;}
   .jd-wd-ed-in{overflow:hidden;min-height:0;}
   .jd-wd-hr{font-size:11px;font-weight:700;color:#8A86A8;letter-spacing:.06em;margin-top:8px;}
+  .jd-wk-hab{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1;pointer-events:none;overflow:hidden;font-family:'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;}
+  .jd-wk-hab.multi{font-size:9.5px;letter-spacing:-1px;}
+  .jd-wk-hab.many{font-size:7.5px;letter-spacing:-.5px;}
+  .jd-wd-habs{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px;}
+  .jd-wd-hab{display:inline-flex;align-items:center;gap:5px;background:#F4FCD2;border:1px solid #C9F507;border-radius:999px;padding:3px 10px;font-size:12px;color:#1F1B3D;}
+  .jd-wd-hab b{font-weight:700;}
   .jd-wk-dot{position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:50%;background:#1F1B3D;opacity:.55;pointer-events:none;}
   @media(max-width:560px){.jd-wk-ov{align-items:flex-end;padding:0;}.jd-wk-box{border-radius:22px 22px 0 0;max-width:none;}}
   .jd-hero-moved{display:none!important;}
@@ -1702,6 +1708,7 @@
   }
 
   function renderHabitTimeline(){
+    if(weekMQ) renderWeekGrid();
     var box = document.getElementById('jd-habits-timeline');
     if(!box) return;
     if(!tlDay) tlDay = todayKey;
@@ -2419,6 +2426,26 @@
     return x;
   }
 
+  var HABIT_EMOJI = {h1:'🛏️', h2:'🙏', h3:'💪', h4:'💧', h5:'📖', h6:'🍳', h7:'👨‍👩‍👧'};
+  function habitEmoji(hb){
+    if(hb.emoji) return hb.emoji;
+    if(HABIT_EMOJI[hb.id]) return HABIT_EMOJI[hb.id];
+    var t = (hb.text || '').toLowerCase();
+    var rules = [[/cama/, '🛏️'], [/agradec|gratitud/, '🙏'], [/ejercicio|entren|gym|correr|camin/, '💪'], [/agua|hidrat/, '💧'], [/le[ií]|lectura|libro/, '📖'], [/desayun|com[ií]|cen[eé]|aliment/, '🍳'], [/familia|buenos d[ií]as/, '👨‍👩‍👧'], [/medit|respir/, '🧘'], [/vitamin|pastilla|medic/, '💊'], [/dormi|sue[nñ]o/, '😴'], [/ducha|ba[nñ]/, '🚿'], [/diario|escrib/, '✍️']];
+    for(var i = 0; i < rules.length; i++) if(rules[i][0].test(t)) return rules[i][1];
+    return '✅';
+  }
+  // habitos del checklist mañanero marcados en esa hora de ese dia
+  function habitsAt(iso, hour){
+    var dc = data.habitChecks && data.habitChecks[iso], out = [];
+    if(!dc) return out;
+    data.habits.forEach(function(hb){
+      var e = dc[hb.id];
+      if(e && e.time && parseHourFromTime(e.time) === hour) out.push({h: hb, time: e.time, est: !!e.est, emoji: habitEmoji(hb)});
+    });
+    return out.sort(function(a, b){ return a.time < b.time ? -1 : 1; });
+  }
+
   function buildWeekMap(weekStart){
     var byCell = {};
     var weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 7);
@@ -2530,6 +2557,10 @@
           card.items.push({hr: hr, en: en});
         });
       });
+      var hbRun = [];
+      run.hours.forEach(function(hr){ habitsAt(run.iso, hr).forEach(function(x){ hbRun.push(x); }); });
+      if(hbRun.length) html += '<div class="jd-wd-habs">' + hbRun.map(function(x){ return '<span class="jd-wd-hab">' + x.emoji + ' <span>' + esc(x.h.text) + '</span> <b>' + esc(x.time) + (x.est ? ' ≈' : '') + '</b></span>'; }).join('') + '</div>';
+      if(!cards.length && hbRun.length) return;
       if(!cards.length){ html += '<div class="jd-wd-empty">Nada anotado todavía en este horario. Pulsa <b>Anotar</b> para registrar qué hacías y agregar notas o links.</div>'; return; }
       cards.forEach(function(card){
         var mins = card.items.reduce(function(s, it){ return s + (it.en.minutes || 0); }, 0);
@@ -2792,8 +2823,16 @@
       cell._css = 'position:relative;height:' + (vertical ? 22 : 26) + 'px;border-radius:4px;background:' + bg + ';cursor:pointer;';
       cell._now = isNow;
       cell._has = !!(info && info.entries.length);
+      var hbs = habitsAt(iso, hour);
+      if(hbs.length) cell.title += ' · ' + hbs.map(function(x){ return x.emoji + ' ' + x.h.text + ' ' + x.time + (x.est ? ' (aprox.)' : ''); }).join(' · ');
       cellEls[key] = cell;
       paintCell(cell, weekSelSet.has(key));
+      if(hbs.length){
+        var em = document.createElement('span');
+        em.className = 'jd-wk-hab' + (hbs.length > 2 ? ' multi many' : hbs.length > 1 ? ' multi' : '');
+        em.textContent = hbs.slice(0, 4).map(function(x){ return x.emoji; }).join('');
+        cell.appendChild(em);
+      }
       if(info && info.entries.some(function(en){ return en.note || (en.links && en.links.length); })){ var dot = document.createElement('span'); dot.className = 'jd-wk-dot'; cell.appendChild(dot); }
       cell.addEventListener('pointerdown', function(ev){
         lastPtr = ev.pointerType;
