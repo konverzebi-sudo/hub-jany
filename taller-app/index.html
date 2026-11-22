@@ -636,6 +636,7 @@ const qs = new URLSearchParams(location.search);
 const DEMO = qs.get('demo') || (!CFG.supabaseUrl ? (['ponente', 'soporte'].includes(qs.get('rol')) ? qs.get('rol') : 'alumno') : '');
 /* Modo incrustado: la guía del taller muestra aquí dentro una dinámica (?embed=clave) o el formulario (?embed=prepara) */
 const EMBED = qs.get('embed') || '';
+const SOLO_CONTROL = qs.get('solo') === 'control';   // panel de la guía: solo la decisión del ponente
 // Dentro de la guía la altura se mide del contenido, no de la ventana (100vh haría que el iframe crezca sin fin)
 if (EMBED) document.documentElement.classList.add('en-embed');
 // La guía (vista de ponente) pasa la diapositiva con sus flechas: usa la misma lógica de las flechas del teclado
@@ -2843,7 +2844,7 @@ async function vistaEmbedPonente() {
   if (!a) { root.innerHTML = '<div class="card din-espera">Esta dinámica no existe todavía en la base de datos.</div>'; return avisarAltura(); }
   const [miembros, rs] = await Promise.all([api.miembros(), api.respuestasDe(a.id)]);
   const alumnos = miembros.filter(m => m.rol === 'alumno'), st = estadoPonente(a), resp = new Set(rs.map(r => r.user_id)).size;
-  root.innerHTML = `<div class="vista-alumno"><small class="cv-tag">👀 ASÍ LO VE EL ALUMNO</small><ol class="din-list" id="dinamicas"></ol></div>
+  root.innerHTML = `${SOLO_CONTROL ? '' : `<div class="vista-alumno"><small class="cv-tag">👀 ASÍ LO VE EL ALUMNO</small><ol class="din-list" id="dinamicas"></ol></div>`}
     <div class="ctrl-verde ${a.estado === 'abierta' ? 'activa' : ''}"><div class="cv-h"><b>🎤 Tu decisión como ponente</b><span class="pill ${st.c}">${st.t}</span></div>
       <div class="dk"><div><b>${alumnos.length}</b><small>inscritos</small></div><div><b>${resp}</b><small>respuestas</small></div><div><b>${Math.max(0, alumnos.length - resp)}</b><small>pendientes</small></div></div>
       <div class="row dbtns">
@@ -2855,7 +2856,7 @@ async function vistaEmbedPonente() {
       </div>
       ${modoCat(a) ? `<div class="dres">${consolaCatHtml(a, rs)}</div>` : a.config.toques ? `<div class="dres">${consolaToquesHtml(a, rs, alumnos)}</div>` : ''}
       <details class="cv-det" ${UI.cvAbierto ? 'open' : ''} ${a.config.toques || modoCat(a) ? 'hidden' : ''}><summary>📊 Ver resultados y quién falta</summary><div class="dres">${resultadosPonenteHtml(a, rs, alumnos)}</div></details></div>`;
-  pintarDinamica(a, '', $('#dinamicas'));
+  if (!SOLO_CONTROL) pintarDinamica(a, '', $('#dinamicas'));
   root.querySelectorAll('.vista-alumno input, .vista-alumno textarea, .vista-alumno button, .vista-alumno select').forEach(x => { x.disabled = true; });
   const accion = async (fn, msg) => { try { await fn(); toast(msg); await recargar(); } catch (err) { toast(err.message); } };
   root.querySelector('details.cv-det').ontoggle = e => { UI.cvAbierto = e.target.open; avisarAltura(); };
