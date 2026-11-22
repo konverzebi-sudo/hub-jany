@@ -1561,7 +1561,7 @@ function cajasVista(v) {
   // Cada cuadro arranca con su lugar correcto (grande, chico u oculto), igual que aplicarVistaDom; si no, el ejercicio tapa la presentación
   const clase = k => v.grande === k ? 'grande' : v.chico === k ? 'chico' : 'oculto';
   const zoomClase = v.grande === 'cara' || v.grande === 'pant' ? 'grande' : (v.chico === 'cara' || v.chico === 'pant' ? 'chico' : 'oculto');
-  return `<div class="vista-box${MODO_PONENTE ? ' pegado' : ''}">
+  return `<div class="vista-box${MODO_PONENTE && !hayActividadActiva() ? ' pegado' : ''}">
     ${MODO_PONENTE ? `<button type="button" class="vista-full" data-vfull title="Ver a pantalla completa">⛶ Pantalla completa</button>` : ''}
     <div class="vi vi-cara ${zoomClase}">${MODO_PONENTE ? `<iframe class="zoom-vivo" src="taller-app/zoom.html" title="Clase en vivo por Zoom" allow="camera; microphone; fullscreen; display-capture; autoplay"></iframe>` : `<div class="zoom-espera" aria-label="Clase en vivo por Zoom">🎥 Clase en vivo por Zoom</div>`}</div>
     <div class="vi vi-pres ${clase('pres')}"><iframe src="taller-app/?embed=presentacion${MODO_PONENTE ? '&rol=ponente' : ''}" title="Presentación en vivo"></iframe></div>
@@ -1708,7 +1708,15 @@ function nodoLinea(x) {
   const dato = MODO_PONENTE ? ` data-lock="${esc(c.id)}" title="${cerrada ? 'Cerrada para alumnos: toca para abrirla' : 'Abierta para alumnos: toca para cerrarla'}"` : '';
   return `<span class="lt-nodo ${cerrada ? 'cerrada' : ''}"${dato}>${cerrada ? '🔒' : ''}</span>`;
 }
-function refrescarLinea() { const el = document.getElementById('lineaTiempo'); if (el) { el.outerHTML = lineaTiempoHtml(); ajustarPanelesLinea(); } }
+function refrescarLinea() { const el = document.getElementById('lineaTiempo'); if (el) { el.outerHTML = lineaTiempoHtml(); ajustarPanelesLinea(); } aplicarPegado(); }
+/* Mientras hay una dinámica activa, la presentación deja de estar pegada para que se pueda trabajar con la dinámica */
+function hayActividadActiva() {
+  return CLASES.some(c => (c.etapas || []).some((et, k) => esAct(et) && estadoAct(c, k) === 'activa'));
+}
+function aplicarPegado() {
+  const caja = document.querySelector('.vista-box'); if (!caja || !MODO_PONENTE) return;
+  caja.classList.toggle('pegado', !hayActividadActiva());
+}
 /* El panel se ajusta solo a su contenido (la plataforma avisa su altura real a la guía) */
 function ajustarPanelesLinea() { document.querySelectorAll('.lt-panel').forEach(p => { p.style.height = ''; }); }
 function viewEnVivo() {
