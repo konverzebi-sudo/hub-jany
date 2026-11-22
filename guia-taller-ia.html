@@ -216,7 +216,9 @@
   .lt-item { position: relative; padding: 0 0 46px 56px; }
   .lt-item::before { content: ''; position: absolute; left: 14px; top: 36px; bottom: 0; border-left: 2px dotted #1B1530; }
   .lt-item:last-child::before { display: none; }
-  .lt-nodo { position: absolute; left: 0; top: 4px; width: 30px; height: 30px; border-radius: 50%; background: #BBF802; border: 3px solid #111; box-sizing: border-box; }
+  .lt-nodo { position: absolute; left: 0; top: 4px; width: 30px; height: 30px; border-radius: 50%; background: #BBF802; border: 3px solid #111; box-sizing: border-box; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+  .lt-nodo[data-lock] { cursor: pointer; }
+  .lt-nodo.cerrada { background: #111; border-color: #BBF802; }
   .lt-eb { font: 700 12px 'Inter', sans-serif; letter-spacing: .12em; text-transform: uppercase; color: #6B6480; }
   .lt-tit { font: 800 26px/1.1 'Sora', sans-serif; margin: 6px 0 8px; color: #111; }
   .lt-txt { color: #4a4560; margin: 0 0 8px; }
@@ -1201,6 +1203,7 @@ window.addEventListener('message', ev => {
 });
 document.addEventListener('click', e => { if (e.target.closest('[data-abrir-ayuda]')) document.getElementById('ayudaFab')?.click(); });
 document.addEventListener('click', e => { const o = e.target.closest && e.target.closest('[data-lt-ocultar]'); if (!o) return; const k = o.dataset.ltOcultar; LT_OCULTOS.has(k) ? LT_OCULTOS.delete(k) : LT_OCULTOS.add(k); refrescarLinea(); });
+document.addEventListener('click', e => { const lk = e.target.closest && e.target.closest('[data-lock]'); if (!lk) return; const c = CLASES.find(x => x.id === lk.dataset.lock); if (!c) return; guardarRemoto('clase:' + c.id, bloqueoDeClase(c, c.mod)); refrescarNumerosPP(); setTimeout(refrescarLinea, 400); });
 document.addEventListener('click', e => { const en = e.target.closest && e.target.closest('[data-enviar]'); if (!en) return; const [cid, kk] = en.dataset.enviar.split('|'); escribirEnVivo(ENVIVO, { hash: 'clase-' + cid + '/etapa-' + (Number(kk) + 1), t: new Date().toISOString() }); });
 document.addEventListener('click', e => { const rs = e.target.closest && e.target.closest('[data-resultados]'); if (!rs) return; const f = [...document.querySelectorAll('#lineaTiempo iframe.embed-taller')].find(x => x.dataset.din === rs.dataset.resultados); if (f && f.contentWindow) f.contentWindow.postMessage({ taller: 'resultados' }, '*'); });
 /* Reacciones: un toque = lluvia de emojis de dinero sobre la ventanita (por ahora solo en tu pantalla;
@@ -1595,16 +1598,16 @@ document.addEventListener('click', e => {
 
 const LINEA_TIEMPO = [
   { mod: 'Empieza por aquí', clase: 'Empieza por aquí', dias: 'Diapositivas 1 a 5', din: [['Dinámica 2 · ¿Qué delegarías?', 'diapositiva 4', 'delegarias']] },
-  { mod: 'Rompehielo', clase: '01 · Rompehielo', dias: 'Diapositivas 6 a 12', din: [['Dinámica 1 · ¿A qué te dedicas?', 'diapositiva 9', 'dedicas']] },
-  { mod: 'Rompehielo', clase: '02 · Calienta motores', dias: 'Diapositivas 13 a 20', din: [['Dinámica 3 · Conceptos de marketing', 'diapositivas 15 a 18', 'marketing'], ['Dinámica 4 · ¿Improvisando o planificando?', 'diapositivas 16 y 17', 'historia']] },
-  { mod: 'Hubcito en marcha', clase: '03 · Tu SUPERPROMPT', dias: 'Diapositivas 21 a 32', din: [['Dinámica 5 · Superprompt', 'diapositivas 27 y 28', 'superprompt']] },
-  { mod: 'Hubcito en marcha', clase: '04 · Producto ganador', dias: 'Diapositiva 33', din: [] },
-  { mod: 'Hubcito en marcha', clase: '05 · Mercado meta', dias: 'Diapositivas 34 a 36', din: [] },
-  { mod: 'Contenido y campañas', clase: '06 · Contenido', dias: 'Diapositivas 37 a 39', din: [] },
-  { mod: 'Contenido y campañas', clase: '07 · Campañas', dias: 'Diapositivas 40 y 41', din: [] },
-  { mod: 'Diseños inteligencia artificial', clase: '08 · Imágenes IA', dias: 'Diapositivas 42 a 44 y 51', din: [] },
-  { mod: 'Diseños inteligencia artificial', clase: '09 · Videos IA', dias: 'Diapositivas 45 a 50 y 52 a 55', din: [] },
-  { mod: 'Hub de Jefes', clase: '10 · Hub de Jefes', dias: 'Diapositivas 56 a 59, 61, 72 y 73', din: [] }
+  { mod: 'Rompehielo', clase: '01 · Rompehielo', cid: '2', dias: 'Diapositivas 6 a 12', din: [['Dinámica 1 · ¿A qué te dedicas?', 'diapositiva 9', 'dedicas']] },
+  { mod: 'Rompehielo', clase: '02 · Calienta motores', cid: '2M', dias: 'Diapositivas 13 a 20', din: [['Dinámica 3 · Conceptos de marketing', 'diapositivas 15 a 18', 'marketing'], ['Dinámica 4 · ¿Improvisando o planificando?', 'diapositivas 16 y 17', 'historia']] },
+  { mod: 'Hubcito en marcha', clase: '03 · Tu SUPERPROMPT', cid: 'SP', dias: 'Diapositivas 21 a 32', din: [['Dinámica 5 · Superprompt', 'diapositivas 27 y 28', 'superprompt']] },
+  { mod: 'Hubcito en marcha', clase: '04 · Producto ganador', cid: 'PG', dias: 'Diapositiva 33', din: [] },
+  { mod: 'Hubcito en marcha', clase: '05 · Mercado meta', cid: 'ME', dias: 'Diapositivas 34 a 36', din: [] },
+  { mod: 'Contenido y campañas', clase: '06 · Contenido', cid: 'CO', dias: 'Diapositivas 37 a 39', din: [] },
+  { mod: 'Contenido y campañas', clase: '07 · Campañas', cid: 'CA', dias: 'Diapositivas 40 y 41', din: [] },
+  { mod: 'Diseños inteligencia artificial', clase: '08 · Imágenes IA', cid: '6', dias: 'Diapositivas 42 a 44 y 51', din: [] },
+  { mod: 'Diseños inteligencia artificial', clase: '09 · Videos IA', cid: '7', dias: 'Diapositivas 45 a 50 y 52 a 55', din: [] },
+  { mod: 'Hub de Jefes', clase: '10 · Hub de Jefes', cid: '9', dias: 'Diapositivas 56 a 59, 61, 72 y 73', din: [] }
 ];
 function hallarEtapa(embed) {
   for (const c of CLASES) { const k = (c.etapas || []).findIndex(e => e.embed === embed); if (k >= 0) return { c, k }; }
@@ -1638,11 +1641,19 @@ function botonesDinLinea(x) {
 }
 function lineaTiempoHtml() {
   return `<div class="card lt" id="lineaTiempo" style="margin-top:26px"><span class="eyebrow">Mapa de la clase</span>
-    ${LINEA_TIEMPO.map((x, i) => `<div class="lt-item"><span class="lt-nodo"></span>
+    ${LINEA_TIEMPO.map((x, i) => `<div class="lt-item">${nodoLinea(x)}
       <div class="lt-eb">Paso ${i + 1} · ${esc(x.mod)}</div>
       <h3 class="lt-tit">${esc(x.clase)}</h3>
       <p class="lt-txt">${esc(x.dias)}</p>
       ${botonesDinLinea(x)}</div>`).join('')}</div>`;
+}
+/* Punto de la línea de tiempo: abierto = verde con contorno negro; cerrado = negro con contorno verde y candado. Un toque lo cambia. */
+function nodoLinea(x) {
+  const c = x.cid && CLASES.find(cc => cc.id === x.cid);
+  if (!c) return '<span class="lt-nodo"></span>';
+  const cerrada = bloqueoDeClase(c, c.mod);
+  const dato = MODO_PONENTE ? ` data-lock="${esc(c.id)}" title="${cerrada ? 'Cerrada para alumnos: toca para abrirla' : 'Abierta para alumnos: toca para cerrarla'}"` : '';
+  return `<span class="lt-nodo ${cerrada ? 'cerrada' : ''}"${dato}>${cerrada ? '🔒' : ''}</span>`;
 }
 function refrescarLinea() { const el = document.getElementById('lineaTiempo'); if (el) { el.outerHTML = lineaTiempoHtml(); ajustarPanelesLinea(); } }
 /* El panel se ajusta solo a su contenido (la plataforma avisa su altura real a la guía) */
