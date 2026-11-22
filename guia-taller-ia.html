@@ -228,6 +228,9 @@
   .lt-flecha { font-size: 16px; color: #6B6480; }
   .lt-panel { margin-top: 12px; border: 1px solid #d9d2e8; border-radius: 14px; overflow: hidden; background: #fff; }
   .lt-panel .embed-taller { margin-top: 0; height: 160px; min-height: 0; }
+  #avisoPonente { position: sticky; top: 0; z-index: 30; background: var(--bg); padding: 10px 0 12px; margin-bottom: 8px; }
+  #avisoPonente .btn.vivo-on { background: #D62828; color: #fff; }
+  .banner-vivo { background: #D62828; color: #fff; font: 800 18px 'Sora', sans-serif; text-align: center; padding: 14px 18px; border-radius: 14px; margin-bottom: 16px; letter-spacing: .02em; }
   .lt-din .btn.ghost { color: #1B1530; background: #fff; border: 1px solid #c9bfe0; }
   .lt-acts { margin: 10px 0 0; padding-left: 20px; color: #4a4560; font-size: 14px; line-height: 1.7; }
   .lt-chip { display: inline-block; margin: 0; padding: 6px 12px; border-radius: 999px; border: 1px solid #d9d2e8; background: #fff; font-size: 13px; }
@@ -1350,15 +1353,21 @@ async function escribirEnVivo(on, ir) {
 function avisoPonente() {
   const btns = [['inicio', 'Empieza por aquí'], ['en-vivo', 'Clase en vivo'], ['clase-2', 'Romper el hielo']]
     .map(([h, t]) => '<button type="button" class="chip-btn" data-ir="#' + h + '">' + t + '</button>').join('');
-  return '<div id="avisoPonente" style="margin-bottom:18px"><button type="button" class="btn" data-vivo-toggle>' + (ENVIVO ? '■ Terminé la clase en vivo' : '● Estoy en vivo') + '</button>'
+  // La barra se queda fija al bajar; en vivo el botón se pone rojo
+  return '<div id="avisoPonente"><button type="button" class="btn' + (ENVIVO ? ' vivo-on' : '') + '" data-vivo-toggle>' + (ENVIVO ? '■ Terminé la clase en vivo' : '● Estoy en vivo') + '</button>'
     + '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><small>Mandar a todos a:</small>' + btns + '</div></div>';
 }
+/* Aviso para todos los perfiles mientras la clase está en vivo */
+function bannerVivo() { return ENVIVO && !MODO_PONENTE ? '<div id="bannerVivo" class="banner-vivo">● ¡Estamos en VIVO!</div>' : ''; }
 function paginaActual() {
   const page = (decodeURIComponent(location.hash.slice(1)) || 'inicio').split('/')[0];
   return page.startsWith('clase-') ? page.slice(6) : page;
 }
 function pintarVivo() {
   const av = document.getElementById('avisoPonente'); if (av) av.outerHTML = avisoPonente();
+  const bv = document.getElementById('bannerVivo'), falta = !!ENVIVO && !MODO_PONENTE;
+  if (bv && !falta) bv.remove();
+  else if (!bv && falta) { const vista = document.getElementById('view'); if (vista) vista.insertAdjacentHTML('afterbegin', bannerVivo()); }
   renderNav(paginaActual());
 }
 document.addEventListener('click', async e => {
@@ -1808,7 +1817,7 @@ function route() {
   } else if (page === 'recursos') html = viewRecursos();
   else if (page === 'en-vivo') html = viewEnVivo();
   if (!html) { html = viewInicio(); activo = 'inicio'; }
-  $('#view').innerHTML = (MODO_PONENTE ? avisoPonente() : '') + html;
+  $('#view').innerHTML = (MODO_PONENTE ? avisoPonente() : bannerVivo()) + html;
   ajustarPanelesLinea();
   if (window.GuiaMetricas) window.GuiaMetricas.montar();
   pintarCuenta(); pintarRecordatorios();
