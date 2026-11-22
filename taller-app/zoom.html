@@ -36,6 +36,20 @@
     var a = document.getElementById('aviso');
     a.textContent = texto; a.classList.add('on');
   }
+  /* Si el navegador no dejó prender la cámara sola, un toque en el aviso la enciende (un clic sí cuenta como permiso) */
+  function pedirEncender(ms) {
+    var a = document.getElementById('aviso');
+    a.textContent = 'Toca aquí para encender tu cámara y tu micrófono';
+    a.classList.add('on');
+    a.style.cursor = 'pointer';
+    a.onclick = function () {
+      ms.startVideo().then(function () { return ms.startAudio(); }).then(function () {
+        a.classList.remove('on'); a.style.cursor = ''; a.onclick = null;
+      }).catch(function (e) {
+        a.textContent = 'No se pudo encender la cámara: ' + ((e && (e.reason || e.message)) || 'revisa los permisos del navegador');
+      });
+    };
+  }
 
   if (!mn) { aviso('Falta el número de la reunión de Zoom. Pídele a Jany el link de la clase.'); return; }
   if (typeof ZoomMtgEmbedded === 'undefined') { aviso('No se pudo cargar Zoom. Revisa tu conexión y recarga la página.'); return; }
@@ -81,7 +95,7 @@
         }).then(function () {
           // Al entrar, prende la cámara y el micrófono para que te vean y te escuchen (el navegador pide permiso la primera vez)
           var ms = client.getMediaStream();
-          return ms.startVideo().catch(function () {}).then(function () { return ms.startAudio().catch(function () {}); });
+          return ms.startVideo().then(function () { return ms.startAudio(); }).catch(function () { pedirEncender(ms); });
         });
       }).catch(function (e) {
         aviso('No se pudo entrar a la reunión: ' + ((e && (e.reason || e.message)) || 'error desconocido'));
