@@ -187,11 +187,13 @@ h3.yel{margin-top:28px}
 .dsq .muted{font-size:14px}
 .dcard{background:#232735;border:1px solid #2c3247;border-radius:16px;padding:12px}
 .dcard summary{cursor:pointer;list-style:none}
-.dcob{grid-column:1/-1;text-align:left}
-.cobsplit{display:flex;gap:24px;margin-top:8px}
+.dcob{text-align:center;padding:10px}
+.cobgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.dcob .cobtot{font-weight:700;color:var(--yellow);margin-top:4px}
+.dcob .cobsplit{display:flex;flex-direction:column;gap:6px;margin-top:8px;text-align:left}
+@media (max-width:600px){.cobgrid{grid-template-columns:repeat(2,1fr)}}
 .cobsplit span{font-size:14px;color:var(--muted)}
 .cobsplit b{font-size:18px;color:#fff}
-.cobtot{margin-top:6px;font-weight:700;color:var(--yellow)}
 .dcard.tot{text-align:center}
 .dcard.tot b{display:block;font-size:20px;color:#fff;margin-top:4px}
 .dcard small{display:block;color:var(--muted)}
@@ -1332,7 +1334,8 @@ function dashboardHTML(pagosF,totIns,totArb,pend){
     const porEq={};
     ps.forEach(p=>{const e=(porEq[p.teamId]=porEq[p.teamId]||{ef:0,tr:0}); const mt=Number(p.monto)||0; if(p.metodo==='transferencia') e.tr+=mt; else e.ef+=mt;});
     const filas=Object.entries(porEq).sort((a,b)=>(b[1].ef+b[1].tr)-(a[1].ef+a[1].tr)).map(([tid,v])=>`<li><span><b>${esc(teamName(tid))}</b><br><small class="muted">💸 ${money(v.ef)} · 💳 ${money(v.tr)}</small></span><b>${money(v.ef+v.tr)}</b></li>`).join('');
-    return `<details class="dcard dcob"><summary><b>${esc(n)}</b><div class="cobsplit"><span>💸 Efectivo<br><b>${money(ef)}</b></span><span>💳 Transferencia<br><b>${money(tr)}</b></span></div><div class="cobtot">Total ${money(ef+tr)}</div></summary>
+    return `<details class="dcard dcob"><summary><b>${esc(n)}</b><div class="cobtot">${money(ef+tr)}</div></summary>
+      <div class="cobsplit"><span>💸 Efectivo<br><b>${money(ef)}</b></span><span>💳 Transferencia<br><b>${money(tr)}</b></span></div>
       ${filas?`<ul class="plist">${filas}</ul>`:'<p class="muted">Sin pagos en este periodo.</p>'}</details>`;
   }).join('');
   const terminados=db.matches.filter(m=>m.terminado&&partidoVisible(m)&&enRango(diaLocal(m.terminadoEn)));
@@ -1398,7 +1401,7 @@ function dashboardHTML(pagosF,totIns,totArb,pend){
       <div><small>Arbitrajes</small><b>${money(totArb)}</b></div>
       <div><small>Pendiente de cobrar</small><b class="${pend?'pend':'ok'}">${money(pend)}</b></div>
     </div>
-    <h3 class="yel">${veTodo()?'Cobradores':'Corte de '+esc(usuarioActual()?.nombre||'')}</h3><div class="dgrid" style="grid-template-columns:1fr 1fr"><div class="dcard tot"><small class="muted">Total en depósito</small><b>${money(totEf)}</b></div><div class="dcard tot"><small class="muted">Total en transferencia</small><b>${money(totTr)}</b></div></div><div class="dgrid cuatro">${cobra}</div>
+    <h3 class="yel">${veTodo()?'Cobradores':'Corte de '+esc(usuarioActual()?.nombre||'')}</h3><div class="dgrid" style="grid-template-columns:1fr 1fr"><div class="dcard tot"><small class="muted">Total en depósito</small><b>${money(totEf)}</b></div><div class="dcard tot"><small class="muted">Total en transferencia</small><b>${money(totTr)}</b></div></div><div class="cobgrid">${cobra}</div>
     <h3 class="yel">Canchas</h3><div class="dgrid cuatro">${canchas}</div>
     <h3 class="yel">Pagos por árbitro</h3><div class="dlist">${arbHTML}</div>
     <h3 class="yel">Juegos del periodo</h3>${jdHTML}`;
