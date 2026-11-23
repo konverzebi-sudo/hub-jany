@@ -322,6 +322,8 @@ body.propio #tab-ajustes{display:none!important}
 /* Canchas solo para mirar: sin asignar, sin marcador, sin terminar partido, sin cobros */
 body.propio #tab-canchas .plus,body.propio #tab-canchas .whistle,body.propio #tab-canchas .asignar,body.propio #tab-canchas .dollar{display:none!important}
 body.propio #tab-canchas button{pointer-events:none}
+.sugs{max-height:260px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.sugsep{padding:8px 4px 4px;font-size:13px}
 </style>
 </head>
 <body>
@@ -723,12 +725,11 @@ function activarBuscador(s){
     const coincide=(t)=>toks.every(k=>norm(t.name).includes(k));
     const hits=toks.length?db.teams.filter(t=>libre(t)&&coincide(t)):[];
     // Equipos que ya están jugando en otra cancha, o que ya son el otro equipo: salen en verde y no se pueden elegir
-    sug.innerHTML=hits.map(t=>{const oc=db.matches.find(m=>m.activo&&m.field!==asignandoField&&(m.a===t.id||m.b===t.id));
-      if(t.id===otro) return `<button type="button" class="sug enjuego" disabled>${esc(t.name)} · ya es el otro equipo</button>`;
-      return oc
-      ?`<button type="button" class="sug enjuego" disabled>${esc(t.name)} · ya está en la cancha ${oc.field}</button>`
-      :`<button type="button" class="sug" data-pick="${t.id}" data-side="${s}">${esc(t.name)}</button>`;}).join('')
-      +(hits.length||!toks.length?'':'<div class="muted">Ningún equipo libre tiene ese nombre.</div>')
+    // Al escribir: primero las coincidencias; abajo, el resto de equipos libres (la lista se desliza para verlos todos)
+    const boton=(t)=>`<button type="button" class="sug" data-pick="${t.id}" data-side="${s}">${esc(t.name)}</button>`;
+    const resto=toks.length?db.teams.filter(t=>libre(t)&&!coincide(t)):[];
+    sug.innerHTML=(hits.length?hits.map(boton).join(''):(toks.length?'<div class="muted">Ningún equipo libre tiene ese nombre.</div>':''))
+      +(toks.length&&resto.length?`<div class="muted sugsep">Los demás equipos libres</div>`+resto.map(boton).join(''):'')
       +(toks.length&&!db.teams.some(coincide)?`<button type="button" class="sug nuevo" data-nuevo="${s}">+ Agregar nuevo equipo</button>`:'');
   };
   txt.addEventListener('input',()=>{val.value='';pintar();});
