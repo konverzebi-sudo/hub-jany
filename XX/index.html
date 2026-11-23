@@ -15,6 +15,24 @@
   #jd-root{font-family:'Inter',system-ui,sans-serif;background:transparent;color:#1F1B3D;max-width:1100px;margin:0 auto;}
   #jd-root *{box-sizing:border-box;}
   .jd-disp{font-family:'Space Grotesk',sans-serif;}
+  .jd-casa-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px;}
+  .jd-casa-stats>div{background:#F8F6FF;border:1px solid #ECE8F8;border-radius:12px;padding:9px 10px;min-width:0;}
+  .jd-casa-num{font-size:19px;font-weight:700;margin-top:2px;overflow-wrap:anywhere;}
+  .jd-casa-bar{height:8px;border-radius:99px;background:#ECE8F8;overflow:hidden;}
+  .jd-casa-bar i{display:block;height:100%;background:linear-gradient(90deg,#7C5CF2,#A78BFA);border-radius:99px;}
+  .jd-casa-form{background:#F8F6FF;border:1px solid #DDD7F0;border-radius:14px;padding:12px;margin-bottom:10px;}
+  .jd-casa-pe{border:1px solid #ECE8F8;border-radius:14px;margin-bottom:8px;overflow:hidden;}
+  .jd-casa-pehead{display:flex;align-items:center;gap:8px;width:100%;background:transparent;border:0;padding:10px 12px;cursor:pointer;text-align:left;font-family:'Inter',sans-serif;color:#1F1B3D;}
+  .jd-casa-arrow{width:12px;color:#8A86A8;font-size:12px;flex:none;}
+  .jd-casa-name{flex:1;min-width:0;font-weight:600;font-size:13.5px;overflow-wrap:anywhere;}
+  .jd-casa-tot{font-size:15px;flex:none;}
+  .jd-casa-pebody{padding:0 12px 12px;}
+  .jd-casa-row{display:flex;align-items:center;gap:6px;padding:7px 0;border-top:1px solid #F1EEFB;}
+  .jd-casa-main{flex:1;min-width:0;font-size:13px;}
+  .jd-casa-sel{width:140px;flex:none;padding:5px 8px;}
+  .jd-casa-ico{background:transparent;border:0;cursor:pointer;font-size:14px;padding:4px;flex:none;}
+  .jd-casa-link{margin-top:10px;padding-top:10px;border-top:1px dashed #DDD7F0;}
+  @media(max-width:560px){.jd-casa-num{font-size:16px;}.jd-casa-sel{width:112px;}}
   .jd-card{background:#FFFFFF;border:1px solid #ECE8F8;border-radius:18px;padding:16px;box-shadow:0 4px 16px rgba(95,70,190,.07);}
   .jd-h{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;margin:0 0 10px;color:#1F1B3D;letter-spacing:.2px;}
   .jd-sub{color:#8A86A8;font-size:11.5px;}
@@ -208,6 +226,10 @@
         </div>
       </div>
     </div>
+  </div>
+
+  <div data-pane="fin" class="jd-full" style="padding:14px 14px 0;">
+    <div class="jd-card" id="jd-casa"></div>
   </div>
 
   <div data-pane="fin" id="jd-finance-drawer" class="jd-full" style="padding:14px;">
@@ -790,6 +812,7 @@
       });
     }
     if(local.startDate && data.startDate && local.startDate < data.startDate) data.startDate = local.startDate;
+    if(local.casa && !data.casa) data.casa = local.casa;
   }
 
   async function load(){
@@ -897,6 +920,7 @@
       data.agenda.forEach(function(a){ if(!a.project){ var mp = matchProject(a.text); if(mp) a.project = mp; } });
       migratedList = true;
     }
+    if(casaEnsure()){ migratedList = true; queueCloudSync(); }
     if(migratedList) saveLocalOnly();
     processSubscriptionBillings();
     renderAll();
@@ -918,10 +942,267 @@
     });
   }
 
+  // ===== Casa Jany: lo recibido (préstamo) y lo pagado a cada persona, con link para compartir =====
+  var casaUI = {form:null, open:{}, entradas:false, shareErr:''};
+  var casaSyncTimer = null;
+  var CASA_METHODS = [['transferencia','Transferencia'],['efectivo','Efectivo'],['tarjeta','Tarjeta'],['otra','Otra']];
+  function casaLinkBase(){ return location.origin + location.pathname.replace(/[^\/]*$/, '') + 'casa.html?t='; }
+  function casaEsc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function casaMoney(n){ n = Number(n || 0); return '$' + n.toLocaleString('es-MX', {minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits:2}); }
+  function casaDate(iso){
+    var p = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+    if(!p) return 'sin fecha';
+    return new Date(+p[1], +p[2] - 1, +p[3]).toLocaleDateString('es-MX', {day:'numeric', month:'short', year:'numeric'});
+  }
+  function casaMethodText(p){
+    if(p.method === 'tarjeta') return 'Tarjeta' + (p.card ? ' ···· ' + p.card : '');
+    if(p.method === 'otra') return p.other || 'Otra';
+    if(p.method === 'efectivo') return 'Efectivo';
+    if(p.method === 'transferencia') return 'Transferencia';
+    return 'Sin forma de pago';
+  }
+  // primera vez: se pasa lo que ya estaba en el documento "CASA JANY" (los pagos quedan sin persona para que los asignes)
+  function casaEnsure(){
+    if(data.casa) return false;
+    var rows = [['APOYO 1',13500,''],['APOYO 2',20000,''],['APOYO 3',12000,''],['REFRIGERADOR',18000,'2026-11-16'],['LAVADORA Y SECADORA',14500,'2026-11-16'],['HORNO',9020,'2026-11-16'],['PARRILLA Y LAVABAJILLA',13800,''],['Cadena',10000,'2026-11-19']];
+    data.casa = {
+      entradas: [{id: uid('ce'), date: '', amount: 250000, note: 'Préstamo casa'}],
+      personas: [],
+      pagos: rows.map(function(r, i){ return {id: uid('cp') + '-' + i, pid: null, date: r[2], amount: r[1], method: '', card: '', other: '', note: r[0]}; })
+    };
+    return true;
+  }
+  function casaTotals(){
+    var c = data.casa, rec = 0, pag = 0;
+    c.entradas.forEach(function(e){ rec += +e.amount || 0; });
+    c.pagos.forEach(function(p){ pag += +p.amount || 0; });
+    return {rec: rec, pag: pag, saldo: rec - pag};
+  }
+  function casaByDateDesc(a, b){ var x = a.date || '', y = b.date || ''; return x > y ? -1 : x < y ? 1 : 0; }
+  function casaPagosDe(pid){
+    return data.casa.pagos.filter(function(p){ return (p.pid || null) === pid; }).sort(casaByDateDesc);
+  }
+  function casaSum(list){ return list.reduce(function(s, p){ return s + (+p.amount || 0); }, 0); }
+  function casaSave(){
+    save();
+    clearTimeout(casaSyncTimer);
+    casaSyncTimer = setTimeout(casaSyncShares, 900);
+  }
+  // lo que ve cada persona con su link: solo fecha, monto y forma de pago de SUS pagos
+  function casaSnapshot(pid){ return casaPagosDe(pid).map(function(p){ return {d: p.date || '', a: +p.amount || 0, m: casaMethodText(p)}; }); }
+  async function casaSyncShares(){
+    if(!data || !data.casa) return;
+    var rows = data.casa.personas.filter(function(p){ return p.token; });
+    if(!rows.length) return;
+    try{
+      var s = await supabaseClient.auth.getSession();
+      var userId = s.data.session && s.data.session.user.id;
+      if(!userId) return;
+      var out = rows.map(function(p){ return {token: p.token, user_id: userId, persona: p.name, activo: !!p.shared, pagos: casaSnapshot(p.id), updated_at: new Date().toISOString()}; });
+      var r = await supabaseClient.from('casa_shares').upsert(out, {onConflict: 'token'});
+      var err = r.error ? (r.error.message || 'error') : '';
+      if(err !== casaUI.shareErr){ casaUI.shareErr = err; renderCasa(); }
+    }catch(e){ console.error('casa share error', e); }
+  }
+  function casaToken(){
+    var a = new Uint8Array(16); crypto.getRandomValues(a);
+    return Array.prototype.map.call(a, function(b){ return ('0' + b.toString(16)).slice(-2); }).join('');
+  }
+
+  function casaPagoRow(p, sin){
+    var opts = '';
+    if(sin) opts = '<select class="jd-input jd-casa-sel" data-assign="' + p.id + '"><option value="">Asignar a…</option>' + data.casa.personas.map(function(x){ return '<option value="' + x.id + '">' + casaEsc(x.name) + '</option>'; }).join('') + '</select>';
+    return '<div class="jd-casa-row"><div class="jd-casa-main"><b class="jd-disp">' + casaMoney(p.amount) + '</b> <span class="jd-sub">· ' + casaDate(p.date) + ' · ' + casaEsc(casaMethodText(p)) + '</span>' +
+      (p.note ? '<div class="jd-sub">' + casaEsc(p.note) + '</div>' : '') + '</div>' + opts +
+      '<button type="button" class="jd-casa-ico" data-act="edit-pago" data-id="' + p.id + '" title="Editar">✏️</button>' +
+      '<button type="button" class="jd-casa-ico" data-act="del-pago" data-id="' + p.id + '" title="Quitar">🗑</button></div>';
+  }
+
+  function casaFormHTML(){
+    var f = casaUI.form;
+    if(!f) return '';
+    var c = data.casa, h = '<div class="jd-casa-form">';
+    if(f.type === 'persona'){
+      var pe = f.id ? c.personas.find(function(x){ return x.id === f.id; }) : null;
+      h += '<div class="jd-sub" style="margin-bottom:6px;">' + (pe ? 'Cambiar nombre' : 'Nueva persona a la que le pagas (ej. Arquitecto, Electrodomésticos, Servicios externos)') + '</div>' +
+        '<input class="jd-input" id="casa-f-name" placeholder="Nombre" value="' + casaEsc(pe ? pe.name : '') + '" style="margin-bottom:8px;">';
+    } else if(f.type === 'entrada'){
+      var en = f.id ? c.entradas.find(function(x){ return x.id === f.id; }) : null;
+      h += '<div class="jd-sub" style="margin-bottom:6px;">' + (en ? 'Editar dinero recibido' : 'Dinero que recibes del préstamo') + '</div>' +
+        '<div class="jd-row" style="gap:6px;margin-bottom:6px;"><input class="jd-input" id="casa-f-date" type="date" value="' + casaEsc(en ? en.date : todayKey) + '" style="flex:1;"><input class="jd-input" id="casa-f-amount" type="number" inputmode="decimal" placeholder="Monto" value="' + casaEsc(en ? en.amount : '') + '" style="flex:1;"></div>' +
+        '<input class="jd-input" id="casa-f-note" placeholder="Nota (opcional)" value="' + casaEsc(en ? en.note : '') + '" style="margin-bottom:8px;">';
+    } else {
+      var p = f.id ? c.pagos.find(function(x){ return x.id === f.id; }) : null;
+      var pid = p ? (p.pid || '') : (f.pid || '');
+      var method = p ? (p.method || 'transferencia') : 'transferencia';
+      h += '<div class="jd-sub" style="margin-bottom:6px;">' + (p ? 'Editar pago' : 'Registrar un pago') + '</div>' +
+        '<select class="jd-input" id="casa-f-pid" style="margin-bottom:6px;"><option value="">Sin asignar</option>' + c.personas.map(function(x){ return '<option value="' + x.id + '"' + (x.id === pid ? ' selected' : '') + '>' + casaEsc(x.name) + '</option>'; }).join('') + '</select>' +
+        '<div class="jd-row" style="gap:6px;margin-bottom:6px;"><input class="jd-input" id="casa-f-date" type="date" value="' + casaEsc(p ? p.date : todayKey) + '" style="flex:1;"><input class="jd-input" id="casa-f-amount" type="number" inputmode="decimal" placeholder="Monto" value="' + casaEsc(p ? p.amount : '') + '" style="flex:1;"></div>' +
+        '<div class="jd-row" style="gap:6px;margin-bottom:6px;"><select class="jd-input" id="casa-f-method" style="flex:1;">' + CASA_METHODS.map(function(m){ return '<option value="' + m[0] + '"' + (m[0] === method ? ' selected' : '') + '>' + m[1] + '</option>'; }).join('') + '</select>' +
+        '<input class="jd-input" id="casa-f-card" inputmode="numeric" maxlength="4" placeholder="Últimos 4" value="' + casaEsc(p ? p.card : '') + '" style="width:96px;' + (method === 'tarjeta' ? '' : 'display:none;') + '">' +
+        '<input class="jd-input" id="casa-f-other" placeholder="¿Cómo se pagó?" value="' + casaEsc(p ? p.other : '') + '" style="flex:1;' + (method === 'otra' ? '' : 'display:none;') + '"></div>' +
+        '<input class="jd-input" id="casa-f-note" placeholder="Concepto (solo lo ves tú)" value="' + casaEsc(p ? p.note : '') + '" style="margin-bottom:8px;">';
+    }
+    h += '<div id="casa-f-msg" class="jd-sub" style="color:#D4463B;min-height:14px;"></div>' +
+      '<div class="jd-row" style="gap:6px;"><button type="button" class="jd-btn jd-btn-lima" style="flex:1;" data-act="save-form">Guardar</button><button type="button" class="jd-btn" data-act="cancel-form">Cancelar</button></div></div>';
+    return h;
+  }
+
+  function casaPersonaHTML(pe){
+    var pagos = casaPagosDe(pe.id), open = !!casaUI.open[pe.id];
+    var h = '<div class="jd-casa-pe"><button type="button" class="jd-casa-pehead" data-act="toggle" data-id="' + pe.id + '"><span class="jd-casa-arrow">' + (open ? '▾' : '▸') + '</span><span class="jd-casa-name">' + casaEsc(pe.name) + (pe.shared ? ' <span title="Tiene link activo">🔗</span>' : '') + '</span><span class="jd-sub">' + pagos.length + ' pago' + (pagos.length === 1 ? '' : 's') + '</span><b class="jd-disp jd-casa-tot">' + casaMoney(casaSum(pagos)) + '</b></button>';
+    if(open){
+      h += '<div class="jd-casa-pebody">' + (pagos.length ? pagos.map(function(p){ return casaPagoRow(p, false); }).join('') : '<div class="jd-sub" style="padding:4px 0;">Todavía no le has pagado nada.</div>') +
+        '<div class="jd-row" style="gap:6px;flex-wrap:wrap;margin-top:8px;"><button type="button" class="jd-btn jd-btn-lima" data-act="new-pago" data-id="' + pe.id + '">+ Pago</button><button type="button" class="jd-btn" data-act="rename" data-id="' + pe.id + '">Cambiar nombre</button><button type="button" class="jd-btn" data-act="del-persona" data-id="' + pe.id + '">Quitar persona</button></div>';
+      if(pe.shared){
+        h += '<div class="jd-casa-link"><div class="jd-sub" style="margin-bottom:4px;">Link para ' + casaEsc(pe.name) + ' (solo ve sus pagos, con fecha y forma de pago; se actualiza solo cuando anotas algo):</div>' +
+          '<input class="jd-input" readonly value="' + casaEsc(casaLinkBase() + pe.token) + '" onclick="this.select()" style="margin-bottom:6px;">' +
+          '<div class="jd-row" style="gap:6px;flex-wrap:wrap;"><button type="button" class="jd-btn jd-btn-lima" data-act="copy-link" data-id="' + pe.id + '">Copiar link</button><a class="jd-btn" style="text-decoration:none;" target="_blank" rel="noopener" href="' + casaEsc(casaLinkBase() + pe.token) + '">Abrir</a><button type="button" class="jd-btn" data-act="regen-link" data-id="' + pe.id + '">Link nuevo</button><button type="button" class="jd-btn" data-act="off-link" data-id="' + pe.id + '">Apagar link</button></div>' +
+          (casaUI.shareErr ? '<div class="jd-sub" style="color:#D4463B;margin-top:6px;">Los links todavía no funcionan: falta un paso en Supabase (pegar el archivo casa-compartir.sql). Aviso técnico: ' + casaEsc(casaUI.shareErr) + '</div>' : '') + '</div>';
+      } else {
+        h += '<div class="jd-casa-link"><button type="button" class="jd-btn" data-act="on-link" data-id="' + pe.id + '">🔗 Crear link para compartirle sus pagos</button></div>';
+      }
+      h += '</div>';
+    }
+    return h + '</div>';
+  }
+
+  function renderCasa(){
+    var box = document.getElementById('jd-casa');
+    if(!box || !data || !data.casa) return;
+    var c = data.casa, t = casaTotals(), pct = t.rec > 0 ? Math.max(0, Math.min(100, Math.round(t.pag / t.rec * 100))) : 0;
+    var sin = casaPagosDe(null);
+    var h = '<div class="jd-row" style="gap:10px;margin-bottom:12px;"><div class="jd-ico">🏠</div><div><div class="jd-h" style="margin:0;">Casa Jany</div><div class="jd-sub">Lo que recibes del préstamo y lo que le pagas a cada persona</div></div></div>' +
+      '<div class="jd-casa-stats"><div><div class="jd-sub">Recibido</div><div class="jd-disp jd-casa-num" style="color:#1F9D55;">' + casaMoney(t.rec) + '</div></div>' +
+      '<div><div class="jd-sub">Pagado</div><div class="jd-disp jd-casa-num" style="color:#7C5CF2;">' + casaMoney(t.pag) + '</div></div>' +
+      '<div><div class="jd-sub">Te queda</div><div class="jd-disp jd-casa-num" style="color:' + (t.saldo < 0 ? '#D4463B' : '#1F1B3D') + ';">' + casaMoney(t.saldo) + '</div></div></div>' +
+      '<div class="jd-casa-bar"><i style="width:' + pct + '%"></i></div><div class="jd-sub" style="margin:4px 0 12px;">Llevas gastado el ' + pct + '% de lo recibido</div>' +
+      '<div class="jd-row" style="gap:6px;flex-wrap:wrap;margin-bottom:10px;"><button type="button" class="jd-btn jd-btn-lima" data-act="new-pago">+ Registrar pago</button><button type="button" class="jd-btn" data-act="new-entrada">+ Recibí dinero</button><button type="button" class="jd-btn" data-act="new-persona">+ Persona</button></div>' +
+      casaFormHTML();
+    h += '<button type="button" class="jd-casa-pehead" data-act="toggle-entradas" style="margin-top:2px;"><span class="jd-casa-arrow">' + (casaUI.entradas ? '▾' : '▸') + '</span><span class="jd-casa-name">Dinero recibido</span><span class="jd-sub">' + c.entradas.length + ' entrada' + (c.entradas.length === 1 ? '' : 's') + '</span><b class="jd-disp jd-casa-tot">' + casaMoney(t.rec) + '</b></button>';
+    if(casaUI.entradas){
+      h += '<div class="jd-casa-pebody">' + c.entradas.slice().sort(casaByDateDesc).map(function(e){
+        return '<div class="jd-casa-row"><div class="jd-casa-main"><b class="jd-disp">' + casaMoney(e.amount) + '</b> <span class="jd-sub">· ' + casaDate(e.date) + (e.note ? ' · ' + casaEsc(e.note) : '') + '</span></div>' +
+          '<button type="button" class="jd-casa-ico" data-act="edit-entrada" data-id="' + e.id + '" title="Editar">✏️</button><button type="button" class="jd-casa-ico" data-act="del-entrada" data-id="' + e.id + '" title="Quitar">🗑</button></div>';
+      }).join('') + '</div>';
+    }
+    h += '<div class="jd-h" style="margin:14px 0 6px;">A quién le pagas</div>';
+    if(!c.personas.length) h += '<div class="jd-sub" style="padding:2px 0 6px;">Agrega personas con “+ Persona” (arquitecto, electrodomésticos, servicios externos…).</div>';
+    h += c.personas.map(casaPersonaHTML).join('');
+    if(sin.length){
+      h += '<div class="jd-casa-pe" style="border-color:#F2D7A6;background:#FFFBF2;"><button type="button" class="jd-casa-pehead" data-act="toggle" data-id="sin"><span class="jd-casa-arrow">' + (casaUI.open.sin ? '▾' : '▸') + '</span><span class="jd-casa-name">Sin asignar</span><span class="jd-sub">' + sin.length + ' pago' + (sin.length === 1 ? '' : 's') + '</span><b class="jd-disp jd-casa-tot">' + casaMoney(casaSum(sin)) + '</b></button>';
+      if(casaUI.open.sin) h += '<div class="jd-casa-pebody"><div class="jd-sub" style="margin-bottom:4px;">Elige a quién le pagaste cada uno' + (c.personas.length ? '' : ' (primero agrega una persona)') + '.</div>' + sin.map(function(p){ return casaPagoRow(p, true); }).join('') + '</div>';
+      h += '</div>';
+    }
+    box.innerHTML = h;
+  }
+
+  (function(){
+    var box = document.getElementById('jd-casa');
+    if(!box) return;
+    function val(id){ var el = document.getElementById(id); return el ? el.value : ''; }
+    function msg(t){ var m = document.getElementById('casa-f-msg'); if(m) m.textContent = t; }
+    function findP(id){ return data.casa.personas.find(function(x){ return x.id === id; }); }
+    function saveForm(){
+      var f = casaUI.form, c = data.casa;
+      if(!f) return;
+      if(f.type === 'persona'){
+        var name = val('casa-f-name').trim();
+        if(!name) return msg('Escribe un nombre');
+        if(f.id){ var pe = findP(f.id); if(pe) pe.name = name; }
+        else { var np = {id: uid('cx'), name: name, token: '', shared: false}; c.personas.push(np); casaUI.open[np.id] = true; }
+      } else {
+        var amount = parseFloat(val('casa-f-amount'));
+        if(!(amount > 0)) return msg('Pon el monto');
+        var date = val('casa-f-date') || todayKey;
+        if(f.type === 'entrada'){
+          if(f.id){ var e = c.entradas.find(function(x){ return x.id === f.id; }); if(e){ e.amount = amount; e.date = date; e.note = val('casa-f-note').trim(); } }
+          else c.entradas.push({id: uid('ce'), date: date, amount: amount, note: val('casa-f-note').trim()});
+        } else {
+          var method = val('casa-f-method');
+          var obj = {pid: val('casa-f-pid') || null, date: date, amount: amount, method: method, card: method === 'tarjeta' ? val('casa-f-card').replace(/\D/g, '').slice(0, 4) : '', other: method === 'otra' ? val('casa-f-other').trim() : '', note: val('casa-f-note').trim()};
+          if(f.id){ var p = c.pagos.find(function(x){ return x.id === f.id; }); if(p) Object.assign(p, obj); }
+          else { obj.id = uid('cp'); c.pagos.push(obj); if(obj.pid) casaUI.open[obj.pid] = true; }
+        }
+      }
+      casaUI.form = null; casaSave(); renderCasa();
+    }
+    function openForm(form){
+      casaUI.form = form; renderCasa();
+      var fm = box.querySelector('.jd-casa-form');
+      if(fm){ var el = fm.querySelector('input, select'); if(el && form.type === 'persona') el.focus(); if(fm.scrollIntoView) fm.scrollIntoView({block:'nearest', behavior:'smooth'}); }
+    }
+    box.addEventListener('click', function(ev){
+      var b = ev.target.closest('[data-act]');
+      if(!b) return;
+      var act = b.getAttribute('data-act'), id = b.getAttribute('data-id'), c = data.casa;
+      if(act === 'new-pago') openForm({type: 'pago', pid: id || ''});
+      else if(act === 'new-entrada') openForm({type: 'entrada'});
+      else if(act === 'new-persona') openForm({type: 'persona'});
+      else if(act === 'rename') openForm({type: 'persona', id: id});
+      else if(act === 'edit-pago') openForm({type: 'pago', id: id});
+      else if(act === 'edit-entrada') openForm({type: 'entrada', id: id});
+      else if(act === 'cancel-form'){ casaUI.form = null; renderCasa(); }
+      else if(act === 'save-form') saveForm();
+      else if(act === 'toggle'){ casaUI.open[id] = !casaUI.open[id]; renderCasa(); }
+      else if(act === 'toggle-entradas'){ casaUI.entradas = !casaUI.entradas; renderCasa(); }
+      else if(act === 'del-pago'){
+        var p = c.pagos.find(function(x){ return x.id === id; });
+        if(p && window.confirm('¿Quitar este pago de ' + casaMoney(p.amount) + '?')){ c.pagos = c.pagos.filter(function(x){ return x.id !== id; }); casaSave(); renderCasa(); }
+      }
+      else if(act === 'del-entrada'){
+        var e = c.entradas.find(function(x){ return x.id === id; });
+        if(e && window.confirm('¿Quitar este dinero recibido de ' + casaMoney(e.amount) + '?')){ c.entradas = c.entradas.filter(function(x){ return x.id !== id; }); casaSave(); renderCasa(); }
+      }
+      else if(act === 'del-persona'){
+        var pe = findP(id);
+        if(!pe) return;
+        var n = casaPagosDe(id).length;
+        if(!window.confirm('¿Quitar a ' + pe.name + '?' + (n ? ' Sus ' + n + ' pagos quedan en “Sin asignar”.' : '') + (pe.shared ? ' Su link se apaga.' : ''))) return;
+        c.pagos.forEach(function(x){ if(x.pid === id) x.pid = null; });
+        pe.shared = false;
+        casaUI.open.sin = true;
+        // primero se manda el link apagado a la nube y luego se quita la persona
+        casaSyncShares().then(function(){
+          c.personas = c.personas.filter(function(x){ return x.id !== id; });
+          casaSave(); renderCasa();
+        });
+      }
+      else if(act === 'on-link'){ var p1 = findP(id); if(p1){ if(!p1.token) p1.token = casaToken(); p1.shared = true; casaSave(); renderCasa(); } }
+      else if(act === 'off-link'){ var p2 = findP(id); if(p2 && window.confirm('¿Apagar el link de ' + p2.name + '? Dejará de ver sus pagos.')){ p2.shared = false; casaSave(); renderCasa(); } }
+      else if(act === 'regen-link'){
+        var p3 = findP(id);
+        if(p3 && window.confirm('Se crea un link nuevo y el anterior deja de funcionar. ¿Seguro?')){
+          var old = p3.token; p3.token = casaToken();
+          supabaseClient.from('casa_shares').update({activo: false}).eq('token', old).then(function(){}, function(){});
+          casaSave(); renderCasa();
+        }
+      }
+      else if(act === 'copy-link'){
+        var p4 = findP(id), url = p4 ? casaLinkBase() + p4.token : '';
+        if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(url).then(function(){ b.textContent = 'Copiado ✓'; setTimeout(function(){ b.textContent = 'Copiar link'; }, 1800); }, function(){ window.prompt('Copia el link:', url); }); }
+        else window.prompt('Copia el link:', url);
+      }
+    });
+    box.addEventListener('change', function(ev){
+      var t = ev.target;
+      if(t.id === 'casa-f-method'){
+        document.getElementById('casa-f-card').style.display = t.value === 'tarjeta' ? '' : 'none';
+        document.getElementById('casa-f-other').style.display = t.value === 'otra' ? '' : 'none';
+      } else if(t.getAttribute && t.getAttribute('data-assign')){
+        var p = data.casa.pagos.find(function(x){ return x.id === t.getAttribute('data-assign'); });
+        if(p && t.value){ p.pid = t.value; casaUI.open[t.value] = true; casaSave(); renderCasa(); }
+      }
+    });
+    box.addEventListener('keydown', function(ev){
+      if(ev.key === 'Enter' && ev.target.tagName === 'INPUT' && !ev.target.readOnly && casaUI.form){ ev.preventDefault(); saveForm(); }
+    });
+  })();
+
   function renderAll(){
     renderClock(); renderPhrase(); renderDebt(); renderFinance(); renderProgressMini();
     renderHabits(); renderTasks(); renderAgenda(); renderBalance(); renderProducts(); renderHistory(); renderCalendar(); renderWeekGrid();
-    renderTokenUsage(); renderFinCalendar(); renderSubscriptions(); renderMemory(); renderCoach();
+    renderCasa(); renderTokenUsage(); renderFinCalendar(); renderSubscriptions(); renderMemory(); renderCoach();
     renderSummary(); renderFinanceSummary(); renderTools();
   }
 
