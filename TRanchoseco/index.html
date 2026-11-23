@@ -51,6 +51,10 @@ main{max-width:600px;margin:0 auto;padding:8px 12px 40px}
 .plus:hover{transform:scale(1.05)}
 .badge{position:absolute;top:-6px;right:-6px;min-width:26px;height:26px;padding:0 6px;border-radius:999px;background:#111;color:#fff;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid #fff}
 button.badge{cursor:pointer;font-family:inherit;line-height:1;padding:0 6px}
+*{touch-action:manipulation}
+.plus,.badge,.dollar,.asignar{user-select:none;-webkit-user-select:none}
+.marcin{display:inline-flex;align-items:center;gap:6px}
+.marcin input{width:56px;font:inherit;font-size:20px;font-weight:700;text-align:center;padding:4px 2px;border-radius:6px;border:1px solid #d1d5db;background:#fff;color:#111}
 .tname{background:#fff;color:#222;border-radius:999px;padding:3px 10px;font-size:14px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .minus{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.6);border-radius:999px;width:26px;height:22px;font-size:14px;cursor:pointer;line-height:1}
 .nomatch{position:relative;z-index:1;text-align:center;color:#fff;padding:50px 0;opacity:.9}
@@ -663,7 +667,7 @@ function side(m,s){
   const tid=s==='A'?m.a:m.b;
   const sc=s==='A'?m.sa:m.sb;
   return `<div class="tcol">
-    <div class="pw"><button class="plus" data-act="score" data-match="${m.id}" data-side="${s}" aria-label="Sumar gol">+</button><button type="button" class="badge" data-act="unscore" data-match="${m.id}" data-side="${s}" aria-label="Restar gol" title="Tocar para restar un gol">${sc||0}</button></div>
+    <div class="pw"><button class="plus" data-act="score" data-match="${m.id}" data-side="${s}" aria-label="Sumar gol">+</button><button type="button" class="badge" data-act="manual" data-match="${m.id}" aria-label="Poner marcador manual" title="Tocar para poner el marcador">${sc||0}</button></div>
     <span class="tname">${teamById(tid)?.juegoActual?`<b>J${teamById(tid).juegoActual}</b> `:''}${teamLink(tid)}</span>
     ${(balance(tid).insPend+balance(tid).arbPend)>0?`<span class="deudaq debe">Debe ${money(balance(tid).insPend+balance(tid).arbPend)}</span>`:''}
   </div>`;
@@ -1257,13 +1261,34 @@ function openBuscarPago(){
   q.addEventListener('input',pintar);
   q.focus();
 }
+// Marcador manual: se escribe el marcador de los dos equipos
+function openMarcadorManual(mid){
+  const m=matchById(mid); if(!m) return;
+  openModal(`<form id="mm-form">
+    <h3>Marcador manual · Cancha ${m.field}</h3>
+    <div class="marcador"><b>${teamLink(m.a)}</b><span class="marcin"><input type="number" min="0" max="99" inputmode="numeric" name="sa" id="mm-sa" value="${m.sa||0}"> – <input type="number" min="0" max="99" inputmode="numeric" name="sb" id="mm-sb" value="${m.sb||0}"></span><b>${teamLink(m.b)}</b></div>
+    <p id="mm-err" class="pend"></p>
+    <div class="actions">
+      <button type="button" class="btn ghost" data-act="close">Cancelar</button>
+      <button class="btn primary">Guardar marcador</button>
+    </div>
+  </form>`);
+  $('#mm-form').onsubmit=e=>{
+    e.preventDefault();
+    const fd=new FormData(e.target);
+    const sa=parseInt(fd.get('sa'),10), sb=parseInt(fd.get('sb'),10);
+    if(!(sa>=0&&sb>=0)){$('#mm-err').textContent='Escribe el marcador con números de 0 en adelante.';return;}
+    m.sa=sa; m.sb=sb;
+    save(); closeModal(); renderAll();
+  };
+}
 function openTerminar(mid){
   const m=matchById(mid); if(!m) return;
   const adeudoHTML=(tid)=>{const b=balance(tid);const d=b.insPend+b.arbPend;return `<div class="adeu"><b>${teamLink(tid)}</b>${d?`<span class="pend">Debe ${money(d)}${b.insPend?` · inscripción ${money(b.insPend)}`:''}</span>`:'<span class="ok">✔ Al corriente</span>'}</div>`;};
   const yaArb=!!m.arbitro;
   openModal(`<form id="tp-form">
     <h3>Terminar partido · Cancha ${m.field}</h3>
-    <div class="marcador"><b class="${(m.sa||0)>(m.sb||0)?'ganador':''}">${teamLink(m.a)}</b><span>${m.sa||0} – ${m.sb||0}</span><b class="${(m.sb||0)>(m.sa||0)?'ganador':''}">${teamLink(m.b)}</b></div>
+    <div class="marcador"><b class="${(m.sa||0)>(m.sb||0)?'ganador':''}">${teamLink(m.a)}</b><span class="marcin"><input type="number" min="0" max="99" inputmode="numeric" name="sa" id="tp-sa" value="${m.sa||0}"> – <input type="number" min="0" max="99" inputmode="numeric" name="sb" id="tp-sb" value="${m.sb||0}"></span><b class="${(m.sb||0)>(m.sa||0)?'ganador':''}">${teamLink(m.b)}</b></div>
     <div class="adeudos">${adeudoHTML(m.a)}${adeudoHTML(m.b)}</div>
     ${yaArb
       ?`<p class="muted" style="margin:0 0 10px">Lo pita: <b style="color:#111">${arbNombreHTML(m.arbitro)}</b></p><input type="hidden" name="arbitro" id="tp-val" value="${esc(m.arbitro)}">`
@@ -1293,11 +1318,14 @@ function openTerminar(mid){
     const fd=new FormData(e.target);
     const arb=String(fd.get('arbitro')||'').trim();
     if(!arb){$('#tp-err').textContent='Para terminar el partido, elige o agrega quién lo pitó.';return;}
+    const sa=parseInt(fd.get('sa'),10), sb=parseInt(fd.get('sb'),10);
+    if(!(sa>=0&&sb>=0)){$('#tp-err').textContent='Escribe el marcador final con números de 0 en adelante.';return;}
     if(!db.config.arbitros.some(a=>norm(a)===norm(arb))) db.config.arbitros.push(arb);
     m.terminado=true;
     // Cada equipo avanza al siguiente juego al terminar su partido
     [teamById(m.a),teamById(m.b)].forEach(t=>{if(t?.juegoActual) t.juegoActual=Math.min(db.config.totalJuegos,t.juegoActual+1);});
     m.activo=false;
+    m.sa=sa; m.sb=sb;
     m.resultado={a:m.sa||0,b:m.sb||0};
     m.arbitro=arb;
     m.terminadoEn=new Date().toISOString();
@@ -1625,6 +1653,7 @@ function addPlayerDraft(){
   if(draft.players.some(p=>norm(p)===norm(name))){$('#tm-err').textContent='Ese jugador ya está en la lista.';return;}
   const tel=($('#tm-tel').value||'').replace(/\D/g,'');
   if(tel&&!/^\d{10}$/.test(tel)){$('#tm-err').textContent='El teléfono debe tener 10 números.';return;}
+  if(!draft.players.length&&!/^\d{10}$/.test(tel)){$('#tm-err').textContent='El primer jugador necesita su teléfono (10 dígitos).';return;}
   draft.tel[name]=tel;
   draft.players.push(name);
   if(!draft.lider) draft.lider=name;
@@ -1645,7 +1674,7 @@ function saveDraft(){
     addPlayerDraft();
     if(!draft.players.length) return;
   }
-  if(!draft.players.some(p=>/^\d{10}$/.test(draft.tel[p]||''))){$('#tm-err').textContent='Agrega el teléfono de al menos una persona del equipo.';return;}
+  if(!/^\d{10}$/.test(draft.tel[draft.players[0]]||'')){$('#tm-err').textContent=`El teléfono de ${draft.players[0]} (el primero de la lista) es obligatorio.`;return;}
   const sim=similares(name);
   if(sim.length&&!$('#tm-otro')?.checked){
     $('#tm-err').textContent=`Se parece a: ${sim.map(x=>x.name).join(', ')}. Si es el mismo, cancela y úsalo. Si es otro equipo, marca "Confirmo que es otro equipo" y guarda.`;
@@ -1911,6 +1940,7 @@ document.addEventListener('click',e=>{
     case 'quitarclave': quitarClave(d.n); break;
     case 'pay': openPay(d.team,d.match||null); break;
     case 'score': changeScore(d.match,d.side,1); break;
+    case 'manual': openMarcadorManual(d.match); break;
     case 'unscore': changeScore(d.match,d.side,-1); break;
     case 'assign': openAssign(Number(d.field)); break;
     case 'unassign': unassign(Number(d.field)); break;
