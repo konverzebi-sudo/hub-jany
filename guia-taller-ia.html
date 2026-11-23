@@ -1223,6 +1223,13 @@ window.addEventListener('message', ev => {
 });
 document.addEventListener('click', e => { if (e.target.closest('[data-abrir-ayuda]')) document.getElementById('ayudaFab')?.click(); });
 document.addEventListener('click', e => { const o = e.target.closest && e.target.closest('[data-lt-ocultar]'); if (!o) return; const k = o.dataset.ltOcultar; LT_OCULTOS.has(k) ? LT_OCULTOS.delete(k) : LT_OCULTOS.add(k); refrescarLinea(); });
+// Doble clic en un paso (vista del ponente): lo marca como terminado con ✔, o le quita la marca
+document.addEventListener('dblclick', e => {
+  const it = e.target.closest && e.target.closest('#lineaTiempo .lt-item'); if (!it || !MODO_PONENTE || e.target.closest('a, input, iframe, [data-lock]')) return;
+  const i = Number(it.dataset.paso); LT_HECHOS.has(i) ? LT_HECHOS.delete(i) : LT_HECHOS.add(i);
+  try { localStorage.setItem('mapa-hechos', JSON.stringify([...LT_HECHOS])); } catch (err) {}
+  refrescarLinea();
+});
 document.addEventListener('click', e => { const t = e.target.closest && e.target.closest('[data-lt-desp]'); if (!t) return; const i = Number(t.dataset.ltDesp); LT_ABIERTOS.has(i) ? LT_ABIERTOS.delete(i) : LT_ABIERTOS.add(i); refrescarLinea(); });
 document.addEventListener('click', e => { const lk = e.target.closest && e.target.closest('[data-lock]'); if (!lk) return; const c = CLASES.find(x => x.id === lk.dataset.lock); if (!c) return; guardarRemoto('clase:' + c.id, bloqueoDeClase(c, c.mod)); refrescarNumerosPP(); setTimeout(refrescarLinea, 400); });
 document.addEventListener('click', e => { const en = e.target.closest && e.target.closest('[data-enviar]'); if (!en) return; const [cid, kk] = en.dataset.enviar.split('|'); escribirEnVivo(ENVIVO, { hash: 'clase-' + cid + '/etapa-' + (Number(kk) + 1), t: new Date().toISOString() }); });
@@ -1665,7 +1672,9 @@ function hallarEtapa(embed) {
   return null;
 }
 const LT_OCULTOS = new Set();   // paneles de la línea de tiempo que el ponente ocultó (solo en su pantalla)
-const LT_ABIERTOS = new Set();  // pasos de la línea de tiempo con su desglose desplegado (índice del paso)
+const LT_ABIERTOS = new Set();
+// Pasos marcados como terminados por el ponente (doble clic en el paso); se guardan en este navegador
+const LT_HECHOS = new Set((() => { try { return JSON.parse(localStorage.getItem('mapa-hechos') || '[]'); } catch (e) { return []; } })());  // pasos de la línea de tiempo con su desglose desplegado (índice del paso)
 function botonesDinLinea(x) {
   return x.din.map(([n, d, embed]) => {
     const h = embed && MODO_PONENTE ? hallarEtapa(embed) : null;
@@ -1704,10 +1713,10 @@ document.addEventListener('click', e => {
 });
 function lineaTiempoHtml() {
   return `<div class="card lt" id="lineaTiempo" style="margin-top:26px"><span class="eyebrow">Mapa de la clase</span>
-    ${LINEA_TIEMPO.map((x, i) => `<div class="lt-item">${nodoLinea(x)}
-      <div class="lt-eb">Paso ${i + 1} · ${esc(x.mod)}</div>
+    ${LINEA_TIEMPO.map((x, i) => `<div class="lt-item${LT_HECHOS.has(i) ? ' lt-hecho' : ''}" data-paso="${i}">${nodoLinea(x)}
+      <div class="lt-eb">Paso ${i + 1} · ${esc(x.mod)}${LT_HECHOS.has(i) ? ' ✔ Terminado' : ''}</div>
       ${x.din.length ? ltTituloDesplegable(i, x) : `<h3 class="lt-tit">${esc(x.clase)}</h3>`}
-      <p class="lt-txt">${esc(x.dias)}</p>${MODO_PONENTE ? ltCirculos(x) : ''}
+      ${!MODO_PONENTE || !x.din.length || LT_ABIERTOS.has(i) ? `<p class="lt-txt">${esc(x.dias)}</p>${MODO_PONENTE ? ltCirculos(x) : ''}` : ''}
       ${LT_ABIERTOS.has(i) ? ltActividades(x) + botonesDinLinea(x) : ''}</div>`).join('')}</div>`;
 }
 /* Lo que contiene el paso (sus actividades, en orden): ets = índices de las actividades de la clase que le tocan */
