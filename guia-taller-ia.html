@@ -1591,9 +1591,22 @@ function actividadEnCurso() {
 /* Botón de audio de los alumnos: pide al cuadro de Zoom que se una al audio de la computadora (un solo clic) */
 function tallerActivarAudio(btn) {
   const f = document.querySelector('.zoom-vivo');
-  const z = f && f.contentWindow && f.contentWindow.tallerZoom;
-  if (!z) { btn.textContent = 'Espera a que cargue la clase y vuelve a tocar'; return; }
-  z.audio().then(() => { btn.textContent = '🔊 Audio activado'; }).catch(() => { btn.textContent = 'No se activó el audio, toca de nuevo'; });
+  let intentos = 0;
+  btn.disabled = true; btn.textContent = 'Conectando el audio…';
+  // Espera hasta ~20 segundos a que la clase cargue, en lugar de pedir que lo toquen otra vez
+  const intentar = () => {
+    const z = f && f.contentWindow && f.contentWindow.tallerZoom;
+    if (!z) {
+      if (++intentos < 40) { setTimeout(intentar, 500); return; }
+      btn.disabled = false; btn.textContent = 'La clase no cargó. Recarga la página';
+      return;
+    }
+    z.audio().then(() => { btn.remove(); }).catch(e => {
+      btn.disabled = false;
+      btn.textContent = 'No se activó el audio: ' + ((e && (e.reason || e.message)) || 'toca de nuevo');
+    });
+  };
+  intentar();
 }
 function srcEjercicio(v) {
   const a = actividadEnCurso();
