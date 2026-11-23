@@ -299,6 +299,9 @@ th{color:var(--muted);font-weight:600}
 #vista-banner button{margin-left:8px;font:inherit;font-weight:700;padding:6px 12px;border-radius:10px;border:0;background:var(--yellow);color:#111;cursor:pointer}
 #vista-banner[hidden]{display:none}
 #login .lerr{color:#d62f2f;min-height:1.4em;margin-top:8px;font-size:15px}
+.verbtn{display:block;width:100%;text-align:left;padding:12px 14px;margin:8px 0;border-radius:12px;border:1px solid #e3e6e3;background:#f5f7f5;color:#111;font:inherit;cursor:pointer}
+.verbtn.on{background:#111;color:var(--yellow);border-color:#111}
+.verbtn.on small{color:#ddd}
 .perfil{position:absolute;top:10px;right:12px;z-index:6;background:#2a2f3f;color:var(--yellow);border:0;border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;font-weight:700;cursor:pointer}
 body.propio .tab[data-tab="canchas"],body.propio .tab[data-tab="resultados"],body.propio .ajfoot,body.propio [data-act="tab"][data-tab="ajustes"],body.propio [data-act="newteam"]{display:none!important}
 body.propio #tab-canchas,body.propio #tab-resultados,body.propio #tab-ajustes{display:none!important}
@@ -307,7 +310,7 @@ body.propio #tab-canchas,body.propio #tab-resultados,body.propio #tab-ajustes{di
 <body>
 <div id="login" hidden></div>
 <header>
-  <button class="perfil" data-act="salir">Cambiar de perfil</button>
+  <button class="perfil" data-act="salir">Salir</button>
   <img class="logo" src="escudo.png" alt="Rancho Seco Fútbol Rápido">
   <div class="search">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
@@ -523,8 +526,20 @@ function usuarioActual(){
   if(r&&puedeVerComo()){const v=verComo();const vu=v&&(db.config.usuarios||[]).find(u=>u.nombre===v);if(vu) return vu;}
   return r;
 }
+// Panel "Ver como": elige una persona y la app se ve como la ve ella
+function verComoPanel(){
+  if(!puedeVerComo()) return;
+  const r=sesionReal(), actual=usuarioActual();
+  openModal(`<div>
+    <h3>Ver como</h3>
+    <p class="muted">Mira la app como la ve cada persona. Solo para revisar: no registres pagos ni partidos en esta vista.</p>
+    ${(db.config.usuarios||[]).map(u=>`<button type="button" class="verbtn${actual&&actual.nombre===u.nombre?' on':''}" data-act="vercomo" data-n="${esc(u.nombre)}"><b>${u.nombre===r.nombre?'Mi vista ('+esc(u.nombre)+')':esc(u.nombre)}</b><br><small>${u.acceso==='todo'?'Ve todo':'Ve solo sus cuentas y equipos'}</small></button>`).join('')}
+    <div class="actions"><button type="button" class="btn ghost" data-act="close">Cerrar</button></div>
+  </div>`);
+}
 function verComoSet(n){
   if(!puedeVerComo()) return;
+  closeModal();
   const r=sesionReal();
   try{ if(!n||n===r.nombre) localStorage.removeItem(VER_KEY); else localStorage.setItem(VER_KEY,n); }catch(e){}
   aplicarAcceso(); showTab(veTodo()?'ajustes':'pagos'); renderAll();
@@ -539,6 +554,8 @@ function partidoVisible(m){return veTodo()||[m.a,m.b].some(tid=>equipoVisible(te
 async function hashPin(pin){const d=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('rancho-seco:'+pin));return [...new Uint8Array(d)].map(x=>x.toString(16).padStart(2,'0')).join('');}
 function aplicarAcceso(){
   document.body.classList.toggle('propio',!veTodo());
+  const pb=document.querySelector('.perfil');
+  if(pb){const adm=puedeVerComo(); pb.dataset.act=adm?'verpanel':'salir'; pb.textContent=adm?'Ver como':'Salir';}
   const real=sesionReal(), vu=usuarioActual();
   let ban=document.getElementById('vista-banner');
   const activo=!!real&&!!vu&&vu.nombre!==real.nombre;
@@ -1765,7 +1782,6 @@ function renderAjustes(){
       <div class="addrow"><input id="na-n" autocomplete="off" placeholder="Nombre del árbitro"></div>
       <div class="actions" style="justify-content:flex-start;margin-top:0"><button class="btn primary sm" data-act="addarb">+ Agregar árbitro</button></div>
     </div>
-    ${puedeVerComo()?`<div class="card"><h3>Ver como</h3><p class="muted">Mira la app como la ve cada persona. Es solo para revisar: no registres pagos ni partidos en esta vista.</p><div class="actions" style="flex-wrap:wrap;justify-content:flex-start">${(db.config.usuarios||[]).map(u=>`<button class="btn ${usuarioActual()&&usuarioActual().nombre===u.nombre?'primary':'ghost'} sm" data-act="vercomo" data-n="${esc(u.nombre)}">${u.nombre===sesionReal().nombre?'Mi vista':esc(u.nombre)}</button>`).join('')}</div></div>`:''}
     <div class="card">
       <h3>Usuarios</h3>
       <ul class="plist">${(db.config.usuarios||[]).map(u=>`<li><span><b>${esc(u.nombre)}</b><br><small class="muted">${u.acceso==='todo'?'Ve todo':'Ve solo sus cuentas y equipos'} · ${u.pin?'con clave':'sin clave'}</small></span>${esAdmin()&&u.pin?`<button class="btn ghost sm" data-act="quitarclave" data-n="${esc(u.nombre)}">Quitar clave</button>`:''}</li>`).join('')}</ul>
@@ -1841,6 +1857,7 @@ document.addEventListener('click',e=>{
     case 'arbdia': arbitroDia(d.n); break;
     case 'lgn': lgElegir(d.n); break;
     case 'lgback': loginPaso={modo:'pin',nombre:null,primera:null}; mostrarLogin(); break;
+    case 'verpanel': verComoPanel(); break;
     case 'vercomo': verComoSet(d.n); break;
     case 'lgnuevo': loginPaso={modo:'nombres',nombre:null,primera:null}; mostrarLogin(); break;
     case 'salir': salir(); break;
