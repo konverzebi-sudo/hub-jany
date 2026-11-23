@@ -275,13 +275,22 @@ th{color:var(--muted);font-weight:600}
 }
 [hidden]{display:none!important}
 /* Acceso por usuario */
-#login{position:fixed;inset:0;z-index:300;background:linear-gradient(rgba(10,12,18,.72),rgba(10,12,18,.9)),url(fondo-canchas.jpg) center/cover no-repeat,var(--bg);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto}
-#login .lbox{width:100%;max-width:420px;background:var(--panel);border-radius:16px;padding:22px;box-sizing:border-box;text-align:left}
-#login .lbox::before{content:"";display:block;width:110px;height:110px;margin:0 auto 12px;background:url(escudo.png) center/contain no-repeat}
-#login h3{margin:0 0 6px}
-#login .uopt{display:block;width:100%;margin:8px 0;padding:14px;font:inherit;font-weight:700;border:0;border-radius:12px;background:#fff;color:#111;cursor:pointer;text-align:left}
-#login input.pin{font:inherit;font-size:28px;letter-spacing:12px;text-align:center;width:100%;padding:10px;border-radius:12px;border:1px solid #ccc;box-sizing:border-box;margin:10px 0}
-#login .lerr{color:#ff6b6b;min-height:1.4em}
+#login{position:fixed;inset:0;z-index:300;background:linear-gradient(rgba(8,12,10,.55),rgba(8,12,10,.8)),url(fondo-canchas.jpg) center/cover no-repeat,var(--bg);display:flex;align-items:center;justify-content:center;padding:20px 16px;overflow:auto}
+#login .lbox{width:100%;max-width:380px;background:#fff;color:#111;border-radius:24px;padding:28px 24px 24px;box-sizing:border-box;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.45)}
+#login .lbox::before{content:"";display:block;width:120px;height:120px;margin:0 auto 14px;background:url(escudo.png) center/contain no-repeat}
+#login h3{margin:0 0 6px;font-size:22px;color:#111}
+#login .lbox p.muted{color:#666;margin:0 0 18px}
+#login .uopt{display:block;width:100%;margin:10px 0;padding:15px 16px;font:inherit;font-size:17px;font-weight:600;border:1px solid #e3e6e3;border-radius:14px;background:#f5f7f5;color:#111;cursor:pointer;text-align:center}
+#login .uopt:hover,#login .uopt:active{background:var(--yellow);border-color:var(--yellow)}
+#login .pinwrap{position:relative;margin:4px 0 6px}
+#login .pindots{display:flex;gap:12px;justify-content:center}
+#login .pd{width:54px;height:60px;border-radius:14px;border:2px solid #d6dcd6;background:#f5f7f5;display:flex;align-items:center;justify-content:center;transition:border-color .15s}
+#login .pd.on::after{content:"";width:14px;height:14px;border-radius:50%;background:#111}
+#login .pd.on{border-color:#111}
+#login input.pinin{position:absolute;inset:0;width:100%;height:100%;opacity:0;font-size:16px;border:0;padding:0;margin:0}
+#login .big{width:100%;padding:15px;font-size:17px;margin-top:16px;border-radius:14px}
+#login .linkb{background:none;border:0;color:#555;font:inherit;font-size:15px;margin-top:14px;cursor:pointer;text-decoration:underline}
+#login .lerr{color:#d62f2f;min-height:1.4em;margin-top:8px;font-size:15px}
 .salir{font-size:13px}
 body.propio .tab[data-tab="canchas"],body.propio .tab[data-tab="resultados"],body.propio .ajfoot,body.propio [data-act="tab"][data-tab="ajustes"],body.propio [data-act="newteam"]{display:none!important}
 body.propio #tab-canchas,body.propio #tab-resultados,body.propio #tab-ajustes{display:none!important}
@@ -515,14 +524,16 @@ function mostrarLogin(){
   const cont=$('#login');
   cont.hidden=false;
   if(!loginPaso.nombre){
-    cont.innerHTML=`<div class="lbox"><h3>¿Quién eres?</h3><p class="muted">Toca tu nombre para entrar.</p>${(db.config.usuarios||[]).map(u=>`<button type="button" class="uopt" data-act="lgn" data-n="${esc(u.nombre)}">${esc(u.nombre)}</button>`).join('')}</div>`;
+    cont.innerHTML=`<div class="lbox"><h3>¿Quién eres?</h3><p class="muted">Elige tu nombre para entrar</p>${(db.config.usuarios||[]).map(u=>`<button type="button" class="uopt" data-act="lgn" data-n="${esc(u.nombre)}">${esc(u.nombre)}</button>`).join('')}</div>`;
     return;
   }
   const u=(db.config.usuarios||[]).find(x=>x.nombre===loginPaso.nombre);
   if(!u){loginPaso={nombre:null,primera:null};return mostrarLogin();}
   const titulo=u.pin?'Escribe tu clave de 4 números':(loginPaso.primera===null?'Crea tu clave de 4 números':'Repite tu clave');
-  cont.innerHTML=`<form class="lbox" id="lg-form"><h3>Hola, ${esc(u.nombre)}</h3><p class="muted">${titulo}</p><input id="lg-pin" class="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off"><div class="lerr" id="lg-err"></div><div class="actions" style="justify-content:space-between"><button type="button" class="btn ghost" data-act="lgback">Volver</button><button class="btn primary">Entrar</button></div></form>`;
-  $('#lg-pin').focus();
+  cont.innerHTML=`<form class="lbox" id="lg-form"><h3>Hola, ${esc(u.nombre)}</h3><p class="muted">${titulo}</p><div class="pinwrap"><div class="pindots"><span class="pd"></span><span class="pd"></span><span class="pd"></span><span class="pd"></span></div><input id="lg-pin" class="pinin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" aria-label="Clave de 4 números"></div><div class="lerr" id="lg-err"></div><button class="btn primary big">Entrar</button><button type="button" class="linkb" data-act="lgback">Cambiar de nombre</button></form>`;
+  const pi=$('#lg-pin'), pds=[...document.querySelectorAll('#lg-form .pd')];
+  pi.addEventListener('input',()=>{pi.value=pi.value.replace(/\D/g,'').slice(0,4);pds.forEach((d,i)=>d.classList.toggle('on',i<pi.value.length));$('#lg-err').textContent='';});
+  pi.focus();
   $('#lg-form').onsubmit=async e=>{
     e.preventDefault();
     const pin=$('#lg-pin').value.trim();
