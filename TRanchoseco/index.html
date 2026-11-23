@@ -1720,7 +1720,19 @@ function quitarPersona(n){
 // Nombre que se muestra del árbitro: su apodo si tiene, si no el nombre completo
 function arbNom(a){return ((db&&db.config&&db.config.apodos)||{})[a]||a;}
 // Nombre completo y, al lado, su apodo entre paréntesis si lo tiene
-function arbNombreHTML(a){const ap=((db&&db.config&&db.config.apodos)||{})[a];return esc(a)+(ap?` <small class="muted">(${esc(ap)})</small>`:'');}
+// Pantallas: apodo primero y luego primer nombre y primer apellido (ej. OSO - Diego Hernández)
+function arbCorto(a){
+  const ps=String(a).trim().split(/\s+/).filter(Boolean);
+  const cap=w=>w.charAt(0).toUpperCase()+w.slice(1);
+  if(ps.length<=1) return cap(ps[0]||'');
+  const nom=ps.length>=4?2:1; // con 4 o más palabras, dos nombres de pila
+  const part=['de','la','del','las','los','da','do'];
+  let i=nom; while(i<ps.length-1&&part.includes(ps[i].toLowerCase())) i++;
+  return cap(ps[0])+' '+cap(ps[i]);
+}
+function arbNombreHTML(a){const ap=((db&&db.config&&db.config.apodos)||{})[a];const c=esc(arbCorto(a));return ap?`<b>${esc(ap)}</b> - ${c}`:c;}
+// Registro interno (Ajustes): nombre completo y apodo entre paréntesis
+function arbRegistroHTML(a){const ap=((db&&db.config&&db.config.apodos)||{})[a];return esc(a)+(ap?` <small class="muted">(${esc(ap)})</small>`:'');}
 // Registro de cambios (se muestra en Ajustes)
 // Cierra un partido con su marcador actual (así nunca queda sin terminar)
 function cerrarPartido(m){
@@ -1791,7 +1803,7 @@ function renderAjustes(){
     </div>
     <div class="card">
       <h3>Árbitros</h3>
-      <ul class="plist">${(db.config.arbitros||[]).map(a=>`<li><span><b>${arbNombreHTML(a)}</b></span><span><button class="btn ghost sm" data-act="editapodo" data-n="${esc(a)}">Editar</button> <button class="btn danger sm" data-act="quitarb" data-n="${esc(a)}">Quitar</button></span></li>`).join('')||'<li class="muted">Aún no hay árbitros.</li>'}</ul>
+      <ul class="plist">${(db.config.arbitros||[]).map(a=>`<li><span><b>${arbRegistroHTML(a)}</b></span><span><button class="btn ghost sm" data-act="editapodo" data-n="${esc(a)}">Editar</button> <button class="btn danger sm" data-act="quitarb" data-n="${esc(a)}">Quitar</button></span></li>`).join('')||'<li class="muted">Aún no hay árbitros.</li>'}</ul>
       <div class="addrow"><input id="na-n" autocomplete="off" placeholder="Nombre del árbitro"></div>
       <div class="actions" style="justify-content:flex-start;margin-top:0"><button class="btn primary sm" data-act="addarb">+ Agregar árbitro</button></div>
     </div>
