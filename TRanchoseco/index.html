@@ -151,6 +151,8 @@ h3.yel{margin-top:28px}
 .insrow .chk{margin:0}
 .silb{width:22px;height:22px;vertical-align:middle;display:block;margin:auto}
 .silb-big{width:56px;height:56px;display:block;margin:auto}
+.silb-mini{height:1.1em;width:auto;vertical-align:-0.15em;margin-left:6px;display:inline}
+.sug.enjuego:disabled{cursor:not-allowed;opacity:.85}
 .cancha-card{text-align:center}
 .cnum{font-size:32px;font-weight:800;color:var(--yellow);line-height:1;margin:4px 0 8px}
 .ajfoot{display:flex;justify-content:flex-end;margin:4px 0 16px}
@@ -619,7 +621,7 @@ function renderFields(){
   for(let f=4;f>=1;f--){
     const m=activeMatch(f);
     h+=`<section class="fwrap">
-      <div class="fhead"><span>Cancha ${f}</span>${m?`<div class="fcenter"><button class="arbchip" data-act="assign" data-field="${f}" title="Cambiar árbitro o partido">${m.arbitro?arbNombreHTML(m.arbitro):'Sin árbitro'}</button><button class="whistle" data-act="terminar" data-match="${m.id}" title="Terminar partido" aria-label="Terminar partido">${SILBATO}</button></div><span></span>`:`<span></span><span></span>`}</div>
+      <div class="fhead"><span>Cancha ${f}${m?' <img src="silbato.png" alt="" class="silb-mini">':''}</span>${m?`<div class="fcenter"><button class="arbchip" data-act="${m.arbitro?'arbdia':'assign'}" data-n="${esc(m.arbitro||'')}" data-field="${f}" title="${m.arbitro?'Ver partidos pitados hoy':'Asignar árbitro'}">${m.arbitro?arbNombreHTML(m.arbitro):'Sin árbitro'}</button><button class="whistle" data-act="terminar" data-match="${m.id}" title="Terminar partido" aria-label="Terminar partido">${SILBATO}</button></div><span></span>`:`<span></span><span></span>`}</div>
       <div class="field"><span class="circle"></span>`;
     if(m){
       h+=`<div class="row">
@@ -654,9 +656,12 @@ function activarBuscador(s){
     // Cada palabra que escriben tiene que estar en el nombre del equipo
     const toks=norm(txt.value.trim()).split(/\s+/).filter(Boolean);
     const hits=db.teams.filter(t=>toks.every(k=>norm(t.name).includes(k)));
-    // Equipos que ya están jugando en otra cancha salen en verde, con la cancha donde están
-    sug.innerHTML=hits.map(t=>{const oc=db.matches.find(m=>m.activo&&m.field!==asignandoField&&(m.a===t.id||m.b===t.id));return oc
-      ?`<button type="button" class="sug enjuego" data-pick="${t.id}" data-side="${s}">${esc(t.name)} · ya está en la cancha ${oc.field}</button>`
+    // Equipos que ya están jugando en otra cancha, o que ya son el otro equipo: salen en verde y no se pueden elegir
+    const otro=document.getElementById(`as-${s==='a'?'b':'a'}-val`)?.value||'';
+    sug.innerHTML=hits.map(t=>{const oc=db.matches.find(m=>m.activo&&m.field!==asignandoField&&(m.a===t.id||m.b===t.id));
+      if(t.id===otro) return `<button type="button" class="sug enjuego" disabled>${esc(t.name)} · ya es el otro equipo</button>`;
+      return oc
+      ?`<button type="button" class="sug enjuego" disabled>${esc(t.name)} · ya está en la cancha ${oc.field}</button>`
       :`<button type="button" class="sug" data-pick="${t.id}" data-side="${s}">${esc(t.name)}</button>`;}).join('')
       +(hits.length?'':'<div class="muted">Ningún equipo tiene ese nombre. Revisa otra vez antes de agregar uno nuevo.</div>')
       +(toks.length&&!hits.length?`<button type="button" class="sug nuevo" data-nuevo="${s}">+ Agregar nuevo equipo</button>`:'');
@@ -666,7 +671,7 @@ function activarBuscador(s){
   sug.addEventListener('click',e=>{
     const nu=e.target.closest('[data-nuevo]');
     if(nu){abrirNuevoDesdeBusqueda(s,txt.value.trim());return;}
-    const b=e.target.closest('[data-pick]'); if(!b) return;
+    const b=e.target.closest('[data-pick]'); if(!b||b.disabled) return;
     val.value=b.dataset.pick;
     txt.value=teamName(b.dataset.pick);
     sug.innerHTML='';
@@ -848,6 +853,19 @@ function activarArbitro(){
   };
   q.addEventListener('input',()=>{val.value='';pintar();});
   q.addEventListener('focus',()=>{if(!val.value) pintar();});
+}
+// Resumen de los partidos que pitó hoy un árbitro (jornada de 5 a.m. a 5 a.m.)
+function arbitroDia(n){
+  const hoy=jornadaHoy();
+  const ms=db.matches.filter(m=>m.arbitro===n&&diaLocal(m.creado)===hoy).sort((x,y)=>new Date(x.creado)-new Date(y.creado));
+  const filas=ms.map(m=>`<li><span><b>Cancha ${m.field}</b> · ${esc(teamName(m.a))} vs ${esc(teamName(m.b))}<br><small class="muted">${esc(new Date(m.creado).toLocaleTimeString('es-MX',{hour:'numeric',minute:'2-digit'}))} · ${m.activo?'en juego':'terminado'}</small></span><b>${m.sa||0} - ${m.sb||0}</b></li>`).join('');
+  const act=ms.find(m=>m.activo);
+  openModal(`<div>
+    <h3>${arbNombreHTML(n)}</h3>
+    <p class="muted">Partidos que ha pitado hoy: <b style="color:#111">${ms.length}</b></p>
+    <ul class="plist">${filas||'<li class="muted">Hoy no ha pitado partidos.</li>'}</ul>
+    <div class="actions">${act?`<button type="button" class="btn ghost" data-act="assign" data-field="${act.field}">Cambiar partido</button>`:''}<button type="button" class="btn primary" data-act="close">Cerrar</button></div>
+  </div>`);
 }
 function openAssign(f,pre){
   asignandoField=f;
@@ -1789,6 +1807,7 @@ document.addEventListener('click',e=>{
   const d=el.dataset;
   switch(d.act){
     case 'tab': showTab(d.tab); break;
+    case 'arbdia': arbitroDia(d.n); break;
     case 'lgn': lgElegir(d.n); break;
     case 'lgback': loginPaso={modo:'pin',nombre:null,primera:null}; mostrarLogin(); break;
     case 'lgnuevo': loginPaso={modo:'nombres',nombre:null,primera:null}; mostrarLogin(); break;
