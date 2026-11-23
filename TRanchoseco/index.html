@@ -520,9 +520,16 @@ function aplicarAcceso(){
   if(sal) sal.textContent='Salir ('+(sesionNombre()||'—')+')';
 }
 let loginPaso={nombre:null,primera:null};
+let lgAuto=true; // false cuando la persona eligió "Cambiar de nombre"
+function ultimoNombre(){try{return localStorage.getItem('canchas-ultimo')||'';}catch(e){return '';}}
 function mostrarLogin(){
   const cont=$('#login');
   cont.hidden=false;
+  // Si ya tiene PIN y es el último que entró en este celular, pide solo la clave
+  if(!loginPaso.nombre&&lgAuto){
+    const uu=(db.config.usuarios||[]).find(x=>x.nombre===ultimoNombre()&&x.pin);
+    if(uu) loginPaso.nombre=uu.nombre;
+  }
   if(!loginPaso.nombre){
     cont.innerHTML=`<div class="logo"></div><div class="lbox"><h3>Bienvenido al Centro de Control</h3><p class="muted">Elige tu nombre para entrar</p>${(db.config.usuarios||[]).map(u=>`<button type="button" class="uopt" data-act="lgn" data-n="${esc(u.nombre)}">${esc(u.nombre)}</button>`).join('')}</div>`;
     return;
@@ -558,7 +565,7 @@ function entrar(n){
 }
 function salir(){
   try{localStorage.removeItem(SESION_KEY);}catch(e){}
-  loginPaso={nombre:null,primera:null};
+  loginPaso={nombre:null,primera:null}; lgAuto=true;
   aplicarAcceso(); mostrarLogin();
 }
 // Quita la clave de una persona para que cree otra al entrar (solo Junior y Sistemas)
@@ -1765,8 +1772,8 @@ document.addEventListener('click',e=>{
   const d=el.dataset;
   switch(d.act){
     case 'tab': showTab(d.tab); break;
-    case 'lgn': loginPaso={nombre:d.n,primera:null}; mostrarLogin(); break;
-    case 'lgback': loginPaso={nombre:null,primera:null}; mostrarLogin(); break;
+    case 'lgn': try{localStorage.setItem('canchas-ultimo',d.n);}catch(e){} loginPaso={nombre:d.n,primera:null}; mostrarLogin(); break;
+    case 'lgback': lgAuto=false; loginPaso={nombre:null,primera:null}; mostrarLogin(); break;
     case 'lgnuevo': { const u=(db.config.usuarios||[]).find(x=>x.nombre===loginPaso.nombre); if(!u) break; if(u.pin){ $('#lg-err').textContent='Ya tienes PIN. Si lo olvidaste, pide a Junior o Sistemas que lo quiten.'; } else { loginPaso.primera=null; mostrarLogin(); } break; }
     case 'salir': salir(); break;
     case 'quitarclave': quitarClave(d.n); break;
