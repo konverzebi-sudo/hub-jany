@@ -1591,9 +1591,36 @@ function actividadEnCurso() {
 /* Botón de audio de los alumnos: pide al cuadro de Zoom que se una al audio de la computadora (un solo clic) */
 function tallerActivarAudio(btn) {
   const f = document.querySelector('.zoom-vivo');
+  let intentos = 0;
+  btn.disabled = true; btn.textContent = 'Conectando el audio…';
+  // Espera hasta ~20 segundos a que la clase cargue, en lugar de pedir que lo toquen otra vez
+  const intentar = () => {
+    const z = f && f.contentWindow && f.contentWindow.tallerZoom;
+    if (!z) {
+      if (++intentos < 40) { setTimeout(intentar, 500); return; }
+      btn.disabled = false; btn.textContent = 'La clase no cargó. Recarga la página';
+      return;
+    }
+    z.audio().then(() => {
+      // Ya hay audio: el botón de audio se quita y aparece el de micrófono (solo si la alumna quiere hablar)
+      const mic = document.createElement('button');
+      mic.type = 'button'; mic.className = 'zoom-btn-audio'; mic.textContent = '🎤 Prender mi micrófono';
+      mic.onclick = () => tallerPrenderMic(mic);
+      btn.replaceWith(mic);
+    }).catch(e => {
+      btn.disabled = false;
+      btn.textContent = 'No se activó el audio: ' + ((e && (e.reason || e.message)) || 'toca de nuevo');
+    });
+  };
+  intentar();
+}
+/* Micrófono de la alumna: solo si ella lo toca; la anfitriona puede volver a silenciarla */
+function tallerPrenderMic(btn) {
+  const f = document.querySelector('.zoom-vivo');
   const z = f && f.contentWindow && f.contentWindow.tallerZoom;
-  if (!z) { btn.textContent = 'Espera a que cargue la clase y vuelve a tocar'; return; }
-  z.audio().then(() => { btn.textContent = '🔊 Audio activado'; }).catch(() => { btn.textContent = 'No se activó el audio, toca de nuevo'; });
+  if (!z || !z.mic) { btn.textContent = 'No se pudo prender el micrófono, recarga la página'; return; }
+  z.mic().then(() => { btn.textContent = '🎤 Micrófono encendido'; btn.disabled = true; })
+    .catch(e => { btn.textContent = 'No se prendió: ' + ((e && (e.reason || e.message)) || 'revisa los permisos del navegador'); });
 }
 function srcEjercicio(v) {
   const a = actividadEnCurso();
