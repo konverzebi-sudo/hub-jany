@@ -229,6 +229,9 @@
   .lt-tit { font: 800 26px/1.1 'Sora', sans-serif; margin: 6px 0 8px; color: #111; }
   .lt-txt { color: #4a4560; margin: 0 0 8px; }
   .lt-din { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+  .lt-nums { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .lt-num { width: 32px; height: 32px; border-radius: 50%; border: 1px solid #c9bfe0; background: #fff; color: #1B1530; font: 700 12px 'Sora', sans-serif; cursor: pointer; }
+  .lt-num:hover, .lt-num:focus-visible { background: #BBF802; border-color: #BBF802; }
   .lt-tog { display: inline-flex; align-items: center; gap: 10px; background: none; border: 0; padding: 0; cursor: pointer; color: #111; text-align: left; }
   .lt-tog:focus-visible { outline: 3px solid #BBF802; outline-offset: 4px; border-radius: 6px; }
   .lt-flecha { font-size: 16px; color: #6B6480; }
@@ -1688,12 +1691,23 @@ function botonesDinLinea(x) {
     return `<div class="lt-din"><span class="lt-chip">🎯 ${esc(n)} · ${esc(d)}</span>${accion}</div>${panel}`;
   }).join('');
 }
+/* Números de las diapositivas del paso, para que el ponente salte a cada una */
+function ltCirculos(x) {
+  const nums = [];
+  x.dias.replace(/^Diapositivas\s*/, '').split(/,\s*| y /).forEach(p => { const m = p.match(/(\d+)\s*a\s*(\d+)/); if (m) { for (let k = +m[1]; k <= +m[2]; k++) nums.push(k); } else if (/\d+/.test(p)) nums.push(+p.match(/\d+/)[0]); });
+  return `<div class="lt-nums">${nums.map(k => `<button type="button" class="lt-num" data-ir-dia="${k}" title="Ir a la diapositiva ${k}">${k}</button>`).join('')}</div>`;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-ir-dia]'); if (!b) return;
+  const n = Number(b.dataset.irDia);
+  document.querySelectorAll('iframe').forEach(f => { if (/embed=presentacion/.test(f.getAttribute('src') || '') && f.contentWindow) f.contentWindow.postMessage({ taller: 'diapo-ir', n }, '*'); });
+});
 function lineaTiempoHtml() {
   return `<div class="card lt" id="lineaTiempo" style="margin-top:26px"><span class="eyebrow">Mapa de la clase</span>
     ${LINEA_TIEMPO.map((x, i) => `<div class="lt-item">${nodoLinea(x)}
       <div class="lt-eb">Paso ${i + 1} · ${esc(x.mod)}</div>
       ${x.din.length ? ltTituloDesplegable(i, x) : `<h3 class="lt-tit">${esc(x.clase)}</h3>`}
-      <p class="lt-txt">${esc(x.dias)}</p>
+      <p class="lt-txt">${esc(x.dias)}</p>${MODO_PONENTE ? ltCirculos(x) : ''}
       ${LT_ABIERTOS.has(i) ? ltActividades(x) + botonesDinLinea(x) : ''}</div>`).join('')}</div>`;
 }
 /* Lo que contiene el paso (sus actividades, en orden): ets = índices de las actividades de la clase que le tocan */

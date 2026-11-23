@@ -645,7 +645,8 @@ const SOLO_CONTROL = qs.get('solo') === 'control';   // panel de la guía: solo 
 // Dentro de la guía la altura se mide del contenido, no de la ventana (100vh haría que el iframe crezca sin fin)
 if (EMBED) document.documentElement.classList.add('en-embed');
 // La guía (vista de ponente) pasa la diapositiva con sus flechas: usa la misma lógica de las flechas del teclado
-window.addEventListener('message', ev => { const d = ev.data; if (!d || d.taller !== 'diapo' || !EMBED) return; document.body.dispatchEvent(new KeyboardEvent('keydown', { key: d.dir > 0 ? 'ArrowRight' : 'ArrowLeft', bubbles: true })); });
+// Desde el mapa de la guía: el ponente toca un número y la presentación salta a esa diapositiva (mismo camino que el campo "Ir a")
+window.addEventListener('message', ev => { const d = ev.data; if (d && d.taller === 'diapo-ir' && EMBED) { const ir = document.getElementById('pIr'); if (ir) { ir.value = d.n; ir.dispatchEvent(new Event('change')); } return; } if (!d || d.taller !== 'diapo' || !EMBED) return; document.body.dispatchEvent(new KeyboardEvent('keydown', { key: d.dir > 0 ? 'ArrowRight' : 'ArrowLeft', bubbles: true })); });
 const $ = s => document.querySelector(s);
 const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const toast = t => { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), 1800); };
@@ -2345,12 +2346,15 @@ const UBIC_RANGOS = [
   [61, 61, 'Hub de Jefes', '10 · Hub de Jefes'],
   [72, 73, 'Hub de Jefes', '10 · Hub de Jefes']
 ];
+// Pasos del mapa de la clase, en el mismo orden (Paso 1 = Empieza por aquí)
+const UBIC_PASOS = ['Empieza por aquí', '01 · Rompehielo', '02 · Calienta motores', '03 · Tu SUPERPROMPT', '04 · Producto ganador', '05 · Mercado meta', '06 · Contenido', '07 · Campañas', '08 · Imágenes IA', '09 · Videos IA', '10 · Hub de Jefes'];
 function ubicHtml(n) {
   const r = UBIC_RANGOS.find(([a, b]) => n >= a && n <= b);
+  const paso = r ? UBIC_PASOS.indexOf(r[3]) + 1 : 0;
   const dins = (DIAPO_DINS[n] || []).map(k => ({ k, a: act(k) })).filter(x => x.a);
   const btns = dins.map(x => `<button class="btn ghost sm" data-abrir-din="${esc(x.k)}" ${x.a.estado === 'abierta' ? 'disabled' : ''}>${x.a.estado === 'abierta' ? '● Abierta: ' : '▶ Abrir: '}${esc(nombreAct(x.a))}</button>`).join(' ');
   const sup = DIAPO_SUPER.includes(n) ? '<span class="small">🧠 Dinámica 5 · Superprompt (se hace en la presentación)</span>' : '';
-  return `<div class="ubic-bar"><div><small class="muted">MÓDULO</small> <b>${esc(r ? r[2] : 'Sin módulo')}</b> · ${esc(r ? r[3] : 'sin clase')}</div><div class="row" style="gap:8px;flex-wrap:wrap">${btns}${sup}</div></div>`;
+  return `<div class="ubic-bar"><div><small class="muted">PASO ${paso || '–'} DE ${UBIC_PASOS.length}</small> <b>${esc(r ? r[2] : 'Sin módulo')}</b> · ${esc(r ? r[3] : 'sin clase')}</div><div class="row" style="gap:8px;flex-wrap:wrap">${btns}${sup}</div></div>`;
 }
 const DIAPO_RESULTADOS = new Set(['PB5fHFylSM3bjhlg', 'PBgGphWbgzQLZPMX', 'PBtBfYW5qp5wXLFc']);
 // Diapositivas donde, en lugar de la imagen, corre en vivo el reloj regresivo (diapositiva 62 de Canva)
