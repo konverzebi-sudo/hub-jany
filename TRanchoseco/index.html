@@ -187,6 +187,11 @@ h3.yel{margin-top:28px}
 .dsq .muted{font-size:14px}
 .dcard{background:#232735;border:1px solid #2c3247;border-radius:16px;padding:12px}
 .dcard summary{cursor:pointer;list-style:none}
+.dcob{grid-column:1/-1;text-align:left}
+.cobsplit{display:flex;gap:24px;margin-top:8px}
+.cobsplit span{font-size:14px;color:var(--muted)}
+.cobsplit b{font-size:18px;color:#fff}
+.cobtot{margin-top:6px;font-weight:700;color:var(--yellow)}
 .dcard small{display:block;color:var(--muted)}
 .dcard b{font-size:16px}
 .dcard .muted{margin-top:4px;font-size:14px}
@@ -1311,12 +1316,16 @@ function deletePayment(id,teamId,matchId){
 function diaLocal(iso){const d=iso?new Date(iso):new Date();d.setHours(d.getHours()-5);return ymd(d);}
 function jornadaHoy(){return diaLocal();}
 function dashboardHTML(pagosF,totIns,totArb,pend){
+  // Cada cobrador: cuánto cobró en efectivo y en transferencia; al tocar, desglose por equipo
   const cobra=cobradores().filter(n=>veTodo()||n===usuarioActual()?.nombre).map(n=>{
     const ps=pagosF.filter(p=>p.recibio===n);
     const ef=sum(ps.filter(p=>p.metodo!=='transferencia'));
     const tr=sum(ps.filter(p=>p.metodo==='transferencia'));
-    return `<details class="dcard dsq"><summary><b>${esc(n)}</b><br>${money(ef+tr)}</summary>
-      <div class="muted">Efectivo ${money(ef)} · Transferencia ${money(tr)}</div></details>`;
+    const porEq={};
+    ps.forEach(p=>{const e=(porEq[p.teamId]=porEq[p.teamId]||{ef:0,tr:0}); const mt=Number(p.monto)||0; if(p.metodo==='transferencia') e.tr+=mt; else e.ef+=mt;});
+    const filas=Object.entries(porEq).sort((a,b)=>(b[1].ef+b[1].tr)-(a[1].ef+a[1].tr)).map(([tid,v])=>`<li><span><b>${esc(teamName(tid))}</b><br><small class="muted">Efectivo ${money(v.ef)} · Transferencia ${money(v.tr)}</small></span><b>${money(v.ef+v.tr)}</b></li>`).join('');
+    return `<details class="dcard dcob"><summary><b>${esc(n)}</b><div class="cobsplit"><span>Efectivo<br><b>${money(ef)}</b></span><span>Transferencia<br><b>${money(tr)}</b></span></div><div class="cobtot">Total ${money(ef+tr)}</div></summary>
+      ${filas?`<ul class="plist">${filas}</ul>`:'<p class="muted">Sin pagos en este periodo.</p>'}</details>`;
   }).join('');
   const terminados=db.matches.filter(m=>m.terminado&&partidoVisible(m)&&enRango(diaLocal(m.terminadoEn)));
   const canchas=[1,2,3,4].map(f=>{
