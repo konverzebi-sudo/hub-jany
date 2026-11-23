@@ -290,6 +290,12 @@ th{color:var(--muted);font-weight:600}
 #login input.pinin{position:absolute;inset:0;width:100%;height:100%;opacity:0;font-size:16px;border:0;padding:0;margin:0}
 #login .big{width:100%;padding:15px;font-size:17px;margin-top:16px;border-radius:14px}
 #login .linkb{background:none;border:0;color:#555;font:inherit;font-size:15px;margin-top:14px;cursor:pointer;text-decoration:underline}
+#login .btn-nuevo{display:block;width:100%;margin-top:14px;padding:15px;font:inherit;font-size:16px;font-weight:800;border:0;border-radius:14px;background:#111;color:var(--yellow);cursor:pointer;animation:saltar 1.4s ease-in-out infinite}
+@keyframes saltar{0%,100%{transform:translateY(0)}20%{transform:translateY(-12px)}35%{transform:translateY(0)}45%{transform:translateY(-5px)}55%{transform:translateY(0)}}
+@media (prefers-reduced-motion: reduce){#login .btn-nuevo{animation:none}}
+#vista-banner{position:fixed;left:0;right:0;bottom:0;z-index:250;background:#111;color:var(--yellow);padding:10px 14px;text-align:center;font-size:15px;font-weight:600}
+#vista-banner button{margin-left:8px;font:inherit;font-weight:700;padding:6px 12px;border-radius:10px;border:0;background:var(--yellow);color:#111;cursor:pointer}
+#vista-banner[hidden]{display:none}
 #login .lerr{color:#d62f2f;min-height:1.4em;margin-top:8px;font-size:15px}
 .salir{font-size:13px}
 body.propio .tab[data-tab="canchas"],body.propio .tab[data-tab="resultados"],body.propio .ajfoot,body.propio [data-act="tab"][data-tab="ajustes"],body.propio [data-act="newteam"]{display:none!important}
@@ -505,7 +511,22 @@ function renderAll(){renderFields();renderTeams();renderPagos();}
 /* ---------- Usuarios y accesos ---------- */
 const SESION_KEY='canchas-sesion';
 function sesionNombre(){try{return localStorage.getItem(SESION_KEY)||'';}catch(e){return '';}}
-function usuarioActual(){const n=sesionNombre();return (db.config.usuarios||[]).find(u=>u.nombre===n)||null;}
+const VER_KEY='canchas-ver-como';
+function verComo(){try{return localStorage.getItem(VER_KEY)||'';}catch(e){return '';}}
+function sesionReal(){const n=sesionNombre();return (db.config.usuarios||[]).find(u=>u.nombre===n)||null;}
+// Solo Junior y Sistemas pueden ver la app como otra persona (Marco no)
+function puedeVerComo(){const r=sesionReal();return !!r&&(r.nombre==='Junior'||r.nombre==='Sistemas');}
+function usuarioActual(){
+  const r=sesionReal();
+  if(r&&puedeVerComo()){const v=verComo();const vu=v&&(db.config.usuarios||[]).find(u=>u.nombre===v);if(vu) return vu;}
+  return r;
+}
+function verComoSet(n){
+  if(!puedeVerComo()) return;
+  const r=sesionReal();
+  try{ if(!n||n===r.nombre) localStorage.removeItem(VER_KEY); else localStorage.setItem(VER_KEY,n); }catch(e){}
+  aplicarAcceso(); showTab(veTodo()?'ajustes':'pagos'); renderAll();
+}
 // 'todo' (Junior, Marco, Sistemas) ve todo; 'propio' (Charro, Victor, Rony) solo lo suyo
 function veTodo(){const u=usuarioActual();return !!u&&u.acceso==='todo';}
 function esAdmin(){const u=usuarioActual();return !!u&&!!u.admin;}
@@ -518,6 +539,14 @@ function aplicarAcceso(){
   document.body.classList.toggle('propio',!veTodo());
   const sal=document.querySelector('.salir');
   if(sal) sal.textContent='Salir ('+(sesionNombre()||'—')+')';
+  const real=sesionReal(), vu=usuarioActual();
+  let ban=document.getElementById('vista-banner');
+  const activo=!!real&&!!vu&&vu.nombre!==real.nombre;
+  if(activo){
+    if(!ban){ban=document.createElement('div');ban.id='vista-banner';document.body.appendChild(ban);}
+    ban.innerHTML=`Viendo como <b>${esc(vu.nombre)}</b> · <button type="button" data-act="vercomo" data-n="">Volver a mi vista</button>`;
+    ban.hidden=false;
+  } else if(ban) ban.hidden=true;
 }
 // Entrada: primero el PIN directo; la lista de nombres solo para la primera vez
 // loginPaso.modo: 'pin' (escribe su PIN), 'nombres' (primera vez: elige nombre), 'crear' (crea su PIN)
@@ -565,7 +594,7 @@ function mostrarLogin(){
     return;
   }
   // modo 'pin': sin nombre, solo la clave
-  cont.innerHTML=`<div class="logo"></div><form class="lbox" id="lg-form"><h3>Bienvenido al Centro de Control</h3><p class="muted">Escribe tu PIN de 4 dígitos</p>${PINBOX}<div class="lerr" id="lg-err">${esc(msg)}</div><button class="btn primary big">Entrar</button><button type="button" class="linkb" data-act="lgnuevo">Es mi primera vez, crear mi PIN</button></form>`;
+  cont.innerHTML=`<div class="logo"></div><form class="lbox" id="lg-form"><h3>Bienvenido al Centro de Control</h3><p class="muted">Escribe tu PIN de 4 dígitos</p>${PINBOX}<div class="lerr" id="lg-err">${esc(msg)}</div><button class="btn primary big">Entrar</button>${(db.config.usuarios||[]).some(u=>!u.pin)?'<button type="button" class="btn-nuevo" data-act="lgnuevo">Es mi primera vez, crear mi PIN</button>':''}</form>`;
   lgConectarPin(async (pin,h)=>{
     const u=usuarioPorPin(h);
     if(!u){$('#lg-err').textContent='PIN incorrecto. Si es tu primera vez, toca "Es mi primera vez, crear mi PIN".';return;}
@@ -573,7 +602,7 @@ function mostrarLogin(){
   });
 }
 function entrar(n){
-  try{localStorage.setItem(SESION_KEY,n);}catch(e){}
+  try{localStorage.setItem(SESION_KEY,n);localStorage.removeItem(VER_KEY);}catch(e){}
   loginPaso={modo:'pin',nombre:null,primera:null};
   $('#login').hidden=true; $('#login').innerHTML='';
   aplicarAcceso();
@@ -581,7 +610,7 @@ function entrar(n){
   renderAll();
 }
 function salir(){
-  try{localStorage.removeItem(SESION_KEY);}catch(e){}
+  try{localStorage.removeItem(SESION_KEY);localStorage.removeItem(VER_KEY);}catch(e){}
   loginPaso={modo:'pin',nombre:null,primera:null};
   aplicarAcceso(); mostrarLogin();
 }
@@ -1717,6 +1746,7 @@ function renderAjustes(){
       <div class="addrow"><input id="na-n" autocomplete="off" placeholder="Nombre del árbitro"></div>
       <div class="actions" style="justify-content:flex-start;margin-top:0"><button class="btn primary sm" data-act="addarb">+ Agregar árbitro</button></div>
     </div>
+    ${puedeVerComo()?`<div class="card"><h3>Ver como</h3><p class="muted">Mira la app como la ve cada persona. Es solo para revisar: no registres pagos ni partidos en esta vista.</p><div class="actions" style="flex-wrap:wrap;justify-content:flex-start">${(db.config.usuarios||[]).map(u=>`<button class="btn ${usuarioActual()&&usuarioActual().nombre===u.nombre?'primary':'ghost'} sm" data-act="vercomo" data-n="${esc(u.nombre)}">${u.nombre===sesionReal().nombre?'Mi vista':esc(u.nombre)}</button>`).join('')}</div></div>`:''}
     <div class="card">
       <h3>Usuarios</h3>
       <ul class="plist">${(db.config.usuarios||[]).map(u=>`<li><span><b>${esc(u.nombre)}</b><br><small class="muted">${u.acceso==='todo'?'Ve todo':'Ve solo sus cuentas y equipos'} · ${u.pin?'con clave':'sin clave'}</small></span>${esAdmin()&&u.pin?`<button class="btn ghost sm" data-act="quitarclave" data-n="${esc(u.nombre)}">Quitar clave</button>`:''}</li>`).join('')}</ul>
@@ -1791,6 +1821,7 @@ document.addEventListener('click',e=>{
     case 'tab': showTab(d.tab); break;
     case 'lgn': lgElegir(d.n); break;
     case 'lgback': loginPaso={modo:'pin',nombre:null,primera:null}; mostrarLogin(); break;
+    case 'vercomo': verComoSet(d.n); break;
     case 'lgnuevo': loginPaso={modo:'nombres',nombre:null,primera:null}; mostrarLogin(); break;
     case 'salir': salir(); break;
     case 'quitarclave': quitarClave(d.n); break;
