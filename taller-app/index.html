@@ -441,7 +441,7 @@
   .tp-h { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; } .tp-h small { font: 600 10px 'JetBrains Mono', monospace; letter-spacing: .1em; color: var(--lime); }
   .tp-h b { width: 100%; font-family: 'Sora', sans-serif; font-size: 15px; color: #fff; }
   .tp-zoom { margin-left: auto; display: inline-flex; gap: 4px; } .tp-zoom button { padding: 3px 8px; border-radius: 8px; background: rgba(255,255,255,.12); color: #fff; font-weight: 700; }
-  .tp-texto { max-height: 70vh; overflow-y: auto; line-height: 1.5; padding-right: 6px; }
+  .tp-texto { overflow: hidden; line-height: 1.5; }
   /* Dentro de la guía no hay scroll interno: la altura del panel es la de todo el contenido */
   html.en-embed .tp-texto { max-height: none; overflow: visible; }
   html.en-embed .tp-notas { position: static; }
@@ -2425,6 +2425,15 @@ async function vistaPresentacion() {
 }
 
 /* Presentación ligada a Canva: el alumno ve la diapositiva; la ponente ve además sus notas (teleprompter) y los botones de la dinámica */
+/* Las notas no tienen barra de desplazamiento: el texto se achica solo hasta caber en el panel */
+function ajustarNotas() {
+  const t = document.getElementById('tpTexto'), box = t && t.closest('.tp-notas'); if (!t || !box) return;
+  const base = UI.tpFont || 22; t.style.fontSize = base + 'px';
+  const fin = Math.max(160, window.innerHeight - box.getBoundingClientRect().top - 16);
+  const cab = box.querySelector('.tp-h'), disp = () => fin - (cab ? cab.offsetHeight : 0) - 28;
+  let f = base; while (t.scrollHeight > disp() && f > 12) { f -= 1; t.style.fontSize = f + 'px'; }
+}
+window.addEventListener('resize', () => requestAnimationFrame(ajustarNotas));
 async function vistaTeleprompter() {
   const root = $('#root'), ponente = S.rol === 'ponente', total = CANVA_PAGINAS.length;
   const n = Math.min(total, Math.max(1, Number(S.estado?.diapositiva) || 1)), empezo = !!S.estado?.diapositiva, pid = CANVA_PAGINAS[n - 1];
@@ -2480,7 +2489,8 @@ async function vistaTeleprompter() {
     $('#pPrev').onclick = () => ir(n - 1); $('#pNext').onclick = () => ir(n + 1);
     const pi = $('#pIni'); if (pi) pi.onclick = () => ir(1);
     $('#pIr').onchange = e => ir(+e.target.value);
-    root.querySelectorAll('[data-tpz]').forEach(b => b.onclick = () => { UI.tpFont = Math.min(40, Math.max(14, (UI.tpFont || 22) + 2 * b.dataset.tpz)); $('#tpTexto').style.fontSize = UI.tpFont + 'px'; });
+    root.querySelectorAll('[data-tpz]').forEach(b => b.onclick = () => { UI.tpFont = Math.min(40, Math.max(14, (UI.tpFont || 22) + 2 * b.dataset.tpz)); ajustarNotas(); });
+    requestAnimationFrame(ajustarNotas);
     document.onkeydown = e => { if (e.target.closest('input,textarea')) return; if (e.key === 'ArrowRight' || e.key === 'PageDown') ir(n + 1); if (e.key === 'ArrowLeft' || e.key === 'PageUp') ir(n - 1); };
   }
   const pf = $('#pFull'); if (pf) pf.onclick = () => { const el = $('#pImg') || $('#pReloj'); (el.requestFullscreen || el.webkitRequestFullscreen || (() => {})).call(el); };
