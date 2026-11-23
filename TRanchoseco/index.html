@@ -1395,13 +1395,20 @@ function dashboardHTML(pagosF,totIns,totArb,pend){
         })()}
       </table></div>`
     :'<p class="muted">No hay juegos en este periodo.</p>';
+  const soloMio=!veTodo();
+  const miNom=usuarioActual()?.nombre||'';
+  // Desglose del corte: cada abono con hora, monto, equipo y quien pagó (el líder del equipo)
+  const lineasCorte=(tr)=>pagosF.filter(p=>p.recibio===miNom&&(tr?p.metodo==='transferencia':p.metodo!=='transferencia'))
+    .sort((a,b)=>new Date(a.creado)-new Date(b.creado))
+    .map(p=>{const t=db.teams.find(x=>x.id===p.teamId);const hora=new Date(p.creado).toLocaleTimeString('es-MX',{hour:'numeric',minute:'2-digit'});
+      return `<li><span><b>${esc(hora)}</b> · <b style="color:var(--yellow)">+${money(p.monto)}</b><br><small class="muted">${esc(t?t.name:'—')} · pagó ${esc(t?.lider||'—')}</small></span></li>`;}).join('')||'<li class="muted">Sin abonos</li>';
   return `
     <div class="kpis">
       <div><small>Inscripciones</small><b>${money(totIns)}</b></div>
       <div><small>Arbitrajes</small><b>${money(totArb)}</b></div>
       <div><small>Pendiente de cobrar</small><b class="${pend?'pend':'ok'}">${money(pend)}</b></div>
     </div>
-    <h3 class="yel">${veTodo()?'Cobradores':'Corte de '+esc(usuarioActual()?.nombre||'')}</h3><div class="dgrid" style="grid-template-columns:1fr 1fr"><div class="dcard tot"><small class="muted">Total en depósito</small><b>${money(totEf)}</b></div><div class="dcard tot"><small class="muted">Total en transferencia</small><b>${money(totTr)}</b></div></div><div class="cobgrid">${cobra}</div>
+    ${soloMio?`<h3 class="yel">Corte de ${esc(miNom)}</h3><div class="dgrid" style="grid-template-columns:1fr 1fr;align-items:start"><div><div class="dcard tot"><small class="muted">💸 Total en depósito</small><b>${money(totEf)}</b></div><ul class="plist">${lineasCorte(false)}</ul></div><div><div class="dcard tot"><small class="muted">💳 Total en transferencia</small><b>${money(totTr)}</b></div><ul class="plist">${lineasCorte(true)}</ul></div></div>`:`<h3 class="yel">Cobradores</h3><div class="dgrid" style="grid-template-columns:1fr 1fr"><div class="dcard tot"><small class="muted">💸 Total en depósito</small><b>${money(totEf)}</b></div><div class="dcard tot"><small class="muted">💳 Total en transferencia</small><b>${money(totTr)}</b></div></div><div class="cobgrid">${cobra}</div>`}
     <h3 class="yel">Canchas</h3><div class="dgrid cuatro">${canchas}</div>
     <h3 class="yel">Pagos por árbitro</h3><div class="dlist">${arbHTML}</div>
     <h3 class="yel">Juegos del periodo</h3>${jdHTML}`;
