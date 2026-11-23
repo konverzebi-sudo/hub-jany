@@ -310,8 +310,11 @@ th{color:var(--muted);font-weight:600}
 .verbtn.on{background:#111;color:var(--yellow);border-color:#111}
 .verbtn.on small{color:#ddd}
 .perfil{position:absolute;top:10px;right:12px;z-index:6;background:#2a2f3f;color:var(--yellow);border:0;border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;font-weight:700;cursor:pointer}
-body.propio .tab[data-tab="canchas"],body.propio .tab[data-tab="resultados"],body.propio .ajfoot,body.propio [data-act="tab"][data-tab="ajustes"],body.propio [data-act="newteam"]{display:none!important}
-body.propio #tab-canchas,body.propio #tab-resultados,body.propio #tab-ajustes{display:none!important}
+body.propio .ajfoot,body.propio [data-act="tab"][data-tab="ajustes"],body.propio [data-act="newteam"]{display:none!important}
+body.propio #tab-ajustes{display:none!important}
+/* Canchas solo para mirar: sin asignar, sin marcador, sin terminar partido, sin cobros */
+body.propio #tab-canchas .plus,body.propio #tab-canchas .whistle,body.propio #tab-canchas .asignar,body.propio #tab-canchas .dollar{display:none!important}
+body.propio #tab-canchas button{pointer-events:none}
 </style>
 </head>
 <body>
@@ -480,7 +483,7 @@ function closeModal(){$('#modal-bg').classList.remove('show');$('#modal').innerH
 
 /* ---------- Tabs ---------- */
 function showTab(name){
-  if(!veTodo()&&['canchas','resultados','ajustes'].includes(name)) name='pagos';
+  if(!veTodo()&&name==='ajustes') name='pagos';
   try{sessionStorage.setItem('canchas-pestana',name);}catch(e){}
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===name));
   document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id==='tab-'+name));
@@ -495,7 +498,7 @@ function showTab(name){
 }
 // Resultados de los partidos terminados: el más reciente arriba
 function renderResultados(){
-  const ts=db.matches.filter(m=>m.terminado&&partidoVisible(m));
+  const ts=db.matches.filter(m=>m.terminado);
   if(!ts.length){$('#resultados-list').innerHTML='<p class="muted">Aún no hay partidos terminados.</p>';return;}
   // Agrupar por horario (día y hora en que terminaron); dentro de cada horario, cancha 1 a 4
   const grupos={}, etiq={};
@@ -504,9 +507,10 @@ function renderResultados(){
   const fila=(m)=>{
     const r=m.resultado||{a:0,b:0};
     const ga=r.a>r.b, gb=r.b>r.a;
-    const saldo=(tid)=>{const b=balance(tid);const d=b.insPend+b.arbPend;return d?`<span class="pend">Debe ${money(d)}</span>`:'<span class="ok">Al corriente</span>';};
+    const nomEq=(tid)=>veTodo()?teamLink(tid):esc(teamName(tid)); // la ficha con dinero solo para quien ve todo
+    const saldo=(tid)=>{if(!veTodo())return '';const b=balance(tid);const d=b.insPend+b.arbPend;return d?`<span class="pend">Debe ${money(d)}</span>`:'<span class="ok">Al corriente</span>';};
     return `<div class="res-row"><div class="cnum-circ">${m.field}</div><div class="card res-card">
-      <div class="res-m"><b class="${ga?'ganador':''}">${teamLink(m.a)}</b><span class="res-s">${r.a} – ${r.b}</span><b class="${gb?'ganador':''}">${teamLink(m.b)}</b></div>
+      <div class="res-m"><b class="${ga?'ganador':''}">${nomEq(m.a)}</b><span class="res-s">${r.a} – ${r.b}</span><b class="${gb?'ganador':''}">${nomEq(m.b)}</b></div>
       <div class="res-sal"><small>${saldo(m.a)}</small><small>${saldo(m.b)}</small></div>
     </div></div>`;
   };
@@ -1877,6 +1881,7 @@ document.addEventListener('click',e=>{
   const el=e.target.closest('[data-act]');
   if(!el) return;
   const d=el.dataset;
+  if(!veTodo()&&d.act!=='tab'&&el.closest('#tab-canchas')) return;
   switch(d.act){
     case 'tab': showTab(d.tab); break;
     case 'arbdia': arbitroDia(d.n); break;
