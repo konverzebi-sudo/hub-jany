@@ -1345,8 +1345,9 @@ function dashboardHTML(pagosF,totIns,totArb,pend){
     const dinero=sum(pagosF.filter(p=>ids.has(p.matchId)));
     return `<div class="dcard dsq cancha-card"><div class="cnum">${f}</div><div class="muted">${ms.length} juego${ms.length===1?'':'s'}</div><b>${money(dinero)}</b></div>`;
   }).join('');
+  // Conteo de juegos por árbitro: todos los perfiles ven todos los juegos de cada árbitro
   const arbs={};
-  terminados.forEach(m=>{arbs[m.arbitro]=(arbs[m.arbitro]||0)+1;});
+  db.matches.filter(m=>m.terminado&&enRango(diaLocal(m.terminadoEn))).forEach(m=>{arbs[m.arbitro]=(arbs[m.arbitro]||0)+1;});
   const pagoA=Number(db.config.pagoArbitro)||0;
   // Gráfica de barras: arriba lo que va generando cada árbitro, abajo su nombre
   const arbEntries=Object.entries(arbs).sort((a,b)=>b[1]-a[1]);
@@ -1356,6 +1357,9 @@ function dashboardHTML(pagosF,totIns,totArb,pend){
     :'<p class="muted">Aún no hay juegos arbitrados.</p>';
   // Juegos del periodo elegido (Hoy, Ayer, etc.)
   const jd=db.matches.filter(m=>partidoVisible(m)&&enRango(diaLocal(m.creado)));
+  const nCols=veTodo()?8:7;
+  // Quién cobró al equipo en el periodo (solo se muestra a quien ve todo)
+  const cobroDe=(tid)=>[...new Set(pagosF.filter(p=>p.teamId===tid).map(p=>p.recibio).filter(Boolean))].join(', ')||'—';
   // Una fila por equipo: equipo, juego, inscripción, arbitraje, pagado total y saldo
   const celda=(pend)=>pend>0?`<span class="pend">−${money(pend)}</span>`:'<span class="ok">✔</span>';
   const fila=(m,tid)=>{
@@ -1372,16 +1376,17 @@ function dashboardHTML(pagosF,totIns,totArb,pend){
       <td>${money(arbP)}</td>
       <td>${celda(bal.arbPend)}</td>
       <td><button type="button" class="eqlink ${d?'pend':'ok'}" data-act="ficha" data-team="${tid}">${money(d)}</button></td>
+      ${veTodo()?`<td>${esc(cobroDe(tid))}</td>`:''}
     </tr>`;
   };
   // Por cancha (1 a 4); dentro de cada cancha, los más recientes arriba
   const porCancha=[...new Set(jd.map(m=>m.field))].sort((a,b)=>a-b);
   const jdHTML=jd.length
     ?`<div class="scroll"><table class="jtabla">
-        <tr><th class="cins">Inscripción</th><th>Juego</th><th class="nm">Equipo</th><th>Goles</th><th>Arbitraje</th><th>Saldo pasado</th><th>Saldo final</th></tr>
+        <tr><th class="cins">Inscripción</th><th>Juego</th><th class="nm">Equipo</th><th>Goles</th><th>Arbitraje</th><th>Saldo pasado</th><th>Saldo final</th>${veTodo()?'<th>Cobró</th>':''}</tr>
         ${porCancha.map(c=>{
           const lista=jd.filter(m=>m.field===c).sort((x,y)=>String(y.creado||'').localeCompare(String(x.creado||'')));
-          return `<tr class="cancha-sep"><td colspan="7"><b>Cancha ${c}</b></td></tr>`+lista.map(m=>`<tr class="sep"><td colspan="7" style="text-align:left"><span class="vs">vs</span> <b style="color:var(--yellow)">${m.numero?'Juego '+m.numero+' · ':''}${esc(new Date(m.creado||0).toLocaleTimeString('es-MX',{hour:'numeric',minute:'2-digit'}))}</b></td></tr>${(()=>{ // El equipo que va ganando (o ganó) va primero
+          return `<tr class="cancha-sep"><td colspan="${nCols}"><b>Cancha ${c}</b></td></tr>`+lista.map(m=>`<tr class="sep"><td colspan="${nCols}" style="text-align:left"><span class="vs">vs</span> <b style="color:var(--yellow)">${m.numero?'Juego '+m.numero+' · ':''}${esc(new Date(m.creado||0).toLocaleTimeString('es-MX',{hour:'numeric',minute:'2-digit'}))}</b></td></tr>${(()=>{ // El equipo que va ganando (o ganó) va primero
             const r=m.terminado?(m.resultado||{a:0,b:0}):{a:m.sa||0,b:m.sb||0};
             const [p,q]=r.b>r.a?[m.b,m.a]:[m.a,m.b];
             return fila(m,p)+fila(m,q);
@@ -1391,7 +1396,7 @@ function dashboardHTML(pagosF,totIns,totArb,pend){
           const eqs=[...new Set(jd.flatMap(m=>[m.a,m.b]))];
           const pagado=pagosF.filter(p=>p.tipo==='arbitraje'&&eqs.includes(p.teamId)).reduce((s,p)=>s+(Number(p.monto)||0),0);
           const saldo=eqs.reduce((s,tid)=>{const b=balance(tid);return s+b.insPend+b.arbPend;},0);
-          return `<tr class="sep"><td colspan="4"><b>Totales</b></td><td><b>${money(pagado)}</b></td><td></td><td><b class="${saldo?'pend':'ok'}">${saldo?money(saldo):'✔ Al corriente'}</b></td></tr>`;
+          return `<tr class="sep"><td colspan="4"><b>Totales</b></td><td><b>${money(pagado)}</b></td><td></td><td><b class="${saldo?'pend':'ok'}">${saldo?money(saldo):'✔ Al corriente'}</b></td>${veTodo()?'<td></td>':''}</tr>`;
         })()}
       </table></div>`
     :'<p class="muted">No hay juegos en este periodo.</p>';
