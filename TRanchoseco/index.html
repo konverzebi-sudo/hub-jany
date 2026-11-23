@@ -273,9 +273,21 @@ th{color:var(--muted);font-weight:600}
   .dollar{width:44px;height:44px;font-size:20px}
   .row{grid-template-columns:44px 1fr 1fr 44px}
 }
+[hidden]{display:none!important}
+/* Acceso por usuario */
+#login{position:fixed;inset:0;z-index:300;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto}
+#login .lbox{width:100%;max-width:420px;background:var(--panel);border-radius:16px;padding:22px;box-sizing:border-box}
+#login h3{margin:0 0 6px}
+#login .uopt{display:block;width:100%;margin:8px 0;padding:14px;font:inherit;font-weight:700;border:0;border-radius:12px;background:#fff;color:#111;cursor:pointer;text-align:left}
+#login input.pin{font:inherit;font-size:28px;letter-spacing:12px;text-align:center;width:100%;padding:10px;border-radius:12px;border:1px solid #ccc;box-sizing:border-box;margin:10px 0}
+#login .lerr{color:#ff6b6b;min-height:1.4em}
+.salir{font-size:13px}
+body.propio .tab[data-tab="canchas"],body.propio .tab[data-tab="resultados"],body.propio .ajfoot,body.propio [data-act="tab"][data-tab="ajustes"],body.propio [data-act="newteam"]{display:none!important}
+body.propio #tab-canchas,body.propio #tab-resultados,body.propio #tab-ajustes{display:none!important}
 </style>
 </head>
 <body>
+<div id="login" hidden></div>
 <header>
   <img class="logo" src="escudo.png" alt="Rancho Seco Fútbol Rápido">
   <div class="search">
@@ -288,6 +300,7 @@ th{color:var(--muted);font-weight:600}
     <button class="tab" data-act="tab" data-tab="resultados">Resultados</button>
     <button class="tab" data-act="tab" data-tab="equipos">Equipos</button>
     <button class="tab" data-act="tab" data-tab="pagos">Pagos</button>
+    <button class="tab salir" data-act="salir">Salir</button>
     <button class="addpago" data-act="pagonuevo" title="Registrar pago" aria-label="Registrar pago">+</button>
   </nav>
 </header>
@@ -342,6 +355,14 @@ function completar(d){
     if(n) cfg.historial=[{fecha:new Date().toISOString(),texto:`${n} partido(s) sin terminar se cerraron con su marcador`},...cfg.historial];
     cfg.v5=true;
   }
+  if(!cfg.v6){ // usuarios: cada uno entra con su nombre y su clave de 4 números (la clave se guarda cifrada)
+    cfg.usuarios=[{nombre:'Junior',acceso:'todo',admin:true,pin:null},{nombre:'Charro',acceso:'propio',admin:false,pin:null},{nombre:'Victor',acceso:'propio',admin:false,pin:null},{nombre:'Rony',acceso:'propio',admin:false,pin:null},{nombre:'Marco',acceso:'todo',admin:true,pin:null},{nombre:'Sistemas',acceso:'todo',admin:true,pin:null}];
+    cfg.v6=true;
+  }
+  if(!cfg.v7){ // Marco también puede quitar claves (igual que Junior y Sistemas)
+    cfg.usuarios=(cfg.usuarios||[]).map(u=>u.nombre==='Marco'?{...u,admin:true}:u);
+    cfg.v7=true;
+  }
   // Marco es inversionista: no recibe pagos (si no tiene rol, se pone este)
   cfg.roles={...(cfg.roles||{})};
   if(!cfg.roles.Marco) cfg.roles.Marco='Inversionista';
@@ -356,7 +377,7 @@ function cobradores(){
 function load(){
   try{
     const s=JSON.parse(localStorage.getItem(KEY));
-    if(!s) return clone(DEF);
+    if(!s) return completar(clone(DEF));
     return completar(s);
   }catch(e){return clone(DEF);}
 }
@@ -431,6 +452,7 @@ function closeModal(){$('#modal-bg').classList.remove('show');$('#modal').innerH
 
 /* ---------- Tabs ---------- */
 function showTab(name){
+  if(!veTodo()&&['canchas','resultados','ajustes'].includes(name)) name='pagos';
   try{sessionStorage.setItem('canchas-pestana',name);}catch(e){}
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===name));
   document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id==='tab-'+name));
@@ -445,7 +467,7 @@ function showTab(name){
 }
 // Resultados de los partidos terminados: el más reciente arriba
 function renderResultados(){
-  const ts=db.matches.filter(m=>m.terminado);
+  const ts=db.matches.filter(m=>m.terminado&&partidoVisible(m));
   if(!ts.length){$('#resultados-list').innerHTML='<p class="muted">Aún no hay partidos terminados.</p>';return;}
   // Agrupar por horario (día y hora en que terminaron); dentro de cada horario, cancha 1 a 4
   const grupos={}, etiq={};
@@ -469,6 +491,72 @@ function renderResultados(){
   }).join('');
 }
 function renderAll(){renderFields();renderTeams();renderPagos();}
+
+/* ---------- Usuarios y accesos ---------- */
+const SESION_KEY='canchas-sesion';
+function sesionNombre(){try{return localStorage.getItem(SESION_KEY)||'';}catch(e){return '';}}
+function usuarioActual(){const n=sesionNombre();return (db.config.usuarios||[]).find(u=>u.nombre===n)||null;}
+// 'todo' (Junior, Marco, Sistemas) ve todo; 'propio' (Charro, Victor, Rony) solo lo suyo
+function veTodo(){const u=usuarioActual();return !!u&&u.acceso==='todo';}
+function esAdmin(){const u=usuarioActual();return !!u&&!!u.admin;}
+// Equipo propio: el que recibió su inscripción la persona
+function equipoVisible(t){if(veTodo()) return true;const u=usuarioActual();return !!u&&!!t&&responsableInscripcion(t)===u.nombre;}
+function pagoVisible(p){if(veTodo()) return true;const u=usuarioActual();return !!u&&p.recibio===u.nombre;}
+function partidoVisible(m){return veTodo()||[m.a,m.b].some(tid=>equipoVisible(teamById(tid)));}
+async function hashPin(pin){const d=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('rancho-seco:'+pin));return [...new Uint8Array(d)].map(x=>x.toString(16).padStart(2,'0')).join('');}
+function aplicarAcceso(){
+  document.body.classList.toggle('propio',!veTodo());
+  const sal=document.querySelector('.salir');
+  if(sal) sal.textContent='Salir ('+(sesionNombre()||'—')+')';
+}
+let loginPaso={nombre:null,primera:null};
+function mostrarLogin(){
+  const cont=$('#login');
+  cont.hidden=false;
+  if(!loginPaso.nombre){
+    cont.innerHTML=`<div class="lbox"><h3>¿Quién eres?</h3><p class="muted">Toca tu nombre para entrar.</p>${(db.config.usuarios||[]).map(u=>`<button type="button" class="uopt" data-act="lgn" data-n="${esc(u.nombre)}">${esc(u.nombre)}</button>`).join('')}</div>`;
+    return;
+  }
+  const u=(db.config.usuarios||[]).find(x=>x.nombre===loginPaso.nombre);
+  if(!u){loginPaso={nombre:null,primera:null};return mostrarLogin();}
+  const titulo=u.pin?'Escribe tu clave de 4 números':(loginPaso.primera===null?'Crea tu clave de 4 números':'Repite tu clave');
+  cont.innerHTML=`<form class="lbox" id="lg-form"><h3>Hola, ${esc(u.nombre)}</h3><p class="muted">${titulo}</p><input id="lg-pin" class="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off"><div class="lerr" id="lg-err"></div><div class="actions" style="justify-content:space-between"><button type="button" class="btn ghost" data-act="lgback">Volver</button><button class="btn primary">Entrar</button></div></form>`;
+  $('#lg-pin').focus();
+  $('#lg-form').onsubmit=async e=>{
+    e.preventDefault();
+    const pin=$('#lg-pin').value.trim();
+    if(!/^\d{4}$/.test(pin)){$('#lg-err').textContent='La clave son 4 números.';return;}
+    const h=await hashPin(pin);
+    if(u.pin){
+      if(h!==u.pin){$('#lg-err').textContent='Clave incorrecta.';return;}
+      entrar(u.nombre); return;
+    }
+    if(loginPaso.primera===null){loginPaso.primera=pin; mostrarLogin(); return;}
+    if(loginPaso.primera!==pin){loginPaso.primera=null; mostrarLogin(); $('#lg-err').textContent='No coinciden. Intenta de nuevo.'; return;}
+    u.pin=h; save(); entrar(u.nombre);
+  };
+}
+function entrar(n){
+  try{localStorage.setItem(SESION_KEY,n);}catch(e){}
+  loginPaso={nombre:null,primera:null};
+  $('#login').hidden=true; $('#login').innerHTML='';
+  aplicarAcceso();
+  showTab(veTodo()?'canchas':'pagos');
+  renderAll();
+}
+function salir(){
+  try{localStorage.removeItem(SESION_KEY);}catch(e){}
+  loginPaso={nombre:null,primera:null};
+  aplicarAcceso(); mostrarLogin();
+}
+// Quita la clave de una persona para que cree otra al entrar (solo Junior y Sistemas)
+function quitarClave(n){
+  if(!esAdmin()) return;
+  const u=(db.config.usuarios||[]).find(x=>x.nombre===n); if(!u) return;
+  if(!confirm(`¿Quitar la clave de ${n}? Al entrar creará una nueva.`)) return;
+  u.pin=null; registrar(`Clave de ${n} quitada (creará una nueva al entrar)`);
+  save(); renderAjustes();
+}
 
 /* ---------- Canchas ---------- */
 function side(m,s){
@@ -791,6 +879,7 @@ function responsableInscripcion(t){
   return p?p.recibio:'';
 }
 function openPay(teamId,matchId,editId=null){
+  if(!equipoVisible(teamById(teamId))) return;
   const t=teamById(teamId); if(!t) return;
   const ed=editId?db.payments.find(x=>x.id===editId):null;
   const m=matchById(matchId);
@@ -957,6 +1046,7 @@ function openPay(teamId,matchId,editId=null){
 // Ficha del equipo: integrantes, representante, estadísticas, partidos y pagos
 function abrirFicha(tid){
   const t=teamById(tid); if(!t) return;
+  if(!equipoVisible(t)) return;
   const b=balance(tid);
   const d=b.insPend+b.arbPend;
   const ms=matchesOf(tid).sort((x,y)=>String(y.creado||'').localeCompare(String(x.creado||'')));
@@ -1098,7 +1188,7 @@ function openTerminar(mid){
   };
 }
 function partidosTerminadosHTML(){
-  const ts=db.matches.filter(m=>m.terminado).sort((a,b)=>String(b.terminadoEn).localeCompare(String(a.terminadoEn)));
+  const ts=db.matches.filter(m=>m.terminado&&partidoVisible(m)).sort((a,b)=>String(b.terminadoEn).localeCompare(String(a.terminadoEn)));
   return `<h3>Partidos terminados</h3><div class="scroll"><table>
     <tr><th>Cancha</th><th>Equipos</th><th>Marcador</th><th>Árbitro</th></tr>
     ${ts.length?ts.map(m=>`<tr><td>${m.field}</td>
@@ -1120,14 +1210,14 @@ function deletePayment(id,teamId,matchId){
 function diaLocal(iso){const d=iso?new Date(iso):new Date();d.setHours(d.getHours()-5);return ymd(d);}
 function jornadaHoy(){return diaLocal();}
 function dashboardHTML(pagosF,totIns,totArb,pend){
-  const cobra=cobradores().map(n=>{
+  const cobra=cobradores().filter(n=>veTodo()||n===usuarioActual()?.nombre).map(n=>{
     const ps=pagosF.filter(p=>p.recibio===n);
     const ef=sum(ps.filter(p=>p.metodo!=='transferencia'));
     const tr=sum(ps.filter(p=>p.metodo==='transferencia'));
     return `<details class="dcard dsq"><summary><b>${esc(n)}</b><br>${money(ef+tr)}</summary>
       <div class="muted">Efectivo ${money(ef)} · Transferencia ${money(tr)}</div></details>`;
   }).join('');
-  const terminados=db.matches.filter(m=>m.terminado&&enRango(diaLocal(m.terminadoEn)));
+  const terminados=db.matches.filter(m=>m.terminado&&partidoVisible(m)&&enRango(diaLocal(m.terminadoEn)));
   const canchas=[1,2,3,4].map(f=>{
     const ms=terminados.filter(m=>m.field===f);
     const ids=new Set(ms.map(m=>m.id));
@@ -1144,7 +1234,7 @@ function dashboardHTML(pagosF,totIns,totArb,pend){
     ?`<div class="barras">${arbEntries.map(([n,c])=>{const v=c*pagoA;const h=Math.max(8,Math.round(v/maxA*140));return `<div class="barcol"><small>${money(v)}</small><div class="bar" style="height:${h}px"></div><b>${arbNombreHTML(n)}</b><small class="muted">${c} juego${c===1?'':'s'}</small></div>`;}).join('')}</div>`
     :'<p class="muted">Aún no hay juegos arbitrados.</p>';
   // Juegos del periodo elegido (Hoy, Ayer, etc.)
-  const jd=db.matches.filter(m=>enRango(diaLocal(m.creado)));
+  const jd=db.matches.filter(m=>partidoVisible(m)&&enRango(diaLocal(m.creado)));
   // Una fila por equipo: equipo, juego, inscripción, arbitraje, pagado total y saldo
   const celda=(pend)=>pend>0?`<span class="pend">−${money(pend)}</span>`:'<span class="ok">✔</span>';
   const fila=(m,tid)=>{
@@ -1272,10 +1362,10 @@ function resultadoBusqueda(){
   const toks=term.split(/\s+/).filter(Boolean);
   const hit=(x)=>toks.every(k=>norm(x).includes(k));
   const opts=[];
-  cobradores().filter(hit).forEach(n=>opts.push({tipo:'cobrador',val:n,txt:n,sub:'Cobrador'}));
-  (db.config.arbitros||[]).filter(a=>hit(a)||hit(arbNom(a))).forEach(a=>opts.push({tipo:'arbitro',val:a,txt:a,sub:'Árbitro'}));
-  db.teams.filter(t=>hit(t.name)).forEach(t=>opts.push({tipo:'equipo',val:t.id,txt:t.name,sub:'Equipo'}));
-  db.teams.forEach(t=>t.players.filter(x=>hit(x)&&!hit(t.name)).forEach(x=>opts.push({tipo:'equipo',val:t.id,txt:x,sub:'Jugador de '+t.name})));
+  cobradores().filter(n=>veTodo()||n===usuarioActual()?.nombre).filter(hit).forEach(n=>opts.push({tipo:'cobrador',val:n,txt:n,sub:'Cobrador'}));
+  (veTodo()?(db.config.arbitros||[]):[]).filter(a=>hit(a)||hit(arbNom(a))).forEach(a=>opts.push({tipo:'arbitro',val:a,txt:a,sub:'Árbitro'}));
+  db.teams.filter(equipoVisible).filter(t=>hit(t.name)).forEach(t=>opts.push({tipo:'equipo',val:t.id,txt:t.name,sub:'Equipo'}));
+  db.teams.filter(equipoVisible).forEach(t=>t.players.filter(x=>hit(x)&&!hit(t.name)).forEach(x=>opts.push({tipo:'equipo',val:t.id,txt:x,sub:'Jugador de '+t.name})));
   if(!opts.length) return '<div class="reslist"><div class="empty-res">No hay coincidencias.</div></div>';
   return `<div class="reslist">${opts.slice(0,30).map(o=>`<button type="button" class="${pqSel&&pqSel.tipo===o.tipo&&String(pqSel.val)===String(o.val)?'on':''}" data-act="pqsel" data-tipo="${o.tipo}" data-val="${esc(String(o.val))}"><b>${esc(o.txt)}</b><br><small>${o.sub}</small></button>`).join('')}</div>`;
 }
@@ -1313,8 +1403,8 @@ function waLink(t,d){
 }
 function renderPagos(){
   const foco=pqFoco();
-  const rows=db.teams.filter(t=>!foco||foco.tipo!=='equipo'||t.id===foco.id).map(t=>({t,b:balance(t.id)}));
-  const pagosF=db.payments.filter(p=>enRango(p.fecha)&&enFoco(p,foco));
+  const rows=db.teams.filter(equipoVisible).filter(t=>!foco||foco.tipo!=='equipo'||t.id===foco.id).map(t=>({t,b:balance(t.id)}));
+  const pagosF=db.payments.filter(p=>enRango(p.fecha)&&enFoco(p,foco)&&pagoVisible(p));
   const totIns=sum(pagosF.filter(p=>p.tipo==='inscripcion'));
   const totArb=sum(pagosF.filter(p=>p.tipo==='arbitraje'));
   const pend=rows.reduce((s,r)=>s+r.b.insPend+r.b.arbPend,0);
@@ -1348,6 +1438,7 @@ function renderPagos(){
 const cap=s=>s?s.charAt(0).toUpperCase()+s.slice(1):s; // primera letra en mayúscula
 let draft=null; // equipo en edición: {id,name,players:[],lider}
 function openTeam(id,presetName='',desdeBusqueda=false,jugador=null){
+  if(id&&!equipoVisible(teamById(id))) return;
   const t=id?teamById(id):null;
   draft={id:t?t.id:null,name:t?t.name:cap(presetName),players:t?[...t.players]:(jugador?[cap(jugador)]:[]),lider:t?t.lider:(jugador?cap(jugador):null),desdeBusqueda,tel:{...(t?.telefonos||{})}};
   openModal(`<form id="tm-form" onsubmit="return false">
@@ -1477,7 +1568,7 @@ function diaCompleto(iso){
 function renderTeams(filtro=''){
   // Orden alfabético por nombre; con búsqueda solo salen los que coinciden
   const term=norm(String(filtro).trim());
-  const ordenados=[...db.teams]
+  const ordenados=[...db.teams].filter(equipoVisible)
     .filter(t=>!term||norm(t.name).includes(term)||t.players.some(p=>norm(p).includes(term)))
     .sort((a,b)=>a.name.localeCompare(b.name,'es',{sensitivity:'base'}));
   $('#teams-list').innerHTML=ordenados.length?ordenados.map(t=>`<div class="card team" data-act="editteam" data-id="${t.id}" style="cursor:pointer">
@@ -1591,6 +1682,10 @@ function renderAjustes(){
       <div class="actions" style="justify-content:flex-start;margin-top:0"><button class="btn primary sm" data-act="addarb">+ Agregar árbitro</button></div>
     </div>
     <div class="card">
+      <h3>Usuarios</h3>
+      <ul class="plist">${(db.config.usuarios||[]).map(u=>`<li><span><b>${esc(u.nombre)}</b><br><small class="muted">${u.acceso==='todo'?'Ve todo':'Ve solo sus cuentas y equipos'} · ${u.pin?'con clave':'sin clave'}</small></span>${esAdmin()&&u.pin?`<button class="btn ghost sm" data-act="quitarclave" data-n="${esc(u.nombre)}">Quitar clave</button>`:''}</li>`).join('')}</ul>
+    </div>
+    <div class="card">
       <h3>Historial de cambios</h3>
       <ul class="plist">${(db.config.historial||[]).map(h=>`<li><span><small class="muted">${esc(new Date(h.fecha).toLocaleString('es-MX',{dateStyle:'medium',timeStyle:'short'}))}</small><br>${esc(h.texto)}</span></li>`).join('')||'<li class="muted">Aún no hay cambios.</li>'}</ul>
     </div>
@@ -1629,7 +1724,7 @@ function renderResults(){
   const term=norm(q.value.trim());
   if(!term){box.classList.remove('show');box.innerHTML='';return;}
   const hits=[];
-  db.teams.forEach(t=>{
+  db.teams.filter(equipoVisible).forEach(t=>{
     const teamHit=norm(t.name).includes(term);
     const ph=t.players.find(p=>norm(p).includes(term));
     if(teamHit||ph) hits.push({t,player:teamHit?null:ph});
@@ -1658,6 +1753,10 @@ document.addEventListener('click',e=>{
   const d=el.dataset;
   switch(d.act){
     case 'tab': showTab(d.tab); break;
+    case 'lgn': loginPaso={nombre:d.n,primera:null}; mostrarLogin(); break;
+    case 'lgback': loginPaso={nombre:null,primera:null}; mostrarLogin(); break;
+    case 'salir': salir(); break;
+    case 'quitarclave': quitarClave(d.n); break;
     case 'pay': openPay(d.team,d.match||null); break;
     case 'score': changeScore(d.match,d.side,1); break;
     case 'unscore': changeScore(d.match,d.side,-1); break;
@@ -1735,6 +1834,8 @@ renderAll();
 let pestanaInicial='canchas';
 try{pestanaInicial=sessionStorage.getItem('canchas-pestana')||'canchas';}catch(e){}
 showTab(pestanaInicial);
+aplicarAcceso();
+if(!usuarioActual()) mostrarLogin();
 cargarNube();
 </script>
 </body>
