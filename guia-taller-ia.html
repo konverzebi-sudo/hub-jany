@@ -1566,13 +1566,16 @@ function srcEjercicio(v) {
 }
 /* Tamaño de la caja de la presentación en la vista del ponente: 'mini', 'real' (normal) o 'completa' (pantalla completa) */
 let TAM_CAJA = 'real';
+let TAM_ELEGIDO = false;   // true cuando el ponente toca Mini o Real a mano
+// Con una dinámica abierta la caja va en Mini, salvo que el ponente haya elegido Real a mano
+function miniAhora() { return TAM_CAJA === 'mini' || (!TAM_ELEGIDO && hayActividadActiva()); }
 let FIJAR_CAJA = true;   // 📌: si está encendido, la presentación se queda pegada debajo de la barra (salvo mientras hay una dinámica activa)
 function cajasVista(v) {
   // Cada cuadro arranca con su lugar correcto (grande, chico u oculto), igual que aplicarVistaDom; si no, el ejercicio tapa la presentación
   const clase = k => v.grande === k ? 'grande' : v.chico === k ? 'chico' : 'oculto';
   const zoomClase = v.grande === 'cara' || v.grande === 'pant' ? 'grande' : (v.chico === 'cara' || v.chico === 'pant' ? 'chico' : 'oculto');
-  const tam = b => `<button type="button" class="${TAM_CAJA === b ? 'on' : ''}" data-tam="${b}">${b === 'mini' ? '▭ Mini' : '▭ Real'}</button>`;
-  return `<div class="vista-box${MODO_PONENTE && FIJAR_CAJA ? ' pegado' : ''}${MODO_PONENTE && (TAM_CAJA === 'mini' || hayActividadActiva()) ? ' tam-mini' : ''}">
+  const tam = b => `<button type="button" class="${(b === 'mini') === miniAhora() ? 'on' : ''}" data-tam="${b}">${b === 'mini' ? '▭ Mini' : '▭ Real'}</button>`;
+  return `<div class="vista-box${MODO_PONENTE && FIJAR_CAJA ? ' pegado' : ''}${MODO_PONENTE && miniAhora() ? ' tam-mini' : ''}">
     ${MODO_PONENTE ? `<div class="tam-grupo"><button type="button" class="${FIJAR_CAJA ? 'on' : ''}" data-fijar title="${FIJAR_CAJA ? 'Quitar la fijación' : 'Fijar la presentación'}" aria-label="${FIJAR_CAJA ? 'Quitar la fijación' : 'Fijar la presentación'}">📌</button>${tam('mini')}${tam('real')}<button type="button" data-vfull title="Ver a pantalla completa">⛶ Completa</button></div>` : ''}
     <div class="vi vi-cara ${zoomClase}">${MODO_PONENTE ? `<iframe class="zoom-vivo" src="taller-app/zoom.html" title="Clase en vivo por Zoom" allow="camera; microphone; fullscreen; display-capture; autoplay"></iframe>` : `<div class="zoom-espera" aria-label="Clase en vivo por Zoom">🎥 Clase en vivo por Zoom</div>`}</div>
     <div class="vi vi-pres ${clase('pres')}"><iframe src="taller-app/?embed=presentacion${MODO_PONENTE ? '&rol=ponente' : ''}" title="Presentación en vivo"></iframe></div>
@@ -1739,7 +1742,7 @@ function aplicarPegado() {
   const caja = document.querySelector('.vista-box'); if (!caja || !MODO_PONENTE) return;
   caja.classList.toggle('pegado', FIJAR_CAJA);
   // Con una dinámica abierta la presentación se queda pegada pero en Mini, para que la dinámica quepa debajo
-  caja.classList.toggle('tam-mini', TAM_CAJA === 'mini' || hayActividadActiva());
+  caja.classList.toggle('tam-mini', miniAhora());
 }
 /* 📌 Fija o suelta la presentación */
 document.addEventListener('click', e => {
@@ -1752,9 +1755,9 @@ document.addEventListener('click', e => {
 /* Botones Mini / Real: cambian el tamaño de la presentación al instante (Completa usa pantalla completa) */
 document.addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('[data-tam]'); if (!b) return;
-  TAM_CAJA = b.dataset.tam;
-  const caja = document.querySelector('.vista-box'); if (caja) caja.classList.toggle('tam-mini', TAM_CAJA === 'mini' || hayActividadActiva());
-  document.querySelectorAll('[data-tam]').forEach(x => x.classList.toggle('on', x.dataset.tam === TAM_CAJA));
+  TAM_CAJA = b.dataset.tam; TAM_ELEGIDO = true;
+  const caja = document.querySelector('.vista-box'); if (caja) caja.classList.toggle('tam-mini', miniAhora());
+  document.querySelectorAll('[data-tam]').forEach(x => x.classList.toggle('on', (x.dataset.tam === 'mini') === miniAhora()));
 });
 /* El panel se ajusta solo a su contenido (la plataforma avisa su altura real a la guía) */
 function ajustarPanelesLinea() { document.querySelectorAll('.lt-panel').forEach(p => { p.style.height = ''; }); }
