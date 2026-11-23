@@ -277,7 +277,7 @@ th{color:var(--muted);font-weight:600}
 /* Acceso por usuario */
 #login{position:fixed;inset:0;z-index:300;background:linear-gradient(rgba(8,12,10,.55),rgba(8,12,10,.8)),url(fondo-canchas.jpg) center/cover no-repeat,var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px 16px;overflow:auto}
 #login .lbox{width:100%;max-width:380px;background:#fff;color:#111;border-radius:24px;padding:28px 24px 24px;box-sizing:border-box;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.45)}
-#login .logo{width:120px;height:120px;margin:0 0 14px;background:url(escudo.png) center/contain no-repeat;filter:drop-shadow(0 4px 14px rgba(0,0,0,.5))}
+#login .logo{width:300px;max-width:80vw;height:300px;margin:0 0 6px;background:url(escudo.png) center/contain no-repeat;filter:drop-shadow(0 4px 14px rgba(0,0,0,.5))}
 #login h3{margin:0 0 6px;font-size:22px;color:#111}
 #login .lbox p.muted{color:#666;margin:0 0 18px}
 #login .uopt{display:block;width:100%;margin:10px 0;padding:15px 16px;font:inherit;font-size:17px;font-weight:600;border:1px solid #e3e6e3;border-radius:14px;background:#f5f7f5;color:#111;cursor:pointer;text-align:center}
@@ -519,45 +519,62 @@ function aplicarAcceso(){
   const sal=document.querySelector('.salir');
   if(sal) sal.textContent='Salir ('+(sesionNombre()||'—')+')';
 }
-let loginPaso={nombre:null,primera:null};
-let lgAuto=true; // false cuando la persona eligió "Cambiar de nombre"
-function ultimoNombre(){try{return localStorage.getItem('canchas-ultimo')||'';}catch(e){return '';}}
-function mostrarLogin(){
-  const cont=$('#login');
-  cont.hidden=false;
-  // Si ya tiene PIN y es el último que entró en este celular, pide solo la clave
-  if(!loginPaso.nombre&&lgAuto){
-    const uu=(db.config.usuarios||[]).find(x=>x.nombre===ultimoNombre()&&x.pin);
-    if(uu) loginPaso.nombre=uu.nombre;
-  }
-  if(!loginPaso.nombre){
-    cont.innerHTML=`<div class="logo"></div><div class="lbox"><h3>Bienvenido al Centro de Control</h3><p class="muted">Elige tu nombre para entrar</p>${(db.config.usuarios||[]).map(u=>`<button type="button" class="uopt" data-act="lgn" data-n="${esc(u.nombre)}">${esc(u.nombre)}</button>`).join('')}</div>`;
-    return;
-  }
-  const u=(db.config.usuarios||[]).find(x=>x.nombre===loginPaso.nombre);
-  if(!u){loginPaso={nombre:null,primera:null};return mostrarLogin();}
-  const titulo=u.pin?'Escribe tu PIN de 4 dígitos':(loginPaso.primera===null?'Crea tu PIN de 4 dígitos':'Repite tu PIN');
-  cont.innerHTML=`<div class="logo"></div><form class="lbox" id="lg-form"><h3>Bienvenido al Centro de Control</h3><p class="muted">${titulo}</p><div class="pinwrap"><div class="pindots"><span class="pd"></span><span class="pd"></span><span class="pd"></span><span class="pd"></span></div><input id="lg-pin" class="pinin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" aria-label="Clave de 4 números"></div><div class="lerr" id="lg-err"></div><button class="btn primary big">Entrar</button><button type="button" class="linkb" data-act="lgnuevo">Es mi primera vez, crear mi PIN</button><button type="button" class="linkb" data-act="lgback">Cambiar de nombre</button></form>`;
+// Entrada: primero el PIN directo; la lista de nombres solo para la primera vez
+// loginPaso.modo: 'pin' (escribe su PIN), 'nombres' (primera vez: elige nombre), 'crear' (crea su PIN)
+let loginPaso={modo:'pin',nombre:null,primera:null};
+let lgMsg='';
+const PINBOX=`<div class="pinwrap"><div class="pindots"><span class="pd"></span><span class="pd"></span><span class="pd"></span><span class="pd"></span></div><input id="lg-pin" class="pinin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" aria-label="Clave de 4 números"></div>`;
+function usuarioPorPin(h){return (db.config.usuarios||[]).find(x=>x.pin&&x.pin===h)||null;}
+function lgElegir(n){
+  const u=(db.config.usuarios||[]).find(x=>x.nombre===n); if(!u) return;
+  loginPaso={modo:'crear',nombre:n,primera:null};
+  mostrarLogin();
+}
+// Conecta el campo de PIN con las casillas y el envío
+function lgConectarPin(onPin){
   const pi=$('#lg-pin'), pds=[...document.querySelectorAll('#lg-form .pd')];
   pi.addEventListener('input',()=>{pi.value=pi.value.replace(/\D/g,'').slice(0,4);pds.forEach((d,i)=>d.classList.toggle('on',i<pi.value.length));$('#lg-err').textContent='';});
   pi.focus();
   $('#lg-form').onsubmit=async e=>{
     e.preventDefault();
-    const pin=$('#lg-pin').value.trim();
+    const pin=pi.value.trim();
     if(!/^\d{4}$/.test(pin)){$('#lg-err').textContent='La clave son 4 números.';return;}
-    const h=await hashPin(pin);
-    if(u.pin){
-      if(h!==u.pin){$('#lg-err').textContent='Clave incorrecta.';return;}
-      entrar(u.nombre); return;
-    }
-    if(loginPaso.primera===null){loginPaso.primera=pin; mostrarLogin(); return;}
-    if(loginPaso.primera!==pin){loginPaso.primera=null; mostrarLogin(); $('#lg-err').textContent='No coinciden. Intenta de nuevo.'; return;}
-    u.pin=h; save(); entrar(u.nombre);
+    await onPin(pin, await hashPin(pin));
   };
+}
+function mostrarLogin(){
+  const cont=$('#login');
+  cont.hidden=false;
+  const msg=lgMsg; lgMsg='';
+  if(loginPaso.modo==='nombres'){
+    const libres=(db.config.usuarios||[]).filter(u=>!u.pin);
+    cont.innerHTML=`<div class="logo"></div><div class="lbox"><h3>Bienvenido al Centro de Control</h3><p class="muted">${libres.length?'Elige tu nombre para crear tu PIN':'Todos ya tienen PIN. Escríbelo arriba.'}</p>${libres.map(u=>`<button type="button" class="uopt" data-act="lgn" data-n="${esc(u.nombre)}">${esc(u.nombre)}</button>`).join('')}<button type="button" class="linkb" data-act="lgback">Volver</button></div>`;
+    return;
+  }
+  if(loginPaso.modo==='crear'){
+    const u=(db.config.usuarios||[]).find(x=>x.nombre===loginPaso.nombre);
+    if(!u){loginPaso={modo:'pin',nombre:null,primera:null};return mostrarLogin();}
+    const titulo=loginPaso.primera===null?'Crea tu PIN de 4 dígitos':'Repite tu PIN';
+    cont.innerHTML=`<div class="logo"></div><form class="lbox" id="lg-form"><h3>Bienvenido al Centro de Control</h3><p class="muted">${esc(u.nombre)}: ${titulo}</p>${PINBOX}<div class="lerr" id="lg-err">${esc(msg)}</div><button class="btn primary big">Continuar</button><button type="button" class="linkb" data-act="lgback">Volver</button></form>`;
+    lgConectarPin(async (pin,h)=>{
+      if(loginPaso.primera===null){loginPaso.primera=pin; mostrarLogin(); return;}
+      if(loginPaso.primera!==pin){loginPaso.primera=null; lgMsg='No coinciden. Intenta de nuevo.'; mostrarLogin(); return;}
+      if(usuarioPorPin(h)){loginPaso.primera=null; lgMsg='Ese PIN ya lo usa alguien más. Elige otro.'; mostrarLogin(); return;}
+      u.pin=h; save(); entrar(u.nombre);
+    });
+    return;
+  }
+  // modo 'pin': sin nombre, solo la clave
+  cont.innerHTML=`<div class="logo"></div><form class="lbox" id="lg-form"><h3>Bienvenido al Centro de Control</h3><p class="muted">Escribe tu PIN de 4 dígitos</p>${PINBOX}<div class="lerr" id="lg-err">${esc(msg)}</div><button class="btn primary big">Entrar</button><button type="button" class="linkb" data-act="lgnuevo">Es mi primera vez, crear mi PIN</button></form>`;
+  lgConectarPin(async (pin,h)=>{
+    const u=usuarioPorPin(h);
+    if(!u){$('#lg-err').textContent='PIN incorrecto. Si es tu primera vez, toca "Es mi primera vez, crear mi PIN".';return;}
+    entrar(u.nombre);
+  });
 }
 function entrar(n){
   try{localStorage.setItem(SESION_KEY,n);}catch(e){}
-  loginPaso={nombre:null,primera:null};
+  loginPaso={modo:'pin',nombre:null,primera:null};
   $('#login').hidden=true; $('#login').innerHTML='';
   aplicarAcceso();
   showTab(veTodo()?'canchas':'pagos');
@@ -565,7 +582,7 @@ function entrar(n){
 }
 function salir(){
   try{localStorage.removeItem(SESION_KEY);}catch(e){}
-  loginPaso={nombre:null,primera:null}; lgAuto=true;
+  loginPaso={modo:'pin',nombre:null,primera:null};
   aplicarAcceso(); mostrarLogin();
 }
 // Quita la clave de una persona para que cree otra al entrar (solo Junior y Sistemas)
@@ -1772,9 +1789,9 @@ document.addEventListener('click',e=>{
   const d=el.dataset;
   switch(d.act){
     case 'tab': showTab(d.tab); break;
-    case 'lgn': try{localStorage.setItem('canchas-ultimo',d.n);}catch(e){} loginPaso={nombre:d.n,primera:null}; mostrarLogin(); break;
-    case 'lgback': lgAuto=false; loginPaso={nombre:null,primera:null}; mostrarLogin(); break;
-    case 'lgnuevo': { const u=(db.config.usuarios||[]).find(x=>x.nombre===loginPaso.nombre); if(!u) break; if(u.pin){ $('#lg-err').textContent='Ya tienes PIN. Si lo olvidaste, pide a Junior o Sistemas que lo quiten.'; } else { loginPaso.primera=null; mostrarLogin(); } break; }
+    case 'lgn': lgElegir(d.n); break;
+    case 'lgback': loginPaso={modo:'pin',nombre:null,primera:null}; mostrarLogin(); break;
+    case 'lgnuevo': loginPaso={modo:'nombres',nombre:null,primera:null}; mostrarLogin(); break;
     case 'salir': salir(); break;
     case 'quitarclave': quitarClave(d.n); break;
     case 'pay': openPay(d.team,d.match||null); break;
