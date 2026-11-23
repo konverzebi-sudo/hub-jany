@@ -424,6 +424,10 @@
   .vista-switch a em { font-style: normal; }
   .vista-switch a.on { background: var(--lime); color: var(--ink); }
   .vista-switch a:not(.on):hover { background: rgba(255,255,255,.14); }
+  .vista-sel { display: inline-flex; align-items: center; gap: 10px; }
+  .vista-sel span { color: #CDBCE6; font: 600 11px 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: .06em; }
+  #verComo { font: 700 15px 'Sora', sans-serif; color: #1B1530; background: #fff; border: 2px solid #CDBCE6; border-radius: 12px; padding: 7px 12px; cursor: pointer; }
+  #verComo:focus-visible, #verComo:hover { border-color: #1B1530; outline: none; }
   @media (max-width: 700px) { .vista-switch span, .vista-switch a em { display: none; } .vista-switch a { padding: 6px 9px; } }
   .map a.sin-link { cursor: default; }
   .gm-hueco { margin-top: 14px; }
@@ -652,7 +656,7 @@
       <button class="chip-btn menu-btn" id="menuBtn" aria-label="Abrir menú"><svg width="16" height="16"><use href="#i-menu"/></svg>Menú</button>
       <div class="crumbs" id="crumbs"></div>
       <div class="top-actions">
-        <div class="vista-switch" role="group" aria-label="Cambiar de panel"><span>Ver como</span><a data-vs="alumno" href="guia-taller-ia.html#inicio">🎓 <em>Alumno</em></a><a data-vs="ponente" href="guia-taller-ia.html?vista=ponente#inicio">🎤 <em>Ponente</em></a><a href="taller-app/?demo=ponente#dinamicas">📊 <em>Panel</em></a><a href="taller-app/?demo=soporte">🛟 <em>Soporte</em></a></div>
+        <label class="vista-sel"><span>Ver como</span><select id="verComo" aria-label="Ver la guía como"><option value="alumno">🎓 Alumno</option><option value="ponente">🎤 Ponente</option><option value="panel">📊 Panel</option><option value="soporte">🛟 Soporte</option></select></label>
         <a href="#recursos" class="chip-btn hide-sm">📎 Recursos</a>
         <a href="#" class="chip-btn solid" id="continuarTop">Continuar <svg width="14" height="14"><use href="#i-arrow"/></svg></a>
       </div>
@@ -1315,7 +1319,13 @@ const MODO_PONENTE = new URLSearchParams(location.search).get('vista') === 'pone
   fab.onclick = () => abrir(panel.hidden); document.getElementById('ayudaX').onclick = () => abrir(false);
 })();
 document.body.classList.toggle('modo-ponente', MODO_PONENTE);
-document.querySelectorAll('.vista-switch a[data-vs]').forEach(a => a.classList.toggle('on', (a.dataset.vs === 'ponente') === MODO_PONENTE));
+// Ver como: elegir una vista te lleva a ella (Alumno y Ponente son esta guía; Panel y Soporte son la plataforma)
+const VER_COMO_URL = { alumno: 'guia-taller-ia.html#inicio', ponente: 'guia-taller-ia.html?vista=ponente#inicio', panel: 'taller-app/?demo=ponente#dinamicas', soporte: 'taller-app/?demo=soporte' };
+const verComo = document.getElementById('verComo');
+if (verComo) {
+  verComo.value = MODO_PONENTE ? 'ponente' : 'alumno';
+  verComo.addEventListener('change', () => { if (VER_COMO_URL[verComo.value]) location.href = VER_COMO_URL[verComo.value]; });
+}
 let done = {};
 try { done = JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) {}
 let chks = {};
