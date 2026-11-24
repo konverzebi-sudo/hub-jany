@@ -652,6 +652,12 @@ const qs = new URLSearchParams(location.search);
 /* Qué taller mostrar: el del link (?taller=slug). Se recuerda en este navegador para que las
    vistas incrustadas de la guía (mismo sitio) abran el mismo taller. Si no hay, usa config.js. */
 const SLUG_OK = s => /^[a-z0-9][a-z0-9-]{1,59}$/.test(s || '');
+/* Vista que se muestra: ponente y soporte pueden ver otra vista con ?ver=. El alumno siempre ve la suya.
+   La seguridad de los datos la pone la base (RLS), no esta pantalla. */
+function rolVista(real) {
+  const v = qs.get('ver');
+  return (['ponente', 'soporte'].includes(real) && ['alumno', 'ponente', 'soporte'].includes(v)) ? v : real;
+}
 const TALLER_SLUG = (() => {
   try {
     const v = qs.get('taller');
@@ -834,7 +840,7 @@ function crearApiSupabase() {
       const actividades = chk(await sb.from('actividades').select('*').eq('taller_id', T.id).order('orden'));
       const misRespuestas = chk(await sb.from('respuestas').select('*').eq('user_id', U.id));
       const estado = chk(await sb.from('estado_vivo').select('*').eq('taller_id', T.id).maybeSingle()) || {};
-      return { taller: T, rol: yo.rol, perfil, user: U, secciones, contenidos: Object.fromEntries(conts.map(c => [c.seccion_id, c.cuerpo])), actividades, misRespuestas, estado };
+      return { taller: T, rol: rolVista(yo.rol), rolReal: yo.rol, perfil, user: U, secciones, contenidos: Object.fromEntries(conts.map(c => [c.seccion_id, c.cuerpo])), actividades, misRespuestas, estado };
     },
     async responder(actividad_id, datos, completada) {
       chk(await sb.from('respuestas').upsert({ actividad_id, user_id: U.id, datos, completada: !!completada }, { onConflict: 'actividad_id,user_id' }));
@@ -1388,7 +1394,13 @@ function pantallaSinAcceso() {
 function marco(navHtml, cuerpo, titulo) {
   const p = S.rol === 'alumno' ? progreso() : null;
   const vistas = [['alumno', '🎓 Alumno'], ['ponente', '🎤 Ponente'], ['panel', '📊 Panel'], ['soporte', '🛟 Soporte']];
-  return `${api.demo ? `<div class="view-switch" role="group" aria-label="Cambiar de vista"><span>Ver como</span>${vistas.map(([r, t]) => `<a href="${r === 'alumno' ? '../guia-taller-ia.html#inicio' : r === 'ponente' ? '../guia-taller-ia.html?vista=ponente#inicio' : r === 'panel' ? '?demo=ponente#dinamicas' : '?demo=soporte'}" class="${(r === 'panel' && S.rol === 'ponente') || (r !== 'panel' && r !== 'ponente' && S.rol === r) ? 'on' : ''}">${t}</a>`).join('')}</div>` : ''}
+  /* Ponente y soporte (con cuenta real) cambian de vista desde aquí; el alumno no ve el selector */
+  const switchHtml = api.demo
+    ? `<div class="view-switch" role="group" aria-label="Cambiar de vista"><span>Ver como</span>${vistas.map(([r, t]) => `<a href="${r === 'alumno' ? '../guia-taller-ia.html#inicio' : r === 'ponente' ? '../guia-taller-ia.html?vista=ponente#inicio' : r === 'panel' ? '?demo=ponente#dinamicas' : '?demo=soporte'}" class="${(r === 'panel' && S.rol === 'ponente') || (r !== 'panel' && r !== 'ponente' && S.rol === r) ? 'on' : ''}">${t}</a>`).join('')}</div>`
+    : (['ponente', 'soporte'].includes(S.rolReal)
+      ? `<div class="view-switch" role="group" aria-label="Cambiar de vista"><span>Ver como</span>${[['alumno', '🎓 Alumno'], ['ponente', '🎤 Ponente'], ['soporte', '🛟 Soporte']].map(([r, t]) => `<a href="?taller=${encodeURIComponent(TALLER_SLUG)}&ver=${r}" class="${S.rol === r ? 'on' : ''}">${t}</a>`).join('')}</div>`
+      : '');
+  return `${switchHtml}
   <div class="app">
     <aside>
       <div class="brand">JEFES<span>HUB</span><small>${esc(S.taller.nombre)}</small></div>
