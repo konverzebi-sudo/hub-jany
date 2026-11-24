@@ -2589,7 +2589,7 @@
     if(data.history.length > 500) data.history.length = 500;
     data.agenda = data.agenda.filter(function(x){ return x.id !== a.id; });
     bumpAreaDone(a.text, a.area);
-    save(); renderAgenda(); renderHistory(); renderCalendar(); renderWeekGrid(); renderBalance();
+    save(); renderAgenda(); renderHistory(); renderCalendar(); renderWeekGrid(); renderBalance(); renderProducts();
   }
 
   function renderAgenda(){
@@ -2651,7 +2651,7 @@
           if(newArea !== (a.area || '')) setItemArea(a, newArea || undefined);
           editingAgendaId = null;
           if(a.startDate){ resyncAgendaItem(a); }
-          else { save(); renderAgenda(); renderCalendar(); renderBalance(); }
+          else { save(); renderAgenda(); renderCalendar(); renderBalance(); renderProducts(); }
         });
         document.getElementById('jd-edit-cancel').addEventListener('click', function(){
           editingAgendaId = null;
@@ -2707,7 +2707,7 @@
       del.className = 'jd-btn'; del.textContent = '×'; del.style.padding = '1px 8px';
       del.addEventListener('click', function(){
         data.agenda = data.agenda.filter(function(x){ return x.id !== a.id; });
-        save(); renderAgenda(); renderCalendar();
+        save(); renderAgenda(); renderCalendar(); renderProducts();
       });
       actions.appendChild(check);
       actions.appendChild(del);
@@ -2893,6 +2893,22 @@
     if(PROJECT_COLORS[name]) return PROJECT_COLORS[name];
     return p ? p.color : '#6B7280';
   }
+  // links de trabajo: solo se aceptan direcciones http(s); si falta el https:// se agrega
+  function projLinkNormalize(raw){
+    var u = String(raw || '').trim();
+    if(!u || /\s/.test(u)) return '';
+    if(!/^https?:\/\//i.test(u)){
+      if(/^[a-z][a-z0-9+.-]*:/i.test(u) && !/^[^\/]+:\d+/.test(u)) return '';   // mailto:, javascript:, etc.
+      u = 'https://' + u;
+    }
+    try{
+      var x = new URL(u);
+      if((x.protocol !== 'http:' && x.protocol !== 'https:') || x.hostname.indexOf('.') < 0) return '';
+      return x.href;
+    }catch(e){ return ''; }
+  }
+  function projLinkHost(u){ try{ return new URL(u).hostname.replace(/^www\./, ''); }catch(e){ return u; } }
+  function projLinkEsc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   // logotipo chiquito del proyecto (si lo tiene), para chips y encabezados
   function projectLogoHtml(name, size){
     var p = data.products.find(function(x){ return x.name === name; });
@@ -3452,15 +3468,52 @@
       });
     }
     html += '<div class="jd-wk-lab"' + (entries.length ? '' : ' style="margin-top:0;"') + '>Tarea</div><input class="jd-wk-input" id="jd-wk-text" placeholder="Ej. Diseñando el banner" autocomplete="off">';
-    html += '<div class="jd-wk-lab">Proyecto</div><div class="jd-wk-chips" id="jd-wk-projs"></div>';
+    html += '<div class="jd-wk-lab">Proyecto</div><div class="jd-wk-chips" id="jd-wk-projs"></div><div id="jd-wk-pinfo" style="margin-top:8px;"></div>';
     html += '<div class="jd-wk-lab">' + (multi ? 'Duración en cada horario' : 'Duración') + '</div><div class="jd-wk-chips" id="jd-wk-durs"></div>';
-    html += '<div class="jd-wk-lab">Notas o links (opcional)</div><textarea class="jd-wk-input" id="jd-wk-note" rows="2" placeholder="Pega aquí un link o escribe una nota" style="resize:vertical;"></textarea>';
+    html += '<div class="jd-wk-lab">Notas o links (opcional)</div><textarea class="jd-wk-input" id="jd-wk-note" rows="2" placeholder="Pega aquí un link o escribe una nota" style="resize:vertical;"></textarea><div class="jd-sub" id="jd-wk-notehint" style="margin-top:4px;"></div>';
     html += '<div class="jd-wk-acts"><button type="button" class="jd-wk-no" id="jd-wk-cancel">Cancelar</button><button type="button" class="jd-wk-go" id="jd-wk-add">' + (multi ? 'Agregar a los ' + cells.length : 'Agregar') + '</button></div>';
     box.innerHTML = html;
     document.body.appendChild(ov);
 
     var proj = 'General', mins = 60, touched = false;
     var projBox = box.querySelector('#jd-wk-projs'), durBox = box.querySelector('#jd-wk-durs');
+    var pInfoBox = box.querySelector('#jd-wk-pinfo'), noteHint = box.querySelector('#jd-wk-notehint'), infoOpen = false;
+    // un link de trabajo del proyecto se agrega a la nota con un toque
+    function addLinkToNote(url){
+      var ta = box.querySelector('#jd-wk-note');
+      if(ta.value.indexOf(url) < 0) ta.value = (ta.value.trim() ? ta.value.replace(/\s+$/, '') + '\n' : '') + url;
+      ta.focus();
+    }
+    function paintProjInfo(){
+      var pr = data.products.find(function(x){ return x.name === proj; });
+      pInfoBox.innerHTML = '';
+      noteHint.textContent = pr ? 'Si pegas un link aquí, también se guarda en los links de trabajo de ' + pr.name + '.' : '';
+      if(!pr) return;
+      var tg = document.createElement('button');
+      tg.type = 'button'; tg.className = 'jd-wk-chip';
+      tg.textContent = (infoOpen ? '▾ Ocultar info de ' : 'ⓘ Ver más info de ') + pr.name;
+      tg.addEventListener('click', function(){ infoOpen = !infoOpen; paintProjInfo(); });
+      pInfoBox.appendChild(tg);
+      if(!infoOpen) return;
+      var panel = document.createElement('div');
+      panel.style.cssText = 'margin-top:8px;padding:10px;background:#F8F6FF;border:1px solid #ECE8F8;border-radius:12px;font-size:12.5px;';
+      var links = (pr.links || []).filter(function(l){ return projLinkNormalize(l.url); });
+      var pend = pr.tasks.filter(function(t){ return !t.done; }).length + data.agenda.filter(function(a){ return a.project === pr.name; }).length;
+      var fields = (pr.fields || []).filter(function(f){ return f.value; });
+      var h = '<div class="jd-sub" style="color:#5B5784;margin-bottom:6px;">Links de trabajo · toca uno para agregarlo a la nota</div>';
+      if(!links.length) h += '<div class="jd-sub" style="margin-bottom:8px;">Este proyecto todavía no tiene links. Pega uno en la nota y se guarda aquí.</div>';
+      h += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">' + links.map(function(l, i){
+        return '<span style="display:inline-flex;align-items:center;gap:4px;"><button type="button" class="jd-wk-chip" data-addlink="' + i + '">🔗 ' + esc(l.label || projLinkHost(l.url)) + '</button>' +
+          '<a href="' + esc(l.url) + '" target="_blank" rel="noopener noreferrer" title="Abrir en pestaña nueva" style="text-decoration:none;color:#5B3FD0;">↗</a></span>';
+      }).join('') + '</div>';
+      if(fields.length) h += '<div class="jd-sub" style="color:#5B5784;margin-bottom:4px;">Datos</div>' + fields.map(function(f){ return '<div class="jd-sub" style="line-height:1.5;"><span style="color:#5B5784;">' + esc(f.label) + ':</span> ' + esc(f.value) + '</div>'; }).join('');
+      h += '<div class="jd-sub" style="margin-top:6px;">' + pend + ' pendiente' + (pend === 1 ? '' : 's') + ' · ' + pr.tasks.filter(function(t){ return t.done; }).length + ' hecha' + (pr.tasks.filter(function(t){ return t.done; }).length === 1 ? '' : 's') + '</div>';
+      panel.innerHTML = h;
+      panel.querySelectorAll('[data-addlink]').forEach(function(b){
+        b.addEventListener('click', function(){ addLinkToNote(links[parseInt(b.getAttribute('data-addlink'), 10)].url); });
+      });
+      pInfoBox.appendChild(panel);
+    }
     function paintChips(){
       projBox.innerHTML = '';
       [{name:'General', label:'Sin proyecto', color:'#B7B2D6'}].concat(data.products.map(function(p){ return {name:p.name, label:p.name, color:projectColor(p.name)}; })).forEach(function(p){
@@ -3478,6 +3531,7 @@
         b.addEventListener('click', function(){ mins = o[0]; paintChips(); });
         durBox.appendChild(b);
       });
+      paintProjInfo();
     }
     paintChips();
 
@@ -3487,6 +3541,14 @@
       var t = inT.value.trim();
       if(!t){ inT.focus(); return; }
       var sp0 = splitLinks((box.querySelector('#jd-wk-note').value || '').trim()), noteTxt = sp0.note.trim();
+      // los links pegados en la nota también se guardan en los links de trabajo del proyecto
+      var prSel = data.products.find(function(x){ return x.name === proj; });
+      if(prSel) sp0.links.forEach(function(u){
+        var href = projLinkNormalize(u);
+        if(!href) return;
+        if(!prSel.links) prSel.links = [];
+        if(!prSel.links.some(function(l){ return projLinkNormalize(l.url) === href; })) prSel.links.push({id: uid('lk'), label: '', url: href});
+      });
       cells.slice().reverse().forEach(function(c){
         var d = new Date(c.iso + 'T00:00:00');
         data.history.unshift({id: uid('hist'), project: proj, text: t, minutes: mins, note: noteTxt || undefined, links: sp0.links.length ? sp0.links.slice() : undefined,
@@ -3494,7 +3556,7 @@
       });
       if(data.history.length > 500) data.history.length = 500;
       bumpAreaTotal(t); bumpAreaDone(t);
-      save(); renderHistory(); renderCalendar(); renderBalance();
+      save(); renderHistory(); renderCalendar(); renderBalance(); renderProducts();
       closeWeekModal();
     }
     box.querySelector('#jd-wk-add').addEventListener('click', add);
@@ -3790,6 +3852,39 @@
     });
     ed.appendChild(look);
 
+    // ===== Links de trabajo del proyecto =====
+    var lk = document.createElement('div');
+    lk.style.cssText = 'margin-bottom:10px;padding:10px;background:#F8F6FF;border:1px solid #ECE8F8;border-radius:12px;';
+    var linksList = (p.links || []).filter(function(l){ return projLinkNormalize(l.url); }).map(function(l){
+      return '<div class="jd-row" style="gap:6px;align-items:center;margin-bottom:6px;">' +
+        '<a href="' + projLinkEsc(l.url) + '" target="_blank" rel="noopener noreferrer" style="flex:1;min-width:0;overflow-wrap:anywhere;color:#5B3FD0;font-size:12.5px;text-decoration:none;">🔗 ' + projLinkEsc(l.label || projLinkHost(l.url)) + ' ↗</a>' +
+        '<button type="button" class="jd-btn" data-lkdel="' + projLinkEsc(l.id) + '" title="Quitar link" style="padding:1px 8px;flex:none;">×</button></div>';
+    }).join('');
+    lk.innerHTML = '<div class="jd-sub" style="margin-bottom:8px;color:#5B5784;">Links de trabajo</div>' +
+      (linksList || '<div class="jd-sub" style="margin-bottom:8px;">Agrega las carpetas de Drive, documentos, páginas o cuentas de este proyecto.</div>') +
+      '<input class="jd-input" data-lkname placeholder="Nombre (ej. Carpeta de Drive)" style="margin-bottom:6px;">' +
+      '<input class="jd-input" data-lkurl placeholder="Pega el link (https://…)" inputmode="url" style="margin-bottom:6px;">' +
+      '<button type="button" class="jd-btn jd-btn-lima" data-lkadd style="width:100%;">+ Agregar link</button>' +
+      '<div class="jd-sub" data-lkmsg style="color:#D4463B;min-height:14px;margin-top:6px;"></div>';
+    function addProjLink(){
+      var nm = lk.querySelector('[data-lkname]').value.trim(), raw = lk.querySelector('[data-lkurl]').value;
+      var href = projLinkNormalize(raw);
+      if(!href){ lk.querySelector('[data-lkmsg]').textContent = 'Ese link no es válido. Pega una dirección que empiece con https://'; return; }
+      if(!p.links) p.links = [];
+      p.links.push({id: uid('lk'), label: nm, url: href});
+      save(); renderProducts();
+    }
+    lk.querySelector('[data-lkadd]').addEventListener('click', addProjLink);
+    lk.querySelector('[data-lkurl]').addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); addProjLink(); } });
+    lk.querySelectorAll('[data-lkdel]').forEach(function(b){
+      b.addEventListener('click', function(){
+        var id = b.getAttribute('data-lkdel');
+        p.links = (p.links || []).filter(function(l){ return l.id !== id; });
+        save(); renderProducts();
+      });
+    });
+    ed.appendChild(lk);
+
     var cap = document.createElement('div');
     cap.className = 'jd-sub'; cap.style.margin = '2px 0 6px';
     cap.textContent = 'Datos del proyecto (concepto y dato)';
@@ -3905,6 +4000,8 @@
       var card = document.createElement('div');
       card.className = 'jd-card';
       var pendingTasks = p.tasks.filter(function(t){ return !t.done; });
+      // pendientes del día (Retos del día y agenda) que pertenecen a este proyecto: también se marcan desde aquí
+      var agItems = data.agenda.filter(function(a){ return a.project === p.name; });
       var doneTasks = p.tasks.filter(function(t){ return t.done; });
       var pct = p.tasks.length ? Math.round(doneTasks.length / p.tasks.length * 100) : 0;
       var open = !!projectsOpen[p.id];
@@ -3913,7 +4010,7 @@
       head.innerHTML = '<div class="jd-row" style="gap:6px;min-width:0;">'+(p.logo ? '<img src="'+p.logo+'" alt="" style="width:26px;height:26px;object-fit:contain;border-radius:7px;background:#fff;border:2px solid '+color2+';flex:none;">' : '<span style="width:9px;height:9px;border-radius:50%;background:'+color+';display:inline-block;flex:none;"></span>')+
         '<button data-open style="background:transparent;border:none;color:#1F1B3D;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;padding:0;text-align:left;" title="Ver detalles y tareas hechas">'+p.name+' <span style="color:#8A86A8;font-weight:400;">'+(open ? '▾' : '▸')+'</span></button></div>'+
         '<span class="jd-row" style="gap:6px;flex:none;"><button class="jd-sub" data-edit style="background:transparent;border:none;cursor:pointer;padding:0;text-decoration:underline;">'+(editingProjectId === p.id ? 'listo' : 'editar')+'</button>'+
-        '<span class="jd-chip" style="background:#F1EEFB;color:#5B5784;">'+pendingTasks.length+' pend.</span></span>';
+        '<span class="jd-chip" style="background:#F1EEFB;color:#5B5784;">'+(pendingTasks.length + agItems.length)+' pend.</span></span>';
       head.querySelector('[data-open]').addEventListener('click', function(){
         projectsOpen[p.id] = !projectsOpen[p.id];
         renderProducts();
@@ -3927,6 +4024,21 @@
       bar.style.cssText = 'height:4px;background:#F1EEFB;border-radius:4px;overflow:hidden;margin-bottom:8px;';
       bar.innerHTML = '<div style="height:100%;width:'+pct+'%;background:'+(color2 !== color ? 'linear-gradient(90deg,'+color+','+color2+')' : color)+';"></div>';
       card.appendChild(bar);
+
+      // links de trabajo: botones chiquitos que abren en pestaña nueva
+      if(p.links && p.links.length){
+        var linkRow = document.createElement('div');
+        linkRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;';
+        p.links.filter(function(l){ return projLinkNormalize(l.url); }).forEach(function(l){
+          var a = document.createElement('a');
+          a.href = l.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+          a.title = l.url;
+          a.textContent = '🔗 ' + (l.label || projLinkHost(l.url)) + ' ↗';
+          a.style.cssText = 'display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;font-weight:600;padding:3px 10px;border-radius:999px;background:#F1EEFB;color:' + color + ';border:1px solid ' + color + ';text-decoration:none;';
+          linkRow.appendChild(a);
+        });
+        card.appendChild(linkRow);
+      }
 
       if(editingProjectId === p.id){
         renderProjectEditor(p, card);
@@ -3991,17 +4103,44 @@
         card.appendChild(row);
       });
 
+      agItems.forEach(function(a){
+        var row = document.createElement('div');
+        row.className = 'jd-row';
+        row.style.cssText = 'gap:6px;padding:3px 0;align-items:flex-start;';
+        var when = a.startDate ? new Date(a.startDate + 'T00:00:00').toLocaleDateString('es-MX', {day:'numeric', month:'short'}) : '';
+        row.innerHTML = '<input type="checkbox" title="Marcar como hecho" style="width:15px;height:15px;accent-color:'+color+';flex:none;margin-top:1px;cursor:pointer;">'+
+          '<span style="font-size:11.5px;flex:1;color:#6B6790;line-height:1.5;">'+casaEsc(a.text)+
+          ' <span class="jd-chip" style="background:#F1EEFB;color:#7C5CF2;font-size:9.5px;">📌 del día'+(when ? ' · '+when : '')+'</span></span>';
+        row.querySelector('input').addEventListener('change', function(e){
+          if(!e.target.checked) return;
+          // pasa a "Hechas" del proyecto y al historial, y sale de los pendientes del día
+          p.tasks.push({id:uid('pt'), text:a.text, done:true, doneAt:todayKey, area:a.area});
+          completeAgendaItem(a);
+          renderProducts(); renderProgressMini();
+        });
+        card.appendChild(row);
+      });
+
       var addRow = document.createElement('div');
       addRow.className = 'jd-row'; addRow.style.cssText = 'gap:4px;margin-top:8px;';
-      addRow.innerHTML = '<input class="jd-input" placeholder="+ Nueva tarea..." style="flex:1;font-size:11.5px;padding:6px 8px;">';
+      addRow.innerHTML = '<input class="jd-input" placeholder="+ Nueva tarea..." style="flex:1;min-width:0;font-size:11.5px;padding:6px 8px;">'+
+        '<input class="jd-input" type="date" title="Fecha (opcional): con fecha se agrega a los pendientes del día" style="flex:none;width:124px;font-size:11.5px;padding:6px 8px;">';
       var addInput = addRow.querySelector('input');
+      var addDate = addRow.querySelector('input[type="date"]');
       addInput.addEventListener('keydown', function(e){
         if(e.key !== 'Enter') return;
         var v = addInput.value.trim();
         if(!v) return;
-        p.tasks.push({id:uid('pt'), text:v, done:false});
-        bumpAreaTotal(v);
-        save(); renderProducts(); renderBalance();
+        if(addDate.value){
+          // con fecha: va a "Retos del día y agenda" y se sigue mostrando como pendiente hasta que se marque hecho
+          data.agenda.push({id:uid('a'), text:v, reto:true, color:'amarillo', project:p.name, startDate:addDate.value, endDate:addDate.value});
+          bumpAreaTotal(v);
+          save(); renderProducts(); renderBalance(); renderAgenda(); renderCalendar(); renderWeekGrid();
+        } else {
+          p.tasks.push({id:uid('pt'), text:v, done:false});
+          bumpAreaTotal(v);
+          save(); renderProducts(); renderBalance();
+        }
         var cards = document.getElementById('jd-products').children;
         var idx = data.products.indexOf(p);
         if(cards[idx]){ var again = cards[idx].querySelector('input[placeholder^="+ Nueva"]'); if(again) again.focus(); }
@@ -4269,7 +4408,7 @@
     input.value = '';
     var projSel = document.getElementById('jd-task-project');
     if(projSel) projSel.value = '';
-    save(); renderAgenda(); renderBalance(); populateTaskProjectSelect();
+    save(); renderAgenda(); renderBalance(); renderProducts();
   }
   document.getElementById('jd-task-project').addEventListener('change', toggleNewProjectRow);
   document.getElementById('jd-agenda-add').addEventListener('click', addAgendaFromForm);
@@ -4428,7 +4567,7 @@
   function scheduleAgendaItem(item){
     item.gcalStatus = 'pending';
     data.agenda.push(item);
-    save(); renderTasks(); renderAgenda(); renderCalendar();
+    save(); renderTasks(); renderAgenda(); renderCalendar(); renderProducts();
     createGoogleCalendarEvent(item).then(function(result){
       item.gcalStatus = result.ok ? 'synced' : 'failed';
       item.gcalEventId = result.ok ? result.id : null;
@@ -4477,7 +4616,7 @@
 
   function resyncAgendaItem(item){
     item.gcalStatus = 'pending';
-    save(); renderTasks(); renderAgenda(); renderCalendar();
+    save(); renderTasks(); renderAgenda(); renderCalendar(); renderProducts();
     updateGoogleCalendarEvent(item).then(function(result){
       item.gcalStatus = result.ok ? 'synced' : 'failed';
       item.gcalEventId = result.ok ? result.id : item.gcalEventId;
