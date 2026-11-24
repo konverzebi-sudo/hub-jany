@@ -649,7 +649,19 @@
    ===================================================================== */
 const CFG = window.TALLER_CONFIG || {};
 const qs = new URLSearchParams(location.search);
-const DEMO = qs.get('demo') || (!CFG.supabaseUrl ? (['ponente', 'soporte'].includes(qs.get('rol')) ? qs.get('rol') : 'alumno') : '');
+/* Qué taller mostrar: el del link (?taller=slug). Se recuerda en este navegador para que las
+   vistas incrustadas de la guía (mismo sitio) abran el mismo taller. Si no hay, usa config.js. */
+const SLUG_OK = s => /^[a-z0-9][a-z0-9-]{1,59}$/.test(s || '');
+const TALLER_SLUG = (() => {
+  try {
+    const v = qs.get('taller');
+    if (SLUG_OK(v)) { localStorage.setItem('taller-activo', v); return v; }
+    const g = localStorage.getItem('taller-activo') || '';
+    if (SLUG_OK(g)) return g;
+  } catch (e) {}
+  return CFG.taller;
+})();
+const DEMO =qs.get('demo') || (!CFG.supabaseUrl ? (['ponente', 'soporte'].includes(qs.get('rol')) ? qs.get('rol') : 'alumno') : '');
 /* Modo incrustado: la guía del taller muestra aquí dentro una dinámica (?embed=clave) o el formulario (?embed=prepara) */
 const EMBED = qs.get('embed') || '';
 const SOLO_CONTROL = qs.get('solo') === 'control';   // panel de la guía: solo la decisión del ponente
@@ -812,7 +824,7 @@ function crearApiSupabase() {
     },
     async salir() { await sb.auth.signOut(); location.reload(); },
     async cargar() {
-      T = chk(await sb.from('talleres').select('id,nombre,fecha').eq('slug', CFG.taller).maybeSingle());
+      T = chk(await sb.from('talleres').select('id,nombre,fecha').eq('slug', TALLER_SLUG).maybeSingle());
       if (!T) return { sinAcceso: true };
       const yo = chk(await sb.from('miembros').select('rol').eq('taller_id', T.id).eq('user_id', U.id).maybeSingle());
       if (!yo) return { sinAcceso: true };
