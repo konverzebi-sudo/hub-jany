@@ -12,6 +12,71 @@ function sufijoFoco(foco) {
   return '-' + String(foco.id).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80);
 }
 
+// Jefes que se pueden "conectar" con @: al etiquetarlos, el Jefe de Resultados lee lo que la persona guardó en ese Jefe.
+// `llaves` son las llaves de almacenamiento del hub (<hub>:<llave>) y `titulo` es como se le presenta al modelo.
+const JEFES_CONECTABLES = {
+  'jefe-366': { nombre: 'Jefe 366', titulo: 'JEFE 366 (oferta, cliente ideal, sistema y comunicación completos, sin acotar al filtro de arriba)', llaves: [], sin_acotar: true },
+  'jefe-temporada': { nombre: 'Jefe de Temporada', titulo: 'JEFE DE TEMPORADA (todas sus campañas, en resumen)', llaves: ['temporada-campanas'], campanas: true },
+  'jefe-contenido': { nombre: 'Jefe de Contenido', titulo: 'JEFE DE CONTENIDO (lo que lleva guardado)', llaves: ['agente-contenido', 'contenido-ideas-366'] },
+  'jefe-anuncios': { nombre: 'Jefe de Anuncios', titulo: 'JEFE DE ANUNCIOS (anuncios y estructura de campaña guardados)', llaves: ['agente-anuncios', 'anuncios-estructura'] },
+  'jefe-financiero': { nombre: 'Jefe de Finanzas', titulo: 'JEFE DE FINANZAS (calculadora, números del negocio y métricas)', llaves: ['financiero-calculadora', 'brand-book.financieros', 'brand-book.metricas'] },
+  'jefe-radar': { nombre: 'Jefe del Faro', titulo: 'JEFE DEL FARO (mis números, referentes y lecturas del mercado)', llaves: ['radar-mis-numeros', 'radar-referentes', 'radar-historial'] },
+  'jefe-whatsapp': { nombre: 'WhatsApp y Ventas', titulo: 'JEFE WHATSAPP Y VENTAS (guiones y conversaciones guardadas)', llaves: ['brand-book.whatsapp-guiones', 'whatsapp-convos'] },
+};
+
+// Convierte cualquier valor guardado en texto corto y legible para el modelo (sin imágenes ni textos enormes).
+function resumirValor(valor, limite) {
+  const tope = limite || 2500;
+  const corto = (v) => {
+    if (v == null || v === '') return '';
+    if (typeof v === 'string') return /^data:/.test(v) ? '' : v.replace(/\s+/g, ' ').trim().slice(0, 220);
+    if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+    if (Array.isArray(v)) return v.length ? '[' + v.slice(0, 4).map(corto).filter(Boolean).join(' | ') + (v.length > 4 ? ' …' : '') + ']' : '';
+    if (typeof v === 'object') return Object.keys(v).slice(0, 8).map((k) => { const t = corto(v[k]); return t ? k + ': ' + t : ''; }).filter(Boolean).join('; ');
+    return '';
+  };
+  const lineas = [];
+  const agrega = (txt) => { if (txt) lineas.push(txt); };
+  if (Array.isArray(valor)) valor.slice(0, 12).forEach((it, i) => agrega('- ' + (typeof it === 'object' && it ? corto(it) : (corto(it) || '(vacío)'))));
+  else if (valor && typeof valor === 'object') Object.keys(valor).slice(0, 25).forEach((k) => { const t = corto(valor[k]); if (t) agrega('- ' + k + ': ' + t); });
+  else agrega(corto(valor));
+  let out = lineas.filter((l) => l.trim().length > 3).join('\n');
+  if (out.length > tope) out = out.slice(0, tope - 1) + '…';
+  return out;
+}
+
+// Resumen compacto de las campañas de temporada (nombre, producto, fechas y objetivo): el detalle completo solo va de la elegida.
+function resumirCampanas(campanas) {
+  if (!Array.isArray(campanas) || !campanas.length) return '';
+  return campanas.filter((c) => c && (c.nombre || c.producto_nombre)).slice(0, 12).map((c) => {
+    const p = [String(c.nombre || c.producto_nombre || '').trim()];
+    if (c.producto_nombre && c.nombre && c.producto_nombre !== c.nombre) p.push('producto: ' + c.producto_nombre);
+    if (c.fecha_inicio_activa || c.fecha_fin_activa) p.push('fechas: ' + (c.fecha_inicio_activa || '?') + ' a ' + (c.fecha_fin_activa || '?'));
+    if (c.objetivo_principal) p.push('objetivo: ' + String(c.objetivo_principal).slice(0, 140));
+    if (c.incentivo) p.push('incentivo: ' + String(c.incentivo).slice(0, 120));
+    return '- ' + p.join(' · ');
+  }).join('\n');
+}
+
+// Bloque de contexto de un Jefe conectado. `datos` = { llave: valorLeido }. Devuelve '' si no hay nada guardado.
+function formatearJefe(jefeId, datos) {
+  const j = JEFES_CONECTABLES[jefeId];
+  if (!j) return '';
+  const d = datos || {};
+  const partes = [];
+  if (j.campanas) {
+    const r = resumirCampanas(d['temporada-campanas']);
+    if (r) partes.push(r);
+  } else {
+    j.llaves.forEach((k) => {
+      const t = resumirValor(d[k], 2200);
+      if (t) partes.push('[' + k + ']\n' + t);
+    });
+  }
+  if (!partes.length) return j.sin_acotar ? 'CONEXIÓN @' + j.nombre.toUpperCase().replace(/ /g, '_') + ': ' + j.titulo + '.' : 'CONEXIÓN CON ' + j.nombre.toUpperCase() + ': la persona lo etiquetó pero todavía no tiene nada guardado ahí. Dile que primero lo trabaje en ese Jefe.';
+  return 'CONEXIÓN CON ' + j.titulo + ' — la persona etiquetó este Jefe con @ en este mensaje: usa esto como contexto SOLO si ayuda a lo que pide, sin inventar nada que no esté aquí:\n' + partes.join('\n\n');
+}
+
 // Saca del cuerpo de la petición el foco de la pastilla y las etiquetas @ del mensaje, ya saneados.
 function leerEnfoque(body) {
   const b = body && typeof body === 'object' ? body : {};
@@ -28,8 +93,8 @@ function leerEnfoque(body) {
       }
     : null;
   const menciones = (Array.isArray(b.menciones) ? b.menciones : [])
-    .filter((m) => m && typeof m.id === 'string' && m.id && (m.tipo === 'producto' || m.tipo === 'campana'))
-    .slice(0, 4)
+    .filter((m) => m && typeof m.id === 'string' && m.id && (m.tipo === 'producto' || m.tipo === 'campana' || (m.tipo === 'jefe' && JEFES_CONECTABLES[m.id])))
+    .slice(0, 6)
     .map((m) => ({ tipo: m.tipo, id: m.id.slice(0, 80), nombre: String(m.nombre || '').slice(0, 160) }));
   return { foco, menciones };
 }
@@ -115,4 +180,4 @@ function lineaFoco(sel, opciones) {
   return (sel.origen === 'mencion' ? 'ETIQUETA @ DE ESTE MENSAJE: ' : 'FOCO ELEGIDO ARRIBA: ') + l.join(' ');
 }
 
-module.exports = { normalizar, sufijoFoco, leerEnfoque, resolverSeleccion, haySeleccion, filtrarPorProducto, filtrarPorGrupo, elegirCampana, lineaFoco };
+module.exports = { JEFES_CONECTABLES, resumirValor, resumirCampanas, formatearJefe, normalizar, sufijoFoco, leerEnfoque, resolverSeleccion, haySeleccion, filtrarPorProducto, filtrarPorGrupo, elegirCampana, lineaFoco };

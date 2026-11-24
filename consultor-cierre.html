@@ -351,7 +351,7 @@
           <a class="cta-whatsapp" id="whatsappCtaLink" href="#" target="_blank" rel="noopener">💬 Explorar a fondo con el Jefe de WhatsApp →</a>
         </div>
       <div class="hero-meta">
-        <span class="hero-hint">Escribe @ para elegir un producto o una campaña</span>
+        <span class="hero-hint">Escribe @ para etiquetar un producto, una campaña o conectar un Jefe</span>
         <button class="link-btn" id="chatRetomar" type="button" hidden onclick="abrirChat()">Continuar mi conversación</button>
         <button class="link-btn" id="agentResetBtn" type="button" hidden onclick="reiniciarAgente()">Nueva conversación</button>
       </div>
@@ -956,15 +956,29 @@ let menciones = [];
 let menuMenciones = null;
 const normTxt = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 function cerrarMenuMenciones() { if (menuMenciones) { menuMenciones.remove(); menuMenciones = null; } }
+// Jefes que se pueden conectar con @ (mismos ids que api/_lib/enfoque.js): traen a este mensaje lo que guardaste en ese Jefe
+const JEFES_AT = [
+  { id: 'jefe-366', nombre: 'Jefe 366', slug: 'jefe-366' },
+  { id: 'jefe-temporada', nombre: 'Jefe de Temporada', slug: 'jefe-temporada' },
+  { id: 'jefe-contenido', nombre: 'Jefe de Contenido', slug: 'jefe-contenido' },
+  { id: 'jefe-anuncios', nombre: 'Jefe de Anuncios', slug: 'jefe-anuncios' },
+  { id: 'jefe-financiero', nombre: 'Jefe de Finanzas', slug: 'jefe-financiero' },
+  { id: 'jefe-radar', nombre: 'Jefe del Faro', slug: 'jefe-radar' },
+  { id: 'jefe-whatsapp', nombre: 'WhatsApp y Ventas', slug: 'jefe-whatsapp' },
+];
+const SUB_JEFE = { 'jefe-366': 'Jefe · su oferta, cliente y comunicación completos', 'jefe-temporada': 'Jefe · todas tus campañas', 'jefe-contenido': 'Jefe · tu contenido guardado', 'jefe-anuncios': 'Jefe · tus anuncios y estructura', 'jefe-financiero': 'Jefe · tus números y calculadora', 'jefe-radar': 'Jefe · tus números y referentes', 'jefe-whatsapp': 'Jefe · tus guiones y conversaciones' };
 function opcionesMencion(q) {
   const foco = window.__foco;
-  if (!foco) return [];
   const n = normTxt(q);
   const coincide = (nombre) => !n || normTxt(nombre).indexOf(n) !== -1;
-  const out = [];
-  foco.lista().forEach((p) => { if (p && p.nombre && coincide(p.nombre)) out.push({ tipo: 'producto', id: p.id, nombre: String(p.nombre).trim(), sub: 'Producto' }); });
-  (foco.campanasTodas ? foco.campanasTodas() : []).forEach((c) => { if (c.nombre && coincide(c.nombre)) out.push({ tipo: 'campana', id: c.id, nombre: String(c.nombre).trim(), sub: 'Campaña de temporada' }); });
-  return out.slice(0, 8);
+  const productos = [], campanas = [], jefes = [];
+  if (foco) {
+    foco.lista().forEach((p) => { if (p && p.nombre && coincide(p.nombre)) productos.push({ tipo: 'producto', id: p.id, nombre: String(p.nombre).trim(), sub: 'Producto' }); });
+    (foco.campanasTodas ? foco.campanasTodas() : []).forEach((c) => { if (c.nombre && coincide(c.nombre)) campanas.push({ tipo: 'campana', id: c.id, nombre: String(c.nombre).trim(), sub: 'Campaña de temporada' }); });
+  }
+  JEFES_AT.forEach((j) => { if (coincide(j.nombre)) jefes.push({ tipo: 'jefe', id: j.id, nombre: j.nombre, sub: SUB_JEFE[j.id] }); });
+  // Un cupo por grupo para que siempre salgan productos, campañas y Jefes
+  return [...productos.slice(0, 4), ...campanas.slice(0, 3), ...jefes.slice(0, 7)];
 }
 function revisarMencion(ta) {
   const antes = ta.value.slice(0, ta.selectionStart);
@@ -978,7 +992,7 @@ function revisarMencion(ta) {
   opts.forEach((o) => {
     const b = document.createElement('button');
     b.type = 'button';
-    b.innerHTML = '<span>' + (o.tipo === 'campana' ? '🗓️ ' : '') + escaparHtmlCierre(o.nombre) + '</span><small>' + o.sub + '</small>';
+    b.innerHTML = '<span>' + (o.tipo === 'campana' ? '🗓️ ' : o.tipo === 'jefe' ? '🔗 ' : '') + escaparHtmlCierre(o.nombre) + '</span><small>' + escaparHtmlCierre(o.sub) + '</small>';
     b.onmousedown = (e) => { e.preventDefault(); elegirMencion(ta, m[2], o); };
     box.appendChild(b);
   });
@@ -1004,6 +1018,25 @@ function elegirMencion(ta, consulta, o) {
 function avisoMencion(o) {
   const av = document.getElementById('avisoMencion');
   if (!av) return;
+  if (o.tipo === 'jefe') {
+    const j = JEFES_AT.find((x) => x.id === o.id);
+    av.innerHTML = '';
+    const t = document.createElement('span');
+    t.textContent = 'Conectaste con «' + o.nombre + '»: en este mensaje el Jefe de Resultados lee lo que tienes guardado ahí.';
+    av.appendChild(t);
+    if (j) {
+      const a = document.createElement('a');
+      a.href = (window.__hub ? window.__hub.prefijo() : '') + '/' + j.slug;
+      a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Abrir ' + o.nombre + ' ↗';
+      a.style.cssText = 'background:#fff;border:1px solid #C0F800;border-radius:8px;padding:5px 10px;font:700 13px Inter,sans-serif;color:#111827;text-decoration:none;';
+      av.appendChild(a);
+    }
+    const x = document.createElement('button');
+    x.type = 'button'; x.textContent = '✕'; x.setAttribute('aria-label', 'Cerrar'); x.onclick = () => { av.hidden = true; av.innerHTML = ''; };
+    av.appendChild(x);
+    av.hidden = false;
+    return;
+  }
   const foco = focoActual();
   const yaEsElFiltro = foco && !foco.esTodo && (o.tipo === 'campana' ? foco.campanaId === o.id : foco.id === o.id);
   av.innerHTML = '';

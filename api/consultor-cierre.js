@@ -18,7 +18,7 @@ const { sql } = require('@vercel/postgres');
 const { sumarAlMes } = require('./_lib/uso-mensual');
 const { revisar: revisarSaldo, cobrar: cobrarSaldo } = require('./_lib/saldo');
 const { systemConCache, historialConCache, camposUso } = require('./_lib/cache-claude');
-const { normalizar, sufijoFoco, leerEnfoque, resolverSeleccion, haySeleccion, filtrarPorProducto, filtrarPorGrupo, elegirCampana, lineaFoco } = require('./_lib/enfoque');
+const { normalizar, sufijoFoco, leerEnfoque, resolverSeleccion, haySeleccion, filtrarPorProducto, filtrarPorGrupo, elegirCampana, lineaFoco, JEFES_CONECTABLES, formatearJefe } = require('./_lib/enfoque');
 
 const DEFAULT_CLIENTE = 'rancho-seco';
 
@@ -407,6 +407,14 @@ async function construirContextoNegocio(clienteId, enfoque) {
 
   const sel = resolverSeleccion(enfoque);
   const campanas = Array.isArray(campanasRaw) ? campanasRaw : [];
+  // Jefes que la persona conectó con @ en este mensaje: se lee lo que tienen guardado
+  const jefesConectados = [...new Set(((enfoque && enfoque.menciones) || []).filter((m) => m.tipo === 'jefe' && JEFES_CONECTABLES[m.id]).map((m) => m.id))];
+  const sinAcotar = jefesConectados.includes('jefe-366');
+  const bloquesJefes = await Promise.all(jefesConectados.map(async (id) => {
+    const datos = {};
+    await Promise.all(JEFES_CONECTABLES[id].llaves.map(async (k) => { datos[k] = id === 'jefe-temporada' ? campanas : await leerJSON(`${clienteId}:${k}`).catch(() => null); }));
+    return formatearJefe(id, datos);
+  }));
   const campanaTemporada = elegirCampana(campanas, sel);
   const catalogoArr = Array.isArray(catalogo) ? catalogo : [];
 
@@ -422,7 +430,7 @@ async function construirContextoNegocio(clienteId, enfoque) {
   const itemCatalogo = productoId ? catalogoArr.find((p) => p && p.id === productoId) : null;
   if (itemCatalogo) { productoNombre = itemCatalogo.nombre || productoNombre; grupoId = grupoId || itemCatalogo.grupo_id || ''; }
   const enfocado = haySeleccion(sel);
-  const acotar = (items) => (enfocado ? filtrarPorGrupo(filtrarPorProducto(items, productoId, productoNombre), grupoId) : items);
+  const acotar = (items) => (enfocado && !sinAcotar ? filtrarPorGrupo(filtrarPorProducto(items, productoId, productoNombre), grupoId) : items);
 
   // Catálogo: con un producto elegido va solo el suyo y, aparte, los nombres de los demás (para que sepa que existen, sin mezclarlos)
   let catalogoUsado = catalogo;
@@ -455,6 +463,7 @@ async function construirContextoNegocio(clienteId, enfoque) {
     formatearCatalogo(catalogoUsado, grupos),
     otrosProductos,
     formatearTono(tono),
+    ...bloquesJefes,
   ].filter(Boolean).map((b) => truncar(b, b.startsWith('CAMPAÑA DE TEMPORADA') ? CAMPANA_BLOCK_CHAR_LIMIT : BLOCK_CHAR_LIMIT));
 
   if (bloques.length === 0) {
