@@ -385,7 +385,7 @@ async function sesionEquipoValida(req) {
     const usuario = await u.json();
     if (!usuario || !usuario.id) return false;
     const r = await fetch(url + '/rest/v1/miembros?select=rol&user_id=eq.' + encodeURIComponent(usuario.id) + '&rol=in.(ponente,soporte)&limit=1',
-      { headers: { apikey: svc, Authorization: 'Bearer ' + svc } });
+      { headers: { apikey: svc } });
     if (!r.ok) return false;
     const filas = await r.json();
     return Array.isArray(filas) && filas.length > 0;
