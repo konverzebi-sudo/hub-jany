@@ -988,13 +988,24 @@
     return 'Sin forma de pago';
   }
   // primera vez: se pasa lo que ya estaba en el documento "CASA JANY" (los pagos quedan sin persona para que los asignes)
+  // "Crédito casa" = solo los pagos que vienen del Excel (p.credito). Lo que Jany agrega a mano queda aparte y no suma.
+  // Los pagos que ya estaban se marcan una vez: los de la hoja / de captura (id cp…-N) cuentan; los demás no.
+  function casaMigrate(){
+    var changed = false;
+    data.casa.pagos.forEach(function(p){
+      if(typeof p.credito === 'boolean') return;
+      p.credito = !p.src && (!!p.fromSheet || /^cp\d+-\d+$/.test(String(p.id)));
+      changed = true;
+    });
+    return changed;
+  }
   function casaEnsure(){
-    if(data.casa) return false;
+    if(data.casa) return casaMigrate();
     var rows = [['APOYO 1',13500,''],['APOYO 2',20000,''],['APOYO 3',12000,''],['REFRIGERADOR',18000,'2026-11-16'],['LAVADORA Y SECADORA',14500,'2026-11-16'],['HORNO',9020,'2026-11-16'],['PARRILLA Y LAVABAJILLA',13800,''],['Cadena',10000,'2026-11-19']];
     data.casa = {
       entradas: [{id: uid('ce'), date: '', amount: 250000, note: 'Préstamo casa'}],
       personas: [],
-      pagos: rows.map(function(r, i){ return {id: uid('cp') + '-' + i, pid: null, date: r[2], amount: r[1], method: '', card: '', other: '', note: r[0]}; })
+      pagos: rows.map(function(r, i){ return {id: uid('cp') + '-' + i, pid: null, date: r[2], amount: r[1], method: '', card: '', other: '', note: r[0], credito: true}; })
     };
     return true;
   }
@@ -1089,9 +1100,9 @@
         if(p){
           if(r.date && p.date !== r.date){ p.date = r.date; changed++; }
           if(+p.amount !== r.amount){ p.amount = r.amount; changed++; }
-          p.fromSheet = true;
+          p.fromSheet = true; p.credito = true; p.src = '';   // ya está en el Excel: cuenta en el crédito
         } else {
-          pagos.push({id: uid('cp') + '-' + i, pid: null, src: '', date: r.date, amount: r.amount, method: '', card: '', other: '', note: r.note, fromSheet: true});
+          pagos.push({id: uid('cp') + '-' + i, pid: null, src: '', date: r.date, amount: r.amount, method: '', card: '', other: '', note: r.note, fromSheet: true, credito: true});
           added++;
         }
       });
@@ -1109,8 +1120,8 @@
   function casaTotals(){
     var c = data.casa, rec = 0, pag = 0;
     c.entradas.forEach(function(e){ rec += +e.amount || 0; });
-    // solo cuenta lo pagado de lo recibido; lo que se gastó de otra cuenta (p.src) no baja "Te queda"
-    c.pagos.forEach(function(p){ if(!p.src) pag += +p.amount || 0; });
+    // solo cuenta lo que está en el Excel (p.credito); lo agregado a mano o de otra cuenta no baja "Te queda"
+    c.pagos.forEach(function(p){ if(p.credito) pag += +p.amount || 0; });
     return {rec: rec, pag: pag, saldo: rec - pag};
   }
   function casaByDateDesc(a, b){ var x = a.date || '', y = b.date || ''; return x > y ? -1 : x < y ? 1 : 0; }
@@ -1152,7 +1163,7 @@
     }
     // sin asignar: tocar el pago pregunta "¿a dónde se fue?" (con el nombre del gasto ya puesto para confirmar o cambiar)
     var destForm = (sin && casaUI.form && casaUI.form.type === 'dest' && casaUI.form.id === p.id) ? casaDestFormHTML(p) : '';
-    return '<div class="jd-casa-row"' + (sin ? ' style="flex-wrap:wrap;"' : '') + '>' + grip + '<div class="jd-casa-main"' + (sin ? ' data-act="dest" data-id="' + p.id + '" title="Toca para decir a dónde se fue" style="flex:1 1 150px;cursor:pointer;"' : '') + '><b class="jd-disp">' + casaMoney(p.amount) + '</b> <span class="jd-sub">· ' + casaDate(p.date) + ' · ' + casaEsc(casaMethodText(p)) + (p.src ? ' · de ' + casaEsc(p.src) : '') + '</span>' +
+    return '<div class="jd-casa-row"' + (sin ? ' style="flex-wrap:wrap;"' : '') + '>' + grip + '<div class="jd-casa-main"' + (sin ? ' data-act="dest" data-id="' + p.id + '" title="Toca para decir a dónde se fue" style="flex:1 1 150px;cursor:pointer;"' : '') + '><b class="jd-disp">' + casaMoney(p.amount) + '</b> <span class="jd-sub">· ' + casaDate(p.date) + ' · ' + casaEsc(casaMethodText(p)) + (!p.credito ? ' · <b style="color:#B8741A;">fuera del crédito</b>' + (p.src ? ' (de ' + casaEsc(p.src) + ')' : '') : '') + '</span>' +
       (p.note ? '<div class="jd-sub">' + casaEsc(p.note) + '</div>' : '') + '</div>' + opts +
       '<button type="button" class="jd-casa-ico" data-act="edit-pago" data-id="' + p.id + '" title="Editar">✏️</button>' +
       '<button type="button" class="jd-casa-ico" data-act="del-pago" data-id="' + p.id + '" title="Quitar">🗑</button>' + destForm + '</div>';
@@ -1189,10 +1200,17 @@
       var srcVal = p ? (p.src || '') : '';
       var debtNames = data.debts.map(function(d){ return d.name; });
       var srcIsOther = !!srcVal && debtNames.indexOf(srcVal) === -1;
-      var srcHtml = '<select class="jd-input" id="casa-f-src" style="margin-bottom:6px;"><option value="">Se gastó de: ' + casaEsc(casaFondoName()) + ' (lo recibido)</option>' +
-        debtNames.map(function(n){ return '<option value="' + casaEsc(n) + '"' + (n === srcVal ? ' selected' : '') + '>Se gastó de: ' + casaEsc(n) + '</option>'; }).join('') +
-        '<option value="__otra__"' + (srcIsOther ? ' selected' : '') + '>Se gastó de: otra cuenta…</option></select>' +
-        '<input class="jd-input" id="casa-f-srcother" placeholder="Nombre de la otra cuenta" value="' + casaEsc(srcIsOther ? srcVal : '') + '" style="margin-bottom:6px;' + (srcIsOther ? '' : 'display:none;') + '">';
+      var srcHtml;
+      if(p && p.credito){
+        srcHtml = '<div class="jd-sub" style="margin-bottom:6px;">Este pago viene del Excel: cuenta en el crédito casa.</div>';
+      } else {
+        // lo agregado a mano NO suma al crédito casa (solo lo que está en el Excel)
+        srcHtml = '<select class="jd-input" id="casa-f-src" style="margin-bottom:6px;"><option value="">Fuera del crédito casa (a mano)</option>' +
+          debtNames.map(function(n){ return '<option value="' + casaEsc(n) + '"' + (n === srcVal ? ' selected' : '') + '>Se gastó de: ' + casaEsc(n) + '</option>'; }).join('') +
+          '<option value="__otra__"' + (srcIsOther ? ' selected' : '') + '>Se gastó de: otra cuenta…</option></select>' +
+          '<input class="jd-input" id="casa-f-srcother" placeholder="Nombre de la otra cuenta" value="' + casaEsc(srcIsOther ? srcVal : '') + '" style="margin-bottom:6px;' + (srcIsOther ? '' : 'display:none;') + '">' +
+          '<div class="jd-sub" style="margin-bottom:6px;">Lo que agregas a mano no suma a Pagado ni baja “Te queda”: solo cuenta lo que está en el Excel.</div>';
+      }
       h += '<div class="jd-sub" style="margin-bottom:6px;">' + (p ? 'Editar pago' : 'Registrar un pago') + '</div>' +
         '<select class="jd-input" id="casa-f-pid" style="margin-bottom:6px;"><option value="">Sin asignar</option>' + c.personas.map(function(x){ return '<option value="' + x.id + '"' + (x.id === pid ? ' selected' : '') + '>' + casaEsc(x.name) + '</option>'; }).join('') + '</select>' +
         '<div class="jd-row" style="gap:6px;margin-bottom:6px;"><input class="jd-input" id="casa-f-date" type="date" value="' + casaEsc(p ? p.date : todayKey) + '" style="flex:1;"><input class="jd-input" id="casa-f-amount" type="number" inputmode="decimal" placeholder="Monto" value="' + casaEsc(p ? p.amount : '') + '" style="flex:1;"></div>' +
@@ -1230,12 +1248,14 @@
     var box = document.getElementById('jd-casa');
     if(!box || !data || !data.casa) return;
     var c = data.casa, t = casaTotals(), pct = t.rec > 0 ? Math.max(0, Math.min(100, Math.round(t.pag / t.rec * 100))) : 0;
-    var sin = casaPagosDe(null);
+    var sinAll = casaPagosDe(null), sin = sinAll.filter(function(p){ return p.credito; }), sinMan = sinAll.filter(function(p){ return !p.credito; });
+    var manual = c.pagos.filter(function(p){ return !p.credito; });
     var h = '<div class="jd-row" style="gap:10px;margin-bottom:12px;"><div class="jd-ico">🏠</div><div><div class="jd-h" style="margin:0;">Casa Jany</div><div class="jd-sub">Lo que recibes del préstamo y lo que le pagas a cada persona</div></div></div>' +
       '<div class="jd-casa-stats"><div><div class="jd-sub">Recibido</div><div class="jd-disp jd-casa-num" style="color:#1F9D55;">' + casaMoney(t.rec) + '</div></div>' +
       '<div><div class="jd-sub">Pagado</div><div class="jd-disp jd-casa-num" style="color:#7C5CF2;">' + casaMoney(t.pag) + '</div></div>' +
       '<div><div class="jd-sub">Te queda</div><div class="jd-disp jd-casa-num" style="color:' + (t.saldo < 0 ? '#D4463B' : '#1F1B3D') + ';">' + casaMoney(t.saldo) + '</div></div></div>' +
-      '<div class="jd-casa-bar"><i style="width:' + pct + '%"></i></div><div class="jd-sub" style="margin:4px 0 12px;">Llevas gastado el ' + pct + '% de lo recibido</div>' +
+      '<div class="jd-casa-bar"><i style="width:' + pct + '%"></i></div><div class="jd-sub" style="margin:4px 0 12px;">Llevas gastado el ' + pct + '% de lo recibido (lo que está en el Excel)</div>' +
+      (manual.length ? '<div class="jd-sub" style="margin:-6px 0 12px;color:#B8741A;">Aparte, a mano (no suma al crédito): ' + manual.length + ' pago' + (manual.length === 1 ? '' : 's') + ' · ' + casaMoney(casaSum(manual)) + '</div>' : '') +
       '<div class="jd-row" style="gap:6px;flex-wrap:wrap;margin-bottom:10px;"><button type="button" class="jd-btn jd-btn-lima" data-act="new-pago">+ Registrar pago</button><button type="button" class="jd-btn" data-act="new-entrada">+ Recibí dinero</button><button type="button" class="jd-btn" data-act="new-persona">+ Persona</button><button type="button" class="jd-btn" data-act="sync-sheet"' + (casaUI.syncBusy ? ' disabled' : '') + '>↻ Actualizar</button></div>' +
       (casaUI.syncMsg ? '<div class="jd-sub" style="margin:-4px 0 10px;color:' + (casaUI.syncErr ? '#D4463B' : '#6B6790') + ';">' + casaEsc(casaUI.syncMsg) + (c.sheetUrl && !casaUI.syncBusy ? ' · <button type="button" class="jd-sub" data-act="sheet-link" style="background:transparent;border:none;cursor:pointer;padding:0;text-decoration:underline;">cambiar link</button>' : '') + '</div>' : '') +
       casaFormHTML();
@@ -1249,8 +1269,15 @@
     h += '<div class="jd-h" style="margin:14px 0 6px;">A quién le pagas</div>';
     if(!c.personas.length) h += '<div class="jd-sub" style="padding:2px 0 6px;">Agrega personas con “+ Persona” (arquitecto, electrodomésticos, servicios externos…).</div>';
     h += c.personas.map(casaPersonaHTML).join('');
-    if(sin.length){
+    if(sinAll.length){
       h += '<div data-drop-new="1" style="border:2px dashed #C9C1EE;border-radius:14px;padding:10px 12px;margin-bottom:8px;text-align:center;color:#6B6790;font-size:12.5px;background:#FCFBFF;">➕ Suelta aquí un pago para crear un destino nuevo</div>';
+    }
+    if(sinMan.length){
+      h += '<div class="jd-casa-pe" style="border-color:#D9C79A;background:#FBF8EE;"><button type="button" class="jd-casa-pehead" data-act="toggle" data-id="man"><span class="jd-casa-arrow">' + (casaUI.open.man ? '▾' : '▸') + '</span><span class="jd-casa-name">A mano · fuera del crédito</span><span class="jd-sub">' + sinMan.length + ' pago' + (sinMan.length === 1 ? '' : 's') + '</span><b class="jd-disp jd-casa-tot">' + casaMoney(casaSum(sinMan)) + '</b></button>';
+      if(casaUI.open.man) h += '<div class="jd-casa-pebody"><div class="jd-sub" style="margin-bottom:4px;">Estos los agregaste tú o no están en el Excel: no suman a Pagado ni bajan “Te queda”. Cuando estén en el Excel, toca ↻ Actualizar y pasan al crédito.</div>' + sinMan.map(function(p){ return casaPagoRow(p, true); }).join('') + '</div>';
+      h += '</div>';
+    }
+    if(sin.length){
       h += '<div class="jd-casa-pe" style="border-color:#F2D7A6;background:#FFFBF2;"><button type="button" class="jd-casa-pehead" data-act="toggle" data-id="sin"><span class="jd-casa-arrow">' + (casaUI.open.sin ? '▾' : '▸') + '</span><span class="jd-casa-name">Sin asignar</span><span class="jd-sub">' + sin.length + ' pago' + (sin.length === 1 ? '' : 's') + '</span><b class="jd-disp jd-casa-tot">' + casaMoney(casaSum(sin)) + '</b></button>';
       if(casaUI.open.sin) h += '<div class="jd-casa-pebody"><div class="jd-sub" style="margin-bottom:4px;">Toca un pago para decir a dónde se fue, o arrastra ⠿ hasta una persona (o al recuadro de arriba para crear un destino nuevo).</div>' + sin.map(function(p){ return casaPagoRow(p, true); }).join('') + '</div>';
       h += '</div>';
@@ -1297,9 +1324,10 @@
           else c.entradas.push({id: uid('ce'), date: date, amount: amount, note: val('casa-f-note').trim()});
         } else {
           var method = val('casa-f-method');
-          var srcSel = val('casa-f-src'), src = srcSel;
-          if(srcSel === '__otra__'){ src = val('casa-f-srcother').trim(); if(!src) return msg('Escribe el nombre de la otra cuenta'); }
-          var obj = {pid: val('casa-f-pid') || null, src: src, date: date, amount: amount, method: method, card: method === 'tarjeta' ? val('casa-f-card').replace(/\D/g, '').slice(0, 4) : '', other: method === 'otra' ? val('casa-f-other').trim() : '', note: val('casa-f-note').trim()};
+          var prev = f.id ? c.pagos.find(function(x){ return x.id === f.id; }) : null, isCred = !!(prev && prev.credito);
+          var srcSel = val('casa-f-src'), src = isCred ? '' : srcSel;
+          if(!isCred && srcSel === '__otra__'){ src = val('casa-f-srcother').trim(); if(!src) return msg('Escribe el nombre de la otra cuenta'); }
+          var obj = {pid: val('casa-f-pid') || null, src: src, credito: isCred, date: date, amount: amount, method: method, card: method === 'tarjeta' ? val('casa-f-card').replace(/\D/g, '').slice(0, 4) : '', other: method === 'otra' ? val('casa-f-other').trim() : '', note: val('casa-f-note').trim()};
           if(f.id){ var p = c.pagos.find(function(x){ return x.id === f.id; }); if(p) Object.assign(p, obj); }
           else { obj.id = uid('cp'); c.pagos.push(obj); if(obj.pid) casaUI.open[obj.pid] = true; }
         }
@@ -5482,7 +5510,7 @@
         var dtC = /^\d{4}-\d{2}-\d{2}$/.test(it.date || '') ? it.date : '';
         var dupC = data.casa.pagos.some(function(p){ return +p.amount === amtC && (p.date || '') === dtC && String(p.note || '').toLowerCase() === String(it.text).toLowerCase(); });
         if(dupC){ cpSkipped++; return; }
-        data.casa.pagos.push({id: uid('cp') + '-' + i, pid: null, date: dtC, amount: amtC, method: '', card: '', other: '', note: String(it.text)});
+        data.casa.pagos.push({id: uid('cp') + '-' + i, pid: null, date: dtC, amount: amtC, method: '', card: '', other: '', note: String(it.text), credito: true});
         cpAdded++;
       });
       if(cpAdded){ casaUI.open.sin = true; casaSave(); renderCasa(); }
