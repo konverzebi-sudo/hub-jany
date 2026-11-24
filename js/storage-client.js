@@ -157,7 +157,10 @@
     async set(key, value, opts) {
       var res;
       try {
-        res = await subir(key, value, opts, true);
+        // En la guía del taller, la alumna nunca ve el código maestro: su cambio queda en su navegador y se sube después.
+        // La vista de ponente y el resto de la plataforma sí lo piden como siempre.
+        var alumnaEnGuia = /guia-taller/.test(location.pathname) && !/[?&]vista=ponente(&|$)/.test(location.search);
+        res = await subir(key, value, opts, !alumnaEnGuia);
       } catch (e) {
         guardarPendiente(key, value);
         avisar('Sin conexión: lo guardé en este dispositivo y lo subo en cuanto vuelva el internet.');
