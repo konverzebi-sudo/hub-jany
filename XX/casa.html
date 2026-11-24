@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Mis pagos — Casa Jany</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#F5F3FF;--card:#fff;--ink:#1F1B3D;--sub:#8A86A8;--line:#ECE8F8;--accent:#7C5CF2;--ok:#1F9D55;}
+  @media (prefers-color-scheme: dark){:root{--bg:#14112B;--card:#1F1B3D;--ink:#F1EEFB;--sub:#A9A4CC;--line:#322C5C;--accent:#A78BFA;--ok:#5FD08F;}}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',system-ui,sans-serif;min-height:100vh;}
+  .wrap{max-width:560px;margin:0 auto;padding:24px 16px 48px;}
+  .brand{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--sub);margin-bottom:6px;}
+  h1{font-family:'Space Grotesk',sans-serif;font-size:26px;margin:0 0 4px;}
+  .sub{color:var(--sub);font-size:13px;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-top:16px;box-shadow:0 4px 16px rgba(95,70,190,.07);}
+  .total{font-family:'Space Grotesk',sans-serif;font-size:34px;font-weight:700;color:var(--ok);margin-top:2px;}
+  table{width:100%;border-collapse:collapse;margin-top:6px;}
+  th{font-size:11.5px;font-weight:500;color:var(--sub);text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);}
+  td{padding:11px 6px;border-bottom:1px solid var(--line);font-size:14px;vertical-align:top;}
+  td.amt{font-family:'Space Grotesk',sans-serif;font-weight:700;white-space:nowrap;text-align:right;}
+  th.amt{text-align:right;}
+  tr:last-child td{border-bottom:0;}
+  button{font:inherit;font-size:13.5px;font-weight:600;background:var(--accent);color:#fff;border:0;border-radius:10px;padding:9px 14px;cursor:pointer;}
+  button:disabled{opacity:.6;cursor:default;}
+  .bar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:16px;}
+  .err{padding:28px 8px;text-align:center;color:var(--sub);}
+  .empty{padding:14px 6px;color:var(--sub);font-size:14px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">Casa Jany · Registro de pagos</div>
+  <div id="app"><div class="err">Cargando…</div></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function(){
+  var SUPABASE_URL = 'https://wyiqigrzcipywvijtchg.supabase.co';
+  var SUPABASE_ANON_KEY = 'sb_publishable_fy739Px-yWNLc9aripC7Ag_evHkSvgz';
+  var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {auth:{persistSession:false, autoRefreshToken:false}});
+  var token = new URLSearchParams(location.search).get('t') || '';
+  var app = document.getElementById('app');
+  var last = null;
+
+  function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function money(n){ n = Number(n || 0); return '$' + n.toLocaleString('es-MX', {minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2}); }
+  function fdate(iso){
+    var p = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+    if(!p) return 'Sin fecha';
+    return new Date(+p[1], +p[2] - 1, +p[3]).toLocaleDateString('es-MX', {day:'numeric', month:'short', year:'numeric'});
+  }
+  function ago(iso){
+    var s = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+    if(s < 60) return 'hace un momento';
+    if(s < 3600) return 'hace ' + Math.round(s / 60) + ' min';
+    if(s < 86400) return 'hace ' + Math.round(s / 3600) + ' h';
+    return new Date(iso).toLocaleDateString('es-MX', {day:'numeric', month:'short', year:'numeric'});
+  }
+
+  function draw(d){
+    var pagos = (d.pagos || []).slice().sort(function(a, b){ var x = a.d || '', y = b.d || ''; return x > y ? -1 : x < y ? 1 : 0; });
+    var total = pagos.reduce(function(s, p){ return s + (+p.a || 0); }, 0);
+    app.innerHTML =
+      '<h1>' + esc(d.persona) + '</h1><div class="sub">Pagos registrados a tu nombre</div>' +
+      '<div class="card"><div class="sub">Total pagado</div><div class="total">' + money(total) + '</div>' +
+      '<div class="sub">' + pagos.length + ' pago' + (pagos.length === 1 ? '' : 's') + '</div></div>' +
+      '<div class="card">' + (pagos.length
+        ? '<table><thead><tr><th>Fecha</th><th>Forma de pago</th><th class="amt">Monto</th></tr></thead><tbody>' +
+          pagos.map(function(p){ return '<tr><td>' + esc(fdate(p.d)) + '</td><td>' + esc(p.m) + '</td><td class="amt">' + money(p.a) + '</td></tr>'; }).join('') + '</tbody></table>'
+        : '<div class="empty">Todavía no hay pagos registrados.</div>') + '</div>' +
+      '<div class="bar"><span class="sub" id="stamp"></span><button id="refresh" type="button">Revisar actualizaciones</button></div>';
+    document.getElementById('refresh').addEventListener('click', function(){ load(true); });
+    stamp();
+  }
+  function stamp(){
+    var el = document.getElementById('stamp');
+    if(el && last) el.textContent = 'Actualizado ' + ago(last);
+  }
+  async function load(manual){
+    var btn = document.getElementById('refresh');
+    if(btn){ btn.disabled = true; btn.textContent = 'Revisando…'; }
+    try{
+      if(!token) throw new Error('sin-link');
+      var r = await sb.rpc('casa_share_ver', {p_token: token});
+      if(r.error) throw r.error;
+      if(!r.data){ app.innerHTML = '<div class="err"><h1>Este link ya no está activo</h1><p>Pídele a Jany que te comparta uno nuevo.</p></div>'; return; }
+      last = r.data.updated_at;
+      draw(r.data);
+      if(manual){ var b = document.getElementById('refresh'); if(b){ b.textContent = 'Todo al día ✓'; setTimeout(function(){ b.textContent = 'Revisar actualizaciones'; }, 1600); } }
+    }catch(e){
+      if(btn){ btn.disabled = false; btn.textContent = 'Revisar actualizaciones'; }
+      if(!last) app.innerHTML = '<div class="err"><h1>No se pudo abrir</h1><p>Revisa que el link esté completo o inténtalo de nuevo en un momento.</p></div>';
+    }
+  }
+  load(false);
+  setInterval(function(){ if(document.visibilityState === 'visible') load(false); }, 60000);
+  setInterval(stamp, 30000);
+})();
+</script>
+</body>
+</html>

@@ -51,7 +51,7 @@
   var css = [
     ':root{--jn-w:248px;--jn-w-min:64px;--jn-top:70px}',
     '.jn{position:fixed;left:0;top:var(--jn-top);bottom:0;width:var(--jn-w);z-index:55;display:flex;flex-direction:column;',
-    'background:var(--surface,#181120);border-right:1px solid var(--line,#332A3D);font-family:Inter,system-ui,sans-serif;',
+    'background:var(--surface,#181120);border-right:1px solid var(--line,#332A3D);font-family:Barlow,system-ui,sans-serif;',
     '}',
     '.jn-list{flex:1;overflow-y:auto;overflow-x:hidden;padding:10px 8px;display:flex;flex-direction:column;gap:2px;scrollbar-width:thin}',
     '.jn-sep{height:1px;background:var(--line,#332A3D);margin:6px 6px}',
@@ -69,7 +69,7 @@
     '.jn-jefes .jn-item img{-webkit-user-drag:none;pointer-events:none}',
     '.jn-jefes .jn-item.jn-arrastrando{background:rgba(184,247,37,.2);border-color:#B8F725;box-shadow:0 8px 22px rgba(0,0,0,.18);cursor:grabbing;position:relative;z-index:2}',
     '.jn-jefes.jn-ordenando{cursor:grabbing}',
-    '.jn-orden-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:99999;background:#1A1A1A;color:#fff;padding:9px 14px;border-radius:10px;font:600 13px Inter,system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.3);animation:jnEntra .2s cubic-bezier(.23,1,.32,1)}',
+    '.jn-orden-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:99999;background:#1A1A1A;color:#fff;padding:9px 14px;border-radius:10px;font:600 13px Barlow,system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.3);animation:jnEntra .2s cubic-bezier(.23,1,.32,1)}',
     '@keyframes jnEntra{from{opacity:0;transform:translate(-50%,6px)}to{opacity:1;transform:translate(-50%,0)}}',
     '.jn-ico{flex:none;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:20px;line-height:1}',
     '.jn-ico img{width:28px;height:28px;border-radius:8px;object-fit:contain;display:block}',
@@ -79,7 +79,7 @@
     '.jn-txt{overflow:hidden;text-overflow:ellipsis}',
     '.jn-foot{border-top:1px solid var(--line,#332A3D);padding:8px}',
     '.jn-toggle{display:flex;align-items:center;gap:12px;width:100%;height:40px;padding:0 8px;border:0;border-radius:10px;cursor:pointer;',
-    'background:transparent;color:var(--text-dim,#B6A9C7);font:500 14px Inter,system-ui,sans-serif;white-space:nowrap}',
+    'background:transparent;color:var(--text-dim,#B6A9C7);font:500 14px Barlow,system-ui,sans-serif;white-space:nowrap}',
     '.jn-toggle:hover{background:rgba(255,255,255,.05);color:var(--text,#F3EEF9)}',
     '.jn-toggle svg{flex:none;width:28px;height:20px;transition:transform .18s ease}',
     'body.jn-on{padding-left:var(--jn-w)}',
@@ -105,24 +105,24 @@
     '.jn-min .jn-redes{flex-direction:column;padding:8px 0 4px}',
     '.jn-rm{position:fixed;inset:0;z-index:120;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px}',
     '.jn-rm-box{width:100%;max-width:420px;max-height:calc(100vh - 32px);overflow-y:auto;background:var(--surface,#181120);color:var(--text,#F3EEF9);',
-    'border:1px solid var(--line,#332A3D);border-radius:16px;padding:20px;font-family:Inter,system-ui,sans-serif;box-shadow:0 20px 60px rgba(0,0,0,.5)}',
+    'border:1px solid var(--line,#332A3D);border-radius:16px;padding:20px;font-family:Barlow,system-ui,sans-serif;box-shadow:0 20px 60px rgba(0,0,0,.5)}',
     '.jn-rm-box h3{margin:0 0 4px;font-size:17px}',
     '.jn-rm-box p{margin:0 0 14px;font-size:12.5px;color:var(--text-dim,#B6A9C7);line-height:1.45}',
     '.jn-rm-f{display:flex;align-items:center;gap:10px;margin-bottom:10px}',
     '.jn-rm-f .jn-red{width:30px;height:30px}',
     '.jn-rm-f label{display:block;font-size:11.5px;color:var(--text-dim,#B6A9C7);margin-bottom:3px}',
     '.jn-rm-f input{width:100%;box-sizing:border-box;height:38px;padding:0 10px;border-radius:9px;border:1px solid var(--line,#332A3D);',
-    'background:transparent;color:inherit;font:16px Inter,system-ui,sans-serif}',
+    'background:transparent;color:inherit;font:16px Barlow,system-ui,sans-serif}',
     '.jn-rm-f div{flex:1}',
     '.jn-rm-act{display:flex;align-items:center;gap:10px;margin-top:16px}',
-    '.jn-rm-act button{height:40px;padding:0 16px;border-radius:10px;border:1px solid var(--line,#332A3D);background:transparent;color:inherit;font:600 14px Inter,system-ui,sans-serif;cursor:pointer}',
+    '.jn-rm-act button{height:40px;padding:0 16px;border-radius:10px;border:1px solid var(--line,#332A3D);background:transparent;color:inherit;font:600 14px Barlow,system-ui,sans-serif;cursor:pointer}',
     '.jn-rm-act .jn-rm-ok{background:#B8F725;border-color:#B8F725;color:#0F0B16}',
     '.jn-rm-st{font-size:12.5px;margin-left:auto}',
     '.jn-cm{position:fixed;z-index:121;min-width:170px;padding:6px;border-radius:12px;background:var(--surface,#181120);color:var(--text,#F3EEF9);',
     'transform-origin:top left;animation:jnMenu .14s cubic-bezier(.23,1,.32,1);',
-    'border:1px solid var(--line,#332A3D);box-shadow:0 12px 32px rgba(0,0,0,.35);font-family:Inter,system-ui,sans-serif}',
+    'border:1px solid var(--line,#332A3D);box-shadow:0 12px 32px rgba(0,0,0,.35);font-family:Barlow,system-ui,sans-serif}',
     '.jn-cm-t{padding:6px 10px 4px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-dim,#B6A9C7)}',
-    '.jn-cm button{display:block;width:100%;text-align:left;padding:9px 10px;border:0;border-radius:8px;background:transparent;color:inherit;font:500 13.5px Inter,system-ui,sans-serif;cursor:pointer}',
+    '.jn-cm button{display:block;width:100%;text-align:left;padding:9px 10px;border:0;border-radius:8px;background:transparent;color:inherit;font:500 13.5px Barlow,system-ui,sans-serif;cursor:pointer}',
     '.jn-cm button:hover{background:rgba(127,127,127,.14)}',
     '.jn-cm .jn-cm-del{color:#EF4444}',
     '@keyframes jnMenu{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:none}}',
@@ -131,11 +131,11 @@
     '.topbar .back-link{width:38px!important;height:38px!important;min-width:38px;padding:0!important;border-radius:50%!important;display:inline-flex!important;',
     'align-items:center;justify-content:center;flex:0 0 auto!important;font-size:0!important;letter-spacing:0!important;overflow:hidden;text-overflow:clip!important;white-space:nowrap;text-decoration:none!important;gap:0!important}',
     '.topbar .back-link>*{display:none!important}',
-    '.topbar .back-link::before{content:"<<";font:500 12px "JetBrains Mono",ui-monospace,monospace;letter-spacing:.04em}',
+    '.topbar .back-link::before{content:"<<";font:500 12px "Barlow",ui-monospace,monospace;letter-spacing:.04em}',
     // Con la barra lateral abierta, el título va al centro del espacio de la derecha (no de toda la pantalla).
     '@media (min-width:901px){body.jn-on .topbar h1{position:absolute!important;left:calc(var(--jn-w,0px) + (100% - var(--jn-w,0px)) / 2)!important;top:50%;',
     'transform:translate(-50%,-50%);margin:0!important;max-width:calc(100% - var(--jn-w,0px) - 240px);text-align:center}}',
-    '@media (max-width:900px){.topbar h1{white-space:normal!important;overflow:visible!important;text-overflow:clip!important;text-align:center;font-size:clamp(17px,5vw,22px)!important;line-height:1.15!important}}',
+    '@media (max-width:900px){.topbar h1{white-space:normal!important;overflow:visible!important;text-overflow:clip!important;text-align:center;font-size:clamp(22px,6.4vw,28px)!important;line-height:1!important}}',
     // Teclado: se ve en qué botón estás (solo al navegar con teclado, no al tocar).
     'a:focus-visible,button:focus-visible,[role="button"]:focus-visible,summary:focus-visible{outline:2px solid #8FC400!important;outline-offset:2px}',
     // Botones: se hunden un poco al presionarlos.
@@ -144,6 +144,39 @@
     // Ventana de confirmar (en lugar del cuadro gris del navegador)
     '.jn-dlg p{font-size:14px!important;color:var(--text,#F3EEF9)!important;margin:0 0 4px!important}',
     '.jn-rm-act .jn-dlg-del{background:#EF4444;border-color:#EF4444;color:#fff}',
+    // Estándar de marca (docs/ESTANDAR-MARCA.md): 2 letras oficiales, títulos apretados y bloques lima.
+    'h1,h2,.pb-titulo{font-family:"Inter Tight",sans-serif;letter-spacing:-.025em}',
+    'h1,.pb-titulo{font-weight:800}',
+    // Bebas Neue = la letra de la marca (logo JEFESHUB): nombre del Jefe en la barra de arriba y cifras grandes.
+    '.topbar h1{font-family:"Bebas Neue",Impact,sans-serif!important;font-weight:400!important;letter-spacing:.03em!important;text-transform:uppercase;font-size:clamp(26px,2.6vw,34px)!important;line-height:1!important}',
+    '.marca-grande{font-family:"Bebas Neue",Impact,sans-serif;font-weight:400;letter-spacing:.03em;text-transform:uppercase;line-height:.95}',
+    '.marca-resalta{background:#C9F507;color:#0F0E0C;padding:0 .12em;box-decoration-break:clone;-webkit-box-decoration-break:clone}',
+    '.marca-etiqueta{display:inline-block;background:#C9F507;color:#0F0E0C;font:700 11px Barlow,sans-serif;letter-spacing:.12em;text-transform:uppercase;padding:4px 10px;border-radius:7px}',
+    '.marca-opcion{height:44px;padding:0 16px;border-radius:12px;border:1px solid #E4E6DB;background:#fff;color:#0F0E0C;font:700 14px Barlow,sans-serif;cursor:pointer}',
+    '.marca-opcion[aria-pressed="true"],.marca-opcion.activo{background:#0F0E0C;border-color:#0F0E0C;color:#fff}',
+    // Robot trabajando mientras la IA piensa (el mismo en todos los Jefes)
+    '.jnp{position:fixed;z-index:9000;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);display:flex;align-items:center;gap:12px;',
+    'padding:8px 18px 8px 10px;border-radius:18px;background:#fff;color:#1A1A1A;border:1px solid #E4E6DB;box-shadow:0 12px 34px rgba(0,0,0,.16);',
+    'font:600 14px Barlow,system-ui,sans-serif;pointer-events:none;animation:jnpEntra .22s cubic-bezier(.23,1,.32,1)}',
+    '@media (min-width:721px){body.jn-on .jnp{left:calc(var(--jn-w,0px) + (100% - var(--jn-w,0px)) / 2)}}',
+    '@media (max-width:720px){.jnp{bottom:calc(76px + env(safe-area-inset-bottom,0px));max-width:calc(100vw - 32px)}}',
+    '@keyframes jnpEntra{from{opacity:0;transform:translate(-50%,8px) scale(.97)}to{opacity:1;transform:translate(-50%,0)}}',
+    '.jnp svg{width:74px;height:auto;flex:none;overflow:visible}',
+    '.jnp-txt{display:grid;gap:1px}.jnp-txt small{font-weight:500;font-size:12px;color:#5D6055}',
+    '.jnp-robot{animation:jnpBob 1.6s ease-in-out infinite}',
+    '.jnp-ant{animation:jnpPulse 1s ease-in-out infinite;transform-box:fill-box;transform-origin:center}',
+    '.jnp-eye{animation:jnpBlink 3.2s infinite;transform-box:fill-box;transform-origin:center}',
+    '.jnp-hand{animation:jnpType .5s ease-in-out infinite alternate;transform-box:fill-box;transform-origin:center}.jnp-hand-r{animation-delay:.25s}',
+    '.jnp-code line{stroke-dasharray:30;animation:jnpLine 1.4s linear infinite}',
+    '.jnp-gear{animation:jnpSpin 3s linear infinite;transform-box:fill-box;transform-origin:center}.jnp-gear-b{animation-direction:reverse;animation-duration:2.2s}',
+    '.jnp-spark{animation:jnpTwinkle 1.6s ease-in-out infinite}',
+    '@keyframes jnpBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}',
+    '@keyframes jnpPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.35);opacity:.65}}',
+    '@keyframes jnpBlink{0%,92%,100%{transform:scaleY(1)}96%{transform:scaleY(.1)}}',
+    '@keyframes jnpType{from{transform:translateY(0)}to{transform:translateY(-5px)}}',
+    '@keyframes jnpLine{0%{stroke-dashoffset:30}60%,100%{stroke-dashoffset:0}}',
+    '@keyframes jnpSpin{to{transform:rotate(360deg)}}',
+    '@keyframes jnpTwinkle{0%,100%{opacity:.25}50%{opacity:1}}',
     '@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}',
     // Links de trabajo (carpeta de Drive y Business Manager): mismos círculos que las redes.
     '.jn-links .jn-red-off{opacity:.38;border-style:dashed}',
@@ -709,8 +742,85 @@
     leer();
   }
 
+  // ── Robot trabajando: mientras un Jefe espera la respuesta de la IA (cualquier POST a /api/ menos
+  // storage y check-link) sale abajo el robotsito tecleando, para que no parezca que se congeló.
+  // Es el mismo dibujo del Jefe de Resultados. Otras partes de la página pueden usarlo con
+  // window.__jnPensando.mostrar('texto') / .ocultar().
+  var ROBOT_SVG = '<svg viewBox="0 0 240 190" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+    '<g class="jnp-gear" transform="translate(36 48)"><circle r="13" fill="none" stroke="#111" stroke-width="7" stroke-dasharray="5.1 5.1"/><circle r="9" fill="#C0F800" stroke="#111" stroke-width="3"/><circle r="3" fill="#111"/></g>' +
+    '<g class="jnp-gear jnp-gear-b" transform="translate(208 70)"><circle r="9" fill="none" stroke="#111" stroke-width="6" stroke-dasharray="3.6 3.6"/><circle r="6" fill="#fff" stroke="#111" stroke-width="3"/><circle r="2" fill="#111"/></g>' +
+    '<g class="jnp-spark"><circle cx="184" cy="26" r="3" fill="#C0F800" stroke="#111" stroke-width="1.5"/><circle cx="198" cy="42" r="2" fill="#C0F800" stroke="#111" stroke-width="1.2"/><circle cx="64" cy="22" r="2.4" fill="#C0F800" stroke="#111" stroke-width="1.2"/></g>' +
+    '<g class="jnp-robot"><line x1="120" y1="26" x2="120" y2="42" stroke="#111" stroke-width="4" stroke-linecap="round"/>' +
+    '<circle class="jnp-ant" cx="120" cy="22" r="7" fill="#C0F800" stroke="#111" stroke-width="3.5"/>' +
+    '<rect x="82" y="42" width="76" height="58" rx="22" fill="#fff" stroke="#111" stroke-width="4"/>' +
+    '<rect x="72" y="60" width="10" height="22" rx="5" fill="#C0F800" stroke="#111" stroke-width="3"/><rect x="158" y="60" width="10" height="22" rx="5" fill="#C0F800" stroke="#111" stroke-width="3"/>' +
+    '<rect x="92" y="55" width="56" height="32" rx="14" fill="#111"/>' +
+    '<ellipse class="jnp-eye" cx="108" cy="71" rx="6" ry="8" fill="#C0F800"/><ellipse class="jnp-eye" cx="132" cy="71" rx="6" ry="8" fill="#C0F800"/>' +
+    '<rect x="96" y="100" width="48" height="26" rx="10" fill="#C0F800" stroke="#111" stroke-width="4"/><circle cx="120" cy="113" r="4.5" fill="#fff" stroke="#111" stroke-width="2.5"/></g>' +
+    '<rect x="58" y="136" width="124" height="10" rx="5" fill="#111"/>' +
+    '<path d="M70 136 L80 112 H160 L170 136 Z" fill="#f0f0f0" stroke="#111" stroke-width="4" stroke-linejoin="round"/>' +
+    '<g class="jnp-code" stroke="#4E7A00" stroke-width="3" stroke-linecap="round"><line x1="94" y1="121" x2="122" y2="121"/><line x1="94" y1="129" x2="140" y2="129" style="animation-delay:.25s"/><line x1="128" y1="121" x2="146" y2="121" style="animation-delay:.5s"/></g>' +
+    '<circle class="jnp-hand" cx="102" cy="124" r="7" fill="#C0F800" stroke="#111" stroke-width="3.5"/><circle class="jnp-hand jnp-hand-r" cx="138" cy="124" r="7" fill="#C0F800" stroke="#111" stroke-width="3.5"/></svg>';
+  var FRASES = ['Analizando lo que me diste…', 'Revisando tu información…', 'Armando tu respuesta…', 'Ya casi queda…'];
+  function montarPensando() {
+    var orig = window.fetch;
+    if (!orig || orig.__jnPensando) return;
+    var activos = 0, espera = null, caja = null, giro = null, manual = false;
+    function mostrar(texto) {
+      if (!caja) {
+        caja = document.createElement('div');
+        caja.className = 'jnp';
+        caja.setAttribute('role', 'status');
+        caja.setAttribute('aria-live', 'polite');
+        caja.innerHTML = ROBOT_SVG + '<span class="jnp-txt"><span>Tu Jefe está trabajando</span><small></small></span>';
+        document.body.appendChild(caja);
+      }
+      var i = 0, sub = caja.querySelector('small');
+      sub.textContent = texto || FRASES[0];
+      clearInterval(giro);
+      if (!texto) giro = setInterval(function () { i = (i + 1) % FRASES.length; sub.textContent = FRASES[i]; }, 2600);
+    }
+    function ocultar() {
+      clearTimeout(espera); clearInterval(giro); espera = null;
+      if (caja) { caja.remove(); caja = null; }
+    }
+    function esIA(url, metodo) {
+      try {
+        var u = new URL(url, location.href);
+        if (u.origin !== location.origin || u.pathname.indexOf('/api/') !== 0) return false;
+        if (/^\/api\/(storage|check-link)(\/|$)/.test(u.pathname)) return false;
+        return String(metodo || 'GET').toUpperCase() === 'POST';
+      } catch (e) { return false; }
+    }
+    function empieza() {
+      activos++;
+      // Solo si tarda: una respuesta rápida no hace parpadear al robot.
+      if (activos === 1 && !manual) espera = setTimeout(function () { if (activos > 0) mostrar(); }, 450);
+    }
+    function termina() {
+      activos = Math.max(0, activos - 1);
+      if (activos === 0 && !manual) ocultar();
+    }
+    var nuevo = function (entrada, opciones) {
+      var url = typeof entrada === 'string' ? entrada : (entrada && entrada.url) || '';
+      var metodo = (opciones && opciones.method) || (entrada && entrada.method);
+      if (!esIA(url, metodo)) return orig.apply(this, arguments);
+      empieza();
+      var p = orig.apply(this, arguments);
+      p.then(termina, termina);
+      return p;
+    };
+    nuevo.__jnPensando = true;
+    window.fetch = nuevo;
+    window.__jnPensando = {
+      mostrar: function (texto) { manual = true; mostrar(texto); },
+      ocultar: function () { manual = false; if (activos === 0) ocultar(); }
+    };
+  }
+
   function montar() {
     if (!document.body) return;
+    montarPensando();
     var st = document.createElement('style');
     st.textContent = css;
     document.head.appendChild(st);

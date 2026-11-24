@@ -1,0 +1,2024 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Canchas de Fútbol · Pagos y Marcadores</title>
+<link rel="icon" type="image/png" href="escudo.png">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+:root{--bg:#171a22;--panel:#232735;--text:#f3f4f6;--muted:#9aa1b2;--yellow:#ffe600;--grass:#1d5a25;--line:rgba(255,255,255,.6);--danger:#dc2626;--ok:#16a34a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,"Segoe UI",Roboto,Arial,sans-serif;font-size:16px;line-height:1.4}
+header{position:sticky;top:0;z-index:5;background:var(--bg);padding:12px 12px 6px}
+.logo{display:block;height:72px;width:auto;margin:0 auto 8px}
+.search{position:relative;max-width:560px;margin:0 auto}
+.search input{width:100%;padding:13px 16px 13px 46px;border:0;border-radius:999px;font-size:16px;box-shadow:0 4px 12px rgba(0,0,0,.45);outline:none;background:#fff;color:#111}
+.search svg{position:absolute;left:15px;top:50%;transform:translateY(-50%);width:20px;height:20px;color:#666}
+.results{position:absolute;top:56px;left:0;right:0;background:#fff;color:#111;border-radius:12px;box-shadow:0 10px 28px rgba(0,0,0,.5);max-height:60vh;overflow:auto;display:none;z-index:9}
+.results.show{display:block}
+.reslist{background:#fff;color:#111;border-radius:12px;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,.25);margin:6px 0 0}
+.reslist button{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid #eee;padding:11px 16px;cursor:pointer;font:inherit;color:#111}
+.reslist button:hover{background:#fff8c2}
+.reslist small{color:#666}
+.reslist .addteam{display:block;width:100%;background:var(--yellow);color:#111;font:inherit;font-weight:700;text-align:center;border:0;border-radius:0 0 12px 12px;padding:12px 16px;cursor:pointer}
+.results button{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid #eee;padding:11px 16px;cursor:pointer;font:inherit}
+.results button:hover{background:#fff8c2}
+.results small{color:#666}
+.empty-res{padding:12px 16px;color:#666}
+.results .addteam{background:var(--yellow);color:#111;font-weight:700;text-align:center;border-bottom:0;border-radius:0 0 12px 12px}
+.tabs{display:flex;gap:6px;justify-content:center;margin-top:10px;flex-wrap:wrap}
+.tab{background:#2a2f3f;color:var(--muted);border:0;border-radius:999px;padding:7px 14px;cursor:pointer;font:inherit}
+.tab.on{background:var(--yellow);color:#111;font-weight:600}
+main{max-width:600px;margin:0 auto;padding:8px 12px 40px}
+.view{display:none}
+.view.on{display:block}
+.fwrap{margin:14px 0}
+.fhead{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;margin-bottom:6px;padding:0 4px;font-weight:600}
+.fhead > span:last-child{justify-self:end}
+.fcenter{display:flex;align-items:center;gap:8px}
+.link{background:none;border:0;color:#7dd3fc;cursor:pointer;font:inherit;font-size:14px}
+.field{position:relative;background:var(--grass);background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 45px,transparent 45px 90px);border:4px solid #0f3d17;border-radius:6px;padding:20px 6px 16px;min-height:170px;overflow:hidden}
+.field::before{content:"";position:absolute;inset:12px;border:2px solid var(--line);border-radius:3px;pointer-events:none}
+.field::after{content:"";position:absolute;left:50%;top:12px;bottom:12px;width:2px;background:var(--line);pointer-events:none}
+.circle{position:absolute;left:50%;top:50%;width:90px;height:90px;margin:-45px 0 0 -45px;border:2px solid var(--line);border-radius:50%;pointer-events:none}
+.row{position:relative;z-index:1;display:grid;grid-template-columns:52px 1fr 1fr 52px;align-items:center}
+.dollar{justify-self:center;width:52px;height:52px;border-radius:50%;border:0;background:#fff;color:#222;font-size:24px;font-weight:600;cursor:pointer;box-shadow:0 3px 8px rgba(0,0,0,.35)}
+.dollar:hover{transform:scale(1.06)}
+.tcol{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
+.pw{position:relative}
+.plus{width:68px;height:68px;border-radius:50%;border:0;background:var(--yellow);color:#111;font-size:32px;cursor:pointer;box-shadow:0 3px 8px rgba(0,0,0,.35);line-height:1}
+.plus:hover{transform:scale(1.05)}
+.badge{position:absolute;top:-6px;right:-6px;min-width:26px;height:26px;padding:0 6px;border-radius:999px;background:#111;color:#fff;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid #fff}
+button.badge{cursor:pointer;font-family:inherit;line-height:1;padding:0 6px}
+*{touch-action:manipulation}
+.plus,.badge,.dollar,.asignar{user-select:none;-webkit-user-select:none}
+.marcin{display:inline-flex;align-items:center;gap:6px}
+.marcin input{width:56px;font:inherit;font-size:20px;font-weight:700;text-align:center;padding:4px 2px;border-radius:6px;border:1px solid #d1d5db;background:#fff;color:#111}
+.tname{background:#fff;color:#222;border-radius:999px;padding:3px 10px;font-size:14px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.minus{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.6);border-radius:999px;width:26px;height:22px;font-size:14px;cursor:pointer;line-height:1}
+.nomatch{position:relative;z-index:1;text-align:center;color:#fff;padding:50px 0;opacity:.9}
+.btn{border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font:inherit;font-weight:600}
+.btn.primary{background:var(--yellow);color:#111}
+.btn.ghost{background:#333a4d;color:var(--text)}
+.btn.danger{background:var(--danger);color:#fff}
+.btn.sm{padding:6px 10px;font-size:14px}
+.toolbar{margin-bottom:12px}
+.card{background:var(--panel);border-radius:12px;padding:14px;margin-bottom:12px}
+.team{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:14px}
+.muted{color:var(--muted)}
+label{display:block;margin-bottom:12px;color:var(--muted);font-size:14px}
+input,select,textarea{display:block;width:100%;margin-top:5px;padding:10px;border-radius:8px;border:1px solid #3d4459;background:#11131a;color:var(--text);font:inherit}
+input[type=file]{padding:6px;width:auto}
+.whistle{background:#fff;color:#111;border:0;border-radius:999px;width:36px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;margin-right:8px;vertical-align:middle}
+.whistle:hover{background:var(--yellow)}
+.marcador{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#11131a;color:#fff;border-radius:10px;padding:12px;margin-bottom:12px;font-size:16px}
+.marcador span{font-size:20px;font-weight:700}
+.sugs{display:flex;flex-direction:column;gap:4px;margin:-6px 0 12px;max-height:180px;overflow:auto}
+.sug{background:#f3f4f6;color:#111;border:1px solid #e5e7eb;border-radius:8px;padding:9px 12px;text-align:left;cursor:pointer;font:inherit}
+.sug:hover{background:#fff8c2}
+.sug.enjuego{background:#dcfce7;color:#166534;border-color:#86efac;font-weight:700}
+.sug.nuevo{background:var(--yellow);font-weight:700;border-color:#d4b800}
+.lbl{color:#444;font-size:14px;margin:0 0 6px}
+.modal .lbl{color:#444}
+.tiles{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-bottom:14px}
+.tile{background:#f3f4f6;color:#111;border:1px solid #cfd3dc;border-radius:8px;padding:10px 0;font:inherit;font-weight:700;cursor:pointer}
+.tile.on{background:var(--yellow);border-color:#d4b800}
+.tile:disabled{opacity:.6;cursor:default}
+.juegoq{color:#fff;font-size:14px;opacity:.9}
+.arbchip{background:#fff;color:#111;border:0;cursor:pointer;font:inherit;border-radius:999px;padding:5px 12px;font-size:14px;font-weight:600;white-space:nowrap}
+.arbchip{background:#fff;color:#111;border-radius:999px;padding:3px 10px;font-size:14px;font-weight:600;margin-right:8px;vertical-align:middle;white-space:nowrap}
+.fbox{margin-bottom:14px;position:relative}
+.pbtn{width:100%;display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,.07);color:var(--text);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px 16px;font:inherit;font-weight:600;cursor:pointer;text-align:left}
+.pbtn:hover{background:rgba(255,255,255,.11)}
+.pbtn .flecha{color:var(--muted)}
+.ppanel{background:#fff;color:#111;border-radius:18px;padding:14px;margin-top:10px;box-shadow:0 12px 32px rgba(0,0,0,.35)}
+.ppanel .fchip{background:#f3f4f6;color:#111;border:1px solid #e5e7eb}
+.ppanel .fchip:hover{color:#111;border-color:#9ca3af}
+.ppanel .fchip.on{background:#14532d;color:#fff;border-color:#14532d;box-shadow:none;font-weight:600}
+.ppanel .frango input{background:#fff;color:#111;border:1px solid #d1d5db}
+.plbl{color:#6b7280;font-size:14px;font-weight:600;margin:14px 0 8px}
+.yel{color:var(--yellow)}
+.reslist button.on{background:#fff8c2}
+.pqban{background:var(--panel);color:var(--text);border-radius:12px;padding:10px 14px;margin:8px 0;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.jtabla td.nm,.jtabla th.nm{text-align:left;padding-left:4px}
+.jtabla .res-y{color:var(--yellow);font-weight:800}
+.eqlink{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;text-decoration:none}
+.eqlink.pend{color:#f87171}
+.eqlink.ok{color:#4ade80}
+.jtabla .cins{width:1%;white-space:nowrap;padding-right:2px}
+.jtabla tr.cancha-sep td{background:#11131a;color:var(--yellow);font-weight:800;text-align:left;font-size:16px}
+.vs{display:inline-block;background:var(--yellow);color:#111;border-radius:999px;padding:0 7px;font-size:14px;font-weight:800;margin:0 4px}
+.res-card{padding:12px}
+.res-c{color:var(--yellow);font-weight:700;margin-bottom:8px}
+.res-row{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.res-row .res-card{flex:1;min-width:0;margin:0}
+.cnum-circ{flex:0 0 auto;width:56px;height:56px;border-radius:50%;background:var(--yellow);color:#111;font-size:28px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.res-sal{display:flex;justify-content:space-between;gap:8px;margin-top:8px;flex-wrap:wrap}
+/* Marcador siempre en el centro: el equipo local a la izquierda, el visitante a la derecha */
+.res-m{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;font-size:16px;margin-bottom:6px}
+.res-m>b{min-width:0;overflow-wrap:anywhere}
+.res-m>b:first-child{text-align:left}
+.res-m>b:last-child{text-align:right}
+.res-s{font-size:20px;font-weight:800;text-align:center;white-space:nowrap}
+.wa{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.35)}
+.wa:hover{transform:scale(1.06)}
+.deudaq{display:inline-block;border:1px solid #fca5a5;border-radius:999px;padding:2px 10px;font-size:14px;color:#fca5a5;white-space:nowrap;margin-top:2px}
+.barras{display:flex;align-items:flex-end;gap:12px;overflow-x:auto;padding:8px 4px 4px}
+.barcol{display:flex;flex-direction:column;align-items:center;min-width:72px}
+.barcol small{font-size:14px;color:var(--text)}
+.bar{width:44px;background:var(--yellow);border-radius:8px 8px 0 0;margin:6px 0}
+.barcol b{font-size:14px}
+h3.yel{margin-top:28px}
+.pq{width:100%;padding:12px 16px;border-radius:999px;border:0;font-size:16px;background:#fff;color:#111;margin:4px 0 10px;box-sizing:border-box}
+.bres{background:var(--panel);border-radius:12px;padding:12px;margin-bottom:10px}
+.bres h4{margin:0 0 6px;color:var(--yellow)}
+.bres table{font-size:14px;width:100%}
+.bres p{margin:4px 0}
+.addpago{width:38px;height:38px;border-radius:50%;border:0;background:var(--yellow);color:#111;font-size:24px;font-weight:700;cursor:pointer;line-height:1;margin-left:4px}
+.adeudos{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 12px}
+.adeu{background:#f3f4f6;color:#111;border-radius:10px;padding:8px;text-align:center;font-size:14px}
+.adeu b{display:block;margin-bottom:2px}
+.totbtn{background:var(--yellow);color:#111;border:0;border-radius:10px;padding:8px 14px;font-weight:700;cursor:pointer;margin:0 0 10px}
+.retraso{color:#dc2626;font-weight:700;margin:0 0 10px}
+.jtabla th,.jtabla td{text-align:center}
+.fbox{position:sticky;top:var(--hh,160px);z-index:6;background:var(--bg);padding:4px 0 8px;box-shadow:0 10px 10px -4px var(--bg)}
+.insdone{font-size:14px;color:#111;margin:0 0 10px}
+.cuadros.mini .sq{aspect-ratio:auto;height:44px;font-size:14px;padding:4px}
+.insdone{font-size:14px;color:#111;margin:4px 0 0}
+.faltante{outline:3px solid #dc2626;outline-offset:4px;border-radius:12px}
+.dollar.ok{background:#fff;color:#16a34a}
+.dollar.debe{background:#fff;color:#dc2626}
+.ganador{color:var(--yellow)}
+.insrow{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px}
+.insrow .chk{margin:0}
+.silb{width:22px;height:22px;vertical-align:middle;display:block;margin:auto}
+.silb-big{width:56px;height:56px;display:block;margin:auto}
+.silb-mini{height:1.1em;width:auto;vertical-align:-0.15em;margin-left:6px;display:inline}
+.sug.enjuego:disabled{cursor:not-allowed;opacity:.85}
+.cancha-card{text-align:center}
+.cnum{font-size:32px;font-weight:800;color:var(--yellow);line-height:1;margin:4px 0 8px}
+.ajfoot{display:flex;justify-content:flex-end;margin:4px 0 16px}
+.vs-grande{text-align:center;font-weight:900;font-size:32px;line-height:1.1;color:var(--yellow);-webkit-text-stroke:1px #b89b00;margin:-2px 0 6px;letter-spacing:2px}
+.reslist button.arbocup{color:#16a34a;cursor:not-allowed;opacity:.9}
+.reslist button.arbocup small{color:#16a34a}
+.asignar{background:none;border:0;padding:0;cursor:pointer;box-shadow:none;line-height:0}
+.asignar img{width:104px;height:104px;display:block;margin:auto;filter:drop-shadow(0 6px 8px rgba(0,0,0,.45));animation:silbar 2.4s ease-in-out infinite;transform-origin:50% 60%}
+.asignar:hover img{animation-duration:.8s}
+@keyframes silbar{0%,100%{transform:rotate(0) scale(1)}12%{transform:rotate(-14deg) scale(1.08)}26%{transform:rotate(9deg) scale(1.04)}40%{transform:rotate(0) scale(1)}}
+.ajbtn{background:#2a2f3f;color:#9aa1b2;border:0;border-radius:999px;width:36px;height:36px;font-size:16px;cursor:pointer}
+.ppanel .fchip.on{background:var(--yellow);color:#111;border-color:#d4b800;box-shadow:none;font-weight:700}
+.cal{margin-top:4px}
+.calhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;color:#111;text-transform:capitalize}
+.calhead b{font-size:16px}
+.calnav{background:#f3f4f6;border:1px solid #e5e7eb;border-radius:10px;width:34px;height:34px;font-size:18px;cursor:pointer;color:#111}
+.calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center}
+.calsem span{font-size:14px;color:#6b7280;font-weight:600;padding-bottom:4px}
+.cal .cd{background:none;border:0;border-radius:10px;height:38px;font:inherit;font-size:16px;color:#111;cursor:pointer;padding:0}
+.cal .cd:hover{background:#f3f4f6}
+.cal .cd.medio{background:#fef9c3;border-radius:0}
+.cal .cd.fin{background:var(--yellow);color:#111;font-weight:800}
+.calhint{color:#6b7280;font-size:14px;text-align:center;margin:10px 0 0;min-height:18px}
+.fchips{display:flex;gap:6px;flex-wrap:wrap}
+.fchip{background:#2a2f3f;color:var(--muted);border:0;border-radius:999px;padding:7px 14px;font:inherit;font-size:14px;cursor:pointer;transition:.15s}
+.fchip:hover{color:#fff}
+.fchip.on{background:linear-gradient(135deg,#ffe600,#ffd000);color:#111;font-weight:700;box-shadow:0 4px 12px rgba(255,230,0,.25)}
+.dgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:6px}
+.dgrid.cuatro{grid-template-columns:repeat(4,1fr);gap:8px}
+.dsq{aspect-ratio:1/1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:8px;overflow:hidden}
+.dsq summary{font-size:14px}
+.dsq .muted{font-size:14px}
+.dcard{background:#232735;border:1px solid #2c3247;border-radius:16px;padding:12px}
+.dcard summary{cursor:pointer;list-style:none}
+.dcob{text-align:center;padding:12px 10px}
+.cobgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.dcob .cobtot{font-weight:700;color:var(--yellow);margin-top:4px}
+.dcob .cobsplit{display:flex;flex-direction:column;gap:6px;margin-top:8px;text-align:left}
+@media (max-width:900px){.cobgrid{grid-template-columns:repeat(2,1fr)}}
+/* Equipos apilados: nombre arriba, montos abajo; sin dejar huecos a los lados */
+.cobgrid .plist li{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:8px 0}
+.cobgrid .plist li b{font-size:15px}
+.cobgrid .plist small{font-size:13px;line-height:1.5}
+.cobgrid .dcob .plist{margin:8px 0 0;text-align:left}
+.cobsplit span{font-size:14px;color:var(--muted)}
+.cobsplit b{font-size:18px;color:#fff}
+.dcard.tot{text-align:center}
+.dcard.tot b{display:block;font-size:20px;color:#fff;margin-top:4px}
+.dcard small{display:block;color:var(--muted)}
+.dcard b{font-size:16px}
+.dcard .muted{margin-top:4px;font-size:14px}
+.dlist{display:grid;gap:8px;margin-bottom:6px}
+.rowj{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;background:#232735;border:1px solid #2c3247;border-radius:14px;padding:10px 12px;font-size:14px}
+.rowj span.ok{color:#4ade80;font-weight:700}
+.rowj span.pend{color:#f87171;font-weight:700}
+.frango{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.frango input{width:auto;margin:0;padding:8px 10px;background:#11131a;color:var(--text);border:1px solid #3d4459;border-radius:10px}
+.mrow{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:6px}
+.mcard{background:#11131a;border-radius:12px;padding:10px 4px;text-align:center}
+.mcard b{display:block;font-size:16px;color:var(--text)}
+.mcard small{display:block;color:var(--muted);font-size:14px;margin:4px 0 6px;line-height:1.2}
+.mcard input{padding:6px 4px;text-align:center;font-size:14px}
+.mcard .btn{padding:4px 8px;font-size:14px}
+.nomclick{cursor:pointer;border-bottom:1px dashed #9aa1b2;display:inline-block}
+.cchip{background:#fff;color:var(--yellow);-webkit-text-stroke:.4px #b89b00;border-radius:6px;padding:2px 8px;font-size:16px;font-weight:700;white-space:nowrap}
+.modal .rojo{color:#dc2626}
+.modal .dosc{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px}
+.modal .dosc .montoGrande{font-size:20px;padding:10px}
+.modal .verde{color:#16a34a;font-size:20px}
+.modal .montoGrande{font-size:28px;font-weight:700;text-align:center;padding:14px}
+.modal .resumen{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:4px 0 14px}
+.modal .resumen div{background:#f3f4f6;border-radius:10px;padding:10px;text-align:center}
+.modal .resumen b{display:block;font-size:18px;margin-top:4px}
+.cuadros{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+.sq{aspect-ratio:1/1;background:#f3f4f6;color:#111;border:1px solid #cfd3dc;border-radius:10px;font:inherit;font-weight:700;font-size:14px;cursor:pointer;padding:4px}
+.modal .sq svg{margin-bottom:6px;color:#14532d}
+.coinc{display:flex;align-items:center;gap:10px;background:#f3f4f6;border-radius:12px;padding:8px 10px;margin-bottom:6px;color:#111}
+.coinc svg{flex-shrink:0;color:#14532d}
+.sq.on{background:var(--yellow);border-color:#d4b800}
+.switchrow{display:flex;align-items:center;gap:12px;margin-bottom:14px;color:#111}
+.metodos{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+.met{background:#f3f4f6;color:#111;border:1px solid #cfd3dc;border-radius:12px;padding:12px 6px;font:inherit;font-weight:700;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px}
+.met .ico{font-size:28px;line-height:1}
+.met.on{background:var(--yellow);border-color:#d4b800}
+.switch{position:relative;display:inline-block;width:52px;height:28px;margin:0}
+.switch input{opacity:0;width:0;height:0;margin:0}
+.slider{position:absolute;inset:0;background:#cfd3dc;border-radius:999px;cursor:pointer;transition:.2s}
+.slider::before{content:"";position:absolute;width:22px;height:22px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+.switch input:checked + .slider{background:var(--yellow)}
+.switch input:checked + .slider::before{transform:translateX(24px)}
+.addrow{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+.addrow input{margin:0;flex:1}
+.rowbtns{display:flex;gap:6px;flex-shrink:0}
+.plist li{align-items:center}
+.chk{display:flex;gap:8px;align-items:center;color:var(--text)}
+.chk input{width:auto;margin:0}
+h3{margin:6px 0 10px}
+h4{margin:18px 0 8px}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;align-items:flex-start;justify-content:center;padding:24px 12px;overflow:auto;z-index:20}
+.modal-bg.show{display:flex}
+.modal{background:#fff;color:#111;border-radius:14px;width:100%;max-width:520px;padding:20px;box-shadow:0 20px 50px rgba(0,0,0,.5)}
+.modal form{margin:0}
+.modal h3,.modal h4{color:#111}
+.modal label{color:#444}
+.modal input,.modal select,.modal textarea{background:#fff;color:#111;border-color:#cfd3dc}
+.modal .muted{color:#666}
+.modal .bal div{background:#f3f4f6}
+.modal .bal small{color:#666}
+.modal .plist li{border-bottom-color:#e5e7eb}
+.modal .plist small{color:#666}
+.modal .btn.ghost{background:#e5e7eb;color:#111}
+.modal .chk{color:#111}
+.modal .pend{color:#dc2626}
+.modal .card{background:#f3f4f6}
+.bal{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0 16px}
+.bal div{background:#11131a;border-radius:10px;padding:10px}
+.bal b{display:block;font-size:16px;margin:3px 0}
+.bal small{color:var(--muted)}
+.plist{list-style:none;padding:0;margin:0}
+.plist li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #2f3445}
+.plist small{color:var(--muted)}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+.kpis div{background:var(--panel);border-radius:12px;padding:12px}
+.kpis b{display:block;font-size:18px;margin-top:4px}
+.kpis small{color:var(--muted)}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px;margin-bottom:8px}
+th,td{padding:8px 6px;border-bottom:1px solid #2f3445;text-align:left;white-space:nowrap}
+th{color:var(--muted);font-weight:600}
+.pend{color:#f87171;font-weight:600}
+.ok{color:#4ade80;font-weight:600}
+@media (max-width:420px){
+  .plus{width:58px;height:58px;font-size:32px}
+  .dollar{width:44px;height:44px;font-size:20px}
+  .row{grid-template-columns:44px 1fr 1fr 44px}
+}
+[hidden]{display:none!important}
+/* Acceso por usuario */
+#login{position:fixed;inset:0;z-index:300;background:linear-gradient(rgba(8,12,10,.55),rgba(8,12,10,.8)),url(fondo-canchas.jpg) center/cover no-repeat,var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px 16px;overflow:auto}
+#login .lbox{width:100%;max-width:380px;background:#fff;color:#111;border-radius:24px;padding:28px 24px 24px;box-sizing:border-box;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.45)}
+#login .logo{width:300px;max-width:80vw;height:300px;margin:0 0 6px;background:url(escudo.png) center/contain no-repeat;filter:drop-shadow(0 4px 14px rgba(0,0,0,.5))}
+#login h3{margin:0 0 6px;font-size:22px;color:#111}
+#login .lbox p.muted{color:#666;margin:0 0 18px}
+#login .uopt{display:block;width:100%;margin:10px 0;padding:15px 16px;font:inherit;font-size:17px;font-weight:600;border:1px solid #e3e6e3;border-radius:14px;background:#f5f7f5;color:#111;cursor:pointer;text-align:center}
+#login .uopt:hover,#login .uopt:active{background:var(--yellow);border-color:var(--yellow)}
+#login .pinwrap{position:relative;margin:4px 0 6px}
+#login .pindots{display:flex;gap:12px;justify-content:center}
+#login .pd{width:54px;height:60px;border-radius:14px;border:2px solid #d6dcd6;background:#f5f7f5;display:flex;align-items:center;justify-content:center;transition:border-color .15s}
+#login .pd.on::after{content:"";width:14px;height:14px;border-radius:50%;background:#111}
+#login .pd.on{border-color:#111}
+#login input.pinin{position:absolute;inset:0;width:100%;height:100%;opacity:0;font-size:16px;border:0;padding:0;margin:0}
+#login .big{width:100%;padding:15px;font-size:17px;margin-top:16px;border-radius:14px}
+#login .linkb{background:none;border:0;color:#555;font:inherit;font-size:15px;margin-top:14px;cursor:pointer;text-decoration:underline}
+#login .btn-nuevo{display:block;width:100%;margin-top:14px;padding:15px;font:inherit;font-size:16px;font-weight:800;border:0;border-radius:14px;background:#111;color:var(--yellow);cursor:pointer;animation:saltar 1.4s ease-in-out infinite}
+@keyframes saltar{0%,100%{transform:translateY(0)}20%{transform:translateY(-12px)}35%{transform:translateY(0)}45%{transform:translateY(-5px)}55%{transform:translateY(0)}}
+@media (prefers-reduced-motion: reduce){#login .btn-nuevo{animation:none}}
+#vista-banner{position:fixed;left:0;right:0;bottom:0;z-index:250;background:#111;color:var(--yellow);padding:10px 14px;text-align:center;font-size:15px;font-weight:600}
+#vista-banner button{margin-left:8px;font:inherit;font-weight:700;padding:6px 12px;border-radius:10px;border:0;background:var(--yellow);color:#111;cursor:pointer}
+#vista-banner[hidden]{display:none}
+#login .lerr{color:#d62f2f;min-height:1.4em;margin-top:8px;font-size:15px}
+.verbtn{display:block;width:100%;text-align:left;padding:12px 14px;margin:8px 0;border-radius:12px;border:1px solid #e3e6e3;background:#f5f7f5;color:#111;font:inherit;cursor:pointer}
+.verbtn.on{background:#111;color:var(--yellow);border-color:#111}
+.verbtn.on small{color:#ddd}
+.perfil{position:absolute;top:10px;right:12px;z-index:6;background:#2a2f3f;color:var(--yellow);border:0;border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+body.propio .ajfoot,body.propio [data-act="tab"][data-tab="ajustes"],body.propio [data-act="newteam"]{display:none!important}
+body.propio #tab-ajustes{display:none!important}
+/* Canchas solo para mirar: sin asignar, sin marcador, sin terminar partido, sin cobros */
+.sugs{max-height:260px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.sugsep{padding:8px 4px 4px;font-size:13px}
+</style>
+</head>
+<body>
+<div id="login" hidden></div>
+<header>
+  <button class="perfil" data-act="salir">Salir</button>
+  <img class="logo" src="escudo.png" alt="Rancho Seco Fútbol Rápido">
+  <div class="search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input id="q" type="search" placeholder="Buscar equipo o jugador…" autocomplete="off">
+    <div id="results" class="results"></div>
+  </div>
+  <nav class="tabs">
+    <button class="tab on" data-act="tab" data-tab="canchas">Canchas</button>
+    <button class="tab" data-act="tab" data-tab="resultados">Resultados</button>
+    <button class="tab" data-act="tab" data-tab="equipos">Equipos</button>
+    <button class="tab" data-act="tab" data-tab="pagos">Pagos</button>
+    <button class="addpago" data-act="pagonuevo" title="Registrar pago" aria-label="Registrar pago">+</button>
+  </nav>
+</header>
+
+<main>
+  <section id="tab-resultados" class="view"><div id="resultados-list"></div></section>
+  <section id="tab-canchas" class="view on"><div id="fields"></div><div class="ajfoot"><button class="ajbtn" data-act="tab" data-tab="ajustes" title="Ajustes" aria-label="Ajustes">⚙️</button></div></section>
+  <section id="tab-equipos" class="view">
+    <div class="toolbar"><button class="btn primary" data-act="newteam">+ Nuevo equipo</button></div>
+    <div id="teams-list"></div>
+  </section>
+  <section id="tab-pagos" class="view"><div id="pagos"></div><div class="ajfoot"><button class="ajbtn" data-act="tab" data-tab="ajustes" title="Ajustes" aria-label="Ajustes">⚙️</button></div></section>
+  <section id="tab-ajustes" class="view"><div id="ajustes"></div></section>
+</main>
+
+<div id="modal-bg" class="modal-bg"><div id="modal" class="modal"></div></div>
+
+<script>
+const KEY='canchas-futbol-v1';
+const DEF={teams:[],matches:[],payments:[],config:{inscripcion:1500,arbitraje:500,totalJuegos:15,recibieron:['Junior','Charro','Victor','Rony','Marco'],roles:{Junior:'Director general',Charro:'Director administrativo',Victor:'Director administrativo',Rony:'Roles y logística',Marco:''},arbitros:[],pagoArbitro:0,cuentas:[]}};
+const clone=o=>JSON.parse(JSON.stringify(o));
+// Completa los datos que vengan de la nube o del celular sin estas listas
+function completar(d){
+  const cfg={...clone(DEF.config),...(d.config||{})};
+  if(!cfg.v2){ // lista nueva de personas con rol (incluye a Marco)
+    cfg.recibieron=[...DEF.config.recibieron];
+    cfg.roles={...DEF.config.roles};
+    cfg.v2=true;
+  }
+  if(!cfg.arbitros) cfg.arbitros=[];
+  // Lista final de árbitros con nombre completo y apodo (una sola vez)
+  let matchesMig=d.matches||[];
+  if(!cfg.v3){
+    const ren={'OSO':'Diego Ivan Hernández Cepeda','Miguel Araña':'Miguel angel García Guzmán'};
+    const lista=['Luis Arturo Jiménez Vázquez','Mauricio Mendoza Lievano','José juan ponce sanchez','Jesús Rafael de la peña Valdés','Brandon Emiliano Gámez Badillo','Roberto Francisco ávila Rivera','Miguel angel García Guzmán','Juan Manuel romo miranda','Antonio cruz','Angel Reyna Armendariz','Irving vazquez','Diego Ivan Hernández Cepeda'];
+    const base=cfg.arbitros.filter(a=>a!=='o').map(a=>ren[a]||a);
+    const vistos=new Set();
+    cfg.arbitros=[...base,...lista].filter(a=>{const k=String(a).trim().toLowerCase();if(vistos.has(k)) return false;vistos.add(k);return true;});
+    cfg.apodos={...(cfg.apodos||{}),'Diego Ivan Hernández Cepeda':'OSO','Miguel angel García Guzmán':'Miguel Araña'};
+    matchesMig=matchesMig.map(m=>ren[m.arbitro]?{...m,arbitro:ren[m.arbitro]}:m);
+    cfg.v3=true;
+  }
+  if(!cfg.historial) cfg.historial=[];
+  if(!cfg.v4){ // partidos de prueba con el árbitro "o" pasan a otro árbitro (una sola vez)
+    matchesMig=matchesMig.map(m=>m.arbitro==='o'?{...m,arbitro:'Luis Arturo Jiménez Vázquez'}:m);
+    cfg.historial=[{fecha:new Date().toISOString(),texto:'Partidos con árbitro "o" pasados a Luis Arturo Jiménez Vázquez'},...cfg.historial];
+    cfg.v4=true;
+  }
+  if(!cfg.v5){ // partidos que quedaron sin terminar al asignar otro en la cancha: se cierran con su marcador
+    let n=0;
+    matchesMig=matchesMig.map(m=>{if(m.terminado||m.activo) return m; n++; return {...m,terminado:true,resultado:{a:m.sa||0,b:m.sb||0},terminadoEn:m.creado||new Date().toISOString()};});
+    if(n) cfg.historial=[{fecha:new Date().toISOString(),texto:`${n} partido(s) sin terminar se cerraron con su marcador`},...cfg.historial];
+    cfg.v5=true;
+  }
+  if(!cfg.v6){ // usuarios: cada uno entra con su nombre y su clave de 4 números (la clave se guarda cifrada)
+    cfg.usuarios=[{nombre:'Junior',acceso:'todo',admin:true,pin:null},{nombre:'Charro',acceso:'propio',admin:false,pin:null},{nombre:'Victor',acceso:'propio',admin:false,pin:null},{nombre:'Rony',acceso:'propio',admin:false,pin:null},{nombre:'Marco',acceso:'todo',admin:true,pin:null},{nombre:'Sistemas',acceso:'todo',admin:true,pin:null}];
+    cfg.v6=true;
+  }
+  if(!cfg.v7){ // Marco también puede quitar claves (igual que Junior y Sistemas)
+    cfg.usuarios=(cfg.usuarios||[]).map(u=>u.nombre==='Marco'?{...u,admin:true}:u);
+    cfg.v7=true;
+  }
+  // Marco es inversionista: no recibe pagos (si no tiene rol, se pone este)
+  cfg.roles={...(cfg.roles||{})};
+  if(!cfg.roles.Marco) cfg.roles.Marco='Inversionista';
+  return {...clone(DEF),...d,matches:matchesMig,config:cfg};
+}
+// Personas que reciben pagos (quitando a los inversionistas)
+function cobradores(){
+  const r=db.config.roles||{};
+  return db.config.recibieron.filter(n=>!/inversion/i.test(r[n]||''));
+}
+
+function load(){
+  try{
+    const s=JSON.parse(localStorage.getItem(KEY));
+    if(!s) return completar(clone(DEF));
+    return completar(s);
+  }catch(e){return clone(DEF);}
+}
+let db=load();
+
+/* ---------- Nube (Supabase): cada persona entra con su correo y su PIN ---------- */
+const SUPA_URL='https://wyiqigrzcipywvijtchg.supabase.co';
+const SUPA_KEY='sb_publishable_fy739Px-yWNLc9aripC7Ag_evHkSvgz';
+const sb=supabase.createClient(SUPA_URL,SUPA_KEY,{db:{schema:'canchas'}});
+const ESTADO_ID='rancho-seco';
+function save(){
+  try{localStorage.setItem(KEY,JSON.stringify(db));}
+  catch(e){alert('No se pudo guardar en este navegador.');}
+  subirNube();
+}
+async function subirNube(){
+  const {error}=await sb.from('estado').upsert({id:ESTADO_ID,data:db,updated_at:new Date().toISOString()});
+  if(error) alert('No se pudo guardar en la nube: '+error.message);
+}
+async function cargarNube(){
+  const {data,error}=await sb.from('estado').select('data').eq('id',ESTADO_ID).maybeSingle();
+  if(error) return;
+  if(data&&data.data){
+    // Se combinan los árbitros de este celular con los de la nube, para no perder los que se agregaron sin guardar
+    const locales=(db.config&&db.config.arbitros)||[];
+    db=completar(data.data);
+    const todos=[...db.config.arbitros,...locales];
+    db.config.arbitros=[...new Map(todos.map(a=>[norm(a),a])).values()];
+    localStorage.setItem(KEY,JSON.stringify(db));
+    renderAll();
+  }else if(db.teams.length||db.payments.length){
+    subirNube(); // la nube está vacía: sube lo que ya hay en este celular
+  }
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden) cargarNube();});
+
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=n=>'$'+Number(n||0).toLocaleString('es-MX');
+const sum=arr=>arr.reduce((s,p)=>s+Number(p.monto||0),0);
+const norm=s=>String(s).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+function today(){const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);}
+const teamById=id=>db.teams.find(t=>t.id===id);
+const teamName=id=>teamById(id)?.name||'—';
+// Nombre de equipo que abre su ficha al tocarlo
+const teamLink=(tid)=>`<button type="button" class="eqlink" data-act="ficha" data-team="${tid}">${esc(teamName(tid))}</button>`;
+const activeMatch=f=>db.matches.find(m=>m.field===f&&m.activo);
+const matchById=id=>db.matches.find(m=>m.id===id);
+const matchesOf=tid=>db.matches.filter(m=>m.a===tid||m.b===tid);
+const teamActiveMatch=tid=>db.matches.find(m=>m.activo&&(m.a===tid||m.b===tid));
+const optionsList=arr=>arr.map(x=>`<option value="${esc(x)}">`).join('');
+function recibieronList(){return [...new Set([...db.config.recibieron,...db.payments.map(p=>p.recibio)].filter(Boolean))];}
+function cuentasList(){return [...new Set([...db.config.cuentas,...db.payments.map(p=>p.cuenta)].filter(Boolean))];}
+
+// Arbitraje: solo cuentan los juegos desde el juego que el equipo marcó en su primer registro
+function balance(tid){
+  const t=teamById(tid);
+  // Arbitraje: solo cuentan los partidos creados desde que el equipo se registró
+  const ms=t?.registroDesde?matchesOf(tid).filter(m=>String(m.creado||'')>=t.registroDesde).length:0;
+  const pays=db.payments.filter(p=>p.teamId===tid);
+  const insDue=Number(db.config.inscripcion)||0;
+  const insP=Math.max(sum(pays.filter(p=>p.tipo==='inscripcion')),t?.inscripcionPrevia?insDue:0);
+  const arbP=sum(pays.filter(p=>p.tipo==='arbitraje'));
+  const arbDue=(Number(db.config.arbitraje)||0)*ms;
+  return {ms,insDue,insP,insPend:Math.max(0,insDue-insP),arbDue,arbP,arbPend:Math.max(0,arbDue-arbP)};
+}
+
+/* ---------- Modal ---------- */
+function openModal(html){$('#modal').innerHTML=html;$('#modal-bg').classList.add('show');}
+function closeModal(){$('#modal-bg').classList.remove('show');$('#modal').innerHTML='';}
+
+/* ---------- Tabs ---------- */
+function showTab(name){
+  if(!veTodo()&&name==='ajustes') name='pagos';
+  try{sessionStorage.setItem('canchas-pestana',name);}catch(e){}
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===name));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id==='tab-'+name));
+  if(name==='ajustes') renderAjustes();
+  // En Pagos se usa su propio buscador: se oculta el de arriba
+  const buscadorTop=document.querySelector('.search');
+  if(buscadorTop){buscadorTop.style.display=name==='pagos'?'none':'';}
+  if(name==='pagos'){const r=$('#results'); if(r) r.classList.remove('show');}
+  if(name==='resultados') renderResultados();
+  // La altura de la barra de arriba cambia al ocultar su buscador: se recalcula para que el filtro quede pegado
+  document.documentElement.style.setProperty('--hh',document.querySelector('header').offsetHeight+'px');
+}
+// Resultados de los partidos terminados: el más reciente arriba
+function renderResultados(){
+  const ts=db.matches.filter(m=>m.terminado);
+  if(!ts.length){$('#resultados-list').innerHTML='<p class="muted">Aún no hay partidos terminados.</p>';return;}
+  // Agrupar por horario (día y hora en que terminaron); dentro de cada horario, cancha 1 a 4
+  const grupos={}, etiq={};
+  ts.forEach(m=>{const d=new Date(m.terminadoEn||m.creado||0);const k=`${diaLocal(d.toISOString())} ${String(d.getHours()).padStart(2,'0')}:00`;(grupos[k]=grupos[k]||[]).push(m);etiq[k]=d;});
+  const claves=Object.keys(grupos).sort((a,b)=>b.localeCompare(a));
+  const fila=(m)=>{
+    const r=m.resultado||{a:0,b:0};
+    const ga=r.a>r.b, gb=r.b>r.a;
+    const nomEq=(tid)=>veTodo()?teamLink(tid):esc(teamName(tid)); // la ficha con dinero solo para quien ve todo
+    const saldo=(tid)=>{if(!veTodo())return '';const b=balance(tid);const d=b.insPend+b.arbPend;return d?`<span class="pend">Debe ${money(d)}</span>`:'<span class="ok">Al corriente</span>';};
+    return `<div class="res-row"><div class="cnum-circ">${m.field}</div><div class="card res-card">
+      <div class="res-m"><b class="${ga?'ganador':''}">${nomEq(m.a)}</b><span class="res-s">${r.a} – ${r.b}</span><b class="${gb?'ganador':''}">${nomEq(m.b)}</b></div>
+      <div class="res-sal"><small>${saldo(m.a)}</small><small>${saldo(m.b)}</small></div>
+    </div></div>`;
+  };
+  $('#resultados-list').innerHTML=claves.map(k=>{
+    const lista=grupos[k].sort((x,y)=>x.field-y.field);
+    const d=etiq[k];
+    const fecha=d.toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'short'}).replace(',','');
+    const hora=String(d.getHours()).padStart(2,'0')+':00';
+    return `<h3 class="yel">${fecha} · ${hora}</h3>${lista.map(fila).join('')}`;
+  }).join('');
+}
+function renderAll(){renderFields();renderTeams();renderPagos();}
+
+/* ---------- Usuarios y accesos ---------- */
+const SESION_KEY='canchas-sesion';
+function sesionNombre(){try{return localStorage.getItem(SESION_KEY)||'';}catch(e){return '';}}
+const VER_KEY='canchas-ver-como';
+function verComo(){try{return localStorage.getItem(VER_KEY)||'';}catch(e){return '';}}
+function sesionReal(){const n=sesionNombre();return (db.config.usuarios||[]).find(u=>u.nombre===n)||null;}
+// Solo Junior y Sistemas pueden ver la app como otra persona (Marco no)
+function puedeVerComo(){const r=sesionReal();return !!r&&(r.nombre==='Junior'||r.nombre==='Sistemas');}
+function usuarioActual(){
+  const r=sesionReal();
+  if(r&&puedeVerComo()){const v=verComo();const vu=v&&(db.config.usuarios||[]).find(u=>u.nombre===v);if(vu) return vu;}
+  return r;
+}
+// Panel "Ver como": elige una persona y la app se ve como la ve ella
+function verComoPanel(){
+  if(!puedeVerComo()) return;
+  const r=sesionReal(), actual=usuarioActual();
+  openModal(`<div>
+    <h3>Ver como</h3>
+    <p class="muted">Mira la app como la ve cada persona. Solo para revisar: no registres pagos ni partidos en esta vista.</p>
+    ${(db.config.usuarios||[]).map(u=>`<button type="button" class="verbtn${actual&&actual.nombre===u.nombre?' on':''}" data-act="vercomo" data-n="${esc(u.nombre)}"><b>${u.nombre===r.nombre?'Mi vista ('+esc(u.nombre)+')':esc(u.nombre)}</b><br><small>${u.acceso==='todo'?'Ve todo':'Ve solo sus cuentas y equipos'}</small></button>`).join('')}
+    <div class="actions"><button type="button" class="btn ghost" data-act="close">Cerrar</button></div>
+  </div>`);
+}
+function verComoSet(n){
+  if(!puedeVerComo()) return;
+  closeModal();
+  const r=sesionReal();
+  try{ if(!n||n===r.nombre) localStorage.removeItem(VER_KEY); else localStorage.setItem(VER_KEY,n); }catch(e){}
+  aplicarAcceso(); showTab(veTodo()?'ajustes':'pagos'); renderAll();
+}
+// 'todo' (Junior, Marco, Sistemas) ve todo; 'propio' (Charro, Victor, Rony) solo lo suyo
+function veTodo(){const u=usuarioActual();return !!u&&u.acceso==='todo';}
+function esAdmin(){const u=usuarioActual();return !!u&&!!u.admin;}
+// Equipo propio: el que recibió su inscripción la persona
+function equipoVisible(t){if(veTodo()) return true;const u=usuarioActual();return !!u&&!!t&&responsableInscripcion(t)===u.nombre;}
+function pagoVisible(p){if(veTodo()) return true;const u=usuarioActual();return !!u&&p.recibio===u.nombre;}
+function partidoVisible(m){return veTodo()||[m.a,m.b].some(tid=>equipoVisible(teamById(tid)));}
+async function hashPin(pin){const d=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('rancho-seco:'+pin));return [...new Uint8Array(d)].map(x=>x.toString(16).padStart(2,'0')).join('');}
+function aplicarAcceso(){
+  document.body.classList.toggle('propio',!veTodo());
+  const pb=document.querySelector('.perfil');
+  if(pb){const adm=puedeVerComo(); pb.dataset.act=adm?'verpanel':'salir'; pb.textContent=adm?'Ver como':'Salir';}
+  const real=sesionReal(), vu=usuarioActual();
+  let ban=document.getElementById('vista-banner');
+  const activo=!!real&&!!vu&&vu.nombre!==real.nombre;
+  if(activo){
+    if(!ban){ban=document.createElement('div');ban.id='vista-banner';document.body.appendChild(ban);}
+    ban.innerHTML=`Viendo como <b>${esc(vu.nombre)}</b> · <button type="button" data-act="vercomo" data-n="">Volver a mi vista</button>`;
+    ban.hidden=false;
+  } else if(ban) ban.hidden=true;
+}
+// Entrada: primero el PIN directo; la lista de nombres solo para la primera vez
+// loginPaso.modo: 'pin' (escribe su PIN), 'nombres' (primera vez: elige nombre), 'crear' (crea su PIN)
+let loginPaso={modo:'pin',nombre:null,primera:null};
+let lgMsg='';
+const PINBOX=`<div class="pinwrap"><div class="pindots"><span class="pd"></span><span class="pd"></span><span class="pd"></span><span class="pd"></span></div><input id="lg-pin" class="pinin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" aria-label="Clave de 4 números"></div>`;
+function usuarioPorPin(h){return (db.config.usuarios||[]).find(x=>x.pin&&x.pin===h)||null;}
+function lgElegir(n){
+  const u=(db.config.usuarios||[]).find(x=>x.nombre===n); if(!u) return;
+  loginPaso={modo:'crear',nombre:n,primera:null};
+  mostrarLogin();
+}
+// Conecta el campo de PIN con las casillas y el envío
+function lgConectarPin(onPin){
+  const pi=$('#lg-pin'), pds=[...document.querySelectorAll('#lg-form .pd')];
+  pi.addEventListener('input',()=>{pi.value=pi.value.replace(/\D/g,'').slice(0,4);pds.forEach((d,i)=>d.classList.toggle('on',i<pi.value.length));$('#lg-err').textContent='';});
+  pi.focus();
+  $('#lg-form').onsubmit=async e=>{
+    e.preventDefault();
+    const pin=pi.value.trim();
+    if(!/^\d{4}$/.test(pin)){$('#lg-err').textContent='La clave son 4 números.';return;}
+    await onPin(pin, await hashPin(pin));
+  };
+}
+function mostrarLogin(){
+  const cont=$('#login');
+  cont.hidden=false;
+  const msg=lgMsg; lgMsg='';
+  if(loginPaso.modo==='nombres'){
+    const libres=(db.config.usuarios||[]).filter(u=>!u.pin);
+    cont.innerHTML=`<div class="logo"></div><div class="lbox"><h3>Bienvenido al Centro de Control</h3><p class="muted">${libres.length?'Elige tu nombre para crear tu PIN':'Todos ya tienen PIN. Escríbelo arriba.'}</p>${libres.map(u=>`<button type="button" class="uopt" data-act="lgn" data-n="${esc(u.nombre)}">${esc(u.nombre)}</button>`).join('')}<button type="button" class="linkb" data-act="lgback">Volver</button></div>`;
+    return;
+  }
+  if(loginPaso.modo==='crear'){
+    const u=(db.config.usuarios||[]).find(x=>x.nombre===loginPaso.nombre);
+    if(!u){loginPaso={modo:'pin',nombre:null,primera:null};return mostrarLogin();}
+    const titulo=loginPaso.primera===null?'Crea tu PIN de 4 dígitos':'Repite tu PIN';
+    cont.innerHTML=`<div class="logo"></div><form class="lbox" id="lg-form"><h3>Bienvenido al Centro de Control</h3><p class="muted">${esc(u.nombre)}: ${titulo}</p>${PINBOX}<div class="lerr" id="lg-err">${esc(msg)}</div><button class="btn primary big">Continuar</button><button type="button" class="linkb" data-act="lgback">Volver</button></form>`;
+    lgConectarPin(async (pin,h)=>{
+      if(loginPaso.primera===null){loginPaso.primera=pin; mostrarLogin(); return;}
+      if(loginPaso.primera!==pin){loginPaso.primera=null; lgMsg='No coinciden. Intenta de nuevo.'; mostrarLogin(); return;}
+      if(usuarioPorPin(h)){loginPaso.primera=null; lgMsg='Ese PIN ya lo usa alguien más. Elige otro.'; mostrarLogin(); return;}
+      u.pin=h; save(); entrar(u.nombre);
+    });
+    return;
+  }
+  // modo 'pin': sin nombre, solo la clave
+  cont.innerHTML=`<div class="logo"></div><form class="lbox" id="lg-form"><h3>Bienvenido al Centro de Control</h3><p class="muted">Escribe tu PIN de 4 dígitos</p>${PINBOX}<div class="lerr" id="lg-err">${esc(msg)}</div><button class="btn primary big">Entrar</button>${(db.config.usuarios||[]).some(u=>!u.pin)?'<button type="button" class="btn-nuevo" data-act="lgnuevo">Es mi primera vez, crear mi PIN</button>':''}</form>`;
+  lgConectarPin(async (pin,h)=>{
+    const u=usuarioPorPin(h);
+    if(!u){$('#lg-err').textContent='PIN incorrecto. Si es tu primera vez, toca "Es mi primera vez, crear mi PIN".';return;}
+    entrar(u.nombre);
+  });
+}
+function entrar(n){
+  try{localStorage.setItem(SESION_KEY,n);localStorage.removeItem(VER_KEY);}catch(e){}
+  loginPaso={modo:'pin',nombre:null,primera:null};
+  $('#login').hidden=true; $('#login').innerHTML='';
+  aplicarAcceso();
+  showTab(veTodo()?'canchas':'pagos');
+  renderAll();
+}
+function salir(){
+  try{localStorage.removeItem(SESION_KEY);localStorage.removeItem(VER_KEY);}catch(e){}
+  loginPaso={modo:'pin',nombre:null,primera:null};
+  aplicarAcceso(); mostrarLogin();
+}
+// Quita la clave de una persona para que cree otra al entrar (solo Junior y Sistemas)
+function quitarClave(n){
+  if(!esAdmin()) return;
+  const u=(db.config.usuarios||[]).find(x=>x.nombre===n); if(!u) return;
+  if(!confirm(`¿Quitar la clave de ${n}? Al entrar creará una nueva.`)) return;
+  u.pin=null; registrar(`Clave de ${n} quitada (creará una nueva al entrar)`);
+  save(); renderAjustes();
+}
+
+/* ---------- Canchas ---------- */
+function side(m,s){
+  const tid=s==='A'?m.a:m.b;
+  const sc=s==='A'?m.sa:m.sb;
+  return `<div class="tcol">
+    <div class="pw"><button class="plus" data-act="score" data-match="${m.id}" data-side="${s}" aria-label="Sumar gol">+</button><button type="button" class="badge" data-act="manual" data-match="${m.id}" aria-label="Poner marcador manual" title="Tocar para poner el marcador">${sc||0}</button></div>
+    <span class="tname">${teamById(tid)?.juegoActual?`<b>J${teamById(tid).juegoActual}</b> `:''}${teamLink(tid)}</span>
+    ${(balance(tid).insPend+balance(tid).arbPend)>0?`<span class="deudaq debe">Debe ${money(balance(tid).insPend+balance(tid).arbPend)}</span>`:''}
+  </div>`;
+}
+// Texto de adeudo para el tooltip del botón de pesos
+function textoDeuda(tid){
+  const b=balance(tid); const d=b.insPend+b.arbPend;
+  return d?`Debe ${money(d)}`:'Al corriente';
+}
+// Verde si el equipo está al día; rojo si debe
+function estadoPago(tid){
+  const b=balance(tid);
+  return (b.insPend+b.arbPend)>0?'debe':'ok';
+}
+function renderFields(){
+  let h='';
+  for(let f=4;f>=1;f--){
+    const m=activeMatch(f);
+    h+=`<section class="fwrap">
+      <div class="fhead"><span>Cancha ${f}${m?' <img src="silbato.png" alt="" class="silb-mini">':''}</span>${m?`<div class="fcenter"><button class="arbchip" data-act="${m.arbitro?'arbdia':'assign'}" data-n="${esc(m.arbitro||'')}" data-field="${f}" title="${m.arbitro?'Ver partidos pitados hoy':'Asignar árbitro'}">${m.arbitro?arbNombreHTML(m.arbitro):'Sin árbitro'}</button><button class="whistle" data-act="terminar" data-match="${m.id}" title="Terminar partido" aria-label="Terminar partido">${SILBATO}</button></div><span></span>`:`<span></span><span></span>`}</div>
+      <div class="field"><span class="circle"></span>`;
+    if(m){
+      h+=`<div class="row">
+        <button class="dollar ${estadoPago(m.a)}" data-act="pay" data-team="${m.a}" data-match="${m.id}" title="${esc(teamName(m.a))}: ${textoDeuda(m.a)}">$</button>
+        ${side(m,'A')}
+        ${side(m,'B')}
+        <button class="dollar ${estadoPago(m.b)}" data-act="pay" data-team="${m.b}" data-match="${m.id}" title="${esc(teamName(m.b))}: ${textoDeuda(m.b)}">$</button>
+      </div>`;
+    }else{
+      h+=`<div class="nomatch"><button class="asignar" data-act="assign" data-field="${f}" title="Asignar partido" aria-label="Asignar partido"><img src="silbato.png" alt="Asignar partido" class="silb-big"></button></div>`;
+    }
+    h+=`</div></section>`;
+  }
+  $('#fields').innerHTML=h;
+}
+function changeScore(mid,side,d){
+  const m=matchById(mid); if(!m) return;
+  const k=side==='A'?'sa':'sb';
+  m[k]=Math.max(0,(m[k]||0)+d);
+  save(); renderFields();
+}
+// Campo para escribir el equipo: al escribir, salen abajo los equipos que coinciden
+function buscadorEquipo(s,titulo,teamId){
+  const t=teamById(teamId);
+  return `<label><input id="as-${s}-txt" autocomplete="off" placeholder="Escribe el ${esc(titulo.toLowerCase())}" value="${esc(t?t.name:'')}"></label>
+    <div class="sugs" id="as-${s}-sug"></div>
+    <input type="hidden" name="${s}" id="as-${s}-val" value="${esc(teamId||'')}">`;
+}
+function activarBuscador(s){
+  const txt=$(`#as-${s}-txt`), sug=$(`#as-${s}-sug`), val=$(`#as-${s}-val`);
+  const pintar=()=>{
+    // Cada palabra que escriben tiene que estar en el nombre del equipo
+    const toks=norm(txt.value.trim()).split(/\s+/).filter(Boolean);
+    // Sin escribir nada no sale ninguno. Al escribir salen solo equipos libres que coinciden, igual que el buscador principal
+    const otro=document.getElementById(`as-${s==='a'?'b':'a'}-val`)?.value||'';
+    const libre=(t)=>t.id!==otro&&!db.matches.some(m=>m.activo&&m.field!==asignandoField&&(m.a===t.id||m.b===t.id));
+    const coincide=(t)=>toks.every(k=>norm(t.name).includes(k));
+    const hits=toks.length?db.teams.filter(t=>libre(t)&&coincide(t)):[];
+    // Equipos que ya están jugando en otra cancha, o que ya son el otro equipo: salen en verde y no se pueden elegir
+    // Al escribir: primero las coincidencias; abajo, el resto de equipos libres (la lista se desliza para verlos todos)
+    const boton=(t)=>`<button type="button" class="sug" data-pick="${t.id}" data-side="${s}">${esc(t.name)}</button>`;
+    const resto=toks.length?db.teams.filter(t=>libre(t)&&!coincide(t)):[];
+    sug.innerHTML=(hits.length?hits.map(boton).join(''):(toks.length?'<div class="muted">Ningún equipo libre tiene ese nombre.</div>':''))
+      +(toks.length&&resto.length?`<div class="muted sugsep">Los demás equipos libres</div>`+resto.map(boton).join(''):'')
+      +(toks.length&&!db.teams.some(coincide)?`<button type="button" class="sug nuevo" data-nuevo="${s}">+ Agregar nuevo equipo</button>`:'');
+  };
+  txt.addEventListener('input',()=>{val.value='';pintar();});
+  txt.addEventListener('focus',pintar);
+  sug.addEventListener('click',e=>{
+    const nu=e.target.closest('[data-nuevo]');
+    if(nu){abrirNuevoDesdeBusqueda(s,txt.value.trim());return;}
+    const b=e.target.closest('[data-pick]'); if(!b||b.disabled) return;
+    val.value=b.dataset.pick;
+    txt.value=teamName(b.dataset.pick);
+    sug.innerHTML='';
+  });
+}
+let asignandoField=null; // cancha que se está asignando
+let alVolver=null; // datos de Asignar partido mientras se agrega un equipo nuevo desde la búsqueda
+// Al agregar desde el buscador: ¿el nombre es un jugador o un equipo?
+const ICO_JUGADOR='<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="7" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7z"/></svg>';
+const ICO_EQUIPO='<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z"/></svg>';
+let chooserModo=null; // 'jugador' | 'equipo'
+// Lo que ya existe con ese nombre: equipos y jugadores (sin importar mayúsculas ni acentos)
+function coincidencias(n){
+  const toks=norm(n).split(/\s+/).filter(Boolean);
+  if(!toks.length) return {equipos:[],jugadores:[]};
+  const equipos=db.teams.filter(t=>toks.every(k=>norm(t.name).includes(k)));
+  const jugadores=[];
+  db.teams.forEach(t=>t.players.forEach(p=>{if(toks.every(k=>norm(p).includes(k))) jugadores.push({p,t});}));
+  return {equipos,jugadores};
+}
+function renderCoinc(n){
+  const {equipos,jugadores}=coincidencias(n);
+  const lista=[
+    ...equipos.map(t=>`<div class="coinc">${ICO_EQUIPO}<span><b>${esc(t.name)}</b> · equipo registrado</span></div>`),
+    ...jugadores.map(x=>`<div class="coinc">${ICO_JUGADOR}<span><b>${esc(x.p)}</b> · jugador de ${esc(x.t.name)}</span></div>`)
+  ];
+  $('#ch-coinc').innerHTML=lista.length
+    ?`<p class="pend" style="margin:6px 0">Ya existe. Elige una de estas opciones o cambia el nombre.</p>${lista.join('')}`
+    :'<p class="ok" style="margin:6px 0">No existe en la lista.</p>';
+  return lista.length>0;
+}
+function abrirChooser(nombre){
+  chooserModo=null;
+  openModal(`<div>
+    <h3 id="ch-titulo" class="nomclick" data-act="editnombre" title="Toca para editar">${esc(cap(nombre.trim()))}</h3>
+    <input id="ch-nombre" autocomplete="off" style="display:none" value="${esc(cap(nombre.trim()))}">
+    <div id="ch-coinc"></div>
+    <p class="muted">¿Qué es este nombre?</p>
+    <div class="cuadros" style="grid-template-columns:1fr 1fr">
+      <button type="button" class="sq" data-act="esjugador">${ICO_JUGADOR}<br>Es un jugador</button>
+      <button type="button" class="sq" data-act="esequipo">${ICO_EQUIPO}<br>Es un equipo</button>
+    </div>
+    <div id="ch-body"></div>
+    <div class="actions"><button type="button" class="btn ghost" data-act="close">Cancelar</button></div>
+  </div>`);
+  const inp=$('#ch-nombre');
+  renderCoinc(inp.value);
+  inp.addEventListener('input',()=>{
+    const v=inp.value;
+    renderCoinc(v);
+    if(chooserModo==='jugador') chooserJugador(v);
+    else if(chooserModo==='equipo') chooserEquipo(v);
+  });
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter') inp.blur();});
+  inp.addEventListener('blur',()=>{
+    inp.style.display='none';
+    const h=$('#ch-titulo');
+    h.textContent=nombreChooser()||'Nuevo registro';
+    h.style.display='';
+  });
+}
+function nombreChooser(){return cap(($('#ch-nombre')?.value||'').trim());}
+function chooserEquipo(n){
+  chooserModo='equipo';
+  draft=null;
+  const {equipos}=coincidencias(n);
+  $('#ch-body').innerHTML=`
+    ${equipos.length?`<div class="reslist">${equipos.map(t=>`<button type="button" data-act="pickteam" data-team="${t.id}"><b>${esc(t.name)}</b><br><small>Ya registrado</small></button>`).join('')}</div>`:''}
+    <label>Nombre del equipo<input id="ce-nombre" autocomplete="off" value="${esc(cap(n))}"></label>
+    <label>Jugador<input id="ce-jug" autocomplete="off" placeholder="Busca o escribe el nombre"></label>
+    <div id="ce-jlist"></div>
+    <label>Teléfono<input id="ce-tel" type="tel" inputmode="tel" autocomplete="off" placeholder="10 dígitos"></label>
+    <p id="ce-err" class="pend"></p>
+    <div class="actions"><button type="button" class="btn primary" data-act="ce-guardar">Registrar equipo</button></div>`;
+  const j=$('#ce-jug');
+  const pintarJug=()=>{
+    // Busca entre los jugadores que ya están registrados (pueden jugar en dos equipos)
+    const toks=norm(j.value.trim()).split(/\s+/).filter(Boolean);
+    const todos=[...new Set(db.teams.flatMap(t=>t.players))];
+    const hits=toks.length?todos.filter(x=>toks.every(k=>norm(x).includes(k))):[];
+    $('#ce-jlist').innerHTML=hits.length?`<div class="reslist">${hits.slice(0,20).map(x=>`<button type="button" data-act="ce-jpick" data-n="${esc(x)}"><b>${esc(x)}</b></button>`).join('')}</div>`:'';
+  };
+  j.addEventListener('input',pintarJug);
+}
+function cePick(nombre){
+  $('#ce-jug').value=nombre;
+  $('#ce-jlist').innerHTML='';
+}
+function ceGuardar(){
+  const name=cap(($('#ce-nombre').value||'').trim());
+  const jug=cap(($('#ce-jug').value||'').trim());
+  const tel=($('#ce-tel').value||'').replace(/\D/g,'');
+  const err=m=>{$('#ce-err').textContent=m;};
+  if(!name) return err('Escribe el nombre del equipo.');
+  if(!jug) return err('Escribe el nombre del jugador.');
+  if(db.teams.some(t=>norm(t.name)===norm(name))) return err('Ese equipo ya existe. Búscalo arriba.');
+  if(similares(name).length) return err('Se parece a un equipo que ya existe. Búscalo arriba.');
+  if(!/^\d{10}$/.test(tel)) return err('Escribe el teléfono (10 dígitos).');
+  db.teams.push({id:uid(),name,players:[jug],lider:jug,telefonos:{[jug]:tel}});
+  save(); closeModal(); renderAll();
+}
+function chooserJugador(n){
+  chooserModo='jugador';
+  draft=null;
+  $('#ch-body').innerHTML=`
+    <label>Busca su equipo<input id="cj-q" autocomplete="off" placeholder="Escribe el nombre del equipo"></label>
+    <div class="sugs" id="cj-list"></div>
+    <div id="cj-nuevo"></div>`;
+  const q=$('#cj-q');
+  const pintar=()=>{
+    const toks=norm(q.value.trim()).split(/\s+/).filter(Boolean);
+    // Igual que el buscador principal: nada hasta escribir; luego filtra por cada palabra
+    const hits=toks.length?db.teams.filter(t=>toks.every(k=>norm(t.name).includes(k))):[];
+    $('#cj-list').innerHTML=(hits.length?`<div class="reslist">${hits.slice(0,30).map(t=>{const am=teamActiveMatch(t.id);return `<button type="button" data-act="cj-pick" data-team="${t.id}"><b>${esc(t.name)}</b><br><small>${am?`Cancha ${am.field}`:'Sin partido asignado'}</small></button>`;}).join('')}</div>`:'')
+      +(toks.length&&!hits.length?`<div class="reslist"><div class="empty-res">No hay equipos con ese nombre.</div><button type="button" class="addteam" data-act="cj-nuevo">+ Agregar equipo</button></div>`:'');
+  };
+  q.addEventListener('input',()=>{$('#cj-nuevo').innerHTML='';pintar();});
+  pintar();
+  q.focus();
+}
+// Equipo encontrado: el jugador se suma a ese equipo (sin pedir teléfono)
+function cjPick(tid){
+  const t=teamById(tid); if(!t) return;
+  const pl=nombreChooser();
+  if(!t.players.some(p=>norm(p)===norm(pl))){
+    t.players.push(pl);
+    if(!t.lider) t.lider=pl;
+  }
+  save(); closeModal(); renderAll();
+}
+// Equipo no encontrado: se registra aquí mismo y se pide el teléfono del responsable
+function cjNuevo(){
+  $('#cj-list').innerHTML='';
+  $('#cj-nuevo').innerHTML=`
+    <label>Teléfono de ${esc(nombreChooser())} (responsable)<input id="cj-tel" type="tel" inputmode="tel" autocomplete="off" placeholder="10 dígitos"></label>
+    <p id="cj-err" class="pend"></p>
+    <div class="actions"><button type="button" class="btn primary" data-act="cj-guardar">Registrar equipo</button></div>`;
+  // Teléfono: solo 10 números, con formato 3-3-4
+  $('#cj-tel').addEventListener('input',e=>{
+    const d=e.target.value.replace(/\D/g,'').slice(0,10);
+    e.target.value=[d.slice(0,3),d.slice(3,6),d.slice(6)].filter(Boolean).join(' ');
+  });
+  $('#cj-tel').focus();
+}
+function cjGuardar(){
+  const name=cap(($('#cj-q').value||'').trim());
+  const tel=($('#cj-tel').value||'').replace(/\D/g,'');
+  const err=m=>{$('#cj-err').textContent=m;};
+  if(!name) return err('Escribe el nombre del equipo.');
+  if(db.teams.some(t=>norm(t.name)===norm(name))) return err('Ese equipo ya existe. Búscalo arriba.');
+  if(similares(name).length) return err('Se parece a un equipo que ya existe. Búscalo arriba.');
+  if(!/^\d{10}$/.test(tel)) return err('Escribe el teléfono del responsable (10 dígitos).');
+  const pl=nombreChooser();
+  db.teams.push({id:uid(),name,players:[pl],lider:pl,telefonos:{[pl]:tel}});
+  save(); closeModal(); renderAll();
+}
+function abrirNuevoDesdeBusqueda(s,nombre){
+  alVolver={f:asignandoField,a:$('#as-a-val').value,b:$('#as-b-val').value,side:s};
+  openTeam(null,nombre,true);
+}
+// Árbitro con buscador (igual que el buscador principal)
+function buscadorArbitro(v){
+  return `<label>Este juego lo va a pitar<input id="ar-q" autocomplete="off" placeholder="Escribe el nombre del árbitro" value="${esc(v)}"></label>
+    <div id="ar-list"></div>
+    <input type="hidden" name="arbitro" id="ar-val" value="${esc(v)}">`;
+}
+function activarArbitro(){
+  const q=$('#ar-q'), list=$('#ar-list'), val=$('#ar-val');
+  const pintar=()=>{
+    const toks=norm(q.value.trim()).split(/\s+/).filter(Boolean);
+    // Al tocar la casilla salen todos los árbitros; al escribir se filtran
+    const hits=(db.config.arbitros||[]).filter(a=>toks.every(k=>norm(a+' '+arbNom(a)).includes(k)));
+    // Árbitros que ya están pitando otra cancha: salen en verde y no se pueden elegir
+    const pitando=(a)=>db.matches.find(x=>x.activo&&x.field!==asignandoField&&x.arbitro===a);
+    list.innerHTML=(hits.length?`<div class="reslist">${hits.map(a=>{const pc=pitando(a);return pc
+      ?`<button type="button" class="arbocup" disabled><b>${arbNombreHTML(a)}</b><br><small>Ya está pitando la cancha ${pc.field}</small></button>`
+      :`<button type="button" data-act="ar-pick" data-n="${esc(a)}"><b>${arbNombreHTML(a)}</b></button>`;}).join('')}</div>`:'')
+      +(toks.length&&!hits.length?`<div class="reslist"><button type="button" class="addteam" data-act="ar-nuevo" data-n="${esc(q.value.trim())}">+ Agregar árbitro</button></div>`:'');
+  };
+  q.addEventListener('input',()=>{val.value='';pintar();});
+  q.addEventListener('focus',()=>{if(!val.value) pintar();});
+}
+// Resumen de los partidos que pitó hoy un árbitro (jornada de 5 a.m. a 5 a.m.)
+function arbitroDia(n){
+  const hoy=jornadaHoy();
+  const ms=db.matches.filter(m=>m.arbitro===n&&diaLocal(m.creado)===hoy).sort((x,y)=>new Date(x.creado)-new Date(y.creado));
+  const filas=ms.map(m=>`<li><span><b>Cancha ${m.field}</b> · ${esc(teamName(m.a))} vs ${esc(teamName(m.b))}<br><small class="muted">${esc(new Date(m.creado).toLocaleTimeString('es-MX',{hour:'numeric',minute:'2-digit'}))} · ${m.activo?'en juego':'terminado'}</small></span><b>${m.sa||0} - ${m.sb||0}</b></li>`).join('');
+  const act=ms.find(m=>m.activo);
+  openModal(`<div>
+    <h3>${arbNombreHTML(n)}</h3>
+    <p class="muted">Partidos que ha pitado hoy: <b style="color:#111">${ms.length}</b></p>
+    <ul class="plist">${filas||'<li class="muted">Hoy no ha pitado partidos.</li>'}</ul>
+    <div class="actions">${act?`<button type="button" class="btn ghost" data-act="assign" data-field="${act.field}">Cambiar partido</button>`:''}<button type="button" class="btn primary" data-act="close">Cerrar</button></div>
+  </div>`);
+}
+function openAssign(f,pre){
+  asignandoField=f;
+  if(db.teams.length<2){
+    openTeam(null);
+    const note=document.createElement('p');
+    note.className='muted';
+    note.textContent=`Para asignar la cancha necesitas al menos 2 equipos. Registra este y luego el siguiente.`;
+    $('#modal form')?.prepend(note);
+    return;
+  }
+  const cur=activeMatch(f);
+  openModal(`<form id="as-form">
+    <h3>Cancha ${f}</h3>
+    ${buscadorEquipo('a','Equipo 1',pre?pre.a:(cur?cur.a:''))}
+    <div class="vs-grande">VS</div>
+    ${buscadorEquipo('b','Equipo 2',pre?pre.b:(cur?cur.b:''))}
+    ${cur?.arbitro?`<p class="muted" style="margin:0 0 10px">Lo pita: <b style="color:#111">${arbNombreHTML(cur.arbitro)}</b></p><input type="hidden" name="arbitro" id="ar-val" value="${esc(cur.arbitro)}">`:buscadorArbitro('')}
+    <p id="as-err" class="pend"></p>
+    <div class="actions">
+      ${cur?`<button type="button" class="btn danger" data-act="unassign" data-field="${f}">Quitar partido</button>`:''}
+      <button type="button" class="btn ghost" data-act="close">Cancelar</button>
+      <button class="btn primary">Iniciar juego</button>
+    </div>
+  </form>`);
+  if($('#ar-q')) activarArbitro();
+  ['a','b'].forEach(s=>activarBuscador(s));
+  $('#as-form').onsubmit=e=>{
+    e.preventDefault();
+    const fd=new FormData(e.target);
+    const a=fd.get('a'), b=fd.get('b');
+    if(!a||!b){$('#as-err').textContent='Elige los dos equipos de la lista.';return;}
+    if(a===b){$('#as-err').textContent='Elige dos equipos distintos.';return;}
+    // Un equipo no puede jugar en dos canchas al mismo tiempo
+    const enOtraCancha=(tid)=>{const mm=db.matches.find(x=>x.activo&&x.field!==f&&(x.a===tid||x.b===tid));return mm?mm.field:null;};
+    const ca=enOtraCancha(a), cb=enOtraCancha(b);
+    if(ca||cb){$('#as-err').textContent=`${teamName(ca?a:b)} ya está jugando en la cancha ${ca||cb}. Primero quítalo de esa cancha.`;return;}
+    db.matches.forEach(m=>{if(m.field===f&&m.activo)cerrarPartido(m);});
+    const arb=(String(fd.get('arbitro')||'')||($('#ar-q')?.value||'')).trim();
+    // Un árbitro solo puede pitar un juego a la vez
+    const pitandoEn=arb&&db.matches.find(x=>x.activo&&x.field!==f&&x.arbitro===arb);
+    if(pitandoEn){$('#as-err').textContent=`${arb} ya está pitando en la cancha ${pitandoEn.field}. Elige otro árbitro.`;return;}
+    if(arb&&!(db.config.arbitros||[]).some(x=>norm(x)===norm(arb))) db.config.arbitros.push(arb);
+    db.matches.push({id:uid(),field:f,a,b,arbitro:arb,sa:0,sb:0,activo:true,creado:new Date().toISOString()});
+    save(); closeModal(); renderAll();
+  };
+}
+function unassign(f){
+  db.matches.forEach(m=>{if(m.field===f&&m.activo)cerrarPartido(m);});
+  save(); closeModal(); renderAll();
+}
+
+/* ---------- Pagos ---------- */
+// Quién cobró la inscripción: el que se eligió, o el que aparece en su pago de inscripción
+// Primera fila de pagos: la inscripción (0 si se pagó antes de la plataforma)
+function filaInscripcionHTML(t){
+  if(db.payments.some(p=>p.teamId===t.id&&p.tipo==='inscripcion')) return '';
+  const resp=responsableInscripcion(t);
+  if(t.inscripcionPrevia||resp) return `<li><span><b>Inscripción</b> · <b>$0</b> · Pagada antes de la plataforma<br><small>${esc(resp||'—')}</small></span></li>`;
+  return `<li><span><b>Inscripción</b> · <span class="pend">pendiente</span></span></li>`;
+}
+function responsableInscripcion(t){
+  if(t.inscripcionRecibio) return t.inscripcionRecibio;
+  const p=db.payments.find(x=>x.teamId===t.id&&x.tipo==='inscripcion');
+  return p?p.recibio:'';
+}
+function openPay(teamId,matchId,editId=null){
+  const t=teamById(teamId); if(!t) return;
+  const ed=editId?db.payments.find(x=>x.id===editId):null;
+  const m=matchById(matchId);
+  const b=balance(teamId);
+  const dos=b.insPend>0||(ed&&ed.tipo==='inscripcion');
+  const pays=db.payments.filter(p=>p.teamId===teamId).sort((x,y)=>String(y.fecha).localeCompare(String(x.fecha)));
+  // La inscripción va primero, después los arbitrajes del más reciente al más antiguo
+  const pagosOrdenados=[...pays.filter(p=>p.tipo==='inscripcion'),...pays.filter(p=>p.tipo!=='inscripcion')];
+  const ins=Number(db.config.inscripcion)||0;
+  const adeudo=b.insPend+b.arbPend;
+  openModal(`<form id="pay-form">
+    <h3>Pago · ${teamLink(t.id)}${m?` · <span class="cchip">Cancha ${m.field}</span>`:''}</h3>
+    ${dos
+      ?`<div class="dosc" style="${t.inscripcionPrevia?'grid-template-columns:1fr':''}">
+        <label id="p-ins-campo" style="${t.inscripcionPrevia?'display:none':''}">Inscripción<input class="montoGrande" name="monto_ins" type="number" min="0" step="1" placeholder="$0"></label>
+        <label>Arbitraje<input class="montoGrande" name="monto_arb" type="number" min="0" step="1" placeholder="$0"></label>
+      </div>
+      `:`<label>¿Cuánto está pagando? (arbitraje)<input class="montoGrande" name="monto_arb" type="number" min="0" step="1" placeholder="$0"></label>`}
+    <div class="insrow" style="${b.insPend>0?'':'display:none'}">
+      ${b.insPend>0?`<p class="rojo" id="p-adeudo" style="margin:0;${t.inscripcionPrevia?'display:none':''}">Adeudo de inscripción: ${money(b.insPend)}</p>`:''}
+      <label class="chk"><input type="checkbox" id="p-insprev" name="insPrevia" ${t.inscripcionPrevia||b.insPend<=0?'checked':''}> Ya pagó el 100% de la inscripción</label>
+    </div>
+    ${b.insPend<=0&&responsableInscripcion(t)?`<p class="insdone">Registro por: <b>${esc(responsableInscripcion(t))}</b></p>`:''}
+    <div id="p-insq" style="display:${b.insPend>0&&t.inscripcionPrevia?'block':'none'};margin-bottom:12px">
+      <div class="lbl">¿A quién se le pagó la inscripción?</div>
+      <div class="cuadros mini" id="p-insrecibe" style="${t.inscripcionRecibio?'display:none':''}">
+        ${cobradores().map(n=>`<button type="button" class="sq${t.inscripcionRecibio===n?' on':''}" data-ins="${esc(n)}">${esc(n)}</button>`).join('')}
+      </div>
+      <p class="insdone" id="p-insdone" style="${t.inscripcionRecibio?'':'display:none'}">Inscripción pagada a: <b id="p-insnom">${esc(t.inscripcionRecibio||'')}</b></p>
+      <input type="hidden" name="recibioIns" id="p-recibioIns" value="${esc(t.inscripcionRecibio||'')}">
+    </div>
+    <div class="resumen" id="p-res">
+      <div><small>Estado del equipo</small><span id="p-estado">${adeudo>0?`<b class="rojo">Adeudo ${money(adeudo)}</b>`:'<b class="verde">✔ Al corriente</b>'}</span></div>
+      <div><small>Número de juego</small><b id="p-num">${t.registroDesde?t.juegoActual:'—'}</b></div>
+    </div>
+    ${t.registroDesde?'':`<div class="lbl">¿En qué juego va el equipo? (solo la primera vez)</div>
+    <div class="tiles" id="p-juegos">
+      ${Array.from({length:db.config.totalJuegos},(_,i)=>i+1).map(n=>`<button type="button" class="tile" data-j="${n}">${n}</button>`).join('')}
+    </div>
+    <input type="hidden" name="desde" id="p-desde" value="">`}
+    <div class="lbl">Quién lo recibió</div>
+    <div class="cuadros" id="p-recibe">
+      ${cobradores().map(n=>`<button type="button" class="sq" data-n="${esc(n)}">${esc(n)}</button>`).join('')}
+    </div>
+    <input type="hidden" name="recibio" id="p-recibio" value="">
+    <div class="lbl">Método</div>
+    <div class="metodos" id="p-metodos">
+      <button type="button" class="met on" data-m="efectivo"><span class="ico">💵</span>Efectivo</button>
+      <button type="button" class="met" data-m="transferencia"><span class="ico">🏦</span>Transferencia</button>
+    </div>
+    <input type="hidden" name="metodo" id="p-metodo" value="efectivo">
+    <label id="p-cuenta-l" style="display:none">Cuenta donde se pagó<input name="cuenta" list="dl-cta" autocomplete="off"></label>
+    <label>Nota (opcional)<input name="nota" autocomplete="off"></label>
+    <p id="p-err" class="pend" style="margin:6px 0 10px"></p>
+    <datalist id="dl-cta">${optionsList(cuentasList())}</datalist>
+    <div class="actions">
+      <button type="button" class="btn ghost" data-act="close">Cancelar</button>
+      <button class="btn primary">Guardar pago</button>
+    </div>
+    <h4>Pagos de este equipo</h4>
+    ${`<ul class="plist">${filaInscripcionHTML(t)}${pagosOrdenados.map(p=>`<li>
+      <span>${esc(p.fecha)} · ${p.tipo==='inscripcion'?'Inscripción':'Arbitraje'} · <b>${money(p.monto)}</b><br>
+      <small>${esc(p.recibio)} · ${p.metodo==='transferencia'?'Transferencia':'Efectivo'}${p.cuenta?' · '+esc(p.cuenta):''}${p.nota?' · '+esc(p.nota):''}</small></span>
+      ${p.fecha===jornadaHoy()
+        ?`<button type="button" class="btn ghost sm" data-act="editpay" data-id="${p.id}" data-team="${teamId}" data-match="${matchId||''}">Editar</button>`
+        :'<small class="muted">Solo lectura</small>'}
+    </li>`).join('')}</ul>`}
+    ${juegosTablaHTML(teamId)}
+  </form>`);
+  // Quién recibe: cuadros (uno solo seleccionado)
+  $('#p-recibe').onclick=e=>{
+    const b=e.target.closest('[data-n]'); if(!b) return;
+    $('#p-recibio').value=b.dataset.n;
+    document.querySelectorAll('#p-recibe .sq').forEach(x=>x.classList.toggle('on',x===b));
+  };
+  // Juego en el que va el equipo (solo la primera vez): botones 1 a 15
+  const jg=$('#p-juegos');
+  if(jg) jg.onclick=e=>{
+    const b=e.target.closest('[data-j]'); if(!b) return;
+    $('#p-desde').value=b.dataset.j;
+    $('#p-err').textContent=''; document.querySelectorAll('.faltante').forEach(x=>x.classList.remove('faltante'));
+    $('#p-num').textContent=b.dataset.j;
+    jg.querySelectorAll('.tile').forEach(x=>x.classList.toggle('on',x===b));
+  };
+  // Método: iconos efectivo / transferencia
+  $('#p-metodos').onclick=e=>{
+    const b=e.target.closest('[data-m]'); if(!b) return;
+    const tr=b.dataset.m==='transferencia';
+    $('#p-metodo').value=b.dataset.m;
+    document.querySelectorAll('#p-metodos .met').forEach(x=>x.classList.toggle('on',x===b));
+    $('#p-cuenta-l').style.display=tr?'block':'none';
+  };
+  // Inscripción pagada: decidir a quién se le pagó
+  if(ed){ // editar un pago del día
+    const campo=document.querySelector(`[name="${ed.tipo==='inscripcion'?'monto_ins':'monto_arb'}"]`);
+    if(campo) campo.value=ed.monto;
+    document.querySelector(`#p-recibe [data-n="${ed.recibio}"]`)?.click();
+    document.querySelector(`#p-metodos [data-m="${ed.metodo}"]`)?.click();
+    const nota=document.querySelector('#pay-form [name="nota"]'); if(nota) nota.value=ed.nota||'';
+    const cta=document.querySelector('#pay-form [name="cuenta"]'); if(cta) cta.value=ed.cuenta||'';
+  }
+  // Al tocar un monto vacío se pone lo que se debe; si quieren otro, lo borran y escriben el suyo
+  const ta=document.querySelector('[name="monto_arb"]');
+  if(ta&&b.arbPend>0) ta.addEventListener('focus',()=>{ if(!ta.value) ta.value=b.arbPend; });
+  const ti=document.querySelector('[name="monto_ins"]');
+  if(ti&&b.insPend>0) ti.addEventListener('focus',()=>{ if(!ti.value) ti.value=b.insPend; });
+  $('#p-insprev').onchange=e=>{
+    $('#p-insq').style.display=e.target.checked?'block':'none';
+    // Si ya pagó la inscripción antes de la plataforma, no se pide el monto de inscripción aquí
+    const ic=$('#p-ins-campo'); if(ic) ic.style.display=e.target.checked?'none':'';
+    const dg=document.querySelector('.dosc'); if(dg) dg.style.gridTemplateColumns=e.target.checked?'1fr':'';
+    const rest=b.arbPend+(e.target.checked?0:b.insPend); const pe=$('#p-estado');
+    if(pe) pe.innerHTML=rest>0?`<b class="rojo">Adeudo ${money(rest)}</b>`:'<b class="verde">✔ Al corriente</b>';
+    const ad=$('#p-adeudo'); if(ad) ad.style.display=e.target.checked?'none':'';
+  };
+  $('#p-insrecibe').onclick=e=>{
+    const b=e.target.closest('[data-ins]'); if(!b) return;
+    $('#p-recibioIns').value=b.dataset.ins;
+    $('#p-insnom').textContent=b.dataset.ins;
+    $('#p-insrecibe').style.display='none';
+    $('#p-insdone').style.display='';
+  };
+  $('#pay-form').onsubmit=e=>{
+    e.preventDefault();
+    const fd=new FormData(e.target);
+    const mIns=fd.get('insPrevia')?0:Number(fd.get('monto_ins')||0), mArb=Number(fd.get('monto_arb')||0);
+    const pErr=(msg,el)=>{$('#p-err').textContent=msg;document.querySelectorAll('.faltante').forEach(x=>x.classList.remove('faltante'));if(el){el.classList.add('faltante');el.scrollIntoView({behavior:'smooth',block:'center'});}};
+    if(!(mIns>0||mArb>0)){pErr('⚠️ Escribe cuánto está pagando.',document.querySelector('.montoGrande'));return;}
+    if(!fd.get('recibio')){pErr('⚠️ Elige quién lo recibió.',$('#p-recibe'));return;}
+    t.inscripcionPrevia=!!fd.get('insPrevia');
+    if(t.inscripcionPrevia){
+      if(b.insPend>0&&!fd.get('recibioIns')&&!responsableInscripcion(t)){pErr('⚠️ Elige a quién se le pagó la inscripción.',$('#p-insq'));return;}
+      if(fd.get('recibioIns')) t.inscripcionRecibio=String(fd.get('recibioIns'));
+    }
+    if(!t.registroDesde){
+      // Primera vez: se guarda en qué juego va el equipo y desde cuándo cuenta el arbitraje
+      const desde=Number(fd.get('desde'));
+      if(!(desde>=1&&desde<=db.config.totalJuegos)){pErr('⚠️ Selecciona en qué JUEGO va el equipo para poder guardar.',$('#p-juegos'));return;}
+      t.desdeJuego=desde;
+      t.juegoActual=desde;
+      t.registroDesde=new Date().toISOString();
+    }
+    // Cada abono se guarda como su propio pago (inscripción y/o arbitraje)
+    const base={
+      id:uid(),teamId,matchId:matchId||null,
+      recibio:String(fd.get('recibio')).trim(),
+      metodo:String(fd.get('metodo')),
+      cuenta:String(fd.get('cuenta')||'').trim(),
+      fecha:jornadaHoy(),
+      nota:String(fd.get('nota')||'').trim(),
+      creado:new Date().toISOString()
+    };
+    if(editId){
+      const ex=db.payments.find(x=>x.id===editId);
+      if(!ex||ex.fecha!==jornadaHoy()){pErr('⚠️ Solo se pueden modificar pagos de esta jornada.',null);return;}
+      if(ex){const {id,...resto}=base; Object.assign(ex,resto,{tipo:mIns>0?'inscripcion':'arbitraje',monto:mIns>0?mIns:mArb});}
+    }else{
+      if(mIns>0) db.payments.push({...base,id:uid(),tipo:'inscripcion',monto:mIns});
+      if(mArb>0) db.payments.push({...base,id:uid(),tipo:'arbitraje',monto:mArb});
+    }
+    save(); closeModal(); renderAll();
+  };
+}
+// Ficha del equipo: integrantes, representante, estadísticas, partidos y pagos
+function abrirFicha(tid){
+  const t=teamById(tid); if(!t) return;
+  if(!equipoVisible(t)) return;
+  const b=balance(tid);
+  const d=b.insPend+b.arbPend;
+  const ms=matchesOf(tid).sort((x,y)=>String(y.creado||'').localeCompare(String(x.creado||'')));
+  let gf=0,gc=0,pg=0,pp=0,pe=0;
+  ms.filter(m=>m.terminado).forEach(m=>{
+    const r=m.resultado||{a:0,b:0};
+    const mio=m.a===tid?r.a:r.b, otro=m.a===tid?r.b:r.a;
+    gf+=mio; gc+=otro;
+    if(mio>otro) pg++; else if(mio<otro) pp++; else pe++;
+  });
+  const pays=db.payments.filter(p=>p.teamId===tid).sort((x,y)=>String(y.fecha).localeCompare(String(x.fecha)));
+  const rep=Object.entries(t.telefonos||{}).find(([n,tel])=>tel);
+  const actual=teamActiveMatch(tid);
+  openModal(`<div>
+    <h3>${esc(t.name)}</h3>
+    <div class="adeudos">
+      <div class="adeu"><b>Estado</b>${d?`<span class="pend">Debe ${money(d)}</span>`:'<span class="ok">✔ Al corriente</span>'}</div>
+      <div class="adeu"><b>Partido actual</b>${actual?`Cancha ${actual.field}`:'Sin partido'}</div>
+    </div>
+    <p><b>Total abonado:</b> ${money(sum(pays))} en ${pays.length} pago${pays.length===1?'':'s'}</p>
+    <p><b>Representante:</b> ${rep?`${esc(rep[0])} · ${esc(rep[1])}`:'—'}${t.lider?` · <b>Líder:</b> ${esc(t.lider)}`:''}</p>
+    <div class="resumen">
+      <div style="background:var(--yellow);color:#111"><small>Partidos</small><b>${ms.filter(m=>m.terminado).length}</b></div>
+      <div><small>Ganados</small><b class="verde">${pg}</b></div>
+      <div><small>Perdidos</small><b class="rojo">${pp}</b></div>
+      <div><small>Empates</small><b>${pe}</b></div>
+      <div><small>Goles a favor</small><b>${gf}</b></div>
+      <div><small>Goles en contra</small><b>${gc}</b></div>
+    </div>
+    <h4>Integrantes (${t.players.length})</h4>
+    <ul class="plist">${t.players.map(x=>`<li><span>${esc(x)}${t.lider===x?' · <b>líder</b>':''}</span></li>`).join('')||'<li><span class="muted">Sin integrantes</span></li>'}</ul>
+    <h4>Historial de partidos</h4>
+    ${ms.length?`<div class="scroll"><table class="jtabla">
+      <tr><th>Fecha</th><th>Juego</th><th>Rival</th><th>Resultado</th></tr>
+      ${ms.map(m=>{const r=m.resultado||{a:0,b:0};const mio=m.a===tid?r.a:r.b, otro=m.a===tid?r.b:r.a;const rival=m.a===tid?m.b:m.a;const res=!m.terminado?(m.activo?'<span class="muted">En curso</span>':'<span class="muted">Sin terminar</span>'):mio>otro?'<span class="ok">👑 Ganó</span>':mio<otro?'<span class="pend">Perdió</span>':'Empate';return `<tr><td>${esc(fechaCorta(diaLocal(m.creado)))}</td><td>${m.numero?'Juego '+m.numero:'Cancha '+m.field}</td><td>${teamLink(rival)}</td><td>${m.terminado?`${mio} – ${otro} ${res}`:res}</td></tr>`;}).join('')}
+    </table></div>`:'<p class="muted">Aún no ha jugado.</p>'}
+    <h4>Pagos (${pays.length})</h4>
+    ${pays.length?`<ul class="plist">${pays.map(p=>`<li><span>${esc(p.fecha)} · ${p.tipo==='inscripcion'?'Inscripción':'Arbitraje'} · <b>${money(p.monto)}</b><br><small>${esc(p.recibio)} · ${p.metodo==='transferencia'?'Transferencia':'Efectivo'}${p.cuenta?' · '+esc(p.cuenta):''}${p.nota?' · '+esc(p.nota):''}</small></span></li>`).join('')}</ul>`:'<p class="muted">Aún no hay pagos.</p>'}
+    ${juegosTablaHTML(tid)}
+    <div class="actions"><button type="button" class="btn danger" data-act="delteam" data-id="${esc(tid)}">Borrar equipo</button><button type="button" class="btn ghost" data-act="close">Cerrar</button></div>
+  </div>`);
+}
+const SILBATO='<img src="silbato.png" alt="" class="silb">';
+// Registro de arbitraje por juego: cuánto debía y cuánto pagó en cada juego
+function juegosTablaHTML(tid){
+  const t=teamById(tid); if(!t) return '';
+  const pago=Number(db.config.arbitraje)||0;
+  const desde=t.registroDesde||'';
+  // Juegos que se cobran: los creados desde que el equipo se registró
+  const ms=matchesOf(tid).filter(m=>!desde||String(m.creado||'')>=desde);
+  if(!ms.length) return '';
+  // Los abonos de arbitraje se reparten desde el juego más antiguo hasta el más nuevo
+  const arbTotal=sum(db.payments.filter(p=>p.teamId===tid&&p.tipo==='arbitraje'));
+  const asig={};
+  let pool=arbTotal;
+  [...ms].sort((x,y)=>String(x.creado||'').localeCompare(String(y.creado||''))).forEach(m=>{const ap=Math.min(pool,pago);asig[m.id]=ap;pool-=ap;});
+  const pagadoJuegos=sum(Object.values(asig));
+  const debeJuegos=Math.max(0,ms.length*pago-pagadoJuegos);
+  return `<h4>Historial de juegos</h4><div class="scroll"><table class="jtabla">
+    <tr><th>Juego</th><th>Fecha</th><th>Pagó</th><th>Debe</th></tr>
+    ${ms.map(m=>{const pag=asig[m.id]||0;const falta=Math.max(0,pago-pag);return `<tr><td>${m.numero?'Juego '+m.numero:'Cancha '+m.field}</td><td>${esc(fechaCorta(diaLocal(m.creado)))}</td><td style="color:#4ade80">${pag?'+'+money(pag):'—'}</td><td>${falta?`<span class="pend">${money(falta)}</span>`:'<span class="ok">✔ Pagado</span>'}</td></tr>`;}).join('')}
+    ${pool>0?`<tr><td>Abono de más</td><td>—</td><td style="color:#4ade80">+${money(pool)}</td><td>—</td></tr>`:''}
+    <tr><th>Total</th><th></th><th style="color:#4ade80">+${money(pagadoJuegos)}</th><th><span class="${debeJuegos?'pend':'ok'}">${debeJuegos?money(debeJuegos):'✔ Al corriente'}</span></th></tr>
+  </table></div>`;
+}
+// Fecha corta para las tablas: Sáb 21, nov
+function fechaCorta(ymd){
+  const [y,m,d]=String(ymd).split('-').map(Number);
+  if(!y) return ymd;
+  const dia=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][new Date(y,m-1,d).getDay()];
+  const mes=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][m-1];
+  return `${dia} ${d}, ${mes}`;
+}
+// Registrar un pago sin partido: buscar equipo o jugador
+function openBuscarPago(){
+  openModal(`<div>
+    <h3>Registrar pago</h3>
+    <label>Busca el equipo o el jugador<input id="bp-q" autocomplete="off" placeholder="Escribe el nombre"></label>
+    <div id="bp-list"></div>
+    <div class="actions"><button type="button" class="btn ghost" data-act="close">Cancelar</button></div>
+  </div>`);
+  const q=$('#bp-q');
+  const pintar=()=>{
+    const toks=norm(q.value.trim()).split(/\s+/).filter(Boolean);
+    if(!toks.length){$('#bp-list').innerHTML='';return;}
+    const hits=db.teams.filter(t=>toks.every(k=>norm(t.name).includes(k)||t.players.some(x=>norm(x).includes(k))));
+    $('#bp-list').innerHTML=hits.length
+      ?`<div class="reslist">${hits.slice(0,30).map(t=>{const b=balance(t.id);const d=b.insPend+b.arbPend;return `<button type="button" data-act="pagopick" data-team="${t.id}"><b>${esc(t.name)}</b><br><small class="${d?'pend':'ok'}">${d?'Debe '+money(d):'Al corriente'}</small></button>`;}).join('')}</div>`
+      :'<div class="reslist"><div class="empty-res">No hay coincidencias.</div></div>';
+  };
+  q.addEventListener('input',pintar);
+  q.focus();
+}
+// Marcador manual: se escribe el marcador de los dos equipos
+function openMarcadorManual(mid){
+  const m=matchById(mid); if(!m) return;
+  openModal(`<form id="mm-form">
+    <h3>Marcador manual · Cancha ${m.field}</h3>
+    <div class="marcador"><b>${teamLink(m.a)}</b><span class="marcin"><input type="number" min="0" max="99" inputmode="numeric" name="sa" id="mm-sa" value="${m.sa||0}"> – <input type="number" min="0" max="99" inputmode="numeric" name="sb" id="mm-sb" value="${m.sb||0}"></span><b>${teamLink(m.b)}</b></div>
+    <p id="mm-err" class="pend"></p>
+    <div class="actions">
+      <button type="button" class="btn ghost" data-act="close">Cancelar</button>
+      <button class="btn primary">Guardar marcador</button>
+    </div>
+  </form>`);
+  $('#mm-form').onsubmit=e=>{
+    e.preventDefault();
+    const fd=new FormData(e.target);
+    const sa=parseInt(fd.get('sa'),10), sb=parseInt(fd.get('sb'),10);
+    if(!(sa>=0&&sb>=0)){$('#mm-err').textContent='Escribe el marcador con números de 0 en adelante.';return;}
+    m.sa=sa; m.sb=sb;
+    save(); closeModal(); renderAll();
+  };
+}
+function openTerminar(mid){
+  const m=matchById(mid); if(!m) return;
+  const adeudoHTML=(tid)=>{const b=balance(tid);const d=b.insPend+b.arbPend;return `<div class="adeu"><b>${teamLink(tid)}</b>${d?`<span class="pend">Debe ${money(d)}${b.insPend?` · inscripción ${money(b.insPend)}`:''}</span>`:'<span class="ok">✔ Al corriente</span>'}</div>`;};
+  const yaArb=!!m.arbitro;
+  openModal(`<form id="tp-form">
+    <h3>Terminar partido · Cancha ${m.field}</h3>
+    <div class="marcador"><b class="${(m.sa||0)>(m.sb||0)?'ganador':''}">${teamLink(m.a)}</b><span class="marcin"><input type="number" min="0" max="99" inputmode="numeric" name="sa" id="tp-sa" value="${m.sa||0}"> – <input type="number" min="0" max="99" inputmode="numeric" name="sb" id="tp-sb" value="${m.sb||0}"></span><b class="${(m.sb||0)>(m.sa||0)?'ganador':''}">${teamLink(m.b)}</b></div>
+    <div class="adeudos">${adeudoHTML(m.a)}${adeudoHTML(m.b)}</div>
+    ${yaArb
+      ?`<p class="muted" style="margin:0 0 10px">Lo pita: <b style="color:#111">${arbNombreHTML(m.arbitro)}</b></p><input type="hidden" name="arbitro" id="tp-val" value="${esc(m.arbitro)}">`
+      :`<label>Árbitro<input id="tp-q" autocomplete="off" placeholder="Escribe el nombre del árbitro"></label>
+        <div class="sugs" id="tp-list"></div>
+        <input type="hidden" name="arbitro" id="tp-val" value="">`}
+    <p id="tp-err" class="pend"></p>
+    <div class="actions">
+      <button type="button" class="btn ghost" data-act="close">Cancelar</button>
+      <button class="btn primary">Terminar partido</button>
+    </div>
+  </form>`);
+  if(!yaArb){
+    const q=$('#tp-q'), list=$('#tp-list'), val=$('#tp-val');
+    const pintar=()=>{
+      const toks=norm(q.value.trim()).split(/\s+/).filter(Boolean);
+      // Solo aparecen los árbitros que coinciden con lo que se escribe: se elige uno
+      const hits=toks.length?(db.config.arbitros||[]).filter(a=>toks.every(k=>norm(a+' '+arbNom(a)).includes(k))):[];
+      list.innerHTML=hits.map(a=>`<button type="button" class="sug" data-act="tp-pick" data-n="${esc(a)}">${arbNombreHTML(a)}</button>`).join('')
+        +(toks.length&&!hits.length?`<button type="button" class="sug nuevo" data-act="tp-nuevo" data-n="${esc(q.value.trim())}">+ Agregar árbitro</button>`:'');
+    };
+    q.addEventListener('input',()=>{val.value='';pintar();});
+    pintar();
+  }
+  $('#tp-form').onsubmit=e=>{
+    e.preventDefault();
+    const fd=new FormData(e.target);
+    const arb=String(fd.get('arbitro')||'').trim();
+    if(!arb){$('#tp-err').textContent='Para terminar el partido, elige o agrega quién lo pitó.';return;}
+    const sa=parseInt(fd.get('sa'),10), sb=parseInt(fd.get('sb'),10);
+    if(!(sa>=0&&sb>=0)){$('#tp-err').textContent='Escribe el marcador final con números de 0 en adelante.';return;}
+    if(!db.config.arbitros.some(a=>norm(a)===norm(arb))) db.config.arbitros.push(arb);
+    m.terminado=true;
+    // Cada equipo avanza al siguiente juego al terminar su partido
+    [teamById(m.a),teamById(m.b)].forEach(t=>{if(t?.juegoActual) t.juegoActual=Math.min(db.config.totalJuegos,t.juegoActual+1);});
+    m.activo=false;
+    m.sa=sa; m.sb=sb;
+    m.resultado={a:m.sa||0,b:m.sb||0};
+    m.arbitro=arb;
+    m.terminadoEn=new Date().toISOString();
+    save(); closeModal(); renderAll();
+  };
+}
+function partidosTerminadosHTML(){
+  const ts=db.matches.filter(m=>m.terminado&&partidoVisible(m)).sort((a,b)=>String(b.terminadoEn).localeCompare(String(a.terminadoEn)));
+  return `<h3>Partidos terminados</h3><div class="scroll"><table>
+    <tr><th>Cancha</th><th>Equipos</th><th>Marcador</th><th>Árbitro</th></tr>
+    ${ts.length?ts.map(m=>`<tr><td>${m.field}</td>
+      <td>${teamLink(m.a)} vs ${teamLink(m.b)}</td>
+      <td>${m.resultado?m.resultado.a:0} – ${m.resultado?m.resultado.b:0}</td>
+      <td>${m.arbitro?arbNombreHTML(m.arbitro):'—'}</td></tr>`).join(''):'<tr><td colspan="5" class="muted">Aún no hay partidos terminados</td></tr>'}
+  </table></div>`;
+}
+function deletePayment(id,teamId,matchId){
+  const pg=db.payments.find(x=>x.id===id);
+  if(!pg||pg.fecha!==today()){alert('Solo se pueden borrar pagos del mismo día.');return;}
+  if(!confirm('¿Borrar este pago?')) return;
+  db.payments=db.payments.filter(p=>p.id!==id);
+  save(); renderAll();
+  openPay(teamId,matchId);
+}
+// Resumen de Pagos: totales, cobradores, canchas, árbitros y juegos de hoy
+// La jornada va de 5 a.m. a 5 a.m.: lo registrado antes de las 5 a.m. cuenta para el día anterior
+function diaLocal(iso){const d=iso?new Date(iso):new Date();d.setHours(d.getHours()-5);return ymd(d);}
+function jornadaHoy(){return diaLocal();}
+function dashboardHTML(pagosF,totIns,totArb,pend){
+  // Cada cobrador: cuánto cobró en efectivo y en transferencia; al tocar, desglose por equipo
+  let totEf=0, totTr=0; // lo que se ve en esta cuenta: depósito (efectivo) y transferencia
+  const cobra=cobradores().filter(n=>veTodo()||n===usuarioActual()?.nombre).map(n=>{
+    const ps=pagosF.filter(p=>p.recibio===n);
+    const ef=sum(ps.filter(p=>p.metodo!=='transferencia'));
+    const tr=sum(ps.filter(p=>p.metodo==='transferencia'));
+    totEf+=ef; totTr+=tr;
+    const porEq={};
+    ps.forEach(p=>{const e=(porEq[p.teamId]=porEq[p.teamId]||{ef:0,tr:0}); const mt=Number(p.monto)||0; if(p.metodo==='transferencia') e.tr+=mt; else e.ef+=mt;});
+    const filas=Object.entries(porEq).sort((a,b)=>(b[1].ef+b[1].tr)-(a[1].ef+a[1].tr)).map(([tid,v])=>`<li><span><b>${esc(teamName(tid))}</b><br><small class="muted">💸 ${money(v.ef)} · 💳 ${money(v.tr)}</small></span><b>${money(v.ef+v.tr)}</b></li>`).join('');
+    return `<details class="dcard dcob"><summary><b>${esc(n)}</b><div class="cobtot">${money(ef+tr)}</div></summary>
+      <div class="cobsplit"><span>💸 Efectivo<br><b>${money(ef)}</b></span><span>💳 Transferencia<br><b>${money(tr)}</b></span></div>
+      ${filas?`<ul class="plist">${filas}</ul>`:'<p class="muted">Sin pagos en este periodo.</p>'}</details>`;
+  }).join('');
+  const terminados=db.matches.filter(m=>m.terminado&&partidoVisible(m)&&enRango(diaLocal(m.terminadoEn)));
+  const canchas=[1,2,3,4].map(f=>{
+    const ms=terminados.filter(m=>m.field===f);
+    const ids=new Set(ms.map(m=>m.id));
+    const dinero=sum(pagosF.filter(p=>ids.has(p.matchId)));
+    return `<div class="dcard dsq cancha-card"><div class="cnum">${f}</div><div class="muted">${ms.length} juego${ms.length===1?'':'s'}</div><b>${money(dinero)}</b></div>`;
+  }).join('');
+  // Conteo de juegos por árbitro: todos los perfiles ven todos los juegos de cada árbitro
+  const arbs={};
+  db.matches.filter(m=>m.terminado&&enRango(diaLocal(m.terminadoEn))).forEach(m=>{arbs[m.arbitro]=(arbs[m.arbitro]||0)+1;});
+  const pagoA=Number(db.config.pagoArbitro)||0;
+  // Gráfica de barras: arriba lo que va generando cada árbitro, abajo su nombre
+  const arbEntries=Object.entries(arbs).sort((a,b)=>b[1]-a[1]);
+  const maxA=Math.max(1,...arbEntries.map(([n,c])=>c*pagoA));
+  const arbHTML=arbEntries.length
+    ?`<div class="barras">${arbEntries.map(([n,c])=>{const v=c*pagoA;const h=Math.max(8,Math.round(v/maxA*140));return `<div class="barcol"><small>${money(v)}</small><div class="bar" style="height:${h}px"></div><b>${arbNombreHTML(n)}</b><small class="muted">${c} juego${c===1?'':'s'}</small></div>`;}).join('')}</div>`
+    :'<p class="muted">Aún no hay juegos arbitrados.</p>';
+  // Juegos del periodo elegido (Hoy, Ayer, etc.)
+  const jd=db.matches.filter(m=>partidoVisible(m)&&enRango(diaLocal(m.creado)));
+  const nCols=veTodo()?8:7;
+  // Quién cobró al equipo en el periodo (solo se muestra a quien ve todo)
+  const cobroDe=(tid)=>[...new Set(pagosF.filter(p=>p.teamId===tid).map(p=>p.recibio).filter(Boolean))].join(', ')||'—';
+  // Una fila por equipo: equipo, juego, inscripción, arbitraje, pagado total y saldo
+  const celda=(pend)=>pend>0?`<span class="pend">−${money(pend)}</span>`:'<span class="ok">✔</span>';
+  const fila=(m,tid)=>{
+    const t=teamById(tid), bal=balance(tid);
+    const r=m.terminado?(m.resultado||{a:0,b:0}):{a:m.sa||0,b:m.sb||0};
+    const mio=m.a===tid?r.a:r.b;
+    const d=bal.insPend+bal.arbPend;
+    const arbP=sum(pagosF.filter(p=>p.teamId===tid&&p.tipo==='arbitraje'));
+    return `<tr>
+      <td class="cins">${celda(bal.insPend)}</td>
+      <td style="color:#4ade80;font-weight:700">${m.numero||'—'}</td>
+      <td class="nm"><button type="button" class="eqlink" data-act="ficha" data-team="${tid}">${esc(t?t.name:'—')}</button></td>
+      <td class="res-y">${mio}</td>
+      <td>${money(arbP)}</td>
+      <td>${celda(bal.arbPend)}</td>
+      <td><button type="button" class="eqlink ${d?'pend':'ok'}" data-act="ficha" data-team="${tid}">${money(d)}</button></td>
+      ${veTodo()?`<td>${esc(cobroDe(tid))}</td>`:''}
+    </tr>`;
+  };
+  // Por cancha (1 a 4); dentro de cada cancha, los más recientes arriba
+  const porCancha=[...new Set(jd.map(m=>m.field))].sort((a,b)=>a-b);
+  const jdHTML=jd.length
+    ?`<div class="scroll"><table class="jtabla">
+        <tr><th class="cins">Inscripción</th><th>Juego</th><th class="nm">Equipo</th><th>Goles</th><th>Arbitraje</th><th>Saldo pasado</th><th>Saldo final</th>${veTodo()?'<th>Cobró</th>':''}</tr>
+        ${porCancha.map(c=>{
+          const lista=jd.filter(m=>m.field===c).sort((x,y)=>String(y.creado||'').localeCompare(String(x.creado||'')));
+          return `<tr class="cancha-sep"><td colspan="${nCols}"><b>Cancha ${c}</b></td></tr>`+lista.map(m=>`<tr class="sep"><td colspan="${nCols}" style="text-align:left"><span class="vs">vs</span> <b style="color:var(--yellow)">${m.numero?'Juego '+m.numero+' · ':''}${esc(new Date(m.creado||0).toLocaleTimeString('es-MX',{hour:'numeric',minute:'2-digit'}))}</b>${m.arbitro?` <b style="color:var(--yellow)">· ${esc(m.arbitro)}</b>`:''}</td></tr>${(()=>{ // El equipo que va ganando (o ganó) va primero
+            const r=m.terminado?(m.resultado||{a:0,b:0}):{a:m.sa||0,b:m.sb||0};
+            const [p,q]=r.b>r.a?[m.b,m.a]:[m.a,m.b];
+            return fila(m,p)+fila(m,q);
+          })()}`).join('');
+        }).join('')}
+        ${(()=>{ // Totales: cada equipo se cuenta una sola vez aunque haya jugado varios partidos
+          const eqs=[...new Set(jd.flatMap(m=>[m.a,m.b]))];
+          const pagado=pagosF.filter(p=>p.tipo==='arbitraje'&&eqs.includes(p.teamId)).reduce((s,p)=>s+(Number(p.monto)||0),0);
+          const saldo=eqs.reduce((s,tid)=>{const b=balance(tid);return s+b.insPend+b.arbPend;},0);
+          return `<tr class="sep"><td colspan="4"><b>Totales</b></td><td><b>${money(pagado)}</b></td><td></td><td><b class="${saldo?'pend':'ok'}">${saldo?money(saldo):'✔ Al corriente'}</b></td>${veTodo()?'<td></td>':''}</tr>`;
+        })()}
+      </table></div>`
+    :'<p class="muted">No hay juegos en este periodo.</p>';
+  const soloMio=!veTodo();
+  const miNom=usuarioActual()?.nombre||'';
+  // Desglose del corte: cada abono con hora, monto, equipo y quien pagó (el líder del equipo)
+  const lineasCorte=(tr)=>pagosF.filter(p=>p.recibio===miNom&&(tr?p.metodo==='transferencia':p.metodo!=='transferencia'))
+    .sort((a,b)=>new Date(a.creado)-new Date(b.creado))
+    .map(p=>{const t=db.teams.find(x=>x.id===p.teamId);const hora=new Date(p.creado).toLocaleTimeString('es-MX',{hour:'numeric',minute:'2-digit'});
+      return `<li><span><b>${esc(hora)}</b> · <b style="color:var(--yellow)">+${money(p.monto)}</b><br><small class="muted">${esc(t?t.name:'—')} · pagó ${esc(t?.lider||'—')}</small></span></li>`;}).join('')||'<li class="muted">Sin abonos</li>';
+  return `
+    <div class="kpis">
+      <div><small>Inscripciones</small><b>${money(totIns)}</b></div>
+      <div><small>Arbitrajes</small><b>${money(totArb)}</b></div>
+      <div><small>Pendiente de cobrar</small><b class="${pend?'pend':'ok'}">${money(pend)}</b></div>
+    </div>
+    ${soloMio?`<h3 class="yel">Corte de ${esc(miNom)}</h3><div class="dgrid" style="grid-template-columns:1fr 1fr;align-items:start"><div><div class="dcard tot"><small class="muted">💸 Total en depósito</small><b>${money(totEf)}</b></div><ul class="plist">${lineasCorte(false)}</ul></div><div><div class="dcard tot"><small class="muted">💳 Total en transferencia</small><b>${money(totTr)}</b></div><ul class="plist">${lineasCorte(true)}</ul></div></div>`:`<h3 class="yel">Cobradores</h3><div class="dgrid" style="grid-template-columns:1fr 1fr"><div class="dcard tot"><small class="muted">💸 Total en depósito</small><b>${money(totEf)}</b></div><div class="dcard tot"><small class="muted">💳 Total en transferencia</small><b>${money(totTr)}</b></div></div><div class="cobgrid">${cobra}</div>`}
+    <h3 class="yel">Canchas</h3><div class="dgrid cuatro">${canchas}</div>
+    <h3 class="yel">Pagos por árbitro</h3><div class="dlist">${arbHTML}</div>
+    <h3 class="yel">Juegos del periodo</h3>${jdHTML}`;
+}
+// Filtro de fechas en Pagos (hoy, semana, mes, rango o todo)
+let filtroPagos={modo:'hoy',desde:'',hasta:'',abierto:false};
+const PERIODOS=[['hoy','Hoy'],['ayer','Ayer'],['semana','Esta semana'],['semana_pas','Semana pasada'],['mes','Este mes'],['mes_pas','Mes pasado'],['d30','Últimos 30 días'],['anio','Este año'],['todo','Total']];
+function ymd(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+// Fechas (desde, hasta) de cada periodo; vacío = sin límite
+function rangoDe(modo){
+  const hoy=new Date(); hoy.setHours(hoy.getHours()-5);
+  const h=ymd(hoy);
+  const dias=n=>{const x=new Date(hoy);x.setDate(x.getDate()+n);return ymd(x);};
+  const lunes=(semanas)=>{const x=new Date(hoy);x.setDate(x.getDate()-((x.getDay()+6)%7)-semanas*7);return x;};
+  if(modo==='hoy') return [h,h];
+  if(modo==='ayer') return [dias(-1),dias(-1)];
+  if(modo==='semana') return [ymd(lunes(0)),h];
+  if(modo==='semana_pas'){const a=lunes(1);const b=new Date(a);b.setDate(b.getDate()+6);return [ymd(a),ymd(b)];}
+  if(modo==='mes') return [h.slice(0,8)+'01',h];
+  if(modo==='mes_pas'){return [ymd(new Date(hoy.getFullYear(),hoy.getMonth()-1,1)),ymd(new Date(hoy.getFullYear(),hoy.getMonth(),0))];}
+  if(modo==='d30') return [dias(-29),h];
+  if(modo==='anio') return [h.slice(0,4)+'-01-01',h];
+  if(modo==='rango') return [filtroPagos.desde,filtroPagos.hasta];
+  return ['',''];
+}
+function enRango(f){
+  const s=String(f||''), [a,b]=rangoDe(filtroPagos.modo);
+  return (!a||s>=a)&&(!b||s<=b);
+}
+function etiquetaPeriodo(){
+  const p=PERIODOS.find(x=>x[0]===filtroPagos.modo);
+  if(p) return p[1];
+  const [a,b]=rangoDe('rango');
+  const fmt=s=>s?`${s.slice(8,10)}/${s.slice(5,7)}/${s.slice(0,4)}`:'…';
+  return `${fmt(a)} → ${fmt(b)}`;
+}
+function filtroHTML(){
+  const chips=PERIODOS.map(([k,l])=>`<button type="button" class="fchip${filtroPagos.modo===k?' on':''}" data-act="filtro" data-modo="${k}">${l}</button>`).join('');
+  return `<div class="fbox">
+    <button type="button" class="pbtn" data-act="periodo">
+      <span>📅 ${esc(etiquetaPeriodo())}</span><span class="flecha">${filtroPagos.abierto?'▴':'▾'}</span>
+    </button>
+    ${filtroPagos.abierto?`<div class="ppanel">
+      <div class="fchips">${chips}</div>
+      <div class="plbl">Rango personalizado</div>
+      ${calHTML()}
+    </div>`:''}
+  </div>`;
+}
+// Calendario para elegir un rango: toca el primer día y luego el último
+function calHTML(){
+  const hoy=new Date();
+  const y=filtroPagos.calY??hoy.getFullYear(), m=filtroPagos.calM??hoy.getMonth();
+  const primero=new Date(y,m,1);
+  const dias=new Date(y,m+1,0).getDate();
+  const {desde,hasta}=filtroPagos;
+  let celdas='';
+  for(let i=0;i<primero.getDay();i++) celdas+='<span></span>';
+  for(let d=1;d<=dias;d++){
+    const s=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const cls=['cd',(s===desde||s===hasta)?'fin':'',(desde&&hasta&&s>desde&&s<hasta)?'medio':''].join(' ').trim();
+    celdas+=`<button type="button" class="${cls}" data-act="caldia" data-d="${s}">${d}</button>`;
+  }
+  const nombre=primero.toLocaleDateString('es-MX',{month:'long',year:'numeric'});
+  const pista=!desde?'Toca el primer día':(!hasta?'Ahora toca el último día':'');
+  return `<div class="cal">
+    <div class="calhead"><button type="button" class="calnav" data-act="calprev" aria-label="Mes anterior">‹</button><b>${esc(nombre)}</b><button type="button" class="calnav" data-act="calnext" aria-label="Mes siguiente">›</button></div>
+    <div class="calgrid calsem">${['do','lu','ma','mi','ju','vi','sá'].map(x=>`<span>${x}</span>`).join('')}</div>
+    <div class="calgrid">${celdas}</div>
+    <p class="calhint">${pista}</p>
+  </div>`;
+}
+// Buscador de Pagos: cobrador (movimientos de hoy), árbitro (cuánto le deben), equipo (juegos y adeudo), jugador (estado)
+let pqTerm='';
+let pqSel=null; // lo que se seleccionó de la lista: {tipo, val}
+// Lista de opciones: cobrador, árbitro, equipo o jugador (se elige una)
+function resultadoBusqueda(){
+  const term=norm(pqTerm.trim()); if(!term) return '';
+  const toks=term.split(/\s+/).filter(Boolean);
+  const hit=(x)=>toks.every(k=>norm(x).includes(k));
+  const opts=[];
+  cobradores().filter(n=>veTodo()||n===usuarioActual()?.nombre).filter(hit).forEach(n=>opts.push({tipo:'cobrador',val:n,txt:n,sub:'Cobrador'}));
+  (veTodo()?(db.config.arbitros||[]):[]).filter(a=>hit(a)||hit(arbNom(a))).forEach(a=>opts.push({tipo:'arbitro',val:a,txt:a,sub:'Árbitro'}));
+  db.teams.filter(equipoVisible).filter(t=>hit(t.name)).forEach(t=>opts.push({tipo:'equipo',val:t.id,txt:t.name,sub:'Equipo'}));
+  db.teams.filter(equipoVisible).forEach(t=>t.players.filter(x=>hit(x)&&!hit(t.name)).forEach(x=>opts.push({tipo:'equipo',val:t.id,txt:x,sub:'Jugador de '+t.name})));
+  if(!opts.length) return '<div class="reslist"><div class="empty-res">No hay coincidencias.</div></div>';
+  return `<div class="reslist">${opts.slice(0,30).map(o=>`<button type="button" class="${pqSel&&pqSel.tipo===o.tipo&&String(pqSel.val)===String(o.val)?'on':''}" data-act="pqsel" data-tipo="${o.tipo}" data-val="${esc(String(o.val))}"><b>${esc(o.txt)}</b><br><small>${o.sub}</small></button>`).join('')}</div>`;
+}
+function etiquetaSeleccion(){
+  if(!pqSel) return '';
+  if(pqSel.tipo==='equipo') return teamName(pqSel.val);
+  return pqSel.val;
+}
+document.addEventListener('input',e=>{
+  if(e.target.id!=='pq') return;
+  pqTerm=e.target.value; pqSel=null;
+  renderPagos();
+  const pq=$('#pq'); if(pq){pq.focus(); pq.setSelectionRange(pqTerm.length,pqTerm.length);}
+});
+// El reporte sigue la selección de la lista (no lo que se escriba)
+function pqFoco(){
+  if(!pqSel) return null;
+  if(pqSel.tipo==='equipo') return {tipo:'equipo',id:pqSel.val};
+  return {tipo:pqSel.tipo,nombre:pqSel.val};
+}
+function enFoco(p,f){
+  if(!f) return true;
+  if(f.tipo==='cobrador') return p.recibio===f.nombre;
+  if(f.tipo==='equipo') return p.teamId===f.id;
+  if(f.tipo==='arbitro'){const ids=new Set(db.matches.filter(m=>m.arbitro===f.nombre).map(m=>m.id)); return ids.has(p.matchId);}
+  return true;
+}
+// Enlace de WhatsApp al responsable (líder) del equipo con el saldo pendiente
+function waLink(t,d){
+  const lider=t.lider||t.players[0]||'';
+  const tel=(t.telefonos&&(t.telefonos[lider]||Object.values(t.telefonos).find(Boolean)))||'';
+  if(!tel) return '<small class="muted">Sin teléfono</small>';
+  const msg=`Hola ${lider}, Te escribimos de Rancho Seco: para recordarte tu saldo pendiente de ${t.name} es de ${money(d)}.⚽ Te pedimos pasar a pagarlo antes de su próximo juego. ¡Gracias!`;
+  return `<a class="wa" href="https://wa.me/52${tel}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener" title="Enviar saldo por WhatsApp" aria-label="Enviar saldo por WhatsApp"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="#25D366" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2z"/><path fill="#fff" d="M9 8c.3-.6.6-.6 1-.6h.5c.2 0 .4 0 .5.4l.7 1.6c.1.2 0 .4-.1.6l-.5.6c.6 1.2 1.6 2.2 2.8 2.8l.6-.5c.2-.1.4-.2.6-.1l1.6.7c.4.2.4.3.4.5v.5c0 .4 0 .7-.6 1-.6.3-1.5.6-2.8 0-2-1-3.4-2.4-4.3-4.3-.6-1.3-.3-2.2 0-2.8z"/></svg></a>`;
+}
+function renderPagos(){
+  const foco=pqFoco();
+  const rows=db.teams.filter(equipoVisible).filter(t=>!foco||foco.tipo!=='equipo'||t.id===foco.id).map(t=>({t,b:balance(t.id)}));
+  const pagosF=db.payments.filter(p=>enRango(p.fecha)&&enFoco(p,foco)&&pagoVisible(p));
+  const totIns=sum(pagosF.filter(p=>p.tipo==='inscripcion'));
+  const totArb=sum(pagosF.filter(p=>p.tipo==='arbitraje'));
+  const pend=rows.reduce((s,r)=>s+r.b.insPend+r.b.arbPend,0);
+  const byKey=k=>{
+    const o={};
+    pagosF.forEach(p=>{const kk=p[k]||'—';o[kk]=(o[kk]||0)+Number(p.monto||0);});
+    return Object.entries(o).sort((a,b)=>b[1]-a[1]);
+  };
+  const mini=(title,list)=>`<h4>${title}</h4><div class="scroll"><table>${
+    list.length?list.map(([k,v])=>`<tr><td>${esc(k)}</td><td style="text-align:right">${money(v)}</td></tr>`).join(''):'<tr><td class="muted">Sin pagos</td></tr>'
+  }</table></div>`;
+  const hist=[...pagosF].sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha)));
+  $('#pagos').innerHTML=`
+    <input id="pq" class="pq" autocomplete="off" placeholder="Busca cobrador, equipo, jugador o árbitro" value="${esc(pqTerm)}">
+    <div id="pqres">${resultadoBusqueda()}${pqSel?`<div class="pqban">Mostrando: <b>${esc(etiquetaSeleccion())}</b> <button type="button" class="link" data-act="pqclear">Quitar</button></div>`:''}</div>
+    ${filtroHTML()}
+    ${dashboardHTML(pagosF,totIns,totArb,pend)}
+    <h3 class="yel">Saldo por equipo</h3>
+    <div class="scroll"><table class="jtabla">
+      <tr><th>Equipo</th><th>Debe</th><th></th></tr>
+      ${rows.length?rows.map(({t,b})=>`<tr>
+        <td>${teamLink(t.id)}</td>
+        <td class="${b.insPend+b.arbPend?'pend':'ok'}">${b.insPend+b.arbPend?money(b.insPend+b.arbPend):'Al corriente'}</td>
+        <td>${b.insPend+b.arbPend?waLink(t,b.insPend+b.arbPend):''}</td>
+      </tr>`).join(''):'<tr><td colspan="2" class="muted">Sin equipos</td></tr>'}
+    </table></div>
+    `;
+}
+
+/* ---------- Equipos ---------- */
+const cap=s=>s?s.charAt(0).toUpperCase()+s.slice(1):s; // primera letra en mayúscula
+let draft=null; // equipo en edición: {id,name,players:[],lider}
+function openTeam(id,presetName='',desdeBusqueda=false,jugador=null){
+  if(id&&!equipoVisible(teamById(id))) return;
+  const t=id?teamById(id):null;
+  draft={id:t?t.id:null,name:t?t.name:cap(presetName),players:t?[...t.players]:(jugador?[cap(jugador)]:[]),lider:t?t.lider:(jugador?cap(jugador):null),desdeBusqueda,tel:{...(t?.telefonos||{})}};
+  openModal(`<form id="tm-form" onsubmit="return false">
+    <h3>${t?'Editar equipo':'Nuevo equipo'}</h3>
+    <label>Nombre del equipo<input id="tm-name" autocomplete="off" value="${esc(draft.name)}"></label>
+    ${desdeBusqueda?'<label class="chk"><input type="checkbox" id="tm-noexiste"> Confirmo que revisé la lista y ningún equipo es este</label>':''}
+    <label class="chk" id="tm-otro-l" style="display:none"><input type="checkbox" id="tm-otro"> Confirmo que es otro equipo, distinto a los parecidos</label>
+    <label>Jugadores (el primero es el líder, quien paga)</label>
+    <div class="addrow">
+      <input id="tm-pl" autocomplete="off" placeholder="Nombre del jugador">
+    </div>
+    <div class="addrow">
+      <input id="tm-tel" type="tel" inputmode="tel" autocomplete="off" placeholder="Teléfono (opcional, 10 dígitos)">
+      <button type="button" class="btn primary sm" data-act="addplayer">Agregar</button>
+    </div>
+    <ul class="plist" id="tm-list"></ul>
+    <p id="tm-err" class="pend"></p>
+    <div class="actions">
+      <button type="button" class="btn ghost" data-act="close">Cancelar</button>
+      <button type="button" class="btn primary" data-act="saveteam">Guardar equipo</button>
+    </div>
+  </form>`);
+  // Teléfono: 10 dígitos con formato 3-3-4 (844 525 6354)
+  $('#tm-tel').addEventListener('input',e=>{
+    const d=e.target.value.replace(/\D/g,'').slice(0,10);
+    e.target.value=[d.slice(0,3),d.slice(3,6),d.slice(6)].filter(Boolean).join(' ');
+  });
+  $('#tm-name').addEventListener('input',()=>{
+    const sim=similares($('#tm-name').value.trim());
+    $('#tm-err').textContent=sim.length?`Ya existe o se parece a: ${sim.map(x=>x.name).join(', ')}. Búscalo antes de registrarlo.`:'';
+  });
+  renderDraft();
+  $('#tm-pl').focus();
+}
+function renderDraft(){
+  const list=$('#tm-list'); if(!list) return;
+  list.innerHTML=draft.players.length?draft.players.map((p,i)=>`<li>
+    <span>${esc(p)} <small class="muted">${esc(draft.tel[p]||'sin teléfono')}</small>${p===draft.lider?' <b>· LÍDER (paga)</b>':''}</span>
+    <span class="rowbtns">
+      ${p===draft.lider?'':`<button type="button" class="btn ghost sm" data-act="lider" data-i="${i}">Hacer líder</button>`}
+      <button type="button" class="btn danger sm" data-act="quitarj" data-i="${i}">Quitar</button>
+    </span></li>`).join(''):'<li class="muted">Aún no hay jugadores.</li>';
+}
+function addPlayerDraft(){
+  const inp=$('#tm-pl');
+  const name=cap(inp.value.trim());
+  if(!name) return;
+  if(draft.players.some(p=>norm(p)===norm(name))){$('#tm-err').textContent='Ese jugador ya está en la lista.';return;}
+  const tel=($('#tm-tel').value||'').replace(/\D/g,'');
+  if(tel&&!/^\d{10}$/.test(tel)){$('#tm-err').textContent='El teléfono debe tener 10 números.';return;}
+  if(!draft.players.length&&!/^\d{10}$/.test(tel)){$('#tm-err').textContent='El primer jugador necesita su teléfono (10 dígitos).';return;}
+  draft.tel[name]=tel;
+  draft.players.push(name);
+  if(!draft.lider) draft.lider=name;
+  inp.value=''; $('#tm-err').textContent='';
+  renderDraft(); inp.focus();
+}
+function saveDraft(){
+  const name=cap($('#tm-name').value.trim());
+  if(!name){$('#tm-err').textContent='Escribe el nombre del equipo.';return;}
+  if(db.teams.some(t=>t.id!==draft.id&&norm(t.name)===norm(name))){
+    $('#tm-err').textContent='Ya existe un equipo con ese nombre. Búscalo y úsalo; no lo registres otra vez.';
+    return;
+  }
+  if(draft.desdeBusqueda&&!$('#tm-noexiste')?.checked){$('#tm-err').textContent='Marca la casilla: confirma que revisaste la lista y ningún equipo es este.';return;}
+  // Si ya escribieron nombre y teléfono del líder, se agrega solo
+  if(!draft.players.length){
+    if(!$('#tm-pl').value.trim()){$('#tm-err').textContent='Escribe el nombre y el teléfono del líder.';return;}
+    addPlayerDraft();
+    if(!draft.players.length) return;
+  }
+  if(!/^\d{10}$/.test(draft.tel[draft.players[0]]||'')){$('#tm-err').textContent=`El teléfono de ${draft.players[0]} (el primero de la lista) es obligatorio.`;return;}
+  const sim=similares(name);
+  if(sim.length&&!$('#tm-otro')?.checked){
+    $('#tm-err').textContent=`Se parece a: ${sim.map(x=>x.name).join(', ')}. Si es el mismo, cancela y úsalo. Si es otro equipo, marca "Confirmo que es otro equipo" y guarda.`;
+    $('#tm-otro-l').style.display='block';
+    return;
+  }
+  const telefonos={};
+  draft.players.forEach(p=>{telefonos[p]=draft.tel[p];});
+  const data={name,players:[...draft.players],lider:draft.lider||draft.players[0],telefonos};
+  const t=draft.id?teamById(draft.id):null;
+  let id;
+  if(t){Object.assign(t,data);id=t.id;}
+  else{id=uid();db.teams.push({id,...data});}
+  const vuelta=alVolver; alVolver=null;
+  draft=null; save(); closeModal(); renderAll();
+  if(vuelta){vuelta[vuelta.side]=id; openAssign(vuelta.f,vuelta);}
+}
+// Equipos que se parecen: contienen el nombre, o difieren en muy poco (números distintos = equipos distintos)
+function lev(a,b){
+  let p=Array.from({length:b.length+1},(_,j)=>j);
+  for(let i=1;i<=a.length;i++){
+    const c=[i];
+    for(let j=1;j<=b.length;j++) c[j]=Math.min(p[j]+1,c[j-1]+1,p[j-1]+(a[i-1]===b[j-1]?0:1));
+    p=c;
+  }
+  return p[b.length];
+}
+function similares(name){
+  const n=norm(name).replace(/\s+/g,' ').trim();
+  if(!n) return [];
+  return db.teams.filter(t=>{
+    if(draft&&t.id===draft.id) return false;
+    const m=norm(t.name).replace(/\s+/g,' ').trim();
+    if(m===n) return true;
+    if(/\d/.test(m+n)&&m.replace(/\d/g,'').trim()===n.replace(/\d/g,'').trim()) return false;
+    return m.includes(n)||n.includes(m)||lev(m,n)<=2;
+  });
+}
+function deleteTeam(id){
+  const t=teamById(id); if(!t) return;
+  const ms=matchesOf(id), pays=db.payments.filter(p=>p.teamId===id);
+  const aviso=(ms.length||pays.length)?`\n\nTambién se borrarán ${ms.length} partido(s) y ${pays.length} pago(s) de este equipo.`:'';
+  if(!confirm(`¿Borrar el equipo ${t.name}?${aviso}`)) return;
+  const idsM=new Set(ms.map(m=>m.id));
+  db.matches=db.matches.filter(m=>!idsM.has(m.id));
+  db.payments=db.payments.filter(p=>p.teamId!==id);
+  db.teams=db.teams.filter(x=>x.id!==id);
+  registrar(`Equipo borrado: ${t.name} (${ms.length} partido(s), ${pays.length} pago(s))`);
+  save(); closeModal(); renderAll();
+}
+// Día completo de un partido, por ejemplo "sábado 21 de noviembre"
+function diaCompleto(iso){
+  const [y,m,d]=String(diaLocal(iso)).split('-').map(Number);
+  return new Date(y,m-1,d).toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'});
+}
+function renderTeams(filtro=''){
+  // Orden alfabético por nombre; con búsqueda solo salen los que coinciden
+  const term=norm(String(filtro).trim());
+  const ordenados=[...db.teams].filter(equipoVisible)
+    .filter(t=>!term||norm(t.name).includes(term)||t.players.some(p=>norm(p).includes(term)))
+    .sort((a,b)=>a.name.localeCompare(b.name,'es',{sensitivity:'base'}));
+  $('#teams-list').innerHTML=ordenados.length?ordenados.map(t=>`<div class="card team" data-act="editteam" data-id="${t.id}" style="cursor:pointer">
+    <div><b>${teamLink(t.id)}</b><br><small class="muted">Líder (paga): ${esc(t.lider||'—')}</small><br><small class="muted">Último juego: ${(()=>{const ult=matchesOf(t.id).sort((x,y)=>String(y.creado||'').localeCompare(String(x.creado||'')))[0];return ult?esc(diaCompleto(ult.creado)):'aún no ha jugado';})()}</small><br><small class="muted">${t.players.length} jugador${t.players.length===1?'':'es'}${t.players.length?': '+esc(t.players.join(', ')):''}</small></div>
+    </div>`).join(''):(db.teams.length?'<p class="muted">Ningún equipo coincide con la búsqueda.</p>':'<p class="muted">Aún no hay equipos. Agrega el primero.</p>');
+}
+
+/* ---------- Ajustes ---------- */
+let ajEdit=null; // monto que se está editando en Ajustes
+function tarjetaMonto(k,titulo,val,fmt){
+  if(ajEdit===k) return `<div class="mcard"><small>${titulo}</small>
+    <input id="ed-${k}" type="number" min="0" value="${val}">
+    <div class="actions" style="justify-content:center;margin-top:6px"><button class="btn ghost sm" data-act="ajcancel">Cancelar</button><button class="btn primary sm" data-act="ajsave" data-k="${k}">Guardar</button></div></div>`;
+  return `<div class="mcard"><b>${fmt(val)}</b><small>${titulo}</small><button class="btn ghost sm" data-act="ajedit" data-k="${k}">Editar</button></div>`;
+}
+function ajSave(k){
+  const v=Math.max(k==='totalJuegos'?1:0,Number($('#ed-'+k).value)||0);
+  db.config[k]=v; ajEdit=null;
+  save(); renderAll(); renderAjustes();
+}
+function addPersona(){
+  const n=$('#np-n').value.trim(), r=$('#np-r').value.trim();
+  if(!n) return alert('Escribe el nombre');
+  if(db.config.recibieron.some(x=>norm(x)===norm(n))) return alert('Esa persona ya está en la lista');
+  db.config.recibieron.push(n);
+  db.config.roles={...(db.config.roles||{}),[n]:r};
+  save(); renderAll(); renderAjustes();
+}
+function quitarPersona(n){
+  if(!confirm(`¿Quitar a ${n} de la lista?`)) return;
+  db.config.recibieron=db.config.recibieron.filter(x=>x!==n);
+  delete (db.config.roles||{})[n];
+  save(); renderAll(); renderAjustes();
+}
+// Nombre que se muestra del árbitro: su apodo si tiene, si no el nombre completo
+function arbNom(a){return ((db&&db.config&&db.config.apodos)||{})[a]||a;}
+// Nombre completo y, al lado, su apodo entre paréntesis si lo tiene
+// Pantallas: apodo primero y luego primer nombre y primer apellido (ej. OSO - Diego Hernández)
+function arbCorto(a){
+  const ps=String(a).trim().split(/\s+/).filter(Boolean);
+  const cap=w=>w.charAt(0).toUpperCase()+w.slice(1);
+  if(ps.length<=1) return cap(ps[0]||'');
+  const nom=ps.length>=4?2:1; // con 4 o más palabras, dos nombres de pila
+  const part=['de','la','del','las','los','da','do'];
+  let i=nom; while(i<ps.length-1&&part.includes(ps[i].toLowerCase())) i++;
+  return cap(ps[0])+' '+cap(ps[i]);
+}
+function arbNombreHTML(a){const ap=((db&&db.config&&db.config.apodos)||{})[a];const c=esc(arbCorto(a));return ap?`<b>${esc(ap)}</b> - ${c}`:c;}
+// Registro interno (Ajustes): nombre completo y apodo entre paréntesis
+function arbRegistroHTML(a){const ap=((db&&db.config&&db.config.apodos)||{})[a];return esc(a)+(ap?` <small class="muted">(${esc(ap)})</small>`:'');}
+// Registro de cambios (se muestra en Ajustes)
+// Cierra un partido con su marcador actual (así nunca queda sin terminar)
+function cerrarPartido(m){
+  m.activo=false; m.terminado=true;
+  m.resultado={a:m.sa||0,b:m.sb||0};
+  m.terminadoEn=new Date().toISOString();
+}
+function registrar(texto){
+  db.config.historial=[{fecha:new Date().toISOString(),texto},...(db.config.historial||[])].slice(0,200);
+}
+// Editar nombre completo y apodo de un árbitro
+function editArbitro(n){
+  const ap0=(db.config.apodos||{})[n]||'';
+  openModal(`<form id="ap-form"><h3>Editar árbitro</h3><label>Nombre completo<input id="ar-n" autocomplete="off" value="${esc(n)}"></label><label>Apodo<input id="ap-v" autocomplete="off" value="${esc(ap0)}" placeholder="Ej. OSO (opcional)"></label><div class="actions"><button type="button" class="btn ghost" data-act="close">Cancelar</button><button class="btn primary">Guardar</button></div></form>`);
+  $('#ap-form').onsubmit=e=>{
+    e.preventDefault();
+    const nn=$('#ar-n').value.trim();
+    const v=$('#ap-v').value.trim();
+    if(!nn) return alert('Escribe el nombre');
+    const lista=db.config.arbitros||[];
+    if(nn!==n && lista.some(x=>norm(x)===norm(nn))) return alert('Ya hay un árbitro con ese nombre');
+    const cambios=[];
+    if(nn!==n){
+      db.config.arbitros=lista.map(x=>x===n?nn:x);
+      db.matches=db.matches.map(m=>m.arbitro===n?{...m,arbitro:nn}:m);
+      cambios.push(`nombre "${n}" → "${nn}"`);
+    }
+    const apodos={...(db.config.apodos||{})};
+    delete apodos[n];
+    if(v) apodos[nn]=v;
+    db.config.apodos=apodos;
+    if(v!==ap0) cambios.push(v?`apodo "${v}"`:'apodo quitado');
+    if(cambios.length) registrar(`Árbitro ${nn}: ${cambios.join(', ')}`);
+    save(); closeModal(); renderAjustes();
+  };
+}
+function addArbitro(){
+  const n=$('#na-n').value.trim();
+  if(!n) return alert('Escribe el nombre del árbitro');
+  if((db.config.arbitros||[]).some(x=>norm(x)===norm(n))) return alert('Ese árbitro ya está en la lista');
+  db.config.arbitros=[...(db.config.arbitros||[]),n];
+  registrar(`Árbitro agregado: ${n}`);
+  save(); renderAjustes();
+}
+function quitarArbitro(n){
+  if(!confirm(`¿Quitar a ${n} de la lista?`)) return;
+  db.config.arbitros=db.config.arbitros.filter(x=>x!==n);
+  registrar(`Árbitro quitado: ${n}`);
+  save(); renderAjustes();
+}
+function renderAjustes(){
+  const roles=db.config.roles||{};
+  $('#ajustes').innerHTML=`
+    <div class="card">
+      <h3>Montos</h3>
+      <div class="mrow">
+        ${tarjetaMonto('inscripcion','Inscripción',Number(db.config.inscripcion)||0,money)}
+        ${tarjetaMonto('arbitraje','Arbitraje por equipo y juego',Number(db.config.arbitraje)||0,money)}
+        ${tarjetaMonto('totalJuegos','Juegos del torneo',Number(db.config.totalJuegos)||15,v=>v)}
+        ${tarjetaMonto('pagoArbitro','Pago por juego al árbitro',Number(db.config.pagoArbitro)||0,money)}
+      </div>
+    </div>
+    <div class="card">
+      <h3>Equipo</h3>
+      <ul class="plist">${db.config.recibieron.map(n=>`<li><span><b>${esc(n)}</b><br><small class="muted">${esc(roles[n]||'Sin rol')}</small></span><button class="btn danger sm" data-act="quitarp" data-n="${esc(n)}">Quitar</button></li>`).join('')||'<li class="muted">Sin personas.</li>'}</ul>
+      <div class="addrow"><input id="np-n" autocomplete="off" placeholder="Nombre"><input id="np-r" autocomplete="off" placeholder="Rol (ej. Director general)"></div>
+      <div class="actions" style="justify-content:flex-start;margin-top:0"><button class="btn primary sm" data-act="addp">+ Agregar a la lista</button></div>
+    </div>
+    <div class="card">
+      <h3>Árbitros</h3>
+      <ul class="plist">${(db.config.arbitros||[]).map(a=>`<li><span><b>${arbRegistroHTML(a)}</b></span><span><button class="btn ghost sm" data-act="editapodo" data-n="${esc(a)}">Editar</button> <button class="btn danger sm" data-act="quitarb" data-n="${esc(a)}">Quitar</button></span></li>`).join('')||'<li class="muted">Aún no hay árbitros.</li>'}</ul>
+      <div class="addrow"><input id="na-n" autocomplete="off" placeholder="Nombre del árbitro"></div>
+      <div class="actions" style="justify-content:flex-start;margin-top:0"><button class="btn primary sm" data-act="addarb">+ Agregar árbitro</button></div>
+    </div>
+    <div class="card">
+      <h3>Usuarios</h3>
+      <ul class="plist">${(db.config.usuarios||[]).map(u=>`<li><span><b>${esc(u.nombre)}</b><br><small class="muted">${u.acceso==='todo'?'Ve todo':'Ve solo sus cuentas y equipos'} · ${u.pin?'con clave':'sin clave'}</small></span>${esAdmin()&&u.pin?`<button class="btn ghost sm" data-act="quitarclave" data-n="${esc(u.nombre)}">Quitar clave</button>`:''}</li>`).join('')}</ul>
+    </div>
+    <div class="card">
+      <h3>Historial de cambios</h3>
+      <ul class="plist">${(db.config.historial||[]).map(h=>`<li><span><small class="muted">${esc(new Date(h.fecha).toLocaleString('es-MX',{dateStyle:'medium',timeStyle:'short'}))}</small><br>${esc(h.texto)}</span></li>`).join('')||'<li class="muted">Aún no hay cambios.</li>'}</ul>
+    </div>
+    <div class="card">
+      <h3>Respaldo</h3>
+      <p class="muted">Los datos se guardan en este navegador. Exporta un respaldo para no perderlos o llevarlos a otra computadora.</p>
+      <div class="actions" style="justify-content:flex-start">
+        <button class="btn ghost" data-act="export">Exportar respaldo</button>
+        <input type="file" id="imp" accept="application/json,.json">
+      </div>
+    </div>`;
+  $('#imp').onchange=e=>{
+    const file=e.target.files[0]; if(!file) return;
+    if(!confirm('Esto reemplaza los datos actuales de este navegador. ¿Continuar?')){e.target.value='';return;}
+    file.text().then(txt=>{
+      const d=JSON.parse(txt);
+      if(!Array.isArray(d.teams)||!Array.isArray(d.matches)||!Array.isArray(d.payments)) throw new Error('formato');
+      db={...clone(DEF),...d,config:{...DEF.config,...(d.config||{})}};
+      save(); renderAll(); renderAjustes(); alert('Respaldo importado');
+    }).catch(()=>alert('El archivo no es un respaldo válido.'));
+  };
+}
+function exportDb(){
+  const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=`canchas-respaldo-${today()}.json`; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+/* ---------- Buscador ---------- */
+const q=$('#q');
+function renderResults(){
+  const box=$('#results');
+  if(document.querySelector('.tab.on')?.dataset.tab==='equipos'){box.classList.remove('show');box.innerHTML='';renderTeams(q.value);return;}
+  const term=norm(q.value.trim());
+  if(!term){box.classList.remove('show');box.innerHTML='';return;}
+  const hits=[];
+  db.teams.filter(equipoVisible).forEach(t=>{
+    const teamHit=norm(t.name).includes(term);
+    const ph=t.players.find(p=>norm(p).includes(term));
+    if(teamHit||ph) hits.push({t,player:teamHit?null:ph});
+  });
+  box.innerHTML=(hits.length?hits.slice(0,30).map(({t,player})=>{
+    const am=teamActiveMatch(t.id);
+    return `<button data-act="pickresult" data-team="${t.id}"><b>${esc(t.name)}</b>${player?` · ${esc(player)}`:''}<br><small>${am?`Cancha ${am.field}`:'Sin partido asignado'}</small></button>`;
+  }).join(''):`<div class="empty-res">No hay equipos ni jugadores con ese nombre.</div>`)
+    +`<button class="addteam" data-act="addteam" data-name="${esc(q.value.trim())}">+ Agregar equipo</button>`;
+  box.classList.add('show');
+}
+function pickResult(tid){
+  q.value='';
+  $('#results').classList.remove('show');
+  openPay(tid,teamActiveMatch(tid)?.id||null);
+}
+q.addEventListener('input',renderResults);
+q.addEventListener('focus',renderResults);
+
+/* ---------- Eventos ---------- */
+document.addEventListener('click',e=>{
+  if(e.target.id==='modal-bg'){closeModal();return;}
+  if(!e.target.closest('.search')) $('#results').classList.remove('show');
+  const el=e.target.closest('[data-act]');
+  if(!el) return;
+  const d=el.dataset;
+  switch(d.act){
+    case 'tab': showTab(d.tab); break;
+    case 'arbdia': arbitroDia(d.n); break;
+    case 'lgn': lgElegir(d.n); break;
+    case 'lgback': loginPaso={modo:'pin',nombre:null,primera:null}; mostrarLogin(); break;
+    case 'verpanel': verComoPanel(); break;
+    case 'vercomo': verComoSet(d.n); break;
+    case 'lgnuevo': loginPaso={modo:'nombres',nombre:null,primera:null}; mostrarLogin(); break;
+    case 'salir': salir(); break;
+    case 'quitarclave': quitarClave(d.n); break;
+    case 'pay': openPay(d.team,d.match||null); break;
+    case 'score': changeScore(d.match,d.side,1); break;
+    case 'manual': openMarcadorManual(d.match); break;
+    case 'unscore': changeScore(d.match,d.side,-1); break;
+    case 'assign': openAssign(Number(d.field)); break;
+    case 'unassign': unassign(Number(d.field)); break;
+    case 'newteam': openTeam(null); break;
+    case 'editteam': openTeam(d.id); break;
+    case 'delteam': deleteTeam(d.id); break;
+    case 'delpay': deletePayment(d.id,d.team,d.match||null); break;
+    case 'editpay': openPay(d.team,d.match||null,d.id); break;
+    case 'pqsel': pqSel={tipo:d.tipo,val:d.val}; renderPagos(); break;
+    case 'pqclear': pqSel=null; renderPagos(); break;
+    case 'pagonuevo': openBuscarPago(); break;
+    case 'pagopick': openPay(d.team,null); break;
+    case 'ficha': abrirFicha(d.team); break;
+    case 'close': closeModal(); break;
+    case 'tp-pick': $('#tp-val').value=d.n; $('#tp-q').value=d.n; $('#tp-list').innerHTML=''; break;
+    case 'tp-nuevo': $('#tp-val').value=cap(d.n.trim()); $('#tp-q').value=cap(d.n.trim()); $('#tp-list').innerHTML=''; break;
+    case 'ar-pick': $('#ar-val').value=d.n; $('#ar-q').value=d.n; $('#ar-list').innerHTML=''; break;
+    case 'ar-nuevo': $('#ar-val').value=cap(d.n.trim()); $('#ar-q').value=cap(d.n.trim()); $('#ar-list').innerHTML=''; break;
+    case 'terminar': openTerminar(d.match); break;
+    case 'addplayer': addPlayerDraft(); break;
+    case 'lider': draft.lider=draft.players[+d.i]; renderDraft(); break;
+    case 'quitarj': {const r=draft.players.splice(+d.i,1)[0]; if(draft.lider===r) draft.lider=draft.players[0]||null; renderDraft(); break;}
+    case 'saveteam': saveDraft(); break;
+    case 'pickresult': pickResult(d.team); break;
+    case 'addteam': q.value=''; $('#results').classList.remove('show'); abrirChooser(d.name); break;
+    case 'editnombre': $('#ch-titulo').style.display='none'; $('#ch-nombre').style.display='block'; $('#ch-nombre').focus(); break;
+    case 'esjugador': chooserJugador(nombreChooser()); break;
+    case 'cj-pick': cjPick(d.team); break;
+    case 'cj-nuevo': cjNuevo(); break;
+    case 'cj-guardar': cjGuardar(); break;
+    case 'esequipo': chooserEquipo(nombreChooser()); break;
+    case 'pickteam': closeModal(); pickResult(d.team); break;
+    case 'ce-jpick': cePick(d.n); break;
+    case 'ce-guardar': ceGuardar(); break;
+    case 'equiponuevo': openTeam(null,d.n,true); break;
+    case 'registrarjugador': openTeam(null,'',true,d.n); break;
+    case 'export': exportDb(); break;
+    case 'ajedit': ajEdit=d.k; renderAjustes(); break;
+    case 'ajcancel': ajEdit=null; renderAjustes(); break;
+    case 'ajsave': ajSave(d.k); break;
+    case 'addp': addPersona(); break;
+    case 'quitarp': quitarPersona(d.n); break;
+    case 'addarb': addArbitro(); break;
+    case 'quitarb': quitarArbitro(d.n); break;
+    case 'editapodo': editArbitro(d.n); break;
+    case 'filtro': filtroPagos={...filtroPagos,modo:d.modo,abierto:false}; renderPagos(); break;
+    case 'periodo': filtroPagos={...filtroPagos,abierto:!filtroPagos.abierto}; renderPagos(); break;
+    case 'calprev':
+    case 'calnext': {
+      const base=new Date(filtroPagos.calY??new Date().getFullYear(),filtroPagos.calM??new Date().getMonth(),1);
+      base.setMonth(base.getMonth()+(d.act==='calnext'?1:-1));
+      filtroPagos={...filtroPagos,calY:base.getFullYear(),calM:base.getMonth()}; renderPagos(); break;
+    }
+    case 'caldia': {
+      const {desde,hasta}=filtroPagos, s=d.d;
+      let nd=s, nh='';
+      if(desde&&!hasta&&s>=desde){nd=desde;nh=s;}
+      filtroPagos={...filtroPagos,modo:'rango',desde:nd,hasta:nh,abierto:!nh};
+      renderPagos(); break;
+    }
+  }
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape') closeModal();
+  if(e.key==='Enter'&&e.target.id==='tm-pl'){e.preventDefault();addPlayerDraft();}
+});
+
+const _hdr=document.querySelector('header');
+const _setHH=()=>document.documentElement.style.setProperty('--hh',_hdr.offsetHeight+'px');
+_setHH(); window.addEventListener('resize',_setHH);
+renderAll();
+// Al recargar, se queda en la última pestaña que abriste
+let pestanaInicial='canchas';
+try{pestanaInicial=sessionStorage.getItem('canchas-pestana')||'canchas';}catch(e){}
+showTab(pestanaInicial);
+aplicarAcceso();
+if(!usuarioActual()) mostrarLogin();
+cargarNube();
+</script>
+</body>
+</html>

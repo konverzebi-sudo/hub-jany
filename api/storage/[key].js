@@ -4,6 +4,7 @@
 const crypto = require('crypto');
 const { sql } = require('@vercel/postgres');
 const saldo = require('../_lib/saldo');
+const tallerPago = require('../_lib/taller-pago');
 
 async function ensureTable() {
   await sql`CREATE TABLE IF NOT EXISTS kv_store (
@@ -839,6 +840,30 @@ async function manejarStripeWebhook(req, res) {
   }
 }
 
+// ─── Zoom (Meeting SDK) para la clase del taller: GET zoom-firma?mn=<número de reunión> ───
+// Firma (JWT HS256) que el navegador necesita para entrar a la reunión dentro de la plataforma.
+// La clave secreta (ZOOM_SDK_SECRET) vive solo en Vercel: nunca sale de aquí.
+// La firma no da acceso por sí sola: entrar a la reunión sigue pidiendo el número y la contraseña.
+function firmaZoom(mn) {
+  const key = process.env.ZOOM_SDK_KEY, secret = process.env.ZOOM_SDK_SECRET;
+  if (!key || !secret) throw new Error('Zoom no está configurado (faltan ZOOM_SDK_KEY o ZOOM_SDK_SECRET).');
+  const iat = Math.floor(Date.now() / 1000) - 30, exp = iat + 2 * 60 * 60; // válida 2 horas
+  const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const cuerpo = b64({ alg: 'HS256', typ: 'JWT' }) + '.' + b64({ appKey: key, sdkKey: key, mn: String(mn), role: 0, iat, exp, tokenExp: exp });
+  return cuerpo + '.' + crypto.createHmac('sha256', secret).update(cuerpo).digest('base64url');
+}
+
+function manejarZoomFirma(req, res) {
+  if (req.method !== 'GET') { res.setHeader('Allow', 'GET'); return res.status(405).json({ error: 'Method not allowed' }); }
+  const mn = String(req.query.mn || '').replace(/\D/g, '');
+  if (!mn || mn.length < 9 || mn.length > 11) return res.status(400).json({ error: 'Número de reunión inválido.' });
+  try {
+    return res.status(200).json({ signature: firmaZoom(mn), sdkKey: process.env.ZOOM_SDK_KEY });
+  } catch (e) {
+    return res.status(500).json({ error: 'Zoom no está configurado todavía.' });
+  }
+}
+
 module.exports = async function handler(req, res) {
   // Los datos cambian por dispositivo en cualquier momento: nunca cachear
   // esta respuesta (ni en el browser ni en el edge de Vercel), o un refresh
@@ -861,6 +886,10 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'Key inválida.' });
   }
 
+  if (key === 'zoom-firma') {
+    return manejarZoomFirma(req, res);
+  }
+
   if (key === 'leads') {
     return manejarLeads(req, res);
   }
@@ -879,6 +908,11 @@ module.exports = async function handler(req, res) {
 
   if (key === 'stripe-webhook') {
     return manejarStripeWebhook(req, res);
+  }
+
+  // Pago en la landing de GoHighLevel → acceso al taller (api/_lib/taller-pago.js).
+  if (key === 'ghl-pago') {
+    return tallerPago.manejarPagoGhl(req, res);
   }
 
   if (key === 'acceso-hub') {

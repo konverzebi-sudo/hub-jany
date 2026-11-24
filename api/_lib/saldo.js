@@ -67,6 +67,8 @@ function estado(doc, slug, ahora) {
     porcentaje,
     tokensUsados: Math.round(usadoUSD * TOKENS_POR_USD),
     tokensTotales: Math.round(totalUSD * TOKENS_POR_USD),
+    // Consumo real del ciclo sin topar (para los hubs sin tope, que pueden pasar del plan).
+    tokensCiclo: Math.round((d.usadoCicloUSD || 0) * TOKENS_POR_USD),
     renueva: new Date(new Date(d.cicloInicio).getTime() + CICLO_DIAS * DIA_MS).toISOString(),
     paquetes: d.paquetes.map((p) => ({ vence: p.vence, tokensRestantes: Math.round(Math.max(0, p.usd - (p.usadoUSD || 0)) * TOKENS_POR_USD) })),
     paquete: { tokens: PAQUETE_USD * TOKENS_POR_USD, precioMXN: PRECIO_MXN, precioAntesMXN: PRECIO_ANTES_MXN, vigenciaDias: PAQUETE_DIAS },

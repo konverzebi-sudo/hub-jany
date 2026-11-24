@@ -28,6 +28,14 @@ test('tope de $15: al llegar se bloquea; jefeshub nunca se bloquea', () => {
   assert.equal(saldo.estado(doc, 'jefeshub', HOY).sinTope, true);
 });
 
+test('hub sin tope: tokensCiclo da el consumo real aunque pase del plan', () => {
+  const doc = saldo.docNuevo(HOY);
+  saldo.descontar(doc, 20, HOY);
+  const e = saldo.estado(doc, 'jefeshub', HOY);
+  assert.equal(e.tokensUsados, 4500000);
+  assert.equal(e.tokensCiclo, 6000000);
+});
+
 test('porcentaje y tokens: $6 de $15 = 40% y 1.8 de 4.5 millones', () => {
   const doc = saldo.docNuevo(HOY);
   saldo.descontar(doc, 6, HOY);
@@ -90,7 +98,8 @@ test('el mismo pago no se acredita dos veces', () => {
 // ---------- servicios de IA ----------
 
 const USO = { input_tokens: 1000, output_tokens: 100, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
-const LLENO = { cicloInicio: HOY, usadoCicloUSD: 15, paquetes: [], pagos: [] };
+// El ciclo tiene que ser el de AHORA: con una fecha fija el ciclo de 30 días ya se renovó y el tope deja de estar lleno.
+const LLENO = { cicloInicio: new Date().toISOString(), usadoCicloUSD: 15, paquetes: [], pagos: [] };
 
 // Un cuerpo mínimo para cada servicio de IA.
 const SERVICIOS = [
