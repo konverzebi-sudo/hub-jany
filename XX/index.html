@@ -967,7 +967,7 @@
   }
 
   // ===== Casa Jany: lo recibido (préstamo) y lo pagado a cada persona, con link para compartir =====
-  var casaUI = {form:null, open:{}, entradas:false, shareErr:''};
+  var casaUI = {form:null, open:{}, entradas:false, shareErr:'', syncMsg:'', syncErr:false, syncBusy:false};
   var casaSyncTimer = null;
   var CASA_METHODS = [['transferencia','Transferencia'],['efectivo','Efectivo'],['tarjeta','Tarjeta'],['otra','Otra']];
   function casaLinkBase(){ return location.origin + location.pathname.replace(/[^\/]*$/, '') + 'casa.html?t='; }
@@ -998,6 +998,114 @@
     };
     return true;
   }
+  // ===== Actualizar los pagos desde la hoja de Google publicada como CSV (columnas: A fecha, B concepto, SALIDA = monto; C y E se ignoran) =====
+  function casaSheetCsvUrl(u){
+    var m = /^https:\/\/docs\.google\.com\/spreadsheets\/d\/e\/([A-Za-z0-9_-]+)\/pub/.exec(String(u || '').trim());
+    if(!m) return '';
+    var gid = /[?&]gid=(\d+)/.exec(u);
+    return 'https://docs.google.com/spreadsheets/d/e/' + m[1] + '/pub?output=csv' + (gid ? '&gid=' + gid[1] : '');
+  }
+  function casaParseCSV(t){
+    var rows = [], row = [], cur = '', q = false;
+    for(var i = 0; i < t.length; i++){
+      var ch = t[i];
+      if(q){ if(ch === '"'){ if(t[i + 1] === '"'){ cur += '"'; i++; } else q = false; } else cur += ch; }
+      else if(ch === '"') q = true;
+      else if(ch === ','){ row.push(cur); cur = ''; }
+      else if(ch === '\n'){ row.push(cur); rows.push(row); row = []; cur = ''; }
+      else if(ch !== '\r') cur += ch;
+    }
+    if(cur !== '' || row.length){ row.push(cur); rows.push(row); }
+    return rows;
+  }
+  function casaNum(s){
+    s = String(s || '').replace(/[\s$]/g, '');
+    if(!s) return 0;
+    if(/^\d{1,3}(,\d{3})+$/.test(s)) s = s.replace(/,/g, '');
+    else if(s.indexOf(',') > -1 && s.indexOf('.') > -1) s = s.replace(/,/g, '');
+    else if(s.indexOf(',') > -1) s = s.replace(',', '.');
+    var n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+  }
+  function casaSheetDate(s){
+    var m = /^(\d{1,2})[-\/.](\d{1,2})(?:[-\/.](\d{2,4}))?$/.exec(String(s || '').trim());
+    if(!m) return '';
+    var d = +m[1], mo = +m[2], y = m[3] ? (+m[3] < 100 ? 2000 + +m[3] : +m[3]) : new Date().getFullYear();
+    if(mo < 1 || mo > 12 || d < 1 || d > 31) return '';
+    if(!m[3] && new Date(y, mo - 1, d) - new Date() > 31 * 86400000) y--;
+    return y + '-' + ('0' + mo).slice(-2) + '-' + ('0' + d).slice(-2);
+  }
+  function casaRowsFromSheet(rows){
+    var hi = -1, ci = 3;
+    for(var i = 0; i < rows.length && hi < 0; i++){
+      var j = rows[i].findIndex(function(x){ return /^\s*salida\s*$/i.test(x); });
+      if(j > -1){ hi = i; ci = j; }
+    }
+    if(hi < 0) return null;
+    var out = [];
+    rows.slice(hi + 1).forEach(function(r){
+      var note = String(r[1] || '').trim(), amt = casaNum(r[ci]);
+      if(!note || !(amt > 0)) return;
+      out.push({date: casaSheetDate(r[0]), note: note, amount: amt});
+    });
+    return out;
+  }
+  async function casaSyncSheet(){
+    var c = data && data.casa;
+    if(!c || casaUI.syncBusy) return;
+    var url = casaSheetCsvUrl(c.sheetUrl);
+    if(!url){ casaUI.form = {type: 'sheet'}; renderCasa(); return; }
+    casaUI.syncBusy = true; casaUI.syncErr = false; casaUI.syncMsg = 'Actualizando…'; renderCasa();
+    try{
+      var res = await fetch(url, {cache: 'no-store'});
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      var rows = casaRowsFromSheet(casaParseCSV(await res.text()));
+      if(!rows) throw new Error('no encontré la columna SALIDA');
+      var key = function(s){ return String(s || '').trim().toLowerCase(); };
+      var pagos = c.pagos, usedP = {}, link = new Array(rows.length), added = 0, changed = 0, removed = 0;
+      function pass(test){
+        rows.forEach(function(r, i){
+          if(link[i]) return;
+          var p = pagos.find(function(x){ return !usedP[x.id] && test(x, r); });
+          if(p){ usedP[p.id] = true; link[i] = p; }
+        });
+      }
+      pass(function(p, r){ return key(p.note) === key(r.note) && +p.amount === r.amount && (p.date || '') === r.date; });
+      pass(function(p, r){ return key(p.note) === key(r.note) && +p.amount === r.amount; });
+      pass(function(p, r){
+        var k = key(r.note);
+        var rowsSame = rows.filter(function(x, i){ return !link[i] && key(x.note) === k; }).length;
+        var pagosSame = pagos.filter(function(x){ return !usedP[x.id] && key(x.note) === k; }).length;
+        return key(p.note) === k && rowsSame === 1 && pagosSame === 1;
+      });
+      // los que vinieron de la hoja y ya no están en ella se quitan (los agregados a mano se quedan)
+      c.pagos = pagos.filter(function(p){
+        if(p.fromSheet && !usedP[p.id]){ removed++; return false; }
+        return true;
+      });
+      pagos = c.pagos;
+      rows.forEach(function(r, i){
+        var p = link[i];
+        if(p){
+          if(r.date && p.date !== r.date){ p.date = r.date; changed++; }
+          if(+p.amount !== r.amount){ p.amount = r.amount; changed++; }
+          p.fromSheet = true;
+        } else {
+          pagos.push({id: uid('cp') + '-' + i, pid: null, src: '', date: r.date, amount: r.amount, method: '', card: '', other: '', note: r.note, fromSheet: true});
+          added++;
+        }
+      });
+      c.sheetSyncedAt = new Date().toISOString();
+      casaUI.syncMsg = 'Hoja leída (' + rows.length + ' pagos): ' + added + ' nuevo' + (added === 1 ? '' : 's') + ' · ' + changed + ' cambio' + (changed === 1 ? '' : 's') + ' · ' + removed + ' quitado' + (removed === 1 ? '' : 's') + '.';
+      casaSave();
+    }catch(e){
+      casaUI.syncErr = true;
+      casaUI.syncMsg = 'No pude leer la hoja (' + (e && e.message ? e.message : 'error') + '). Revisa que siga publicada en la web.';
+    }
+    casaUI.syncBusy = false;
+    renderCasa();
+  }
+
   function casaTotals(){
     var c = data.casa, rec = 0, pag = 0;
     c.entradas.forEach(function(e){ rec += +e.amount || 0; });
@@ -1052,7 +1160,10 @@
     var f = casaUI.form;
     if(!f) return '';
     var c = data.casa, h = '<div class="jd-casa-form">';
-    if(f.type === 'persona'){
+    if(f.type === 'sheet'){
+      h += '<div class="jd-sub" style="margin-bottom:6px;">Pega el link de tu hoja de Google (en la hoja: Archivo → Compartir → Publicar en la web → formato CSV). Se guarda solo en tu cuenta.</div>' +
+        '<input class="jd-input" id="casa-f-sheet" placeholder="https://docs.google.com/spreadsheets/d/e/…/pub…" value="' + casaEsc(c.sheetUrl || '') + '" style="margin-bottom:8px;">';
+    } else if(f.type === 'persona'){
       var pe = f.id ? c.personas.find(function(x){ return x.id === f.id; }) : null;
       h += '<div class="jd-sub" style="margin-bottom:6px;">' + (pe ? 'Cambiar nombre' : 'Nueva persona a la que le pagas (ej. Arquitecto, Electrodomésticos, Servicios externos)') + '</div>' +
         '<input class="jd-input" id="casa-f-name" placeholder="Nombre" value="' + casaEsc(pe ? pe.name : '') + '" style="margin-bottom:8px;">';
@@ -1115,7 +1226,8 @@
       '<div><div class="jd-sub">Pagado</div><div class="jd-disp jd-casa-num" style="color:#7C5CF2;">' + casaMoney(t.pag) + '</div></div>' +
       '<div><div class="jd-sub">Te queda</div><div class="jd-disp jd-casa-num" style="color:' + (t.saldo < 0 ? '#D4463B' : '#1F1B3D') + ';">' + casaMoney(t.saldo) + '</div></div></div>' +
       '<div class="jd-casa-bar"><i style="width:' + pct + '%"></i></div><div class="jd-sub" style="margin:4px 0 12px;">Llevas gastado el ' + pct + '% de lo recibido</div>' +
-      '<div class="jd-row" style="gap:6px;flex-wrap:wrap;margin-bottom:10px;"><button type="button" class="jd-btn jd-btn-lima" data-act="new-pago">+ Registrar pago</button><button type="button" class="jd-btn" data-act="new-entrada">+ Recibí dinero</button><button type="button" class="jd-btn" data-act="new-persona">+ Persona</button></div>' +
+      '<div class="jd-row" style="gap:6px;flex-wrap:wrap;margin-bottom:10px;"><button type="button" class="jd-btn jd-btn-lima" data-act="new-pago">+ Registrar pago</button><button type="button" class="jd-btn" data-act="new-entrada">+ Recibí dinero</button><button type="button" class="jd-btn" data-act="new-persona">+ Persona</button><button type="button" class="jd-btn" data-act="sync-sheet"' + (casaUI.syncBusy ? ' disabled' : '') + '>↻ Actualizar</button></div>' +
+      (casaUI.syncMsg ? '<div class="jd-sub" style="margin:-4px 0 10px;color:' + (casaUI.syncErr ? '#D4463B' : '#6B6790') + ';">' + casaEsc(casaUI.syncMsg) + (c.sheetUrl && !casaUI.syncBusy ? ' · <button type="button" class="jd-sub" data-act="sheet-link" style="background:transparent;border:none;cursor:pointer;padding:0;text-decoration:underline;">cambiar link</button>' : '') + '</div>' : '') +
       casaFormHTML();
     h += '<button type="button" class="jd-casa-pehead" data-act="toggle-entradas" style="margin-top:2px;"><span class="jd-casa-arrow">' + (casaUI.entradas ? '▾' : '▸') + '</span><span class="jd-casa-name">Dinero recibido</span><span class="jd-sub">' + c.entradas.length + ' entrada' + (c.entradas.length === 1 ? '' : 's') + '</span><b class="jd-disp jd-casa-tot">' + casaMoney(t.rec) + '</b></button>';
     if(casaUI.entradas){
@@ -1144,6 +1256,12 @@
     function saveForm(){
       var f = casaUI.form, c = data.casa;
       if(!f) return;
+      if(f.type === 'sheet'){
+        var su = val('casa-f-sheet').trim();
+        if(!casaSheetCsvUrl(su)) return msg('Ese no es el link de “Publicar en la web” de Google Sheets');
+        c.sheetUrl = su; casaUI.form = null; casaSave(); casaSyncSheet();
+        return;
+      }
       if(f.type === 'persona'){
         var name = val('casa-f-name').trim();
         if(!name) return msg('Escribe un nombre');
@@ -1182,6 +1300,8 @@
       else if(act === 'rename') openForm({type: 'persona', id: id});
       else if(act === 'edit-pago') openForm({type: 'pago', id: id});
       else if(act === 'edit-entrada') openForm({type: 'entrada', id: id});
+      else if(act === 'sync-sheet') casaSyncSheet();
+      else if(act === 'sheet-link') openForm({type: 'sheet'});
       else if(act === 'cancel-form'){ casaUI.form = null; renderCasa(); }
       else if(act === 'save-form') saveForm();
       else if(act === 'toggle'){ casaUI.open[id] = !casaUI.open[id]; renderCasa(); }
