@@ -3468,15 +3468,52 @@
       });
     }
     html += '<div class="jd-wk-lab"' + (entries.length ? '' : ' style="margin-top:0;"') + '>Tarea</div><input class="jd-wk-input" id="jd-wk-text" placeholder="Ej. Diseñando el banner" autocomplete="off">';
-    html += '<div class="jd-wk-lab">Proyecto</div><div class="jd-wk-chips" id="jd-wk-projs"></div>';
+    html += '<div class="jd-wk-lab">Proyecto</div><div class="jd-wk-chips" id="jd-wk-projs"></div><div id="jd-wk-pinfo" style="margin-top:8px;"></div>';
     html += '<div class="jd-wk-lab">' + (multi ? 'Duración en cada horario' : 'Duración') + '</div><div class="jd-wk-chips" id="jd-wk-durs"></div>';
-    html += '<div class="jd-wk-lab">Notas o links (opcional)</div><textarea class="jd-wk-input" id="jd-wk-note" rows="2" placeholder="Pega aquí un link o escribe una nota" style="resize:vertical;"></textarea>';
+    html += '<div class="jd-wk-lab">Notas o links (opcional)</div><textarea class="jd-wk-input" id="jd-wk-note" rows="2" placeholder="Pega aquí un link o escribe una nota" style="resize:vertical;"></textarea><div class="jd-sub" id="jd-wk-notehint" style="margin-top:4px;"></div>';
     html += '<div class="jd-wk-acts"><button type="button" class="jd-wk-no" id="jd-wk-cancel">Cancelar</button><button type="button" class="jd-wk-go" id="jd-wk-add">' + (multi ? 'Agregar a los ' + cells.length : 'Agregar') + '</button></div>';
     box.innerHTML = html;
     document.body.appendChild(ov);
 
     var proj = 'General', mins = 60, touched = false;
     var projBox = box.querySelector('#jd-wk-projs'), durBox = box.querySelector('#jd-wk-durs');
+    var pInfoBox = box.querySelector('#jd-wk-pinfo'), noteHint = box.querySelector('#jd-wk-notehint'), infoOpen = false;
+    // un link de trabajo del proyecto se agrega a la nota con un toque
+    function addLinkToNote(url){
+      var ta = box.querySelector('#jd-wk-note');
+      if(ta.value.indexOf(url) < 0) ta.value = (ta.value.trim() ? ta.value.replace(/\s+$/, '') + '\n' : '') + url;
+      ta.focus();
+    }
+    function paintProjInfo(){
+      var pr = data.products.find(function(x){ return x.name === proj; });
+      pInfoBox.innerHTML = '';
+      noteHint.textContent = pr ? 'Si pegas un link aquí, también se guarda en los links de trabajo de ' + pr.name + '.' : '';
+      if(!pr) return;
+      var tg = document.createElement('button');
+      tg.type = 'button'; tg.className = 'jd-wk-chip';
+      tg.textContent = (infoOpen ? '▾ Ocultar info de ' : 'ⓘ Ver más info de ') + pr.name;
+      tg.addEventListener('click', function(){ infoOpen = !infoOpen; paintProjInfo(); });
+      pInfoBox.appendChild(tg);
+      if(!infoOpen) return;
+      var panel = document.createElement('div');
+      panel.style.cssText = 'margin-top:8px;padding:10px;background:#F8F6FF;border:1px solid #ECE8F8;border-radius:12px;font-size:12.5px;';
+      var links = (pr.links || []).filter(function(l){ return projLinkNormalize(l.url); });
+      var pend = pr.tasks.filter(function(t){ return !t.done; }).length + data.agenda.filter(function(a){ return a.project === pr.name; }).length;
+      var fields = (pr.fields || []).filter(function(f){ return f.value; });
+      var h = '<div class="jd-sub" style="color:#5B5784;margin-bottom:6px;">Links de trabajo · toca uno para agregarlo a la nota</div>';
+      if(!links.length) h += '<div class="jd-sub" style="margin-bottom:8px;">Este proyecto todavía no tiene links. Pega uno en la nota y se guarda aquí.</div>';
+      h += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">' + links.map(function(l, i){
+        return '<span style="display:inline-flex;align-items:center;gap:4px;"><button type="button" class="jd-wk-chip" data-addlink="' + i + '">🔗 ' + esc(l.label || projLinkHost(l.url)) + '</button>' +
+          '<a href="' + esc(l.url) + '" target="_blank" rel="noopener noreferrer" title="Abrir en pestaña nueva" style="text-decoration:none;color:#5B3FD0;">↗</a></span>';
+      }).join('') + '</div>';
+      if(fields.length) h += '<div class="jd-sub" style="color:#5B5784;margin-bottom:4px;">Datos</div>' + fields.map(function(f){ return '<div class="jd-sub" style="line-height:1.5;"><span style="color:#5B5784;">' + esc(f.label) + ':</span> ' + esc(f.value) + '</div>'; }).join('');
+      h += '<div class="jd-sub" style="margin-top:6px;">' + pend + ' pendiente' + (pend === 1 ? '' : 's') + ' · ' + pr.tasks.filter(function(t){ return t.done; }).length + ' hecha' + (pr.tasks.filter(function(t){ return t.done; }).length === 1 ? '' : 's') + '</div>';
+      panel.innerHTML = h;
+      panel.querySelectorAll('[data-addlink]').forEach(function(b){
+        b.addEventListener('click', function(){ addLinkToNote(links[parseInt(b.getAttribute('data-addlink'), 10)].url); });
+      });
+      pInfoBox.appendChild(panel);
+    }
     function paintChips(){
       projBox.innerHTML = '';
       [{name:'General', label:'Sin proyecto', color:'#B7B2D6'}].concat(data.products.map(function(p){ return {name:p.name, label:p.name, color:projectColor(p.name)}; })).forEach(function(p){
@@ -3494,6 +3531,7 @@
         b.addEventListener('click', function(){ mins = o[0]; paintChips(); });
         durBox.appendChild(b);
       });
+      paintProjInfo();
     }
     paintChips();
 
@@ -3503,6 +3541,14 @@
       var t = inT.value.trim();
       if(!t){ inT.focus(); return; }
       var sp0 = splitLinks((box.querySelector('#jd-wk-note').value || '').trim()), noteTxt = sp0.note.trim();
+      // los links pegados en la nota también se guardan en los links de trabajo del proyecto
+      var prSel = data.products.find(function(x){ return x.name === proj; });
+      if(prSel) sp0.links.forEach(function(u){
+        var href = projLinkNormalize(u);
+        if(!href) return;
+        if(!prSel.links) prSel.links = [];
+        if(!prSel.links.some(function(l){ return projLinkNormalize(l.url) === href; })) prSel.links.push({id: uid('lk'), label: '', url: href});
+      });
       cells.slice().reverse().forEach(function(c){
         var d = new Date(c.iso + 'T00:00:00');
         data.history.unshift({id: uid('hist'), project: proj, text: t, minutes: mins, note: noteTxt || undefined, links: sp0.links.length ? sp0.links.slice() : undefined,
@@ -3510,7 +3556,7 @@
       });
       if(data.history.length > 500) data.history.length = 500;
       bumpAreaTotal(t); bumpAreaDone(t);
-      save(); renderHistory(); renderCalendar(); renderBalance();
+      save(); renderHistory(); renderCalendar(); renderBalance(); renderProducts();
       closeWeekModal();
     }
     box.querySelector('#jd-wk-add').addEventListener('click', add);
