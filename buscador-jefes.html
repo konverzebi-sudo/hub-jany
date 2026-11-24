@@ -185,6 +185,14 @@
   .w-cuerpo .rutas .em{ font-size:28px; line-height:1; }
   .w-cuerpo .rutas b{ font-family:'Inter Tight'; font-weight:800; font-size:17px; line-height:1.2; }
   .w-cuerpo .rutas small{ color:var(--gris); font-size:13.5px; line-height:1.45; }
+  /* Herramientas: los íconos de las apps, como en el Jefe (sin títulos de sección) */
+  .w-cuerpo .apps{ display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:18px 10px; padding:4px 0 8px; }
+  .w-cuerpo .apps a{ display:flex; flex-direction:column; align-items:center; gap:8px; text-align:center; font-weight:600; font-size:14px; line-height:1.25; }
+  .w-cuerpo .apps .ap{ width:72px; height:72px; border-radius:18px; overflow:hidden; display:grid; place-items:center; background:#fff; box-shadow:0 6px 16px rgba(15,14,12,.12); transition:transform .12s; font-size:34px; }
+  .w-cuerpo .apps a:hover .ap{ transform:translateY(-3px); }
+  .w-cuerpo .apps .ap img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .w-cuerpo .apps .ap.glifo{ border:1px solid var(--borde); }
+  .w-cuerpo .apps .ap.glifo img{ object-fit:contain; padding:12px; }
   .w-cuerpo .chip{ display:inline-block; background:var(--lima); border-radius:999px; padding:3px 10px; font-weight:700; font-size:13px; margin:0 6px 8px 0; }
   .w-cuerpo .semana{ display:grid; grid-template-columns:repeat(7,1fr); gap:8px; margin:6px 0 16px; }
   .w-cuerpo .semana .d{ text-align:center; font-weight:700; font-size:14px; color:var(--gris); }
@@ -337,14 +345,14 @@
   const datos = Promise.all([
     Promise.all(ADN_SECC.map(s => leer('brand-book.' + s))),
     leer('366-documento-maestro-conversacion'), leer('agente-contenido'), leer('whatsapp-estrategia-tarjetas'),
-    leer('financiero-calculadora'), leer('agenda-eventos'), leer('agente-anuncios'), leer('temporada-campanas'),
-  ]).then(([adnVals, conv, contenido, whats, calc, agenda, anuncios, campanas]) => {
+    leer('financiero-calculadora'), leer('agenda-eventos'), leer('agente-anuncios'), leer('temporada-campanas'), leer('herramientas-apps'),
+  ]).then(([adnVals, conv, contenido, whats, calc, agenda, anuncios, campanas, apps]) => {
     const secc = {}; ADN_SECC.forEach((s, i) => { secc[s] = adnVals[i]; });
     return {
       identidad: adnVals[0] || {},
       adn: T.avanceADN ? T.avanceADN(secc) : { pct: 0, faltan: [] },
       doc366: Array.isArray(conv) && conv.some(m => m && m.role === 'assistant' && String(m.content || '').length > 200),
-      contenido, whats, calc, agenda, anuncios, campanas: Array.isArray(campanas) ? campanas : [],
+      contenido, whats, calc, agenda, anuncios, campanas: Array.isArray(campanas) ? campanas : [], apps: Array.isArray(apps) ? apps : null,
     };
   });
 
@@ -910,7 +918,42 @@
       pinta('<div class="eti">¿Qué quieres analizar?</div><div class="rutas">' + RUTAS.map(x =>
         '<a href="' + esc(r('/jefe-cierre?ruta=' + x[0])) + '"><span class="em" aria-hidden="true">' + x[1] + '</span><b>' + esc(x[2]) + '</b><small>' + esc(x[3]) + '</small></a>').join('') + '</div>');
     },
-    herramientas(d, pinta){ pinta('<p class="vacio">Las apps que usas en tu negocio, a la mano.</p>' + pide(['¿Qué app uso para editar videos?', 'Herramientas para programar posts'])); },
+    herramientas(d, pinta){
+      // Las apps que tiene guardadas el Jefe de Herramientas de este hub (o las que trae de inicio), todas juntas.
+      const BASE = [
+        ['WhatsApp Business', 'whatsapp-business', 0, ['App Store', 'https://apps.apple.com/us/app/whatsapp-business/id1386412985'], ['Play Store', 'https://play.google.com/store/apps/details?id=com.whatsapp.w4b']],
+        ['Facebook', 'facebook', 0, ['App Store', 'https://apps.apple.com/us/app/facebook/id284882215'], ['Play Store', 'https://play.google.com/store/apps/details?id=com.facebook.katana']],
+        ['Instagram', 'instagram', 0, ['App Store', 'https://apps.apple.com/us/app/instagram/id389801252'], ['Play Store', 'https://play.google.com/store/apps/details?id=com.instagram.android']],
+        ['Anuncios de Facebook', 'meta-ads', 0, ['App Store', 'https://apps.apple.com/us/app/meta-ads-manager/id964397083'], ['Play Store', 'https://play.google.com/store/apps/details?id=com.facebook.adsmanager']],
+        ['TikTok', 'tiktok', 0, ['App Store', 'https://apps.apple.com/us/app/tiktok/id835599320'], ['Play Store', 'https://play.google.com/store/apps/details?id=com.zhiliaoapp.musically']],
+        ['CapCut', 'capcut', 1, ['App Store', 'https://apps.apple.com/us/app/capcut-photo-video-editor/id1500855883'], ['Play Store', 'https://play.google.com/store/apps/details?id=com.lemon.lvoverseas'], ['Web', 'https://www.capcut.com/']],
+        ['Edits (Instagram)', 'edits', 0, ['App Store', 'https://apps.apple.com/us/app/edits-an-instagram-app/id6738967378'], ['Play Store', 'https://play.google.com/store/apps/details?id=com.instagram.basel']],
+        ['Canva', 'canva', 0, ['App Store', 'https://apps.apple.com/us/app/canva-ai-photo-video-editor/id897446215'], ['Play Store', 'https://play.google.com/store/apps/details?id=com.canva.editor'], ['Web', 'https://www.canva.com/']],
+        ['Gemini', 'gemini', 1, ['App Store', 'https://apps.apple.com/us/app/google-gemini/id6477489729'], ['Play Store', 'https://play.google.com/store/apps/details?id=com.google.android.apps.bard'], ['Web', 'https://gemini.google.com/']],
+        ['ChatGPT', 'chatgpt', 1, ['App Store', 'https://apps.apple.com/us/app/chatgpt/id6448311069'], ['Play Store', 'https://play.google.com/store/apps/details?id=com.openai.chatgpt'], ['Web', 'https://chatgpt.com/']],
+        ['ElevenLabs', 'elevenlabs', 1, ['Web', 'https://join.elevenlabs.io/es']],
+        ['Higgsfield', 'higgsfield', 0, ['Web', 'https://higgsfield.ai/']],
+      ].map(([nombre, logo, glifo, ...links]) => ({ nombre, logo, glifo: !!glifo, links }));
+      const seguras = u => { u = String(u || '').trim(); if (/^https?:\/\//i.test(u)) return u; if (/^[a-z][a-z0-9+.-]*:/i.test(u)) return ''; return u ? 'https://' + u : ''; };
+      const imgOk = x => typeof x === 'string' && x.length <= 80000 && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+\/]+=*$/.test(x);
+      const guardadas = d.apps ? d.apps.flatMap(sec => (sec && Array.isArray(sec.apps) ? sec.apps : [])).filter(a => a && typeof a.nombre === 'string') : [];
+      const apps = guardadas.length ? guardadas : BASE;
+      // El link que abre: en iPhone la App Store, en Android la Play Store y en computadora la Web (o el primero que haya).
+      const ua = navigator.userAgent, ios = /iPhone|iPad|iPod/i.test(ua), android = /Android/i.test(ua);
+      const linkDe = a => {
+        const ls = (Array.isArray(a.links) ? a.links : []).filter(l => Array.isArray(l) && seguras(l[1]));
+        const busca = t => ls.find(l => String(l[0]).toLowerCase().includes(t));
+        const l = (ios && busca('app store')) || (android && busca('play')) || (!ios && !android && busca('web')) || ls[0];
+        return l ? seguras(l[1]) : '';
+      };
+      pinta('<div class="apps">' + apps.map(a => {
+        const u = linkDe(a);
+        const logo = imgOk(a.img) ? '<span class="ap"><img src="' + esc(a.img) + '" alt=""></span>'
+          : (typeof a.logo === 'string' && /^[a-z0-9-]+$/.test(a.logo)) ? '<span class="ap' + (a.glifo ? ' glifo' : '') + '"><img src="/img/apps/' + a.logo + '.png" alt="" loading="lazy"></span>'
+          : '<span class="ap" aria-hidden="true">' + esc(a.emoji || '🧩') + '</span>';
+        return '<a ' + (u ? 'href="' + esc(u) + '" target="_blank" rel="noopener"' : 'href="' + esc(r('/herramientas')) + '"') + '>' + logo + esc(a.nombre) + '</a>';
+      }).join('') + '</div>');
+    },
   };
 })();
 </script>
