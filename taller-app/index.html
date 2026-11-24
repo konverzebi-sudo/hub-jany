@@ -825,6 +825,10 @@ function crearApiSupabase() {
   return {
     demo: false, sb,
     async sesion() { const { data } = await sb.auth.getSession(); U = data.session?.user || null; return U; },
+    async entrarConClave(email, clave) {
+      const { error } = await sb.auth.signInWithPassword({ email, password: clave });
+      if (error) throw error;
+    },
     async entrar(email) {
       const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname } });
       if (error) throw error;
@@ -1374,15 +1378,24 @@ function temasFrecuentes(textos) {
 function pantallaLogin(msg) {
   $('#root').innerHTML = `<div class="login"><div class="card">
     <span class="eyebrow">Hub Jefes · Talleres</span>
-    <h1 style="font-size:28px;margin:14px 0 8px">Tu Primer Asistente con IA</h1>
-    <p class="muted" style="margin-bottom:18px">Escribe el correo con el que te inscribiste y te mandamos un enlace para entrar. No necesitas contraseña.</p>
+    <h1 style="font-size:28px;margin:14px 0 8px">Entra a tu taller</h1>
+    <p class="muted" style="margin-bottom:18px">Entra con tu correo y tu contraseña. Si todavía no creas tu contraseña, hazlo aquí:</p>
     <form id="fLogin"><div class="field"><input type="email" id="email" required placeholder="tu@correo.com" autocomplete="email"></div>
-    <button class="btn" style="width:100%">Enviarme el enlace</button></form>
+    <div class="field"><input type="password" id="clave" required placeholder="Tu contraseña" autocomplete="current-password"></div>
+    <button class="btn" style="width:100%">Entrar</button></form>
+    <p class="small" style="margin-top:12px"><a href="#" id="bEnlace">Olvidé mi contraseña: enviarme un enlace</a> · <a href="taller-crear-clave.html?taller=${encodeURIComponent(TALLER_SLUG)}">Crear mi contraseña</a></p>
     <p class="small muted" id="loginMsg" style="margin-top:14px">${esc(msg || '')}</p></div></div>`;
+  $('#bEnlace').onclick = async e => {
+    e.preventDefault();
+    const correo = $('#email').value.trim();
+    if (!correo) { $('#loginMsg').textContent = 'Escribe tu correo primero.'; return; }
+    try { await api.entrar(correo); $('#loginMsg').textContent = '📩 Listo. Revisa tu correo (y spam) y abre el enlace desde este mismo dispositivo.'; }
+    catch (err) { $('#loginMsg').textContent = 'No se pudo enviar: ' + err.message; }
+  };
   $('#fLogin').onsubmit = async e => {
     e.preventDefault();
-    try { await api.entrar($('#email').value.trim()); $('#loginMsg').textContent = '📩 Listo. Revisa tu correo (y spam) y abre el enlace desde este mismo dispositivo.'; }
-    catch (err) { $('#loginMsg').textContent = 'No se pudo enviar: ' + err.message; }
+    try { await api.entrarConClave($('#email').value.trim(), $('#clave').value); location.reload(); }
+    catch (err) { $('#loginMsg').textContent = 'No pudimos entrar: revisa tu correo y tu contraseña.'; }
   };
 }
 function pantallaSinAcceso() {
