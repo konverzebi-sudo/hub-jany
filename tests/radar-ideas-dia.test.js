@@ -308,3 +308,38 @@ test('normalizarPost acota los textos y exige guion o caption', () => {
   assert.equal(p.caption.length, 2200);
   assert.equal(p.notas, '');
 });
+
+test('Prioridades: la campaña "Activa" de Temporada gana; luego la del producto en foco; nunca cerradas ni vencidas', () => {
+  const { campanaPrioritaria, resumenPrioridades, bloquePrioridades } = require('../api/consultor-radar.js')._probar;
+  const hoy = '2026-11-24';
+  const campanas = [
+    { id: 'a', nombre: 'Borrador próximo', estado: 'borrador', fecha_inicio_activa: '2026-11-25', fecha_fin_activa: '2026-12-01' },
+    { id: 'b', nombre: 'Navidad', estado: 'activa', fecha_inicio_activa: '2026-12-01', fecha_fin_activa: '2026-12-24', producto_nombre: 'Taller', dm_oferta: 'OFERTA-NAVIDAD' },
+    { id: 'c', nombre: 'Cerrada', estado: 'cerrada', fecha_inicio_activa: '2026-11-01' },
+    { id: 'd', nombre: 'Vencida', estado: 'activa', fecha_fin_activa: '2026-11-01' },
+  ];
+  assert.equal(campanaPrioritaria(campanas, hoy, null).id, 'b');
+  assert.equal(campanaPrioritaria(campanas.filter((c) => c.id !== 'b'), hoy, null).id, 'a', 'sin activa: la vigente más próxima');
+  assert.equal(campanaPrioritaria([campanas[2], campanas[3]], hoy, null), null);
+
+  const p = resumenPrioridades({ id: 'all', nombre: '' }, { producto_estrella: 'Mentoría' }, campanas[1]);
+  assert.equal(p.producto, 'Mentoría', 'sin foco: el producto estrella del ADN');
+  assert.equal(p.campana.nombre, 'Navidad');
+  assert.equal(resumenPrioridades({ id: 'p1', nombre: 'Taller' }, { producto_estrella: 'Mentoría' }, null).producto, 'Taller', 'con foco: el producto en foco');
+  const b = bloquePrioridades(p, campanas[1]);
+  assert.match(b, /Prioridad del Jefe 366.*Mentoría/);
+  assert.match(b, /campaña "Navidad" \(activa\)/);
+  assert.ok(b.includes('OFERTA-NAVIDAD'));
+  assert.equal(bloquePrioridades({ producto: '', campana: null }, null), '');
+});
+
+test('idea-del-dia une la prioridad del 366 y la campaña de Temporada, y las guarda con la idea', async () => {
+  S.reiniciar({ datos: Object.assign({}, DATOS, { 'demo:temporada-campanas': DATOS['demo:temporada-campanas'].concat([{ id: 'c9', nombre: 'Campaña Activa X', estado: 'activa', producto_nombre: 'Taller', fecha_fin_activa: '2099-12-31' }]) }), respuesta: SEGUN_PEDIDO });
+  const r = await S.llamar(RADAR, { modo: 'idea-del-dia', cliente: 'demo', foco: FOCO });
+  assert.equal(r.codigo, 200, JSON.stringify(r.cuerpo));
+  const enviado = JSON.stringify(S.enviados[0]);
+  assert.ok(enviado.includes('PRIORIDADES DEL NEGOCIO HOY'));
+  assert.ok(enviado.includes('Prioridad del Jefe 366 (vender los 366 días del año): Taller'));
+  assert.ok(enviado.includes('campaña \\"Campaña Activa X\\" (activa)'));
+  assert.deepEqual(JSON.parse(JSON.stringify(r.cuerpo.idea.prioridades)), { producto: 'Taller', campana: { id: 'c9', nombre: 'Campaña Activa X', activa: true, producto: 'Taller' } });
+});

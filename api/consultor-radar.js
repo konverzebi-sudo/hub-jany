@@ -1327,6 +1327,55 @@ async function nombreDeMarca(clienteId) {
   return n ? `NOMBRE DE LA MARCA (para el primer hashtag): ${n.slice(0, 80)}` : '';
 }
 
+// ---------- prioridades: lo que la idea del día debe unir ----------
+// Jefe 366: el producto en foco (pastilla de arriba) o, si es "todo el ecosistema", el producto estrella del ADN.
+// Temporada: la campaña marcada "Activa" (la que ya corre o la más próxima; si hay foco, primero la de ese producto).
+// Si no hay ninguna activa, la más próxima que siga vigente y no esté cerrada.
+const esFechaISO = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
+function campanaPrioritaria(campanas, hoy, foco) {
+  const lista = (Array.isArray(campanas) ? campanas : []).filter((c) => c && typeof c === 'object' && String(c.nombre || '').trim()
+    && c.estado !== 'cerrada' && !(esFechaISO(c.fecha_fin_activa) && c.fecha_fin_activa < hoy));
+  if (!lista.length) return null;
+  const delFoco = (c) => !!(foco && foco.id !== 'all' && (c.producto_id === foco.id || String(c.producto_nombre || '').trim().toLowerCase() === foco.nombre.toLowerCase()));
+  const corriendo = (c) => esFechaISO(c.fecha_inicio_activa) && c.fecha_inicio_activa <= hoy;
+  const inicio = (c) => (esFechaISO(c.fecha_inicio_activa) ? c.fecha_inicio_activa : '9999-12-31');
+  return lista.slice().sort((a, b) =>
+    (b.estado === 'activa') - (a.estado === 'activa') || delFoco(b) - delFoco(a) || corriendo(b) - corriendo(a) || inicio(a).localeCompare(inicio(b)))[0];
+}
+
+function resumenPrioridades(foco, identidad, campana) {
+  const estrella = identidad && typeof identidad.producto_estrella === 'string' ? identidad.producto_estrella.trim() : '';
+  const producto = foco && foco.id !== 'all' ? foco.nombre : estrella;
+  const c = campana ? {
+    id: String(campana.id || '').slice(0, 60),
+    nombre: String(campana.nombre || '').trim().slice(0, 120),
+    activa: campana.estado === 'activa',
+    producto: String((campana.producto_origen === 'nuevo' ? campana.producto_nuevo : campana.producto_nombre) || '').trim().slice(0, 120),
+  } : null;
+  return { producto: String(producto || '').slice(0, 120), campana: c };
+}
+
+function bloquePrioridades(prio, campana) {
+  if (!prio || (!prio.producto && !prio.campana)) return '';
+  const l = ['PRIORIDADES DEL NEGOCIO HOY (la idea de hoy debe UNIR las dos: servir al producto en prioridad del Jefe 366 y empujar la campaña en prioridad de Temporada, de forma natural y sin forzarlo; en "por_que_te_sirve" di en una frase cómo conecta con las dos):'];
+  if (prio.producto) l.push(`- Prioridad del Jefe 366 (vender los 366 días del año): ${prio.producto}`);
+  if (prio.campana && campana) {
+    const t = (v, n) => truncar(String(v || '').trim(), n);
+    const partes = [
+      campana.temporada ? `temporada: ${t(campana.temporada, 80)}` : '',
+      prio.campana.producto ? `producto: ${prio.campana.producto}` : '',
+      esFechaISO(campana.fecha_inicio_activa) || esFechaISO(campana.fecha_fin_activa) ? `fechas: ${campana.fecha_inicio_activa || '?'} a ${campana.fecha_fin_activa || '?'}` : '',
+      campana.objetivo_principal ? `objetivo: ${t(campana.objetivo_principal, 200)}` : '',
+      campana.dm_oferta ? `oferta: ${t(campana.dm_oferta, 200)}` : '',
+      campana.incentivo ? `incentivo: ${t(campana.incentivo, 160)}` : '',
+      campana.dm_mensaje_principal ? `mensaje principal: ${t(campana.dm_mensaje_principal, 240)}` : '',
+    ].filter(Boolean);
+    l.push(`- Prioridad de Temporada: campaña "${prio.campana.nombre}"${prio.campana.activa ? ' (activa)' : ''}${partes.length ? ' · ' + partes.join(' · ') : ''}`);
+    l.push('No inventes promociones, precios ni fechas de la campaña: usa solo lo que dice aquí.');
+  }
+  return l.join('\n');
+}
+
 async function handleIdeaDelDia(req, res, clienteId, systemPrompt) {
   const foco = normalizarFoco(req.body && req.body.foco);
   const hoy = FichaAudiencia.fechaMx();
@@ -1347,9 +1396,16 @@ async function handleIdeaDelDia(req, res, clienteId, systemPrompt) {
   const fichaTxt = FichaAudiencia.formatearFicha(entradaFicha);
   if (!fichaTxt && fuentes.vacio) return res.status(400).json({ error: AVISO_SIN_FUENTES });
 
+  const [campanas, identidad] = await Promise.all([
+    leerJSON(`${clienteId}:temporada-campanas`).catch(() => null),
+    leerJSON(`${clienteId}:brand-book.identidad`).catch(() => null),
+  ]);
+  const campana = campanaPrioritaria(campanas, hoy, foco);
+  const prioridades = resumenPrioridades(foco, identidad, campana);
+
   // Con ficha se lee el resumen corto; sin ella (todavía no se armó) se usan las tres fuentes completas.
   const producto = await contextoProductoFoco(clienteId, foco).catch(() => '');
-  const contexto = [fichaTxt ? [fichaTxt, producto].filter(Boolean).join('\n\n') : truncar(fuentes.texto, 9000), bloqueMisNumeros(numeros, foco), marca, lineaFoco(foco)].filter(Boolean).join('\n\n');
+  const contexto = [fichaTxt ? [fichaTxt, producto].filter(Boolean).join('\n\n') : truncar(fuentes.texto, 9000), bloqueMisNumeros(numeros, foco), marca, lineaFoco(foco), bloquePrioridades(prioridades, campana)].filter(Boolean).join('\n\n');
 
   const diag = ultimaEntradaPorTipo(historial, 'diagnostico-general', foco.id);
   const analisis = ultimaEntradaPorTipo(historial, 'analisis-general', foco.id);
@@ -1371,7 +1427,7 @@ async function handleIdeaDelDia(req, res, clienteId, systemPrompt) {
 
   const idea = normalizarIdea(extractJson(r.text));
   if (!idea) return res.status(502).json({ error: 'No pude armar la idea de hoy. Intenta de nuevo.' });
-  const entry = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), fecha: hoy, date: fechaHoy(), foco: { id: foco.id, nombre: foco.nombre }, conFicha: !!fichaTxt, idea };
+  const entry = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), fecha: hoy, date: fechaHoy(), foco: { id: foco.id, nombre: foco.nombre }, conFicha: !!fichaTxt, prioridades, idea };
   let guardado = true;
   try {
     const otras = items.filter((e) => !(e && e.fecha === hoy && e.foco && e.foco.id === foco.id));
@@ -1505,4 +1561,4 @@ module.exports = async function handler(req, res) {
 };
 
 // Solo para las pruebas (tests/radar-investigacion.test.js): funciones puras, sin red.
-module.exports._probar = { analizarLinkRed, bloqueDeCuenta, normalizarPostsInstagram, normalizarPostsTikTok, normalizarPostsFacebook, leerRssYouTube, normalizarFoco, lineaFoco, coincideFoco, ultimaEntradaPorTipo, frecuenciaPosts, bloqueMisNumeros, normalizarIdea, normalizarPost, ideaDeHoy };
+module.exports._probar = { analizarLinkRed, bloqueDeCuenta, normalizarPostsInstagram, normalizarPostsTikTok, normalizarPostsFacebook, leerRssYouTube, normalizarFoco, lineaFoco, coincideFoco, ultimaEntradaPorTipo, frecuenciaPosts, bloqueMisNumeros, normalizarIdea, normalizarPost, ideaDeHoy, campanaPrioritaria, resumenPrioridades, bloquePrioridades };
