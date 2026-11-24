@@ -2893,6 +2893,22 @@
     if(PROJECT_COLORS[name]) return PROJECT_COLORS[name];
     return p ? p.color : '#6B7280';
   }
+  // links de trabajo: solo se aceptan direcciones http(s); si falta el https:// se agrega
+  function projLinkNormalize(raw){
+    var u = String(raw || '').trim();
+    if(!u || /\s/.test(u)) return '';
+    if(!/^https?:\/\//i.test(u)){
+      if(/^[a-z][a-z0-9+.-]*:/i.test(u) && !/^[^\/]+:\d+/.test(u)) return '';   // mailto:, javascript:, etc.
+      u = 'https://' + u;
+    }
+    try{
+      var x = new URL(u);
+      if((x.protocol !== 'http:' && x.protocol !== 'https:') || x.hostname.indexOf('.') < 0) return '';
+      return x.href;
+    }catch(e){ return ''; }
+  }
+  function projLinkHost(u){ try{ return new URL(u).hostname.replace(/^www\./, ''); }catch(e){ return u; } }
+  function projLinkEsc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   // logotipo chiquito del proyecto (si lo tiene), para chips y encabezados
   function projectLogoHtml(name, size){
     var p = data.products.find(function(x){ return x.name === name; });
@@ -3790,6 +3806,39 @@
     });
     ed.appendChild(look);
 
+    // ===== Links de trabajo del proyecto =====
+    var lk = document.createElement('div');
+    lk.style.cssText = 'margin-bottom:10px;padding:10px;background:#F8F6FF;border:1px solid #ECE8F8;border-radius:12px;';
+    var linksList = (p.links || []).filter(function(l){ return projLinkNormalize(l.url); }).map(function(l){
+      return '<div class="jd-row" style="gap:6px;align-items:center;margin-bottom:6px;">' +
+        '<a href="' + projLinkEsc(l.url) + '" target="_blank" rel="noopener noreferrer" style="flex:1;min-width:0;overflow-wrap:anywhere;color:#5B3FD0;font-size:12.5px;text-decoration:none;">🔗 ' + projLinkEsc(l.label || projLinkHost(l.url)) + ' ↗</a>' +
+        '<button type="button" class="jd-btn" data-lkdel="' + projLinkEsc(l.id) + '" title="Quitar link" style="padding:1px 8px;flex:none;">×</button></div>';
+    }).join('');
+    lk.innerHTML = '<div class="jd-sub" style="margin-bottom:8px;color:#5B5784;">Links de trabajo</div>' +
+      (linksList || '<div class="jd-sub" style="margin-bottom:8px;">Agrega las carpetas de Drive, documentos, páginas o cuentas de este proyecto.</div>') +
+      '<input class="jd-input" data-lkname placeholder="Nombre (ej. Carpeta de Drive)" style="margin-bottom:6px;">' +
+      '<input class="jd-input" data-lkurl placeholder="Pega el link (https://…)" inputmode="url" style="margin-bottom:6px;">' +
+      '<button type="button" class="jd-btn jd-btn-lima" data-lkadd style="width:100%;">+ Agregar link</button>' +
+      '<div class="jd-sub" data-lkmsg style="color:#D4463B;min-height:14px;margin-top:6px;"></div>';
+    function addProjLink(){
+      var nm = lk.querySelector('[data-lkname]').value.trim(), raw = lk.querySelector('[data-lkurl]').value;
+      var href = projLinkNormalize(raw);
+      if(!href){ lk.querySelector('[data-lkmsg]').textContent = 'Ese link no es válido. Pega una dirección que empiece con https://'; return; }
+      if(!p.links) p.links = [];
+      p.links.push({id: uid('lk'), label: nm, url: href});
+      save(); renderProducts();
+    }
+    lk.querySelector('[data-lkadd]').addEventListener('click', addProjLink);
+    lk.querySelector('[data-lkurl]').addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); addProjLink(); } });
+    lk.querySelectorAll('[data-lkdel]').forEach(function(b){
+      b.addEventListener('click', function(){
+        var id = b.getAttribute('data-lkdel');
+        p.links = (p.links || []).filter(function(l){ return l.id !== id; });
+        save(); renderProducts();
+      });
+    });
+    ed.appendChild(lk);
+
     var cap = document.createElement('div');
     cap.className = 'jd-sub'; cap.style.margin = '2px 0 6px';
     cap.textContent = 'Datos del proyecto (concepto y dato)';
@@ -3927,6 +3976,21 @@
       bar.style.cssText = 'height:4px;background:#F1EEFB;border-radius:4px;overflow:hidden;margin-bottom:8px;';
       bar.innerHTML = '<div style="height:100%;width:'+pct+'%;background:'+(color2 !== color ? 'linear-gradient(90deg,'+color+','+color2+')' : color)+';"></div>';
       card.appendChild(bar);
+
+      // links de trabajo: botones chiquitos que abren en pestaña nueva
+      if(p.links && p.links.length){
+        var linkRow = document.createElement('div');
+        linkRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;';
+        p.links.filter(function(l){ return projLinkNormalize(l.url); }).forEach(function(l){
+          var a = document.createElement('a');
+          a.href = l.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+          a.title = l.url;
+          a.textContent = '🔗 ' + (l.label || projLinkHost(l.url)) + ' ↗';
+          a.style.cssText = 'display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;font-weight:600;padding:3px 10px;border-radius:999px;background:#F1EEFB;color:' + color + ';border:1px solid ' + color + ';text-decoration:none;';
+          linkRow.appendChild(a);
+        });
+        card.appendChild(linkRow);
+      }
 
       if(editingProjectId === p.id){
         renderProjectEditor(p, card);
