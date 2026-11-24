@@ -691,6 +691,83 @@
 (function(){ try { var v = new URLSearchParams(location.search).get('taller'); if (v && /^[a-z0-9][a-z0-9-]{1,59}$/.test(v)) localStorage.setItem('taller-activo', v); } catch (e) {} })();</script>
 <script src="taller-app/config.js"></script>
 <script>
+/* Puerta de acceso: para ver la guía hay que entrar con correo y contraseña, y estar inscrito en el taller.
+   La sesión se guarda en el navegador: una vez dentro, no vuelve a pedir nada en ese equipo. */
+(function () {
+  var CFG = window.TALLER_CONFIG || {};
+  var URL_SB = (CFG.supabaseUrl || '').replace(/\/+$/, ''), KEY = CFG.supabaseAnonKey || '';
+  if (!URL_SB || !KEY) return;
+  var REF = URL_SB.replace(/^https?:\/\//, '').split('.')[0];
+  var CLAVE_LS = 'sb-' + REF + '-auth-token';
+  var qs = new URLSearchParams(location.search);
+  var TALLER = (function () {
+    var v = qs.get('taller') || localStorage.getItem('taller-activo');
+    return /^[a-z0-9][a-z0-9-]{1,59}$/.test(v || '') ? v : (CFG.taller || 'primer-agente');
+  })();
+  var VISTA_PONENTE = qs.get('vista') === 'ponente';
+
+  function leer() { try { return JSON.parse(localStorage.getItem(CLAVE_LS) || 'null'); } catch (e) { return null; } }
+  function guardar(s) { localStorage.setItem(CLAVE_LS, JSON.stringify(s)); }
+  function cab(tok) { return { apikey: KEY, Authorization: 'Bearer ' + (tok || KEY), 'Content-Type': 'application/json' }; }
+  function cerrarConPantalla(html) {
+    document.documentElement.style.overflow = 'hidden';
+    var d = document.createElement('div');
+    d.id = 'puertaGuia';
+    d.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#0F0B16;color:#fff;display:flex;align-items:center;justify-content:center;padding:24px;font-family:Inter,system-ui,sans-serif';
+    d.innerHTML = '<div style="max-width:420px;width:100%;background:#181120;border:1px solid #332A3D;border-radius:18px;padding:28px">' + html + '</div>';
+    document.body.appendChild(d);
+    return d;
+  }
+  function pedirEntrar(extra) {
+    var link = 'taller-crear-clave.html?taller=' + encodeURIComponent(TALLER);
+    cerrarConPantalla(
+      '<div style="font-weight:700;font-size:14px;margin-bottom:14px">JEFES<span style="color:#BBF802">HUB</span> · Guía del taller</div>' +
+      '<h2 style="font-size:22px;margin:0 0 8px">Entra para ver la guía</h2>' +
+      (extra ? '<p style="color:#FF8A8A;font-size:14px;margin:0 0 12px">' + extra + '</p>' : '') +
+      '<form id="puertaForm"><input id="puertaCorreo" type="email" required placeholder="tu@correo.com" autocomplete="email" style="width:100%;padding:12px;border-radius:12px;border:1px solid #332A3D;background:#0F0B16;color:#fff;font-size:16px;margin-bottom:10px">' +
+      '<input id="puertaClave" type="password" required placeholder="Tu contraseña" autocomplete="current-password" style="width:100%;padding:12px;border-radius:12px;border:1px solid #332A3D;background:#0F0B16;color:#fff;font-size:16px">' +
+      '<button style="width:100%;margin-top:14px;padding:13px;border:0;border-radius:12px;background:#BBF802;color:#0F0B16;font-weight:700;font-size:16px;cursor:pointer">Entrar</button></form>' +
+      '<p id="puertaMsg" style="font-size:14px;color:#D6CFE0;min-height:18px;margin:12px 0 0"></p>' +
+      '<p style="font-size:14px;margin:12px 0 0"><a href="' + link + '" style="color:#BBF802">Crear mi contraseña</a></p>');
+    document.getElementById('puertaForm').onsubmit = async function (e) {
+      e.preventDefault();
+      var msg = document.getElementById('puertaMsg');
+      try {
+        var r = await fetch(URL_SB + '/auth/v1/token?grant_type=password', { method: 'POST', headers: cab(), body: JSON.stringify({ email: document.getElementById('puertaCorreo').value.trim(), password: document.getElementById('puertaClave').value }) });
+        var d = await r.json();
+        if (!r.ok || !d.access_token) { msg.textContent = 'No pudimos entrar: revisa tu correo y tu contraseña.'; return; }
+        guardar({ access_token: d.access_token, refresh_token: d.refresh_token, token_type: d.token_type || 'bearer', expires_in: d.expires_in, expires_at: Math.floor(Date.now() / 1000) + (d.expires_in || 3600), user: d.user });
+        location.reload();
+      } catch (err) { msg.textContent = 'Sin conexión. Intenta de nuevo.'; }
+    };
+  }
+  async function refrescar(s) {
+    try {
+      var r = await fetch(URL_SB + '/auth/v1/token?grant_type=refresh_token', { method: 'POST', headers: cab(), body: JSON.stringify({ refresh_token: s.refresh_token }) });
+      var d = await r.json();
+      if (!r.ok || !d.access_token) return null;
+      var n = { access_token: d.access_token, refresh_token: d.refresh_token, token_type: d.token_type || 'bearer', expires_in: d.expires_in, expires_at: Math.floor(Date.now() / 1000) + (d.expires_in || 3600), user: d.user };
+      guardar(n); return n;
+    } catch (e) { return null; }
+  }
+  async function rolEnTaller(s) {
+    var t = await fetch(URL_SB + '/rest/v1/talleres?select=id&slug=eq.' + encodeURIComponent(TALLER), { headers: cab(s.access_token) }).then(function (r) { return r.json(); });
+    if (!t[0]) return null;
+    var m = await fetch(URL_SB + '/rest/v1/miembros?select=rol&taller_id=eq.' + t[0].id + '&user_id=eq.' + s.user.id, { headers: cab(s.access_token) }).then(function (r) { return r.json(); });
+    return m[0] ? m[0].rol : null;
+  }
+
+  (async function () {
+    var s = leer();
+    if (s && s.expires_at && s.expires_at * 1000 < Date.now() + 60000) s = await refrescar(s);
+    if (!s || !s.access_token) { pedirEntrar(); return; }
+    var rol = await rolEnTaller(s).catch(function () { return null; });
+    if (!rol) { pedirEntrar('Tu correo no está inscrito en este taller. Si ya pagaste, espera unos minutos o escribe a soporte.'); return; }
+    if (VISTA_PONENTE && rol !== 'ponente' && rol !== 'soporte') { pedirEntrar('La vista de ponente es solo para el ponente y soporte.'); return; }
+  })();
+})();
+</script>
+<script>
 /* =========================================================
    CONTENIDO DEL TALLER — edita solo esto
    Los textos entre [CORCHETES] dentro de un prompt se resaltan
