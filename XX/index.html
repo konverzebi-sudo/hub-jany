@@ -773,7 +773,7 @@
     return {
       date: d.toLocaleDateString('es-MX',{day:'numeric',month:'short'}),
       dateISO: localISO(d),
-      time: d.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})
+      time: time24(d)   // 24 h (HH:MM): así el mapa semanal lo pone en la hora correcta
     };
   }
 
@@ -2682,7 +2682,7 @@
         var rangeLabel = sd.getDate() + (a.endDate && a.endDate!==a.startDate ? '–'+ed.getDate() : '') + ' ' + monthNames[ed.getMonth()].slice(0,3) + (a.time ? ' · '+a.time : '') + (a.time && a.durationMinutes ? ' ('+a.durationMinutes+'min)' : '');
         dateChip = '<span class="jd-chip" style="background:#F1EEFB;color:#7C5CF2;margin-right:6px;">'+rangeLabel+'</span>';
       }
-      var projChip = a.project ? ' <span class="jd-chip" style="background:#F1EEFB;color:'+projColor+';">'+a.project+'</span>' : '';
+      var projChip = a.project ? ' <span class="jd-chip" style="background:#F1EEFB;color:'+projColor+';">'+projectLogoHtml(a.project, 14)+a.project+'</span>' : '';
       var areaObj = a.area ? data.areas.find(function(ar){ return ar.id === a.area; }) : null;
       var areaChip = areaObj ? ' <span class="jd-chip" style="background:#F1EEFB;color:'+areaObj.color+';">◎ '+areaObj.name+'</span>' : '';
       var gcalIcon = '';
@@ -2888,9 +2888,16 @@
   }
 
   function projectColor(name){
-    if(PROJECT_COLORS[name]) return PROJECT_COLORS[name];
     var p = data.products.find(function(x){ return x.name === name; });
+    if(p && p.colorSet && p.color) return p.color;   // el color que Jany eligió manda
+    if(PROJECT_COLORS[name]) return PROJECT_COLORS[name];
     return p ? p.color : '#6B7280';
+  }
+  // logotipo chiquito del proyecto (si lo tiene), para chips y encabezados
+  function projectLogoHtml(name, size){
+    var p = data.products.find(function(x){ return x.name === name; });
+    if(!p || !p.logo) return '';
+    return '<img src="' + p.logo + '" alt="" style="width:' + size + 'px;height:' + size + 'px;object-fit:contain;border-radius:' + Math.round(size / 4) + 'px;vertical-align:middle;margin-right:4px;background:#fff;">';
   }
 
   function buildMonthMap(){
@@ -2908,10 +2915,16 @@
   }
 
   function parseHourFromTime(t){
-    var m = /^(\d{1,2}):(\d{2})/.exec(t || '');
+    var m = /^(\d{1,2}):(\d{2})\s*([ap])?\.?\s?(m)?/i.exec(t || '');
     if(!m) return null;
     var h = parseInt(m[1], 10);
     if(isNaN(h) || h<0 || h>23) return null;
+    // horas guardadas antes en formato "03:45 p.m." (12 h)
+    if(m[3] && m[4]){
+      var pm = m[3].toLowerCase() === 'p';
+      if(pm && h < 12) h += 12;
+      else if(!pm && h === 12) h = 0;
+    }
     return h;
   }
 
@@ -3311,7 +3324,7 @@
         var alpha = info.total >= 45 ? 1 : info.total >= 20 ? 0.7 : 0.4;
         bg = hexToRgba(projectColor(dominant), alpha);
       } else if(info && info.entries.length){
-        bg = hexToRgba(projectColor(info.entries[0].project), 0.4);
+        bg = hexToRgba(projectColor(info.entries[0].project), 0.65);
       }
       var key = dayIdx + '-' + hour;
       var isNow = iso === nowISO && hour === nowHour;
@@ -3720,6 +3733,63 @@
     });
     ed.appendChild(nameInp);
 
+    // ===== Logotipo y colores del proyecto =====
+    var look = document.createElement('div');
+    look.style.cssText = 'margin-bottom:10px;padding:10px;background:#F8F6FF;border:1px solid #ECE8F8;border-radius:12px;';
+    var mainC = projectColor(p.name), secC = p.color2 || '';
+    function lookRefresh(){ save(); renderProducts(); renderAgenda(); renderWeekGrid(); renderHistory(); renderCalendar(); }
+    var swatches = PROJECT_PALETTE.concat(['#7BC62D','#FF4FA3','#2D9CDB','#1F1B3D']).map(function(c){
+      return '<button type="button" data-c="' + c + '" title="' + c + '" style="width:24px;height:24px;border-radius:50%;background:' + c + ';border:' + (c.toLowerCase() === mainC.toLowerCase() ? '3px solid #1F1B3D' : '2px solid #fff') + ';box-shadow:0 0 0 1px #DDD7F0;cursor:pointer;padding:0;"></button>';
+    }).join('');
+    look.innerHTML = '<div class="jd-sub" style="margin-bottom:8px;color:#5B5784;">Logotipo y colores</div>' +
+      '<div class="jd-row" style="gap:10px;align-items:center;margin-bottom:10px;">' +
+        '<div style="width:52px;height:52px;border-radius:12px;background:#fff;border:3px solid ' + (secC || mainC) + ';display:flex;align-items:center;justify-content:center;overflow:hidden;flex:none;">' +
+          (p.logo ? '<img src="' + p.logo + '" alt="" style="max-width:100%;max-height:100%;object-fit:contain;">' : '<b style="font-size:20px;color:' + mainC + ';">' + projEsc(p.name.charAt(0).toUpperCase()) + '</b>') + '</div>' +
+        '<div style="flex:1;min-width:0;display:flex;flex-wrap:wrap;gap:6px;">' +
+          '<label class="jd-btn" style="cursor:pointer;margin:0;">' + (p.logo ? 'Cambiar logotipo' : 'Subir logotipo') + '<input type="file" accept="image/*" data-logo style="display:none;"></label>' +
+          (p.logo ? '<button type="button" class="jd-btn" data-nologo>Quitar</button>' : '') +
+        '</div></div>' +
+      '<div class="jd-sub" style="margin-bottom:4px;">Color principal (mapa, puntos y etiquetas)</div>' +
+      '<div class="jd-row" style="gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">' + swatches +
+        '<input type="color" data-main value="' + mainC + '" title="Elegir otro color" style="width:32px;height:28px;border:none;background:transparent;padding:0;cursor:pointer;"></div>' +
+      '<div class="jd-sub" style="margin-bottom:4px;">Color secundario (opcional, acento del logotipo y la barra)</div>' +
+      '<div class="jd-row" style="gap:8px;align-items:center;">' +
+        '<input type="color" data-sec value="' + (secC || mainC) + '" style="width:32px;height:28px;border:none;background:transparent;padding:0;cursor:pointer;">' +
+        (secC ? '<button type="button" class="jd-btn" data-nosec>Quitar secundario</button>' : '<span class="jd-sub">sin secundario</span>') + '</div>' +
+      '<div class="jd-sub" data-lookmsg style="color:#D4463B;min-height:14px;margin-top:6px;"></div>';
+    function projEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+    look.querySelectorAll('[data-c]').forEach(function(b){
+      b.addEventListener('click', function(){ p.color = b.getAttribute('data-c'); p.colorSet = true; lookRefresh(); });
+    });
+    look.querySelector('[data-main]').addEventListener('change', function(e){ p.color = e.target.value; p.colorSet = true; lookRefresh(); });
+    look.querySelector('[data-sec]').addEventListener('change', function(e){ p.color2 = e.target.value; lookRefresh(); });
+    var noSec = look.querySelector('[data-nosec]');
+    if(noSec) noSec.addEventListener('click', function(){ delete p.color2; lookRefresh(); });
+    var noLogo = look.querySelector('[data-nologo]');
+    if(noLogo) noLogo.addEventListener('click', function(){ delete p.logo; lookRefresh(); });
+    look.querySelector('[data-logo]').addEventListener('change', function(e){
+      var f = e.target.files && e.target.files[0], msgEl = look.querySelector('[data-lookmsg]');
+      if(!f) return;
+      if(!/^image\//.test(f.type)){ msgEl.textContent = 'Elige una imagen (PNG, JPG, SVG…).'; return; }
+      if(f.size > 8 * 1024 * 1024){ msgEl.textContent = 'La imagen pesa más de 8 MB; usa una más ligera.'; return; }
+      var rd = new FileReader();
+      rd.onload = function(){
+        var img = new Image();
+        img.onload = function(){
+          var sc = Math.min(1, 160 / Math.max(img.width || 160, img.height || 160));
+          var cv = document.createElement('canvas');
+          cv.width = Math.max(1, Math.round((img.width || 160) * sc)); cv.height = Math.max(1, Math.round((img.height || 160) * sc));
+          cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+          p.logo = cv.toDataURL('image/png');
+          lookRefresh();
+        };
+        img.onerror = function(){ msgEl.textContent = 'No pude leer esa imagen.'; };
+        img.src = rd.result;
+      };
+      rd.readAsDataURL(f);
+    });
+    ed.appendChild(look);
+
     var cap = document.createElement('div');
     cap.className = 'jd-sub'; cap.style.margin = '2px 0 6px';
     cap.textContent = 'Datos del proyecto (concepto y dato)';
@@ -3830,7 +3900,8 @@
     box.innerHTML = '';
     populateTaskProjectSelect();
     data.products.forEach(function(p){
-      var color = PROJECT_COLORS[p.name] || p.color;
+      var color = projectColor(p.name);
+      var color2 = p.color2 || color;
       var card = document.createElement('div');
       card.className = 'jd-card';
       var pendingTasks = p.tasks.filter(function(t){ return !t.done; });
@@ -3839,7 +3910,7 @@
       var open = !!projectsOpen[p.id];
       var head = document.createElement('div');
       head.className = 'jd-row'; head.style.cssText = 'justify-content:space-between;margin-bottom:6px;';
-      head.innerHTML = '<div class="jd-row" style="gap:6px;min-width:0;"><span style="width:9px;height:9px;border-radius:50%;background:'+color+';display:inline-block;flex:none;"></span>'+
+      head.innerHTML = '<div class="jd-row" style="gap:6px;min-width:0;">'+(p.logo ? '<img src="'+p.logo+'" alt="" style="width:26px;height:26px;object-fit:contain;border-radius:7px;background:#fff;border:2px solid '+color2+';flex:none;">' : '<span style="width:9px;height:9px;border-radius:50%;background:'+color+';display:inline-block;flex:none;"></span>')+
         '<button data-open style="background:transparent;border:none;color:#1F1B3D;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;padding:0;text-align:left;" title="Ver detalles y tareas hechas">'+p.name+' <span style="color:#8A86A8;font-weight:400;">'+(open ? '▾' : '▸')+'</span></button></div>'+
         '<span class="jd-row" style="gap:6px;flex:none;"><button class="jd-sub" data-edit style="background:transparent;border:none;cursor:pointer;padding:0;text-decoration:underline;">'+(editingProjectId === p.id ? 'listo' : 'editar')+'</button>'+
         '<span class="jd-chip" style="background:#F1EEFB;color:#5B5784;">'+pendingTasks.length+' pend.</span></span>';
@@ -3854,7 +3925,7 @@
       card.appendChild(head);
       var bar = document.createElement('div');
       bar.style.cssText = 'height:4px;background:#F1EEFB;border-radius:4px;overflow:hidden;margin-bottom:8px;';
-      bar.innerHTML = '<div style="height:100%;width:'+pct+'%;background:'+color+';"></div>';
+      bar.innerHTML = '<div style="height:100%;width:'+pct+'%;background:'+(color2 !== color ? 'linear-gradient(90deg,'+color+','+color2+')' : color)+';"></div>';
       card.appendChild(bar);
 
       if(editingProjectId === p.id){
