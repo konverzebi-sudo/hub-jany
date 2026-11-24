@@ -992,6 +992,11 @@
   // Los pagos que ya estaban se marcan una vez: los de la hoja / de captura (id cp…-N) cuentan; los demás no.
   function casaMigrate(){
     var changed = false;
+    // se quita el "Préstamo casa" de $250,000 que se cargó solo la primera vez (sin fecha): Jany pidió dejar únicamente lo del Excel.
+    // Si Jany agrega dinero recibido de verdad, lleva fecha y no se toca.
+    var antes = data.casa.entradas.length;
+    data.casa.entradas = data.casa.entradas.filter(function(e){ return !(e.note === 'Préstamo casa' && !e.date && +e.amount === 250000); });
+    if(data.casa.entradas.length !== antes) changed = true;
     data.casa.pagos.forEach(function(p){
       if(typeof p.credito === 'boolean') return;
       p.credito = !p.src && (!!p.fromSheet || /^cp\d+-\d+$/.test(String(p.id)));
@@ -1003,7 +1008,7 @@
     if(data.casa) return casaMigrate();
     var rows = [['APOYO 1',13500,''],['APOYO 2',20000,''],['APOYO 3',12000,''],['REFRIGERADOR',18000,'2026-11-16'],['LAVADORA Y SECADORA',14500,'2026-11-16'],['HORNO',9020,'2026-11-16'],['PARRILLA Y LAVABAJILLA',13800,''],['Cadena',10000,'2026-11-19']];
     data.casa = {
-      entradas: [{id: uid('ce'), date: '', amount: 250000, note: 'Préstamo casa'}],
+      entradas: [],
       personas: [],
       pagos: rows.map(function(r, i){ return {id: uid('cp') + '-' + i, pid: null, date: r[2], amount: r[1], method: '', card: '', other: '', note: r[0], credito: true}; })
     };
@@ -1247,14 +1252,16 @@
   function renderCasa(){
     var box = document.getElementById('jd-casa');
     if(!box || !data || !data.casa) return;
-    var c = data.casa, t = casaTotals(), pct = t.rec > 0 ? Math.max(0, Math.min(100, Math.round(t.pag / t.rec * 100))) : 0;
+    var c = data.casa, t = casaTotals(), hasRec = t.rec > 0, pct = hasRec ? Math.max(0, Math.min(100, Math.round(t.pag / t.rec * 100))) : 0;
     var sinAll = casaPagosDe(null), sin = sinAll.filter(function(p){ return p.credito; }), sinMan = sinAll.filter(function(p){ return !p.credito; });
     var manual = c.pagos.filter(function(p){ return !p.credito; });
     var h = '<div class="jd-row" style="gap:10px;margin-bottom:12px;"><div class="jd-ico">🏠</div><div><div class="jd-h" style="margin:0;">Casa Jany</div><div class="jd-sub">Lo que recibes del préstamo y lo que le pagas a cada persona</div></div></div>' +
-      '<div class="jd-casa-stats"><div><div class="jd-sub">Recibido</div><div class="jd-disp jd-casa-num" style="color:#1F9D55;">' + casaMoney(t.rec) + '</div></div>' +
-      '<div><div class="jd-sub">Pagado</div><div class="jd-disp jd-casa-num" style="color:#7C5CF2;">' + casaMoney(t.pag) + '</div></div>' +
-      '<div><div class="jd-sub">Te queda</div><div class="jd-disp jd-casa-num" style="color:' + (t.saldo < 0 ? '#D4463B' : '#1F1B3D') + ';">' + casaMoney(t.saldo) + '</div></div></div>' +
-      '<div class="jd-casa-bar"><i style="width:' + pct + '%"></i></div><div class="jd-sub" style="margin:4px 0 12px;">Llevas gastado el ' + pct + '% de lo recibido (lo que está en el Excel)</div>' +
+      '<div class="jd-casa-stats"><div><div class="jd-sub">Recibido</div><div class="jd-disp jd-casa-num" style="color:' + (hasRec ? '#1F9D55' : '#A39FC2') + ';">' + (hasRec ? casaMoney(t.rec) : '—') + '</div></div>' +
+      '<div><div class="jd-sub">Pagado (Excel)</div><div class="jd-disp jd-casa-num" style="color:#7C5CF2;">' + casaMoney(t.pag) + '</div></div>' +
+      '<div><div class="jd-sub">Te queda</div><div class="jd-disp jd-casa-num" style="color:' + (!hasRec ? '#A39FC2' : t.saldo < 0 ? '#D4463B' : '#1F1B3D') + ';">' + (hasRec ? casaMoney(t.saldo) : '—') + '</div></div></div>' +
+      (hasRec
+        ? '<div class="jd-casa-bar"><i style="width:' + pct + '%"></i></div><div class="jd-sub" style="margin:4px 0 12px;">Llevas gastado el ' + pct + '% de lo recibido (lo que está en el Excel)</div>'
+        : '<div class="jd-sub" style="margin:0 0 12px;">Aquí solo está lo registrado en el Excel (' + c.pagos.filter(function(p){ return p.credito; }).length + ' pagos). Si quieres ver cuánto te queda, agrega lo que recibiste con “+ Recibí dinero”.</div>') +
       (manual.length ? '<div class="jd-sub" style="margin:-6px 0 12px;color:#B8741A;">Aparte, a mano (no suma al crédito): ' + manual.length + ' pago' + (manual.length === 1 ? '' : 's') + ' · ' + casaMoney(casaSum(manual)) + '</div>' : '') +
       '<div class="jd-row" style="gap:6px;flex-wrap:wrap;margin-bottom:10px;"><button type="button" class="jd-btn jd-btn-lima" data-act="new-pago">+ Registrar pago</button><button type="button" class="jd-btn" data-act="new-entrada">+ Recibí dinero</button><button type="button" class="jd-btn" data-act="new-persona">+ Persona</button><button type="button" class="jd-btn" data-act="sync-sheet"' + (casaUI.syncBusy ? ' disabled' : '') + '>↻ Actualizar</button></div>' +
       (casaUI.syncMsg ? '<div class="jd-sub" style="margin:-4px 0 10px;color:' + (casaUI.syncErr ? '#D4463B' : '#6B6790') + ';">' + casaEsc(casaUI.syncMsg) + (c.sheetUrl && !casaUI.syncBusy ? ' · <button type="button" class="jd-sub" data-act="sheet-link" style="background:transparent;border:none;cursor:pointer;padding:0;text-decoration:underline;">cambiar link</button>' : '') + '</div>' : '') +
