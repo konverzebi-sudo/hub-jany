@@ -1150,15 +1150,25 @@
       opts = '<select class="jd-input jd-casa-sel" data-assign="' + p.id + '"><option value="">Asignar a…</option>' + data.casa.personas.map(function(x){ return '<option value="' + x.id + '">' + casaEsc(x.name) + '</option>'; }).join('') + '</select>';
       grip = '<div class="jd-casa-grip" data-pago="' + p.id + '" title="Arrastra hasta la persona a quien se lo pagaste" style="flex:none;width:26px;height:28px;display:flex;align-items:center;justify-content:center;background:#F1EEFB;border:1px solid #DDD7F0;border-radius:7px;color:#6B6790;font-size:17px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;">⠿</div>';
     }
-    return '<div class="jd-casa-row"' + (sin ? ' style="flex-wrap:wrap;"' : '') + '>' + grip + '<div class="jd-casa-main"' + (sin ? ' style="flex:1 1 150px;"' : '') + '><b class="jd-disp">' + casaMoney(p.amount) + '</b> <span class="jd-sub">· ' + casaDate(p.date) + ' · ' + casaEsc(casaMethodText(p)) + (p.src ? ' · de ' + casaEsc(p.src) : '') + '</span>' +
+    // sin asignar: tocar el pago pregunta "¿a dónde se fue?" (con el nombre del gasto ya puesto para confirmar o cambiar)
+    var destForm = (sin && casaUI.form && casaUI.form.type === 'dest' && casaUI.form.id === p.id) ? casaDestFormHTML(p) : '';
+    return '<div class="jd-casa-row"' + (sin ? ' style="flex-wrap:wrap;"' : '') + '>' + grip + '<div class="jd-casa-main"' + (sin ? ' data-act="dest" data-id="' + p.id + '" title="Toca para decir a dónde se fue" style="flex:1 1 150px;cursor:pointer;"' : '') + '><b class="jd-disp">' + casaMoney(p.amount) + '</b> <span class="jd-sub">· ' + casaDate(p.date) + ' · ' + casaEsc(casaMethodText(p)) + (p.src ? ' · de ' + casaEsc(p.src) : '') + '</span>' +
       (p.note ? '<div class="jd-sub">' + casaEsc(p.note) + '</div>' : '') + '</div>' + opts +
       '<button type="button" class="jd-casa-ico" data-act="edit-pago" data-id="' + p.id + '" title="Editar">✏️</button>' +
-      '<button type="button" class="jd-casa-ico" data-act="del-pago" data-id="' + p.id + '" title="Quitar">🗑</button></div>';
+      '<button type="button" class="jd-casa-ico" data-act="del-pago" data-id="' + p.id + '" title="Quitar">🗑</button>' + destForm + '</div>';
+  }
+  function casaDestFormHTML(p){
+    return '<div class="jd-casa-dest" style="flex:1 1 100%;background:#F8F6FF;border:1px solid #DDD7F0;border-radius:12px;padding:10px;margin:4px 0;">' +
+      '<div class="jd-sub" style="margin-bottom:6px;">¿A dónde se fue este pago? Déjalo como viene si es correcto, o cámbialo:</div>' +
+      '<input class="jd-input" id="casa-f-dest" list="casa-dest-list" value="' + casaEsc(p.note || '') + '" style="margin-bottom:6px;">' +
+      '<datalist id="casa-dest-list">' + data.casa.personas.map(function(x){ return '<option value="' + casaEsc(x.name) + '"></option>'; }).join('') + '</datalist>' +
+      '<div id="casa-f-msg" class="jd-sub" style="color:#D4463B;min-height:14px;"></div>' +
+      '<div class="jd-row" style="gap:6px;"><button type="button" class="jd-btn jd-btn-lima" style="flex:1;" data-act="save-form">Confirmar</button><button type="button" class="jd-btn" data-act="cancel-form">Cancelar</button></div></div>';
   }
 
   function casaFormHTML(){
     var f = casaUI.form;
-    if(!f) return '';
+    if(!f || f.type === 'dest') return '';   // "a dónde se fue" se muestra dentro del renglón del pago
     var c = data.casa, h = '<div class="jd-casa-form">';
     if(f.type === 'sheet'){
       h += '<div class="jd-sub" style="margin-bottom:6px;">Pega el link de tu hoja de Google (en la hoja: Archivo → Compartir → Publicar en la web → formato CSV). Se guarda solo en tu cuenta.</div>' +
@@ -1240,8 +1250,9 @@
     if(!c.personas.length) h += '<div class="jd-sub" style="padding:2px 0 6px;">Agrega personas con “+ Persona” (arquitecto, electrodomésticos, servicios externos…).</div>';
     h += c.personas.map(casaPersonaHTML).join('');
     if(sin.length){
+      h += '<div data-drop-new="1" style="border:2px dashed #C9C1EE;border-radius:14px;padding:10px 12px;margin-bottom:8px;text-align:center;color:#6B6790;font-size:12.5px;background:#FCFBFF;">➕ Suelta aquí un pago para crear un destino nuevo</div>';
       h += '<div class="jd-casa-pe" style="border-color:#F2D7A6;background:#FFFBF2;"><button type="button" class="jd-casa-pehead" data-act="toggle" data-id="sin"><span class="jd-casa-arrow">' + (casaUI.open.sin ? '▾' : '▸') + '</span><span class="jd-casa-name">Sin asignar</span><span class="jd-sub">' + sin.length + ' pago' + (sin.length === 1 ? '' : 's') + '</span><b class="jd-disp jd-casa-tot">' + casaMoney(casaSum(sin)) + '</b></button>';
-      if(casaUI.open.sin) h += '<div class="jd-casa-pebody"><div class="jd-sub" style="margin-bottom:4px;">Arrastra ⠿ hasta la persona a quien se lo pagaste, o elígela en la lista' + (c.personas.length ? '' : ' (primero agrega una persona)') + '.</div>' + sin.map(function(p){ return casaPagoRow(p, true); }).join('') + '</div>';
+      if(casaUI.open.sin) h += '<div class="jd-casa-pebody"><div class="jd-sub" style="margin-bottom:4px;">Toca un pago para decir a dónde se fue, o arrastra ⠿ hasta una persona (o al recuadro de arriba para crear un destino nuevo).</div>' + sin.map(function(p){ return casaPagoRow(p, true); }).join('') + '</div>';
       h += '</div>';
     }
     box.innerHTML = h;
@@ -1256,6 +1267,16 @@
     function saveForm(){
       var f = casaUI.form, c = data.casa;
       if(!f) return;
+      if(f.type === 'dest'){
+        var dp = c.pagos.find(function(x){ return x.id === f.id; }), dn = val('casa-f-dest').trim();
+        if(!dp){ casaUI.form = null; renderCasa(); return; }
+        if(!dn) return msg('Escribe a dónde se fue');
+        // si ya existe esa persona se usa; si no, se crea con ese nombre
+        var pe2 = c.personas.find(function(x){ return x.name.toLowerCase() === dn.toLowerCase(); });
+        if(!pe2){ pe2 = {id: uid('cx'), name: dn, token: '', shared: false}; c.personas.push(pe2); }
+        dp.pid = pe2.id; casaUI.open[pe2.id] = true; casaUI.form = null; casaSave(); renderCasa();
+        return;
+      }
       if(f.type === 'sheet'){
         var su = val('casa-f-sheet').trim();
         if(!casaSheetCsvUrl(su)) return msg('Ese no es el link de “Publicar en la web” de Google Sheets');
@@ -1287,8 +1308,8 @@
     }
     function openForm(form){
       casaUI.form = form; renderCasa();
-      var fm = box.querySelector('.jd-casa-form');
-      if(fm){ var el = fm.querySelector('input, select'); if(el && form.type === 'persona') el.focus(); if(fm.scrollIntoView) fm.scrollIntoView({block:'nearest', behavior:'smooth'}); }
+      var fm = box.querySelector('.jd-casa-form, .jd-casa-dest');
+      if(fm){ var el = fm.querySelector('input, select'); if(el && (form.type === 'persona' || form.type === 'dest')){ el.focus(); if(form.type === 'dest' && el.select) el.select(); } if(fm.scrollIntoView) fm.scrollIntoView({block: form.type === 'dest' ? 'center' : 'nearest', behavior:'smooth'}); }
     }
     box.addEventListener('click', function(ev){
       var b = ev.target.closest('[data-act]');
@@ -1300,6 +1321,7 @@
       else if(act === 'rename') openForm({type: 'persona', id: id});
       else if(act === 'edit-pago') openForm({type: 'pago', id: id});
       else if(act === 'edit-entrada') openForm({type: 'entrada', id: id});
+      else if(act === 'dest') openForm({type: 'dest', id: id});
       else if(act === 'sync-sheet') casaSyncSheet();
       else if(act === 'sheet-link') openForm({type: 'sheet'});
       else if(act === 'cancel-form'){ casaUI.form = null; renderCasa(); }
@@ -1373,7 +1395,7 @@
       var lastY = ev.clientY, over = null;
       function dropUnder(x, y){
         var el = document.elementFromPoint(x, y);
-        return el && el.closest ? el.closest('[data-drop-pid]') : null;
+        return el && el.closest ? el.closest('[data-drop-pid], [data-drop-new]') : null;
       }
       function move(e){
         lastY = e.clientY;
@@ -1400,7 +1422,11 @@
         if(over) over.style.outline = '';
         ghost.remove();
         if(row) row.style.opacity = '';
-        if(dz){
+        if(dz && dz.hasAttribute('data-drop-new')){
+          // recuadro "destino nuevo": pregunta el nombre (viene con el del gasto) para confirmarlo o cambiarlo
+          casaUI.open.sin = true;
+          openForm({type: 'dest', id: pago.id});
+        } else if(dz){
           pago.pid = dz.getAttribute('data-drop-pid');
           casaUI.open[pago.pid] = true;
           casaSave(); renderCasa();
