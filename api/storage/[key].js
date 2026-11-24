@@ -370,6 +370,30 @@ function iguales24(a, b) {
 }
 
 // ¿La llave del hub que manda el navegador le permite escribir esta key?
+// Clave que guarda el estado de "Taller en Vivo" (la orden de "Mandar a todos a")
+const CLASE_VIVO_KEY = 'jefeshub:taller-en-vivo';
+
+// ¿Quien manda la sesión (Bearer) es ponente o soporte de algún taller? Se confirma con Supabase.
+async function sesionEquipoValida(req) {
+  try {
+    const m = /^Bearer\s+(\S+)$/i.exec((req.headers.authorization || '').toString().trim());
+    const url = (process.env.TALLER_SUPABASE_URL || '').trim().replace(/\/+$/, '');
+    const svc = (process.env.TALLER_SUPABASE_SERVICE_KEY || '').trim();
+    if (!m || !url || !svc) return false;
+    const u = await fetch(url + '/auth/v1/user', { headers: { apikey: svc, Authorization: 'Bearer ' + m[1] } });
+    if (!u.ok) return false;
+    const usuario = await u.json();
+    if (!usuario || !usuario.id) return false;
+    const r = await fetch(url + '/rest/v1/miembros?select=rol&user_id=eq.' + encodeURIComponent(usuario.id) + '&rol=in.(ponente,soporte)&limit=1',
+      { headers: { apikey: svc, Authorization: 'Bearer ' + svc } });
+    if (!r.ok) return false;
+    const filas = await r.json();
+    return Array.isArray(filas) && filas.length > 0;
+  } catch (e) {
+    return false;
+  }
+}
+
 function accesoHubValido(req, key) {
   const codigo = (req.headers['x-hub-codigo'] || '').toString().trim();
   const i = key.indexOf(':');
@@ -873,7 +897,7 @@ module.exports = async function handler(req, res) {
   // (Vercel) — sin esto el navegador bloquea el fetch desde /davilada o el diagnóstico.
   res.setHeader('Access-Control-Allow-Origin', 'https://jefeshub.com');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Storage-Token, X-Hub-Codigo, X-Leads-Token, X-Evento-Codigo');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Storage-Token, X-Hub-Codigo, X-Leads-Token, X-Evento-Codigo, Authorization');
   if (req.method === 'OPTIONS') {
     return res.status(204).end();
   }
@@ -953,7 +977,10 @@ module.exports = async function handler(req, res) {
       const expected = (process.env.STORAGE_WRITE_TOKEN || '').trim();
       // Token maestro (dueña / equipo) o la llave de acceso del hub dueño de esta key (clientes).
       if (!(token && expected && token === expected) && !accesoHubValido(req, key)) {
-        return res.status(401).json({ error: 'No autorizado.' });
+        // Estado de la clase en vivo: también lo puede guardar ponente o soporte con su sesión (entra con correo y contraseña)
+        if (!(key === CLASE_VIVO_KEY && (await sesionEquipoValida(req)))) {
+          return res.status(401).json({ error: 'No autorizado.' });
+        }
       }
     }
     const body = req.body || {};

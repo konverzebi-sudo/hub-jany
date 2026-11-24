@@ -1482,14 +1482,21 @@ function pruebaLocalSinClave() {
 }
 async function escribirEnVivo(on, ir) {
   if (pruebaLocalSinClave()) return true;
-  let t = ''; try { t = (localStorage.getItem('jefeshub_storage_token') || '').trim(); } catch (e) {}
-  if (!t) { t = (window.prompt('Token de acceso para guardar cambios:') || '').trim(); if (!t) return false; try { localStorage.setItem('jefeshub_storage_token', t); } catch (e) {} }
+  // Se guarda con la sesión de ponente o soporte (la misma con la que entras a la guía). Sin sesión, no se guarda.
+  let t = '';
+  try {
+    const cfg = window.TALLER_CONFIG || {};
+    const ref = (cfg.supabaseUrl || '').replace(/^https?:\/\//, '').split('.')[0];
+    const s = JSON.parse(localStorage.getItem('sb-' + ref + '-auth-token') || 'null');
+    t = (s && s.access_token) || '';
+  } catch (e) {}
+  if (!t) return false;
   const value = { on: on, t: new Date().toISOString() };
   // Si no hay orden nueva, conservamos la última: si no, prender/apagar la clase borra la orden que los alumnos aún no reciben
   if (ir) value.ir = ir;
   else { const prev = await leerValor(); if (prev && prev.ir) value.ir = prev.ir; }
   try {
-    const r = await fetch(VIVO_KV, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Storage-Token': t }, body: JSON.stringify({ value: value }) });
+    const r = await fetch(VIVO_KV, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + t }, body: JSON.stringify({ value: value }) });
     if (r.status === 401) { try { localStorage.removeItem('jefeshub_storage_token'); } catch (e) {} return false; }
     return r.ok;
   } catch (e) { return false; }
