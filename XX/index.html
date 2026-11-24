@@ -2589,7 +2589,7 @@
     if(data.history.length > 500) data.history.length = 500;
     data.agenda = data.agenda.filter(function(x){ return x.id !== a.id; });
     bumpAreaDone(a.text, a.area);
-    save(); renderAgenda(); renderHistory(); renderCalendar(); renderWeekGrid(); renderBalance();
+    save(); renderAgenda(); renderHistory(); renderCalendar(); renderWeekGrid(); renderBalance(); renderProducts();
   }
 
   function renderAgenda(){
@@ -2651,7 +2651,7 @@
           if(newArea !== (a.area || '')) setItemArea(a, newArea || undefined);
           editingAgendaId = null;
           if(a.startDate){ resyncAgendaItem(a); }
-          else { save(); renderAgenda(); renderCalendar(); renderBalance(); }
+          else { save(); renderAgenda(); renderCalendar(); renderBalance(); renderProducts(); }
         });
         document.getElementById('jd-edit-cancel').addEventListener('click', function(){
           editingAgendaId = null;
@@ -2707,7 +2707,7 @@
       del.className = 'jd-btn'; del.textContent = '×'; del.style.padding = '1px 8px';
       del.addEventListener('click', function(){
         data.agenda = data.agenda.filter(function(x){ return x.id !== a.id; });
-        save(); renderAgenda(); renderCalendar();
+        save(); renderAgenda(); renderCalendar(); renderProducts();
       });
       actions.appendChild(check);
       actions.appendChild(del);
@@ -3954,6 +3954,8 @@
       var card = document.createElement('div');
       card.className = 'jd-card';
       var pendingTasks = p.tasks.filter(function(t){ return !t.done; });
+      // pendientes del día (Retos del día y agenda) que pertenecen a este proyecto: también se marcan desde aquí
+      var agItems = data.agenda.filter(function(a){ return a.project === p.name; });
       var doneTasks = p.tasks.filter(function(t){ return t.done; });
       var pct = p.tasks.length ? Math.round(doneTasks.length / p.tasks.length * 100) : 0;
       var open = !!projectsOpen[p.id];
@@ -3962,7 +3964,7 @@
       head.innerHTML = '<div class="jd-row" style="gap:6px;min-width:0;">'+(p.logo ? '<img src="'+p.logo+'" alt="" style="width:26px;height:26px;object-fit:contain;border-radius:7px;background:#fff;border:2px solid '+color2+';flex:none;">' : '<span style="width:9px;height:9px;border-radius:50%;background:'+color+';display:inline-block;flex:none;"></span>')+
         '<button data-open style="background:transparent;border:none;color:#1F1B3D;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;padding:0;text-align:left;" title="Ver detalles y tareas hechas">'+p.name+' <span style="color:#8A86A8;font-weight:400;">'+(open ? '▾' : '▸')+'</span></button></div>'+
         '<span class="jd-row" style="gap:6px;flex:none;"><button class="jd-sub" data-edit style="background:transparent;border:none;cursor:pointer;padding:0;text-decoration:underline;">'+(editingProjectId === p.id ? 'listo' : 'editar')+'</button>'+
-        '<span class="jd-chip" style="background:#F1EEFB;color:#5B5784;">'+pendingTasks.length+' pend.</span></span>';
+        '<span class="jd-chip" style="background:#F1EEFB;color:#5B5784;">'+(pendingTasks.length + agItems.length)+' pend.</span></span>';
       head.querySelector('[data-open]').addEventListener('click', function(){
         projectsOpen[p.id] = !projectsOpen[p.id];
         renderProducts();
@@ -4055,17 +4057,44 @@
         card.appendChild(row);
       });
 
+      agItems.forEach(function(a){
+        var row = document.createElement('div');
+        row.className = 'jd-row';
+        row.style.cssText = 'gap:6px;padding:3px 0;align-items:flex-start;';
+        var when = a.startDate ? new Date(a.startDate + 'T00:00:00').toLocaleDateString('es-MX', {day:'numeric', month:'short'}) : '';
+        row.innerHTML = '<input type="checkbox" title="Marcar como hecho" style="width:15px;height:15px;accent-color:'+color+';flex:none;margin-top:1px;cursor:pointer;">'+
+          '<span style="font-size:11.5px;flex:1;color:#6B6790;line-height:1.5;">'+casaEsc(a.text)+
+          ' <span class="jd-chip" style="background:#F1EEFB;color:#7C5CF2;font-size:9.5px;">📌 del día'+(when ? ' · '+when : '')+'</span></span>';
+        row.querySelector('input').addEventListener('change', function(e){
+          if(!e.target.checked) return;
+          // pasa a "Hechas" del proyecto y al historial, y sale de los pendientes del día
+          p.tasks.push({id:uid('pt'), text:a.text, done:true, doneAt:todayKey, area:a.area});
+          completeAgendaItem(a);
+          renderProducts(); renderProgressMini();
+        });
+        card.appendChild(row);
+      });
+
       var addRow = document.createElement('div');
       addRow.className = 'jd-row'; addRow.style.cssText = 'gap:4px;margin-top:8px;';
-      addRow.innerHTML = '<input class="jd-input" placeholder="+ Nueva tarea..." style="flex:1;font-size:11.5px;padding:6px 8px;">';
+      addRow.innerHTML = '<input class="jd-input" placeholder="+ Nueva tarea..." style="flex:1;min-width:0;font-size:11.5px;padding:6px 8px;">'+
+        '<input class="jd-input" type="date" title="Fecha (opcional): con fecha se agrega a los pendientes del día" style="flex:none;width:124px;font-size:11.5px;padding:6px 8px;">';
       var addInput = addRow.querySelector('input');
+      var addDate = addRow.querySelector('input[type="date"]');
       addInput.addEventListener('keydown', function(e){
         if(e.key !== 'Enter') return;
         var v = addInput.value.trim();
         if(!v) return;
-        p.tasks.push({id:uid('pt'), text:v, done:false});
-        bumpAreaTotal(v);
-        save(); renderProducts(); renderBalance();
+        if(addDate.value){
+          // con fecha: va a "Retos del día y agenda" y se sigue mostrando como pendiente hasta que se marque hecho
+          data.agenda.push({id:uid('a'), text:v, reto:true, color:'amarillo', project:p.name, startDate:addDate.value, endDate:addDate.value});
+          bumpAreaTotal(v);
+          save(); renderProducts(); renderBalance(); renderAgenda(); renderCalendar(); renderWeekGrid();
+        } else {
+          p.tasks.push({id:uid('pt'), text:v, done:false});
+          bumpAreaTotal(v);
+          save(); renderProducts(); renderBalance();
+        }
         var cards = document.getElementById('jd-products').children;
         var idx = data.products.indexOf(p);
         if(cards[idx]){ var again = cards[idx].querySelector('input[placeholder^="+ Nueva"]'); if(again) again.focus(); }
@@ -4333,7 +4362,7 @@
     input.value = '';
     var projSel = document.getElementById('jd-task-project');
     if(projSel) projSel.value = '';
-    save(); renderAgenda(); renderBalance(); populateTaskProjectSelect();
+    save(); renderAgenda(); renderBalance(); renderProducts();
   }
   document.getElementById('jd-task-project').addEventListener('change', toggleNewProjectRow);
   document.getElementById('jd-agenda-add').addEventListener('click', addAgendaFromForm);
@@ -4492,7 +4521,7 @@
   function scheduleAgendaItem(item){
     item.gcalStatus = 'pending';
     data.agenda.push(item);
-    save(); renderTasks(); renderAgenda(); renderCalendar();
+    save(); renderTasks(); renderAgenda(); renderCalendar(); renderProducts();
     createGoogleCalendarEvent(item).then(function(result){
       item.gcalStatus = result.ok ? 'synced' : 'failed';
       item.gcalEventId = result.ok ? result.id : null;
@@ -4541,7 +4570,7 @@
 
   function resyncAgendaItem(item){
     item.gcalStatus = 'pending';
-    save(); renderTasks(); renderAgenda(); renderCalendar();
+    save(); renderTasks(); renderAgenda(); renderCalendar(); renderProducts();
     updateGoogleCalendarEvent(item).then(function(result){
       item.gcalStatus = result.ok ? 'synced' : 'failed';
       item.gcalEventId = result.ok ? result.id : item.gcalEventId;
