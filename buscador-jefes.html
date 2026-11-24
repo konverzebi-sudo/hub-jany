@@ -145,6 +145,20 @@
   .w-cuerpo .posts b{ display:block; font-size:17px; font-weight:700; line-height:1.3; }
   .w-cuerpo .posts small{ display:block; color:var(--gris); font-size:14px; margin-top:4px; }
   .w-cuerpo .posts .atr{ color:#B42318; font-weight:700; }
+  .w-cuerpo .wa-in{ background:var(--fondo); border:1.5px solid var(--borde); border-radius:16px; padding:12px; margin-bottom:12px; }
+  .w-cuerpo .wa-in:focus-within{ border-color:var(--negro); }
+  .w-cuerpo .wa-in textarea{ width:100%; border:0; outline:0; resize:vertical; min-height:70px; background:transparent; font:500 16px/1.45 'Barlow'; color:var(--negro); }
+  .w-cuerpo .wa-acc{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px; }
+  .w-cuerpo .btn-sub{ display:inline-flex; align-items:center; gap:6px; font:600 14px 'Barlow'; background:var(--blanco); border:1.5px solid var(--borde); border-radius:999px; padding:8px 14px; cursor:pointer; }
+  .w-cuerpo .btn-sub:hover{ border-color:var(--negro); }
+  .w-cuerpo .wa-img{ display:inline-flex; align-items:center; gap:8px; font-size:13px; color:var(--gris); }
+  .w-cuerpo .wa-img img{ width:38px; height:38px; object-fit:cover; border-radius:8px; border:1px solid var(--borde); }
+  .w-cuerpo .wa-img button{ border:0; background:transparent; cursor:pointer; font-size:16px; }
+  .w-cuerpo .wa-res .eti{ margin-top:6px; }
+  .w-cuerpo .wa-res .nota{ color:var(--gris); font-size:14px; margin:0 0 10px; }
+  .w-cuerpo details.bienv{ margin-top:14px; border-top:1px solid var(--borde); padding-top:10px; }
+  .w-cuerpo details.bienv summary{ cursor:pointer; font-size:12px; font-weight:700; color:var(--gris); text-transform:uppercase; letter-spacing:.08em; }
+  .w-cuerpo details.bienv .burbuja{ margin-top:10px; }
   .w-cuerpo .chip{ display:inline-block; background:var(--lima); border-radius:999px; padding:3px 10px; font-weight:700; font-size:13px; margin:0 6px 8px 0; }
   .w-cuerpo .semana{ display:grid; grid-template-columns:repeat(7,1fr); gap:8px; margin:6px 0 16px; }
   .w-cuerpo .semana .d{ text-align:center; font-weight:700; font-size:14px; color:var(--gris); }
@@ -612,7 +626,7 @@
     const s = e.target.closest('[data-pide]');
     if (s) { ir(porId[s.dataset.jefe || abierto], s.dataset.pide); return; }
     const c = e.target.closest('[data-copiar]');
-    if (c && navigator.clipboard) navigator.clipboard.writeText(c.dataset.copiar).then(() => { c.textContent = 'Copiado ✓'; setTimeout(() => { c.textContent = 'Copiar y usar'; }, 1800); });
+    if (c && navigator.clipboard) navigator.clipboard.writeText(c.dataset.copiar).then(() => { const t = c.textContent; c.textContent = 'Copiado ✓'; setTimeout(() => { c.textContent = t; }, 1800); });
   });
 
   const r = h => PRE + h;
@@ -654,10 +668,74 @@
       }).join('') + '</ul>' + (pie ? '<p class="vacio">' + pie + '</p>' : ''));
     },
     whatsapp(d, pinta){
-      const msg = d.whats && typeof d.whats.s1_bienvenida === 'string' ? d.whats.s1_bienvenida.trim() : '';
-      if (!msg) { pinta('<p class="vacio">Todavía no armas tus mensajes de venta.</p>' + pide(['Mensaje de bienvenida para WhatsApp', 'Mensaje para un cliente que dice que está caro'])); return; }
-      pinta('<div class="eti">Tu mensaje de bienvenida</div><div class="burbuja">' + esc(corta(msg, 260)) + '</div>' +
-        '<button type="button" class="btn-ter" data-copiar="' + esc(msg) + '">Copiar y usar</button>');
+      // "¿Qué te dice el cliente?": pegas su mensaje o subes la captura del chat y el Jefe te dice qué contestar
+      // (misma IA y formato que el Jefe de WhatsApp: /api/jefe-conversion).
+      const bienv = d.whats && typeof d.whats.s1_bienvenida === 'string' ? d.whats.s1_bienvenida.trim() : '';
+      pinta('<div class="eti">¿Qué te dice el cliente?</div>' +
+        '<div class="wa-in"><textarea id="waTxt" placeholder="Pega aquí lo que te escribió tu cliente… o pega la captura del chat (Ctrl + V)"></textarea>' +
+        '<div class="wa-acc"><label class="btn-sub">📎 Subir captura del chat<input type="file" id="waFile" accept="image/*" hidden></label><span class="wa-img" id="waImg"></span>' +
+        '<span style="flex:1"></span><button type="button" class="btn-pri" id="waIr">¿Qué le contesto? ›</button></div></div>' +
+        '<div class="wa-res" id="waRes" aria-live="polite"></div>' +
+        (bienv ? '<details class="bienv"><summary>Tu mensaje de bienvenida</summary><div class="burbuja">' + esc(bienv) + '</div><button type="button" class="btn-ter" data-copiar="' + esc(bienv) + '">Copiar y usar</button></details>' : ''));
+      let imagen = null;
+      const txt = $('waTxt'), out = $('waRes');
+      if (!txt) return;
+      // La captura se achica antes de mandarla (más rápida y sin pasar el límite del servidor).
+      const leerImagen = file => new Promise((ok, mal) => {
+        const url = URL.createObjectURL(file), im = new Image();
+        im.onload = () => {
+          const k = Math.min(1, 1600 / Math.max(im.width, im.height));
+          const c = document.createElement('canvas'); c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+          c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+          const data = c.toDataURL('image/jpeg', 0.85);
+          ok({ mediaType: 'image/jpeg', data: data.split(',')[1], vista: data });
+        };
+        im.onerror = () => { URL.revokeObjectURL(url); mal(); };
+        im.src = url;
+      });
+      const ponerImagen = file => leerImagen(file).then(x => {
+        imagen = x;
+        $('waImg').innerHTML = '<img src="' + x.vista + '" alt="Captura del chat">Captura lista<button type="button" aria-label="Quitar captura">×</button>';
+        $('waImg').querySelector('button').onclick = () => { imagen = null; $('waImg').innerHTML = ''; };
+      }, () => aviso('No pude leer esa imagen.'));
+      $('waFile').onchange = e => { const f = e.target.files && e.target.files[0]; if (f) ponerImagen(f); e.target.value = ''; };
+      txt.addEventListener('paste', e => {
+        const it = Array.from((e.clipboardData && e.clipboardData.items) || []).find(i => i.type.startsWith('image/'));
+        if (it) { e.preventDefault(); ponerImagen(it.getAsFile()); }
+      });
+      // Separa el formato del Jefe: RESPUESTA LISTA PARA COPIAR / POR QUÉ FUNCIONA / VERSIÓN CORTA / SIGUIENTE SEGUIMIENTO.
+      const partes = t => {
+        const o = {}; let k = '';
+        const clave = e => /^RESP/i.test(e) ? 'resp' : /^POR/i.test(e) ? 'por' : /^VERS/i.test(e) ? 'corta' : 'sig';
+        String(t).replace(/<[^>]+>/g, '').split(/\r?\n/).forEach(l => {
+          const m = l.replace(/\*\*/g, '').match(/^\s*(RESPUESTA LISTA PARA COPIAR|POR QU[ÉE] FUNCIONA|VERSI[ÓO]N CORTA|SIGUIENTE SEGUIMIENTO)\s*:\s*(.*)$/i);
+          if (m) { k = clave(m[1]); o[k] = m[2]; } else if (k) o[k] += '\n' + l;
+        });
+        Object.keys(o).forEach(x => { o[x] = o[x].trim().replace(/^\[([\s\S]*)\]$/, '$1'); });
+        return o;
+      };
+      $('waIr').onclick = () => {
+        const mensaje = txt.value.trim();
+        if (!mensaje && !imagen) { aviso('Pega el mensaje de tu cliente o sube la captura del chat.'); txt.focus(); return; }
+        let producto366 = null;
+        try { const f = JSON.parse(localStorage.getItem('jefeshub_foco_' + HUB) || 'null'); if (f && f.id && f.id !== 'all' && f.nombre && !f.esGrupo) producto366 = { nombre: f.nombre }; } catch (e) {}
+        const b = $('waIr'); b.disabled = true;
+        out.innerHTML = '<div class="cargando"><i></i>Tu Jefe de WhatsApp está armando la respuesta…</div>';
+        fetch('/api/jefe-conversion', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mensaje, imagen: imagen ? { mediaType: imagen.mediaType, data: imagen.data } : null, cliente: HUB, producto366 }) })
+          .then(x => x.json().catch(() => ({})).then(j => ({ ok: x.ok, j })))
+          .then(({ ok, j }) => {
+            if (!ok || !j.text) { out.innerHTML = '<p class="vacio">' + esc(j.error || 'No se pudo armar la respuesta. Intenta de nuevo.') + '</p>'; return; }
+            const p = partes(j.text);
+            if (!p.resp) { out.innerHTML = '<div class="burbuja">' + esc(String(j.text).replace(/<[^>]+>/g, '')) + '</div>'; return; }
+            out.innerHTML = '<div class="eti">Contéstale así</div><div class="burbuja">' + esc(p.resp) + '</div>' +
+              '<div class="w-acc" style="margin-bottom:12px"><button type="button" class="btn-ter" data-copiar="' + esc(p.resp) + '">Copiar y usar</button></div>' +
+              (p.por ? '<p class="nota"><b>Por qué funciona:</b> ' + esc(p.por) + '</p>' : '') +
+              (p.corta ? '<div class="eti">Versión corta</div><div class="burbuja">' + esc(p.corta) + '</div><div class="w-acc" style="margin-bottom:12px"><button type="button" class="btn-sub" data-copiar="' + esc(p.corta) + '">Copiar la corta</button></div>' : '') +
+              (p.sig ? '<p class="nota"><b>Si no contesta:</b> ' + esc(p.sig) + '</p>' : '');
+          }, () => { out.innerHTML = '<p class="vacio">Hubo un error de conexión. Intenta de nuevo.</p>'; })
+          .then(() => { b.disabled = false; });
+      };
     },
     finanzas(d, pinta){
       const f = T.finanzas ? T.finanzas(d.calc) : null;
