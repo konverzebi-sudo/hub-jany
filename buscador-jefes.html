@@ -144,6 +144,15 @@
   .w-cuerpo .negro h3{ font-family:'Inter Tight'; font-weight:800; font-size:20px; margin:0 0 6px; line-height:1.2; }
   .w-cuerpo .negro .sub{ color:#BFC2B5; font-size:13px; }
   .w-cuerpo .negro a{ text-decoration:underline; }
+  .w-cuerpo .faro-top{ display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+  .w-cuerpo .faro-top img{ width:30px; height:30px; object-fit:contain; }
+  .w-cuerpo .faro-top .eti{ margin:0; letter-spacing:.12em; }
+  .w-cuerpo .negro h3{ font-size:24px; }
+  .w-cuerpo .negro .gancho{ font-style:italic; color:#D7D9CF; }
+  .w-cuerpo .negro .chip{ color:var(--negro); text-transform:uppercase; letter-spacing:.08em; }
+  .w-cuerpo .une{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:2px 0 12px; font-size:13px; color:#BFC2B5; }
+  .w-cuerpo .une span{ border:1px solid #3A3A36; border-radius:999px; padding:3px 10px; color:#fff; }
+  .w-cuerpo .une span b{ color:var(--lima); font-weight:700; }
   .w-cuerpo .sug-w{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
   .w-cuerpo .sug-w button{ font:500 14px 'Barlow'; background:var(--fondo); border:1px solid var(--borde); border-radius:999px; padding:7px 14px; cursor:pointer; }
   .w-cuerpo .sug-w button:hover{ border-color:var(--negro); }
@@ -633,19 +642,27 @@
       else pinta('<div class="eti">Ventas al mes hoy</div><div class="cifra">' + f.ventas + '<small>ventas</small></div>' + (f.conMeta ? '' : '<p class="vacio">Ponle una meta para ver cuánto llevas.</p>'));
     },
     faro(d, pinta){
-      const post = body => fetch('/api/consultor-radar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ cliente: HUB, foco: { id: 'all', nombre: '' } }, body)) })
+      // Mismo foco que usa el Faro (la pastilla de producto de arriba), para que la idea sea la misma al abrirlo.
+      let foco = { id: 'all', nombre: '' };
+      try { const f = JSON.parse(localStorage.getItem('jefeshub_foco_' + HUB) || 'null'); if (f && f.id && f.id !== 'all' && f.nombre) foco = { id: f.id, nombre: f.nombre }; } catch (e) {}
+      const post = body => fetch('/api/consultor-radar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ cliente: HUB, foco }, body)) })
         .then(x => x.json().catch(() => ({})).then(j => x.ok ? { ok: true, data: j } : { ok: false, error: j.error || 'No se pudo completar.' }), () => ({ ok: false, error: 'Hubo un error de conexión.' }));
-      const caja = h => '<div class="negro"><div class="eti">La idea de hoy</div>' + h + '</div>';
+      const caja = h => '<div class="negro"><div class="faro-top"><img src="/img/jefe-faro-logo-blanco.webp" alt=""><span class="eti">La idea de hoy · Jefe del Faro</span></div>' + h + '</div>';
       const idea = e => {
-        const i = e.idea || {}, t = i.tendencia || {}; const url = /^https?:\/\//i.test(t.fuente || '') ? t.fuente : '';
-        pinta(caja('<h3>' + esc(i.tema) + '</h3><p>“' + esc(i.gancho) + '”</p>' + (i.formato ? '<span class="chip">' + esc(i.formato) + '</span>' : '') +
-          (t.que ? '<p class="sub">De dónde salió: ' + esc(t.que) + (url ? ' · <a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">fuente</a>' : '') + (t.verificada ? '' : ' (sin verificar)') + '</p>' : '')) +
-          '<button type="button" class="btn-ter" data-acc="abrir">Revisarla en el Faro ›</button>');
+        const i = e.idea || {}, t = i.tendencia || {}, pr = e.prioridades || {};
+        const url = /^https?:\/\//i.test(t.fuente || '') ? t.fuente : '';
+        const une = [pr.producto ? '<span><b>366</b> · ' + esc(pr.producto) + '</span>' : '', pr.campana && pr.campana.nombre ? '<span><b>Temporada</b> · ' + esc(pr.campana.nombre) + '</span>' : ''].filter(Boolean).join('');
+        pinta(caja('<h3>' + esc(i.tema) + '</h3>' + (i.gancho ? '<p class="gancho">“' + esc(i.gancho) + '”</p>' : '') +
+          (i.formato ? '<span class="chip">' + esc(i.formato) + '</span>' : '') +
+          (une ? '<div class="une">Une:' + une + '</div>' : '') +
+          (i.por_que_te_sirve ? '<p>' + esc(i.por_que_te_sirve) + '</p>' : '') +
+          (t.que ? '<p class="sub">De dónde salió: ' + esc(t.que) + (url ? ' · <a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">fuente</a>' : '') + (t.verificada ? '' : ' (sin verificar: revísala)') + '</p>' : '') +
+          '<button type="button" class="btn-pri" data-acc="abrir">Revisarla en el Faro ›</button>'));
       };
       post({ modo: 'ideas-dia-estado' }).then(x => {
         if (!x.ok) { pinta('<p class="vacio">No pude traer la idea de hoy.</p>' + pide(['Qué está haciendo mi competencia', 'Qué tendencia puedo aprovechar hoy'])); return; }
         if (x.data.idea) { idea(x.data.idea); return; }
-        pinta(caja('<p>Todavía no hay idea de hoy.</p><button type="button" class="btn-pri" id="wPedirIdea">Pedir la idea de hoy</button>'));
+        pinta(caja('<p>Todavía no hay idea de hoy. La armo uniendo tu prioridad del Jefe 366 y tu campaña activa de Temporada.</p><button type="button" class="btn-pri" id="wPedirIdea">Pedir la idea de hoy</button>'));
         const b = $('wPedirIdea'); if (!b) return;
         b.onclick = () => {
           const ficha = x.data.ficha || {};
