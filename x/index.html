@@ -970,6 +970,7 @@
   var casaUI = {form:null, open:{}, shareErr:'', syncMsg:'', syncErr:false, syncBusy:false};
   var casaSyncTimer = null;
   var CASA_METHODS = [['transferencia','Transferencia'],['efectivo','Efectivo'],['tarjeta','Tarjeta'],['otra','Otra']];
+  var CASA_METHOD_EMOJI = {transferencia:'🏦 Transferencia', efectivo:'💵 Efectivo', tarjeta:'💳 Tarjeta', otra:'📝 Otra'};
   function casaLinkBase(){ return location.origin + location.pathname.replace(/[^\/]*$/, '') + 'casa.html?t='; }
   function casaEsc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function casaMoney(n){ n = Number(n || 0); return '$' + n.toLocaleString('es-MX', {minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits:2}); }
@@ -1218,10 +1219,11 @@
       var desc = g ? !!g.descuenta : !!dep;   // desde un concepto del crédito descuenta; un gasto aislado, no (se marca si quieres)
       h += '<div class="jd-sub" style="margin-bottom:6px;">' + (g ? 'Ajustar gasto' : dep ? 'En qué se usó este concepto del crédito' : 'Gasto aislado') + '</div>' +
         '<input class="jd-input" id="casa-f-note" placeholder="Concepto" value="' + casaEsc(base ? base.note : '') + '" style="margin-bottom:6px;">' +
-        '<div class="jd-row" style="gap:6px;margin-bottom:6px;"><input class="jd-input" id="casa-f-date" type="date" value="' + casaEsc(base && base.date ? base.date : todayKey) + '" style="flex:1;"><input class="jd-input" id="casa-f-amount" type="number" inputmode="decimal" placeholder="Monto" value="' + casaEsc(base ? base.amount : '') + '" style="flex:1;"></div>' +
+        '<div class="jd-row" style="gap:6px;margin-bottom:6px;"><div style="flex:1;position:relative;min-width:0;"><span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#6B6790;font-weight:600;pointer-events:none;">$</span><input class="jd-input" id="casa-f-amount" type="number" inputmode="decimal" placeholder="0" value="' + casaEsc(base ? base.amount : '') + '" style="padding-left:24px;"></div>' +
+        '<input class="jd-input" id="casa-f-date" type="date" title="Día en que se hizo el movimiento (hoy si no lo cambias)" value="' + casaEsc(g && g.date ? g.date : todayKey) + '" style="width:150px;flex:none;"></div>' +
         '<input class="jd-input" id="casa-f-dest" list="casa-dest-list" placeholder="¿A quién se lo diste? (escribe el nombre)" value="' + casaEsc(pe2 ? pe2.name : '') + '" style="margin-bottom:6px;">' +
         '<datalist id="casa-dest-list">' + c.personas.map(function(x){ return '<option value="' + casaEsc(x.name) + '"></option>'; }).join('') + '</datalist>' +
-        '<div class="jd-row" style="gap:6px;margin-bottom:6px;"><select class="jd-input" id="casa-f-method" style="flex:1;">' + CASA_METHODS.map(function(m){ return '<option value="' + m[0] + '"' + (m[0] === method ? ' selected' : '') + '>' + m[1] + '</option>'; }).join('') + '</select>' +
+        '<div class="jd-row" style="gap:6px;margin-bottom:6px;"><select class="jd-input" id="casa-f-method" style="flex:1;">' + CASA_METHODS.map(function(m){ return '<option value="' + m[0] + '"' + (m[0] === method ? ' selected' : '') + '>' + CASA_METHOD_EMOJI[m[0]] + '</option>'; }).join('') + '</select>' +
         '<input class="jd-input" id="casa-f-card" inputmode="numeric" maxlength="4" placeholder="Últimos 4" value="' + casaEsc(g ? g.card : '') + '" style="width:96px;' + (method === 'tarjeta' ? '' : 'display:none;') + '">' +
         '<input class="jd-input" id="casa-f-other" placeholder="¿Cómo se pagó?" value="' + casaEsc(g ? g.other : '') + '" style="flex:1;' + (method === 'otra' ? '' : 'display:none;') + '"></div>' +
         '<label class="jd-sub" style="display:flex;gap:8px;align-items:center;margin-bottom:8px;cursor:pointer;"><input type="checkbox" id="casa-f-desc"' + (desc ? ' checked' : '') + ' style="width:16px;height:16px;"> Descontar del crédito casa (baja “Te queda”)</label>' +
