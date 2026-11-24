@@ -382,6 +382,12 @@
         </select>
         <select class="jd-input" id="jd-task-area" style="flex:1;"></select>
       </div>
+      <div class="jd-row" style="gap:6px;margin-top:6px;">
+        <select class="jd-input" id="jd-task-project" style="flex:1;"></select>
+      </div>
+      <div class="jd-row" id="jd-task-newproj-row" style="gap:6px;margin-top:6px;display:none;">
+        <input class="jd-input" id="jd-task-newproj" placeholder="Nombre del nuevo proyecto..." style="flex:1;">
+      </div>
       <button class="jd-btn" style="margin-top:8px;width:100%;" id="jd-agenda-add">Agregar</button>
     </div>
   </div>
@@ -682,6 +688,24 @@
     return true;
   }
 
+  // Selector de proyecto del formulario "Retos del día y agenda"
+  function populateTaskProjectSelect(){
+    var sel = document.getElementById('jd-task-project');
+    if(!sel) return;
+    var prev = sel.value;
+    sel.innerHTML = '<option value="">Proyecto: automático</option>' + data.products.map(function(p){
+      return '<option value="'+p.name.replace(/"/g,'&quot;')+'">'+p.name+'</option>';
+    }).join('') + '<option value="__new__">+ Nuevo proyecto…</option>';
+    var exists = Array.prototype.some.call(sel.options, function(o){ return o.value === prev; });
+    sel.value = exists ? prev : '';
+    toggleNewProjectRow();
+  }
+  function toggleNewProjectRow(){
+    var sel = document.getElementById('jd-task-project');
+    var row = document.getElementById('jd-task-newproj-row');
+    if(row && sel) row.style.display = sel.value === '__new__' ? 'flex' : 'none';
+  }
+
   var DEBT_COLORS = {
     'bbva oro': '#A78BFA',
     'banbajío': '#A78BFA',
@@ -954,6 +978,8 @@
     if(!p) return 'sin fecha';
     return new Date(+p[1], +p[2] - 1, +p[3]).toLocaleDateString('es-MX', {day:'numeric', month:'short', year:'numeric'});
   }
+  // nombre con el que Jany llama a lo recibido (la nota de la primera entrada, ej. "Crédito casa")
+  function casaFondoName(){ var e = data.casa && data.casa.entradas[0]; return (e && e.note) ? e.note : 'Lo recibido'; }
   function casaMethodText(p){
     if(p.method === 'tarjeta') return 'Tarjeta' + (p.card ? ' ···· ' + p.card : '');
     if(p.method === 'otra') return p.other || 'Otra';
@@ -975,7 +1001,8 @@
   function casaTotals(){
     var c = data.casa, rec = 0, pag = 0;
     c.entradas.forEach(function(e){ rec += +e.amount || 0; });
-    c.pagos.forEach(function(p){ pag += +p.amount || 0; });
+    // solo cuenta lo pagado de lo recibido; lo que se gastó de otra cuenta (p.src) no baja "Te queda"
+    c.pagos.forEach(function(p){ if(!p.src) pag += +p.amount || 0; });
     return {rec: rec, pag: pag, saldo: rec - pag};
   }
   function casaByDateDesc(a, b){ var x = a.date || '', y = b.date || ''; return x > y ? -1 : x < y ? 1 : 0; }
@@ -1010,9 +1037,12 @@
   }
 
   function casaPagoRow(p, sin){
-    var opts = '';
-    if(sin) opts = '<select class="jd-input jd-casa-sel" data-assign="' + p.id + '"><option value="">Asignar a…</option>' + data.casa.personas.map(function(x){ return '<option value="' + x.id + '">' + casaEsc(x.name) + '</option>'; }).join('') + '</select>';
-    return '<div class="jd-casa-row"><div class="jd-casa-main"><b class="jd-disp">' + casaMoney(p.amount) + '</b> <span class="jd-sub">· ' + casaDate(p.date) + ' · ' + casaEsc(casaMethodText(p)) + '</span>' +
+    var opts = '', grip = '';
+    if(sin){
+      opts = '<select class="jd-input jd-casa-sel" data-assign="' + p.id + '"><option value="">Asignar a…</option>' + data.casa.personas.map(function(x){ return '<option value="' + x.id + '">' + casaEsc(x.name) + '</option>'; }).join('') + '</select>';
+      grip = '<div class="jd-casa-grip" data-pago="' + p.id + '" title="Arrastra hasta la persona a quien se lo pagaste" style="flex:none;width:26px;height:28px;display:flex;align-items:center;justify-content:center;background:#F1EEFB;border:1px solid #DDD7F0;border-radius:7px;color:#6B6790;font-size:17px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;">⠿</div>';
+    }
+    return '<div class="jd-casa-row"' + (sin ? ' style="flex-wrap:wrap;"' : '') + '>' + grip + '<div class="jd-casa-main"' + (sin ? ' style="flex:1 1 150px;"' : '') + '><b class="jd-disp">' + casaMoney(p.amount) + '</b> <span class="jd-sub">· ' + casaDate(p.date) + ' · ' + casaEsc(casaMethodText(p)) + (p.src ? ' · de ' + casaEsc(p.src) : '') + '</span>' +
       (p.note ? '<div class="jd-sub">' + casaEsc(p.note) + '</div>' : '') + '</div>' + opts +
       '<button type="button" class="jd-casa-ico" data-act="edit-pago" data-id="' + p.id + '" title="Editar">✏️</button>' +
       '<button type="button" class="jd-casa-ico" data-act="del-pago" data-id="' + p.id + '" title="Quitar">🗑</button></div>';
@@ -1035,12 +1065,20 @@
       var p = f.id ? c.pagos.find(function(x){ return x.id === f.id; }) : null;
       var pid = p ? (p.pid || '') : (f.pid || '');
       var method = p ? (p.method || 'transferencia') : 'transferencia';
+      var srcVal = p ? (p.src || '') : '';
+      var debtNames = data.debts.map(function(d){ return d.name; });
+      var srcIsOther = !!srcVal && debtNames.indexOf(srcVal) === -1;
+      var srcHtml = '<select class="jd-input" id="casa-f-src" style="margin-bottom:6px;"><option value="">Se gastó de: ' + casaEsc(casaFondoName()) + ' (lo recibido)</option>' +
+        debtNames.map(function(n){ return '<option value="' + casaEsc(n) + '"' + (n === srcVal ? ' selected' : '') + '>Se gastó de: ' + casaEsc(n) + '</option>'; }).join('') +
+        '<option value="__otra__"' + (srcIsOther ? ' selected' : '') + '>Se gastó de: otra cuenta…</option></select>' +
+        '<input class="jd-input" id="casa-f-srcother" placeholder="Nombre de la otra cuenta" value="' + casaEsc(srcIsOther ? srcVal : '') + '" style="margin-bottom:6px;' + (srcIsOther ? '' : 'display:none;') + '">';
       h += '<div class="jd-sub" style="margin-bottom:6px;">' + (p ? 'Editar pago' : 'Registrar un pago') + '</div>' +
         '<select class="jd-input" id="casa-f-pid" style="margin-bottom:6px;"><option value="">Sin asignar</option>' + c.personas.map(function(x){ return '<option value="' + x.id + '"' + (x.id === pid ? ' selected' : '') + '>' + casaEsc(x.name) + '</option>'; }).join('') + '</select>' +
         '<div class="jd-row" style="gap:6px;margin-bottom:6px;"><input class="jd-input" id="casa-f-date" type="date" value="' + casaEsc(p ? p.date : todayKey) + '" style="flex:1;"><input class="jd-input" id="casa-f-amount" type="number" inputmode="decimal" placeholder="Monto" value="' + casaEsc(p ? p.amount : '') + '" style="flex:1;"></div>' +
         '<div class="jd-row" style="gap:6px;margin-bottom:6px;"><select class="jd-input" id="casa-f-method" style="flex:1;">' + CASA_METHODS.map(function(m){ return '<option value="' + m[0] + '"' + (m[0] === method ? ' selected' : '') + '>' + m[1] + '</option>'; }).join('') + '</select>' +
         '<input class="jd-input" id="casa-f-card" inputmode="numeric" maxlength="4" placeholder="Últimos 4" value="' + casaEsc(p ? p.card : '') + '" style="width:96px;' + (method === 'tarjeta' ? '' : 'display:none;') + '">' +
         '<input class="jd-input" id="casa-f-other" placeholder="¿Cómo se pagó?" value="' + casaEsc(p ? p.other : '') + '" style="flex:1;' + (method === 'otra' ? '' : 'display:none;') + '"></div>' +
+        srcHtml +
         '<input class="jd-input" id="casa-f-note" placeholder="Concepto (solo lo ves tú)" value="' + casaEsc(p ? p.note : '') + '" style="margin-bottom:8px;">';
     }
     h += '<div id="casa-f-msg" class="jd-sub" style="color:#D4463B;min-height:14px;"></div>' +
@@ -1050,7 +1088,7 @@
 
   function casaPersonaHTML(pe){
     var pagos = casaPagosDe(pe.id), open = !!casaUI.open[pe.id];
-    var h = '<div class="jd-casa-pe"><button type="button" class="jd-casa-pehead" data-act="toggle" data-id="' + pe.id + '"><span class="jd-casa-arrow">' + (open ? '▾' : '▸') + '</span><span class="jd-casa-name">' + casaEsc(pe.name) + (pe.shared ? ' <span title="Tiene link activo">🔗</span>' : '') + '</span><span class="jd-sub">' + pagos.length + ' pago' + (pagos.length === 1 ? '' : 's') + '</span><b class="jd-disp jd-casa-tot">' + casaMoney(casaSum(pagos)) + '</b></button>';
+    var h = '<div class="jd-casa-pe"><button type="button" class="jd-casa-pehead" data-act="toggle" data-id="' + pe.id + '" data-drop-pid="' + pe.id + '"><span class="jd-casa-arrow">' + (open ? '▾' : '▸') + '</span><span class="jd-casa-name">' + casaEsc(pe.name) + (pe.shared ? ' <span title="Tiene link activo">🔗</span>' : '') + '</span><span class="jd-sub">' + pagos.length + ' pago' + (pagos.length === 1 ? '' : 's') + '</span><b class="jd-disp jd-casa-tot">' + casaMoney(casaSum(pagos)) + '</b></button>';
     if(open){
       h += '<div class="jd-casa-pebody">' + (pagos.length ? pagos.map(function(p){ return casaPagoRow(p, false); }).join('') : '<div class="jd-sub" style="padding:4px 0;">Todavía no le has pagado nada.</div>') +
         '<div class="jd-row" style="gap:6px;flex-wrap:wrap;margin-top:8px;"><button type="button" class="jd-btn jd-btn-lima" data-act="new-pago" data-id="' + pe.id + '">+ Pago</button><button type="button" class="jd-btn" data-act="rename" data-id="' + pe.id + '">Cambiar nombre</button><button type="button" class="jd-btn" data-act="del-persona" data-id="' + pe.id + '">Quitar persona</button></div>';
@@ -1091,7 +1129,7 @@
     h += c.personas.map(casaPersonaHTML).join('');
     if(sin.length){
       h += '<div class="jd-casa-pe" style="border-color:#F2D7A6;background:#FFFBF2;"><button type="button" class="jd-casa-pehead" data-act="toggle" data-id="sin"><span class="jd-casa-arrow">' + (casaUI.open.sin ? '▾' : '▸') + '</span><span class="jd-casa-name">Sin asignar</span><span class="jd-sub">' + sin.length + ' pago' + (sin.length === 1 ? '' : 's') + '</span><b class="jd-disp jd-casa-tot">' + casaMoney(casaSum(sin)) + '</b></button>';
-      if(casaUI.open.sin) h += '<div class="jd-casa-pebody"><div class="jd-sub" style="margin-bottom:4px;">Elige a quién le pagaste cada uno' + (c.personas.length ? '' : ' (primero agrega una persona)') + '.</div>' + sin.map(function(p){ return casaPagoRow(p, true); }).join('') + '</div>';
+      if(casaUI.open.sin) h += '<div class="jd-casa-pebody"><div class="jd-sub" style="margin-bottom:4px;">Arrastra ⠿ hasta la persona a quien se lo pagaste, o elígela en la lista' + (c.personas.length ? '' : ' (primero agrega una persona)') + '.</div>' + sin.map(function(p){ return casaPagoRow(p, true); }).join('') + '</div>';
       h += '</div>';
     }
     box.innerHTML = h;
@@ -1120,7 +1158,9 @@
           else c.entradas.push({id: uid('ce'), date: date, amount: amount, note: val('casa-f-note').trim()});
         } else {
           var method = val('casa-f-method');
-          var obj = {pid: val('casa-f-pid') || null, date: date, amount: amount, method: method, card: method === 'tarjeta' ? val('casa-f-card').replace(/\D/g, '').slice(0, 4) : '', other: method === 'otra' ? val('casa-f-other').trim() : '', note: val('casa-f-note').trim()};
+          var srcSel = val('casa-f-src'), src = srcSel;
+          if(srcSel === '__otra__'){ src = val('casa-f-srcother').trim(); if(!src) return msg('Escribe el nombre de la otra cuenta'); }
+          var obj = {pid: val('casa-f-pid') || null, src: src, date: date, amount: amount, method: method, card: method === 'tarjeta' ? val('casa-f-card').replace(/\D/g, '').slice(0, 4) : '', other: method === 'otra' ? val('casa-f-other').trim() : '', note: val('casa-f-note').trim()};
           if(f.id){ var p = c.pagos.find(function(x){ return x.id === f.id; }); if(p) Object.assign(p, obj); }
           else { obj.id = uid('cp'); c.pagos.push(obj); if(obj.pid) casaUI.open[obj.pid] = true; }
         }
@@ -1189,10 +1229,66 @@
       if(t.id === 'casa-f-method'){
         document.getElementById('casa-f-card').style.display = t.value === 'tarjeta' ? '' : 'none';
         document.getElementById('casa-f-other').style.display = t.value === 'otra' ? '' : 'none';
+      } else if(t.id === 'casa-f-src'){
+        document.getElementById('casa-f-srcother').style.display = t.value === '__otra__' ? '' : 'none';
       } else if(t.getAttribute && t.getAttribute('data-assign')){
         var p = data.casa.pagos.find(function(x){ return x.id === t.getAttribute('data-assign'); });
         if(p && t.value){ p.pid = t.value; casaUI.open[t.value] = true; casaSave(); renderCasa(); }
       }
+    });
+    // arrastrar un pago "Sin asignar" (⠿) hasta la persona a quien se lo pagaste
+    box.addEventListener('pointerdown', function(ev){
+      var grip = ev.target.closest ? ev.target.closest('.jd-casa-grip') : null;
+      if(!grip) return;
+      var pago = data.casa.pagos.find(function(x){ return x.id === grip.getAttribute('data-pago'); });
+      if(!pago) return;
+      ev.preventDefault();
+      try{ grip.setPointerCapture(ev.pointerId); }catch(err){}
+      var row = grip.closest('.jd-casa-row');
+      var ghost = document.createElement('div');
+      ghost.textContent = (pago.note || 'Pago') + ' · ' + casaMoney(pago.amount);
+      ghost.style.cssText = 'position:fixed;z-index:9999;pointer-events:none;background:#7C5CF2;color:#fff;font-size:12px;font-weight:600;padding:6px 10px;border-radius:10px;box-shadow:0 8px 22px rgba(95,70,190,.35);max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+      document.body.appendChild(ghost);
+      if(row) row.style.opacity = '.4';
+      var lastY = ev.clientY, over = null;
+      function dropUnder(x, y){
+        var el = document.elementFromPoint(x, y);
+        return el && el.closest ? el.closest('[data-drop-pid]') : null;
+      }
+      function move(e){
+        lastY = e.clientY;
+        ghost.style.left = (e.clientX + 12) + 'px';
+        ghost.style.top = (e.clientY - 14) + 'px';
+        var dz = dropUnder(e.clientX, e.clientY);
+        if(dz !== over){
+          if(over) over.style.outline = '';
+          over = dz;
+          if(over) over.style.outline = '2px dashed #7C5CF2';
+        }
+      }
+      move(ev);
+      var scroller = setInterval(function(){
+        if(lastY < 70) window.scrollBy(0, -14);
+        else if(lastY > window.innerHeight - 70) window.scrollBy(0, 14);
+      }, 16);
+      function end(e){
+        grip.removeEventListener('pointermove', move);
+        grip.removeEventListener('pointerup', end);
+        grip.removeEventListener('pointercancel', end);
+        clearInterval(scroller);
+        var dz = e && e.type === 'pointerup' ? dropUnder(e.clientX, e.clientY) : null;
+        if(over) over.style.outline = '';
+        ghost.remove();
+        if(row) row.style.opacity = '';
+        if(dz){
+          pago.pid = dz.getAttribute('data-drop-pid');
+          casaUI.open[pago.pid] = true;
+          casaSave(); renderCasa();
+        }
+      }
+      grip.addEventListener('pointermove', move);
+      grip.addEventListener('pointerup', end);
+      grip.addEventListener('pointercancel', end);
     });
     box.addEventListener('keydown', function(ev){
       if(ev.key === 'Enter' && ev.target.tagName === 'INPUT' && !ev.target.readOnly && casaUI.form){ ev.preventDefault(); saveForm(); }
@@ -1349,9 +1445,9 @@
 
   var TABS = [
     {id:'dia', icon:'🏠', label:'Mi día'},
-    {id:'fin', icon:'💰', label:'Finanzas'},
+    {id:'control', icon:'🎛️', label:'Centro de control'},
     {id:'hubs', icon:'🧭', label:'Hub de hubs'},
-    {id:'control', icon:'🎛️', label:'Centro de control'}
+    {id:'fin', icon:'💰', label:'Finanzas'}
   ];
   var currentTab = 'dia';
 
@@ -3612,6 +3708,7 @@
   function renderProducts(){
     var box = document.getElementById('jd-products');
     box.innerHTML = '';
+    populateTaskProjectSelect();
     data.products.forEach(function(p){
       var color = PROJECT_COLORS[p.name] || p.color;
       var card = document.createElement('div');
@@ -3967,11 +4064,23 @@
     if(!text) return;
     var color = document.getElementById('jd-task-color').value;
     var area = document.getElementById('jd-task-area').value;
-    data.agenda.push({id:uid('a'), text:text, reto:true, color:color, area:area || undefined, project:matchProject(text) || undefined});
+    var project = document.getElementById('jd-task-project').value;
+    if(project === '__new__'){
+      var newName = document.getElementById('jd-task-newproj').value.trim();
+      if(!newName){ document.getElementById('jd-task-newproj').focus(); return; }
+      createProject(newName);
+      var found = data.products.find(function(p){ return p.name.toLowerCase() === newName.toLowerCase(); });
+      project = found ? found.name : '';
+      document.getElementById('jd-task-newproj').value = '';
+    }
+    data.agenda.push({id:uid('a'), text:text, reto:true, color:color, area:area || undefined, project:project || matchProject(text) || undefined});
     bumpAreaTotal(text, area || undefined);
     input.value = '';
-    save(); renderAgenda(); renderBalance();
+    var projSel = document.getElementById('jd-task-project');
+    if(projSel) projSel.value = '';
+    save(); renderAgenda(); renderBalance(); populateTaskProjectSelect();
   }
+  document.getElementById('jd-task-project').addEventListener('change', toggleNewProjectRow);
   document.getElementById('jd-agenda-add').addEventListener('click', addAgendaFromForm);
   document.getElementById('jd-agenda-text').addEventListener('keydown', function(e){ if(e.key === 'Enter') addAgendaFromForm(); });
 
@@ -4693,7 +4802,7 @@
       'Responde SIEMPRE con UN SOLO objeto JSON valido (nunca varios seguidos, nunca uno por cada cosa que menciono), sin texto extra ni markdown, en una de estas tres formas:\n'+
       '{"status":"ask","question":"..."}\n'+
       '{"status":"respond","reply":"..."}\n'+
-      '{"status":"done","action":{"type":"evento|editar|historial|movimiento|movimientos|actualizar_cuenta|eliminar_movimiento|reto|habito|proyecto|completar|eliminar|proyecto_nuevo","area":"id de area o null","color":"rojo|amarillo|verde o null","editId":"id EXACTO de la lista de Agenda o null","movementId":"id EXACTO de la lista de Movimientos o null","text":"...","date":"YYYY-MM-DD","endDate":"YYYY-MM-DD o null","time":"HH:MM 24h o null","durationMinutes":numero o null,"project":"nombre EXACTO de la lista o null","amount":numero o null,"finType":"compra|ingreso|pago_deuda|ahorro_corto|ahorro_largo","paymentType":"unico|plazos","account":"nombre EXACTO de la lista de Cuentas o null","items":[{"text":"concepto","amount":numero,"finType":"compra|ingreso|pago_deuda","date":"YYYY-MM-DD"}]}}\n\n'+
+      '{"status":"done","action":{"type":"evento|editar|historial|movimiento|movimientos|pagos_fondo|actualizar_cuenta|eliminar_movimiento|reto|habito|proyecto|completar|eliminar|proyecto_nuevo","area":"id de area o null","color":"rojo|amarillo|verde o null","editId":"id EXACTO de la lista de Agenda o null","movementId":"id EXACTO de la lista de Movimientos o null","text":"...","date":"YYYY-MM-DD","endDate":"YYYY-MM-DD o null","time":"HH:MM 24h o null","durationMinutes":numero o null,"project":"nombre EXACTO de la lista o null","amount":numero o null,"finType":"compra|ingreso|pago_deuda|ahorro_corto|ahorro_largo","paymentType":"unico|plazos","account":"nombre EXACTO de la lista de Cuentas o null","items":[{"text":"concepto","amount":numero,"finType":"compra|ingreso|pago_deuda","date":"YYYY-MM-DD"}]}}\n\n'+
       'Reglas: si el mensaje es una pregunta, pide consejo, o quiere ayuda para organizar/priorizar sus proyectos y pendientes '+
       '(sin ser claramente algo para agregar a una lista), usa status="respond" con una respuesta util, especifica a su situacion real, y breve (maximo 5 lineas). '+
       'Si el mensaje describe algo que YA HIZO (tiempo pasado: "trabajé en", "agregué", "terminé", "estuve haciendo"), usa type="historial" '+
@@ -4723,6 +4832,7 @@
       'Si adjunta un ESTADO DE CUENTA o una lista con VARIOS movimientos (captura, PDF o texto pegado de su banco): (1) identifica el banco o tarjeta (logo, nombre, ultimos 4 digitos) y comparalo con las Cuentas registradas; si coincide pon su nombre EXACTO en "account"; si no coincide o no puedes saberlo, pregunta de cual cuenta es (status="ask", menciona los nombres registrados). '+
       '(2) Lee cada movimiento (fecha, concepto, monto) sin inventar ninguno: cargos o compras = finType "compra"; pagos o abonos a la tarjeta = "pago_deuda"; depositos o ingresos = "ingreso"; el monto siempre positivo; si la fecha no trae anio usa el anio de hoy. '+
       '(3) Si algun concepto es ambiguo (no sabes si es cargo, pago o ingreso, o que es), pregunta UNA cosa breve antes de registrar; si todo es claro responde status="done" con type="movimientos", "account" e "items" (un item por movimiento). No uses type="movimiento" (singular) para estados de cuenta. '+
+      'EXCEPCION - HOJA DE CALCULO de gastos (captura de Google Sheets o Excel con columnas tipo ENTRADA / SALIDA / SALDO, ej. "CASA JANY"): NO es un estado de cuenta ni hay banco, no preguntes de que cuenta es y no preguntes nada si se entiende. Lee SOLO tres columnas: (a) la FECHA es la columna A (formato dia-mes, ej. "16-11" = 16 de noviembre; usa el anio de hoy; si la celda de fecha esta vacia pon date=null, no la inventes), (b) el CONCEPTO es la columna B (va en "text"), (c) el MONTO es la columna SALIDA (la 4a columna, D) y solo se registra si esa celda trae numero. IGNORA POR COMPLETO la columna ENTRADA (C) y la columna SALDO (E, es la suma acumulada): nunca las uses como monto, ni registres ingresos de ahi, ni las sumes. Salta filas sin monto en SALIDA, encabezados y el titulo. Responde status="done" con type="pagos_fondo" e "items" con un item por fila (text, amount, date); estos pagos llegan a Casa Jany en Finanzas como "Sin asignar", NO uses type="movimientos" para esto. '+
       'Si pide ACTUALIZAR o ajustar el saldo de una cuenta o tarjeta ("actualiza mi cuenta", "mi saldo de X es Y", "ahora debo Y en X", "quedo en Y") o adjunta una captura que solo muestra el saldo o total actual: usa type="actualizar_cuenta" con "account" (nombre EXACTO de la lista de Cuentas) y "amount" = el NUEVO saldo total de deuda de esa cuenta (numero positivo). Si no dijo cual cuenta o cual es el nuevo saldo, pregunta. Si en cambio trae una lista de movimientos, usa type="movimientos".';
     systemPrompt += buildAdvisorPrompt() + '\nTodas las formas JSON aceptan ademas el campo opcional "remember" (nota corta o lista de notas para tu memoria).\n';
     var hasImage = history.some(function(m){ return m.image; });
@@ -4900,6 +5010,22 @@
         (accDebt ? '\nTu deuda en ' + accDebt.name + ' ahora es ' + fmt(accDebt.amount) + '.' : '') +
         (addedLines.length ? '\nSi algo quedó mal, tócalo en Deuda y ahorro → Movimientos recientes.' : '');
       return head + (addedLines.length ? '\n' + addedLines.join('\n') : '') + tail;
+    } else if(action.type === 'pagos_fondo' && Array.isArray(action.items)){
+      casaEnsure();
+      var cpAdded = 0, cpSkipped = 0;
+      action.items.forEach(function(it, i){
+        if(!it || !it.text) return;
+        var amtC = Number(it.amount);
+        if(isNaN(amtC) || amtC <= 0) return;
+        var dtC = /^\d{4}-\d{2}-\d{2}$/.test(it.date || '') ? it.date : '';
+        var dupC = data.casa.pagos.some(function(p){ return +p.amount === amtC && (p.date || '') === dtC && String(p.note || '').toLowerCase() === String(it.text).toLowerCase(); });
+        if(dupC){ cpSkipped++; return; }
+        data.casa.pagos.push({id: uid('cp') + '-' + i, pid: null, date: dtC, amount: amtC, method: '', card: '', other: '', note: String(it.text)});
+        cpAdded++;
+      });
+      if(cpAdded){ casaUI.open.sin = true; casaSave(); renderCasa(); }
+      return (cpAdded ? 'Agregué ' + cpAdded + ' pago' + (cpAdded === 1 ? '' : 's') + ' a Casa Jany (Finanzas), en "Sin asignar". Arrástralos con ⠿ hasta la persona a quien se los pagaste.' : 'No agregué nada nuevo.') +
+        (cpSkipped ? '\n(' + cpSkipped + ' ya estaban y no los dupliqué.)' : '');
     } else if(action.type === 'eliminar_movimiento' && action.movementId){
       var targetMov = data.movements.find(function(m){ return m.id === action.movementId; });
       if(targetMov) reverseDebtEffect(targetMov.debtId, targetMov.debtDelta);
