@@ -2584,9 +2584,111 @@
     });
   }
 
-  function completeAgendaItem(a){
-    data.history.unshift(Object.assign({id:uid('hist'), project:a.project || guessProject(a.text.toLowerCase()), text:a.text, minutes:null}, historyStamp()));
+  // historial: una entrada por cada horario elegido (o una con la hora de ahora si no se eligió ninguno)
+  function addDoneHistory(project, text, pick, mins){
+    if(pick && pick.hours && pick.hours.length){
+      var d = new Date(pick.iso + 'T00:00:00'), dl = d.toLocaleDateString('es-MX', {day:'numeric', month:'short'});
+      pick.hours.slice().reverse().forEach(function(h){
+        data.history.unshift({id:uid('hist') + '-' + h, project:project, text:text, minutes:mins, date:dl, dateISO:pick.iso, time:String(h).padStart(2,'0') + ':00'});
+      });
+    } else {
+      data.history.unshift(Object.assign({id:uid('hist'), project:project, text:text, minutes:null}, historyStamp()));
+    }
     if(data.history.length > 500) data.history.length = 500;
+  }
+
+  // ventana "¿A qué hora lo hiciste?": cuadritos de las 24 horas del día; se eligen una o varias
+  function openDoneModal(info, onDone, onCancel){
+    var old = document.getElementById('jd-done-modal');
+    if(old) old.remove();
+    function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    var dayISO = todayKey, sel = new Set(), mins = 60, painting = null;
+    var hasProj = info.project && info.project !== 'General';
+    var pc = hasProj ? projectColor(info.project) : '#7C5CF2';
+    var ov = document.createElement('div');
+    ov.id = 'jd-done-modal'; ov.className = 'jd-wk-ov';
+    var box = document.createElement('div');
+    box.className = 'jd-wk-box';
+    ov.appendChild(box);
+    box.innerHTML = '<div class="jd-wk-head"><div><div class="jd-wk-day">¿A qué hora lo hiciste?</div><div class="jd-sub">' + esc(info.text) + (hasProj ? ' · ' + esc(info.project) : '') + '</div></div><button type="button" class="jd-wk-x" id="jd-dn-close" aria-label="Cerrar">✕</button></div>' +
+      '<div class="jd-wk-lab" style="margin-top:0;">Día</div><input type="date" class="jd-wk-input" id="jd-dn-date" value="' + dayISO + '">' +
+      '<div class="jd-wk-lab">Toca (o arrastra sobre) los horarios en que lo hiciste</div>' +
+      '<div id="jd-dn-grid" style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;touch-action:none;user-select:none;-webkit-user-select:none;"></div>' +
+      '<div class="jd-wk-lab">Duración en cada horario</div><div class="jd-wk-chips" id="jd-dn-durs"></div>' +
+      '<div class="jd-wk-acts"><button type="button" class="jd-wk-no" id="jd-dn-cancel">Cancelar</button><button type="button" class="jd-wk-go" id="jd-dn-ok"></button></div>';
+    document.body.appendChild(ov);
+    var grid = box.querySelector('#jd-dn-grid'), durBox = box.querySelector('#jd-dn-durs'), okBtn = box.querySelector('#jd-dn-ok');
+    function paint(){
+      var d = new Date(dayISO + 'T00:00:00'), dayIdx = (d.getDay() + 6) % 7, byCell = buildWeekMap(mondayOf(d)), nowH = new Date().getHours();
+      grid.innerHTML = '';
+      for(var h = 0; h < 24; h++){
+        var info2 = byCell[dayIdx + '-' + h], on = sel.has(h), bg = '#F1EEFB', fg = '#5B5784';
+        if(info2 && info2.entries.length){
+          var dom = Object.keys(info2.byProject).reduce(function(x, y){ return info2.byProject[x] >= info2.byProject[y] ? x : y; }, info2.entries[0].project);
+          bg = hexToRgba(projectColor(dom || info2.entries[0].project), 0.35);
+        }
+        if(on){ bg = pc; fg = '#fff'; }
+        var c = document.createElement('div');
+        c.setAttribute('data-h', h);
+        c.textContent = String(h).padStart(2, '0') + ':00';
+        c.style.cssText = 'height:38px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;cursor:pointer;background:' + bg + ';color:' + fg + ';' +
+          (dayISO === todayKey && h === nowH ? 'box-shadow:inset 0 0 0 2px #7C5CF2;' : '') + (on ? 'outline:2px solid #1F1B3D;outline-offset:-2px;' : '');
+        grid.appendChild(c);
+      }
+      durBox.innerHTML = '';
+      [[15,'15 min'],[30,'30 min'],[45,'45 min'],[60,'1 h'],[90,'1.5 h'],[120,'2 h']].forEach(function(o){
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'jd-wk-chip' + (mins === o[0] ? ' on' : '');
+        b.textContent = o[1];
+        b.addEventListener('click', function(){ mins = o[0]; paint(); });
+        durBox.appendChild(b);
+      });
+      okBtn.textContent = sel.size ? 'Marcar hecho en ' + sel.size + (sel.size === 1 ? ' horario' : ' horarios') : 'Marcar hecho ahora (sin elegir hora)';
+    }
+    function cellAt(x, y){
+      var el = document.elementFromPoint(x, y), c = el && el.closest ? el.closest('[data-h]') : null;
+      return c ? parseInt(c.getAttribute('data-h'), 10) : null;
+    }
+    function apply(h){
+      var had = sel.has(h);
+      if(painting === 'add' && !had) sel.add(h); else if(painting === 'remove' && had) sel.delete(h); else return;
+      paint();
+    }
+    grid.addEventListener('pointerdown', function(ev){
+      var h = cellAt(ev.clientX, ev.clientY);
+      if(h === null) return;
+      ev.preventDefault();
+      painting = sel.has(h) ? 'remove' : 'add';
+      try{ grid.setPointerCapture(ev.pointerId); }catch(err){}
+      apply(h);
+    });
+    grid.addEventListener('pointermove', function(ev){ if(!painting) return; var h = cellAt(ev.clientX, ev.clientY); if(h !== null) apply(h); });
+    grid.addEventListener('pointerup', function(){ painting = null; });
+    grid.addEventListener('pointercancel', function(){ painting = null; });
+    box.querySelector('#jd-dn-date').addEventListener('change', function(e){ dayISO = e.target.value || todayKey; paint(); });
+    function onKey(e){ if(e.key === 'Escape') close(true); }
+    function close(cancel){
+      document.removeEventListener('keydown', onKey);
+      ov.remove();
+      if(cancel && onCancel) onCancel();
+    }
+    box.querySelector('#jd-dn-cancel').addEventListener('click', function(){ close(true); });
+    box.querySelector('#jd-dn-close').addEventListener('click', function(){ close(true); });
+    ov.addEventListener('click', function(e){ if(e.target === ov) close(true); });
+    okBtn.addEventListener('click', function(){
+      var hours = Array.from(sel).sort(function(x, y){ return x - y; });
+      close(false);
+      onDone(hours.length ? {iso: dayISO, hours: hours} : null, mins);
+    });
+    document.addEventListener('keydown', onKey);
+    paint();
+  }
+
+  // pick = {iso, hours:[...]} si se eligieron horarios; sin pick usa la hora de ahora (también lo usa el chat)
+  function completeAgendaItem(a, pick, mins){
+    addDoneHistory(a.project || guessProject(a.text.toLowerCase()), a.text, pick, mins);
+    var prDone = a.project ? data.products.find(function(x){ return x.name === a.project; }) : null;
+    if(prDone) prDone.tasks.push({id:uid('pt'), text:a.text, done:true, doneAt: pick && pick.iso ? pick.iso : todayKey, area:a.area});   // queda en "Hechas" del proyecto
     data.agenda = data.agenda.filter(function(x){ return x.id !== a.id; });
     bumpAreaDone(a.text, a.area);
     save(); renderAgenda(); renderHistory(); renderCalendar(); renderWeekGrid(); renderBalance(); renderProducts();
@@ -2702,7 +2804,9 @@
       actions.className = 'jd-row'; actions.style.cssText = 'gap:4px;flex:none;';
       var check = document.createElement('button');
       check.className = 'jd-btn'; check.textContent = '✓'; check.style.padding = '1px 8px'; check.style.color = '#1F9D55';
-      check.addEventListener('click', function(){ completeAgendaItem(a); });
+      check.addEventListener('click', function(){
+        openDoneModal({text: a.text, project: a.project}, function(pick, mins){ completeAgendaItem(a, pick, mins); });
+      });
       var del = document.createElement('button');
       del.className = 'jd-btn'; del.textContent = '×'; del.style.padding = '1px 8px';
       del.addEventListener('click', function(){
@@ -4093,12 +4197,13 @@
         });
         row.querySelector('input').addEventListener('change', function(e){
           if(!e.target.checked) return;
-          t.done = true;
-          t.doneAt = todayKey;
-          data.history.unshift(Object.assign({id:uid('hist'), project:p.name, text:t.text, minutes:null}, historyStamp()));
-          if(data.history.length > 500) data.history.length = 500;
-          bumpAreaDone(t.text, t.area);
-          save(); renderProducts(); renderProgressMini(); renderHistory(); renderCalendar(); renderWeekGrid(); renderBalance();
+          openDoneModal({text: t.text, project: p.name}, function(pick, mins){
+            t.done = true;
+            t.doneAt = pick && pick.iso ? pick.iso : todayKey;
+            addDoneHistory(p.name, t.text, pick, mins);
+            bumpAreaDone(t.text, t.area);
+            save(); renderProducts(); renderProgressMini(); renderHistory(); renderCalendar(); renderWeekGrid(); renderBalance();
+          }, function(){ renderProducts(); });
         });
         card.appendChild(row);
       });
@@ -4113,10 +4218,11 @@
           ' <span class="jd-chip" style="background:#F1EEFB;color:#7C5CF2;font-size:9.5px;">📌 del día'+(when ? ' · '+when : '')+'</span></span>';
         row.querySelector('input').addEventListener('change', function(e){
           if(!e.target.checked) return;
-          // pasa a "Hechas" del proyecto y al historial, y sale de los pendientes del día
-          p.tasks.push({id:uid('pt'), text:a.text, done:true, doneAt:todayKey, area:a.area});
-          completeAgendaItem(a);
-          renderProducts(); renderProgressMini();
+          // pregunta a qué hora; pasa a "Hechas" del proyecto y al historial, y sale de los pendientes del día
+          openDoneModal({text: a.text, project: p.name}, function(pick, mins){
+            completeAgendaItem(a, pick, mins);
+            renderProgressMini();
+          }, function(){ renderProducts(); });
         });
         card.appendChild(row);
       });
