@@ -162,6 +162,9 @@
     '@media (max-width:720px){.jnp{bottom:calc(76px + env(safe-area-inset-bottom,0px));max-width:calc(100vw - 32px)}}',
     '@keyframes jnpEntra{from{opacity:0;transform:translate(-50%,8px) scale(.97)}to{opacity:1;transform:translate(-50%,0)}}',
     '.jnp svg{width:74px;height:auto;flex:none;overflow:visible}',
+    '.jnp.jnp-chat{position:static;transform:none;display:inline-flex;align-self:flex-start;gap:8px;margin:0 0 8px;padding:2px 10px 2px 2px;border:0;border-radius:12px;background:transparent;box-shadow:none;font-size:13.5px;max-width:100%;animation:jnpEntraChat .2s cubic-bezier(.23,1,.32,1)}',
+    '.jnp.jnp-chat svg{width:44px}.jnp.jnp-chat .jnp-txt small{font-size:11.5px}',
+    '@keyframes jnpEntraChat{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}',
     '.jnp-txt{display:grid;gap:1px}.jnp-txt small{font-weight:500;font-size:12px;color:#5D6055}',
     '.jnp-robot{animation:jnpBob 1.6s ease-in-out infinite}',
     '.jnp-ant{animation:jnpPulse 1s ease-in-out infinite;transform-box:fill-box;transform-origin:center}',
@@ -743,7 +746,8 @@
   }
 
   // ── Robot trabajando: mientras un Jefe espera la respuesta de la IA (cualquier POST a /api/ menos
-  // storage y check-link) sale abajo el robotsito tecleando, para que no parezca que se congeló.
+  // storage y check-link) sale el robotsito tecleando DENTRO de la caja del chat, justo arriba de donde se
+  // escribió (si no se escribió nada antes, abajo al centro), para que no parezca que se congeló.
   // Es el mismo dibujo del Jefe de Resultados. Otras partes de la página pueden usarlo con
   // window.__jnPensando.mostrar('texto') / .ocultar().
   var ROBOT_SVG = '<svg viewBox="0 0 240 190" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
@@ -766,6 +770,43 @@
     var orig = window.fetch;
     if (!orig || orig.__jnPensando) return;
     var activos = 0, espera = null, caja = null, giro = null, manual = false;
+    // Caja del chat donde la persona escribió (en los últimos 20 s, justo antes de mandar): el robot sale
+    // justo arriba de ella. Si no hay (por ejemplo un botón "Generar"), sale abajo al centro como antes.
+    var campo = null, campoT = 0;
+    function esCampo(el) {
+      if (!el || !el.closest || el.closest('.jn, .jn-rm, .jnp')) return false;
+      if (el.isContentEditable) return true;
+      if (el.tagName === 'TEXTAREA') return true;
+      return el.tagName === 'INPUT' && /^(text|search|)$/i.test(el.getAttribute('type') || '');
+    }
+    document.addEventListener('focusin', function (e) { if (esCampo(e.target)) { campo = e.target; campoT = Date.now(); } }, true);
+    document.addEventListener('input', function (e) { if (esCampo(e.target)) { campo = e.target; campoT = Date.now(); } }, true);
+    // Lo mete dentro de la caja del chat, justo antes del renglón donde se escribe (sube por los renglones
+    // en fila, como "campo + botón Enviar", para no quedar al lado del campo).
+    function renglon(el) {
+      var w = el;
+      for (var i = 0; i < 4 && w.parentElement && w.parentElement !== document.body; i++) {
+        var cs = getComputedStyle(w.parentElement);
+        var enFila = (/flex/.test(cs.display) && /^row/.test(cs.flexDirection)) || (/grid/.test(cs.display) && cs.gridTemplateColumns.split(' ').length > 1);
+        if (!enFila) break;
+        w = w.parentElement;
+      }
+      return w;
+    }
+    function colocar() {
+      if (!caja) return;
+      var r = campo && document.contains(campo) && Date.now() - campoT < 20000 ? campo.getBoundingClientRect() : null;
+      var visible = r && r.width > 0 && r.height > 0;
+      if (visible) {
+        var w = renglon(campo);
+        if (caja.nextSibling !== w) w.parentElement.insertBefore(caja, w);
+        caja.classList.add('jnp-chat');
+      } else {
+        caja.classList.remove('jnp-chat');
+        if (caja.parentElement !== document.body) document.body.appendChild(caja);
+      }
+    }
+
     function mostrar(texto) {
       if (!caja) {
         caja = document.createElement('div');
@@ -775,6 +816,7 @@
         caja.innerHTML = ROBOT_SVG + '<span class="jnp-txt"><span>Tu Jefe está trabajando</span><small></small></span>';
         document.body.appendChild(caja);
       }
+      colocar();
       var i = 0, sub = caja.querySelector('small');
       sub.textContent = texto || FRASES[0];
       clearInterval(giro);
