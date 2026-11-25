@@ -760,7 +760,7 @@ function crearApiDemo(rol) {
       const a = db.actividades.find(x => x.id === aid);
       return db.respuestas.filter(r => r.actividad_id === aid && r.datos?.texto && (rol === 'ponente' || a.config.publico || a.config.mostrar_grupo || r.destacada))
         .sort((x, y) => (x.actualizado_en || '').localeCompare(y.actualizado_en || ''))
-        .flatMap(r => (multiDe(a) ? textosDe(r.datos) : [r.datos.texto]).map((t, i) => ({ id: multiDe(a) ? r.id + '-' + i : r.id, nombre: a.config.publico === 'chat' ? (db.perfiles[r.user_id]?.nombre || 'Participante').split(' ')[0] : null, usuario: a.config.publico === 'chat' ? (r.datos.usuario || '') : '', texto: t, actualizado_en: r.actualizado_en })));
+        .flatMap(r => (multiDe(a) ? textosDe(r.datos) : [r.datos.texto]).map((t, i) => ({ id: multiDe(a) ? r.id + '-' + i : r.id, nombre: a.config.publico === 'chat' ? (db.perfiles[r.user_id]?.nombre || 'Participante').split(' ')[0] : null, usuario: a.config.publico === 'chat' ? (multiDe(a) ? usuarioTarea(r.datos, i) : (r.datos.usuario || '')) : '', texto: t, actualizado_en: r.actualizado_en })));
     },
     async reiniciar(aid) { if (rol !== 'ponente') throw new Error('Solo la ponente'); db.respuestas = db.respuestas.filter(r => r.actividad_id !== aid); guardar(); },
     async destacar(rid, v) { if (rol !== 'ponente') throw new Error('Solo la ponente'); const r = db.respuestas.find(x => x.id === rid); if (r) r.destacada = !!v; guardar(); },
@@ -978,6 +978,7 @@ const nombreAct = a => a.config?.nombre || a.titulo;
 const abrirAct = async a => { const sc = S.secciones.find(x => x.id === a.seccion_id); if (sc && sc.estado === 'bloqueada') await api.setSeccion(sc.id, 'disponible'); await api.setActividad(a.id, 'abierta'); };
 const multiDe = a => a?.config?.multiples || (['delegarias', 'dedicas'].includes(a?.clave) ? 5 : 0);
 const textosDe = d => Array.isArray(d?.textos) ? d.textos.filter(Boolean) : d?.texto ? [d.texto] : [];
+const usuarioTarea = (d, i) => (Array.isArray(d?.usuarios) && d.usuarios[i] != null) ? d.usuarios[i] : (d?.usuario || '');
 /* Estado que ve el alumno: Pendiente (Jany no la abre) · Abierta · Respondida · Cerrada */
 function estadoAlumno(a) {
   if (a.estado === 'cerrada') return { k: 'pend', t: 'PENDIENTE', c: 'off' };
@@ -1697,14 +1698,17 @@ function pintarDinamica(a, num, cont) {
           if (neg && !arr) { const u = li.querySelector('[name=usuario]'); if (u) { u.style.display = ''; u.focus(); } return toast('Escribe el @ de tu negocio o elige Mi nombre'); }
           datos.usuario = neg ? arr : '';
         }
+        /* Cada tarea guarda el @ con el que se publicó (así sale por separado en el mural) */
+        if (multiDe(a)) datos.usuarios = datos.textos.map((_, i) => i < textosDe(r?.datos).length ? usuarioTarea(r?.datos, i) : (datos.usuario || ''));
       }
       const b = form.querySelector('button'); b.disabled = true;
       try { await api.responder(a.id, datos, true); toast(multiDe(a) ? '¡Tarea agregada!' : '¡Gracias! Respuesta enviada'); await recargar(); } catch (err) { b.disabled = false; toast(err.message); }
     };
   }
   li.querySelectorAll('[data-quitar-tarea]').forEach(b => b.onclick = async () => {
-    const textos = textosDe(r?.datos).filter((_, i) => i !== +b.dataset.quitarTarea);
-    try { await api.responder(a.id, { textos, texto: textos.join(' · ') }, textos.length > 0); toast('Tarea quitada'); await recargar(); } catch (err) { toast(err.message); }
+    const quitar = +b.dataset.quitarTarea, textos = textosDe(r?.datos).filter((_, i) => i !== quitar);
+    const usuarios = textosDe(r?.datos).map((_, i) => usuarioTarea(r?.datos, i)).filter((_, i) => i !== quitar);
+    try { await api.responder(a.id, { textos, usuarios, texto: textos.join(' · ') }, textos.length > 0); toast('Tarea quitada'); await recargar(); } catch (err) { toast(err.message); }
   });
   /* Lo que el grupo puede ver: resultados agregados o respuestas compartidas por Jany (sin nombre) */
   const extra = li.querySelector('[data-extra]');
@@ -2140,7 +2144,7 @@ function resultadosPonenteHtml(a, rs, alumnos) {
           <form data-apoyo-form="${a.id}" class="row" style="margin:8px 0"><input type="text" name="t" maxlength="140" placeholder="Ej. Contestar mensajes de WhatsApp" style="flex:1;min-width:200px"><button class="btn sm">+ Agregar</button></form>
           ${(a.config.apoyo || []).slice().reverse().map(x => `<div class="answer apoyo-r"><span class="tag-apoyo">APOYO</span> ${esc(x.texto)} <button type="button" class="link-x" data-apoyo-del="${a.id}" data-id="${esc(x.id)}">quitar</button></div>`).join('')}</div>
         <p class="small" style="margin:12px 0 6px"><b>${rs.length} respuestas reales de participantes</b></p>`
-        : a.config.mural ? `<p class="small" style="margin-bottom:8px">👀 El grupo ve estas respuestas en el mural, con su @.</p>${muralHtml(a, rs.filter(r => r.datos?.texto).map(r => ({ id: r.id, nombre: r.nombre, usuario: r.datos?.usuario, texto: r.datos.texto })))}<div style="height:12px"></div>`
+        : a.config.mural ? `<p class="small" style="margin-bottom:8px">👀 El grupo ve estas respuestas en el mural, con su @.</p>${muralHtml(a, rs.filter(r => r.datos?.texto).flatMap(r => (multiDe(a) ? textosDe(r.datos) : [r.datos.texto]).map((t, i) => ({ id: multiDe(a) ? r.id + '-' + i : r.id, nombre: r.nombre, usuario: multiDe(a) ? usuarioTarea(r.datos, i) : r.datos?.usuario, texto: t }))))}<div style="height:12px"></div>`
         : a.config.publico ? `<p class="small" style="margin-bottom:8px">👀 El grupo ve estas respuestas ${a.config.publico === 'chat' ? 'en forma de chat, con su nombre' : 'en cuadritos, sin nombre'}.</p>` : ''}
       <div class="answers">${rs.map(r => `<div class="answer ${r.destacada ? 'compartida' : ''}"><div class="row space"><b>${esc(r.nombre || 'Participante')}${a.config.mural ? ` <span class="muted small">${esc(arroba(r.nombre, r.datos?.usuario))}</span>` : ''}</b><span class="small muted">${r.actualizado_en ? hora(r.actualizado_en) : ''}</span></div>
         <p style="margin:4px 0 8px">${esc(r.datos?.texto || '')}</p>
