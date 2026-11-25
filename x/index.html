@@ -1197,7 +1197,7 @@
     var sub = [casaEsc(casaMethodText(g))];
     if(conPersona && pe) sub.push('→ ' + casaEsc(pe.name));
     if(!g.descuenta) sub.push('<b style="color:#B8741A;">no descuenta del crédito</b>');
-    var grSel = conPersona ? '<div style="margin-top:4px;"><select class="jd-input" data-gmove="' + g.id + '" title="Pasar a un grupo" style="font-size:11px;padding:3px 6px;width:auto;max-width:100%;"><option value="">Sin grupo</option>' + (data.casa.grupos || []).map(function(x){ return '<option value="' + x.id + '"' + (g.grupo === x.id ? ' selected' : '') + '>' + casaEsc(x.name) + '</option>'; }).join('') + '</select></div>' : '';
+    var grSel = conPersona ? '<div style="margin-top:4px;"><select class="jd-input" data-gmove="' + g.id + '" title="Pasar a un grupo" style="font-size:11px;padding:3px 6px;width:auto;max-width:100%;"><option value="">Sin grupo</option>' + (data.casa.grupos || []).map(function(x){ return '<option value="' + x.id + '"' + (g.grupo === x.id ? ' selected' : '') + '>' + casaEsc(x.name) + '</option>'; }).join('') + '<option value="__nuevo__">+ Nuevo grupo…</option></select></div>' : '';
     return '<div class="jd-casa-row" style="align-items:flex-start;">' +
       '<div class="jd-casa-main" data-act="edit-gasto" data-id="' + g.id + '" title="Toca para ajustar" style="cursor:pointer;"><div><span class="jd-sub">' + casaDate(g.date) + ' · </span>' + casaEsc(g.note || 'Gasto') + '</div><div class="jd-sub">' + sub.join(' · ') + '</div>' + grSel + '</div>' +
       '<b class="jd-disp" style="flex:none;">' + casaMoney(g.amount) + '</b>' +
@@ -1293,6 +1293,8 @@
       var sg = casaUI.sortG || 'fecha', grupos = c.grupos || [];
       var sortBtn = function(k, label){ return '<button type="button" class="jd-btn" data-act="sort" data-id="' + k + '" style="padding:3px 10px;font-size:12px;' + (sg === k ? 'background:#7C5CF2;color:#fff;border-color:#7C5CF2;' : '') + '">' + label + '</button>'; };
       var rowGasto = function(g){ return casaGastoRow(g, true); };
+      // dentro de un grupo: solo concepto y total; al tocarlo salen todos los datos (fecha, método, etc.)
+      var rowCompacto = function(g){ return '<div class="jd-casa-row" style="align-items:center;"><div class="jd-casa-main" data-act="edit-gasto" data-id="' + g.id + '" title="Toca para ver y ajustar todo" style="cursor:pointer;">' + casaEsc(g.note || 'Gasto') + '</div><b class="jd-disp" style="flex:none;">' + casaMoney(g.amount) + '</b></div>'; };
       var lista;
       if(!gastosTodos.length) lista = '<div class="jd-sub" style="padding:4px 0;">Todavía no hay nada. Arrastra un concepto del crédito aquí, o agrega un gasto aislado.</div>';
       else if(sg === 'grupo'){
@@ -1301,7 +1303,7 @@
           return '<div class="jd-casa-pe" style="border-color:#D9D0F5;"><div style="display:flex;align-items:center;gap:6px;padding:8px 10px;">' +
             '<button type="button" data-act="toggle-grupo" data-id="' + gr.id + '" style="flex:1;min-width:0;display:flex;align-items:center;gap:8px;background:transparent;border:0;cursor:pointer;padding:0;text-align:left;font-family:inherit;color:inherit;"><span class="jd-casa-arrow">' + (op ? '▾' : '▸') + '</span><span class="jd-casa-name">' + casaEsc(gr.name) + '</span><span class="jd-sub">' + items.length + ' gasto' + (items.length === 1 ? '' : 's') + '</span><b class="jd-disp jd-casa-tot">' + casaMoney(casaSum(items)) + '</b></button>' +
             '<button type="button" class="jd-casa-ico" data-act="edit-grupo" data-id="' + gr.id + '" title="Cambiar nombre">✏️</button><button type="button" class="jd-casa-ico" data-act="del-grupo" data-id="' + gr.id + '" title="Quitar grupo (sus gastos quedan sin grupo)">🗑</button></div>' +
-            (op ? '<div class="jd-casa-pebody">' + (items.length ? items.map(rowGasto).join('') : '<div class="jd-sub" style="padding:4px 0;">Vacío. Pasa un gasto a este grupo con su lista “Pasar a un grupo”.</div>') + '</div>' : '') + '</div>';
+            (op ? '<div class="jd-casa-pebody">' + (items.length ? items.map(rowCompacto).join('') : '<div class="jd-sub" style="padding:4px 0;">Vacío. Pasa un gasto a este grupo desde su lista (“Pasar a un grupo”).</div>') + '</div>' : '') + '</div>';
         }).join('');
         var sinGrupo = gastosTodos.filter(function(g){ return !g.grupo || !grupos.some(function(x){ return x.id === g.grupo; }); });
         if(sinGrupo.length) lista += (grupos.length ? '<div class="jd-sub" style="margin:8px 0 4px;">Sin grupo</div>' : '') + sinGrupo.map(rowGasto).join('');
@@ -1309,7 +1311,7 @@
         lista = gastosTodos.map(rowGasto).join('');
       }
       colsCP.push('<div class="jd-casa-pe"><div class="jd-casa-pebody" style="padding-top:10px;"><div class="jd-sub" style="margin-bottom:6px;">En qué se usó el dinero. Toca un gasto para ajustarlo.</div>' +
-        '<div class="jd-row" style="gap:6px;flex-wrap:wrap;margin-bottom:8px;"><button type="button" class="jd-btn jd-btn-lima" data-act="new-gasto">+ Gasto aislado</button><button type="button" class="jd-btn" data-act="new-grupo">+ Grupo</button><button type="button" class="jd-btn" data-act="sync-sheet"' + (casaUI.syncBusy ? ' disabled' : '') + '>↻ Actualizar</button></div>' +
+        '<div class="jd-row" style="gap:6px;flex-wrap:wrap;margin-bottom:8px;"><button type="button" class="jd-btn jd-btn-lima" data-act="new-gasto">+ Gasto aislado</button><button type="button" class="jd-btn" data-act="sync-sheet"' + (casaUI.syncBusy ? ' disabled' : '') + '>↻ Actualizar</button></div>' +
         '<div class="jd-row" style="gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px;"><span class="jd-sub">Ordenar por:</span>' + sortBtn('fecha', '📅 Fecha') + sortBtn('grupo', '📁 Grupo') + '</div>' +
         lista + '</div></div>');
     }
@@ -1463,7 +1465,16 @@
       } else if(t.getAttribute && t.getAttribute('data-gmove')){
         // pasar un gasto a un grupo (o sacarlo) desde su lista
         var gm = data.casa.gastos.find(function(x){ return x.id === t.getAttribute('data-gmove'); });
-        if(gm){ gm.grupo = t.value || null; casaUI.open.pag = true; casaSave(); renderCasa(); }
+        if(t.value === '__nuevo__'){
+          // grupo nuevo desde el mismo selector: se crea y el gasto queda dentro
+          var nombreG = (window.prompt('Nombre del grupo nuevo (ej. Liverpool, Arquitecto):') || '').trim();
+          if(!nombreG){ renderCasa(); return; }
+          if(!data.casa.grupos) data.casa.grupos = [];
+          var yaG = data.casa.grupos.find(function(x){ return x.name.toLowerCase() === nombreG.toLowerCase(); });
+          if(!yaG){ yaG = {id: uid('cgr'), name: nombreG}; data.casa.grupos.push(yaG); }
+          t.value = yaG.id;
+        }
+        if(gm){ gm.grupo = t.value || null; casaUI.open.pag = true; casaUI.open['g:' + gm.grupo] = true; casaSave(); renderCasa(); }
       }
     });
     // arrastrar un concepto del crédito (⠿) a "Pagado" o a una persona: abre el registro con sus datos ya puestos
