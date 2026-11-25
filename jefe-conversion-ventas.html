@@ -63,8 +63,10 @@
       <div id="searchResults"></div>
     </div>
     <span id="liveImageName" class="file-name"></span>
+    <div class="chat-aviso-mencion" id="avisoMencion" hidden></div>
+    <div class="chat-menu-mencion" id="menuMencion" role="listbox" aria-label="Etiquetar con @" hidden></div>
     <div class="chat-pill" id="chatPill">
-      <textarea id="liveInput" rows="1" placeholder="Pega aquí lo que te escribió el cliente…"></textarea>
+      <textarea id="liveInput" rows="1" placeholder="Pega lo que te escribió el cliente… o escribe @ para etiquetar"></textarea>
       <label class="chat-ib" title="Adjuntar captura" aria-label="Adjuntar captura">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
         <input type="file" id="liveImage" accept="image/*" hidden>
@@ -430,7 +432,14 @@ document.getElementById('liveImage').addEventListener('change', (e) => {
 });
 
 document.getElementById('liveInput').addEventListener('keydown', (e) => {
-  if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); askAgent(); }
+  const abierto = menuMencionEl() && !menuMencionEl().hidden && sugMencion.length;
+  if(abierto && (e.key === 'ArrowDown' || e.key === 'ArrowUp')){ e.preventDefault(); moverMencion(e.key === 'ArrowDown' ? 1 : -1); return; }
+  if(abierto && e.key === 'Escape'){ cerrarMenuMencion(); return; }
+  if(e.key === 'Enter' && !e.shiftKey && !e.isComposing){
+    e.preventDefault();
+    if(abierto){ elegirMencion(sugMencion[sugMencionActiva >= 0 ? sugMencionActiva : 0]); return; }
+    askAgent();
+  }
 });
 
 document.getElementById('liveInput').addEventListener('paste', (e) => {
@@ -446,6 +455,133 @@ document.getElementById('liveInput').addEventListener('paste', (e) => {
   reader.readAsDataURL(file);
 });
 
+// ---------- @ PARA ETIQUETAR UN PRODUCTO, UNA CAMPAÑA O CONECTAR OTRO JEFE ----------
+// Al escribir @ sale la lista (la misma de la pastilla de arriba + los demás Jefes). Lo etiquetado manda sobre el
+// filtro de arriba SOLO en ese mensaje. Los Jefes que se conectan traen lo que la persona tiene guardado en ellos.
+let mencionesChat = [];
+let sugMencion = [];
+let sugMencionActiva = -1;
+const JEFES_AT = [
+  { id: 'jefe-366', nombre: 'Jefe 366', slug: 'jefe-366', sub: 'Jefe · su oferta, cliente y comunicación completos' },
+  { id: 'jefe-temporada', nombre: 'Jefe de Temporada', slug: 'jefe-temporada', sub: 'Jefe · todas tus campañas' },
+  { id: 'jefe-contenido', nombre: 'Jefe de Contenido', slug: 'jefe-contenido', sub: 'Jefe · tu contenido guardado' },
+  { id: 'jefe-anuncios', nombre: 'Jefe de Anuncios', slug: 'jefe-anuncios', sub: 'Jefe · tus anuncios y estructura' },
+  { id: 'jefe-financiero', nombre: 'Jefe de Finanzas', slug: 'jefe-financiero', sub: 'Jefe · tus números y calculadora' },
+  { id: 'jefe-radar', nombre: 'Jefe del Faro', slug: 'jefe-radar', sub: 'Jefe · tus referentes y lecturas del mercado' },
+];
+function menuMencionEl(){ return document.getElementById('menuMencion'); }
+function opcionesMencion(q){
+  const foco = window.__foco;
+  const n = normalize(q).trim();
+  const coincide = (nombre) => !n || normalize(nombre).includes(n);
+  const productos = [], campanas = [], jefes = [];
+  if(foco){
+    foco.lista().forEach((p) => { if(p && p.nombre && coincide(p.nombre)) productos.push({ tipo: 'producto', id: p.id, nombre: String(p.nombre).trim(), sub: 'Producto o servicio', grupo_id: p.grupo_id || '' }); });
+    (foco.campanasTodas ? foco.campanasTodas() : []).forEach((c) => { if(c.nombre && coincide(c.nombre)) campanas.push({ tipo: 'campana', id: c.id, nombre: String(c.nombre).trim(), sub: 'Campaña de temporada' }); });
+  }
+  JEFES_AT.forEach((j) => { if(coincide(j.nombre)) jefes.push({ tipo: 'jefe', id: j.id, nombre: j.nombre, sub: j.sub }); });
+  // un cupo por grupo para que siempre salgan productos, campañas y Jefes
+  return [...productos.slice(0, 4), ...campanas.slice(0, 3), ...jefes.slice(0, 6)];
+}
+function consultaMencion(){
+  const m = input.value.slice(0, input.selectionStart).match(/(^|\s)@([^\s@]*)$/);
+  return m ? m[2] : null;
+}
+function cerrarMenuMencion(){
+  const box = menuMencionEl();
+  if(box){ box.hidden = true; box.innerHTML = ''; }
+  sugMencion = []; sugMencionActiva = -1;
+}
+function pintarMenuMencion(){
+  const box = menuMencionEl();
+  if(!box) return;
+  const q = consultaMencion();
+  if(q == null){ cerrarMenuMencion(); return; }
+  sugMencion = opcionesMencion(q);
+  sugMencionActiva = -1;
+  if(!sugMencion.length){ cerrarMenuMencion(); return; }
+  box.innerHTML = '';
+  sugMencion.forEach((o, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('role', 'option');
+    const t = document.createElement('span');
+    t.textContent = (o.tipo === 'campana' ? '🗓️ ' : o.tipo === 'jefe' ? '🔗 ' : '') + o.nombre;
+    const s = document.createElement('small');
+    s.textContent = o.sub;
+    b.appendChild(t); b.appendChild(s);
+    b.addEventListener('mousedown', (e) => { e.preventDefault(); elegirMencion(o); });
+    box.appendChild(b);
+  });
+  box.hidden = false;
+}
+function moverMencion(paso){
+  const items = menuMencionEl().querySelectorAll('button');
+  if(!items.length) return;
+  const n = items.length;
+  sugMencionActiva = sugMencionActiva < 0 ? (paso > 0 ? 0 : n - 1) : (sugMencionActiva + paso + n) % n;
+  items.forEach((b, i) => b.classList.toggle('on', i === sugMencionActiva));
+  if(items[sugMencionActiva].scrollIntoView) items[sugMencionActiva].scrollIntoView({ block: 'nearest' });
+}
+function elegirMencion(o){
+  const q = consultaMencion();
+  if(q == null) return;
+  const pos = input.selectionStart;
+  const inicio = pos - q.length - 1;
+  input.value = input.value.slice(0, inicio) + '@' + o.nombre + ' ' + input.value.slice(pos);
+  const nueva = inicio + o.nombre.length + 2;
+  try{ input.setSelectionRange(nueva, nueva); }catch(e){}
+  if(!mencionesChat.some((x) => x.id === o.id && x.tipo === o.tipo)) mencionesChat.push(o);
+  cerrarMenuMencion();
+  ajustarAltoChat();
+  input.focus();
+  avisoMencion(o);
+}
+function avisoMencion(o){
+  const av = document.getElementById('avisoMencion');
+  if(!av) return;
+  av.innerHTML = '';
+  const txt = document.createElement('span');
+  if(o.tipo === 'jefe'){
+    txt.textContent = 'Conectaste con «' + o.nombre + '»: en este mensaje el Jefe de WhatsApp lee lo que tienes guardado ahí.';
+  } else if(o.tipo === 'campana'){
+    txt.textContent = 'Etiquetaste la campaña «' + o.nombre + '»: en este mensaje hablamos de ella, aunque arriba esté otro filtro.';
+  } else {
+    txt.textContent = 'Etiquetaste «' + o.nombre + '»: en este mensaje hablamos de él, aunque arriba esté otro filtro.';
+  }
+  av.appendChild(txt);
+  const j = o.tipo === 'jefe' ? JEFES_AT.find((x) => x.id === o.id) : null;
+  if(j){
+    const a = document.createElement('a');
+    a.href = (window.__hub && window.__hub.prefijo ? window.__hub.prefijo() : '') + '/' + j.slug;
+    a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Abrir ' + o.nombre + ' ↗';
+    av.appendChild(a);
+  }
+  const x = document.createElement('button');
+  x.type = 'button'; x.textContent = '✕'; x.setAttribute('aria-label', 'Cerrar');
+  x.addEventListener('click', () => { av.hidden = true; av.innerHTML = ''; });
+  av.appendChild(x);
+  av.hidden = false;
+}
+function mencionesActivasChat(texto){
+  return mencionesChat.filter((m) => (texto || '').indexOf('@' + m.nombre) !== -1).map((m) => ({ tipo: m.tipo, id: m.id, nombre: m.nombre }));
+}
+// Lo etiquetado (campaña o producto) reemplaza al filtro de arriba en este mensaje; con solo Jefes etiquetados manda el filtro.
+function enfoqueDeMenciones(texto){
+  const act = mencionesChat.filter((m) => (texto || '').indexOf('@' + m.nombre) !== -1);
+  const camp = act.filter((m) => m.tipo === 'campana').pop();
+  const prod = act.filter((m) => m.tipo === 'producto').pop();
+  if(camp) return { grupo: null, campanaId: camp.id, producto366: null };
+  if(prod){
+    const g = prod.grupo_id ? (gruposNegocioState.find((x) => x.id === prod.grupo_id) || null) : null;
+    return { grupo: g ? { id: g.id, nombre: g.nombre } : null, campanaId: null, producto366: { nombre: prod.nombre } };
+  }
+  return null;
+}
+input.addEventListener('input', () => { pintarMenuMencion(); if(consultaMencion() != null) resultsBox.innerHTML = ''; });
+input.addEventListener('click', pintarMenuMencion);
+input.addEventListener('blur', () => setTimeout(cerrarMenuMencion, 120));
+
 async function askAgent(){
   const input = document.getElementById('liveInput').value.trim();
   const answerBox = document.getElementById('liveAnswer');
@@ -457,12 +593,13 @@ async function askAgent(){
   btn.disabled = true;
   btn.classList.add('pensando');
   answerBox.innerHTML = '<div class="log-empty">El Agente está armando tu respuesta...</div>';
+  const ov = enfoqueDeMenciones(input);
 
   try{
     const response = await fetch("/api/jefe-conversion", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ mensaje: input, imagen: liveImageData, cliente: CLIENTE_ID, grupo: grupoActivoParaEnvio(), campanaId: campanaActivaParaEnvio(), producto366: producto366ParaEnvio() })
+      body: JSON.stringify({ mensaje: input, imagen: liveImageData, cliente: CLIENTE_ID, grupo: ov ? ov.grupo : grupoActivoParaEnvio(), campanaId: ov ? ov.campanaId : campanaActivaParaEnvio(), producto366: ov ? ov.producto366 : producto366ParaEnvio(), menciones: mencionesActivasChat(input) })
     });
     const data = await response.json();
     if(!response.ok){

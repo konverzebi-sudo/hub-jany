@@ -11,6 +11,7 @@ const { sumarAlMes } = require('./_lib/uso-mensual');
 const { revisar: revisarSaldo, cobrar: cobrarSaldo } = require('./_lib/saldo');
 const { formatearCampanaSeleccionada } = require('./_lib/campana-temporada');
 const { camposUso } = require('./_lib/cache-claude');
+const { leerEnfoque, resolverSeleccion, lineaFoco, JEFES_CONECTABLES, formatearJefe } = require('./_lib/enfoque');
 
 const DEFAULT_CLIENTE = 'jefeshub';
 const PROMPT_PATH = path.join(__dirname, '..', 'prompts', 'system-prompt-jefe-conversion.md');
@@ -495,15 +496,27 @@ module.exports = async function handler(req, res) {
   const grupoSeleccionado = grupo && typeof grupo === 'object' && grupo.nombre ? grupo : null;
   const campanaIdSel = typeof campanaId === 'string' ? campanaId.trim() : '';
   const productoSel = producto366 && typeof producto366 === 'object' && producto366.nombre ? producto366 : null;
+  // Lo que la persona etiquetó con @ en este mensaje: el producto o campaña ya llega en grupo/campanaId/producto366 (la pantalla lo
+  // pone en lugar del filtro de arriba); los Jefes etiquetados se leen aquí (el propio Jefe de WhatsApp no se conecta consigo mismo).
+  const { menciones } = leerEnfoque(req.body);
+  const jefesConectados = [...new Set(menciones.filter((m) => m.tipo === 'jefe' && m.id !== 'jefe-whatsapp').map((m) => m.id))];
+  const sinAcotar = jefesConectados.includes('jefe-366');
 
   try {
     const promptFijo = cargarPromptFijo();
     const campanasTemporada = campanaIdSel ? await leerJSON(`${clienteId}:temporada-campanas`).catch(() => null) : null;
     const campanaSel = Array.isArray(campanasTemporada) ? campanasTemporada.find((c) => c && c.id === campanaIdSel) : null;
     const campanaBloque = formatearCampanaSeleccionada(campanaSel);
+    const bloquesJefes = await Promise.all(jefesConectados.map(async (id) => {
+      const datos = {};
+      await Promise.all(JEFES_CONECTABLES[id].llaves.map(async (k) => { datos[k] = await leerJSON(`${clienteId}:${k}`).catch(() => null); }));
+      return formatearJefe(id, datos);
+    }));
+    // Con @Jefe 366 se lee el 366 completo (sin acotar al filtro); con una campaña elegida el 366 normalmente no va, por eso se agrega aparte.
+    const extra366 = sinAcotar && campanaBloque ? await construirContexto366(clienteId, {}).catch(() => '') : '';
     const [contexto, contexto366] = await Promise.all([
       construirContextoNegocio(clienteId, { soloAdnBasico: !!campanaBloque, grupoId: !campanaBloque && grupoSeleccionado ? grupoSeleccionado.id : '', productoNombre: !campanaBloque && productoSel ? productoSel.nombre : '' }),
-      campanaBloque ? formatearBancoConversacionesWhatsApp(clienteId).then((b) => b || '').catch(() => '') : construirContexto366(clienteId, { grupoId: grupoSeleccionado ? grupoSeleccionado.id : '', productoNombre: productoSel ? productoSel.nombre : '' }),
+      campanaBloque ? formatearBancoConversacionesWhatsApp(clienteId).then((b) => b || '').catch(() => '') : construirContexto366(clienteId, sinAcotar ? {} : { grupoId: grupoSeleccionado ? grupoSeleccionado.id : '', productoNombre: productoSel ? productoSel.nombre : '' }),
     ]);
     // Con caché: cada consulta en los siguientes 5 minutos lee el prompt y el contexto a 10% del costo.
     const instruccionCampana = 'CAMPAÑA SELECCIONADA POR EL USUARIO (desde el selector de campaña de arriba, viene de Jefe de Temporada). Este cliente está preguntando por ESTA campaña, no por la venta de todo el año: asesora y redacta la respuesta basándote en su oferta, incentivo, fechas, urgencia real, mensaje elegido, frases, objeciones y CTAs de abajo, que mandan sobre cualquier oferta genérica del 366 o del catálogo. Si la campaña no trae un dato (por ejemplo el precio), usa el del catálogo/Producto 366 del producto de la campaña; nunca inventes descuentos, cupos ni urgencia que no estén aquí. Apóyate sobre todo en el PERFIL DE CLIENTE DE CAMPAÑA (deseos, dolores, miedos, motivaciones y objeciones de esta temporada) para entender qué siente este cliente y cómo vencer su duda.\n\n';
@@ -522,6 +535,9 @@ module.exports = async function handler(req, res) {
     if (productoSel && !campanaBloque) {
       partesTexto.push(`PRODUCTO 366 SELECCIONADO POR EL USUARIO (filtro de arriba): "${productoSel.nombre}". Este cliente pregunta por ESE producto/servicio: responde y asesora usando únicamente su oferta, su precio y los perfiles de cliente (deseos, dolores, miedos, motivaciones) de ese producto; no mezcles datos de otros productos.`);
     }
+    const selMencion = resolverSeleccion({ menciones });
+    if (selMencion.origen === 'mencion') partesTexto.push(lineaFoco(selMencion));
+    [...bloquesJefes, extra366].filter(Boolean).forEach((b) => partesTexto.push(b));
     partesTexto.push('Mensaje del cliente / captura a analizar:\n' + (mensaje || '(ver captura adjunta)'));
     content.push({
       type: 'text',
