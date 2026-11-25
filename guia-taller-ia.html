@@ -173,6 +173,9 @@
   .cam-h { font: 700 13px 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 8px -30px; }
   .cam-item { position: relative; display: flex; gap: 14px; align-items: flex-start; padding: 16px 0; color: inherit; text-decoration: none; }
   .cam-item .dot { position: absolute; left: -41px; top: 12px; width: 22px; height: 22px; border-radius: 50%; background: #BBF802; border: 3px solid #1B1530; display: grid; place-items: center; font-size: 10px; line-height: 1; }
+  .cam-paso .dot b { font: 800 10px 'JetBrains Mono', monospace; color: #1B1530; }
+  .pasos-camino .step4 { margin: 0; }
+  .temario-btn { margin: 26px 0 8px; }
   .cam-item.done .dot { background: #BBF802; box-shadow: 0 0 0 3px rgba(187,248,2,.35); }
   .cam-item b { font-family: 'Sora', sans-serif; font-size: 16px; }
   .cam-item small { display: block; color: var(--muted); font-size: 14px; line-height: 1.4; margin-top: 2px; }
@@ -1533,6 +1536,7 @@ const nDone = () => CLASES.filter(c => done[c.id]).length;
 const siguiente = () => CLASES.find(c => !done[c.id]) || CLASES[CLASES.length - 1];
 const totalPrompts = CLASES.reduce((n, c) => n + c.etapas.reduce((m, e) => m + (e.prompts || []).length, 0), 0);
 
+document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('#btnTemario'); if (!b) return; const t = document.getElementById('temario'); t.hidden = !t.hidden; b.textContent = t.hidden ? 'Ver temario completo ↓' : 'Ocultar temario ↑'; });
 function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), 1600); }
 
 /* Clase en vivo: se prende desde la vista de ponente (?vista=ponente). Mientras esté prendida,
@@ -2045,7 +2049,9 @@ function viewInicio() {
       </div>
     </section>
     <div class="sec-title"><span class="ico">🧭</span><div><h2>Cómo avanzar en cada clase</h2><p>El mismo ciclo sirve para todo lo que hagas con IA.</p></div></div>
-    <div class="steps4">${CURSO.comoAvanzar.map((p, i) => `<div class="step4${i === 0 ? ' destacado' : ''}" ${i === 0 ? 'data-ir="#clase-1/etapa-1" style="cursor:pointer"' : ''}><span class="num">0${i + 1}</span><div class="big">${p.emoji}</div><h3>${esc(p.titulo)}</h3><p>${esc(p.texto)}</p></div>`).join('')}</div>
+    <div class="camino pasos-camino">${CURSO.comoAvanzar.map((p, i) => `<div class="cam-item cam-paso${i === 0 ? ' done' : ''}"><span class="dot"><b>0${i + 1}</b></span><div class="step4${i === 0 ? ' destacado' : ''}"><span class="big">${p.emoji}</span><h3>${esc(p.titulo)}</h3><p>${esc(p.texto)}</p></div></div>`).join('')}</div>
+    <div class="temario-btn"><button class="btn ghost" id="btnTemario" type="button">Ver temario completo ↓</button></div>
+    <div id="temario" hidden>
     <div class="sec-title"><span class="ico">🗺️</span><div><h2>Tu camino en el taller</h2><p>${CLASES.length} clases en ${CURSO.modulos.length} módulos.</p></div></div>
     <div class="camino">${CURSO.modulos.map((m, i) => `
       <div class="cam-mod">
@@ -2055,7 +2061,7 @@ function viewInicio() {
             <span class="dot">${claseBloqueada(c, m) ? '🔒' : ''}</span>
             <div><b>${esc(c.titulo)}</b><small>${esc(c.resumen)}</small></div>
           </a>`).join('')}
-      </div>`).join('')}</div>`;
+      </div>`).join('')}</div></div>`;
 }
 
 function marcar(t) { return esc(t).replace(/\[([^\]]+)\]/g, '<mark>[$1]</mark>'); }
