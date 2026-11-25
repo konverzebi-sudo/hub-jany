@@ -1234,7 +1234,7 @@
         '<div class="jd-row" style="gap:6px;margin-bottom:6px;"><div style="flex:1;position:relative;min-width:0;"><span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#6B6790;font-weight:600;pointer-events:none;">$</span><input class="jd-input" id="casa-f-amount" type="number" inputmode="decimal" placeholder="0" value="' + casaEsc(base ? base.amount : '') + '" style="padding-left:24px;"></div>' +
         '<div style="width:150px;flex:none;position:relative;"><div class="jd-input" style="display:flex;align-items:center;justify-content:space-between;gap:6px;cursor:pointer;pointer-events:none;"><span id="casa-f-date-txt">' + casaEsc(casaDate(g && g.date ? g.date : todayKey)) + '</span><span>📅</span></div><input type="date" id="casa-f-date" title="Cambiar la fecha" onclick="try{this.showPicker()}catch(e){}" value="' + casaEsc(g && g.date ? g.date : todayKey) + '" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;"></div></div>' +
         '<input class="jd-input" id="casa-f-dest" list="casa-dest-list" placeholder="¿A quién se lo diste? (escribe el nombre)" value="' + casaEsc(pe2 ? pe2.name : '') + '" style="margin-bottom:6px;">' +
-        '<select class="jd-input" id="casa-f-grupo" style="margin-bottom:6px;"><option value="">Sin grupo</option>' + (c.grupos || []).map(function(x){ return '<option value="' + x.id + '"' + (base && base.grupo === x.id ? ' selected' : '') + '>' + casaEsc(x.name) + '</option>'; }).join('') + '</select>' +
+        '<select class="jd-input" id="casa-f-grupo" style="margin-bottom:6px;"><option value="">Sin grupo</option>' + (c.grupos || []).map(function(x){ return '<option value="' + x.id + '"' + ((base && base.grupo === x.id) || (!base && f.grupo === x.id) ? ' selected' : '') + '>' + casaEsc(x.name) + '</option>'; }).join('') + '</select>' +
         '<datalist id="casa-dest-list">' + c.personas.map(function(x){ return '<option value="' + casaEsc(x.name) + '"></option>'; }).join('') + '</datalist>' +
         '<div class="jd-row" style="gap:6px;margin-bottom:6px;"><select class="jd-input" id="casa-f-method" style="flex:1;">' + CASA_METHODS.map(function(m){ return '<option value="' + m[0] + '"' + (m[0] === method ? ' selected' : '') + '>' + m[1] + '</option>'; }).join('') + '</select>' +
         '<input class="jd-input" id="casa-f-card" inputmode="numeric" maxlength="4" placeholder="Últimos 4" value="' + casaEsc(g ? g.card : '') + '" style="width:96px;' + (method === 'tarjeta' ? '' : 'display:none;') + '">' +
@@ -1303,6 +1303,7 @@
           var items = gastosTodos.filter(function(g){ return g.grupo === gr.id; }), op = !!casaUI.open['g:' + gr.id];
           return '<div class="jd-casa-pe" style="border-color:#D9D0F5;"><div style="display:flex;align-items:center;gap:6px;padding:8px 10px;">' +
             '<button type="button" data-act="toggle-grupo" data-id="' + gr.id + '" style="flex:1;min-width:0;display:flex;align-items:center;gap:8px;background:transparent;border:0;cursor:pointer;padding:0;text-align:left;font-family:inherit;color:inherit;"><span class="jd-casa-arrow">' + (op ? '▾' : '▸') + '</span><span class="jd-casa-name">' + casaEsc(gr.name) + '</span><span class="jd-sub">' + items.length + ' gasto' + (items.length === 1 ? '' : 's') + '</span><b class="jd-disp jd-casa-tot">' + casaMoney(casaSum(items)) + '</b></button>' +
+            '<button type="button" data-act="add-grupo-gasto" data-id="' + gr.id + '" title="Agregar un gasto a este grupo" style="flex:none;width:26px;height:26px;border-radius:50%;border:0;background:#7C5CF2;color:#fff;font-size:18px;line-height:1;font-weight:700;cursor:pointer;padding:0;">+</button>' +
             '<button type="button" class="jd-casa-ico" data-act="edit-grupo" data-id="' + gr.id + '" title="Cambiar nombre">✏️</button><button type="button" class="jd-casa-ico" data-act="del-grupo" data-id="' + gr.id + '" title="Quitar grupo (sus gastos quedan sin grupo)">🗑</button></div>' +
             (op ? '<div class="jd-casa-pebody">' + (items.length ? items.map(rowCompacto).join('') : '<div class="jd-sub" style="padding:4px 0;">Vacío. Pasa un gasto a este grupo desde su lista (“Pasar a un grupo”).</div>') + '</div>' : '') + '</div>';
         }).join('');
@@ -1398,6 +1399,7 @@
       var act = b.getAttribute('data-act'), id = b.getAttribute('data-id'), c = data.casa;
       if(act === 'new-gasto') openForm({type: 'gasto', pid: id || ''});
       else if(act === 'new-grupo') openForm({type: 'grupo'});
+      else if(act === 'add-grupo-gasto'){ casaUI.open.pag = true; casaUI.open['g:' + id] = true; openForm({type: 'gasto', grupo: id}); }
       else if(act === 'edit-grupo') openForm({type: 'grupo', id: id});
       else if(act === 'del-grupo'){
         var gdel = (c.grupos || []).find(function(x){ return x.id === id; });
