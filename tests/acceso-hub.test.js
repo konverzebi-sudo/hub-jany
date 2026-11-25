@@ -63,7 +63,7 @@ test('GET acceso-hub: solo con el token maestro y solo para hubs que existen', a
 
 // ---------- navegador (js/storage-client.js en un entorno simulado) ----------
 
-function navegador({ url, respuestas, prompt }) {
+function navegador({ url, respuestas, prompt, sesion }) {
   const almacen = new Map();
   const localStorage = {
     getItem: (k) => (almacen.has(k) ? almacen.get(k) : null),
@@ -81,7 +81,7 @@ function navegador({ url, respuestas, prompt }) {
     location: { get href() { return loc.href; }, get pathname() { return loc.pathname; } },
     history: { state: null, replaceState: (_s, _t, u) => { const n = new URL(u, loc.origin); loc.pathname = n.pathname; loc.search = n.search; } },
     document: { body: { appendChild() {} }, createElement: () => ({ setAttribute() {}, style: {}, remove() {} }) },
-    window: { prompt: prompt || (() => ''), addEventListener() {} },
+    window: { prompt: prompt || (() => ''), addEventListener() {}, sessionStorage: sesion },
     setTimeout: () => 0,
     fetch: async (u, o) => {
       llamadas.push({ url: u, metodo: (o && o.method) || 'GET', headers: (o && o.headers) || {}, body: o && o.body });
@@ -157,4 +157,24 @@ test('si el respaldo es más reciente que el servidor, se sigue mostrando el res
   const r = await b.storage.get('arq-ivan:x');
   assert.equal(r.value, '"mio"');
   assert.equal(r.pendiente, true);
+});
+
+test('en el hub de un cliente NUNCA sale el cuadro de la clave: se respalda y avisa', async () => {
+  let preguntas = 0;
+  const b = navegador({ url: 'https://agentes.jefeshub.com/arq-ivan/jefe-366', respuestas: [{ status: 401 }], prompt: () => { preguntas++; return ''; } });
+  await assert.rejects(b.storage.set('arq-ivan:x', '"v"'));
+  assert.equal(preguntas, 0);
+  assert.ok(b.almacen.has('jefeshub_pendiente:arq-ivan:x'), 'lo escrito no se pierde');
+});
+
+test('en el hub de Jany la clave se pide una vez; si se cancela, no vuelve a salir en cada guardado', async () => {
+  let preguntas = 0;
+  const memoria = new Map();
+  const sesion = { getItem: (k) => (memoria.has(k) ? memoria.get(k) : null), setItem: (k, v) => memoria.set(k, String(v)) };
+  const b = navegador({ url: 'https://agentes.jefeshub.com/jefe-366', respuestas: [{ status: 401 }], prompt: () => { preguntas++; return ''; }, sesion });
+  await assert.rejects(b.storage.set('jefeshub:a', '"1"'));
+  await assert.rejects(b.storage.set('jefeshub:b', '"2"'));
+  await assert.rejects(b.storage.set('jefeshub:c', '"3"'));
+  assert.equal(preguntas, 1, 'solo la primera vez');
+  assert.ok(b.almacen.has('jefeshub_pendiente:jefeshub:c'));
 });
