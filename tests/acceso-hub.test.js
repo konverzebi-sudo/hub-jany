@@ -137,10 +137,13 @@ test('una llave de hub que ya no sirve (401) se olvida para no seguir mandándol
   assert.equal(b.almacen.has('jefeshub_acceso_arq-ivan'), false);
 });
 
-test('la dueña sin llave de hub sigue usando el token maestro como siempre', async () => {
-  const b = navegador({ url: 'https://agentes.jefeshub.com/', respuestas: [{ status: 200 }], prompt: () => 'token-compartido-de-prueba' });
+test('la dueña sin llave de hub usa el token maestro ya guardado en el dispositivo (sin pedirlo)', async () => {
+  let preguntas = 0;
+  const b = navegador({ url: 'https://agentes.jefeshub.com/', respuestas: [{ status: 200 }], prompt: () => { preguntas++; return ''; } });
+  b.almacen.set('jefeshub_storage_token', 'token-compartido-de-prueba');
   await b.storage.set('jefeshub:catalogo-productos', '[]');
   assert.equal(b.llamadas[0].headers['X-Storage-Token'], 'token-compartido-de-prueba');
+  assert.equal(preguntas, 0, 'nunca se pide la clave');
 });
 
 test('un respaldo viejo del dispositivo NO tapa algo más nuevo guardado en el servidor', async () => {
@@ -167,14 +170,12 @@ test('en el hub de un cliente NUNCA sale el cuadro de la clave: se respalda y av
   assert.ok(b.almacen.has('jefeshub_pendiente:arq-ivan:x'), 'lo escrito no se pierde');
 });
 
-test('en el hub de Jany la clave se pide una vez; si se cancela, no vuelve a salir en cada guardado', async () => {
+test('en el hub de Jany NUNCA sale el cuadro de la clave; lo escrito queda respaldado', async () => {
   let preguntas = 0;
-  const memoria = new Map();
-  const sesion = { getItem: (k) => (memoria.has(k) ? memoria.get(k) : null), setItem: (k, v) => memoria.set(k, String(v)) };
-  const b = navegador({ url: 'https://agentes.jefeshub.com/jefe-366', respuestas: [{ status: 401 }], prompt: () => { preguntas++; return ''; }, sesion });
+  const b = navegador({ url: 'https://agentes.jefeshub.com/jefe-366', respuestas: [{ status: 401 }, { status: 401 }, { status: 401 }], prompt: () => { preguntas++; return ''; } });
   await assert.rejects(b.storage.set('jefeshub:a', '"1"'));
   await assert.rejects(b.storage.set('jefeshub:b', '"2"'));
-  await assert.rejects(b.storage.set('jefeshub:c', '"3"'));
-  assert.equal(preguntas, 1, 'solo la primera vez');
-  assert.ok(b.almacen.has('jefeshub_pendiente:jefeshub:c'));
+  assert.equal(preguntas, 0);
+  assert.ok(b.almacen.has('jefeshub_pendiente:jefeshub:b'));
 });
+
