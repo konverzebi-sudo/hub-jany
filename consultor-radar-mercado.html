@@ -1943,12 +1943,23 @@ function sugerenciasActuales(){
   return [`¿Qué le pido a Contenido${de}?`, '¿Qué le pido a Anuncios?', `¿Qué publico esta semana${de}?`, '¿Cuándo vuelvo a investigar?'];
 }
 
-function renderSugerencias(){
-  const el = document.getElementById('faroSugerencias');
+// Ya no son burbujas abajo del chat: salen al picar la caja del chat, como las sugerencias de YouTube
+// (window.__jnSugerir de js/jefes-nav.js). La lista se calcula cada vez, así cambia con lo que ya hizo la persona.
+function listaSugerencias(){
   const lista = sugerenciasActuales();
   if(referentesState.length > 0 && misNumerosDelFoco().length === 0 && lista.length < 5) lista.push('¿Qué números míos debo subir para compararme?');
-  el.innerHTML = lista.map(t => `<button type="button" class="pb-sugerencia" data-q="${escapeHtml(t)}">${escapeHtml(t)}</button>`).join('');
-  el.querySelectorAll('.pb-sugerencia').forEach(b => b.addEventListener('click', () => enviarPregunta(b.dataset.q)));
+  return lista;
+}
+function renderSugerencias(){
+  const el = document.getElementById('faroSugerencias');
+  if(el){ el.innerHTML = ''; el.hidden = true; }
+  const input = document.getElementById('faroPregunta');
+  let intentos = 0;
+  (function conectar(){
+    if(!input) return;
+    if(!window.__jnSugerir){ if(intentos++ < 20) setTimeout(conectar, 300); return; }
+    window.__jnSugerir(input, listaSugerencias, (q) => enviarPregunta(q), 'Sugerencias de tu Jefe del Faro');
+  })();
 }
 
 // ============================================================
@@ -2389,7 +2400,7 @@ GuiaJefe.registrar({
   id: 'faro', nombre: 'Guía del Jefe del Faro',
   pasos: [
     { selector: ['#faroPregunta', '.pb-pregunta'], titulo: 'Aquí le preguntas al Faro',
-      texto: 'Escribe aquí cualquier duda sobre tu competencia o tus referentes. Abajo van sugerencias que cambian según lo que ya hayas hecho.' },
+      texto: 'Escribe aquí cualquier duda sobre tu competencia o tus referentes. Al picar la caja te salen sugerencias que cambian según lo que ya hayas hecho.' },
     { selector: '.foco-pill', titulo: 'Aquí eliges tu producto o servicio',
       texto: 'Todo lo que investigues y analices en esta página es de ESE producto o servicio. Si manejas varios, cámbialo aquí y el Faro te muestra solo lo suyo.' },
     { selector: '#ideaDia', titulo: 'La idea del día',

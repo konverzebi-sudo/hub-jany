@@ -166,6 +166,19 @@
     '.jnp.jnp-chat svg{width:44px}.jnp.jnp-chat .jnp-txt small{font-size:11.5px}',
     '@keyframes jnpEntraChat{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}',
     '.jnp-txt{display:grid;gap:1px}.jnp-txt small{font-weight:500;font-size:12px;color:#5D6055}',
+    '.jnp-txt small::after{content:"";display:inline-block;width:2px;height:1em;margin-left:2px;vertical-align:-2px;background:#5D6055;animation:jnpCursor .8s steps(1) infinite}',
+    '@keyframes jnpCursor{50%{opacity:0}}',
+    // Al deslizar, el logo grande del Jefe (arriba del chat) se hace chiquito y deja el chat a la mano.
+    '.tt-hero-logo,.hero-logo,img.jefe-logo{transition:max-height .35s ease,opacity .25s ease,margin .35s ease,transform .35s ease;max-height:260px}',
+    'body.jn-deslizo .tt-hero-logo,body.jn-deslizo .hero-logo,body.jn-deslizo img.jefe-logo{max-height:0!important;opacity:0;margin-top:0!important;margin-bottom:0!important;overflow:hidden}',
+    // Sugerencias que salen al picar el chat (como YouTube), en lugar de burbujas abajo.
+    '.jn-sug{position:absolute;z-index:60;background:#fff;border:1.5px solid #E4E6DB;border-radius:16px;box-shadow:0 14px 40px rgba(15,14,12,.14);padding:6px;max-height:320px;overflow:auto}',
+    '.jn-sug[hidden]{display:none}',
+    '.jn-sug-t{font:700 11.5px Barlow,sans-serif;color:#5D6055;text-transform:uppercase;letter-spacing:.08em;padding:8px 10px 4px}',
+    '.jn-sug button{display:flex;align-items:center;gap:12px;width:100%;border:0;background:transparent;text-align:left;padding:9px 10px;border-radius:10px;cursor:pointer;font:500 15px Barlow,sans-serif;color:#0F0E0C}',
+    '.jn-sug button:hover,.jn-sug button[aria-selected="true"]{background:#F6F7F1}',
+    '.jn-sug button svg{width:18px;height:18px;flex:none;color:#9A9D90}',
+    '.jn-sug button em{font-style:normal;font-weight:700}',
     '.jnp-robot{animation:jnpBob 1.6s ease-in-out infinite}',
     '.jnp-ant{animation:jnpPulse 1s ease-in-out infinite;transform-box:fill-box;transform-origin:center}',
     '.jnp-eye{animation:jnpBlink 3.2s infinite;transform-box:fill-box;transform-origin:center}',
@@ -765,7 +778,9 @@
     '<path d="M70 136 L80 112 H160 L170 136 Z" fill="#f0f0f0" stroke="#111" stroke-width="4" stroke-linejoin="round"/>' +
     '<g class="jnp-code" stroke="#4E7A00" stroke-width="3" stroke-linecap="round"><line x1="94" y1="121" x2="122" y2="121"/><line x1="94" y1="129" x2="140" y2="129" style="animation-delay:.25s"/><line x1="128" y1="121" x2="146" y2="121" style="animation-delay:.5s"/></g>' +
     '<circle class="jnp-hand" cx="102" cy="124" r="7" fill="#C0F800" stroke="#111" stroke-width="3.5"/><circle class="jnp-hand jnp-hand-r" cx="138" cy="124" r="7" fill="#C0F800" stroke="#111" stroke-width="3.5"/></svg>';
-  var FRASES = ['Analizando lo que me diste…', 'Revisando tu información…', 'Armando tu respuesta…', 'Ya casi queda…'];
+  // Mismo texto en todos los Jefes: "Dame un momento… Como Jefe de ___ te daré la mejor respuesta" (se va escribiendo).
+  function jefeActual() { var j = JEFES.filter(esActivo)[0]; return j ? j.nombre : 'tu Jefe'; }
+  function fraseJefe() { return 'Como ' + jefeActual() + ' te daré la mejor respuesta'; }
   // Lo que se escribió en el buscador de Jefes (o "Hablemos de…" del 366) llega ya escrito al chat de este Jefe.
   // El buscador lo deja en sessionStorage ('jh-pregunta'); aquí se pone en la caja del chat sin mandarlo.
   function ponerPreguntaDelBuscador() {
@@ -784,6 +799,99 @@
       c.dispatchEvent(new Event('input', { bubbles: true }));
       try { c.focus({ preventScroll: false }); c.setSelectionRange(c.value.length, c.value.length); } catch (e) { /* nada */ }
     })();
+  }
+
+  // ── Sugerencias al picar el chat (tipo YouTube) ─────────────────────────────
+  // window.__jnSugerir(campo, lista(texto) -> [textos], alElegir(texto)?, titulo?): al picar el campo sale la lista
+  // debajo; al escribir se filtra; flechas + Enter o clic eligen. Sin alElegir: pone el texto y lo manda (Enter).
+  var LUPA_SUG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>';
+  function sinAcentos(t) { return String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+  function sugerir(campo, lista, alElegir, titulo) {
+    if (!campo || campo.__jnSug) return;
+    campo.__jnSug = true;
+    var caja = document.createElement('div');
+    caja.className = 'jn-sug'; caja.hidden = true; caja.setAttribute('role', 'listbox');
+    document.body.appendChild(caja);
+    var opciones = [], sel = -1;
+    function colocar() {
+      var r = campo.getBoundingClientRect();
+      var host = campo.closest('.hero-search, .hero-pill-wrap, form') || campo;
+      var rh = host.getBoundingClientRect();
+      caja.style.left = (rh.left + window.scrollX) + 'px';
+      caja.style.top = (Math.max(r.bottom, rh.bottom) + window.scrollY + 8) + 'px';
+      caja.style.width = Math.max(260, rh.width) + 'px';
+    }
+    function elegir(t) {
+      caja.hidden = true;
+      if (alElegir) { alElegir(t); return; }
+      campo.value = t;
+      campo.dispatchEvent(new Event('input', { bubbles: true }));
+      campo.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true }));
+    }
+    function pintar() {
+      var txt = (campo.value || '').trim();
+      if (document.activeElement !== campo || /(^|\s)@\S*$/.test(txt)) { caja.hidden = true; return; }
+      var pal = sinAcentos(txt).split(/\s+/).filter(Boolean);
+      var todas = (lista(txt) || []).filter(Boolean);
+      opciones = (pal.length ? todas.filter(function (t) { var n = ' ' + sinAcentos(t); return pal.every(function (p) { return n.indexOf(' ' + p) >= 0 || n.indexOf(p) >= 0; }); }) : todas).slice(0, 6);
+      if (sel >= opciones.length) sel = -1;
+      if (!opciones.length) { caja.hidden = true; return; }
+      caja.innerHTML = (txt ? '' : '<div class="jn-sug-t">' + esc(titulo || 'Sugerencias para ti') + '</div>') + opciones.map(function (t, i) {
+        return '<button type="button" role="option" data-i="' + i + '" aria-selected="' + (i === sel) + '">' + LUPA_SUG + '<span>' + esc(t) + '</span></button>';
+      }).join('');
+      colocar();
+      caja.hidden = false;
+    }
+    caja.addEventListener('mousedown', function (e) { e.preventDefault(); var b = e.target.closest('button[data-i]'); if (b) elegir(opciones[+b.getAttribute('data-i')]); });
+    campo.addEventListener('focus', pintar);
+    campo.addEventListener('click', pintar);
+    campo.addEventListener('input', function () { sel = -1; pintar(); });
+    campo.addEventListener('blur', function () { setTimeout(function () { caja.hidden = true; }, 150); });
+    campo.addEventListener('keydown', function (e) {
+      if (caja.hidden || !opciones.length) return;
+      if (e.key === 'ArrowDown') { e.preventDefault(); sel = (sel + 1) % opciones.length; pintar(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); sel = sel <= 0 ? opciones.length - 1 : sel - 1; pintar(); }
+      else if (e.key === 'Enter' && sel >= 0 && !e.shiftKey) { e.preventDefault(); e.stopImmediatePropagation(); elegir(opciones[sel]); }
+      else if (e.key === 'Escape') caja.hidden = true;
+    }, true);
+    window.addEventListener('resize', function () { if (!caja.hidden) colocar(); });
+    window.addEventListener('scroll', function () { if (!caja.hidden) colocar(); }, true);
+  }
+  window.__jnSugerir = sugerir;
+
+  // Sugerencias de los Jefes que no las traían en su chat.
+  var SUG_JEFE = {
+    'jefe-temporada': { campo: '#chat-input', lista: ['Ayúdame a armar mi próxima campaña', '¿Qué fechas importantes vienen?', 'Ideas para mi precampaña', 'Mensajes para la postcampaña', '¿Qué oferta me conviene para esta temporada?'] },
+    'jefe-366': { campo: '#heroSearchInput', lista: ['¿Qué me toca hacer esta semana?', 'Revisa mi estrategia de este mes', 'Arma mi Documento Maestro', '¿Cuál producto me conviene impulsar ahora?', 'Quiero agregar un producto o servicio nuevo'] },
+  };
+  function montarSugerenciasJefe() {
+    var j = JEFES.filter(esActivo)[0]; if (!j || !SUG_JEFE[j.slug]) return;
+    var cfg = SUG_JEFE[j.slug];
+    // El chat puede aparecer después (por ejemplo, al crear la primera campaña): se espera a que exista.
+    function buscar() {
+      var c = document.querySelector(cfg.campo);
+      if (c) sugerir(c, function () { return cfg.lista; }, null, 'Sugerencias de tu ' + j.nombre);
+      return !!c;
+    }
+    if (buscar()) return;
+    try { var mo = new MutationObserver(function () { if (buscar()) mo.disconnect(); }); mo.observe(document.body, { childList: true, subtree: true }); } catch (e) { /* nada */ }
+  }
+
+  // Al deslizar: el logo grande del Jefe se hace chiquito. El icono del Jefe al final del chat va en verde.
+  function montarDeslizar() {
+    var on = false;
+    // Se achica al pasar de 40 px y solo regresa hasta arriba del todo (así no parpadea cuando la página es corta).
+    function revisar() { var y = window.scrollY, v = on ? y > 2 : y > 40; if (v !== on) { on = v; document.body.classList.toggle('jn-deslizo', v); } }
+    window.addEventListener('scroll', revisar, { passive: true });
+    revisar();
+    function verde() {
+      Array.prototype.forEach.call(document.querySelectorAll('.hero-send img'), function (im) {
+        var src = im.getAttribute('src') || '';
+        if (/-logo-negro\.webp$/.test(src)) im.setAttribute('src', src.replace('-logo-negro.webp', '-logo-lima.webp'));
+      });
+    }
+    verde();
+    try { new MutationObserver(verde).observe(document.body, { childList: true, subtree: true }); } catch (e) { /* nada */ }
   }
 
   function montarPensando() {
@@ -833,14 +941,15 @@
         caja.className = 'jnp';
         caja.setAttribute('role', 'status');
         caja.setAttribute('aria-live', 'polite');
-        caja.innerHTML = ROBOT_SVG + '<span class="jnp-txt"><span>Tu Jefe está trabajando</span><small></small></span>';
+        caja.innerHTML = ROBOT_SVG + '<span class="jnp-txt"><span>Dame un momento…</span><small></small></span>';
         document.body.appendChild(caja);
       }
       colocar();
-      var i = 0, sub = caja.querySelector('small');
-      sub.textContent = texto || FRASES[0];
+      // La frase se va escribiendo letra por letra (siempre la misma, en todos los Jefes).
+      var sub = caja.querySelector('small'), frase = fraseJefe(), n = 0;
       clearInterval(giro);
-      if (!texto) giro = setInterval(function () { i = (i + 1) % FRASES.length; sub.textContent = FRASES[i]; }, 2600);
+      sub.textContent = '';
+      giro = setInterval(function () { n++; sub.textContent = frase.slice(0, n); if (n >= frase.length) clearInterval(giro); }, 35);
     }
     function ocultar() {
       clearTimeout(espera); clearInterval(giro); espera = null;
@@ -884,6 +993,8 @@
     if (!document.body) return;
     montarPensando();
     ponerPreguntaDelBuscador();
+    montarSugerenciasJefe();
+    montarDeslizar();
     var st = document.createElement('style');
     st.textContent = css;
     document.head.appendChild(st);
