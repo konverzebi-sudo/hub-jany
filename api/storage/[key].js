@@ -938,6 +938,10 @@ module.exports = async function handler(req, res) {
   if (key === 'ghl-pago') {
     return tallerPago.manejarPagoGhl(req, res);
   }
+  // La página de gracias revisa que el correo ya haya pagado antes de crear la cuenta.
+  if (key === 'verificar-pago') {
+    return tallerPago.manejarVerificarPago(req, res);
+  }
 
   if (key === 'acceso-hub') {
     return manejarAccesoHub(req, res);
