@@ -767,8 +767,8 @@
     '<circle class="jnp-hand" cx="102" cy="124" r="7" fill="#C0F800" stroke="#111" stroke-width="3.5"/><circle class="jnp-hand jnp-hand-r" cx="138" cy="124" r="7" fill="#C0F800" stroke="#111" stroke-width="3.5"/></svg>';
   // Mismo mensaje en todos los Jefes: «Dame un momento… Como jefe de [nombre] te daré la mejor respuesta…»
   function textoEspera() {
-    var f = (location.pathname.split('/').pop() || '').split('?')[0].replace(/.html$/, '');
-    var j = (typeof JEFES !== 'undefined' ? JEFES : []).find(function (x) { return x.slug === f || x.files.some(function (ff) { return ff.replace(/.html$/, '') === f; }); });
+    var f = (location.pathname.split('/').pop() || '').split('?')[0].replace(/\.html$/, '');
+    var j = (typeof JEFES !== 'undefined' ? JEFES : []).find(function (x) { return x.slug === f || x.files.some(function (ff) { return ff.replace(/\.html$/, '') === f; }); });
     return 'Dame un momento… Como jefe de ' + (j ? j.nombre : 'tu Jefe') + ' te daré la mejor respuesta…';
   }
   function montarPensando() {
