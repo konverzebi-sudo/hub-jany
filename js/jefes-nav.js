@@ -765,7 +765,12 @@
     '<path d="M70 136 L80 112 H160 L170 136 Z" fill="#f0f0f0" stroke="#111" stroke-width="4" stroke-linejoin="round"/>' +
     '<g class="jnp-code" stroke="#4E7A00" stroke-width="3" stroke-linecap="round"><line x1="94" y1="121" x2="122" y2="121"/><line x1="94" y1="129" x2="140" y2="129" style="animation-delay:.25s"/><line x1="128" y1="121" x2="146" y2="121" style="animation-delay:.5s"/></g>' +
     '<circle class="jnp-hand" cx="102" cy="124" r="7" fill="#C0F800" stroke="#111" stroke-width="3.5"/><circle class="jnp-hand jnp-hand-r" cx="138" cy="124" r="7" fill="#C0F800" stroke="#111" stroke-width="3.5"/></svg>';
-  var FRASES = ['Analizando lo que me diste…', 'Revisando tu información…', 'Armando tu respuesta…', 'Ya casi queda…'];
+  // Mismo mensaje en todos los Jefes: «Dame un momento… Como jefe de [nombre] te daré la mejor respuesta…»
+  function textoEspera() {
+    var f = (location.pathname.split('/').pop() || '').split('?')[0].replace(/.html$/, '');
+    var j = (typeof JEFES !== 'undefined' ? JEFES : []).find(function (x) { return x.slug === f || x.files.some(function (ff) { return ff.replace(/.html$/, '') === f; }); });
+    return 'Dame un momento… Como jefe de ' + (j ? j.nombre : 'tu Jefe') + ' te daré la mejor respuesta…';
+  }
   function montarPensando() {
     var orig = window.fetch;
     if (!orig || orig.__jnPensando) return;
@@ -818,9 +823,8 @@
       }
       colocar();
       var i = 0, sub = caja.querySelector('small');
-      sub.textContent = texto || FRASES[0];
+      sub.textContent = texto || textoEspera();
       clearInterval(giro);
-      if (!texto) giro = setInterval(function () { i = (i + 1) % FRASES.length; sub.textContent = FRASES[i]; }, 2600);
     }
     function ocultar() {
       clearTimeout(espera); clearInterval(giro); espera = null;
