@@ -895,7 +895,8 @@ module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
   // jefeshub.com (GitHub Pages) vive en otro origen que agentes.jefeshub.com
   // (Vercel) — sin esto el navegador bloquea el fetch desde /davilada o el diagnóstico.
-  res.setHeader('Access-Control-Allow-Origin', 'https://jefeshub.com');
+  const origenPermitido = ['https://jefeshub.com', 'https://clase.jefeshub.com'].includes(req.headers.origin) ? req.headers.origin : 'https://jefeshub.com';
+  res.setHeader('Access-Control-Allow-Origin', origenPermitido);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Storage-Token, X-Hub-Codigo, X-Leads-Token, X-Evento-Codigo, Authorization');
   if (req.method === 'OPTIONS') {
@@ -937,6 +938,10 @@ module.exports = async function handler(req, res) {
   // Pago en la landing de GoHighLevel → acceso al taller (api/_lib/taller-pago.js).
   if (key === 'ghl-pago') {
     return tallerPago.manejarPagoGhl(req, res);
+  }
+  // La página de gracias de GHL revisa que el correo ya haya pagado antes de crear la contraseña.
+  if (key === 'verificar-pago') {
+    return tallerPago.manejarVerificarPago(req, res);
   }
 
   if (key === 'acceso-hub') {
