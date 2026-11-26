@@ -90,6 +90,7 @@
     </div>
     <button class="btn-crear" id="bv-submit" onclick="crearCuenta()">CREAR MI CUENTA Y ENTRAR →</button>
     <div class="bv-msg" id="bv-msg"></div>
+    <a id="bv-compra" class="btn-crear" hidden style="display:block;text-align:center;text-decoration:none;margin-top:12px">COMPRAR MI LUGAR →</a>
   </div>
   <p class="btns-titulo">¿Prefieres el correo? Tienes el link ahí también</p>
   <div class="btns">
@@ -116,6 +117,19 @@
     el.className = 'bv-msg ' + (type || '');
   }
 
+  // Link de compra del taller (GHL). Si queda vacío, no se muestra el botón.
+  const LINK_COMPRA = '';
+
+  // Antes de crear la cuenta: solo si GHL ya registró el pago con ese correo.
+  async function pagoRegistrado(email) {
+    const r = await fetch('https://agentes.jefeshub.com/api/storage/verificar-pago', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email })
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return { ok: false, error: j.error || 'No pudimos verificar tu pago. Intenta de nuevo.' };
+    return { ok: j.ok === true };
+  }
+
   async function crearCuenta() {
     const email = document.getElementById('bv-email').value.trim();
     const pass1 = document.getElementById('bv-pass1').value;
@@ -128,6 +142,17 @@
     if (pass1 !== pass2) { showMsg('Las contraseñas no coinciden', 'err'); return; }
 
     btn.disabled = true;
+    showMsg('Revisando tu pago...', '');
+    document.getElementById('bv-compra').hidden = true;
+    let pagado;
+    try { pagado = await pagoRegistrado(email); } catch (err) { pagado = { ok: false, error: 'Hubo un problema de conexión, intenta de nuevo.' }; }
+    if (pagado.error) { showMsg(pagado.error, 'err'); btn.disabled = false; return; }
+    if (!pagado.ok) {
+      showMsg('Todavía no encontramos tu pago con este correo. Revisa que sea el mismo con el que pagaste' + (LINK_COMPRA ? ', o compra tu lugar aquí.' : '.'), 'err');
+      if (LINK_COMPRA) { const a = document.getElementById('bv-compra'); a.href = LINK_COMPRA; a.hidden = false; }
+      btn.disabled = false;
+      return;
+    }
     showMsg('Creando tu cuenta...', '');
 
     try {
