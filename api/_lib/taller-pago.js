@@ -87,4 +87,33 @@ async function manejarPagoGhl(req, res, fetchFn) {
   }
 }
 
-module.exports = { manejarPagoGhl, datosDelAviso, secretoValido, darAcceso, LINK_TALLER };
+// ¿Ya pagó este correo? La página de gracias de GHL lo consulta antes de crear la contraseña.
+// Solo se aceptan estos talleres (lista cerrada para que nadie pueda consultar otros).
+const TALLERES_DE_PAGO = ['master-class-ia-agente', 'primer-agente'];
+async function tienePago(email, taller, fetchFn) {
+  const url = (process.env.TALLER_SUPABASE_URL || '').trim().replace(/\/+$/, '');
+  const clave = (process.env.TALLER_SUPABASE_SERVICE_KEY || '').trim();
+  if (!url || !clave) return null;
+  const h = { apikey: clave, Authorization: 'Bearer ' + clave };
+  let r = await fetchFn(url + '/rest/v1/talleres?select=id&slug=eq.' + encodeURIComponent(taller), { headers: h });
+  if (!r.ok) return null;
+  const filas = await r.json();
+  if (!Array.isArray(filas) || !filas[0]) return null;
+  r = await fetchFn(url + '/rest/v1/invitados?select=id&taller_id=eq.' + filas[0].id + '&email=eq.' + encodeURIComponent(email.toLowerCase()), { headers: h });
+  if (!r.ok) return null;
+  const inv = await r.json();
+  return Array.isArray(inv) && inv.length > 0;
+}
+
+async function manejarVerificarPago(req, res, fetchFn) {
+  if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return res.status(405).json({ error: 'Method not allowed' }); }
+  const body = req.body || {};
+  const email = String(body.email || '').trim();
+  const taller = TALLERES_DE_PAGO.includes(body.taller) ? body.taller : 'master-class-ia-agente';
+  if (!EMAIL.test(email)) return res.status(400).json({ ok: false, error: 'Correo no válido.' });
+  const ok = await tienePago(email, taller, fetchFn || fetch);
+  if (ok === null) return res.status(502).json({ ok: false, error: 'No pudimos verificar tu pago. Intenta de nuevo en unos minutos.' });
+  return res.status(200).json({ ok });
+}
+
+module.exports = { manejarPagoGhl, manejarVerificarPago, datosDelAviso, secretoValido, darAcceso, LINK_TALLER };
