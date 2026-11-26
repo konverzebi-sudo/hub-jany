@@ -50,6 +50,8 @@
   .chip-jefe[hidden]{ display:none; }
   .chip-jefe img{ width:22px; height:22px; object-fit:contain; }
   .chip-jefe button{ border:0; background:transparent; cursor:pointer; font-size:16px; line-height:1; padding:0 4px; }
+  .chip-proy{ background:#fff; border:2px solid #1A1A1A; padding:4px 10px; }
+  .menu .op .ini{ width:30px; height:30px; flex:none; border-radius:9px; background:#F6F7F1; border:1.5px solid #E4E6DB; display:grid; place-items:center; font:700 14px Barlow,sans-serif; color:#0F0E0C; }
   .caja textarea{ flex:1; min-width:180px; border:0; outline:0; resize:none; font:500 18px/1.4 'Barlow'; color:var(--negro); background:transparent; padding:8px 0; max-height:160px; overflow:hidden; }
   .caja textarea::placeholder{ color:#9A9D90; }
   .btn-ir{ flex:none; width:48px; height:48px; border-radius:50%; border:0; background:var(--negro); color:var(--lima); font-size:22px; font-weight:700; cursor:pointer; display:grid; place-items:center; }
@@ -338,6 +340,7 @@
   <div class="caja-wrap">
     <div class="caja" id="caja">
       <span class="chip-jefe" id="chip" hidden></span>
+      <span class="chip-jefe chip-proy" id="chipProy" hidden></span>
       <textarea id="q" rows="1" placeholder="Escribe lo que necesitas… o @ para llamar a un Jefe" aria-label="¿En qué te ayudo hoy?" autocomplete="off"></textarea>
       <button class="btn-ir" id="ir" aria-label="Buscar a mi Jefe">→</button>
     </div>
@@ -440,6 +443,7 @@
   const HOY = isoDe(new Date());
 
   // Datos del hub: se leen una vez y los usan las sugerencias y los widgets.
+  let D = null;   // datos ya leídos (productos del 366 y campañas de temporada para el @)
   const ADN_SECC = ['identidad','visual','tono','redes','audiencias','metricas','customer_journey'];
   const datos = Promise.all([
     Promise.all(ADN_SECC.map(s => leer('brand-book.' + s))),
@@ -460,6 +464,7 @@
 
   // Nombre de la marca (del ADN, en vivo).
   datos.then(d => { if (d.identidad && d.identidad.nombre) $('cejaTxt').textContent = 'Hub de Jefes de: ' + d.identidad.nombre; });
+  datos.then(d => { D = d; });
 
   // ── Sugerencias según la etapa del negocio y la temporada ──
   const S = (t, j) => ({ t, j });
@@ -506,14 +511,31 @@
   });
 
   // ── Caja de búsqueda ──
-  const q = $('q'), menu = $('menu'), chip = $('chip'), res = $('resultado');
+  const q = $('q'), menu = $('menu'), chip = $('chip'), chipP = $('chipProy'), res = $('resultado');
   let elegido = null;                       // Jefe llamado con @
+  let proy = null;                          // Producto o campaña llamado con @: { tipo, nombre }
   let opciones = [], sel = -1, modo = '';   // modo: 'arroba' | 'sug'
 
   function crecer(){ q.style.height = 'auto'; q.style.height = Math.min(q.scrollHeight, 160) + 'px'; q.style.overflowY = q.scrollHeight > 160 ? 'auto' : 'hidden'; }
   function textoArroba(){
     const m = q.value.slice(0, q.selectionStart).match(/(^|\s)@([^\s@]*)$/);
     return m ? m[2] : null;
+  }
+  // Productos del 366 y campañas de temporada, para etiquetarlos con @ junto al Jefe.
+  function proyectosDe(f){
+    const k = quitar(f || ''), out = [];
+    if (D) {
+      (D.productos366 || []).forEach(x => {
+        const n = String(x.nombre).trim();
+        const precio = (x.precio != null && String(x.precio).trim() !== '') ? ' · $' + String(x.precio).replace(/^\$/, '') : '';
+        out.push({ tipo: 'producto', nombre: n, sub: 'Producto 366' + precio });
+      });
+      (D.campanas || []).forEach(c => {
+        const n = String(c && c.nombre || '').trim();
+        if (n && n !== 'Nueva campaña') out.push({ tipo: 'campana', nombre: n, sub: 'Campaña de temporada' });
+      });
+    }
+    return (k ? out.filter(p => quitar(p.nombre).includes(k)) : out).slice(0, 8);
   }
   function filtrarJefes(f){
     const k = quitar(f);
@@ -542,13 +564,18 @@
 
   function pintarMenu(){
     const f = textoArroba();
-    if (f !== null && !elegido) {
+    if (f !== null) {
       modo = 'arroba';
-      opciones = filtrarJefes(f);
+      const js = filtrarJefes(f).map(j => ({ k: 'jefe', j })), ps = proyectosDe(f).map(p => ({ k: 'proy', p }));
+      opciones = js.concat(ps);
       if (sel < 0 || sel >= opciones.length) sel = 0;
+      const fila = (o, i) => o.k === 'jefe'
+        ? '<button type="button" class="op" role="option" data-i="' + i + '" aria-selected="' + (i === sel) + '"><img src="' + logoSrc(o.j) + '" alt=""><span><b>' + o.j.nombre + '</b><small>' + o.j.que + '</small></span></button>'
+        : '<button type="button" class="op" role="option" data-i="' + i + '" aria-selected="' + (i === sel) + '"><span class="ini">' + esc(o.p.nombre.charAt(0).toUpperCase()) + '</span><span><b>' + esc(o.p.nombre) + '</b><small>' + esc(o.p.sub) + '</small></span></button>';
       menu.innerHTML = opciones.length
-        ? opciones.map((j, i) => '<button type="button" class="op" role="option" data-i="' + i + '" aria-selected="' + (i === sel) + '"><img src="' + logoSrc(j) + '" alt=""><span><b>' + j.nombre + '</b><small>' + j.que + '</small></span></button>').join('')
-        : '<div class="vacio">No encontré ese Jefe. Prueba con otro nombre.</div>';
+        ? (js.length ? '<div class="tit">Tu Jefe</div>' : '') + js.map((o, i) => fila(o, i)).join('') +
+          (ps.length ? '<div class="tit">Producto o campaña</div>' : '') + ps.map((o, i) => fila(o, i + js.length)).join('')
+        : '<div class="vacio">No encontré ese Jefe ni ese producto o campaña. Prueba con otro nombre.</div>';
       menu.hidden = false; return;
     }
     if (document.activeElement !== q || elegido) { menu.hidden = true; return; }
@@ -562,22 +589,42 @@
       opciones.map((s, i) => '<button type="button" class="op sug" role="option" data-i="' + i + '" aria-selected="' + (i === sel) + '">' + LUPA + '<span>' + resaltar(s.t, texto) + '</span>' + (porId[s.j] ? '<img src="' + logoSrc(porId[s.j]) + '" alt="" title="' + esc(porId[s.j].nombre) + '">' : '') + '</button>').join('');
     menu.hidden = false;
   }
-  function ponerJefe(j){
-    const pos = q.selectionStart;
-    const antes = q.value.slice(0, pos).replace(/(^|\s)@[^\s@]*$/, '$1');
-    q.value = (antes + q.value.slice(pos)).replace(/^\s+/, '');
-    elegido = j;
-    chip.innerHTML = '<img src="' + logoSrc(j) + '" alt="">' + j.nombre + '<button type="button" aria-label="Quitar Jefe">×</button>';
-    chip.hidden = false;
-    chip.querySelector('button').onclick = quitarJefe;
-    menu.hidden = true; sel = -1;
-    q.placeholder = '¿Qué le pides al ' + j.nombre + '?';
-    q.focus(); crecer();
+  function renderChips(){
+    chip.hidden = !elegido;
+    chip.innerHTML = elegido ? '<img src="' + logoSrc(elegido) + '" alt="">' + elegido.nombre + '<button type="button" aria-label="Quitar Jefe">×</button>' : '';
+    if (elegido) chip.querySelector('button').onclick = quitarJefe;
+    chipP.hidden = !proy;
+    chipP.innerHTML = proy ? esc((proy.tipo === 'producto' ? 'Producto: ' : 'Campaña: ') + proy.nombre) + '<button type="button" aria-label="Quitar producto o campaña">×</button>' : '';
+    if (proy) chipP.querySelector('button').onclick = quitarProy;
+    q.placeholder = elegido && proy ? '¿Qué le pides al ' + elegido.nombre + ' sobre ' + proy.nombre + '?'
+      : elegido ? '¿Qué le pides al ' + elegido.nombre + '?'
+      : 'Escribe lo que necesitas… o @ para llamar a un Jefe o a un producto o campaña';
   }
-  function quitarJefe(){
-    elegido = null; chip.hidden = true; chip.innerHTML = '';
-    q.placeholder = 'Escribe lo que necesitas… o @ para llamar a un Jefe';
-    q.focus(); pintarMenu();
+  // Quita el @ que se está escribiendo (lo que ya va en la caja se queda).
+  function quitarArrobaTecleada(){
+    const pos = q.selectionStart;
+    return (q.value.slice(0, pos).replace(/(^|\s)@[^\s@]*$/, '$1') + q.value.slice(pos)).replace(/^\s+/, '');
+  }
+  function ponerJefe(j){
+    q.value = quitarArrobaTecleada();
+    elegido = j; menu.hidden = true; sel = -1;
+    renderChips(); q.focus(); crecer();
+  }
+  function ponerProy(p){
+    q.value = quitarArrobaTecleada();
+    proy = { tipo: p.tipo, nombre: p.nombre };
+    if (!elegido) elegido = porId[p.tipo === 'producto' ? '366' : 'temporada'] || null;   // Jefe por defecto para ese proyecto
+    menu.hidden = true; sel = -1;
+    renderChips(); q.focus(); crecer();
+  }
+  function elegirArroba(o){ o.k === 'proy' ? ponerProy(o.p) : ponerJefe(o.j); }
+  function quitarJefe(){ elegido = null; renderChips(); q.focus(); pintarMenu(); }
+  function quitarProy(){ proy = null; renderChips(); q.focus(); pintarMenu(); }
+  // Lo que se le manda al Jefe: el proyecto va escrito en la pregunta, para que sepa de qué se habla.
+  function conProy(texto){
+    if (!proy) return texto;
+    const de = (proy.tipo === 'producto' ? 'mi producto "' : 'mi campaña "') + proy.nombre + '"';
+    return texto ? 'Sobre ' + de + ': ' + texto : 'Sobre ' + de;
   }
   function usarSugerencia(s){
     q.value = s.t; crecer(); menu.hidden = true; sel = -1;
@@ -590,7 +637,7 @@
     const b = e.target.closest('.op'); if (!b) return;
     e.preventDefault();
     const o = opciones[+b.dataset.i];
-    modo === 'arroba' ? ponerJefe(o) : usarSugerencia(o);
+    modo === 'arroba' ? elegirArroba(o) : usarSugerencia(o);
   });
   q.addEventListener('input', () => { crecer(); if (modo !== 'arroba') sel = -1; pintarMenu(); });
   q.addEventListener('focus', pintarMenu);
@@ -601,22 +648,24 @@
     if (!menu.hidden && opciones.length) {
       if (e.key === 'ArrowDown') { e.preventDefault(); sel = (sel + 1) % opciones.length; pintarMenu(); return; }
       if (e.key === 'ArrowUp') { e.preventDefault(); sel = sel <= 0 ? opciones.length - 1 : sel - 1; pintarMenu(); return; }
-      if (modo === 'arroba' && (e.key === 'Enter' || e.key === 'Tab')) { e.preventDefault(); ponerJefe(opciones[sel]); return; }
+      if (modo === 'arroba' && (e.key === 'Enter' || e.key === 'Tab')) { e.preventDefault(); elegirArroba(opciones[sel]); return; }
       if (modo === 'sug' && e.key === 'Enter' && sel >= 0) { e.preventDefault(); usarSugerencia(opciones[sel]); return; }
     }
     if (e.key === 'Escape') { menu.hidden = true; return; }
-    if (e.key === 'Backspace' && elegido && q.selectionStart === 0 && q.selectionEnd === 0) { quitarJefe(); return; }
+    if (e.key === 'Backspace' && (proy || elegido) && q.selectionStart === 0 && q.selectionEnd === 0) { if (proy) quitarProy(); else quitarJefe(); return; }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); buscar(); }
   });
   $('ir').addEventListener('click', buscar);
 
   function buscar(){
-    const texto = q.value.trim();
+    let texto = q.value.trim();
     menu.hidden = true;
-    if (elegido) { ir(elegido, texto); return; }
-    if (!texto) { q.focus(); aviso('Escribe lo que necesitas o usa @ para elegir a un Jefe.'); return; }
+    let jefe = elegido;
     const m = texto.match(/@([^\s@]+)/);
-    if (m) { const f = filtrarJefes(m[1]); if (f.length) { ir(f[0], texto.replace(m[0], '').trim()); return; } }
+    if (!jefe && m) { const f = filtrarJefes(m[1]); if (f.length) { jefe = f[0]; texto = texto.replace(m[0], '').trim(); } }
+    if (!jefe && proy) jefe = porId[proy.tipo === 'producto' ? '366' : 'temporada'];
+    if (jefe) { ir(jefe, conProy(texto)); return; }
+    if (!texto) { q.focus(); aviso('Escribe lo que necesitas o usa @ para elegir a un Jefe o a un producto.'); return; }
     mostrar(texto, elegir(texto));
   }
 
