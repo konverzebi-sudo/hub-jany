@@ -79,6 +79,17 @@
     .hero-robot { width: clamp(96px, 16vw, 128px); height: auto; display: block; margin: 0 auto 18px; }
     .hero-search { display: flex; align-items: center; gap: 14px; max-width: 760px; margin: 0 auto 22px; padding: 6px 18px; min-height: 58px; background: var(--surface); border: 1px solid var(--line); border-radius: 100px; box-shadow: 0 8px 30px rgba(0,0,0,.12); cursor: text; transition: border-color .15s; }
     .hero-search:focus-within { border-color: var(--accent); }
+    /* "Hablemos de…": tus productos o servicios del 366, debajo de la barra */
+    .hab-wrap { width: 100%; max-width: 760px; margin: -10px auto 22px; }
+    .hab-wrap[hidden] { display: none; }
+    .hab-tit { font: 700 12px 'Barlow', sans-serif; color: var(--text-dim); text-transform: uppercase; letter-spacing: .08em; margin: 0 0 8px; }
+    .hab-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+    .hab-card { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; background: #fff; border: 1.5px solid var(--line); border-radius: 16px; padding: 14px; cursor: pointer; text-align: left; font: inherit; color: inherit; transition: border-color .12s, transform .12s; }
+    .hab-card:hover { border-color: #C0F800; transform: translateY(-2px); }
+    .hab-ini { width: 34px; height: 34px; border-radius: 50%; background: #C0F800; display: grid; place-items: center; font: 800 15px 'Inter Tight', sans-serif; }
+    .hab-nom { font: 700 15px 'Barlow', sans-serif; line-height: 1.25; }
+    .hab-sub { font-size: 13px; color: var(--text-dim); }
+    .hab-card.nuevo { border-style: dashed; border-color: #A4B41C; justify-content: center; align-items: center; text-align: center; color: #6E7A0E; font-weight: 700; }
     .hero-search > svg { flex: 0 0 auto; }
     .hero-search-lupa { width: 22px; height: 22px; color: var(--text-dim); }
     .hero-search-sep { flex: 0 0 1px; align-self: stretch; margin: 12px 0; background: var(--line); }
@@ -700,6 +711,7 @@
     <textarea id="heroSearchInput" rows="1" autocomplete="off" placeholder="Estoy para asesorarte para vender los 366/365 días del año" oninput="heroEscribiendo();autoAlturaTextarea(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey&&enterEnvia366()){event.preventDefault();heroBuscar();}"></textarea>
     <button type="button" class="hero-search-send" onclick="heroBuscar()" aria-label="Enviar al Jefe 366"><svg class="hero-search-bot" aria-hidden="true"><use href="#robot366"/></svg></button>
   </label>
+  <div class="hab-wrap" id="habWrap" hidden><p class="hab-tit">Hablemos de…</p><div class="hab-grid" id="habGrid"></div></div>
   <div class="builder-box" id="jefe366ChatBox">
     <p class="builder-title">🧬 Chat con el Jefe 366</p>
     <button type="button" class="chat-min-btn" onclick="ocultarChat366()">Ocultar ▴</button>
@@ -1802,6 +1814,29 @@ function acomodarBarra366() {
 }
 
 /* Barra del encabezado: es la entrada al chat. Lo que escribes se manda como tu mensaje. */
+// "Hablemos de…": cada producto o servicio manda su tema al chat del 366 (igual que escribirlo en la barra).
+function pintarHablemos366(lista) {
+  const wrap = document.getElementById('habWrap'), grid = document.getElementById('habGrid');
+  if (!wrap || !grid) return;
+  const prods = (Array.isArray(lista) ? lista : []).filter(x => x && String(x.nombre || '').trim());
+  const precio = x => (x.precio != null && String(x.precio).trim() !== '') ? '$' + String(x.precio).replace(/^\$/, '') : (x.que_vendemos ? String(x.que_vendemos).slice(0, 60) : '');
+  const esc2 = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  grid.innerHTML = prods.slice(0, 8).map(x => {
+    const n = String(x.nombre).trim();
+    return '<button type="button" class="hab-card" data-n="' + esc2(n) + '"><span class="hab-ini">' + esc2(n.charAt(0).toUpperCase()) + '</span><span class="hab-nom">' + esc2(n) + '</span>' + (precio(x) ? '<span class="hab-sub">' + esc2(precio(x)) + '</span>' : '') + '</button>';
+  }).join('') + '<button type="button" class="hab-card nuevo" data-n="">＋ Agregar uno nuevo</button>';
+  wrap.hidden = false;
+  grid.querySelectorAll('.hab-card').forEach(b => b.addEventListener('click', () => {
+    const inp = document.getElementById('heroSearchInput');
+    if (!inp) return;
+    inp.value = b.dataset.n ? 'Hablemos de ' + b.dataset.n : 'Quiero agregar un producto o servicio nuevo a mi estrategia';
+    heroBuscar();
+  }));
+}
+document.addEventListener('DOMContentLoaded', () => {
+  load366Grupo('366-producto').then(d => pintarHablemos366(d && d.lista)).catch(() => {});
+});
+
 function heroBuscar() {
   const inp = document.getElementById('heroSearchInput');
   const texto = (inp.value || '').trim();
