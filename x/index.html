@@ -1157,6 +1157,8 @@
   function casaGastosDe(pid){
     return data.casa.gastos.filter(function(g){ return (g.pid || null) === pid; }).sort(casaByDateDesc);
   }
+  // solo cuenta lo que ya está pagado (los pendientes no suman a los totales)
+  function casaPagadoSum(list){ return list.reduce(function(s, p){ return p.estado === 'pendiente' ? s : s + (+p.amount || 0); }, 0); }
   function casaSum(list){ return list.reduce(function(s, p){ return s + (+p.amount || 0); }, 0); }
   function casaSave(){
     save();
@@ -1209,7 +1211,7 @@
       return '<div class="jd-casa-pe" style="border-color:#E4DEF7;"><button type="button" data-act="toggle-combo" data-id="' + casaEsc(k) + '" style="width:100%;display:flex;align-items:center;gap:8px;background:transparent;border:0;cursor:pointer;padding:8px 10px;font-family:inherit;color:inherit;text-align:left;">' +
         '<span class="jd-casa-arrow">' + (op ? '▾' : '▸') + '</span><span class="jd-casa-name">' + casaEsc(arr[0].note || 'Gasto') + '</span>' +
         '<span class="jd-sub">' + arr.length + ' pagos' + (pendN ? ' · <b style="color:#D4463B;">' + pendN + ' pendiente' + (pendN === 1 ? '' : 's') + '</b>' : '') + '</span>' +
-        '<b class="jd-disp jd-casa-tot">' + casaMoney(casaSum(arr)) + '</b></button>' +
+        '<b class="jd-disp jd-casa-tot">' + casaMoney(casaPagadoSum(arr)) + '</b></button>' +
         (op ? '<div class="jd-casa-pebody">' + arr.map(fn).join('') + '</div>' : '') + '</div>';
     }).join('');
   }
@@ -1220,7 +1222,7 @@
     if(conPersona && pe) sub.push('→ ' + casaEsc(pe.name));
     if(!g.descuenta) sub.push('<b style="color:#B8741A;">no descuenta del crédito</b>');
     var pendG = g.estado === 'pendiente';
-    if(pendG) sub.unshift('<b style="color:#D4463B;">PENDIENTE</b> · programado');
+    if(pendG) sub.unshift('<b style="color:#D4463B;">PENDIENTE ' + casaMoney(g.amount) + '</b> · programado');
     var grSel = conPersona ? '<div style="margin-top:4px;"><select class="jd-input" data-gmove="' + g.id + '" title="Pasar a un grupo" style="font-size:11px;padding:3px 6px;width:auto;max-width:100%;"><option value="">Sin grupo</option>' + (data.casa.grupos || []).map(function(x){ return '<option value="' + x.id + '"' + (g.grupo === x.id ? ' selected' : '') + '>' + casaEsc(x.name) + '</option>'; }).join('') + '<option value="__nuevo__">+ Nuevo grupo…</option></select></div>' : '';
     return '<div class="jd-casa-row" style="align-items:flex-start;">' +
       '<div class="jd-casa-main" data-act="edit-gasto" data-id="' + g.id + '" title="Toca para ajustar" style="cursor:pointer;"><div><span class="jd-sub">' + casaDate(g.date) + ' · </span>' + casaEsc(g.note || 'Gasto') + '</div><div class="jd-sub">' + sub.join(' · ') + '</div>' + grSel + '</div>' +
@@ -1231,6 +1233,17 @@
 
   // puntito que indica si el recuadro está seleccionado para mostrarse abajo
   function casaDot(on){ return '<span title="' + (on ? 'seleccionado: se muestra abajo' : 'no seleccionado') + '" style="display:inline-block;width:8px;height:8px;border-radius:50%;margin-left:4px;vertical-align:middle;background:' + (on ? '#7C5CF2' : '#D8D3EE') + ';"></span>'; }
+
+  // lo asignado a los pagos y lo que falta (o sobra) para cubrir el total a dividir
+  function casaSplitStatus(){
+    var el = document.getElementById('casa-s-status'); if(!el) return;
+    var tEl = document.getElementById('casa-s-total'), total = parseFloat(tEl && tEl.value) || 0, sum = 0;
+    for(var i = 0; i < (casaUI.splitParts || []).length; i++){ var e = document.getElementById('casa-s-' + i); sum += parseFloat(e && e.value) || 0; }
+    var falta = Math.round((total - sum) * 100) / 100;
+    if(Math.abs(falta) < 0.005) el.innerHTML = 'Asignado ' + casaMoney(sum) + ' · <b style="color:#1F9D55;">cuadra ✓</b>';
+    else if(falta > 0) el.innerHTML = 'Asignado ' + casaMoney(sum) + ' · <b style="color:#D4463B;">faltan ' + casaMoney(falta) + '</b>';
+    else el.innerHTML = 'Asignado ' + casaMoney(sum) + ' · <b style="color:#D4463B;">sobran ' + casaMoney(-falta) + '</b>';
+  }
 
   function casaFormHTML(){
     var f = casaUI.form;
@@ -1248,7 +1261,10 @@
       var gsp = c.gastos.find(function(x){ return x.id === f.id; });
       var partes = (casaUI.splitParts || [{amount: gsp ? gsp.amount : 0}, {amount: 0}]).map(function(p){ return typeof p === 'number' ? {amount: p} : p; });
       var fechaBase = gsp && gsp.date ? gsp.date : todayKey;
-      h += '<div class="jd-sub" style="margin-bottom:6px;">Dividir “' + casaEsc(gsp ? gsp.note : '') + '” en varios pagos. El total es la suma de los pagos (puedes poner el total que sea, ej. 5,000 pagado + 3,500 pendiente = 8,500). Cada pago tiene su fecha y su estado.</div>' +
+      var totalSp = casaUI.splitTotal != null ? casaUI.splitTotal : (gsp ? gsp.amount : 0);
+      // total a repartir (editable) y lo que falta o sobra según los pagos; al agregar un pago se llena con lo que falta
+      h += '<div class="jd-sub" style="margin-bottom:6px;">Dividir “' + casaEsc(gsp ? gsp.note : '') + '” en varios pagos. Cada pago tiene su fecha y su estado.</div>' +
+        '<div class="jd-row" style="gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;"><span class="jd-sub" style="font-weight:600;">Total a dividir</span><div style="position:relative;width:170px;"><span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#6B6790;font-weight:600;pointer-events:none;">$</span><input class="jd-input" id="casa-s-total" type="number" inputmode="decimal" value="' + casaEsc(totalSp) + '" style="padding-left:24px;"></div><span id="casa-s-status" class="jd-sub" style="margin-left:auto;"></span></div>' +
         partes.map(function(p, i){
           var pend = p.estado === 'pendiente';
           return '<div style="border:1px solid #ECE8F8;border-radius:12px;padding:8px;margin-bottom:8px;background:#fff;">' +
@@ -1359,7 +1375,7 @@
       var rowCompacto = function(g){
         var pq = g.estado === 'pendiente';
         return '<div class="jd-casa-row" style="align-items:center;"><div class="jd-casa-main" data-act="edit-gasto" data-id="' + g.id + '" title="Toca para ver y ajustar todo" style="cursor:pointer;">' +
-          casaEsc(g.note || 'Gasto') + '<div class="jd-sub">' + casaDate(g.date) + (pq ? ' · <b style="color:#D4463B;">PENDIENTE</b>' : ' · pagado') + '</div></div>' +
+          casaEsc(g.note || 'Gasto') + '<div class="jd-sub">' + casaDate(g.date) + (pq ? ' · <b style="color:#D4463B;">PENDIENTE ' + casaMoney(g.amount) + '</b>' : ' · pagado') + '</div></div>' +
           '<b class="jd-disp" style="flex:none;color:' + (pq ? '#D4463B' : '#1F1B3D') + ';">' + casaMoney(g.amount) + '</b>' +
           (pq ? '<button type="button" class="jd-btn" data-act="pagar-gasto" data-id="' + g.id + '" style="padding:2px 8px;font-size:12px;flex:none;">✓ Pagar</button>' : '<button type="button" class="jd-btn" data-act="pendiente-gasto" data-id="' + g.id + '" style="padding:2px 8px;font-size:12px;flex:none;">Marcar pendiente</button>') + '</div>';
       };
@@ -1369,7 +1385,7 @@
         lista = grupos.map(function(gr){
           var items = gastosTodos.filter(function(g){ return g.grupo === gr.id; }), op = !!casaUI.open['g:' + gr.id];
           // saldo del grupo: cuánto está abonado, cuánto falta por liquidar y en qué abono va
-          var abonado = casaSum(items), resumen = '';
+          var abonado = casaPagadoSum(items), resumen = '';
           if(gr.total || gr.nPagos){
             var saldo = (+gr.total || 0) - abonado;
             resumen = '<div style="padding:0 10px 8px;display:flex;flex-wrap:wrap;gap:10px;font-size:12px;">' +
@@ -1378,7 +1394,7 @@
                 (saldo > 0 ? '<span class="jd-sub">Saldo <b style="color:#D4463B;">' + casaMoney(saldo) + '</b></span>' : '<span class="jd-sub"><b style="color:#1F9D55;">Liquidado ✓</b></span>') : '') + '</div>';
           }
           return '<div class="jd-casa-pe" style="border-color:#D9D0F5;"><div style="display:flex;align-items:center;gap:6px;padding:8px 10px;">' +
-            '<button type="button" data-act="toggle-grupo" data-id="' + gr.id + '" style="flex:1;min-width:0;display:flex;align-items:center;gap:8px;background:transparent;border:0;cursor:pointer;padding:0;text-align:left;font-family:inherit;color:inherit;"><span class="jd-casa-arrow">' + (op ? '▾' : '▸') + '</span><span class="jd-casa-name">' + casaEsc(gr.name) + '</span><span class="jd-sub">' + items.length + ' gasto' + (items.length === 1 ? '' : 's') + '</span><b class="jd-disp jd-casa-tot">' + casaMoney(casaSum(items)) + '</b></button>' +
+            '<button type="button" data-act="toggle-grupo" data-id="' + gr.id + '" style="flex:1;min-width:0;display:flex;align-items:center;gap:8px;background:transparent;border:0;cursor:pointer;padding:0;text-align:left;font-family:inherit;color:inherit;"><span class="jd-casa-arrow">' + (op ? '▾' : '▸') + '</span><span class="jd-casa-name">' + casaEsc(gr.name) + '</span><span class="jd-sub">' + items.length + ' gasto' + (items.length === 1 ? '' : 's') + '</span><b class="jd-disp jd-casa-tot">' + casaMoney(casaPagadoSum(items)) + '</b></button>' +
             '<button type="button" data-act="add-grupo-gasto" data-id="' + gr.id + '" title="Agregar un gasto a este grupo" style="flex:none;width:26px;height:26px;border-radius:50%;border:0;background:#7C5CF2;color:#fff;font-size:18px;line-height:1;font-weight:700;cursor:pointer;padding:0;">+</button>' +
             '<button type="button" class="jd-casa-ico" data-act="edit-grupo" data-id="' + gr.id + '" title="Cambiar nombre">✏️</button><button type="button" class="jd-casa-ico" data-act="del-grupo" data-id="' + gr.id + '" title="Quitar grupo (sus gastos quedan sin grupo)">🗑</button></div>' +
             resumen +
@@ -1413,6 +1429,7 @@
     if(!c.personas.length) h += '<div class="jd-sub" style="padding:2px 0 6px;">Al registrar un gasto escribes a quién se lo diste y aquí aparece su nombre. También puedes crearlas con “+ Persona”.</div>';
     h += c.personas.map(casaPersonaHTML).join('');
     box.innerHTML = h;
+    casaSplitStatus();
   }
 
   (function(){
@@ -1432,8 +1449,11 @@
         }
         if(partesV.some(function(v){ return !(v.amount > 0); })) return msg('Pon un monto en cada pago');
         var sumaP = partesV.reduce(function(s, v){ return s + v.amount; }, 0);
-        // el total del gasto pasa a ser la suma de los pagos (ej. 5,000 pagado + 3,500 pendiente = 8,500)
-        if(!(sumaP > 0)) return msg('Pon al menos un monto');
+        // los pagos deben cubrir exactamente el total a dividir: ni de más ni de menos
+        var totalF = parseFloat(val('casa-s-total'));
+        if(!(totalF > 0)) return msg('Pon el total a dividir');
+        if(Math.abs(sumaP - totalF) > 0.005) return msg(sumaP < totalF ? 'Faltan ' + casaMoney(totalF - sumaP) + ' para cubrir el total' : 'Sobran ' + casaMoney(sumaP - totalF) + ' (los pagos suman más que el total)');
+        casaUI.splitTotal = null;
         // el primer pago queda en el gasto; los demás son gastos nuevos con los mismos datos (grupo, método) y su propia fecha y estado
         sg0.amount = partesV[0].amount; sg0.date = partesV[0].date; sg0.estado = partesV[0].estado;
         for(var sj = 1; sj < partesV.length; sj++){
@@ -1522,13 +1542,14 @@
         saveForm();
         if(c.gastos.length > antesN){
           var nuevo = c.gastos[c.gastos.length - 1];
-          casaUI.splitParts = [nuevo.amount, 0];
+          casaUI.splitTotal = nuevo.amount; casaUI.splitParts = [{amount: nuevo.amount, date: nuevo.date, estado: nuevo.estado || 'pagado'}, {amount: 0, date: nuevo.date, estado: 'pagado'}];
           openForm({type: 'split', id: nuevo.id});
         }
       }
       else if(act === 'split-gasto'){
         var sgo = c.gastos.find(function(x){ return x.id === id; });
         if(!sgo) return;
+        casaUI.splitTotal = sgo.amount;
         casaUI.splitParts = [{amount: sgo.amount, date: sgo.date, estado: sgo.estado || 'pagado'}, {amount: 0, date: sgo.date, estado: 'pagado'}];
         openForm({type: 'split', id: id});
       }
@@ -1537,7 +1558,14 @@
         var cur = []; for(var k2 = 0; k2 < (casaUI.splitParts || []).length; k2++){
           cur.push({amount: parseFloat(val('casa-s-' + k2)) || 0, date: val('casa-sd-' + k2) || '', estado: val('casa-se-' + k2) === 'pendiente' ? 'pendiente' : 'pagado'});
         }
-        if(act === 'split-add') cur.push({amount: 0, date: cur.length ? cur[cur.length - 1].date : todayKey, estado: 'pagado'}); else cur.splice(parseInt(id, 10), 1);
+        // el total a dividir se conserva; el pago nuevo se llena con lo que falta para cubrirlo (editable)
+        var totalNow = parseFloat(val('casa-s-total'));
+        casaUI.splitTotal = totalNow > 0 ? totalNow : casaUI.splitTotal;
+        if(act === 'split-add'){
+          var sumNow = cur.reduce(function(s, p){ return s + (p.amount || 0); }, 0);
+          var falta2 = Math.max(0, Math.round(((casaUI.splitTotal || 0) - sumNow) * 100) / 100);
+          cur.push({amount: falta2, date: cur.length ? cur[cur.length - 1].date : todayKey, estado: 'pagado'});
+        } else cur.splice(parseInt(id, 10), 1);
         casaUI.splitParts = cur; renderCasa();
       }
       else if(act === 'pendiente-gasto'){
@@ -1699,6 +1727,8 @@
       grip.addEventListener('pointerup', end);
       grip.addEventListener('pointercancel', end);
     });
+    // al escribir en el total o en un pago, se actualiza lo que falta
+    box.addEventListener('input', function(ev){ if(ev.target && ev.target.id && ev.target.id.indexOf('casa-s-') === 0) casaSplitStatus(); });
     box.addEventListener('keydown', function(ev){
       if(ev.key === 'Enter' && ev.target.tagName === 'INPUT' && ev.target.type !== 'checkbox' && !ev.target.readOnly && casaUI.form){ ev.preventDefault(); saveForm(); }
     });
