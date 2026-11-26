@@ -1334,7 +1334,7 @@ function progreso() {
   if (localStorage.getItem('vio-empieza')) hecho++;
   metas.forEach(a => { if (miResp(a)) hecho++; });
   const d = miResp(pw)?.datos || {};
-  'ABCDEF'.split('').forEach(b => { if (d._ok && d._ok[b]) hecho++; });
+  'ABCDE'.split('').forEach(b => { if (d._ok && d._ok[b]) hecho++; });
   return Math.round(hecho / total * 100);
 }
 
@@ -1479,7 +1479,7 @@ function siguientePaso() {
   const viva = din.find(a => a.estado === 'abierta' && !miResp(a));
   if (viva) return { href: '#calienta', t: 'Responder: ' + nombreAct(viva) };
   const pw = miResp(act('prework'))?.datos?._ok || {};
-  if (act('prework') && 'ABCDEF'.split('').some(b => !pw[b])) return { href: '#prepara', t: 'Prepara tu negocio' };
+  if (act('prework') && 'ABCDE'.split('').some(b => !pw[b])) return { href: '#prepara', t: 'Prepara tu negocio' };
   return { href: '#calienta', t: 'Calentando motores' };
 }
 function vistaEmpieza(c) {
@@ -1752,8 +1752,7 @@ const BLOQUES = [
   { k: 'B', t: 'Clientes', campos: [['cliente_ideal', '¿Quién es tu cliente ideal?', 'area', 1], ['vende_a', '¿A quién le vendes actualmente?', 'area'], ['problema', '¿Qué problema resuelves?', 'area'], ['diferencia', '¿Qué diferencia tu negocio de otros?', 'area']] },
   { k: 'C', t: 'Productos y servicios' },
   { k: 'D', t: 'Objetivo' },
-  { k: 'E', t: 'Materiales' },
-  { k: 'F', t: 'Preparación de herramientas' }
+  { k: 'E', t: 'Materiales' }
 ];
 const CAMPOS_PROD = [['nombre', 'Nombre'], ['descripcion', 'Descripción'], ['precio', 'Precio de venta', 1], ['costo', 'Costo directo', 1], ['inventario', 'Inventario disponible (si aplica)', 1], ['ventas', 'Ventas aproximadas al mes', 1], ['facilidad', '¿Qué tan fácil es venderlo?'], ['porque', '¿Por qué crees que se vende o no se vende?']];
 const CAMPOS_SERV = [['nombre', 'Nombre del servicio'], ['precio', 'Precio', 1], ['costo', 'Costo directo estimado', 1], ['tiempo', 'Tiempo necesario para prestarlo'], ['capacidad', 'Capacidad mensual', 1], ['ventas', 'Ventas aproximadas al mes', 1]];
@@ -1786,9 +1785,9 @@ const CHECKS = ['Tengo acceso a ChatGPT', 'Tengo acceso a Gemini', 'Puedo ingres
 function vistaPrepara() {
   const a = act('prework');
   if (!a) return `<div class="card lockbox"><div class="ico">🔒</div><h2>Prepara tu negocio</h2><p>Se habilitará pronto.</p></div>`;
-  const listos = 'ABCDEF'.split('').filter(b => miResp(a)?.datos?._ok?.[b]).length;
+  const listos = 'ABCDE'.split('').filter(b => miResp(a)?.datos?._ok?.[b]).length;
   return encabezado({ clase: 'CLASE 3', modulo: 'Prepara tu negocio', emoji: '🗂️', titulo: 'Prepara tu negocio', sub: 'Deja lista la información de tu negocio para que El Hubcito trabaje contigo durante el taller.',
-      chips: ['🧩 6 bloques', `✅ ${listos} de 6 listos`] })
+      chips: ['🧩 5 bloques', `✅ ${listos} de 5 listos`] })
     + tipHtml(S.contenidos[sec('prepara').id]?.intro || '')
     + secHtml('🪜', 'Sigue este orden') + `
     ${a.estado === 'finalizada' ? `<div class="ok-msg" style="margin-top:14px">🔒 Ya cerré la preparación. Puedes consultar tus respuestas, ya no editarlas.</div>` : ''}
@@ -1799,7 +1798,7 @@ function montarPrepara() {
   const r = miResp(a);
   const D = JSON.parse(JSON.stringify(r?.datos || {}));
   D._ok = D._ok || {};
-  const pct = Math.round('ABCDEF'.split('').filter(b => D._ok[b]).length / 6 * 100);
+  const pct = Math.round('ABCDE'.split('').filter(b => D._ok[b]).length / 5 * 100);
   if (window.parent !== window) window.parent.postMessage({ taller: 'brief', pct }, '*');
   const st = $('#steps'); if (st && !$('#briefPct')) st.insertAdjacentHTML('beforebegin', `<div id="briefPct" class="brief-pct"><span>Avance de tu brief</span><div class="rec-barra"><i style="width:${pct}%"></i></div><b>${pct}%</b>${pct >= 100 ? '<em>✅ Completo</em>' : ''}</div>`);
   const soloLectura = a.estado !== 'abierta';
@@ -1817,7 +1816,7 @@ function montarPrepara() {
     if (soloLectura) return;
     leerBloque(k, D);
     D._ok[k] = true;
-    const completo = 'ABCDEF'.split('').every(x => D._ok[x]);
+    const completo = 'ABCDE'.split('').every(x => D._ok[x]);
     try { await api.responder(a.id, D, completo); try { localStorage.removeItem(BORR); } catch (e) {} toast('Guardado ✓'); S.misRespuestas = S.misRespuestas.filter(x => x.actividad_id !== a.id).concat([{ actividad_id: a.id, datos: D, completada: completo }]); if (avanzar) UI.paso = Math.min(UI.paso + 1, 6); render(); }
     catch (err) { toast('No se pudo guardar: ' + err.message); }
   };
@@ -1849,9 +1848,6 @@ function montarPrepara() {
       <div class="field"><label class="f">${esc(l)}</label>
       ${soloLectura ? '' : `<input type="file" accept="image/png,image/jpeg,image/webp" ${max > 1 ? 'multiple' : ''} data-cat="${k}" data-max="${max}">`}
       <div class="thumbs" data-thumbs="${k}"></div>${k === 'logo' ? '<div id="marcaColores"></div><div id="marcaTipos"></div>' : ''}</div>`).join('');
-  } else if (b.k === 'F') {
-    const v = D.F || {};
-    html += CHECKS.map((c, i) => `<label class="opt ${v[i] ? 'sel' : ''}" style="margin-bottom:8px"><input type="checkbox" name="chk" data-i="${i}" ${v[i] ? 'checked' : ''} ${dis}>${esc(c)}</label>`).join('');
   }
   html += soloLectura ? '' : `<div class="row" style="margin-top:20px"><button class="btn" id="bSig">Guardar y continuar →</button><button class="btn ghost" id="bGuardar">Guardar</button></div>`;
   box.innerHTML = html;
@@ -1892,7 +1888,6 @@ function leerBloque(k, D) {
   if (b.campos) { D[k] = D[k] || {}; box.querySelectorAll('[name]').forEach(el => D[k][el.name] = el.value.trim()); }
   if (k === 'C') { D.C = { items: [...box.querySelectorAll('[data-item]')].map(div => { const it = { tipo: div.querySelector('[data-tipo]').value }; div.querySelectorAll('[data-k]').forEach(i => it[i.dataset.k] = i.value.trim()); return it; }) }; }
   if (k === 'D') D.D = { objetivos: [...box.querySelectorAll('[name=obj]:checked')].map(i => i.value), otro: box.querySelector('[name=otro]').value.trim(), meta: box.querySelector('[name=meta]').value.trim() };
-  if (k === 'F') { D.F = {}; box.querySelectorAll('[name=chk]').forEach(i => D.F[i.dataset.i] = i.checked); }
 }
 async function montarArchivos(D, a, soloLectura) {
   D.E = D.E || {};
@@ -1904,13 +1899,13 @@ async function montarArchivos(D, a, soloLectura) {
       const url = await api.urlArchivo(p);
       const f = document.createElement('figure');
       f.innerHTML = `<img src="${esc(url)}" alt="">${soloLectura ? '' : '<button title="Quitar">✕</button>'}`;
-      if (!soloLectura) f.querySelector('button').onclick = async () => { try { await api.borrarArchivo(p); } catch (e) {} D.E[cat] = D.E[cat].filter(x => x !== p); await api.responder(a.id, D, 'ABCDEF'.split('').every(x => D._ok[x])); pintar(cat); };
+      if (!soloLectura) f.querySelector('button').onclick = async () => { try { await api.borrarArchivo(p); } catch (e) {} D.E[cat] = D.E[cat].filter(x => x !== p); await api.responder(a.id, D, 'ABCDE'.split('').every(x => D._ok[x])); pintar(cat); };
       cont.appendChild(f);
     }
   };
   MATERIALES.forEach(([cat]) => pintar(cat));
   // 🎨 Colores de marca: se detectan del logotipo y el participante los aprueba (van al SUPERPROMPT)
-  const guardarD = () => api.responder(a.id, D, 'ABCDEF'.split('').every(x => D._ok[x])).catch(() => {});
+  const guardarD = () => api.responder(a.id, D, 'ABCDE'.split('').every(x => D._ok[x])).catch(() => {});
   const pintarColores = () => {
     const box = document.getElementById('marcaColores'); if (!box) return;
     const m = D.marca || {}, cols = m.colores || [];
@@ -1951,7 +1946,7 @@ async function montarArchivos(D, a, soloLectura) {
       catch (err) { toast(err.message); }
     }
     inp.value = '';
-    try { await api.responder(a.id, D, 'ABCDEF'.split('').every(x => D._ok[x])); } catch (e) {}
+    try { await api.responder(a.id, D, 'ABCDE'.split('').every(x => D._ok[x])); } catch (e) {}
     pintar(cat); toast('Archivos guardados');
   });
 }
@@ -1979,18 +1974,17 @@ function extraerColores(src) {
   });
 }
 function resumenPrework(D) {
-  const ok = 'ABCDEF'.split('').filter(k => D._ok[k]).length;
+  const ok = 'ABCDE'.split('').filter(k => D._ok[k]).length;
   const v = (o, k) => esc(o?.[k] || '—');
   const listo = ok === 6;
   return `${listo ? `<div class="hero" style="margin-bottom:18px"><span class="eyebrow">Listo</span><h1>¡Tu negocio está listo para trabajar con El Hubcito!</h1><p>Puedes editar tus respuestas hasta que yo cierre la preparación. Los siguientes contenidos se habilitarán durante el taller.</p></div>` : ''}
-    <div class="row space"><h2 style="font-size:22px">Resumen de tu información</h2><span class="pill ${listo ? 'on' : 'warn'}">${Math.round(ok / 6 * 100)}% completado</span></div>
+    <div class="row space"><h2 style="font-size:22px">Resumen de tu información</h2><span class="pill ${listo ? 'on' : 'warn'}">${Math.round(ok / 5 * 100)}% completado</span></div>
     <div class="grid2" style="margin-top:16px">
       <div><b>Negocio</b><p class="muted small">${v(D.A, 'nombre')} · ${v(D.A, 'descripcion')}<br>${v(D.A, 'vende')}<br>${v(D.A, 'zona')}</p></div>
       <div><b>Cliente ideal</b><p class="muted small">${v(D.B, 'cliente_ideal')}</p></div>
       <div><b>Productos / servicios</b><p class="muted small">${(D.C?.items || []).map(i => esc(i.nombre || '(sin nombre)') + ' · ' + esc(i.precio || 'precio —')).join('<br>') || '—'}</p></div>
       <div><b>Objetivo</b><p class="muted small">${esc([...(D.D?.objetivos || []), D.D?.otro].filter(Boolean).join(', ') || '—')}${D.D?.meta ? '<br>Meta: ' + esc(D.D.meta) : ''}</p></div>
       <div><b>Materiales</b><p class="muted small">${MATERIALES.map(([k, l]) => `${esc(l.split('(')[0])}: ${(D.E?.[k] || []).length}`).join('<br>')}</p></div>
-      <div><b>Herramientas</b><p class="muted small">${CHECKS.filter((c, i) => D.F?.[i]).length} de ${CHECKS.length} listas</p></div>
     </div>`;
 }
 
@@ -2556,7 +2550,7 @@ async function vistaTeleprompter() {
 
 /* ---------------- SUPERPROMPT V0.1: instrucciones + contexto real del PRE-BRIEF ----------------
    La plataforma y ChatGPT están separados: el contexto viaja dentro del texto que el participante copia.
-   Fuente de verdad: la respuesta del formulario "prework" (bloques A–F). Lo que no existe se marca "No proporcionado". */
+   Fuente de verdad: la respuesta del formulario "prework" (bloques A–E). Lo que no existe se marca "No proporcionado". */
 function construirSuperprompt(D, perfil) {
   const v = x => (x == null || String(x).trim() === '') ? 'No proporcionado' : String(x).trim();
   const A = D.A || {}, B = D.B || {}, C = D.C?.items || [], Ob = D.D || {}, E = D.E || {};
@@ -2670,7 +2664,7 @@ async function vistaSuperprompt() {
     historia: hq?.resp ? (() => { const v = Object.values(hq.resp), nA = v.filter(x => x === 'a').length, nB = v.length - nA; return `${nA} respuesta(s) de improvisar y ${nB} de planear`; })() : ''
   };
   const { texto, faltan } = construirSuperprompt(D, S.perfil);
-  const pct = Math.round('ABCDEF'.split('').filter(b => D._ok?.[b]).length / 6 * 100);
+  const pct = Math.round('ABCDE'.split('').filter(b => D._ok?.[b]).length / 5 * 100);
   const nArch = MATERIALES.reduce((n, [k]) => n + ((D.E || {})[k] || []).length, 0);
   root.innerHTML = `<div class="spx">
       <div class="spx-top"><small>SUPERPROMPT</small><h3>Jefe de Marketing IA</h3><p>Un solo asistente que conoce tu negocio y crece contigo en cada misión.</p>
@@ -2772,7 +2766,7 @@ async function vistaMarca() {
   if (!a) { root.innerHTML = '<div class="card din-espera">⏳ Esta sección se activa durante el taller.</div>'; return avisarAltura(); }
   const D = () => ({ ...(miResp(a)?.datos || {}) });
   const guardar = async nuevo => {
-    await api.responder(a.id, nuevo, 'ABCDEF'.split('').every(x => nuevo._ok?.[x]));
+    await api.responder(a.id, nuevo, 'ABCDE'.split('').every(x => nuevo._ok?.[x]));
     S.misRespuestas = S.misRespuestas.filter(x => x.actividad_id !== a.id).concat([{ ...(miResp(a) || {}), actividad_id: a.id, datos: nuevo }]);
   };
   let sinFondo = null, procesando = false;
@@ -2903,11 +2897,11 @@ async function vistaEmbedPonente() {
     if (!a) { root.innerHTML = '<div class="card din-espera">Sin formulario.</div>'; return avisarAltura(); }
     const [miembros, rs] = await Promise.all([api.miembros(), api.respuestasDe(a.id)]);
     const alumnos = miembros.filter(m => m.rol === 'alumno');
-    const listos = rs.filter(r => 'ABCDEF'.split('').every(b => r.datos?._ok?.[b])).length;
+    const listos = rs.filter(r => 'ABCDE'.split('').every(b => r.datos?._ok?.[b])).length;
     root.innerHTML = `<div class="ctrl-verde"><div class="cv-h"><b>🎤 Tu decisión como ponente</b><span class="pill ${a.estado === 'abierta' ? 'live' : 'off'}">${a.estado === 'abierta' ? 'ABIERTO' : 'CERRADO'}</span></div>
-      <div class="dk"><div><b>${alumnos.length}</b><small>inscritos</small></div><div><b>${rs.length}</b><small>empezaron</small></div><div><b>${listos}</b><small>completaron A–F</small></div></div>
+      <div class="dk"><div><b>${alumnos.length}</b><small>inscritos</small></div><div><b>${rs.length}</b><small>empezaron</small></div><div><b>${listos}</b><small>completaron A–E</small></div></div>
       <div class="row dbtns"><button class="btn sm" data-pe="abierta" ${a.estado === 'abierta' ? 'disabled' : ''}>▶ ABRIR FORMULARIO</button><button class="btn dark sm" data-pe="finalizada" ${a.estado !== 'abierta' ? 'disabled' : ''}>■ CERRAR (solo lectura)</button></div>
-      <details class="cv-det"><summary>Ver quién lo ha llenado</summary><div class="answers" style="margin-top:8px">${alumnos.map(m => { const r = rs.find(x => x.user_id === m.user_id); const n = r ? 'ABCDEF'.split('').filter(b => r.datos?._ok?.[b]).length : 0; return `<div class="answer"><b>${esc(m.nombre || m.email || 'Participante')}</b> · ${n}/6 bloques</div>`; }).join('') || '<p class="muted small">Sin participantes.</p>'}</div></details></div>`;
+      <details class="cv-det"><summary>Ver quién lo ha llenado</summary><div class="answers" style="margin-top:8px">${alumnos.map(m => { const r = rs.find(x => x.user_id === m.user_id); const n = r ? 'ABCDE'.split('').filter(b => r.datos?._ok?.[b]).length : 0; return `<div class="answer"><b>${esc(m.nombre || m.email || 'Participante')}</b> · ${n}/5 bloques</div>`; }).join('') || '<p class="muted small">Sin participantes.</p>'}</div></details></div>`;
     root.querySelectorAll('[data-pe]').forEach(b => b.onclick = async () => { try { await api.setActividad(a.id, b.dataset.pe); toast('Listo'); await recargar(); } catch (err) { toast(err.message); } });
     return avisarAltura();
   }
