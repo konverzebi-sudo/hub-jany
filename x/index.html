@@ -970,6 +970,7 @@
   var casaUI = {form:null, open:{}, shareErr:'', syncMsg:'', syncErr:false, syncBusy:false};
   var casaSyncTimer = null;
   var CASA_METHODS = [['transferencia','Transferencia'],['efectivo','Efectivo'],['tarjeta','Tarjeta'],['otra','Otra']];
+  var CASA_METHOD_EMOJI = {transferencia:'🏦 Transferencia', efectivo:'💵 Efectivo', tarjeta:'💳 Tarjeta', otra:'📝 Otra'};
   function casaLinkBase(){ return location.origin + location.pathname.replace(/[^\/]*$/, '') + 'casa.html?t='; }
   function casaEsc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function casaMoney(n){ n = Number(n || 0); return '$' + n.toLocaleString('es-MX', {minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits:2}); }
@@ -1219,6 +1220,9 @@
     }).join('');
   }
 
+  // grip para arrastrar un gasto a otro grupo
+  function casaGripGasto(g){ return '<div class="jd-casa-grip" data-gasto="' + g.id + '" title="Arrastra a otro grupo" style="flex:none;width:24px;height:26px;display:flex;align-items:center;justify-content:center;background:#F1EEFB;border:1px solid #DDD7F0;border-radius:7px;color:#6B6790;font-size:15px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;">&#10303;</div>'; }
+
   function casaGastoRow(g, conPersona){
     var pe = g.pid ? data.casa.personas.find(function(x){ return x.id === g.pid; }) : null;
     var sub = [casaEsc(casaMethodText(g))];
@@ -1227,7 +1231,7 @@
     var pendG = g.estado === 'pendiente';
     if(pendG) sub.unshift('<b style="color:#D4463B;">PENDIENTE ' + casaMoney(g.amount) + '</b> · programado');
     var grSel = conPersona ? '<div style="margin-top:4px;"><select class="jd-input" data-gmove="' + g.id + '" title="Pasar a un grupo" style="font-size:11px;padding:3px 6px;width:auto;max-width:100%;"><option value="">Sin grupo</option>' + (data.casa.grupos || []).map(function(x){ return '<option value="' + x.id + '"' + (g.grupo === x.id ? ' selected' : '') + '>' + casaEsc(x.name) + '</option>'; }).join('') + '<option value="__nuevo__">+ Nuevo grupo…</option></select></div>' : '';
-    return '<div class="jd-casa-row" style="align-items:flex-start;">' +
+    return '<div class="jd-casa-row" style="align-items:flex-start;">' + casaGripGasto(g) +
       '<div class="jd-casa-main" data-act="edit-gasto" data-id="' + g.id + '" title="Toca para ajustar" style="cursor:pointer;"><div><span class="jd-sub">' + casaDate(g.date) + ' · </span>' + casaEsc(g.note || 'Gasto') + '</div><div class="jd-sub">' + sub.join(' · ') + '</div>' + grSel + '</div>' +
       '<b class="jd-disp" style="flex:none;color:' + (pendG ? '#D4463B' : '#1F1B3D') + ';">' + casaMoney(g.amount) + '</b>' +
       (pendG ? '<button type="button" class="jd-btn" data-act="pagar-gasto" data-id="' + g.id + '" title="Marcar como pagado (hoy)" style="padding:2px 8px;font-size:12px;flex:none;">✓ Pagar</button>' : '<button type="button" class="jd-btn" data-act="pendiente-gasto" data-id="' + g.id + '" title="Marcar como pendiente" style="padding:2px 8px;font-size:12px;flex:none;">Marcar pendiente</button>') +
@@ -1272,7 +1276,7 @@
           var pend = p.estado === 'pendiente';
           return '<div style="border:1px solid #ECE8F8;border-radius:12px;padding:8px;margin-bottom:8px;background:#fff;">' +
             '<div class="jd-row" style="gap:6px;align-items:center;margin-bottom:6px;"><span class="jd-sub" style="width:50px;flex:none;">Pago ' + (i + 1) + '</span><div style="flex:1;position:relative;min-width:0;"><span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#6B6790;font-weight:600;pointer-events:none;">$</span><input class="jd-input" id="casa-s-' + i + '" type="number" inputmode="decimal" value="' + casaEsc(p.amount || '') + '" style="padding-left:24px;"></div>' + (partes.length > 2 ? '<button type="button" class="jd-casa-ico" data-act="split-del" data-id="' + i + '" title="Quitar esta parte">🗑</button>' : '') + '</div>' +
-            '<div class="jd-row" style="gap:6px;align-items:center;"><input class="jd-input" id="casa-sd-' + i + '" type="date" value="' + casaEsc(p.date || fechaBase) + '" style="width:150px;flex:none;"><select class="jd-input" id="casa-se-' + i + '" style="flex:1;min-width:0;"><option value="pagado"' + (!pend ? ' selected' : '') + '>✅ Pagado</option><option value="pendiente"' + (pend ? ' selected' : '') + '>⏳ Pendiente</option></select></div>' +
+            '<div class="jd-row" style="gap:6px;align-items:center;"><input class="jd-input" id="casa-sd-' + i + '" type="date" value="' + casaEsc(p.date || fechaBase) + '" style="width:150px;flex:none;"><select class="jd-input" id="casa-se-' + i + '" style="flex:1;min-width:0;"><option value="pagado"' + (!pend ? ' selected' : '') + '>✅ Pagado</option><option value="pendiente"' + (pend ? ' selected' : '') + '>⏳ Pendiente</option></select><select class="jd-input" id="casa-sm-' + i + '" style="flex:1;min-width:0;">' + CASA_METHODS.map(function(m){ return '<option value="' + m[0] + '"' + (m[0] === (p.method || (gsp && gsp.method) || 'transferencia') ? ' selected' : '') + '>' + CASA_METHOD_EMOJI[m[0]] + '</option>'; }).join('') + '</select></div>' +
             '</div>';
         }).join('') +
         '<button type="button" class="jd-btn" data-act="split-add" style="margin-bottom:8px;">+ Otro pago</button>';
@@ -1291,15 +1295,16 @@
       var who = (g && g.pid) ? g.pid : (f.pid || '');
       var pe2 = who ? c.personas.find(function(x){ return x.id === who; }) : null;
       var method = g ? (g.method || 'transferencia') : 'transferencia';
+      var grpAddF = (!g && f.grupo) ? (c.grupos || []).find(function(x){ return x.id === f.grupo; }) : null;
       var desc = g ? !!g.descuenta : !!dep;   // desde un concepto del crédito descuenta; un gasto aislado, no (se marca si quieres)
-      h += '<div class="jd-sub" style="margin-bottom:6px;">' + (g ? 'Ajustar gasto' : dep ? 'En qué se usó este concepto del crédito' : 'Gasto aislado') + '</div>' +
+      h += '<div class="jd-sub" style="margin-bottom:6px;">' + (g ? 'Ajustar gasto' : dep ? 'En qué se usó este concepto del crédito' : (grpAddF ? 'Nuevo gasto en ' + casaEsc(grpAddF.name) : 'Gasto aislado')) + '</div>' +
         '<input class="jd-input" id="casa-f-note" placeholder="Concepto" value="' + casaEsc(base ? base.note : '') + '" style="margin-bottom:6px;">' +
         '<div class="jd-row" style="gap:6px;margin-bottom:6px;"><div style="flex:1;position:relative;min-width:0;"><span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#6B6790;font-weight:600;pointer-events:none;">$</span><input class="jd-input" id="casa-f-amount" type="number" inputmode="decimal" placeholder="0" value="' + casaEsc(base ? base.amount : '') + '" style="padding-left:24px;"></div>' +
         '<div style="width:150px;flex:none;position:relative;"><div class="jd-input" style="display:flex;align-items:center;justify-content:space-between;gap:6px;cursor:pointer;pointer-events:none;"><span id="casa-f-date-txt">' + casaEsc(casaDate(g && g.date ? g.date : todayKey)) + '</span><span>📅</span></div><input type="date" id="casa-f-date" title="Cambiar la fecha" onclick="try{this.showPicker()}catch(e){}" value="' + casaEsc(g && g.date ? g.date : todayKey) + '" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;"></div></div>' +
         '<input class="jd-input" id="casa-f-dest" list="casa-dest-list" placeholder="¿A quién se lo diste? (escribe el nombre)" value="' + casaEsc(pe2 ? pe2.name : '') + '" style="margin-bottom:6px;">' +
         '<select class="jd-input" id="casa-f-grupo" style="margin-bottom:6px;"><option value="">Sin grupo</option>' + (c.grupos || []).map(function(x){ return '<option value="' + x.id + '"' + ((base && base.grupo === x.id) || (!base && f.grupo === x.id) ? ' selected' : '') + '>' + casaEsc(x.name) + '</option>'; }).join('') + '</select>' +
         '<datalist id="casa-dest-list">' + c.personas.map(function(x){ return '<option value="' + casaEsc(x.name) + '"></option>'; }).join('') + '</datalist>' +
-        '<div class="jd-row" style="gap:6px;margin-bottom:6px;"><select class="jd-input" id="casa-f-method" style="flex:1;">' + CASA_METHODS.map(function(m){ return '<option value="' + m[0] + '"' + (m[0] === method ? ' selected' : '') + '>' + m[1] + '</option>'; }).join('') + '</select>' +
+        '<div class="jd-row" style="gap:6px;margin-bottom:6px;"><select class="jd-input" id="casa-f-method" style="flex:1;">' + CASA_METHODS.map(function(m){ return '<option value="' + m[0] + '"' + (m[0] === method ? ' selected' : '') + '>' + CASA_METHOD_EMOJI[m[0]] + '</option>'; }).join('') + '</select>' +
         '<input class="jd-input" id="casa-f-card" inputmode="numeric" maxlength="4" placeholder="Últimos 4" value="' + casaEsc(g ? g.card : '') + '" style="width:96px;' + (method === 'tarjeta' ? '' : 'display:none;') + '">' +
         '<input class="jd-input" id="casa-f-other" placeholder="¿Cómo se pagó?" value="' + casaEsc(g ? g.other : '') + '" style="flex:1;' + (method === 'otra' ? '' : 'display:none;') + '"></div>' +
         '<select class="jd-input" id="casa-f-estado" style="margin-bottom:6px;"><option value="pagado"' + (!(g && g.estado === 'pendiente') ? ' selected' : '') + '>✅ Pagado (ya se hizo, en esa fecha)</option><option value="pendiente"' + (g && g.estado === 'pendiente' ? ' selected' : '') + '>⏳ Pendiente (programado, no descuenta todavía)</option></select>' +
@@ -1376,7 +1381,7 @@
       // dentro de un grupo: solo concepto y total; al tocarlo salen todos los datos (fecha, método, etc.)
       var rowCompacto = function(g){
         var pq = g.estado === 'pendiente';
-        return '<div class="jd-casa-row" style="align-items:center;"><div class="jd-casa-main" data-act="edit-gasto" data-id="' + g.id + '" title="Toca para ver y ajustar todo" style="cursor:pointer;">' +
+        return '<div class="jd-casa-row" style="align-items:center;">' + casaGripGasto(g) + '<div class="jd-casa-main" data-act="edit-gasto" data-id="' + g.id + '" title="Toca para ver y ajustar todo" style="cursor:pointer;">' +
           casaEsc(g.note || 'Gasto') + '<div class="jd-sub">' + casaDate(g.date) + (pq ? ' · <b style="color:#D4463B;">PENDIENTE ' + casaMoney(g.amount) + '</b>' : ' · pagado') + '</div></div>' +
           '<b class="jd-disp" style="flex:none;color:' + (pq ? '#D4463B' : '#1F1B3D') + ';">' + casaMoney(g.amount) + '</b>' +
           (pq ? '<button type="button" class="jd-btn" data-act="pagar-gasto" data-id="' + g.id + '" style="padding:2px 8px;font-size:12px;flex:none;">✓ Pagar</button>' : '<button type="button" class="jd-btn" data-act="pendiente-gasto" data-id="' + g.id + '" style="padding:2px 8px;font-size:12px;flex:none;">Marcar pendiente</button>') + '</div>';
@@ -1395,7 +1400,7 @@
               (gr.total ? '<span class="jd-sub">Total <b style="color:#1F1B3D;">' + casaMoney(gr.total) + '</b></span><span class="jd-sub">Abonado <b style="color:#7C5CF2;">' + casaMoney(abonado) + '</b></span>' +
                 (saldo > 0 ? '<span class="jd-sub">Saldo <b style="color:#D4463B;">' + casaMoney(saldo) + '</b></span>' : '<span class="jd-sub"><b style="color:#1F9D55;">Liquidado ✓</b></span>') : '') + '</div>';
           }
-          return '<div class="jd-casa-pe" style="border-color:#D9D0F5;"><div style="display:flex;align-items:center;gap:6px;padding:8px 10px;">' +
+          return '<div class="jd-casa-pe" style="border-color:#D9D0F5;"><div data-drop-grupo="' + gr.id + '" style="display:flex;align-items:center;gap:6px;padding:8px 10px;">' +
             '<button type="button" data-act="toggle-grupo" data-id="' + gr.id + '" style="flex:1;min-width:0;display:flex;align-items:center;gap:8px;background:transparent;border:0;cursor:pointer;padding:0;text-align:left;font-family:inherit;color:inherit;"><span class="jd-casa-arrow">' + (op ? '▾' : '▸') + '</span><span class="jd-casa-name">' + casaEsc(gr.name) + '</span><span class="jd-sub">' + items.length + ' gasto' + (items.length === 1 ? '' : 's') + '</span><b class="jd-disp jd-casa-tot">' + casaMoney(casaPagadoSum(items)) + '</b></button>' +
             '<button type="button" data-act="add-grupo-gasto" data-id="' + gr.id + '" title="Agregar un gasto a este grupo" style="flex:none;width:26px;height:26px;border-radius:50%;border:0;background:#7C5CF2;color:#fff;font-size:18px;line-height:1;font-weight:700;cursor:pointer;padding:0;">+</button>' +
             '<button type="button" class="jd-casa-ico" data-act="edit-grupo" data-id="' + gr.id + '" title="Cambiar nombre">✏️</button><button type="button" class="jd-casa-ico" data-act="del-grupo" data-id="' + gr.id + '" title="Quitar grupo (sus gastos quedan sin grupo)">🗑</button></div>' +
@@ -1403,7 +1408,7 @@
             (op ? '<div class="jd-casa-pebody">' + (items.length ? casaListHTML(items, rowCompacto) :'<div class="jd-sub" style="padding:4px 0;">Vacío. Pasa un gasto a este grupo desde su lista (“Pasar a un grupo”).</div>') + '</div>' : '') + '</div>';
         }).join('');
         var sinGrupo = gastosTodos.filter(function(g){ return !g.grupo || !grupos.some(function(x){ return x.id === g.grupo; }); });
-        if(sinGrupo.length) lista += (grupos.length ? '<div class="jd-sub" style="margin:8px 0 4px;">Sin grupo</div>' : '') + casaListHTML(sinGrupo, rowGasto, true);
+        if(sinGrupo.length) lista += (grupos.length ? '<div class="jd-sub" data-drop-grupo="" style="margin:8px 0 4px;">Sin grupo</div>' : '') + casaListHTML(sinGrupo, rowGasto, true);
       } else {
         lista = casaListHTML(gastosTodos, rowGasto, true);
       }
@@ -1427,17 +1432,6 @@
     if(colsCP.length){
       h += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px;align-items:start;">' + colsCP.join('') + '</div>';
     }
-    // gastos sueltos: no pertenecen a un concepto; se destina un monto y se ve lo gastado y lo disponible
-    var sueltos = c.gastos.filter(function(g){ return !g.descuenta; }).sort(function(a, b){ var x = a.date || '', y = b.date || ''; return x < y ? -1 : x > y ? 1 : 0; });
-    var gastadoSue = casaSum(sueltos), fondoSue = +c.fondoSueltos || 0, dispSue = fondoSue - gastadoSue;
-    h += '<div class="jd-h" style="margin:14px 0 6px;">Gastos sueltos (sin concepto)</div>' +
-      '<div class="jd-casa-pe" style="border-color:#D9C79A;background:#FBF8EE;padding:10px;">' +
-      '<div class="jd-row" style="gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;"><span class="jd-sub" style="font-weight:600;">Dinero para gastos sueltos</span><div style="position:relative;width:170px;"><span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#6B6790;font-weight:600;pointer-events:none;">$</span><input class="jd-input" id="casa-fondo" type="number" inputmode="decimal" placeholder="0" value="' + casaEsc(fondoSue || '') + '" style="padding-left:24px;"></div></div>' +
-      '<div class="jd-row" style="gap:16px;flex-wrap:wrap;margin-bottom:8px;"><span class="jd-sub">Gastado <b style="color:#B8741A;">' + casaMoney(gastadoSue) + '</b> ✓</span>' +
-      '<span class="jd-sub">Disponible <b style="color:' + (fondoSue && dispSue < 0 ? '#D4463B' : '#1F9D55') + ';">' + (fondoSue ? casaMoney(dispSue) : '—') + '</b></span></div>' +
-      (sueltos.length ? sueltos.map(function(g){ return '<div class="jd-row" style="justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid #F1EEFB;gap:6px;font-size:12.5px;"><span><span style="color:#1F9D55;font-weight:700;">✓</span> <span class="jd-sub">' + casaDate(g.date) + ' · </span>' + casaEsc(g.note || 'Gasto') + '</span><span class="jd-row" style="gap:6px;align-items:center;"><b>' + casaMoney(g.amount) + '</b><button type="button" class="jd-casa-ico" data-act="del-gasto" data-id="' + g.id + '" title="Quitar">🗑</button></span></div>'; }).join('')
-        : '<div class="jd-sub" style="padding:4px 0;">Aún no hay gastos sueltos. Un gasto suelto es uno que agregas con “+ Gasto aislado” y no es de un concepto.</div>') +
-      '</div>';
     box.innerHTML = h;
     casaSplitStatus();
   }
@@ -1455,7 +1449,7 @@
         var sg0 = c.gastos.find(function(x){ return x.id === f.id; });
         if(!sg0){ casaUI.form = null; renderCasa(); return; }
         var partesV = []; for(var si = 0; si < (casaUI.splitParts || []).length; si++){
-          partesV.push({amount: parseFloat(val('casa-s-' + si)), date: val('casa-sd-' + si) || sg0.date || todayKey, estado: val('casa-se-' + si) === 'pendiente' ? 'pendiente' : 'pagado'});
+          partesV.push({amount: parseFloat(val('casa-s-' + si)), date: val('casa-sd-' + si) || sg0.date || todayKey, estado: val('casa-se-' + si) === 'pendiente' ? 'pendiente' : 'pagado', method: val('casa-sm-' + si) || 'transferencia'});
         }
         if(partesV.some(function(v){ return !(v.amount > 0); })) return msg('Pon un monto en cada pago');
         var sumaP = partesV.reduce(function(s, v){ return s + v.amount; }, 0);
@@ -1465,9 +1459,9 @@
         if(Math.abs(sumaP - totalF) > 0.005) return msg(sumaP < totalF ? 'Faltan ' + casaMoney(totalF - sumaP) + ' para cubrir el total' : 'Sobran ' + casaMoney(sumaP - totalF) + ' (los pagos suman más que el total)');
         casaUI.splitTotal = null;
         // el primer pago queda en el gasto; los demás son gastos nuevos con los mismos datos (grupo, método) y su propia fecha y estado
-        sg0.amount = partesV[0].amount; sg0.date = partesV[0].date; sg0.estado = partesV[0].estado;
+        sg0.amount = partesV[0].amount; sg0.date = partesV[0].date; sg0.estado = partesV[0].estado; sg0.method = partesV[0].method;
         for(var sj = 1; sj < partesV.length; sj++){
-          c.gastos.push(Object.assign({}, sg0, {id: uid('cg') + '-s' + sj, amount: partesV[sj].amount, date: partesV[sj].date, estado: partesV[sj].estado}));
+          c.gastos.push(Object.assign({}, sg0, {id: uid('cg') + '-s' + sj, amount: partesV[sj].amount, date: partesV[sj].date, estado: partesV[sj].estado, method: partesV[sj].method}));
         }
         casaUI.splitParts = null; casaUI.open.pag = true; casaUI.form = null; casaSave(); renderCasa();
         return;
@@ -1501,7 +1495,9 @@
         // gasto: en qué se usó el dinero (a quién, método y si descuenta del crédito)
         var amount = parseFloat(val('casa-f-amount'));
         if(!(amount > 0)) return msg('Pon el monto');
+        if(!val('casa-f-note').trim()) return msg('Escribe el concepto del gasto');
         var dn = val('casa-f-dest').trim(), pid = null;
+        if(!dn) return msg('Escribe a quien se lo diste: si no hay a quien, no se puede guardar');
         if(dn){
           // si ya existe esa persona se usa; si no, se crea con ese nombre
           var pe2 = c.personas.find(function(x){ return x.name.toLowerCase() === dn.toLowerCase(); });
@@ -1529,7 +1525,7 @@
       casaUI.form = form; renderCasa();
       var fm = box.querySelector('.jd-casa-form');
       if(fm){
-        var el = form.type === 'gasto' ? fm.querySelector('#casa-f-dest') : fm.querySelector('input, select');
+        var el = form.type === 'gasto' ? fm.querySelector('#casa-f-note') : fm.querySelector('input, select');
         if(el && (form.type === 'persona' || form.type === 'gasto')) el.focus();
         if(fm.scrollIntoView) fm.scrollIntoView({block:'nearest', behavior:'smooth'});
       }
@@ -1552,7 +1548,7 @@
         saveForm();
         if(c.gastos.length > antesN){
           var nuevo = c.gastos[c.gastos.length - 1];
-          casaUI.splitTotal = nuevo.amount; casaUI.splitParts = [{amount: nuevo.amount, date: nuevo.date, estado: nuevo.estado || 'pagado'}, {amount: 0, date: nuevo.date, estado: 'pagado'}];
+          casaUI.splitTotal = nuevo.amount; casaUI.splitParts = [{amount: nuevo.amount, date: nuevo.date, estado: nuevo.estado || 'pagado', method: nuevo.method || 'transferencia'}, {amount: 0, date: nuevo.date, estado: 'pagado', method: nuevo.method || 'transferencia'}];
           openForm({type: 'split', id: nuevo.id});
         }
       }
@@ -1560,13 +1556,13 @@
         var sgo = c.gastos.find(function(x){ return x.id === id; });
         if(!sgo) return;
         casaUI.splitTotal = sgo.amount;
-        casaUI.splitParts = [{amount: sgo.amount, date: sgo.date, estado: sgo.estado || 'pagado'}, {amount: 0, date: sgo.date, estado: 'pagado'}];
+        casaUI.splitParts = [{amount: sgo.amount, date: sgo.date, estado: sgo.estado || 'pagado', method: sgo.method || 'transferencia'}, {amount: 0, date: sgo.date, estado: 'pagado', method: sgo.method || 'transferencia'}];
         openForm({type: 'split', id: id});
       }
       else if(act === 'split-add' || act === 'split-del'){
         // guarda lo escrito antes de agregar o quitar una fila
         var cur = []; for(var k2 = 0; k2 < (casaUI.splitParts || []).length; k2++){
-          cur.push({amount: parseFloat(val('casa-s-' + k2)) || 0, date: val('casa-sd-' + k2) || '', estado: val('casa-se-' + k2) === 'pendiente' ? 'pendiente' : 'pagado'});
+          cur.push({amount: parseFloat(val('casa-s-' + k2)) || 0, date: val('casa-sd-' + k2) || '', estado: val('casa-se-' + k2) === 'pendiente' ? 'pendiente' : 'pagado', method: val('casa-sm-' + k2) || 'transferencia'});
         }
         // el total a dividir se conserva; el pago nuevo se llena con lo que falta para cubrirlo (editable)
         var totalNow = parseFloat(val('casa-s-total'));
@@ -1666,8 +1662,7 @@
     });
     box.addEventListener('change', function(ev){
       var t = ev.target;
-      if(t.id === 'casa-fondo'){ data.casa.fondoSueltos = parseFloat(t.value) || 0; casaSave(); renderCasa(); }
-      else if(t.id === 'casa-f-method'){
+      if(t.id === 'casa-f-method'){
         document.getElementById('casa-f-card').style.display = t.value === 'tarjeta' ? '' : 'none';
         document.getElementById('casa-f-other').style.display = t.value === 'otra' ? '' : 'none';
       } else if(t.id === 'casa-f-date'){
@@ -1740,6 +1735,64 @@
     });
     // al escribir en el total o en un pago, se actualiza lo que falta
     box.addEventListener('input', function(ev){ if(ev.target && ev.target.id && ev.target.id.indexOf('casa-s-') === 0) casaSplitStatus(); });
+    // arrastrar un gasto a otro grupo; Sin grupo lo saca del grupo
+    box.addEventListener('pointerdown', function(ev){
+      var grip = ev.target.closest ? ev.target.closest('.jd-casa-grip[data-gasto]') : null;
+      if(!grip) return;
+      var gas = data.casa.gastos.find(function(x){ return x.id === grip.getAttribute('data-gasto'); });
+      if(!gas) return;
+      ev.preventDefault();
+      try{ grip.setPointerCapture(ev.pointerId); }catch(err){}
+      var row = grip.closest('.jd-casa-row');
+      var ghost = document.createElement('div');
+      ghost.textContent = (gas.note || 'Gasto') + ' - ' + casaMoney(gas.amount);
+      ghost.style.cssText = 'position:fixed;z-index:9999;pointer-events:none;background:#7C5CF2;color:#fff;font-size:12px;font-weight:600;padding:6px 10px;border-radius:10px;box-shadow:0 8px 22px rgba(95,70,190,.35);max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+      document.body.appendChild(ghost);
+      if(row) row.style.opacity = '.4';
+      var lastY = ev.clientY, over = null;
+      function dropUnder(x, y){
+        var el = document.elementFromPoint(x, y);
+        return el && el.closest ? el.closest('[data-drop-grupo]') : null;
+      }
+      function move(e){
+        lastY = e.clientY;
+        ghost.style.left = (e.clientX + 12) + 'px';
+        ghost.style.top = (e.clientY - 14) + 'px';
+        var dz = dropUnder(e.clientX, e.clientY);
+        if(dz !== over){
+          if(over) over.style.outline = '';
+          over = dz;
+          if(over) over.style.outline = '2px dashed #7C5CF2';
+        }
+      }
+      move(ev);
+      var scroller = setInterval(function(){
+        if(lastY < 70) window.scrollBy(0, -14);
+        else if(lastY > window.innerHeight - 70) window.scrollBy(0, 14);
+      }, 16);
+      function end(e){
+        grip.removeEventListener('pointermove', move);
+        grip.removeEventListener('pointerup', end);
+        grip.removeEventListener('pointercancel', end);
+        clearInterval(scroller);
+        var dz = e && e.type === 'pointerup' ? dropUnder(e.clientX, e.clientY) : null;
+        if(over) over.style.outline = '';
+        ghost.remove();
+        if(row) row.style.opacity = '';
+        if(dz){
+          var nuevoG = dz.getAttribute('data-drop-grupo') || null;
+          if((gas.grupo || null) !== nuevoG){
+            gas.grupo = nuevoG;
+            if(nuevoG) casaUI.open['g:' + nuevoG] = true;
+            casaUI.open.pag = true;
+            casaSave(); renderCasa();
+          }
+        }
+      }
+      grip.addEventListener('pointermove', move);
+      grip.addEventListener('pointerup', end);
+      grip.addEventListener('pointercancel', end);
+    });
     box.addEventListener('keydown', function(ev){
       if(ev.key === 'Enter' && ev.target.tagName === 'INPUT' && ev.target.type !== 'checkbox' && !ev.target.readOnly && casaUI.form){ ev.preventDefault(); saveForm(); }
     });
