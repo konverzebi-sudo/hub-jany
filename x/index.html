@@ -1275,7 +1275,11 @@
         '<select class="jd-input" id="casa-f-estado" style="margin-bottom:6px;"><option value="pagado"' + (!(g && g.estado === 'pendiente') ? ' selected' : '') + '>✅ Pagado (ya se hizo, en esa fecha)</option><option value="pendiente"' + (g && g.estado === 'pendiente' ? ' selected' : '') + '>⏳ Pendiente (programado, no descuenta todavía)</option></select>' +
         '<label class="jd-sub" style="display:flex;gap:8px;align-items:center;margin-bottom:8px;cursor:pointer;"><input type="checkbox" id="casa-f-desc"' + (desc ? ' checked' : '') + ' style="width:16px;height:16px;"> Descontar del crédito casa (baja “Te queda”)</label>' +
         (dep && !g ? '<button type="button" class="jd-btn" data-act="del-dep" data-id="' + dep.id + '" style="margin-bottom:8px;">Quitar este concepto del crédito</button>' : '') +
-        (g ? '<button type="button" class="jd-btn" data-act="split-gasto" data-id="' + g.id + '" style="margin-bottom:8px;">✂️ Dividir en varios pagos</button>' : '');
+        // botones: programar (pendiente) y dividir en varios pagos; en un gasto nuevo, dividir lo guarda primero
+        '<div class="jd-row" style="gap:6px;flex-wrap:wrap;margin-bottom:8px;">' +
+        '<button type="button" class="jd-btn" data-act="programar-pago" style="flex:1;">📅 Programar pago (pendiente)</button>' +
+        (g ? '<button type="button" class="jd-btn" data-act="split-gasto" data-id="' + g.id + '" style="flex:1;">✂️ Dividir en varios pagos</button>' : '<button type="button" class="jd-btn" data-act="split-nuevo" style="flex:1;">✂️ Dividir en varios pagos</button>') +
+        '</div>';
     }
     h += '<div id="casa-f-msg" class="jd-sub" style="color:#D4463B;min-height:14px;"></div>' +
       '<div class="jd-row" style="gap:6px;"><button type="button" class="jd-btn jd-btn-lima" style="flex:1;" data-act="save-form">Guardar</button><button type="button" class="jd-btn" data-act="cancel-form">Cancelar</button></div></div>';
@@ -1482,6 +1486,21 @@
       var act = b.getAttribute('data-act'), id = b.getAttribute('data-id'), c = data.casa;
       if(act === 'new-gasto') openForm({type: 'gasto', pid: id || ''});
       else if(act === 'new-grupo') openForm({type: 'grupo'});
+      else if(act === 'programar-pago'){
+        // deja el gasto como pendiente (programado); no descuenta del crédito hasta marcarlo como pagado
+        var sel = document.getElementById('casa-f-estado');
+        if(sel){ sel.value = 'pendiente'; msg('Queda como pendiente: se guarda con la fecha que elegiste.'); }
+      }
+      else if(act === 'split-nuevo'){
+        // gasto nuevo: primero se guarda con lo que escribiste y luego se abre la división
+        var antesN = c.gastos.length;
+        saveForm();
+        if(c.gastos.length > antesN){
+          var nuevo = c.gastos[c.gastos.length - 1];
+          casaUI.splitParts = [nuevo.amount, 0];
+          openForm({type: 'split', id: nuevo.id});
+        }
+      }
       else if(act === 'split-gasto'){
         var sgo = c.gastos.find(function(x){ return x.id === id; });
         if(!sgo) return;
