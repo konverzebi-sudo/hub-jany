@@ -1244,7 +1244,7 @@
       var gsp = c.gastos.find(function(x){ return x.id === f.id; });
       var partes = (casaUI.splitParts || [{amount: gsp ? gsp.amount : 0}, {amount: 0}]).map(function(p){ return typeof p === 'number' ? {amount: p} : p; });
       var fechaBase = gsp && gsp.date ? gsp.date : todayKey;
-      h += '<div class="jd-sub" style="margin-bottom:6px;">Dividir “' + casaEsc(gsp ? gsp.note : '') + '” en varios pagos. Las partes deben sumar ' + casaMoney(gsp ? gsp.amount : 0) + '. Cada pago tiene su fecha y su estado.</div>' +
+      h += '<div class="jd-sub" style="margin-bottom:6px;">Dividir “' + casaEsc(gsp ? gsp.note : '') + '” en varios pagos. El total es la suma de los pagos (puedes poner el total que sea, ej. 5,000 pagado + 3,500 pendiente = 8,500). Cada pago tiene su fecha y su estado.</div>' +
         partes.map(function(p, i){
           var pend = p.estado === 'pendiente';
           return '<div style="border:1px solid #ECE8F8;border-radius:12px;padding:8px;margin-bottom:8px;background:#fff;">' +
@@ -1419,7 +1419,8 @@
         }
         if(partesV.some(function(v){ return !(v.amount > 0); })) return msg('Pon un monto en cada pago');
         var sumaP = partesV.reduce(function(s, v){ return s + v.amount; }, 0);
-        if(Math.abs(sumaP - sg0.amount) > 0.005) return msg('Los pagos suman ' + casaMoney(sumaP) + ' y deben sumar ' + casaMoney(sg0.amount));
+        // el total del gasto pasa a ser la suma de los pagos (ej. 5,000 pagado + 3,500 pendiente = 8,500)
+        if(!(sumaP > 0)) return msg('Pon al menos un monto');
         // el primer pago queda en el gasto; los demás son gastos nuevos con los mismos datos (grupo, método) y su propia fecha y estado
         sg0.amount = partesV[0].amount; sg0.date = partesV[0].date; sg0.estado = partesV[0].estado;
         for(var sj = 1; sj < partesV.length; sj++){
