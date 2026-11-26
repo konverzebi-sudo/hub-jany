@@ -42,6 +42,20 @@
     } catch (e) { /* navegador sin URL/history: se ignora */ }
   })();
 
+  // El cuadro de la clave maestra:
+  // - Nunca en el hub de un cliente: ellos guardan con la llave de su link (?k=). Sin ella, lo escrito
+  //   se queda en su dispositivo y se sube solo cuando vuelvan a abrir su link (no se les pide nada).
+  // - En el hub de Jany se pide UNA vez por navegador; si se cancela, no se vuelve a pedir en esa
+  //   pestaña (antes salía en cada guardado). Lo escrito queda respaldado y se sube al poner la clave.
+  var NO_PREGUNTAR = 'jefeshub_no_pedir_clave';
+  function puedePreguntar() {
+    if (hubDeLaPagina() !== 'jefeshub') return false;
+    try { return !window.sessionStorage || window.sessionStorage.getItem(NO_PREGUNTAR) !== '1'; } catch (e) { return true; }
+  }
+  function noVolverAPreguntar() {
+    try { if (window.sessionStorage) window.sessionStorage.setItem(NO_PREGUNTAR, '1'); } catch (e) { /* sin sessionStorage */ }
+  }
+
   function hubDeLlave(key) {
     var i = String(key).indexOf(':');
     return i > 0 ? String(key).slice(0, i) : '';
@@ -52,9 +66,10 @@
     var acceso = (ls('get', ACCESO_PREFIJO + hubDeLlave(key)) || '').trim();
     if (acceso) { h['X-Hub-Codigo'] = acceso; return h; }
     var token = (ls('get', TOKEN_KEY) || '').trim();
-    if (!token && preguntar) {
-      token = (window.prompt('Token de acceso para guardar cambios:') || '').trim();
+    if (!token && preguntar && puedePreguntar()) {
+      token = (window.prompt('Escribe tu clave de JefesHub para guardar. Solo se pide una vez en este navegador.') || '').trim();
       if (token) ls('set', TOKEN_KEY, token);
+      else noVolverAPreguntar();
     }
     if (token) h['X-Storage-Token'] = token;
     return h;
