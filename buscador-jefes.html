@@ -52,8 +52,13 @@
   .chip-jefe button{ border:0; background:transparent; cursor:pointer; font-size:16px; line-height:1; padding:0 4px; }
   .chip-proy{ background:#fff; border:2px solid #1A1A1A; padding:4px 10px; }
   .menu .op .ini{ width:30px; height:30px; flex:none; border-radius:9px; background:#F6F7F1; border:1.5px solid #E4E6DB; display:grid; place-items:center; font:700 14px Barlow,sans-serif; color:#0F0E0C; }
-  .caja textarea{ flex:1; min-width:180px; border:0; outline:0; resize:none; font:500 18px/1.4 'Barlow'; color:var(--negro); background:transparent; padding:8px 0; max-height:160px; overflow:hidden; }
-  .caja textarea::placeholder{ color:#9A9D90; }
+  .caja .q-ed{ flex:1; min-width:180px; border:0; outline:0; font:500 18px/1.4 'Barlow'; color:var(--negro); background:transparent; padding:8px 0; max-height:160px; overflow-y:auto; white-space:pre-wrap; word-break:break-word; position:relative; }
+  .caja .q-ed.vacio::before{ content:attr(data-ph); color:#9A9D90; position:absolute; left:0; top:8px; pointer-events:none; }
+  .tag{ display:inline-flex; align-items:center; gap:6px; vertical-align:middle; border-radius:999px; padding:3px 6px 3px 10px; margin:0 2px; font:700 15px/1.3 'Barlow',sans-serif; white-space:nowrap; user-select:none; }
+  .tag img{ width:20px; height:20px; object-fit:contain; }
+  .tag-jefe{ background:var(--lima); }
+  .tag-proy{ background:#fff; border:2px solid #1A1A1A; padding:1px 8px 1px 9px; }
+  .tag-x{ border:0; background:transparent; cursor:pointer; font-size:16px; line-height:1; padding:0 4px; color:inherit; }
   .btn-ir{ flex:none; width:48px; height:48px; border-radius:50%; border:0; background:var(--negro); color:var(--lima); font-size:22px; font-weight:700; cursor:pointer; display:grid; place-items:center; }
   .btn-ir:hover{ background:#2a2925; }
 
@@ -320,7 +325,7 @@
     .robot{ width:84px; }
     .ceja{ gap:10px; }
     .ceja span{ font-size:11px; letter-spacing:.18em; }
-    .caja textarea{ font-size:16px; }
+    .caja .q-ed{ font-size:16px; }
     .tarjeta, .widget{ padding:16px; }
     .ico{ width:50px; height:50px; }
   }
@@ -339,9 +344,7 @@
 
   <div class="caja-wrap">
     <div class="caja" id="caja">
-      <span class="chip-jefe" id="chip" hidden></span>
-      <span class="chip-jefe chip-proy" id="chipProy" hidden></span>
-      <textarea id="q" rows="1" placeholder="Escribe lo que necesitas… o @ para llamar a un Jefe" aria-label="¿En qué te ayudo hoy?" autocomplete="off"></textarea>
+      <div id="q" class="q-ed vacio" contenteditable="true" role="textbox" aria-multiline="true" aria-label="¿En qué te ayudo hoy?" data-ph="Escribe lo que necesitas… o @ para llamar a un Jefe"></div>
       <button class="btn-ir" id="ir" aria-label="Buscar a mi Jefe">→</button>
     </div>
     <div class="menu" id="menu" role="listbox" hidden></div>
@@ -511,14 +514,80 @@
   });
 
   // ── Caja de búsqueda ──
-  const q = $('q'), menu = $('menu'), chip = $('chip'), chipP = $('chipProy'), res = $('resultado');
+  const q = $('q'), menu = $('menu'), res = $('resultado');
   let elegido = null;                       // Jefe llamado con @
   let proy = null;                          // Producto o campaña llamado con @: { tipo, nombre }
   let opciones = [], sel = -1, modo = '';   // modo: 'arroba' | 'sug'
 
-  function crecer(){ q.style.height = 'auto'; q.style.height = Math.min(q.scrollHeight, 160) + 'px'; q.style.overflowY = q.scrollHeight > 160 ? 'auto' : 'hidden'; }
+  function crecer(){ q.style.height = 'auto'; q.style.height = Math.min(q.scrollHeight, 160) + 'px'; q.classList.toggle('vacio', !qTexto().trim() && !q.querySelector('.tag')); }
+  // Texto que escribió la persona (las burbujas no cuentan).
+  function qTexto(){
+    let out = '';
+    (function recorrer(nodo){
+      nodo.childNodes.forEach(n => {
+        if (n.nodeType === 3) out += n.textContent;
+        else if (n.nodeType === 1 && !n.classList.contains('tag')) {
+          if (n.tagName === 'BR') out += '\n';
+          else { if (n.tagName === 'DIV' && out && !out.endsWith('\n')) out += '\n'; recorrer(n); }
+        }
+      });
+    })(q);
+    return out.replace(/ /g, ' ');
+  }
+  function caretRango(){
+    const s = window.getSelection();
+    return s && s.rangeCount && q.contains(s.anchorNode) ? s.getRangeAt(0) : null;
+  }
+  // Texto escrito antes del cursor (sin burbujas).
+  function textoAntesCaret(){
+    const r = caretRango(); if (!r) return '';
+    const pre = document.createRange(); pre.selectNodeContents(q); pre.setEnd(r.endContainer, r.endOffset);
+    const tmp = document.createElement('div'); tmp.appendChild(pre.cloneContents());
+    tmp.querySelectorAll('.tag').forEach(t => t.remove());
+    return tmp.textContent.replace(/ /g, ' ');
+  }
+  // Borra el "@lo-que-se-escribió" que está justo antes del cursor.
+  function quitarArrobaAntesCaret(){
+    const r = caretRango(); if (!r) return;
+    const m = textoAntesCaret().match(/(^|\s)(@[^\s@]*)$/);
+    if (!m || r.endContainer.nodeType !== 3 || r.endOffset < m[2].length) return;
+    const d = document.createRange();
+    d.setStart(r.endContainer, r.endOffset - m[2].length);
+    d.setEnd(r.endContainer, r.endOffset);
+    d.deleteContents();
+  }
+  // Pone la burbuja donde está el cursor (o al inicio), con un espacio después.
+  function ponerBurbuja(el, alInicio){
+    if (alInicio) { q.prepend(el, document.createTextNode(' ')); return; }
+    const r = caretRango();
+    if (!r) { q.append(el, document.createTextNode(' ')); return; }
+    r.insertNode(el);
+    const sp = document.createTextNode(' ');
+    el.after(sp);
+    const nr = document.createRange(); nr.setStart(sp, sp.textContent.length); nr.collapse(true);
+    const s = window.getSelection(); s.removeAllRanges(); s.addRange(nr);
+  }
+  function burbuja(clave, texto, logo, alQuitar){
+    const el = document.createElement('span');
+    el.className = 'tag tag-' + clave; el.contentEditable = 'false';
+    el.innerHTML = (logo ? '<img src="' + logo + '" alt="">' : '') + '<span>' + esc(texto) + '</span><button type="button" class="tag-x" aria-label="Quitar">×</button>';
+    el.querySelector('.tag-x').addEventListener('mousedown', e => { e.preventDefault(); e.stopPropagation(); alQuitar(); });
+    return el;
+  }
+  function quitarBurbujas(clave){ q.querySelectorAll('.tag-' + clave).forEach(b => b.remove()); }
+  // Si se borró una burbuja a mano (Backspace), se quita también del estado.
+  function sincronizar(){
+    if (elegido && !q.querySelector('.tag-jefe')) elegido = null;
+    if (proy && !q.querySelector('.tag-proy')) proy = null;
+  }
+  function actualizarTodo(){
+    q.dataset.ph = elegido && proy ? '¿Qué le pides al ' + elegido.nombre + ' sobre ' + proy.nombre + '?'
+      : elegido ? '¿Qué le pides al ' + elegido.nombre + '?'
+      : 'Escribe lo que necesitas… o @ para llamar a un Jefe o a un producto o campaña';
+    crecer();
+  }
   function textoArroba(){
-    const m = q.value.slice(0, q.selectionStart).match(/(^|\s)@([^\s@]*)$/);
+    const m = textoAntesCaret().match(/(^|\s)@([^\s@]*)$/);
     return m ? m[2] : null;
   }
   // Productos del 366 y campañas de temporada, para etiquetarlos con @ junto al Jefe.
@@ -581,7 +650,7 @@
     if (document.activeElement !== q || elegido) { menu.hidden = true; return; }
     if (modo === 'arroba') sel = -1;
     modo = 'sug';
-    const texto = q.value.trim();
+    const texto = qTexto().trim();
     opciones = filtrarSug(texto);
     if (sel >= opciones.length) sel = -1;
     if (!opciones.length) { menu.hidden = true; return; }
@@ -589,37 +658,27 @@
       opciones.map((s, i) => '<button type="button" class="op sug" role="option" data-i="' + i + '" aria-selected="' + (i === sel) + '">' + LUPA + '<span>' + resaltar(s.t, texto) + '</span>' + (porId[s.j] ? '<img src="' + logoSrc(porId[s.j]) + '" alt="" title="' + esc(porId[s.j].nombre) + '">' : '') + '</button>').join('');
     menu.hidden = false;
   }
-  function renderChips(){
-    chip.hidden = !elegido;
-    chip.innerHTML = elegido ? '<img src="' + logoSrc(elegido) + '" alt="">' + elegido.nombre + '<button type="button" aria-label="Quitar Jefe">×</button>' : '';
-    if (elegido) chip.querySelector('button').onclick = quitarJefe;
-    chipP.hidden = !proy;
-    chipP.innerHTML = proy ? esc((proy.tipo === 'producto' ? 'Producto: ' : 'Campaña: ') + proy.nombre) + '<button type="button" aria-label="Quitar producto o campaña">×</button>' : '';
-    if (proy) chipP.querySelector('button').onclick = quitarProy;
-    q.placeholder = elegido && proy ? '¿Qué le pides al ' + elegido.nombre + ' sobre ' + proy.nombre + '?'
-      : elegido ? '¿Qué le pides al ' + elegido.nombre + '?'
-      : 'Escribe lo que necesitas… o @ para llamar a un Jefe o a un producto o campaña';
-  }
-  // Quita el @ que se está escribiendo (lo que ya va en la caja se queda).
-  function quitarArrobaTecleada(){
-    const pos = q.selectionStart;
-    return (q.value.slice(0, pos).replace(/(^|\s)@[^\s@]*$/, '$1') + q.value.slice(pos)).replace(/^\s+/, '');
-  }
   function ponerJefe(j){
-    q.value = quitarArrobaTecleada();
-    elegido = j; menu.hidden = true; sel = -1;
-    renderChips(); q.focus(); crecer();
+    quitarArrobaAntesCaret();
+    quitarBurbujas('jefe');
+    elegido = j;
+    ponerBurbuja(burbuja('jefe', j.nombre, logoSrc(j), quitarJefe));
+    menu.hidden = true; sel = -1; actualizarTodo(); q.focus();
   }
   function ponerProy(p){
-    q.value = quitarArrobaTecleada();
+    quitarArrobaAntesCaret();
+    quitarBurbujas('proy');
     proy = { tipo: p.tipo, nombre: p.nombre };
-    if (!elegido) elegido = porId[p.tipo === 'producto' ? '366' : 'temporada'] || null;   // Jefe por defecto para ese proyecto
-    menu.hidden = true; sel = -1;
-    renderChips(); q.focus(); crecer();
+    ponerBurbuja(burbuja('proy', (p.tipo === 'producto' ? 'Producto: ' : 'Campaña: ') + p.nombre, '', quitarProy));
+    if (!elegido) {   // Jefe por defecto para ese proyecto, al inicio del texto
+      const j = porId[p.tipo === 'producto' ? '366' : 'temporada'];
+      if (j) { elegido = j; quitarBurbujas('jefe'); ponerBurbuja(burbuja('jefe', j.nombre, logoSrc(j), quitarJefe), true); }
+    }
+    menu.hidden = true; sel = -1; actualizarTodo(); q.focus();
   }
   function elegirArroba(o){ o.k === 'proy' ? ponerProy(o.p) : ponerJefe(o.j); }
-  function quitarJefe(){ elegido = null; renderChips(); q.focus(); pintarMenu(); }
-  function quitarProy(){ proy = null; renderChips(); q.focus(); pintarMenu(); }
+  function quitarJefe(){ elegido = null; quitarBurbujas('jefe'); actualizarTodo(); q.focus(); pintarMenu(); }
+  function quitarProy(){ proy = null; quitarBurbujas('proy'); actualizarTodo(); q.focus(); pintarMenu(); }
   // Lo que se le manda al Jefe: el proyecto va escrito en la pregunta, para que sepa de qué se habla.
   function conProy(texto){
     if (!proy) return texto;
@@ -627,7 +686,8 @@
     return texto ? 'Sobre ' + de + ': ' + texto : 'Sobre ' + de;
   }
   function usarSugerencia(s){
-    q.value = s.t; crecer(); menu.hidden = true; sel = -1;
+    [...q.childNodes].filter(n => !(n.nodeType === 1 && n.classList.contains('tag'))).forEach(n => n.remove());
+    q.append(document.createTextNode(s.t)); crecer(); menu.hidden = true; sel = -1;
     const j = porId[s.j];
     mostrar(s.t, j ? [{ j }].concat(elegir(s.t).filter(x => x.j !== j)) : elegir(s.t));
     q.blur();
@@ -639,7 +699,8 @@
     const o = opciones[+b.dataset.i];
     modo === 'arroba' ? elegirArroba(o) : usarSugerencia(o);
   });
-  q.addEventListener('input', () => { crecer(); if (modo !== 'arroba') sel = -1; pintarMenu(); });
+  q.addEventListener('input', () => { sincronizar(); crecer(); if (modo !== 'arroba') sel = -1; pintarMenu(); });
+  q.addEventListener('paste', e => { e.preventDefault(); const t = (e.clipboardData || window.clipboardData).getData('text/plain'); document.execCommand('insertText', false, t); });
   q.addEventListener('focus', pintarMenu);
   q.addEventListener('click', pintarMenu);
   q.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== q) menu.hidden = true; }, 120));
@@ -652,13 +713,12 @@
       if (modo === 'sug' && e.key === 'Enter' && sel >= 0) { e.preventDefault(); usarSugerencia(opciones[sel]); return; }
     }
     if (e.key === 'Escape') { menu.hidden = true; return; }
-    if (e.key === 'Backspace' && (proy || elegido) && q.selectionStart === 0 && q.selectionEnd === 0) { if (proy) quitarProy(); else quitarJefe(); return; }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); buscar(); }
   });
   $('ir').addEventListener('click', buscar);
 
   function buscar(){
-    let texto = q.value.trim();
+    let texto = qTexto().trim();
     menu.hidden = true;
     let jefe = elegido;
     const m = texto.match(/@([^\s@]+)/);

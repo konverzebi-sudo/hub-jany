@@ -789,7 +789,7 @@
   function jefeActual() { var j = JEFES.filter(esActivo)[0]; return j ? j.nombre : 'tu Jefe'; }
   function fraseJefe() { return 'Como ' + jefeActual() + ' te daré la mejor respuesta'; }
   // Lo que se escribió en el buscador de Jefes (o "Hablemos de…" del 366) llega ya escrito al chat de este Jefe.
-  // El buscador lo deja en sessionStorage ('jh-pregunta'); aquí se pone en la caja del chat sin mandarlo.
+  // El buscador lo deja en sessionStorage ('jh-pregunta'); aquí se pone en la caja del chat y se manda solo.
   function ponerPreguntaDelBuscador() {
     var p = null;
     try { p = JSON.parse(sessionStorage.getItem('jh-pregunta') || 'null'); } catch (e) { return; }
@@ -804,8 +804,20 @@
       try { sessionStorage.removeItem('jh-pregunta'); } catch (e) { /* nada */ }
       c.value = p.texto;
       c.dispatchEvent(new Event('input', { bubbles: true }));
-      try { c.focus({ preventScroll: false }); c.setSelectionRange(c.value.length, c.value.length); } catch (e) { /* nada */ }
+      setTimeout(function () { enviarCampo(c); }, 400);
     })();
+  }
+
+  // Manda lo que hay en la caja: con el botón de enviar de su misma zona o, si no hay, con Enter.
+  function enviarCampo(c) {
+    var cont = c.closest('form, .hero-search, .hero-pill-wrap, .caja, [class*="chat"], [id*="chat"]') || c.parentElement;
+    var botones = cont ? Array.prototype.slice.call(cont.querySelectorAll('button')) : [];
+    var envio = botones.filter(function (b) {
+      if (b.disabled || b.closest('.jn, .jn-rm, .gj-card')) return false;
+      return /enviar|send/i.test((b.getAttribute('aria-label') || '') + ' ' + (b.title || '') + ' ' + b.className + ' ' + b.id);
+    })[0];
+    if (envio) { envio.click(); return; }
+    c.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true }));
   }
 
   // ── Sugerencias al picar el chat (tipo YouTube) ─────────────────────────────
