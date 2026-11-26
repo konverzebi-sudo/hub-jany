@@ -1351,7 +1351,6 @@
         // próximos pagos: cuántos pendientes hay y cuánto suman; al tocarlo se abre Pagado donde está la lista
         '<div data-act="toggle-pag" style="cursor:pointer;"><div class="jd-sub">Próximos pagos ' + (casaUI.open.pag ? '▾' : '▸') + '</div><div class="jd-disp jd-casa-num" style="color:' + (pendSum > 0 ? '#D4463B' : '#A39FC2') + ';">' + casaMoney(pendSum) + '</div><div class="jd-sub" style="font-size:10.5px;">' + pendN + ' pendiente' + (pendN === 1 ? '' : 's') + '</div></div>' +
       '</div>' +
-      (aparte.length ? '<div class="jd-sub" style="margin:0 0 10px;color:#B8741A;">Aparte (no descuentan del crédito): ' + aparte.length + ' gasto' + (aparte.length === 1 ? '' : 's') + ' · ' + casaMoney(casaSum(aparte)) + '</div>' : '') +
       // debajo de los recuadros, junto a + Persona: ordenar y + Grupo solo cuando abres Crédito casa o Pagado
       '<div class="jd-row" style="gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px;"><button type="button" class="jd-btn jd-btn-lima" data-act="new-persona">+ Persona</button>' +
       ((casaUI.open.cred || casaUI.open.pag) ? '<span class="jd-sub" style="margin-left:6px;">Ordenar por:</span>' + sbH('fecha', '📅 Fecha') + sbH('grupo', '📁 Grupo') + '<button type="button" class="jd-btn" data-act="new-grupo">+ Grupo</button>' : '') +
@@ -1416,6 +1415,17 @@
     h += '<div class="jd-h" style="margin:14px 0 6px;">A quién le pagas</div>';
     if(!c.personas.length) h += '<div class="jd-sub" style="padding:2px 0 6px;">Al registrar un gasto escribes a quién se lo diste y aquí aparece su nombre. También puedes crearlas con “+ Persona”.</div>';
     h += c.personas.map(casaPersonaHTML).join('');
+    // gastos sueltos: no pertenecen a un concepto; se destina un monto y se ve lo gastado y lo disponible
+    var sueltos = c.gastos.filter(function(g){ return !g.descuenta; }).sort(function(a, b){ var x = a.date || '', y = b.date || ''; return x < y ? -1 : x > y ? 1 : 0; });
+    var gastadoSue = casaSum(sueltos), fondoSue = +c.fondoSueltos || 0, dispSue = fondoSue - gastadoSue;
+    h += '<div class="jd-h" style="margin:14px 0 6px;">Gastos sueltos (sin concepto)</div>' +
+      '<div class="jd-casa-pe" style="border-color:#D9C79A;background:#FBF8EE;padding:10px;">' +
+      '<div class="jd-row" style="gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;"><span class="jd-sub" style="font-weight:600;">Dinero para gastos sueltos</span><div style="position:relative;width:170px;"><span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#6B6790;font-weight:600;pointer-events:none;">$</span><input class="jd-input" id="casa-fondo" type="number" inputmode="decimal" placeholder="0" value="' + casaEsc(fondoSue || '') + '" style="padding-left:24px;"></div></div>' +
+      '<div class="jd-row" style="gap:16px;flex-wrap:wrap;margin-bottom:8px;"><span class="jd-sub">Gastado <b style="color:#B8741A;">' + casaMoney(gastadoSue) + '</b> ✓</span>' +
+      '<span class="jd-sub">Disponible <b style="color:' + (fondoSue && dispSue < 0 ? '#D4463B' : '#1F9D55') + ';">' + (fondoSue ? casaMoney(dispSue) : '—') + '</b></span></div>' +
+      (sueltos.length ? sueltos.map(function(g){ return '<div class="jd-row" style="justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid #F1EEFB;gap:6px;font-size:12.5px;"><span><span style="color:#1F9D55;font-weight:700;">✓</span> <span class="jd-sub">' + casaDate(g.date) + ' · </span>' + casaEsc(g.note || 'Gasto') + '</span><span class="jd-row" style="gap:6px;align-items:center;"><b>' + casaMoney(g.amount) + '</b><button type="button" class="jd-casa-ico" data-act="del-gasto" data-id="' + g.id + '" title="Quitar">🗑</button></span></div>'; }).join('')
+        : '<div class="jd-sub" style="padding:4px 0;">Aún no hay gastos sueltos. Un gasto suelto es uno que agregas con “+ Gasto aislado” y no es de un concepto.</div>') +
+      '</div>';
     box.innerHTML = h;
     casaSplitStatus();
   }
@@ -1643,7 +1653,8 @@
     });
     box.addEventListener('change', function(ev){
       var t = ev.target;
-      if(t.id === 'casa-f-method'){
+      if(t.id === 'casa-fondo'){ data.casa.fondoSueltos = parseFloat(t.value) || 0; casaSave(); renderCasa(); }
+      else if(t.id === 'casa-f-method'){
         document.getElementById('casa-f-card').style.display = t.value === 'tarjeta' ? '' : 'none';
         document.getElementById('casa-f-other').style.display = t.value === 'otra' ? '' : 'none';
       } else if(t.id === 'casa-f-date'){
