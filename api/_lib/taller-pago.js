@@ -99,7 +99,7 @@ async function tienePago(email, taller, fetchFn) {
   if (!r.ok) return { error: 'talleres_' + r.status };
   const filas = await r.json();
   if (!Array.isArray(filas) || !filas[0]) return { error: 'taller_no_existe' };
-  r = await fetchFn(url + '/rest/v1/invitados?select=id&taller_id=eq.' + filas[0].id + '&email=eq.' + encodeURIComponent(email.toLowerCase()), { headers: h });
+  r = await fetchFn(url + '/rest/v1/invitados?select=email&taller_id=eq.' + filas[0].id + '&email=eq.' + encodeURIComponent(email.toLowerCase()), { headers: h });
   if (!r.ok) return { error: 'invitados_' + r.status };
   const inv = await r.json();
   return { ok: Array.isArray(inv) && inv.length > 0 };
