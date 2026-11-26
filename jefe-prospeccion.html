@@ -142,6 +142,11 @@
   .lead-mensaje textarea:focus{border-color:var(--accent);}
   .lead-mensaje textarea::placeholder{color:var(--text-dim);opacity:.6;font-style:italic;}
   .lead-acciones{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between;}
+  /* Checklist por etapa: palomita y fecha al marcar cada paso */
+  .lead-pasos{display:flex;gap:6px;flex-wrap:wrap;}
+  .lead-paso{display:inline-flex;flex-direction:column;align-items:flex-start;gap:1px;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:5px 9px;cursor:pointer;font:600 12px 'Barlow',sans-serif;color:var(--text-dim);}
+  .lead-paso.hecho{border-color:#C0F800;background:#F7FDE0;color:var(--text);}
+  .lead-paso small{font-size:10.5px;font-weight:500;color:var(--text-dim);}
   .lead-acciones-izq{display:flex;gap:8px;flex-wrap:wrap;}
   .lead-contactado{font-size:10.5px;color:var(--text-dim);font-family:'Barlow',monospace;}
 
@@ -688,6 +693,7 @@ function buildLeadCard(lead){
     <select class="estado-select" style="background:${etapaInfo(lead.estado).bg};color:${etapaInfo(lead.estado).color};border-color:${etapaInfo(lead.estado).border};">
       ${ETAPAS.map(e=>`<option value="${e.key}"${lead.estado===e.key?' selected':''}>${e.label}</option>`).join('')}
     </select>
+    <div class="lead-pasos">${ETAPAS.map(e=>{const f=(lead.fechas_etapa||{})[e.key]||(e.key==='contacto1'&&lead.fecha_contacto)||0; const hecho=!!f||lead.estado===e.key; return `<button type="button" class="lead-paso${hecho?' hecho':''}" data-paso="${e.key}">${hecho?'✓ ':''}${escapeHtml(e.label)}${f?`<small>${new Date(f).toLocaleDateString('es-MX',{day:'numeric',month:'short'})}</small>`:''}</button>`;}).join('')}</div>
     <div class="lead-mensaje"><textarea placeholder="Aún no se ha generado un mensaje...">${escapeHtml(lead.mensaje)}</textarea></div>
     <div class="lead-acciones">
       <div class="lead-acciones-izq">
@@ -698,6 +704,13 @@ function buildLeadCard(lead){
     </div>
   `;
 
+  el.querySelectorAll('.lead-paso').forEach(b=>b.addEventListener('click', ()=>{
+    const k=b.dataset.paso; lead.fechas_etapa=lead.fechas_etapa||{};
+    if(lead.fechas_etapa[k]){ delete lead.fechas_etapa[k]; }
+    else { lead.fechas_etapa[k]=Date.now(); lead.estado=k; }
+    if(k==='contacto1' && lead.fechas_etapa[k] && !lead.fecha_contacto) lead.fecha_contacto=lead.fechas_etapa[k];
+    scheduleLeadsSave(); renderAll();
+  }));
   el.querySelector('.estado-select').addEventListener('change', e=>{
     lead.estado = e.target.value;
     scheduleLeadsSave();
