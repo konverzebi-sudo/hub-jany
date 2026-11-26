@@ -1196,7 +1196,7 @@
   }
   // gasto: en qué se usó el dinero (a quién, con qué método, y si descuenta del crédito)
   // junta los gastos con el mismo concepto (y mismo grupo) en una sola línea con el total; al tocarla salen los pagos (fecha y estado)
-  function casaListHTML(items, fn){
+  function casaListHTML(items, fn, hidePend){
     var order = [], byKey = {};
     items.forEach(function(g){
       var k = String(g.note || '').trim().toLowerCase() + '|' + (g.grupo || '');
@@ -1205,7 +1205,8 @@
     });
     return order.map(function(k){
       var arr = byKey[k];
-      if(arr.length === 1) return fn(arr[0]);
+      // en la lista de arriba un pago pendiente suelto no sale: se ve en Próximos pagos (y dentro de su grupo)
+      if(arr.length === 1){ if(hidePend && arr[0].estado === 'pendiente') return ''; return fn(arr[0]); }
       var op = !!casaUI.open['c:' + k], pendN = arr.filter(function(x){ return x.estado === 'pendiente'; }).length;
       return '<div class="jd-casa-pe" style="border-color:#E4DEF7;"><button type="button" data-act="toggle-combo" data-id="' + casaEsc(k) + '" style="width:100%;display:flex;align-items:center;gap:8px;background:transparent;border:0;cursor:pointer;padding:8px 10px;font-family:inherit;color:inherit;text-align:left;">' +
         '<span class="jd-casa-arrow">' + (op ? '▾' : '▸') + '</span><span class="jd-casa-name">' + casaEsc(arr[0].note || 'Gasto') + '</span>' +
@@ -1226,7 +1227,7 @@
     return '<div class="jd-casa-row" style="align-items:flex-start;">' +
       '<div class="jd-casa-main" data-act="edit-gasto" data-id="' + g.id + '" title="Toca para ajustar" style="cursor:pointer;"><div><span class="jd-sub">' + casaDate(g.date) + ' · </span>' + casaEsc(g.note || 'Gasto') + '</div><div class="jd-sub">' + sub.join(' · ') + '</div>' + grSel + '</div>' +
       '<b class="jd-disp" style="flex:none;color:' + (pendG ? '#D4463B' : '#1F1B3D') + ';">' + casaMoney(g.amount) + '</b>' +
-      (pendG ? '<button type="button" class="jd-btn" data-act="pagar-gasto" data-id="' + g.id + '" title="Marcar como pagado (hoy)" style="padding:2px 8px;font-size:12px;flex:none;">✓ Pagar</button>' : '<button type="button" class="jd-btn" data-act="pendiente-gasto" data-id="' + g.id + '" title="Marcar como pendiente" style="padding:2px 8px;font-size:12px;flex:none;">⏳ Pendiente</button>') +
+      (pendG ? '<button type="button" class="jd-btn" data-act="pagar-gasto" data-id="' + g.id + '" title="Marcar como pagado (hoy)" style="padding:2px 8px;font-size:12px;flex:none;">✓ Pagar</button>' : '<button type="button" class="jd-btn" data-act="pendiente-gasto" data-id="' + g.id + '" title="Marcar como pendiente" style="padding:2px 8px;font-size:12px;flex:none;">Marcar pendiente</button>') +
       '<button type="button" class="jd-casa-ico" data-act="del-gasto" data-id="' + g.id + '" title="Quitar">🗑</button></div>';
   }
 
@@ -1339,7 +1340,7 @@
     var aparte = c.gastos.filter(function(g){ return !g.descuenta; });
     var tile = 'cursor:pointer;';
     // controles del encabezado: ordenar Pagado (fecha / grupo), + Grupo, + Gasto aislado y ↻ Actualizar
-    var sgH = casaUI.sortG || 'fecha';
+    var sgH = casaUI.sortG || 'grupo';
     var sbH = function(k, label){ return '<button type="button" class="jd-btn" data-act="sort" data-id="' + k + '" style="padding:3px 10px;font-size:12px;' + (sgH === k ? 'background:#7C5CF2;color:#fff;border-color:#7C5CF2;' : '') + '">' + label + '</button>'; };
     var ctrlH = '<div class="jd-row" style="gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px;"><button type="button" class="jd-btn jd-btn-lima" data-act="new-gasto">+ Gasto aislado</button><button type="button" class="jd-btn" data-act="sync-sheet"' + (casaUI.syncBusy ? ' disabled' : '') + '>↻ Actualizar</button></div>';
     var h = '<div class="jd-row" style="gap:10px;margin-bottom:12px;align-items:flex-start;"><div class="jd-ico">🏠</div><div style="min-width:0;flex:1;"><div class="jd-h" style="margin:0;">Casa Jany</div>' + ctrlH + '</div></div>' +
@@ -1364,7 +1365,7 @@
         (deps.length ? deps.map(casaDepRow).join('') : '<div class="jd-sub" style="padding:4px 0;">Todavía no hay conceptos. Toca ↻ Actualizar para traerlos del Excel.</div>') + '</div></div>');
     }
     if(casaUI.open.pag){
-      var sg = casaUI.sortG || 'fecha', grupos = c.grupos || [];
+      var sg = casaUI.sortG || 'grupo', grupos = c.grupos || [];
       var sortBtn = function(k, label){ return '<button type="button" class="jd-btn" data-act="sort" data-id="' + k + '" style="padding:3px 10px;font-size:12px;' + (sg === k ? 'background:#7C5CF2;color:#fff;border-color:#7C5CF2;' : '') + '">' + label + '</button>'; };
       var rowGasto = function(g){ return casaGastoRow(g, true); };
       // dentro de un grupo: solo concepto y total; al tocarlo salen todos los datos (fecha, método, etc.)
@@ -1373,7 +1374,7 @@
         return '<div class="jd-casa-row" style="align-items:center;"><div class="jd-casa-main" data-act="edit-gasto" data-id="' + g.id + '" title="Toca para ver y ajustar todo" style="cursor:pointer;">' +
           casaEsc(g.note || 'Gasto') + '<div class="jd-sub">' + casaDate(g.date) + (pq ? ' · <b style="color:#D4463B;">PENDIENTE ' + casaMoney(g.amount) + '</b>' : ' · pagado') + '</div></div>' +
           '<b class="jd-disp" style="flex:none;color:' + (pq ? '#D4463B' : '#1F1B3D') + ';">' + casaMoney(g.amount) + '</b>' +
-          (pq ? '<button type="button" class="jd-btn" data-act="pagar-gasto" data-id="' + g.id + '" style="padding:2px 8px;font-size:12px;flex:none;">✓ Pagar</button>' : '<button type="button" class="jd-btn" data-act="pendiente-gasto" data-id="' + g.id + '" style="padding:2px 8px;font-size:12px;flex:none;">⏳ Pendiente</button>') + '</div>';
+          (pq ? '<button type="button" class="jd-btn" data-act="pagar-gasto" data-id="' + g.id + '" style="padding:2px 8px;font-size:12px;flex:none;">✓ Pagar</button>' : '<button type="button" class="jd-btn" data-act="pendiente-gasto" data-id="' + g.id + '" style="padding:2px 8px;font-size:12px;flex:none;">Marcar pendiente</button>') + '</div>';
       };
       var lista;
       if(!gastosTodos.length) lista = '<div class="jd-sub" style="padding:4px 0;">Todavía no hay nada. Arrastra un concepto del crédito aquí, o agrega un gasto aislado.</div>';
@@ -1397,9 +1398,9 @@
             (op ? '<div class="jd-casa-pebody">' + (items.length ? casaListHTML(items, rowCompacto) :'<div class="jd-sub" style="padding:4px 0;">Vacío. Pasa un gasto a este grupo desde su lista (“Pasar a un grupo”).</div>') + '</div>' : '') + '</div>';
         }).join('');
         var sinGrupo = gastosTodos.filter(function(g){ return !g.grupo || !grupos.some(function(x){ return x.id === g.grupo; }); });
-        if(sinGrupo.length) lista += (grupos.length ? '<div class="jd-sub" style="margin:8px 0 4px;">Sin grupo</div>' : '') + casaListHTML(sinGrupo, rowGasto);
+        if(sinGrupo.length) lista += (grupos.length ? '<div class="jd-sub" style="margin:8px 0 4px;">Sin grupo</div>' : '') + casaListHTML(sinGrupo, rowGasto, true);
       } else {
-        lista = casaListHTML(gastosTodos, rowGasto);
+        lista = casaListHTML(gastosTodos, rowGasto, true);
       }
       // próximos pagos: los pendientes, ordenados por fecha, con su botón para marcar como pagados
       var pendientes = c.gastos.filter(function(g){ return g.estado === 'pendiente'; }).sort(function(a, b){ var x = a.date || '', y = b.date || ''; return x < y ? -1 : x > y ? 1 : 0; });
