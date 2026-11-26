@@ -93,16 +93,16 @@ const TALLERES_DE_PAGO = ['master-class-ia-agente', 'primer-agente'];
 async function tienePago(email, taller, fetchFn) {
   const url = (process.env.TALLER_SUPABASE_URL || '').trim().replace(/\/+$/, '');
   const clave = (process.env.TALLER_SUPABASE_SERVICE_KEY || '').trim();
-  if (!url || !clave) return null;
+  if (!url || !clave) return { error: 'falta_config' };
   const h = { apikey: clave, Authorization: 'Bearer ' + clave };
   let r = await fetchFn(url + '/rest/v1/talleres?select=id&slug=eq.' + encodeURIComponent(taller), { headers: h });
-  if (!r.ok) return null;
+  if (!r.ok) return { error: 'talleres_' + r.status };
   const filas = await r.json();
-  if (!Array.isArray(filas) || !filas[0]) return null;
+  if (!Array.isArray(filas) || !filas[0]) return { error: 'taller_no_existe' };
   r = await fetchFn(url + '/rest/v1/invitados?select=id&taller_id=eq.' + filas[0].id + '&email=eq.' + encodeURIComponent(email.toLowerCase()), { headers: h });
-  if (!r.ok) return null;
+  if (!r.ok) return { error: 'invitados_' + r.status };
   const inv = await r.json();
-  return Array.isArray(inv) && inv.length > 0;
+  return { ok: Array.isArray(inv) && inv.length > 0 };
 }
 
 async function manejarVerificarPago(req, res, fetchFn) {
@@ -111,9 +111,10 @@ async function manejarVerificarPago(req, res, fetchFn) {
   const email = String(body.email || '').trim();
   const taller = TALLERES_DE_PAGO.includes(body.taller) ? body.taller : 'master-class-ia-agente';
   if (!EMAIL.test(email)) return res.status(400).json({ ok: false, error: 'Correo no válido.' });
-  const ok = await tienePago(email, taller, fetchFn || fetch);
-  if (ok === null) return res.status(502).json({ ok: false, error: 'No pudimos verificar tu pago. Intenta de nuevo en unos minutos.' });
-  return res.status(200).json({ ok });
+  let resultado;
+  try { resultado = await tienePago(email, taller, fetchFn || fetch); } catch (e) { resultado = { error: 'excepcion: ' + String(e && e.message || e).slice(0, 120) }; }
+  if (resultado.error) return res.status(502).json({ ok: false, error: 'No pudimos verificar tu pago. Intenta de nuevo en unos minutos.', detalle: resultado.error });
+  return res.status(200).json({ ok: resultado.ok });
 }
 
 module.exports = { manejarPagoGhl, manejarVerificarPago, datosDelAviso, secretoValido, darAcceso, LINK_TALLER };
