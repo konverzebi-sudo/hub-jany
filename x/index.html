@@ -1212,11 +1212,11 @@
       // en la lista de arriba un pago pendiente suelto no sale: se ve en Próximos pagos (y dentro de su grupo)
       if(arr.length === 1){ if(hidePend && arr[0].estado === 'pendiente') return ''; return fn(arr[0]); }
       var op = !!casaUI.open['c:' + k], pendN = arr.filter(function(x){ return x.estado === 'pendiente'; }).length;
-      return '<div class="jd-casa-pe" style="border-color:#E4DEF7;"><button type="button" data-act="toggle-combo" data-id="' + casaEsc(k) + '" style="width:100%;display:flex;align-items:center;gap:8px;background:transparent;border:0;cursor:pointer;padding:8px 10px;font-family:inherit;color:inherit;text-align:left;">' +
+      return '<div class="jd-casa-pe" style="border-color:#E4DEF7;"><div style="display:flex;align-items:center;gap:6px;padding-left:8px;">' + '<div class="jd-casa-grip" data-combo="' + casaEsc(k) + '" title="Arrastra el paquete completo" style="flex:none;width:24px;height:26px;display:flex;align-items:center;justify-content:center;background:#F1EEFB;border:1px solid #DDD7F0;border-radius:7px;color:#6B6790;font-size:15px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;">&#10303;</div>' + '<button type="button" data-act="toggle-combo" data-id="' + casaEsc(k) + '" style="flex:1;min-width:0;display:flex;align-items:center;gap:8px;background:transparent;border:0;cursor:pointer;padding:8px 10px;font-family:inherit;color:inherit;text-align:left;">' +
         '<span class="jd-casa-arrow">' + (op ? '▾' : '▸') + '</span><span class="jd-casa-name">' + casaEsc(arr[0].note || 'Gasto') + '</span>' +
         '<span class="jd-sub">' + arr.length + ' pagos' + (pendN ? ' · <b style="color:#D4463B;">' + pendN + ' pendiente' + (pendN === 1 ? '' : 's') + '</b>' : '') + '</span>' +
         '<b class="jd-disp jd-casa-tot">' + casaMoney(casaPagadoSum(arr)) + '</b></button>' +
-        (op ? '<div class="jd-casa-pebody">' + arr.map(fn).join('') + '</div>' : '') + '</div>';
+        '</div>' + (op ? '<div class="jd-casa-pebody">' + arr.map(fn).join('') + '</div>' : '') + '</div>';
     }).join('');
   }
 
@@ -1737,15 +1737,17 @@
     box.addEventListener('input', function(ev){ if(ev.target && ev.target.id && ev.target.id.indexOf('casa-s-') === 0) casaSplitStatus(); });
     // arrastrar un gasto a otro grupo; Sin grupo lo saca del grupo
     box.addEventListener('pointerdown', function(ev){
-      var grip = ev.target.closest ? ev.target.closest('.jd-casa-grip[data-gasto]') : null;
+      var grip = ev.target.closest ? ev.target.closest('.jd-casa-grip[data-gasto], .jd-casa-grip[data-combo]') : null;
       if(!grip) return;
-      var gas = data.casa.gastos.find(function(x){ return x.id === grip.getAttribute('data-gasto'); });
-      if(!gas) return;
+      var lote = grip.hasAttribute('data-combo') ? data.casa.gastos.filter(function(x){ return (String(x.note || '').trim().toLowerCase() + '|' + (x.grupo || '')) === grip.getAttribute('data-combo'); }) : [data.casa.gastos.find(function(x){ return x.id === grip.getAttribute('data-gasto'); })].filter(Boolean);
+      if(!lote.length) return;
+      var gas = lote[0];
+      var etiqueta = lote.length > 1 ? '"' + (gas.note || 'gasto') + '" (' + lote.length + ' pagos)' : '"' + (gas.note || 'gasto') + '"';
       ev.preventDefault();
       try{ grip.setPointerCapture(ev.pointerId); }catch(err){}
       var row = grip.closest('.jd-casa-row');
       var ghost = document.createElement('div');
-      ghost.textContent = (gas.note || 'Gasto') + ' - ' + casaMoney(gas.amount);
+      ghost.textContent = (gas.note || 'Gasto') + (lote.length > 1 ? ' (' + lote.length + ' pagos)' : '') + ' - ' + casaMoney(lote.reduce(function(s, x){ return s + (+x.amount || 0); }, 0));
       ghost.style.cssText = 'position:fixed;z-index:9999;pointer-events:none;background:#7C5CF2;color:#fff;font-size:12px;font-weight:600;padding:6px 10px;border-radius:10px;box-shadow:0 8px 22px rgba(95,70,190,.35);max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
       document.body.appendChild(ghost);
       if(row) row.style.opacity = '.4';
@@ -1782,10 +1784,10 @@
         if(dz && dz.hasAttribute('data-drop-gasto')){
           // soltar sobre otra fila: el gasto pasa a la persona de esa fila (o a la que tenga ese nombre)
           var otroG = data.casa.gastos.find(function(x){ return x.id === dz.getAttribute('data-drop-gasto'); });
-          if(otroG && otroG.id !== gas.id){
+          if(otroG && !lote.some(function(x){ return x.id === otroG.id; })){
             var nomDest = otroG.pid ? ((data.casa.personas.find(function(x){ return x.id === otroG.pid; }) || {}).name || '') : String(otroG.note || '').trim();
             if(!nomDest) return;
-            if(!window.confirm('¿Mover "' + (gas.note || 'gasto') + '" a ' + nomDest + '?')) return;
+            if(!window.confirm('¿Mover ' + etiqueta + ' a ' + nomDest + '?')) return;
             var pidNuevo = null;
             if(otroG.pid && data.casa.personas.some(function(x){ return x.id === otroG.pid; })) pidNuevo = otroG.pid;
             else {
@@ -1796,17 +1798,17 @@
                 pidNuevo = perEx.id;
               }
             }
-            if(pidNuevo && gas.pid !== pidNuevo){
-              gas.pid = pidNuevo; casaUI.open[pidNuevo] = true; casaUI.open.pag = true;
+            if(pidNuevo && lote.some(function(x){ return x.pid !== pidNuevo; })){
+              lote.forEach(function(x){ x.pid = pidNuevo; }); casaUI.open[pidNuevo] = true; casaUI.open.pag = true;
               casaSave(); renderCasa();
             }
           }
         } else if(dz){
           var nuevoG = dz.getAttribute('data-drop-grupo') || null;
-          if((gas.grupo || null) !== nuevoG){
+          if(lote.some(function(x){ return (x.grupo || null) !== nuevoG; })){
             var nomGrupo = nuevoG ? ((data.casa.grupos || []).find(function(x){ return x.id === nuevoG; }) || {}).name || '' : 'Sin grupo';
-            if(!window.confirm('¿Mover "' + (gas.note || 'gasto') + '" a ' + nomGrupo + '?')) return;
-            gas.grupo = nuevoG;
+            if(!window.confirm('¿Mover ' + etiqueta + ' a ' + nomGrupo + '?')) return;
+            lote.forEach(function(x){ x.grupo = nuevoG; });
             if(nuevoG) casaUI.open['g:' + nuevoG] = true;
             casaUI.open.pag = true;
             casaSave(); renderCasa();
