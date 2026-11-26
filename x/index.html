@@ -15,7 +15,7 @@
   #jd-root{font-family:'Inter',system-ui,sans-serif;background:transparent;color:#1F1B3D;max-width:1100px;margin:0 auto;}
   #jd-root *{box-sizing:border-box;}
   .jd-disp{font-family:'Space Grotesk',sans-serif;}
-  .jd-casa-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px;}
+  .jd-casa-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:10px;}
   .jd-casa-stats>div{background:#F8F6FF;border:1px solid #ECE8F8;border-radius:12px;padding:9px 10px;min-width:0;}
   .jd-casa-num{font-size:19px;font-weight:700;margin-top:2px;overflow-wrap:anywhere;}
   .jd-casa-bar{height:8px;border-radius:99px;background:#ECE8F8;overflow:hidden;}
@@ -1305,6 +1305,8 @@
     var box = document.getElementById('jd-casa');
     if(!box || !data || !data.casa) return;
     var c = data.casa, t = casaTotals();
+    // todos los pendientes (los mismos de la lista de próximos pagos)
+    var pendAll = c.gastos.filter(function(g){ return g.estado === 'pendiente'; }), pendN = pendAll.length, pendSum = casaSum(pendAll);
     var deps = c.pagos.slice().sort(casaByDateDesc);
     var gastosTodos = c.gastos.slice().sort(casaByDateDesc);
     var aparte = c.gastos.filter(function(g){ return !g.descuenta; });
@@ -1319,6 +1321,8 @@
         '<div data-act="toggle-cred" style="' + tile + '"><div class="jd-sub">Crédito casa ' + (casaUI.open.cred ? '▾' : '▸') + '</div><div class="jd-disp jd-casa-num" style="color:#1F9D55;">' + casaMoney(t.cred) + '</div><div class="jd-sub" style="font-size:10.5px;">' + deps.length + ' concepto' + (deps.length === 1 ? '' : 's') + ' del Excel</div></div>' +
         '<div data-act="toggle-pag" data-drop-pag="1" style="' + tile + '"><div class="jd-sub">Pagado ' + (casaUI.open.pag ? '▾' : '▸') + '</div><div class="jd-disp jd-casa-num" style="color:#7C5CF2;">' + casaMoney(t.pag) + '</div><div class="jd-sub" style="font-size:10.5px;">' + (t.pen > 0 ? '<b style="color:#D4463B;">pendiente ' + casaMoney(t.pen) + '</b>' : 'suelta aquí un concepto') + '</div></div>' +
         '<div><div class="jd-sub">Te queda</div><div class="jd-disp jd-casa-num" style="color:' + (t.saldo < 0 ? '#D4463B' : '#1F1B3D') + ';">' + casaMoney(t.saldo) + '</div><div class="jd-sub" style="font-size:10.5px;">lo que debes tener</div></div>' +
+        // próximos pagos: cuántos pendientes hay y cuánto suman; al tocarlo se abre Pagado donde está la lista
+        '<div data-act="toggle-pag" style="cursor:pointer;"><div class="jd-sub">Próximos pagos ' + (casaUI.open.pag ? '▾' : '▸') + '</div><div class="jd-disp jd-casa-num" style="color:' + (pendSum > 0 ? '#D4463B' : '#A39FC2') + ';">' + casaMoney(pendSum) + '</div><div class="jd-sub" style="font-size:10.5px;">' + pendN + ' pendiente' + (pendN === 1 ? '' : 's') + '</div></div>' +
       '</div>' +
       (aparte.length ? '<div class="jd-sub" style="margin:0 0 10px;color:#B8741A;">Aparte (no descuentan del crédito): ' + aparte.length + ' gasto' + (aparte.length === 1 ? '' : 's') + ' · ' + casaMoney(casaSum(aparte)) + '</div>' : '') +
       '<div class="jd-row" style="gap:6px;flex-wrap:wrap;margin-bottom:10px;"><button type="button" class="jd-btn jd-btn-lima" data-act="new-persona">+ Persona</button></div>' +
