@@ -171,6 +171,13 @@
     // Al deslizar, el logo grande del Jefe (arriba del chat) se hace chiquito y deja el chat a la mano.
     '.tt-hero-logo,.hero-logo,img.jefe-logo{transition:max-height .35s ease,opacity .25s ease,margin .35s ease,transform .35s ease;max-height:260px}',
     'body.jn-deslizo .tt-hero-logo,body.jn-deslizo .hero-logo,body.jn-deslizo img.jefe-logo{max-height:0!important;opacity:0;margin-top:0!important;margin-bottom:0!important;overflow:hidden}',
+    // Chat a la mitad: al deslizar, la barra del chat se hace chiquita (una sola línea) y el icono del Jefe
+    // queda al final, en verde (el botón de enviar ya se cambia a verde en montarDeslizar).
+    '.hero-search,.hero-send,.hero-send img{transition:all .3s ease}',
+    'body.jn-deslizo .hero-search{min-height:44px!important;padding:3px 6px 3px 14px!important;margin-bottom:6px!important}',
+    'body.jn-deslizo .hero-search textarea,body.jn-deslizo .hero-search input{font-size:14px!important;padding:4px 0!important}',
+    'body.jn-deslizo .hero-send{width:34px!important;height:34px!important}',
+    'body.jn-deslizo .hero-send img{width:28px!important;height:28px!important}',
     // Sugerencias que salen al picar el chat (como YouTube), en lugar de burbujas abajo.
     '.jn-sug{position:absolute;z-index:60;background:#fff;border:1.5px solid #E4E6DB;border-radius:16px;box-shadow:0 14px 40px rgba(15,14,12,.14);padding:6px;max-height:320px;overflow:auto}',
     '.jn-sug[hidden]{display:none}',
