@@ -1147,11 +1147,14 @@
   }
 
   function casaTotals(){
-    var c = data.casa, cred = 0, pag = 0, pen = 0;
+    var c = data.casa, cred = 0, pag = 0, pagDesc = 0, pen = 0;
     c.pagos.forEach(function(p){ cred += +p.amount || 0; });                       // crédito = conceptos del Excel
-    // pagado = gastos que descuentan del crédito y ya están pagados; los pendientes no descuentan hasta marcarlos
-    c.gastos.forEach(function(g){ if(g.descuenta){ if(g.estado === 'pendiente') pen += +g.amount || 0; else pag += +g.amount || 0; } });
-    return {cred: cred, pag: pag, pen: pen, saldo: cred - pag};
+    c.gastos.forEach(function(g){
+      if(g.estado === 'pendiente'){ if(g.descuenta) pen += +g.amount || 0; return; }
+      pag += +g.amount || 0;                                  // Pagado = todo lo ya pagado (cuadra con la suma de los grupos)
+      if(g.descuenta) pagDesc += +g.amount || 0;              // solo lo que descuenta del crédito baja "Te queda"
+    });
+    return {cred: cred, pag: pag, pagDesc: pagDesc, pen: pen, saldo: cred - pagDesc};
   }
   function casaByDateDesc(a, b){ var x = a.date || '', y = b.date || ''; return x > y ? -1 : x < y ? 1 : 0; }
   function casaGastosDe(pid){
