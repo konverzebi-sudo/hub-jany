@@ -1900,7 +1900,7 @@ document.addEventListener('click', e => {
     guardarRemoto('etapa:' + id + '|' + k, nuevo !== 'lista');
     // Al activar, todos los alumnos pasan a esa clase y a su etapa
     if (nuevo === 'activa') escribirEnVivo(ENVIVO, { hash: 'clase-' + id.split('|')[0] + '/etapa-' + (Number(k) + 1), t: new Date().toISOString() });
-    mostrarDetallePP(id); refrescarRespuestas(); refrescarLinea(); aplicarVistaDom(leerVista()); return;
+    mostrarDetallePP(id); refrescarRespuestas(); refrescarLinea(nuevo === 'activa' ? id + '|' + k : null); aplicarVistaDom(leerVista()); return;
   }
   const vf = t.closest && t.closest('[data-vfull]'); if (vf) {
     const vb = document.querySelector('.vista-box'); const pedir = vb && (vb.requestFullscreen || vb.webkitRequestFullscreen);
@@ -2004,7 +2004,16 @@ function nodoLinea(x) {
   const dato = MODO_PONENTE ? ` data-lock="${esc(c.id)}" title="${cerrada ? 'Cerrada para alumnos: toca para abrirla' : 'Abierta para alumnos: toca para cerrarla'}"` : '';
   return `<span class="lt-nodo ${cerrada ? 'cerrada' : ''}"${dato}>${cerrada ? '🔒' : ''}</span>`;
 }
-function refrescarLinea() { const el = document.getElementById('lineaTiempo'); if (el) { el.outerHTML = lineaTiempoHtml(); ajustarPanelesLinea(); } aplicarPegado(); }
+function refrescarLinea(bajarA) {
+  const el = document.getElementById('lineaTiempo'); if (!el) return;
+  const y = window.scrollY;
+  el.outerHTML = lineaTiempoHtml(); ajustarPanelesLinea(); aplicarPegado();
+  if (bajarA) { // al iniciar, la dinámica queda a la vista (no se tiene que buscar)
+    const it = document.querySelector('[data-ppa="' + bajarA + '"]'); const item = it && it.closest('.lt-item');
+    if (item) { item.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
+  }
+  window.scrollTo(0, y);
+}
 /* Mientras hay una dinámica activa, la presentación deja de estar pegada para que se pueda trabajar con la dinámica */
 function hayActividadActiva() {
   return CLASES.some(c => (c.etapas || []).some((et, k) => esAct(et) && estadoAct(c, k) === 'activa'));
