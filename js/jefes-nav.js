@@ -766,6 +766,26 @@
     '<g class="jnp-code" stroke="#4E7A00" stroke-width="3" stroke-linecap="round"><line x1="94" y1="121" x2="122" y2="121"/><line x1="94" y1="129" x2="140" y2="129" style="animation-delay:.25s"/><line x1="128" y1="121" x2="146" y2="121" style="animation-delay:.5s"/></g>' +
     '<circle class="jnp-hand" cx="102" cy="124" r="7" fill="#C0F800" stroke="#111" stroke-width="3.5"/><circle class="jnp-hand jnp-hand-r" cx="138" cy="124" r="7" fill="#C0F800" stroke="#111" stroke-width="3.5"/></svg>';
   var FRASES = ['Analizando lo que me diste…', 'Revisando tu información…', 'Armando tu respuesta…', 'Ya casi queda…'];
+  // Lo que se escribió en el buscador de Jefes (o "Hablemos de…" del 366) llega ya escrito al chat de este Jefe.
+  // El buscador lo deja en sessionStorage ('jh-pregunta'); aquí se pone en la caja del chat sin mandarlo.
+  function ponerPreguntaDelBuscador() {
+    var p = null;
+    try { p = JSON.parse(sessionStorage.getItem('jh-pregunta') || 'null'); } catch (e) { return; }
+    if (!p || !p.texto || Date.now() - (p.t || 0) > 3 * 60 * 1000) return;
+    var intentos = 0;
+    (function poner() {
+      var visible = function (el) { var r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+      var campos = Array.prototype.slice.call(document.querySelectorAll('#heroSearchInput, [class*="chat"] textarea, [id*="chat"] textarea, [class*="chat"] input[type="text"], textarea'))
+        .filter(function (el) { return !el.closest('.jn, .jn-rm') && !el.disabled && !el.readOnly && visible(el); });
+      var c = campos[0];
+      if (!c) { if (intentos++ < 12) setTimeout(poner, 500); return; }
+      try { sessionStorage.removeItem('jh-pregunta'); } catch (e) { /* nada */ }
+      c.value = p.texto;
+      c.dispatchEvent(new Event('input', { bubbles: true }));
+      try { c.focus({ preventScroll: false }); c.setSelectionRange(c.value.length, c.value.length); } catch (e) { /* nada */ }
+    })();
+  }
+
   function montarPensando() {
     var orig = window.fetch;
     if (!orig || orig.__jnPensando) return;
@@ -863,6 +883,7 @@
   function montar() {
     if (!document.body) return;
     montarPensando();
+    ponerPreguntaDelBuscador();
     var st = document.createElement('style');
     st.textContent = css;
     document.head.appendChild(st);
