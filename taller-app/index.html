@@ -133,6 +133,10 @@
   .step.on { background: var(--purple-d); color: #fff; border-color: var(--purple-d); }
   .step.done { border-color: #A6D45A; color: #3F6B00; }
   .prod { border: 1px dashed var(--line); border-radius: 16px; padding: 18px; margin-bottom: 14px; }
+  .dropzone { position: relative; display: flex; align-items: center; justify-content: center; text-align: center; gap: 8px; margin-top: 8px; padding: 22px 16px; border: 2px dashed #BBF802; border-radius: 16px; background: rgba(187,248,2,.06); color: var(--text, #EDE4FA); cursor: pointer; font-size: 15px; transition: background .2s, border-color .2s; }
+  .dropzone:hover, .dropzone.over { background: rgba(187,248,2,.16); border-color: #fff; }
+  .dropzone input[type=file] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+  .dropzone .dz-txt u { text-decoration: underline; font-weight: 700; }
   .thumbs { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
   .thumbs figure { position: relative; width: 96px; height: 96px; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); background: var(--card-2); }
   .thumbs img { width: 100%; height: 100%; object-fit: cover; }
@@ -1845,7 +1849,7 @@ function montarPrepara() {
   } else if (b.k === 'E') {
     html += `<p class="muted small" style="margin-bottom:14px">Solo imágenes PNG, JPG o WEBP de hasta 8 MB.</p>` + MATERIALES.map(([k, l, max]) => `
       <div class="field"><label class="f">${esc(l)}</label>
-      ${soloLectura ? '' : `<input type="file" accept="image/png,image/jpeg,image/webp" ${max > 1 ? 'multiple' : ''} data-cat="${k}" data-max="${max}">`}
+      ${soloLectura ? '' : `<label class="dropzone"><input type="file" accept="image/png,image/jpeg,image/webp" ${max > 1 ? 'multiple' : ''} data-cat="${k}" data-max="${max}"><span class="dz-txt">${k === 'logo' ? '🖼️ Arrastra aquí tu logo' : '📎 Arrastra aquí tus archivos'} o <u>elige uno</u></span></label>`}
       <div class="thumbs" data-thumbs="${k}"></div>${k === 'logo' ? '<div id="marcaColores"></div><div id="marcaTipos"></div>' : ''}</div>`).join('');
   }
   html += soloLectura ? '' : `<div class="row" style="margin-top:20px"><button class="btn" id="bSig">Guardar y continuar →</button><button class="btn ghost" id="bGuardar">Guardar</button></div>`;
@@ -1935,6 +1939,17 @@ async function montarArchivos(D, a, soloLectura) {
     });
   };
   pintarTipos();
+  document.querySelectorAll('.dropzone').forEach(z => {
+    z.addEventListener('dragover', e => { e.preventDefault(); z.classList.add('over'); });
+    z.addEventListener('dragleave', () => z.classList.remove('over'));
+    z.addEventListener('drop', e => {
+      e.preventDefault(); z.classList.remove('over');
+      const inp = z.querySelector('input[type=file]');
+      if (!inp || !e.dataTransfer.files.length) return;
+      inp.files = e.dataTransfer.files;
+      inp.dispatchEvent(new Event('change'));
+    });
+  });
   document.querySelectorAll('input[type=file]').forEach(inp => inp.onchange = async () => {
     const cat = inp.dataset.cat, max = +inp.dataset.max;
     if (cat === 'logo' && inp.files[0]) { const u = URL.createObjectURL(inp.files[0]); extraerColores(u).then(c => { if (c.length) { D.marca = { colores: c, aprobado: false }; guardarD(); pintarColores(); } }).catch(() => {}).finally(() => URL.revokeObjectURL(u)); }
