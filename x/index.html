@@ -1231,7 +1231,7 @@
     var pendG = g.estado === 'pendiente';
     if(pendG) sub.unshift('<b style="color:#D4463B;">PENDIENTE ' + casaMoney(g.amount) + '</b> · programado');
     var grSel = conPersona ? '<div style="margin-top:4px;"><select class="jd-input" data-gmove="' + g.id + '" title="Pasar a un grupo" style="font-size:11px;padding:3px 6px;width:auto;max-width:100%;"><option value="">Sin grupo</option>' + (data.casa.grupos || []).map(function(x){ return '<option value="' + x.id + '"' + (g.grupo === x.id ? ' selected' : '') + '>' + casaEsc(x.name) + '</option>'; }).join('') + '<option value="__nuevo__">+ Nuevo grupo…</option></select></div>' : '';
-    return '<div class="jd-casa-row" style="align-items:flex-start;">' + casaGripGasto(g) +
+    return '<div class="jd-casa-row" data-drop-gasto="' + g.id + '" style="align-items:flex-start;">' + casaGripGasto(g) +
       '<div class="jd-casa-main" data-act="edit-gasto" data-id="' + g.id + '" title="Toca para ajustar" style="cursor:pointer;"><div><span class="jd-sub">' + casaDate(g.date) + ' · </span>' + casaEsc(g.note || 'Gasto') + '</div><div class="jd-sub">' + sub.join(' · ') + '</div>' + grSel + '</div>' +
       '<b class="jd-disp" style="flex:none;color:' + (pendG ? '#D4463B' : '#1F1B3D') + ';">' + casaMoney(g.amount) + '</b>' +
       (pendG ? '<button type="button" class="jd-btn" data-act="pagar-gasto" data-id="' + g.id + '" title="Marcar como pagado (hoy)" style="padding:2px 8px;font-size:12px;flex:none;">✓ Pagar</button>' : '<button type="button" class="jd-btn" data-act="pendiente-gasto" data-id="' + g.id + '" title="Marcar como pendiente" style="padding:2px 8px;font-size:12px;flex:none;">Marcar pendiente</button>') +
@@ -1381,7 +1381,7 @@
       // dentro de un grupo: solo concepto y total; al tocarlo salen todos los datos (fecha, método, etc.)
       var rowCompacto = function(g){
         var pq = g.estado === 'pendiente';
-        return '<div class="jd-casa-row" style="align-items:center;">' + casaGripGasto(g) + '<div class="jd-casa-main" data-act="edit-gasto" data-id="' + g.id + '" title="Toca para ver y ajustar todo" style="cursor:pointer;">' +
+        return '<div class="jd-casa-row" data-drop-gasto="' + g.id + '" style="align-items:center;">' + casaGripGasto(g) + '<div class="jd-casa-main" data-act="edit-gasto" data-id="' + g.id + '" title="Toca para ver y ajustar todo" style="cursor:pointer;">' +
           casaEsc(g.note || 'Gasto') + '<div class="jd-sub">' + casaDate(g.date) + (pq ? ' · <b style="color:#D4463B;">PENDIENTE ' + casaMoney(g.amount) + '</b>' : ' · pagado') + '</div></div>' +
           '<b class="jd-disp" style="flex:none;color:' + (pq ? '#D4463B' : '#1F1B3D') + ';">' + casaMoney(g.amount) + '</b>' +
           (pq ? '<button type="button" class="jd-btn" data-act="pagar-gasto" data-id="' + g.id + '" style="padding:2px 8px;font-size:12px;flex:none;">✓ Pagar</button>' : '<button type="button" class="jd-btn" data-act="pendiente-gasto" data-id="' + g.id + '" style="padding:2px 8px;font-size:12px;flex:none;">Marcar pendiente</button>') + '</div>';
@@ -1752,7 +1752,7 @@
       var lastY = ev.clientY, over = null;
       function dropUnder(x, y){
         var el = document.elementFromPoint(x, y);
-        return el && el.closest ? el.closest('[data-drop-grupo]') : null;
+        return el && el.closest ? el.closest('[data-drop-grupo], [data-drop-gasto]') : null;
       }
       function move(e){
         lastY = e.clientY;
@@ -1779,9 +1779,33 @@
         if(over) over.style.outline = '';
         ghost.remove();
         if(row) row.style.opacity = '';
-        if(dz){
+        if(dz && dz.hasAttribute('data-drop-gasto')){
+          // soltar sobre otra fila: el gasto pasa a la persona de esa fila (o a la que tenga ese nombre)
+          var otroG = data.casa.gastos.find(function(x){ return x.id === dz.getAttribute('data-drop-gasto'); });
+          if(otroG && otroG.id !== gas.id){
+            var nomDest = otroG.pid ? ((data.casa.personas.find(function(x){ return x.id === otroG.pid; }) || {}).name || '') : String(otroG.note || '').trim();
+            if(!nomDest) return;
+            if(!window.confirm('¿Mover "' + (gas.note || 'gasto') + '" a ' + nomDest + '?')) return;
+            var pidNuevo = null;
+            if(otroG.pid && data.casa.personas.some(function(x){ return x.id === otroG.pid; })) pidNuevo = otroG.pid;
+            else {
+              var nombreNuevo = String(otroG.note || '').trim();
+              if(nombreNuevo){
+                var perEx = data.casa.personas.find(function(x){ return x.name.toLowerCase() === nombreNuevo.toLowerCase(); });
+                if(!perEx){ perEx = {id: uid('cx'), name: nombreNuevo, token: '', shared: false}; data.casa.personas.push(perEx); }
+                pidNuevo = perEx.id;
+              }
+            }
+            if(pidNuevo && gas.pid !== pidNuevo){
+              gas.pid = pidNuevo; casaUI.open[pidNuevo] = true; casaUI.open.pag = true;
+              casaSave(); renderCasa();
+            }
+          }
+        } else if(dz){
           var nuevoG = dz.getAttribute('data-drop-grupo') || null;
           if((gas.grupo || null) !== nuevoG){
+            var nomGrupo = nuevoG ? ((data.casa.grupos || []).find(function(x){ return x.id === nuevoG; }) || {}).name || '' : 'Sin grupo';
+            if(!window.confirm('¿Mover "' + (gas.note || 'gasto') + '" a ' + nomGrupo + '?')) return;
             gas.grupo = nuevoG;
             if(nuevoG) casaUI.open['g:' + nuevoG] = true;
             casaUI.open.pag = true;
