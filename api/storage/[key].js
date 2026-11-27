@@ -416,6 +416,24 @@ async function manejarAccesoHub(req, res) {
   return res.status(200).json({ codigo: codigoAccesoHub(slug) });
 }
 
+// GET respaldo-hub?cliente=<hub> (solo con el token maestro): todos los datos guardados de ese hub,
+// para bajarlos a un archivo de respaldo. Las llaves de acceso no se guardan en la base, así que no salen.
+async function manejarRespaldoHub(req, res) {
+  if (req.method !== 'GET') { res.setHeader('Allow', 'GET'); return res.status(405).json({ error: 'Method not allowed' }); }
+  const token = (req.headers['x-storage-token'] || '').toString().trim();
+  const expected = (process.env.STORAGE_WRITE_TOKEN || '').trim();
+  if (!token || !expected || token !== expected) return res.status(401).json({ error: 'No autorizado.' });
+  const slug = (req.query.cliente || '').toString();
+  if (!SLUG_HUB.test(slug) || !(await hubExiste(slug))) return res.status(400).json({ error: 'Hub inválido.' });
+  const { rows } = await sql`SELECT key, value, updated_at FROM kv_store WHERE starts_with(key, ${slug + ':'}) ORDER BY key`;
+  return res.status(200).json({
+    hub: slug,
+    fecha: new Date().toISOString(),
+    total: rows.length,
+    datos: rows.map((r) => ({ key: r.key, actualizado: r.updated_at, valor: r.value })),
+  });
+}
+
 function codigoAdnPrevio(cliente) {
   const secreto = (process.env.STORAGE_WRITE_TOKEN || '').trim();
   if (!secreto) return '';
@@ -946,6 +964,10 @@ module.exports = async function handler(req, res) {
 
   if (key === 'acceso-hub') {
     return manejarAccesoHub(req, res);
+  }
+
+  if (key === 'respaldo-hub') {
+    return manejarRespaldoHub(req, res);
   }
 
   // El saldo y los registros de uso de cada hub solo los escribe el servidor: el token

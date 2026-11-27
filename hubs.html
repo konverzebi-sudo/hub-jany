@@ -234,7 +234,8 @@
       '<div class="acts"><a class="btn" href="' + esc(h.home) + '" target="_blank" rel="noopener">Abrir hub</a>' +
       '<a class="btn sec" href="' + esc(h.adn) + '" target="_blank" rel="noopener">ADN</a>' +
       '<button class="btn sec" data-link="' + esc(h.slug) + '" title="Copiar link para que el cliente llene su ADN">🔗 Link</button>' +
-      '<button class="btn sec" data-acceso="' + esc(h.slug) + '" title="Copiar el link de acceso del cliente: con él guarda sin escribir ninguna clave">🔑 Acceso</button></div></article>';
+      '<button class="btn sec" data-acceso="' + esc(h.slug) + '" title="Copiar el link de acceso del cliente: con él guarda sin escribir ninguna clave">🔑 Acceso</button>' +
+      '<button class="btn sec" data-respaldo="' + esc(h.slug) + '" title="Descargar un archivo con todo lo guardado de este hub">💾 Respaldo</button></div></article>';
   }
 
   function detalleTokens(d) {
@@ -303,6 +304,27 @@
         var h = hubs.filter(function (x) { return x.slug === b.dataset.acceso; })[0];
         var l = h ? await linkAcceso(h) : '';
         if (l) { await copiar(l); aviso('Link de acceso copiado ✓ — mándaselo a tu cliente: al abrirlo una vez, ese dispositivo guarda sin pedir clave', 'ok'); }
+      };
+    });
+    grid.querySelectorAll('[data-respaldo]').forEach(function (b) {
+      b.onclick = async function () {
+        var t = token();
+        if (!t) { t = (window.prompt('Token de acceso:') || '').trim(); if (!t) return; }
+        b.disabled = true;
+        try {
+          var r = await fetch('/api/storage/respaldo-hub?cliente=' + encodeURIComponent(b.dataset.respaldo), { headers: { 'X-Storage-Token': t }, cache: 'no-store' });
+          if (r.status === 401) { aviso('Token incorrecto.', 'err'); return; }
+          var d = await r.json().catch(function () { return {}; });
+          if (!r.ok) { aviso(d.error || 'No se pudo hacer el respaldo.', 'err'); return; }
+          var blob = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' });
+          var a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = 'respaldo-' + b.dataset.respaldo + '-' + new Date().toISOString().slice(0, 10) + '.json';
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+          aviso('Respaldo de ' + b.dataset.respaldo + ' descargado (' + d.total + ' datos) ✓', 'ok');
+        } catch (e) { aviso('Error de conexión.', 'err'); }
+        finally { b.disabled = false; }
       };
     });
     grid.querySelectorAll('[data-link]').forEach(function (b) {
