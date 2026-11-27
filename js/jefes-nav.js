@@ -58,7 +58,7 @@
     '.jn-spacer{flex:1;min-height:18px}',
     '.jn-sec{padding:6px 12px 3px;font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim,#B6A9C7);opacity:.7;white-space:nowrap}',
     '.jn-min .jn-sec{display:none}',
-    '.jn-item{position:relative;display:flex;align-items:center;gap:12px;height:46px;padding:0 8px;border-radius:10px;',
+    '.jn-item{position:relative;display:flex;align-items:center;gap:12px;height:42px;padding:0 8px;border-radius:10px;',
     'color:var(--text-dim,#B6A9C7);text-decoration:none;font-size:15px;font-weight:500;white-space:nowrap;border:1px solid transparent}',
     '.jn-item:hover{background:rgba(255,255,255,.05);color:var(--text,#F3EEF9)}',
     '.jn-item.is-active{background:rgba(184,247,37,.1);border-color:rgba(184,247,37,.35);color:var(--text,#F3EEF9)}',
@@ -77,7 +77,13 @@
     '.jn-ico img[src*="jefe-produccion-video-logo"],.jn-ico img[src*="jefe-whatsapp-logo"],.jn-ico img[src*="jefe-finanzas-logo"],.jn-ico img[src*="jefe-faro-logo"]{width:30px;height:auto;max-height:28px;border-radius:0;margin:0 -1px}',
     '.jn-ico img[src*="jefe-herramientas-logo"],.jn-ico img[src*="jefe-prospeccion-logo"]{width:auto;height:28px;max-width:30px;border-radius:0}',
     '.jn-txt{overflow:hidden;text-overflow:ellipsis}',
-    '.jn-foot{border-top:1px solid var(--line,#332A3D);padding:8px}',
+    '.jn-foot{border-top:1px solid var(--line,#332A3D);padding:8px;display:flex;align-items:center;gap:6px}',
+    '.jn-foot .jn-toggle{flex:1;min-width:0;width:auto}',
+    '.jn-pie-btn{flex:none;width:36px;height:36px;border-radius:50%;border:2px solid #B8F725;background:#B8F725;color:#0F0B16;display:flex;align-items:center;justify-content:center;font:800 16px Barlow,system-ui,sans-serif;text-decoration:none;cursor:pointer;padding:0}',
+    '.jn-pie-btn[hidden]{display:none}',
+    '.jn-pie-adn{background:transparent;color:inherit;border-color:var(--line,#332A3D);font-size:16px}',
+    '.jn-min .jn-foot{flex-direction:column;align-items:stretch}',
+    '.jn-min .jn-pie-btn{align-self:center}',
     '.jn-toggle{display:flex;align-items:center;gap:12px;width:100%;height:40px;padding:0 8px;border:0;border-radius:10px;cursor:pointer;',
     'background:transparent;color:var(--text-dim,#B6A9C7);font:500 14px Barlow,system-ui,sans-serif;white-space:nowrap}',
     '.jn-toggle:hover{background:rgba(255,255,255,.05);color:var(--text,#F3EEF9)}',
@@ -1048,7 +1054,9 @@
       '<div class="jn-sep"></div><div class="jn-sec">Configuración</div>' +
       item(prefix + '/adn', '🧬', 'ADN del negocio', false);
     html += '</div><div class="jn-foot"><button type="button" class="jn-toggle" aria-label="Mostrar u ocultar la barra de Jefes">' +
-      chevron() + '<span>Ocultar barra</span></button></div>';
+      chevron() + '<span>Ocultar barra</span></button>' +
+      '<a class="jn-pie-btn jn-pie-adn" href="' + prefix + '/adn" title="ADN del negocio" aria-label="ADN del negocio">🧬</a>' +
+      '<button type="button" class="jn-pie-btn jn-pie-ayuda" hidden title="Guía de uso" aria-label="Ver la guía de uso">?</button></div>';
 
     nav.innerHTML = html;
     montarRedes(nav);
@@ -1088,6 +1096,11 @@
       guardar(min);
       pintarLabel();
     });
+
+    // El ? abre la guía de uso de este Jefe (solo aparece si la página tiene guía).
+    var ayuda = nav.querySelector('.jn-pie-ayuda');
+    setTimeout(function () { if (ayuda && window.GuiaJefe && window.GuiaJefe.tiene && window.GuiaJefe.tiene()) ayuda.hidden = false; }, 1500);
+    if (ayuda) ayuda.addEventListener('click', function () { if (window.GuiaJefe && window.GuiaJefe.ayuda) window.GuiaJefe.ayuda(); });
 
     function abrir(v) { document.body.classList.add('jn-anim'); document.body.classList.toggle('jn-open', v); }
     fab.addEventListener('click', function () { abrir(true); });
