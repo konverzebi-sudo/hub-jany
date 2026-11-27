@@ -34,9 +34,7 @@
     '.gj-btn{border:0;border-radius:9px;padding:9px 16px;font:700 13px Inter,sans-serif;cursor:pointer;background:#B8F725;color:#111}' +
     '.gj-btn.sec{background:transparent;border:1px solid #ccc;color:#444;font-weight:600}' +
     '.gj-btn:disabled{opacity:.35;cursor:default}' +
-    '.gj-skip{background:transparent;border:0;color:#666;font:600 12.5px Inter,sans-serif;text-decoration:underline;cursor:pointer;padding:8px 4px}' +
-    '.gj-q{position:fixed;left:14px;bottom:14px;z-index:99980;width:36px;height:36px;border-radius:50%;border:2px solid #111;background:#B8F725;color:#111;font:800 18px Inter,system-ui,sans-serif;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.15)}' +
-    '.gj-q:hover{transform:scale(1.06)}';
+    '.gj-skip{background:transparent;border:0;color:#666;font:600 12.5px Inter,sans-serif;text-decoration:underline;cursor:pointer;padding:8px 4px}';
 
   function inyectarCss() {
     if (document.getElementById('gj-css')) return;
@@ -152,14 +150,6 @@
     ponerTitulosIcono();
     setTimeout(ponerTitulosIcono, 1500);
     if (g.autoPrimeraVez) setTimeout(function () { if (!vista(g.id) && !actual) iniciar(g.id); }, g.retraso || 2400);
-    // Botón "?" en la esquinita: vuelve a abrir la guía desde el paso 1 cuando la persona quiera.
-    if (!document.querySelector('.gj-q')) {
-      var b = document.createElement('button');
-      b.type = 'button'; b.className = 'gj-q'; b.textContent = '?';
-      b.title = 'Ver la guía de uso'; b.setAttribute('aria-label', 'Ver la guía de uso');
-      b.onclick = function () { iniciar(g.id); };
-      document.body.appendChild(b);
-    }
   }
   // El icono del Jefe (arriba del chat) abre la guía de uso. Los selectores cubren los iconos de las distintas páginas de Jefes.
   var ICONOS = '.hero-robot, .jefe-logo, .tt-hero-logo, .hero-logo';
@@ -174,5 +164,8 @@
   });
   function vista(id) { try { return localStorage.getItem('gj_visto_' + id) === '1'; } catch (e) { return false; } }
 
-  window.GuiaJefe = { registrar: registrar, iniciar: iniciar, cerrar: cerrar, vista: vista };
+  // El ? de la barra de Jefes vuelve a abrir la guía desde el paso 1.
+  function ayuda() { var id = Object.keys(GUIAS)[0]; if (id) iniciar(id); }
+  function tiene() { return Object.keys(GUIAS).length > 0; }
+  window.GuiaJefe = { registrar: registrar, iniciar: iniciar, cerrar: cerrar, vista: vista, ayuda: ayuda, tiene: tiene };
 })();
