@@ -1050,9 +1050,7 @@
     });
     html += '</div>';
     // Redes del negocio y luego Configuracion (ADN) al final de la lista, con un espacio antes.
-    html += '<div class="jn-spacer"></div><div class="jn-links" aria-label="Links de trabajo"></div><div class="jn-redes" aria-label="Mis redes"></div>' +
-      '<div class="jn-sep"></div><div class="jn-sec">Configuración</div>' +
-      item(prefix + '/adn', '🧬', 'ADN del negocio', false);
+    html += '<div class="jn-spacer"></div><div class="jn-links" aria-label="Links de trabajo"></div><div class="jn-redes" aria-label="Mis redes"></div>';
     html += '</div><div class="jn-foot"><button type="button" class="jn-toggle" aria-label="Mostrar u ocultar la barra de Jefes">' +
       chevron() + '<span>Ocultar barra</span></button>' +
       '<a class="jn-pie-btn jn-pie-adn" href="' + prefix + '/adn" title="ADN del negocio" aria-label="ADN del negocio">🧬</a>' +
