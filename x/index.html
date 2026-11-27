@@ -1225,6 +1225,21 @@
   // grip para arrastrar un gasto a otro grupo
   function casaGripGasto(g){ return '<div class="jd-casa-grip" data-gasto="' + g.id + '" title="Arrastra a otro grupo" style="flex:none;width:24px;height:26px;display:flex;align-items:center;justify-content:center;background:#F1EEFB;border:1px solid #DDD7F0;border-radius:7px;color:#6B6790;font-size:15px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;">&#10303;</div>'; }
 
+  // resumen de un gasto para decidir si conviene quitarlo: a qué grupo y persona va, y si es parte de un paquete
+  function casaGastoDetalle(g){
+    var gr = (data.casa.grupos || []).find(function(x){ return x.id === g.grupo; });
+    var pe = g.pid ? data.casa.personas.find(function(x){ return x.id === g.pid; }) : null;
+    var key = String(g.note || '').trim().toLowerCase();
+    var mismos = data.casa.gastos.filter(function(x){ return String(x.note || '').trim().toLowerCase() === key && (x.grupo || null) === (g.grupo || null); });
+    var t = 'Concepto: ' + (g.note || 'Gasto') + ' · ' + casaMoney(g.amount) + ' · ' + casaDate(g.date) + '\n';
+    t += 'Grupo: ' + (gr ? gr.name : 'sin grupo') + '\n';
+    t += 'A: ' + (pe ? pe.name : 'sin persona') + '\n\n';
+    t += mismos.length > 1
+      ? 'Es parte de un paquete de ' + mismos.length + ' pagos con el mismo concepto (' + casaMoney(casaSum(mismos)) + ' en total). Aquí solo se quita este pago; los demás se quedan.'
+      : 'Es un pago suelto (no forma paquete con otros).';
+    return t;
+  }
+
   function casaGastoRow(g, conPersona){
     var pe = g.pid ? data.casa.personas.find(function(x){ return x.id === g.pid; }) : null;
     var sub = [casaEsc(casaMethodText(g))];
@@ -1427,7 +1442,7 @@
       colsCP.push('<div class="jd-casa-pe"><div class="jd-casa-pebody" style="padding-top:10px;">' +
         (pendP.length
           ? '<div class="jd-sub" style="color:#D4463B;font-weight:600;margin-bottom:6px;">Pagos pendientes (' + pendP.length + ' · ' + casaMoney(casaSum(pendP)) + ')</div>' +
-            pendP.map(function(g){ return '<div class="jd-row" style="justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid #F1EEFB;gap:6px;font-size:12.5px;"><span><span class="jd-sub">' + casaDate(g.date) + ' · </span>' + casaEsc(g.note || 'Gasto') + '</span><span class="jd-row" style="gap:6px;align-items:center;"><b style="color:#D4463B;">' + casaMoney(g.amount) + '</b><button type="button" class="jd-btn" data-act="pagar-gasto" data-id="' + g.id + '" style="padding:2px 8px;font-size:12px;">✓ Pagar</button></span></div>'; }).join('')
+            pendP.map(function(g){ return '<div class="jd-row" style="justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid #F1EEFB;gap:6px;font-size:12.5px;"><span data-act="edit-gasto" data-id="' + g.id + '" title="Toca para ver y ajustar" style="cursor:pointer;"><span class="jd-sub">' + casaDate(g.date) + ' · </span>' + casaEsc(g.note || 'Gasto') + '</span><span class="jd-row" style="gap:6px;align-items:center;"><b style="color:#D4463B;">' + casaMoney(g.amount) + '</b><button type="button" class="jd-btn" data-act="pagar-gasto" data-id="' + g.id + '" style="padding:2px 8px;font-size:12px;">✓ Pagar</button><button type="button" class="jd-casa-ico" data-act="del-gasto" data-id="' + g.id + '" title="Quitar">🗑</button></span></div>'; }).join('')
           : '<div class="jd-sub" style="padding:4px 0;">No hay pagos pendientes.</div>') +
         '</div></div>');
     }
@@ -1612,7 +1627,7 @@
       else if(act === 'toggle-prox'){ casaUI.open.prox = !casaUI.open.prox; renderCasa(); }
       else if(act === 'del-gasto'){
         var g = c.gastos.find(function(x){ return x.id === id; });
-        if(g && window.confirm('¿Quitar este gasto de ' + casaMoney(g.amount) + '?')){ c.gastos = c.gastos.filter(function(x){ return x.id !== id; }); casaSave(); renderCasa(); }
+        if(g && window.confirm('¿Quitar este pago?\n\n' + casaGastoDetalle(g))){ c.gastos = c.gastos.filter(function(x){ return x.id !== id; }); casaSave(); renderCasa(); }
       }
       else if(act === 'del-dep'){
         var d = c.pagos.find(function(x){ return x.id === id; });
